@@ -23393,7 +23393,9 @@ const _IVCAL_H0 = 0, _IVCAL_H1 = 24; // full 24h, scrollable
 // bigger rows make a 30-min block visually larger. Persisted per browser.
 let _IVCAL_RH = (() => {
   const v = parseInt((typeof localStorage !== "undefined" && localStorage.getItem("rr_ivcal_rh")) || "", 10);
-  return (v >= 36 && v <= 160) ? v : 56;
+  // Default 46px/hr (enterprise pass 2026-07-11 · denser rows fit the
+  // working day without scroll; zoom still adjusts 36–160).
+  return (v >= 36 && v <= 160) ? v : 46;
 })();
 function _ivcalSetZoom(delta) {
   const next = Math.max(36, Math.min(160, _IVCAL_RH + delta));
@@ -23454,11 +23456,13 @@ const _IVCAL_STATUS_CATS = ["blue", "green", "orange", "gray", "red", "teal"];
 const _ivcalStatusFilters = (() => {
   try { return JSON.parse(localStorage.getItem("rr_ivcal_statusfilters") || "{}"); } catch (_) { return {}; }
 })();
-// Whether the light-blue "bookable hours" availability overlay is painted on
-// the grid. Off by default — operators found the always-on shading noisy — and
-// remembered per browser once toggled from the sidebar "Bookable hours" row.
+// Whether the "bookable hours" availability overlay is painted on the
+// grid. ON by default since the enterprise pass 2026-07-11 — open
+// capacity is a signal, not empty space (it had been defaulted off as
+// noisy). Still remembered per browser once toggled from the sidebar
+// "Bookable hours" row, so anyone who prefers it off turns it off once.
 let _ivcalShowAvail = (() => {
-  try { return localStorage.getItem("rr_ivcal_showavail") === "1"; } catch (_) { return false; }
+  try { return localStorage.getItem("rr_ivcal_showavail") !== "0"; } catch (_) { return true; }
 })();
 function _ivcalSaveToggles() {
   try {
@@ -23563,8 +23567,10 @@ function _ivcalMyCalendars() {
   const otherBody = _ivSecOpen("othercals")
     ? `<div class="oc-cals-grp">${_ivcalGoogleRow()}${feedRow}</div>`
     : "";
+  // (The "Interview booking" queue renders ABOVE the mini-month — it's the
+  // work queue, so it leads the panel; see _ivcalRender's .oc-side assembly.
+  // Enterprise pass 2026-07-11.)
   return `<div class="oc-cals">
-    ${_ivcalAwaiting()}
     ${_ivcalBookingPagesSection()}
     <div class="oc-sec">${_ivSecHead("mycals", "My calendars", addCal)}${myBody}</div>
     <div class="oc-sec">${_ivSecHead("othercals", "Other calendars")}${otherBody}</div>
@@ -23735,11 +23741,18 @@ function _ivcalAwaiting() {
   const rows = list.slice(0, LIM).map(a => {
     const name = rrTitleCaseName(a.full_name) || "Unnamed candidate";
     const ago = _ivcalSentAgo(a.id);
+    // Queue age · quiet day-count chip so the oldest waiters stand out
+    // (amber at 2+ days). created_at = when the applicant entered the
+    // pipeline — the tooltip says exactly that, no false precision.
+    const ageDays = a.created_at ? Math.floor((Date.now() - new Date(a.created_at).getTime()) / 864e5) : null;
+    const ageChip = (ageDays !== null && ageDays >= 1)
+      ? `<span class="oc-await-age${ageDays >= 2 ? " is-old" : ""}" title="In the pipeline ${ageDays} day${ageDays === 1 ? "" : "s"}">${ageDays}d</span>` : "";
     const sub = ago ? `Link sent ${escapeHtml(ago)}` : (a.email ? escapeHtml(a.email) : "Invited — no time booked");
     const linkIco = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`;
     return `<div class="oc-await-row" data-ivcal-await="${escapeHtml(a.id)}" title="Open ${escapeHtml(name)}">
       <span class="oc-await-dot" aria-hidden="true"></span>
       <span class="oc-await-main"><span class="oc-await-name">${escapeHtml(name)}</span><span class="oc-await-sub">${sub}</span></span>
+      ${ageChip}
       <button type="button" class="oc-await-copy" data-ivcal-await-copy="${escapeHtml(a.id)}" title="Copy ${escapeHtml(name)}'s booking link" aria-label="Copy booking link">${linkIco}</button>
       <button type="button" class="oc-await-send" data-ivcal-await-send="${escapeHtml(a.id)}"${ago ? " disabled" : ""} title="${ago ? `Link sent ${escapeHtml(ago)} — resend from the candidate's profile if needed` : `Resend booking link to ${escapeHtml(name)}`}">${ago ? "Sent ✓" : "Send link"}</button>
     </div>`;
@@ -24349,6 +24362,7 @@ function _ivcalRender() {
       ${_ivcalSideOpen ? `<div class="oc-side">
         <button class="oc-side-x" data-ivcal-side title="Hide calendar panel" aria-label="Hide calendar panel">«</button>
         ${_ivcalCreatePill()}
+        ${_ivcalAwaiting()}
         ${_ivcalMiniMonths()}${_ivcalMyCalendars()}</div>` : ""}
       <div class="oc-main">
         <div class="oc-bar">
@@ -24790,7 +24804,18 @@ function _ivcalAutoScroll() {
   const sc = document.getElementById("rr-ivcal-scroll");
   if (!sc) return;
   const now = new Date();
-  const min = now.getHours()*60 + now.getMinutes();
+  // Anchor the initial view where the work is (enterprise pass
+  // 2026-07-11): the earliest availability window of the week — the
+  // bookable band — falling back to the current time when no windows
+  // are configured. "Now" often lands the view on empty evening/early
+  // hours; the windows are where interviews actually live.
+  const wins = (_ivcalCache && _ivcalCache.windows) || [];
+  let min;
+  if (wins.length) {
+    min = Math.max(0, Math.min(...wins.map(w => w.start_min)) - 45);
+  } else {
+    min = now.getHours()*60 + now.getMinutes();
+  }
   const grid = sc.querySelector(".oc-grid");
   const headOff = grid ? grid.offsetTop : 0; // sticky header sits above the grid
   sc.scrollTop = Math.max(0, headOff + ((min - _IVCAL_H0*60) / 60 * _IVCAL_RH) - 120);
@@ -26420,9 +26445,21 @@ function _ivcalEventBlock(ev, type, lay) {
   if (ev.series_id) icons += `<span title="Recurring event">↻</span>`;
   if (type !== "session" && rsvp === "accepted") icons += "✓"; else if (rsvp === "pending") icons += "✉";
   const ico = icons ? `<span class="ei">${icons}</span>` : "";
+  // Explicit status word (enterprise pass 2026-07-11): the glyph-only
+  // ✓/✉ coding made confirmed-vs-pending guesswork. Chips tall enough
+  // for three lines carry the word on its own line; two-line chips
+  // fold it into the time row; every chip carries it in the tooltip
+  // and accessible name.
+  const _stWord = type === "session" ? ""
+    : (ev.status === "no_show") ? "No-show"
+    : (ev.status === "cancelled") ? "Cancelled"
+    : (rsvp === "declined") ? "Declined"
+    : (rsvp === "pending") ? "Awaiting reply" : "Confirmed";
+  const _stLine = (_stWord && h >= 44) ? `<div class="oc-ev-status">${_stWord}</div>` : "";
+  const _stInline = (_stWord && h >= 30 && h < 44) ? `<span class="oc-ev-status is-inline"> · ${_stWord}</span>` : "";
   const inner = (h < 30)
     ? `<div class="en"><span class="et">${escapeHtml(time)}</span> ${escapeHtml(label)}${ico}</div>`
-    : `<div class="et">${escapeHtml(time)}${ico}</div><div class="en">${escapeHtml(label)}</div>`;
+    : `<div class="et">${escapeHtml(time)}${_stInline}${ico}</div><div class="en">${escapeHtml(label)}</div>`;
   const rz = kindAttr === "booking" ? `<div class="oc-rz" data-oc-resize></div>` : "";
   // A per-event color (right-click → recolor) wins over the custom-calendar
   // color, which in turn overrides the status-based category palette.
@@ -26433,7 +26470,8 @@ function _ivcalEventBlock(ev, type, lay) {
   const hue = _ivcalHue(ev, type);
   const isPend = type !== "session" && (ev.rsvp || "accepted") === "pending"
     && ev.status !== "no_show" && ev.status !== "cancelled";
-  return `<div class="oc-ev cat-${cat}${rsvp==="declined"?" declined":""}${isPend?" is-pending":""}${sel?" sel":""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" tabindex="0" role="button" aria-label="${escapeHtml(time+" · "+label)}" style="top:${top}px;height:${h}px${_ivcalLayStyle(lay)};--ev-hue:${hue}" title="${escapeHtml(time+" · "+label)}">${inner}${rz}</div>`;
+  const hover = time + " · " + label + (_stWord ? " · " + _stWord : "");
+  return `<div class="oc-ev cat-${cat}${rsvp==="declined"?" declined":""}${isPend?" is-pending":""}${sel?" sel":""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" tabindex="0" role="button" aria-label="${escapeHtml(hover)}" style="top:${top}px;height:${h}px${_ivcalLayStyle(lay)};--ev-hue:${hue}" title="${escapeHtml(hover)}">${inner}${_stLine}${rz}</div>`;
 }
 
 // Side-by-side column layout: when timed events overlap, split the column so
@@ -26606,9 +26644,24 @@ function _ivcalTimeGrid(ndays) {
     // interviews sit on this day (respecting the active filters).
     const n = _ivcalDayItems(d, (_ivcalCache && _ivcalCache.bookings) || [], "starts_at")
       .filter(b => _ivcalFilterOk(b, "booking") && !_ivcalIsAllDay(b)).length;
-    const meta = n ? `${n} interview${n === 1 ? "" : "s"}` : "—";
+    // Capacity, not just a count (enterprise pass 2026-07-11): when the
+    // day has availability windows, show utilization — "2 of 6 slots" —
+    // computed the same way the shading subdivides windows. Amber only
+    // when slots sit open AND candidates are actually waiting to book
+    // (capacity without demand isn't a shortfall).
+    const _cSlot = (_ivcalCache && _ivcalCache.slot) || 30, _cBuf = (_ivcalCache && _ivcalCache.buffer) || 0;
+    let cap = 0;
+    for (const w of ((_ivcalCache && _ivcalCache.windows) || []).filter(w => w.weekday === d.getDay())) {
+      let k = 0;
+      for (let mm = w.start_min; mm + _cSlot <= w.end_min; mm += _cSlot + _cBuf) k++;
+      cap += k * ((w.capacity && w.capacity > 1) ? w.capacity : 1);
+    }
+    const waiting = ((_ivcalCache && _ivcalCache.awaiting) || []).length > 0;
+    const isPast = d.getTime() < today.getTime();
+    const short = cap > 0 && n < cap && waiting && !isPast;
+    const meta = cap > 0 ? `${n} of ${cap} slot${cap === 1 ? "" : "s"}` : (n ? `${n} interview${n === 1 ? "" : "s"}` : "—");
     const _wk = d.getDay() === 0 || d.getDay() === 6;
-    return `<div class="oc-dh${isToday?" today":""}${_wk?" oc-wknd":""}"><div class="dow">${d.toLocaleDateString(undefined,{weekday:"long"})}</div><div class="dn">${d.getDate()}</div><div class="oc-dh-meta">${meta}</div></div>`;
+    return `<div class="oc-dh${isToday?" today":""}${_wk?" oc-wknd":""}"><div class="dow">${d.toLocaleDateString(undefined,{weekday:"long"})}</div><div class="dn">${d.getDate()}</div><div class="oc-dh-meta${short ? " is-short" : ""}"${short ? ` title="${cap - n} open slot${cap - n === 1 ? "" : "s"} while candidates wait to book"` : ""}>${meta}</div></div>`;
   }).join("");
 
   let gutter = "";
