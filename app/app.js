@@ -10,6 +10,27 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { validateFormAnswer as _validateFormAnswer } from "./form-validation.js";
 
 const cfg = window.RR_CONFIG;
+if (!cfg || !cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY) {
+  // ../dashboard/config.js failed to load or is incomplete (404 while a
+  // deploy shuffles files, blocked request, rename). Without this guard
+  // the createClient line below threw at the top of the module and the
+  // driver sat on the boot spinner forever with no signal why. Show a
+  // calm, retryable screen instead — styles.css is already on the page.
+  const app = document.getElementById("app");
+  if (app) {
+    app.innerHTML = `
+      <div class="login-screen">
+        <div class="brand"><div class="brand-icon"><img src="Icon.png" alt="RouteReady"></div></div>
+        <div class="empty-state" style="max-width:280px;text-align:center;line-height:1.55">
+          Couldn't start the app.<br><br>
+          <span style="color:var(--text-subtle)">Check your connection, then try again. If this keeps happening, contact dispatch.</span><br><br>
+          <button class="btn btn-primary" id="rr-boot-retry" style="width:auto;padding:0 24px">Try again</button>
+        </div>
+      </div>`;
+    document.getElementById("rr-boot-retry")?.addEventListener("click", () => location.reload());
+  }
+  throw new Error("RR_CONFIG missing — dashboard/config.js failed to load");
+}
 const sb = createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, {
   auth: { persistSession: true, storageKey: "rr.driver.auth" },
 });
@@ -749,6 +770,11 @@ function writeSession(s) {
 
 // ── Toast ───────────────────────────────────────────────────────────
 function toast(msg, kind = "default") {
+  // Normalize kind aliases: a dozen call sites say "success"/"info" but
+  // only "warn"/"ok" have styles — "success" used to render unstyled on
+  // exactly the highest-emotion confirmations (shift accepted, signed).
+  if (kind === "success") kind = "ok";
+  else if (kind === "info") kind = "default";
   let el = document.getElementById("rr-toast");
   if (!el) {
     el = document.createElement("div");
@@ -1505,15 +1531,14 @@ function renderLogin(errorMsg) {
       if (error || !data?.token) {
         _loginState.busy = false;
         const m = error?.message || "";
-        // Surface the underlying error when none of our known cases
-        // match. The generic "Sign-in failed" used to swallow real
-        // problems like a missing rate-limit table — now the operator
-        // (and the driver) can see what actually broke so it can be
-        // diagnosed without log-spelunking.
+        // Keep the underlying error visible when none of our known cases
+        // match — a missing rate-limit table shouldn't hide behind a
+        // generic "Sign-in failed" — but lead with human copy and demote
+        // the raw text to a parenthetical diagnostic.
         _loginState.errorMsg =
           m.includes("too_many_attempts")     ? "Too many tries. Wait 15 minutes or contact dispatch." :
           m.includes("invalid_phone_or_pin")  ? "Number or PIN didn't match. Try again." :
-          m ? `Sign-in failed: ${m}` :
+          m ? `Couldn't sign you in. Try again, or contact dispatch. (${m})` :
           "Sign-in failed. Try again.";
         renderLogin();
         return;
@@ -2031,7 +2056,7 @@ document.addEventListener("click", async (e) => {
       p_request_id: id,
       p_decision: decision,
     });
-    if (error) { toast(error.message || "Couldn't update offer", "warn"); btn.disabled = false; return; }
+    if (error) { toast(_friendlyError(error, "Couldn't update offer. Try again."), "warn"); btn.disabled = false; return; }
     toast(decision === "accept" ? "Shift added to your schedule" : "Offer declined", decision === "accept" ? "success" : "info");
     // Refresh confirmation list AND main schedule so the new
     // shift (if accepted) shows up immediately.
@@ -2181,7 +2206,7 @@ async function _pickupConfirm(shiftId, token, btn) {
     if (btn) { btn.disabled = false; btn.textContent = "Pick up"; }
     const msg = (error.message || "").includes("shift_already_taken")
       ? "Someone got there first"
-      : (error.message || "Couldn't pick up");
+      : _friendlyError(error, "Couldn't pick up that shift. Try again.");
     toast(msg, "warn");
     // Refresh the list — the taken shift will drop off automatically.
     _pickupListRefresh(token);
@@ -2296,7 +2321,7 @@ async function openSwapModal(myShiftId, token) {
   const body = document.getElementById("rr-swap-modal-body");
   if (!body) return;
   if (error) {
-    body.innerHTML = `<div style="padding:24px;text-align:center;color:var(--red)">${escapeHtml(error.message || "Couldn't load swap pool")}</div>`;
+    body.innerHTML = `<div style="padding:24px;text-align:center;color:var(--red)">${escapeHtml(_friendlyError(error, "Couldn't load the swap pool. Try again in a moment."))}</div>`;
     return;
   }
   if (!data?.enabled) {
@@ -2700,26 +2725,48 @@ function renderTasksHub() {
   const TASKS_RPC_COUNT = 7;
   let _tasksPending = TASKS_RPC_COUNT;
   let _tasksRevealed = false;
+  // Any RPC failure lands here so the reveal step can tell "no tasks"
+  // apart from "couldn't load tasks" — a driver in a dead zone used to
+  // be shown the all-clear when every fetch had actually failed.
+  let _tasksErrCount = 0;
+  let _tasksFirstErr = null;
+  const rpcFailed = (err) => { _tasksErrCount++; if (!_tasksFirstErr && err) _tasksFirstErr = err; };
   const slotHasContent = () => {
-    const slots = ["rr-tasks-onboarding-slot", "rr-tasks-assignments-slot", "rr-tasks-forms-slot", "rr-tasks-checklists-slot", "rr-tasks-tools-slot"];
-    return slots.some(id => {
-      const el = document.getElementById(id);
-      return el && el.children.length > 0;
-    });
+    // Real task content only — the always-on Tools section (and the
+    // skeleton) don't count, and the "Documents to sign" / I-9 cards
+    // are inserted AFTER the forms slot, so look at #main as a whole.
+    const mainEl = document.getElementById("main");
+    if (!mainEl) return false;
+    return [...mainEl.querySelectorAll(".task-card, .wt-sec")].some(
+      (el) => !el.closest("#rr-tasks-tools-slot") && !el.closest("#rr-tasks-skel")
+    );
   };
   const revealTasks = () => {
     if (_tasksRevealed) return;
     _tasksRevealed = true;
     if (currentRoute() !== "/tasks") return;
     document.getElementById("rr-tasks-skel")?.remove();
+    maybeShowEmpty();
+  };
+  // The empty-vs-error decision is separate from the skeleton reveal and
+  // only fires once every RPC has settled: the 3s safety net can drop the
+  // skeleton while fetches are still in flight on a slow connection, and
+  // a "Nothing to do" that's about to be buried under late-arriving task
+  // cards would read as a glitch. Content can't arrive after the last
+  // settle (each handler inserts before its finally()), so the decision
+  // is final when it runs.
+  const maybeShowEmpty = () => {
+    if (_tasksPending > 0 || currentRoute() !== "/tasks") return;
     const empty = document.getElementById("rr-tasks-empty");
-    if (empty && !slotHasContent()) empty.style.display = "";
+    if (!empty || slotHasContent()) return;
+    if (_tasksErrCount > 0) empty.outerHTML = errorStateHtml("Couldn't load your tasks", _tasksFirstErr);
+    else empty.style.display = "";
   };
   // Call after a slot is populated to drop the skeleton immediately.
   const onContent = () => { if (!_tasksRevealed && slotHasContent()) revealTasks(); };
   const rpcSettled = () => {
     _tasksPending--;
-    if (_tasksPending <= 0) revealTasks();
+    if (_tasksPending <= 0) { revealTasks(); maybeShowEmpty(); }
   };
   setTimeout(revealTasks, 3000);
   main.querySelectorAll("[data-task-route]").forEach((el) => {
@@ -2727,11 +2774,12 @@ function renderTasksHub() {
   });
 
   const session = readSession();
-  if (!session?.token) { revealTasks(); return; }
+  if (!session?.token) { _tasksPending = 0; revealTasks(); return; }
 
   // Onboarding card — only when status === 'onboarding'.
   sb.rpc("driver_get_profile", { p_token: session.token }).then(({ data, error }) => {
-    if (error || !data || data.status !== "onboarding") return;
+    if (error) { rpcFailed(error); return; }
+    if (!data || data.status !== "onboarding") return;
     const slot = document.getElementById("rr-tasks-onboarding-slot");
     if (!slot) return;
     slot.innerHTML = taskCardHtml({
@@ -2740,7 +2788,7 @@ function renderTasksHub() {
     });
     slot.querySelectorAll("[data-task-route]").forEach(el => el.addEventListener("click", () => navigate(el.dataset.taskRoute)));
     onContent();
-  }).catch(() => {}).finally(rpcSettled);
+  }).catch(rpcFailed).finally(rpcSettled);
 
   // Operational assignments — rows assigned to this driver on the DSP's
   // Workspaces boards.  Incomplete ones surface as cards with a
@@ -2748,14 +2796,14 @@ function renderTasksHub() {
   // config — migration 0183).  driver_assignments_list returns [] when
   // there are none or the migration's still deploying.
   sb.rpc("driver_assignments_list", { p_token: session.token }).then(({ data, error }) => {
-    if (error) return;
+    if (error) { rpcFailed(error); return; }
     const open = (Array.isArray(data) ? data : []).filter(a => a && !a.completed_at);
     const slot = document.getElementById("rr-tasks-assignments-slot");
     if (!slot || !open.length) return;
     slot.innerHTML = `<div class="wt-sec">Assignments<span class="wt-sec-n">${open.length}</span></div>` + open.map(_wtCardHtml).join("");
     _wtBindSlot(slot);
     onContent();
-  }).catch(() => {}).finally(rpcSettled);
+  }).catch(rpcFailed).finally(rpcSettled);
 
   // Coaching feed — single card that opens the unified /tasks/coaching
   // list.  Any coaching with delivery_required = ack/sign that's
@@ -2764,7 +2812,7 @@ function renderTasksHub() {
   // (acknowledged_at IS NULL) rows server-side.  If the response is
   // empty, the driver has nothing to address — hide the card.
   sb.rpc("driver_list_coachings", { p_token: session.token }).then(({ data, error }) => {
-    if (error) return;
+    if (error) { rpcFailed(error); return; }
     const list = Array.isArray(data) ? data : [];
     if (list.length === 0) return;
     const slot = document.getElementById("rr-tasks-onboarding-slot");
@@ -2785,7 +2833,7 @@ function renderTasksHub() {
       el.addEventListener("click", () => navigate(el.dataset.taskRoute));
     });
     onContent();
-  }).catch(() => {}).finally(rpcSettled);
+  }).catch(rpcFailed).finally(rpcSettled);
 
   // Published forms — append one card per form when the RPC returns.
   // Failures surface as an inline diagnostic instead of being
@@ -2800,9 +2848,9 @@ function renderTasksHub() {
     if (!slot) return;
     if (error) {
       console.warn("driver_list_forms error:", error);
-      // Surface nothing in the UI — the Tasks hub already has its
-      // "Nothing to do" inline state; a transient forms-fetch failure
-      // shouldn't shout at the driver. The next render re-tries.
+      // Don't shout per-fetch — but count the failure so the reveal
+      // step shows an error state instead of a false "Nothing to do".
+      rpcFailed(error);
       return;
     }
     const forms = Array.isArray(data) ? data : [];
@@ -2839,9 +2887,10 @@ function renderTasksHub() {
     slot.querySelectorAll("[data-task-route]").forEach(el => el.addEventListener("click", () => navigate(el.dataset.taskRoute)));
     onContent();
   }).catch((err) => {
-    // Network / runtime failure — log and stay silent in the UI.
-    // The Tasks hub still shows what loaded; pull-to-refresh re-tries.
+    // Network / runtime failure — log, count, and let the reveal step
+    // decide. The Tasks hub still shows what loaded; PTR re-tries.
     console.warn("driver_list_forms rejected:", err);
+    rpcFailed(err);
   }).finally(rpcSettled);
 
   // Checklists — folded into the Tasks hub (they used to live in a
@@ -2851,7 +2900,7 @@ function renderTasksHub() {
   sb.rpc("driver_list_checklists", { p_token: session.token }).then(({ data, error }) => {
     const slot = document.getElementById("rr-tasks-checklists-slot");
     if (!slot) return;
-    if (error) { console.warn("driver_list_checklists error:", error); return; }
+    if (error) { console.warn("driver_list_checklists error:", error); rpcFailed(error); return; }
     const lists = Array.isArray(data) ? data : [];
     const todo = lists.filter((c) => c.status !== "completed");
     const completed = lists.filter((c) => c.status === "completed");
@@ -2862,12 +2911,12 @@ function renderTasksHub() {
       + (completed.length ? `<a class="rr-hub-link" data-task-route="/checklists">View ${completed.length} completed</a>` : "");
     slot.querySelectorAll("[data-task-route]").forEach(el => el.addEventListener("click", () => navigate(el.dataset.taskRoute)));
     onContent();
-  }).catch((err) => { console.warn("driver_list_checklists rejected:", err); }).finally(rpcSettled);
+  }).catch((err) => { console.warn("driver_list_checklists rejected:", err); rpcFailed(err); }).finally(rpcSettled);
 
   // Documents to sign — single card surfacing the count of pending
   // envelopes the dispatcher has sent for this driver.
   sb.rpc("driver_envelopes_list", { p_token: session.token }).then(({ data, error }) => {
-    if (error) return;
+    if (error) { rpcFailed(error); return; }
     const pending = Array.isArray(data?.pending) ? data.pending : [];
     if (pending.length === 0) return;
     const slot = document.getElementById("rr-tasks-forms-slot");
@@ -2884,7 +2933,7 @@ function renderTasksHub() {
       el.addEventListener("click", () => navigate(el.dataset.taskRoute));
     });
     onContent();
-  }).catch(() => {}).finally(rpcSettled);
+  }).catch(rpcFailed).finally(rpcSettled);
 
   // Form I-9 (Section 1) — only surfaced when the operator explicitly
   // re-opens the form for a correction. The "not_started" case lives
@@ -2896,7 +2945,8 @@ function renderTasksHub() {
   // legitimately needs a re-entry point with no onboarding card
   // around is the "needs_correction" path.
   sb.rpc("driver_i9_get", { p_token: session.token }).then(({ data, error }) => {
-    if (error || !data?.record) return;
+    if (error) { rpcFailed(error); return; }
+    if (!data?.record) return;
     if (data.record.status !== "needs_correction") return;
     const slot = document.getElementById("rr-tasks-forms-slot");
     if (!slot) return;
@@ -2912,7 +2962,7 @@ function renderTasksHub() {
       el.addEventListener("click", () => navigate(el.dataset.taskRoute));
     });
     onContent();
-  }).catch(() => {}).finally(rpcSettled);
+  }).catch(rpcFailed).finally(rpcSettled);
 }
 function taskCardHtml(c) {
   // Optional alert signal next to the title — a red count pill (number)
@@ -6471,7 +6521,7 @@ async function renderTeam() {
   _clearSkel();
 
   if (error) {
-    main.innerHTML = `<div class="team-empty"><div class="team-empty-title">Couldn't load the team</div><div class="team-empty-sub">${escapeHtml(error.message || "Try again in a moment.")}</div></div>`;
+    main.innerHTML = `<div class="team-empty"><div class="team-empty-title">Couldn't load the team</div><div class="team-empty-sub">${escapeHtml(_friendlyError(error, "Pull down to retry."))}</div></div>`;
     return;
   }
 
@@ -6925,7 +6975,7 @@ async function _openVanDoc(session, docId, kind) {
   try { body = text ? JSON.parse(text) : null; } catch {}
   if (!resp.ok || !body?.signed_url) {
     if (win) win.close();
-    toast("Couldn't open " + _vanDocLabel(kind).toLowerCase() + (body?.error ? ": " + body.error : ""), "warn");
+    toast(_friendlyError(body?.error, "Couldn't open the " + _vanDocLabel(kind).toLowerCase() + ". Try again in a moment."), "warn");
     return;
   }
   if (win) { win.location.href = body.signed_url; }
@@ -6965,7 +7015,7 @@ async function _openVanDocReportSheet(session, vehicle) {
       p_token: session.token, p_kind: kind, p_reason: reason || null,
     });
     btn.disabled = false; btn.textContent = "Send report";
-    if (error) { toast("Couldn't send report: " + error.message, "warn"); return; }
+    if (error) { toast(_friendlyError(error, "Couldn't send the report. Try again."), "warn"); return; }
     close();
     toast("Fleet has been notified", "success");
   });
@@ -9326,7 +9376,7 @@ async function renderCheckinCard(session) {
           </div>
           <div class="opens-card-body">
             <div class="opens-card-title" style="font-size:18px">Couldn't load shift</div>
-            <div class="opens-card-meta">${escapeHtml(err.message || String(err))}</div>
+            <div class="opens-card-meta">${escapeHtml(_friendlyError(err, "Pull down to retry."))}</div>
           </div>
         </div>
       </div>`;
@@ -9546,7 +9596,7 @@ async function doCheckin(session) {
       else if (msg.includes("no_checkin_window"))       toast("Your shift doesn't have a scheduled start time yet. Contact dispatch.", "warn");
       else if (msg.includes("no_shift_today"))          toast("No shift scheduled today", "warn");
       else if (msg.includes("geofence_not_configured")) toast("Dispatcher hasn't set the geofence yet", "warn");
-      else                                              toast("Check-in failed: " + msg, "warn");
+      else                                              toast(_friendlyError(error, "Check-in didn't go through. Try again."), "warn");
       return;
     }
     _haptic("strong");
@@ -9661,7 +9711,7 @@ async function uploadDriverPhoto(file) {
     // signed URL that may be null if the edge-side sign hiccupped — driver_me
     // will re-sign within a minute either way).
     if (!res.ok || !json?.photo_path) {
-      toast("Upload failed: " + (json?.error || res.statusText), "warn");
+      toast(_friendlyError(json?.error, "Couldn't upload your photo. Try a smaller image."), "warn");
       return;
     }
     writeSession({ ...session, photo_url: json.photo_url || null, photo_path: json.photo_path });
@@ -9967,7 +10017,7 @@ async function renderAvailability() {
         const m = perr.message || "";
         toast(m.includes("preferred_day_unavailable")
           ? m.replace(/^.*preferred_day_unavailable:\s*/, "")
-          : "Couldn't save preferred days: " + m, "warn");
+          : _friendlyError(perr, "Couldn't save your preferred days. Try again."), "warn");
         return;
       }
       toast("Preferred days saved", "ok");
@@ -9989,7 +10039,7 @@ async function renderAvailability() {
       if (ferr) {
         fifthEl.checked = !want;
         fifthEl.closest(".avail-toggle").classList.toggle("on", !want);
-        toast("Couldn't save: " + (ferr.message || "error"), "warn");
+        toast(_friendlyError(ferr, "Couldn't save that. Try again."), "warn");
         return;
       }
       toast(want ? "You're open to a 5th day" : "5th-day opt-in turned off", "ok");
@@ -10107,7 +10157,7 @@ async function renderTimeOff() {
   const { data, error } = await sb.rpc("driver_time_off_list", { p_token: session.token });
   if (currentRoute() !== "/settings/time-off") return;
   if (error) {
-    main.innerHTML = `<div class="settings-section"><div class="settings-section-title">Couldn't load</div><div class="settings-section-sub">${escapeHtml(error.message || "Try again in a moment.")}</div></div>`;
+    main.innerHTML = errorStateHtml("Couldn't load time off", error);
     return;
   }
 
@@ -10219,7 +10269,7 @@ async function _toSubmit() {
   if (error) {
     const msg = (error.message || "").includes("time_off_overlaps_existing")
       ? "You already have a request that overlaps these dates."
-      : (error.message || "Something went wrong. Try again.");
+      : _friendlyError(error, "Couldn't submit your request. Try again.");
     err.textContent = msg; err.hidden = false;
     return;
   }
