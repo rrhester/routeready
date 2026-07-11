@@ -8800,7 +8800,11 @@ function fillHandleDrag(g, e, right) {
   preview.className = "wb-fill-preview";
   g.els.sel.appendChild(preview);
   const d0 = dispIndexOfRow(g, src.r0);
-  let ext = null, lastX = e.clientX, lastY = e.clientY;
+  // Excel shows the value the last cell will get, in a tooltip by the pointer
+  const tip = document.createElement("div");
+  tip.className = "wb-fill-tip";
+  document.body.appendChild(tip);
+  let ext = null, copyMode = false, lastX = e.clientX, lastY = e.clientY;
   const previewAt = (clientX, clientY) => {
     const rect = scroll.getBoundingClientRect();
     const px = clientX - rect.left + scroll.scrollLeft;
@@ -8820,23 +8824,50 @@ function fillHandleDrag(g, e, right) {
     preview.style.width = (x2 - x) + "px";
     preview.style.height = (y2 - y) + "px";
     preview.style.display = ext ? "block" : "none";
+    // tooltip with the projected end value (blank for formulas / plain copy)
+    const txt = ext ? fillPreviewText(g, src, ext, copyMode) : "";
+    tip.textContent = txt;
+    tip.style.left = (clientX + 14) + "px";
+    tip.style.top = (clientY + 4) + "px";
+    tip.style.display = (ext && txt !== "") ? "block" : "none";
   };
   const auto = edgeAutoScroll(scroll, () => previewAt(lastX, lastY));
-  const onMove = (ev) => { lastX = ev.clientX; lastY = ev.clientY; previewAt(ev.clientX, ev.clientY); auto.update(ev); };
+  const onMove = (ev) => { lastX = ev.clientX; lastY = ev.clientY; copyMode = !right && (ev.ctrlKey || ev.metaKey); previewAt(ev.clientX, ev.clientY); auto.update(ev); };
   const onUp = (ev) => {
     auto.stop();
     document.removeEventListener("mousemove", onMove);
     document.removeEventListener("mouseup", onUp);
     preview.remove();
+    tip.remove();
     if (!ext) return;
     if (right) {
       g.rightFillActive = true; // swallow the contextmenu that follows this right-release
       setTimeout(() => { g.rightFillActive = false; }, 0);
       openFillMenu(g, ev.clientX, ev.clientY, src, ext);
-    } else applyFill(g, src, ext);
+    } else applyFill(g, src, { ...ext, mode: (ev.ctrlKey || ev.metaKey) ? "copy" : "series" }); // Ctrl-drag forces a plain copy
   };
   document.addEventListener("mousemove", onMove);
   document.addEventListener("mouseup", onUp);
+}
+
+// The value the fill's LAST cell will get, for the drag tooltip. Blank for
+// formulas (no meaningful preview) and honours the Ctrl-drag copy override.
+function fillPreviewText(g, src, ext, copy) {
+  const sheet = g.sheet;
+  const vertical = ext.axis === "row";
+  const lane = vertical ? src.c0 : src.r0;
+  const srcLo = vertical ? src.r0 : src.c0;
+  const srcHi = vertical ? src.r1 : src.c1;
+  const srcLen = srcHi - srcLo + 1;
+  const series = [];
+  for (let i = srcLo; i <= srcHi; i++) series.push(sheet.cells.get(vertical ? cellKey(i, lane) : cellKey(lane, i)) || null);
+  const allValues = series.every((cl) => cl && !cl.formula && cl.value != null && cl.value !== "");
+  const seriesVals = (!copy && allValues) ? fillSeries(series.map((cl) => cl.value), ext.count) : null;
+  const k = ext.count;
+  if (seriesVals && seriesVals[k - 1]) return String(seriesVals[k - 1].value);
+  const sc = series[(k - 1) % srcLen];
+  if (!sc || sc.formula) return "";
+  return String(sc.value ?? "");
 }
 
 // True when every source cell holds a (non-formula) date value.
@@ -9892,6 +9923,23 @@ function selCycle(rect, active, axis, back) {
 }
 
 function selNavStep(g, axis, back) {
+  // multi-area: cycle the active cell across every disjoint area in order.
+  // Enter walks each area column-major, Tab row-major, wrapping area→area.
+  if (hasMultiSel(g)) {
+    const cells = [];
+    for (const rc of selAllRects(g)) {
+      if (axis === "v") { for (let c = rc.c0; c <= rc.c1; c++) for (let r = rc.r0; r <= rc.r1; r++) cells.push({ r, c }); }
+      else { for (let r = rc.r0; r <= rc.r1; r++) for (let c = rc.c0; c <= rc.c1; c++) cells.push({ r, c }); }
+      if (cells.length > 20000) break; // safety on a pathological selection
+    }
+    if (cells.length) {
+      let idx = cells.findIndex((p) => p.r === g.active.r && p.c === g.active.c);
+      if (idx < 0) idx = 0;
+      idx = (idx + (back ? -1 : 1) + cells.length) % cells.length;
+      setActive(g, cells[idx].r, cells[idx].c, { keepSel: true, keepAreas: true });
+    }
+    return;
+  }
   const rect = selRect(g);
   const multi = (rect.r0 !== rect.r1 || rect.c0 !== rect.c1);
   if (multi) {

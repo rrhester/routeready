@@ -30533,6 +30533,8 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 #view-workbooks .wb-resize-guide{position:absolute;top:0;left:0;height:100%;width:0;border-left:1px dashed var(--accent);z-index:6;pointer-events:none}
 #view-workbooks .wb-resize-guide.is-horz{left:0;top:0;width:100%;height:0;border-left:0;border-top:1px dashed var(--accent)}
 #view-workbooks .wb-fill-preview{position:absolute;border:1.5px dashed var(--accent);background:var(--accent-soft);opacity:.5;pointer-events:none;box-sizing:border-box}
+/* Fill-handle drag tooltip — the value the last cell will receive (Excel). */
+.wb-fill-tip{position:fixed;z-index:9999;pointer-events:none;display:none;background:var(--rr-slate-800);color:var(--rr-slate-50);font-size:var(--fs-xs);font-variant-numeric:tabular-nums;padding:2px 7px;border-radius:var(--r-sm);box-shadow:var(--shadow-md);white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis}
 /* drag-move: move cursor on the selection border + destination preview */
 #view-workbooks .wb-gr-cells.is-mv .wb-cell{cursor:move}
 #view-workbooks .wb-move-preview{
