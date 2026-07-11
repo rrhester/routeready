@@ -17,6 +17,15 @@
 --      attachment) disqualifies the whole DSP, so tuned tenants are never
 --      touched. Idempotent: after the repair the rows carry attachments, so
 --      the DSP no longer qualifies on a re-run.
+--   3. Inherited attachments point at files under the TEMPLATE DSP's folder
+--      in the private message-attachments bucket. Outbound sends already
+--      work (send-sms / send-email sign with the service role, which
+--      bypasses storage RLS), but the 0447 read policy is tenant-folder-
+--      scoped, so seeded tenants couldn't sign dashboard previews. Extend
+--      the read policy to also cover the template DSP's folder — exactly
+--      the shared assets this seeder distributes (and which already leave
+--      the building in every sent email/MMS). Writes stay tenant-scoped
+--      (0023), so tenants still can't modify or delete the shared files.
 
 -- ── 1. seeder now copies attachments ─────────────────────────────────────────
 create or replace function private.dsp_seed_from_template(p_dsp_id uuid)
@@ -78,6 +87,29 @@ begin
          and s.attachments <> '[]'::jsonb;
     end if;
   end loop;
+end $$;
+
+-- ── 3. tenants may sign/preview inherited template attachments ───────────────
+-- Replaces the 0447 read policy. Guarded like 0453 so a bare stack without the
+-- storage schema skips cleanly instead of failing the migration run.
+do $$ begin
+  execute 'drop policy if exists msg_attach_tenant_read on storage.objects';
+  execute $pol$
+    create policy "msg_attach_tenant_read" on storage.objects
+      for select to authenticated
+      using (
+        bucket_id = 'message-attachments'
+        and (
+          (storage.foldername(name))[1]::uuid = private.current_dsp_id()
+          or (storage.foldername(name))[1]::uuid = private.template_dsp_id()
+        )
+      )
+  $pol$;
+exception
+  when undefined_table then null;        -- storage.objects absent
+  when invalid_schema_name then null;    -- storage schema absent entirely
+  when undefined_function then null;     -- storage.foldername absent
+  when insufficient_privilege then null; -- storage.objects owned elsewhere; policy ships via dashboard
 end $$;
 
 notify pgrst, 'reload schema';
