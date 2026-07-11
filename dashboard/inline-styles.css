@@ -9957,22 +9957,26 @@ body.rr-cmdk-open{ overflow:hidden }
 .video-q-rating{font-size:var(--fs-xs);color:var(--amber);flex-shrink:0}
 
 /* ─── INTERVIEW DAY ──────────────────────────────────────── */
+/* Day-stats band · the same quiet "operational status bar" language as
+   the Schedule/Onboarding KPI pills: hairline chrome, value-forward
+   typography, sentence-case sub-labels, no gradient (parity pass
+   2026-07-11). */
 .iv-stats-banner{
   position:relative;
   display:grid;grid-template-columns:repeat(5,1fr);gap:0;
-  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
-  padding:var(--s-4) var(--s-4);margin-bottom:var(--s-4);
-  overflow:hidden;box-shadow:var(--shadow-xs);
+  background:var(--surface);border:1px solid var(--rr-ctl-border,var(--border));border-radius:6px;
+  padding:var(--s-3) var(--s-4);margin-bottom:var(--s-4);
+  overflow:hidden;box-shadow:none;
 }
 .iv-stat{padding:0 var(--s-4);border-right:1px solid var(--border-subtle)}
 .iv-stat:last-child{border-right:none}
-.iv-stat-label{font-size:var(--fs-xs);font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);margin-bottom:var(--s-2);line-height:1.2}
-.iv-stat-value{font-size:var(--fs-xxl);font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1}
+.iv-stat-label{font-size:var(--fs-xs);font-weight:500;letter-spacing:0;text-transform:none;color:var(--text-subtle);margin-bottom:var(--s-1);line-height:1.2}
+.iv-stat-value{font-size:var(--fs-lg);font-weight:700;color:var(--text);letter-spacing:-.01em;line-height:1.1;font-variant-numeric:tabular-nums}
 .iv-stat.ok .iv-stat-value,
 .iv-stat.warn .iv-stat-value,
 .iv-stat.bad .iv-stat-value{color:var(--text)}
 .iv-stats-progress{position:absolute;left:0;right:0;bottom:0;height:3px;background:var(--canvas)}
-.iv-stats-progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--green));transition:width var(--t-spring)}
+.iv-stats-progress-fill{height:100%;background:var(--rr-green-600,var(--green));transition:width var(--t-spring)}
 
 .iv-candidates{display:flex;flex-direction:column;gap:var(--s-2-5);margin-bottom:var(--s-5)}
 .iv-card{
@@ -11847,10 +11851,11 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-pipeline .pa-act-ico.pa-act-adv{color:var(--rr-blue-600)}
           #view-pipeline .pa-act-ico.pa-act-adv.is-action{background:rgba(37,99,235,.10)}
           #view-pipeline .pa-act-ico.pa-act-adv:hover{background:rgba(37,99,235,.16);color:var(--rr-blue-700)}
-          /* Decline · red at rest so the destructive action reads at a glance;
-             deepens on hover. */
-          #view-pipeline .pa-act-ico.pa-act-decline{color:var(--rr-red-600)}
-          #view-pipeline .pa-act-ico.pa-act-decline:hover{background:var(--rr-red-50);color:#B42318}
+          /* Decline · quiet ghost at rest (six red chips per screen competed
+             with the actual CTAs); the danger red appears on hover/focus
+             (parity pass 2026-07-11). */
+          #view-pipeline .pa-act-ico.pa-act-decline{color:var(--text-subtle)}
+          #view-pipeline .pa-act-ico.pa-act-decline:hover{background:var(--rr-red-50);color:var(--rr-red-600)}
           /* Review video · blue while unwatched (draws the eye), calms to grey
              once viewed. */
           #view-pipeline .pa-act-ico.pa-act-video.is-unwatched{color:var(--rr-blue-600)}
@@ -12055,16 +12060,17 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-pipeline .pa-btn-advance.is-followup:hover{
             background:var(--canvas);border-color:var(--rr-gray-300);color:var(--text);
           }
-          /* Decline — a defined Fluent danger button: red-tinted surface
-             + red glyph so the disposition action is unmistakable and
-             stands clear of the neutral contact icons. */
+          /* Decline — quiet ghost icon at rest (a red-tinted box on every row
+             made 6 equal-weight danger chips per screen); the red danger
+             identity appears on hover/focus, when the operator is actually
+             aiming at it (parity pass 2026-07-11). */
           #view-pipeline .pa-act-decline{
             display:inline-flex;align-items:center;justify-content:center;
             width:32px;height:32px;border-radius:4px;flex:0 0 auto;
-            background:#FDF3F2;border:1px solid #EFC9C6;color:var(--rr-red-600);
+            background:transparent;border:1px solid transparent;color:var(--text-subtle);
             cursor:pointer;transition:background var(--t-fast),border-color var(--t-fast),color var(--t-fast);
           }
-          #view-pipeline .pa-act-decline:hover{background:#F8D7D4;border-color:var(--rr-red-600);color:var(--rr-red-700)}
+          #view-pipeline .pa-act-decline:hover{background:var(--red-soft,#FDF3F2);border-color:#EFC9C6;color:var(--rr-red-600)}
           #view-pipeline .pa-act-decline:active{background:#F1C2BE}
           #view-pipeline .pa-act-decline:focus-visible{outline:none;box-shadow:0 0 0 2px var(--rr-white),0 0 0 4px var(--rr-red-600)}
           /* Contact icons — defined Fluent icon buttons, one row down. */
@@ -12201,17 +12207,21 @@ body.rr-cmdk-open{ overflow:hidden }
             font-size:var(--fs-11-5);color:var(--rr-gray-500);line-height:1.3;
             white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
           }
+          /* Standard SECONDARY button (white, hairline, dark ink) — the same
+             control system as the Schedule toolbar, scaled down for a table
+             row. The old blue-outline variant was a fifth button style the
+             design system doesn't have (parity pass 2026-07-11). */
           #view-pipeline .pa-ns-btn{
             align-self:flex-start;margin-top:5px;
             appearance:none;cursor:pointer;font:inherit;
             display:inline-flex;align-items:center;
-            padding:5px 12px;border-radius:7px;
+            padding:5px 12px;border-radius:6px;
             font-size:var(--fs-sm);font-weight:600;white-space:nowrap;
-            background:var(--rr-white);color:var(--rr-blue-600);border:1px solid rgba(37,99,235,.28);
+            background:var(--rr-white);color:var(--rr-gray-900);border:1px solid var(--rr-ctl-border);
             transition:background var(--t-fast),border-color var(--t-fast),color var(--t-fast);
           }
-          #view-pipeline .pa-ns-btn:hover{background:rgba(37,99,235,.07);border-color:rgba(37,99,235,.42)}
-          #view-pipeline .pa-ns-btn:active{background:rgba(37,99,235,.12)}
+          #view-pipeline .pa-ns-btn:hover{background:var(--rr-ctl-hover);border-color:var(--rr-ctl-border-hover)}
+          #view-pipeline .pa-ns-btn:active{background:var(--rr-ctl-active)}
           #view-pipeline .pa-ns-btn:focus-visible{outline:none;box-shadow:0 0 0 2px var(--rr-white),0 0 0 4px rgba(37,99,235,.55)}
 
           /* ── Actions column · far-right, video (when present) + a Decline
@@ -14351,12 +14361,13 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-onboarding-ops #rr-cal-ribbon .rr-cal-viewgroup .rr-cal-rules-launch svg { width: 12px; height: 12px; flex: 0 0 auto; }
           /* "Add applicant" tile · blue-shaded square like the Schedule Fleet/
              Unassign tile (the whole tile, not just the text). */
-          #view-onboarding-ops .ob-tab-wrap[data-rr-tile="ob-addapplicant"]{ background:var(--accent-soft-strong) !important; border-radius:var(--sch-radius,6px); }
-          #view-onboarding-ops [data-rr-tile="ob-addapplicant"] .subnav-item{ background:transparent !important; border-radius:var(--sch-radius,6px); }
-          #view-onboarding-ops .ob-tab-wrap[data-rr-tile="ob-addapplicant"]:hover{ background:var(--accent-soft) !important; }
-          #view-onboarding-ops [data-rr-tile="ob-addapplicant"] .subnav-item,
-          #view-onboarding-ops [data-rr-tile="ob-addapplicant"] .subnav-item span{ color:var(--accent-text) !important; }
-          #view-onboarding-ops [data-rr-tile="ob-addapplicant"] .subnav-item svg{ color:var(--accent) !important; }
+          /* Legacy blue-tinted Add-applicant tile retired (onboarding parity
+             pass 2026-07-11) — the per-sub toolbar rules below own the
+             button's look (Amazon-orange primary in the shared 36px
+             .rr-ab-btn chrome). The wrapper stays transparent so no blue
+             wash bleeds around the orange button. */
+          #view-onboarding-ops .ob-tab-wrap[data-rr-tile="ob-addapplicant"],
+          #view-onboarding-ops .ob-tab-wrap[data-rr-tile="ob-addapplicant"]:hover{ background:transparent !important; border-radius:var(--sch-radius,6px); }
         
 /* ── block 15 · index.html:14196 ── */
 
@@ -14502,25 +14513,44 @@ body.rr-cmdk-open{ overflow:hidden }
             gap: 4px 10px;
           }
 
-          /* Template / library card · the original layout puts the
-             actions at flex:0 0 auto on the same row as the meta,
-             which clips at this width. Let the action group wrap to
-             its own line on narrow columns so every button stays
-             fully visible. */
+          /* Template / library rows · flat list rows inside the panel —
+             no card-in-card boxes (parity pass 2026-07-11: the Documents
+             panel follows the Schedule sidebar's layout system — flat
+             rows, hairline separators, whitespace instead of borders).
+             The action group may wrap to its own line on narrow columns
+             so every button stays fully visible. */
           #view-onboarding-ops #ob-docs-mount .docs-template-card {
             flex-wrap: wrap;
-            padding: 12px 14px;
+            padding: 12px 2px;
             gap: 10px;
-            border-radius: 10px;
+            border-radius: 0;
+            background: transparent;
+            border: 0;
+            border-top: 1px solid var(--border-subtle, rgba(15,23,42,.08));
+            box-shadow: none;
+          }
+          #view-onboarding-ops #ob-docs-mount .docs-template-card:first-of-type {
+            border-top: 0;
+          }
+          #view-onboarding-ops #ob-docs-mount .docs-template-card:hover {
+            background: var(--rr-ctl-hover, #F8FAFC);
+            border-color: var(--border-subtle, rgba(15,23,42,.08));
+            box-shadow: none;
+          }
+          #view-onboarding-ops #ob-docs-mount .docs-template-card.is-info {
+            background: transparent;
           }
           #view-onboarding-ops #ob-docs-mount .docs-template-card > div[style*="flex:1"] {
-            flex: 1 1 calc(100% - 60px) !important;
+            flex: 1 1 220px !important;
             min-width: 0;
           }
+          /* Two actions now (Send + ⋯) — they sit inline at the row's right
+             edge and only wrap to their own line when the column is too
+             narrow, instead of always claiming a full-width second row. */
           #view-onboarding-ops #ob-docs-mount .docs-template-card > div[style*="flex:0 0 auto"] {
-            flex: 1 1 100% !important;
+            flex: 0 1 auto !important;
             justify-content: flex-end;
-            margin-top: 2px;
+            margin-left: auto;
           }
           #view-onboarding-ops #ob-docs-mount .docs-card-title {
             font-size: var(--fs-sm);
@@ -14576,7 +14606,7 @@ body.rr-cmdk-open{ overflow:hidden }
             font-size: var(--fs-sm);
           }
           #view-onboarding-ops #ob-docs-mount .docs-list {
-            gap: 6px;
+            gap: 0;   /* rows separate with hairlines, not gaps (flat-list pass) */
           }
         
 /* ── block 16 · index.html:14513 ── */
@@ -17396,14 +17426,18 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Individual KPI pills — one rounded white card per metric, like
              the Schedule ribbon's per-action pills (operator request). The
              per-pill border replaces the old shared-container card + the
-             vertical dividers between cells. */
+             vertical dividers between cells. Border is the toolbar-control
+             hairline (--rr-ctl-border), NOT the sidebar navy — the KPI band
+             is a status readout, and the heavy near-black outlines competed
+             with the actual controls (onboarding parity pass 2026-07-11:
+             "same border weight" as the Schedule toolbar buttons). */
           #view-schedule #rr-sched-kpis.sched-kpi-pills .sched-kpi-pill,
           #view-drivers #rr-roster-kpis.sched-kpi-pills .sched-kpi-pill,
           #view-onboarding-ops #rr-ob-kpis.sched-kpi-pills .sched-kpi-pill{
             background:var(--surface) !important;
-            border:1px solid var(--sidebar-bg) !important;
+            border:1px solid var(--rr-ctl-border) !important;
             border-radius:6px !important;
-            box-shadow:0 1px 2px rgba(15,23,42,.04) !important;
+            box-shadow:none !important;
             padding:10px 12px !important;
             font-size:var(--fs-md) !important;
           }
@@ -17460,7 +17494,7 @@ body.rr-cmdk-open{ overflow:hidden }
           .rr-kpi-search-host{display:inline-flex;align-items:center;align-self:center}
           .rr-kpi-search-host .dr-search{position:relative;width:240px;max-width:42vw}
           .rr-kpi-search-host .dr-search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:var(--text-subtle);pointer-events:none}
-          .rr-kpi-search-host .dr-search input{width:100%;height:auto;padding:10px 12px 10px 32px;border:1px solid var(--sidebar-bg);border-radius:6px;background:var(--surface);color:var(--text);font:inherit;font-size:var(--fs-md);box-shadow:0 1px 2px rgba(15,23,42,.04)}
+          .rr-kpi-search-host .dr-search input{width:100%;height:auto;padding:10px 12px 10px 32px;border:1px solid var(--rr-ctl-border);border-radius:6px;background:var(--surface);color:var(--text);font:inherit;font-size:var(--fs-md);box-shadow:none}
           .rr-kpi-search-host .dr-search input::placeholder{color:var(--text-subtle)}
           .rr-kpi-search-host .dr-search input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
           /* Hide the now-empty roster toolbar row once the search has moved up
@@ -17479,7 +17513,7 @@ body.rr-cmdk-open{ overflow:hidden }
                like a true split-button. Keep in sync with the pill padding. */
             margin-top:-10px;margin-bottom:-10px;
             padding-left:10px;cursor:pointer;
-            border-left:1px solid var(--sidebar-bg);
+            border-left:1px solid var(--rr-ctl-border);
             color:var(--text-subtle);
             transition:color var(--t-fast);
           }
@@ -25210,17 +25244,29 @@ body.rr-cmdk-open{ overflow:hidden }
    retired emphasis recipe). */
 #view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-addapplicant"] .subnav-item,
 #view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-pdf-upload"] .subnav-item{
-  flex-direction:row!important;align-items:center;gap:8px;min-width:0!important;height:36px;padding:0 14px!important;
-  background:var(--surface)!important;color:var(--text)!important;
-  border:1px solid var(--rr-ctl-border)!important;border-radius:var(--r-md)!important;
-  box-shadow:none!important;font-weight:600!important;font-size:var(--fs-sm);cursor:pointer;
+  flex-direction:row!important;align-items:center;gap:7px;min-width:0!important;height:36px;padding:0 12px!important;
+  background:var(--rr-white)!important;color:var(--rr-gray-900)!important;
+  border:1px solid var(--rr-ctl-border)!important;border-radius:6px!important;
+  box-shadow:none!important;font-weight:600!important;font-size:var(--fs-12-5);cursor:pointer;
 }
 #view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-addapplicant"] .subnav-item span,
-#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-pdf-upload"] .subnav-item span{color:var(--text)}
+#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-pdf-upload"] .subnav-item span{color:currentColor}
 #view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-addapplicant"] .subnav-item svg,
-#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-pdf-upload"] .subnav-item svg{width:16px!important;height:16px!important;color:var(--rr-gray-500)!important;stroke-width:1.6}
+#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-pdf-upload"] .subnav-item svg{width:15px!important;height:15px!important;color:currentColor!important;stroke-width:1.6}
 #view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-addapplicant"] .subnav-item:hover,
-#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-pdf-upload"] .subnav-item:hover{background:var(--rr-ctl-hover)!important;border-color:var(--rr-ctl-border-hover)!important;color:var(--text)!important}
+#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-pdf-upload"] .subnav-item:hover{background:var(--rr-ctl-hover)!important;border-color:var(--rr-ctl-border-hover)!important;color:var(--rr-gray-900)!important}
+/* Add applicant = the Funnel's ONE orange primary (the module's most
+   important recruiting action — same role Finalize plays on Schedule).
+   Import stays a white secondary beside it. */
+#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-addapplicant"] .subnav-item{
+  background:var(--rr-amber-primary)!important;color:var(--rr-white)!important;
+  border-color:var(--rr-amber-primary)!important;font-weight:700!important;
+}
+#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-addapplicant"] .subnav-item span{color:var(--rr-white)}
+#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-addapplicant"] .subnav-item svg{color:var(--rr-white)!important}
+#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-addapplicant"] .subnav-item:hover{
+  background:var(--rr-amber-primary-hover)!important;border-color:var(--rr-amber-primary-hover)!important;color:var(--rr-white)!important;
+}
 /* No hairline dividers around the funnel actions: the explicit divider
    element, the ribbon-group border-left (incl. the :first-child rule, which
    needs equal specificity + later source order to beat), and the ::before. */
@@ -26663,34 +26709,73 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-onboarding-ops[data-obsub="overview"] .ob-tab-wrap{
   display:flex !important; align-items:center !important; min-height:0 !important; padding:0 !important;
 }
-/* Text-button restyle (Schedule action-bar look). */
+/* Secondary before primary — Import leads, orange Add applicant closes
+   the group, the same order Schedule's action bar uses (secondaries →
+   Finalize). Matches the Funnel bar's order too. */
+#view-onboarding-ops[data-obsub="overview"] .ob-tab-wrap[data-rr-tile="ob-pdf-upload"]{ order:-1 !important; }
+#view-onboarding-ops[data-obsub="interview"] .ob-tab-wrap[data-rr-tile="ob-pdf-upload"],
+#view-onboarding-ops[data-obsub="workauth"] .ob-tab-wrap[data-rr-tile="ob-pdf-upload"]{ order:-1 !important; }
+/* Text-button restyle · byte-identical to the Schedule action bar's
+   .rr-ab-btn (schedule-rrx.css:4942 — 36px tall, 0 12px pad, 1px
+   --rr-ctl-border hairline, 6px radius, 12.5/600 ink, 15px glyph).
+   One toolbar button system across both pages (parity pass 2026-07-11). */
 #view-onboarding-ops[data-obsub="overview"] .sched-nav-heading-actions .subnav-item,
 #view-onboarding-ops[data-obsub="overview"] .sched-nav-heading-actions #rr-ob-rules-toggle{
   flex-direction:row !important; align-items:center !important; justify-content:center !important;
-  gap:8px !important; height:40px !important; min-width:0 !important;
-  padding:0 16px !important; margin:0 !important;
-  background:var(--surface) !important; color:var(--text) !important;
-  border:1px solid var(--border) !important; border-radius:var(--r-lg) !important;
-  box-shadow:0 1px 2px rgba(15,23,42,.04) !important;
-  font-weight:600 !important; font-size:var(--fs-sm) !important; line-height:1 !important;
+  gap:7px !important; height:36px !important; min-width:0 !important;
+  padding:0 12px !important; margin:0 !important;
+  background:var(--rr-white) !important; color:var(--rr-gray-900) !important;
+  border:1px solid var(--rr-ctl-border) !important; border-radius:6px !important;
+  box-shadow:none !important;
+  font-weight:600 !important; font-size:var(--fs-12-5) !important; line-height:1 !important;
   white-space:nowrap !important;
 }
 #view-onboarding-ops[data-obsub="overview"] .sched-nav-heading-actions .subnav-item > svg,
 #view-onboarding-ops[data-obsub="overview"] .sched-nav-heading-actions #rr-ob-rules-toggle > svg{
-  display:none !important;
+  display:block !important; width:15px !important; height:15px !important;
+  flex:0 0 auto !important; color:currentColor !important; stroke-width:1.6 !important;
 }
 #view-onboarding-ops[data-obsub="overview"] .sched-nav-heading-actions .subnav-item:hover,
 #view-onboarding-ops[data-obsub="overview"] .sched-nav-heading-actions #rr-ob-rules-toggle:hover{
-  background:var(--surface-hover) !important; color:var(--text) !important;
+  background:var(--rr-ctl-hover) !important; border-color:var(--rr-ctl-border-hover) !important; color:var(--rr-gray-900) !important;
 }
 /* Primary = Add applicant · Amazon orange, never blue (enterprise
-   pass 2026-07-11). */
+   pass 2026-07-11). Hover deepens the orange, matching .rr-ab-primary. */
 #view-onboarding-ops[data-obsub="overview"] .ob-tab-wrap[data-rr-tile="ob-addapplicant"] .subnav-item{
-  background:var(--rr-amber-primary) !important; color:var(--rr-white) !important; border-color:transparent !important;
-  box-shadow:var(--shadow-xs) !important;
+  background:var(--rr-amber-primary) !important; color:var(--rr-white) !important; border-color:var(--rr-amber-primary) !important;
+  box-shadow:none !important; font-weight:700 !important;
 }
 #view-onboarding-ops[data-obsub="overview"] .ob-tab-wrap[data-rr-tile="ob-addapplicant"] .subnav-item:hover{
-  background:var(--accent-d,var(--rr-blue-700)) !important; color:var(--rr-white) !important;
+  background:var(--rr-amber-primary-hover) !important; border-color:var(--rr-amber-primary-hover) !important; color:var(--rr-white) !important;
+}
+
+/* Title block hidden + strip card collapsed on Overview / Interview /
+   Work auth (parity pass 2026-07-11) — same flat Schedule-style bar the
+   Funnel and Calendar already use. Stylesheet mirror of the compact-band
+   treatment rrObFunnelChrome (index.html) applies inline, so a stale
+   shell and a fresh stylesheet agree. Specificity recipes copied from
+   the calendar rules below (0,1,4,0 for the title; 1,3,0 + later source
+   order for the height-lock collapse). */
+#view-onboarding-ops.rrx-onboarding[data-obsub="overview"] .sched-nav-heading .page-header-l,
+#view-onboarding-ops.rrx-onboarding[data-obsub="interview"] .sched-nav-heading .page-header-l,
+#view-onboarding-ops.rrx-onboarding[data-obsub="workauth"] .sched-nav-heading .page-header-l{ display:none !important; }
+#view-onboarding-ops[data-obsub="overview"] .page-header.sched-nav-heading,
+#view-onboarding-ops[data-obsub="interview"] .page-header.sched-nav-heading,
+#view-onboarding-ops[data-obsub="workauth"] .page-header.sched-nav-heading{
+  min-height:0 !important; height:auto !important; max-height:none !important;
+  background:transparent !important; border:0 !important; border-radius:0 !important;
+  box-shadow:none !important; align-items:center !important;
+  /* 0 top pad — the toolbar row's top edge then lands at the same Y as
+     Schedule's action bar (measured parity pass 2026-07-11). */
+  padding-top:0 !important; padding-bottom:8px !important;
+}
+#view-onboarding-ops[data-obsub="overview"] .sched-nav-heading-actions .sched-ribbon-group,
+#view-onboarding-ops[data-obsub="overview"] .sched-nav-heading-actions .sched-ribbon-group:first-child,
+#view-onboarding-ops[data-obsub="interview"] .sched-nav-heading-actions .sched-ribbon-group,
+#view-onboarding-ops[data-obsub="interview"] .sched-nav-heading-actions .sched-ribbon-group:first-child,
+#view-onboarding-ops[data-obsub="workauth"] .sched-nav-heading-actions .sched-ribbon-group,
+#view-onboarding-ops[data-obsub="workauth"] .sched-nav-heading-actions .sched-ribbon-group:first-child{
+  border-left:0 !important; border-right:0 !important; margin-left:0 !important; padding-left:0 !important;
 }
 
 /* ── Onboarding clean bars · Calendar / Interview / Work auth ─────────── */
@@ -26817,32 +26902,44 @@ body.rr-cmdk-open{ overflow:hidden }
   display:flex !important; align-items:center !important; min-height:0 !important; padding:0 !important;
 }
 
-/* Text-button base · Add applicant/Import (interview+workauth) + New event/Add calendar (calendar). */
+/* Text-button base · Add applicant/Import (interview+workauth) + New event/Add calendar (calendar).
+   Byte-identical to the Schedule action bar's .rr-ab-btn (36px / 0 12px /
+   1px --rr-ctl-border / 6px radius / 12.5-600 ink / 15px glyph) — one
+   toolbar button system across both pages (parity pass 2026-07-11). */
 #view-onboarding-ops[data-obsub="interview"] .sched-nav-heading-actions .subnav-item,
 #view-onboarding-ops[data-obsub="workauth"] .sched-nav-heading-actions .subnav-item,
 #view-onboarding-ops[data-obsub="calendar"] .rr-cal-newgroup .subnav-item{
   flex-direction:row !important; align-items:center !important; justify-content:center !important;
-  gap:8px !important; height:40px !important; min-width:0 !important; padding:0 16px !important; margin:0 !important;
-  background:var(--surface) !important; color:var(--text) !important;
-  border:1px solid var(--border) !important; border-radius:var(--r-lg) !important;
-  box-shadow:0 1px 2px rgba(15,23,42,.04) !important; font-weight:600 !important; font-size:var(--fs-sm) !important;
+  gap:7px !important; height:36px !important; min-width:0 !important; padding:0 12px !important; margin:0 !important;
+  background:var(--rr-white) !important; color:var(--rr-gray-900) !important;
+  border:1px solid var(--rr-ctl-border) !important; border-radius:6px !important;
+  box-shadow:none !important; font-weight:600 !important; font-size:var(--fs-12-5) !important;
   line-height:1 !important; white-space:nowrap !important;
 }
 #view-onboarding-ops[data-obsub="interview"] .sched-nav-heading-actions .subnav-item > svg,
 #view-onboarding-ops[data-obsub="workauth"] .sched-nav-heading-actions .subnav-item > svg,
-#view-onboarding-ops[data-obsub="calendar"] .rr-cal-newgroup .subnav-item > svg{ display:none !important; }
+#view-onboarding-ops[data-obsub="calendar"] .rr-cal-newgroup .subnav-item > svg{
+  display:block !important; width:15px !important; height:15px !important;
+  flex:0 0 auto !important; color:currentColor !important; stroke-width:1.6 !important;
+}
 #view-onboarding-ops[data-obsub="interview"] .sched-nav-heading-actions .subnav-item:hover,
 #view-onboarding-ops[data-obsub="workauth"] .sched-nav-heading-actions .subnav-item:hover,
 #view-onboarding-ops[data-obsub="calendar"] .rr-cal-newgroup .subnav-item:hover{
-  background:var(--surface-hover) !important; color:var(--text) !important;
+  background:var(--rr-ctl-hover) !important; border-color:var(--rr-ctl-border-hover) !important; color:var(--rr-gray-900) !important;
 }
 /* Primary · Add applicant (interview/workauth) + New event (calendar) —
-   Amazon orange, never blue (enterprise pass 2026-07-11). */
+   Amazon orange, never blue (enterprise pass 2026-07-11). Hover deepens
+   the orange, matching .rr-ab-primary. */
 #view-onboarding-ops[data-obsub="interview"] .ob-tab-wrap[data-rr-tile="ob-addapplicant"] .subnav-item,
 #view-onboarding-ops[data-obsub="workauth"] .ob-tab-wrap[data-rr-tile="ob-addapplicant"] .subnav-item,
 #view-onboarding-ops[data-obsub="calendar"] .rr-cal-newgroup .subnav-item:first-child{
-  background:var(--rr-amber-primary) !important; color:var(--rr-white) !important; border-color:transparent !important;
-  box-shadow:var(--shadow-xs) !important;
+  background:var(--rr-amber-primary) !important; color:var(--rr-white) !important; border-color:var(--rr-amber-primary) !important;
+  box-shadow:none !important; font-weight:700 !important;
+}
+#view-onboarding-ops[data-obsub="interview"] .ob-tab-wrap[data-rr-tile="ob-addapplicant"] .subnav-item:hover,
+#view-onboarding-ops[data-obsub="workauth"] .ob-tab-wrap[data-rr-tile="ob-addapplicant"] .subnav-item:hover,
+#view-onboarding-ops[data-obsub="calendar"] .rr-cal-newgroup .subnav-item:first-child:hover{
+  background:var(--rr-amber-primary-hover) !important; border-color:var(--rr-amber-primary-hover) !important; color:var(--rr-white) !important;
 }
 
 /* Calendar view switcher · Day/Week/Work Week/Month as highlighted chips. */
