@@ -6,7 +6,11 @@
 // file, hash routing, no framework. Add a router/state lib only when
 // the feature set forces it.
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+// supabase-js is vendored same-origin (scripts: npm i @supabase/supabase-js
+// && esbuild --bundle) — the old https://esm.sh import was the one cross-
+// origin module in the shell, so even a fully-cached PWA died at module
+// resolution when launched offline.
+import { createClient } from "./vendor/supabase-js.mjs";
 import { validateFormAnswer as _validateFormAnswer } from "./form-validation.js";
 
 const cfg = window.RR_CONFIG;
@@ -255,19 +259,25 @@ function urlBase64ToUint8Array(b64url) {
 }
 
 let _pushAttempted = false;
-async function ensurePushSubscription(session) {
+async function ensurePushSubscription(session, { interactive = false } = {}) {
   if (PREVIEW) return;
-  if (_pushAttempted) return;
-  _pushAttempted = true;
   if (!("serviceWorker" in navigator)) return;
   if (!("PushManager" in window) || !("Notification" in window)) return;
   if (Notification.permission === "denied") return;
   if (!session?.token) return;
 
   if (Notification.permission === "default") {
+    // Only ask inside a real user gesture (the "Turn on" button in Chat).
+    // iOS rejects requestPermission() outside transient activation, and
+    // the old automatic ask latched _pushAttempted on that silent failure,
+    // blocking push for the whole session.
+    if (!interactive) return;
     const perm = await Notification.requestPermission().catch(() => "default");
     if (perm !== "granted") return;
   }
+  // Permission granted — subscribe/register once per session.
+  if (_pushAttempted) return;
+  _pushAttempted = true;
 
   let reg;
   try { reg = await navigator.serviceWorker.ready; } catch { return; }
@@ -296,6 +306,46 @@ async function ensurePushSubscription(session) {
     p_user_agent: navigator.userAgent || null,
   });
   if (error) console.warn("driver_push_register failed:", error.message);
+}
+
+// Slim, dismissible "Turn on notifications" strip above the chat scroller.
+// Notification.requestPermission() must run inside a user gesture on iOS,
+// so the ask lives on this button instead of firing automatically at render.
+function _mountPushNudge(session) {
+  if (PREVIEW) return;
+  if (!("PushManager" in window) || !("Notification" in window)) return;
+  if (Notification.permission !== "default") {
+    // Already granted → make sure the subscription is registered server-side.
+    if (Notification.permission === "granted") ensurePushSubscription(session);
+    return;
+  }
+  let dismissed = false;
+  try { dismissed = !!sessionStorage.getItem("rr.pushNudgeDismissed"); } catch {}
+  if (dismissed) return;
+  const msgs = document.getElementById("chat-msgs");
+  if (!msgs || document.getElementById("chat-push-nudge")) return;
+  const el = document.createElement("div");
+  el.id = "chat-push-nudge";
+  el.className = "chat-push-nudge";
+  el.innerHTML = `
+    <span class="chat-push-nudge-txt">Get notified when dispatch messages you</span>
+    <button type="button" class="btn btn-primary btn-sm" id="chat-push-on">Turn on</button>
+    <button type="button" class="chat-push-nudge-x" aria-label="Dismiss">×</button>`;
+  msgs.parentElement.insertBefore(el, msgs);
+  el.querySelector("#chat-push-on").addEventListener("click", async () => {
+    await ensurePushSubscription(session, { interactive: true });
+    if (Notification.permission === "granted") {
+      toast("Notifications on", "ok");
+      el.remove();
+    } else if (Notification.permission === "denied") {
+      toast("Notifications are blocked in your phone's settings", "warn");
+      el.remove();
+    }
+  });
+  el.querySelector(".chat-push-nudge-x").addEventListener("click", () => {
+    try { sessionStorage.setItem("rr.pushNudgeDismissed", "1"); } catch {}
+    el.remove();
+  });
 }
 
 async function teardownPushSubscription(session) {
@@ -429,8 +479,23 @@ function _ensureSheetRoot() {
   sheet.addEventListener("touchcancel", onUp);
   return _sheetRoot;
 }
+// Hardware/browser Back closes an open sheet instead of navigating the
+// page underneath it — the sheet is this app's confirm() for destructive
+// actions, so Back-while-open must read as "dismiss", not "leave screen".
+// openSheet pushes a same-URL history entry; popping it (Back) closes the
+// sheet, and closing by any other means consumes the entry via
+// history.back() with the flag cleared first so the popstate is a no-op.
+let _sheetPopArmed = false;
+window.addEventListener("popstate", () => {
+  if (!_sheetPopArmed) return;
+  _sheetPopArmed = false;
+  if (_sheetRoot?.classList.contains("open")) _closeSheet(null);
+});
+
 let _sheetReturnFocus = null;
 function _closeSheet(value) {
+  try { document.getElementById("app")?.removeAttribute("inert"); } catch {}
+  if (_sheetPopArmed) { _sheetPopArmed = false; try { history.back(); } catch {} }
   if (!_sheetRoot) { if (_sheetResolve) { _sheetResolve(value); _sheetResolve = null; } return; }
   _sheetRoot.classList.remove("open");
   const resolver = _sheetResolve;
@@ -458,8 +523,17 @@ function openSheet({ title = "", body = "", actions = [] } = {}) {
   const bodyEl = root.querySelector("#rr-sheet-body");
   const actEl  = root.querySelector("#rr-sheet-actions");
   bodyEl.innerHTML = `
-    ${title ? `<div class="rr-sheet-title">${escapeHtml(title)}</div>` : ""}
+    ${title ? `<div class="rr-sheet-title" id="rr-sheet-title">${escapeHtml(title)}</div>` : ""}
     ${typeof body === "string" ? body : ""}`;
+  // Name the dialog for assistive tech, and freeze the page behind it so
+  // Tab / screen-reader focus can't wander into obscured content.
+  const dialogEl = root.querySelector(".rr-sheet");
+  if (title) { dialogEl.setAttribute("aria-labelledby", "rr-sheet-title"); dialogEl.removeAttribute("aria-label"); }
+  else { dialogEl.setAttribute("aria-label", "Menu"); dialogEl.removeAttribute("aria-labelledby"); }
+  try { document.getElementById("app")?.setAttribute("inert", ""); } catch {}
+  if (!_sheetPopArmed) {
+    try { history.pushState({ rrSheet: true }, ""); _sheetPopArmed = true; } catch {}
+  }
   actEl.innerHTML = actions.map((a, i) => {
     const cls = a.kind === "primary" ? "btn btn-primary" :
                 a.kind === "danger"  ? "btn btn-danger" :
@@ -503,6 +577,26 @@ function confirmSheet({ title = "Confirm", message = "", confirmText = "Confirm"
       { label: cancelText,  kind: "ghost",                       value: false },
     ],
   }).then(v => v === true);
+}
+
+// promptSheet — the app's window.prompt() replacement: the same bottom
+// sheet with an optional free-text reason. Resolves { text } on confirm,
+// null on dismiss. Keeps the two flows that used raw prompt() (missed
+// day, document decline) visually native to the installed PWA.
+function promptSheet({ title = "Confirm", message = "", placeholder = "", confirmText = "Send", cancelText = "Cancel", danger = false, maxlength = 500 } = {}) {
+  const body = document.createElement("div");
+  body.innerHTML = `
+    ${message ? `<p class="rr-sheet-msg">${escapeHtml(message)}</p>` : ""}
+    <textarea class="field rr-sheet-textarea" rows="3" maxlength="${maxlength}" placeholder="${escapeHtml(placeholder)}"></textarea>`;
+  const ta = body.querySelector("textarea");
+  return openSheet({
+    title,
+    body,
+    actions: [
+      { label: confirmText, kind: danger ? "danger" : "primary", value: true },
+      { label: cancelText,  kind: "ghost",                       value: false },
+    ],
+  }).then((v) => (v === true ? { text: (ta.value || "").trim() } : null));
 }
 
 // ── Pull-to-refresh ─────────────────────────────────────────────
@@ -2357,7 +2451,7 @@ async function openSwapModal(myShiftId, token) {
 async function _swapSubmit(myShiftId, targetShiftId, token, modal) {
   const ok = await confirmSheet({
     title: "Send swap request?",
-    message: "The other driver gets notified. They can accept or pass.",
+    message: "The other driver gets notified. They can accept or decline.",
     confirmText: "Send request",
   });
   if (!ok) return;
@@ -2968,7 +3062,7 @@ function taskCardHtml(c) {
   // Optional alert signal next to the title — a red count pill (number)
   // or a "NEW" pill (boolean). Used to flag a freshly-sent Coaching.
   const badge = c.badge
-    ? `<span class="task-card-badge" aria-label="New" style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 6px;margin-left:8px;border-radius:9px;background:#dc2626;color:#fff;font-size:10px;font-weight:800;letter-spacing:.02em;vertical-align:middle">${(typeof c.badge === "number" && c.badge > 0) ? (c.badge > 99 ? "99+" : c.badge) : "NEW"}</span>`
+    ? `<span class="task-card-badge" aria-label="New" style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 6px;margin-left:8px;border-radius:9px;background:#dc2626;color:#fff;font-size:10px;font-weight:700;letter-spacing:.02em;vertical-align:middle">${(typeof c.badge === "number" && c.badge > 0) ? (c.badge > 99 ? "99+" : c.badge) : "NEW"}</span>`
     : "";
   return `
     <div class="task-card" data-task-route="${c.route}">
@@ -4053,13 +4147,15 @@ async function _scanShareOrSave(blob, filename) {
 // durable receipt record + a Receipt Ledger row for the DSP. The other
 // categories keep the existing "send to dispatch" behavior so nothing the
 // driver relied on breaks.
+// Stroke SVGs (not emoji) so the picker matches the app's iconography —
+// this was the one emoji island in an otherwise all-SVG UI.
 const _UPLOAD_TYPES = [
-  { key: "receipt",  label: "Receipt",           emoji: "🧾" },
-  { key: "vehicle",  label: "Vehicle Document",  emoji: "🚐" },
-  { key: "driver",   label: "Driver Document",   emoji: "📄" },
-  { key: "incident", label: "Incident / Damage", emoji: "⚠️" },
-  { key: "hr",       label: "Attendance / HR",   emoji: "🗓️" },
-  { key: "other",    label: "Other",             emoji: "📁" },
+  { key: "receipt",  label: "Receipt",           icon: '<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1z"/><line x1="14" y1="8" x2="8" y2="8"/><line x1="16" y1="12" x2="8" y2="12"/><line x1="13" y1="16" x2="8" y2="16"/>' },
+  { key: "vehicle",  label: "Vehicle document",  icon: '<path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/>' },
+  { key: "driver",   label: "Driver document",   icon: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>' },
+  { key: "incident", label: "Incident / damage", icon: '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>' },
+  { key: "hr",       label: "Attendance / HR",   icon: '<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>' },
+  { key: "other",    label: "Other",             icon: '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>' },
 ];
 const _RECEIPT_CATEGORIES = [
   "Fuel", "Maintenance", "Tires", "Tolls / Parking", "Supplies",
@@ -4077,7 +4173,7 @@ function _scanChooseUploadType() {
   body.className = "rr-uploadtype-list";
   body.innerHTML = _UPLOAD_TYPES.map((t) => `
     <button type="button" class="rr-uploadtype" data-upl="${t.key}">
-      <span class="rr-uploadtype-emoji" aria-hidden="true">${t.emoji}</span>
+      <span class="rr-uploadtype-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${t.icon}</svg></span>
       <span class="rr-uploadtype-label">${escapeHtml(t.label)}</span>
       <span class="rr-uploadtype-chev" aria-hidden="true">›</span>
     </button>`).join("");
@@ -4170,7 +4266,7 @@ function renderReceiptForm() {
           <div class="receipt-preview-title">${d.pageCount > 1 ? `${d.pageCount}-page PDF` : "1 photo"}</div>
           <div class="receipt-preview-sub">Stored securely in RouteReady</div>
         </div>
-        <button type="button" id="receipt-autofill" class="btn btn-sm btn-ghost">✨ Auto-fill</button>
+        <button type="button" id="receipt-autofill" class="btn btn-sm btn-ghost">Auto-fill</button>
       </div>
 
       <label class="field-label">Category <span class="req">*</span></label>
@@ -5379,7 +5475,7 @@ async function renderChat() {
           <div style="font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(f.name)}</div>
           <div style="color:var(--text-subtle)">${sizeKb} KB</div>
         </div>
-        <button type="button" id="chat-attach-clear" aria-label="Remove attachment" style="background:none;border:0;color:var(--text-subtle);cursor:pointer;padding:4px;font-size:var(--fs-lg);line-height:1">×</button>
+        <button type="button" id="chat-attach-clear" class="chat-attach-x" aria-label="Remove attachment">×</button>
       </div>`;
     document.getElementById("chat-attach-clear").addEventListener("click", () => {
       fileInput.value = "";
@@ -5539,9 +5635,11 @@ async function renderChat() {
     });
   });
 
-  // First time the driver lands on Chat is the right moment to ask for
-  // notification permission — they've clearly engaged with messaging.
-  ensurePushSubscription(session);
+  // First time the driver lands on Chat is the right moment to offer
+  // notifications — they've clearly engaged with messaging. The actual
+  // permission ask lives on the nudge's button (iOS needs a gesture);
+  // when permission is already granted this just re-registers silently.
+  _mountPushNudge(session);
 
   // First fetch + realtime subscription + presence + safety-net poller.
   _chatLastIds = new Set();
@@ -6259,6 +6357,12 @@ async function renderChatChannelThread() {
       document.getElementById("chat-form").requestSubmit();
     }
   });
+  // Per-channel draft — survives leaving the thread, a tab switch, or an
+  // app restart, matching the dispatch-chat composer.
+  const draftKey = `chat:channel:${_chatChannelId}`;
+  const savedDraft = getDraft(draftKey);
+  if (savedDraft && !ta.value) { ta.value = savedDraft; ta.dispatchEvent(new Event("input")); }
+  ta.addEventListener("input", () => setDraft(draftKey, ta.value));
 
   const fileInput = document.getElementById("chat-file");
   const previewEl = document.getElementById("chat-attachment-preview");
@@ -6279,7 +6383,7 @@ async function renderChatChannelThread() {
           <div style="font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(f.name)}</div>
           <div style="color:var(--text-subtle)">${sizeKb} KB</div>
         </div>
-        <button type="button" id="chat-attach-clear" aria-label="Remove attachment" style="background:none;border:0;color:var(--text-subtle);cursor:pointer;padding:4px;font-size:var(--fs-lg);line-height:1">×</button>
+        <button type="button" id="chat-attach-clear" class="chat-attach-x" aria-label="Remove attachment">×</button>
       </div>`;
     document.getElementById("chat-attach-clear").addEventListener("click", () => {
       fileInput.value = "";
@@ -6291,50 +6395,64 @@ async function renderChatChannelThread() {
 
   document.getElementById("chat-form").addEventListener("submit", async (e) => {
     e.preventDefault();
+    const form = e.currentTarget;
+    if (form._rrSending) return;   // Enter + tap can double-fire — one post at a time.
     const body = (ta.value || "").trim();
     const file = window._rrChatPending;
     if (!body && !file) return;
-
-    let attachment = null;
-    if (file) {
-      let dspId    = session.dsp_id;
-      let driverId = session.driver_id;
-      if (!dspId || !driverId) {
-        const { data: me } = await sb.rpc("driver_me", { p_token: session.token });
-        dspId    = me?.dsp_id    || dspId;
-        driverId = me?.id        || driverId;
-        const cur = readSession();
-        if (cur && (dspId || driverId)) writeSession({ ...cur, dsp_id: dspId, driver_id: driverId });
+    const sendBtn = form.querySelector(".chat-send");
+    form._rrSending = true;
+    if (sendBtn) sendBtn.disabled = true;
+    try {
+      let attachment = null;
+      if (file) {
+        let dspId    = session.dsp_id;
+        let driverId = session.driver_id;
+        if (!dspId || !driverId) {
+          const { data: me } = await sb.rpc("driver_me", { p_token: session.token });
+          dspId    = me?.dsp_id    || dspId;
+          driverId = me?.id        || driverId;
+          const cur = readSession();
+          if (cur && (dspId || driverId)) writeSession({ ...cur, dsp_id: dspId, driver_id: driverId });
+        }
+        if (!dspId || !driverId) { toast("Profile incomplete — sign out and back in", "warn"); return; }
+        const ext = (file.name.split(".").pop() || "bin").toLowerCase().slice(0, 8);
+        const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80) || `file.${ext}`;
+        const path = `${dspId}/${driverId}/channels/${_chatChannelId}/${Date.now()}-${safe}`;
+        const { error: upErr } = await sb.storage
+          .from("driver-chat-attachments").upload(path, file, { contentType: file.type, upsert: false });
+        if (upErr) { toast(_friendlyError(upErr, "Couldn't attach that file. Try again."), "warn"); return; }
+        attachment = { path, mime: file.type, name: file.name, size: file.size };
       }
-      if (!dspId || !driverId) { toast("Profile incomplete — sign out and back in", "warn"); return; }
-      const ext = (file.name.split(".").pop() || "bin").toLowerCase().slice(0, 8);
-      const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80) || `file.${ext}`;
-      const path = `${dspId}/${driverId}/channels/${_chatChannelId}/${Date.now()}-${safe}`;
-      const { error: upErr } = await sb.storage
-        .from("driver-chat-attachments").upload(path, file, { contentType: file.type, upsert: false });
-      if (upErr) { toast(_friendlyError(upErr, "Couldn't attach that file. Try again."), "warn"); return; }
-      attachment = { path, mime: file.type, name: file.name, size: file.size };
-    }
 
-    ta.value = ""; ta.style.height = "auto";
-    if (file) {
-      window._rrChatPending = null;
-      fileInput.value = "";
-      previewEl.style.display = "none";
-      previewEl.innerHTML = "";
+      const { error } = await sb.rpc("driver_channel_post", {
+        p_token:                 session.token,
+        p_channel_id:            _chatChannelId,
+        p_body:                  body || null,
+        p_attachment_path:       attachment?.path || null,
+        p_attachment_mime:       attachment?.mime || null,
+        p_attachment_name:       attachment?.name || null,
+        p_attachment_size_bytes: attachment?.size || null,
+      });
+      if (error) {
+        // The composer still holds the text/attachment — nothing was lost.
+        toast(_friendlyError(error, "Couldn't post — your message is still here. Try again."), "warn");
+        return;
+      }
+      // Success — only now is it safe to clear the composer + draft.
+      ta.value = ""; ta.style.height = "auto";
+      clearDraft(draftKey);
+      if (file) {
+        window._rrChatPending = null;
+        fileInput.value = "";
+        previewEl.style.display = "none";
+        previewEl.innerHTML = "";
+      }
+      await refreshChannelThread(true);
+    } finally {
+      form._rrSending = false;
+      if (sendBtn) sendBtn.disabled = false;
     }
-
-    const { error } = await sb.rpc("driver_channel_post", {
-      p_token:                 session.token,
-      p_channel_id:            _chatChannelId,
-      p_body:                  body || null,
-      p_attachment_path:       attachment?.path || null,
-      p_attachment_mime:       attachment?.mime || null,
-      p_attachment_name:       attachment?.name || null,
-      p_attachment_size_bytes: attachment?.size || null,
-    });
-    if (error) { toast(_friendlyError(error, "Couldn't post. Try again."), "warn"); return; }
-    await refreshChannelThread(true);
   });
 
   await refreshChannelThread(true);
@@ -8466,7 +8584,7 @@ function _clkRenderPhotoStrip(itemId) {
       ${p.url
         ? `<img src="${escapeHtml(p.url)}" alt="Photo ${i + 1}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--border,#d1d5db)"/>`
         : `<span style="display:flex;width:64px;height:64px;align-items:center;justify-content:center;border-radius:8px;border:1px solid var(--border,#d1d5db);background:var(--surface,#f3f4f6);font-size:11px;color:var(--text-subtle,#6b7280)">Photo ${i + 1}</span>`}
-      <button type="button" data-rr-clk-photodel="${escapeHtml(itemId)}|${i}" aria-label="Remove photo ${i + 1}" style="position:absolute;top:-7px;right:-7px;width:20px;height:20px;border-radius:50%;border:none;background:#111827;color:#fff;font-size:12px;line-height:1;cursor:pointer">✕</button>
+      <button type="button" class="clk-photo-del" data-rr-clk-photodel="${escapeHtml(itemId)}|${i}" aria-label="Remove photo ${i + 1}">✕</button>
     </div>`).join("");
 }
 
@@ -8819,7 +8937,7 @@ async function renderChecklistFill() {
       <div class="form-fill-page">
         <div class="clk-banner clk-banner-done">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-          <div><strong>Submitted</strong> · ${cl.submission.submitted_at ? new Date(cl.submission.submitted_at).toLocaleString() : ""}<div class="clk-banner-sub">Answers are locked. Ask dispatch to reopen it if something needs a correction.</div></div>
+          <div><strong>Submitted</strong> · ${cl.submission.submitted_at ? new Date(cl.submission.submitted_at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : ""}<div class="clk-banner-sub">Answers are locked. Ask dispatch to reopen it if something needs a correction.</div></div>
         </div>
         ${cl.description ? `<div class="form-fill-desc">${escapeHtml(cl.description)}</div>` : ""}
         <div class="clk-readonly">
@@ -9663,14 +9781,18 @@ async function doUndoCheckout(session) {
 }
 
 async function doMissedDay(session) {
-  const reason = prompt(
-    "Report today as missed?\n\nOptional reason for dispatch:",
-    "",
-  );
-  if (reason === null) return; // cancelled
+  const answer = await promptSheet({
+    title: "Report today as missed?",
+    message: "Dispatch will be notified right away.",
+    placeholder: "Optional reason for dispatch",
+    confirmText: "Report missed day",
+    cancelText: "Cancel",
+    danger: true,
+  });
+  if (!answer) return; // cancelled
   const { error } = await sb.rpc("driver_report_missed_day", {
     p_token: session.token,
-    p_reason: reason,
+    p_reason: answer.text,
   });
   if (error) {
     if ((error.message || "").includes("already_checked_in")) {
@@ -10055,7 +10177,7 @@ async function renderAvailability() {
     {
       const ok = await confirmSheet({
         title: "Submit availability change?",
-        message: "Your dispatcher will review this and either approve or pass.",
+        message: "Your dispatcher will review this and either approve or decline.",
         confirmText: "Submit for approval",
       });
       if (!ok) return;
@@ -10736,10 +10858,17 @@ async function renderDocumentSign() {
       ctx.clearRect(0, 0, canvas.width, canvas.height); fitCanvas(); hasInk = false; hint.style.display = "";
     });
     document.getElementById("rr-doc-decline").addEventListener("click", async () => {
-      const reason = prompt("Decline this document? Optional reason (kept on the audit trail):");
-      if (reason === null) return;
+      const answer = await promptSheet({
+        title: "Decline this document?",
+        message: "Your dispatcher will be notified. The reason is kept on the audit trail.",
+        placeholder: "Optional reason",
+        confirmText: "Decline document",
+        cancelText: "Keep reviewing",
+        danger: true,
+      });
+      if (!answer) return;
       const { error: err } = await sb.rpc("driver_envelope_decline", {
-        p_token: session.token, p_signing_token: signingToken, p_reason: reason || null,
+        p_token: session.token, p_signing_token: signingToken, p_reason: answer.text || null,
       });
       if (err) { toast(_friendlyError(err, "Couldn't decline. Try again."), "warn"); return; }
       toast("Declined", "warn");
@@ -11595,7 +11724,7 @@ function _recogTheme(kind) {
       gradient: 'radial-gradient(ellipse at 50% 38%, #2563eb 0%, #1e40af 45%, #0f1d4a 100%)',
       badgeBg:  'linear-gradient(160deg, #3b82f6 0%, #1d4ed8 100%)',
       palette: ['#FBBF24','#F59E0B','#FDE68A','#60A5FA','#93C5FD','#3B82F6','#FFFFFF','#DBEAFE'],
-      defaultTitle: 'Welcome to the Team',
+      defaultTitle: 'Welcome to the team',
       defaultMessage: "We're excited to have you here. Let's make this a great first day.",
       defaultCta: 'Start my day',
       defaultFooter: 'Sent by your team',
@@ -11647,7 +11776,7 @@ function _recogTheme(kind) {
       gradient: 'radial-gradient(ellipse at 50% 38%, #93c5fd 0%, #3b82f6 45%, #1e3a8a 100%)',
       badgeBg:  'linear-gradient(160deg, #bfdbfe 0%, #3b82f6 100%)',
       palette: ['#BFDBFE','#93C5FD','#60A5FA','#FFFFFF','#DBEAFE','#3B82F6','#EFF6FF','#FBBF24'],
-      defaultTitle: "It's a Boy!",
+      defaultTitle: "It's a boy!",
       defaultMessage: 'Congratulations on the newest addition to your family. Wishing you all the best.',
       defaultCta: 'Thank you!',
       defaultFooter: 'Sent by your team',
@@ -11657,7 +11786,7 @@ function _recogTheme(kind) {
       gradient: 'radial-gradient(ellipse at 50% 38%, #fbcfe8 0%, #ec4899 45%, #831843 100%)',
       badgeBg:  'linear-gradient(160deg, #fbcfe8 0%, #db2777 100%)',
       palette: ['#FBCFE8','#F9A8D4','#F472B6','#FFFFFF','#FCE7F3','#EC4899','#FFE4E6','#FBBF24'],
-      defaultTitle: "It's a Girl!",
+      defaultTitle: "It's a girl!",
       defaultMessage: 'Congratulations on the newest addition to your family. Wishing you all the best.',
       defaultCta: 'Thank you!',
       defaultFooter: 'Sent by your team',
@@ -11954,7 +12083,7 @@ function renderCelebrationRoute() {
         color:#fff;
         box-shadow:0 10px 24px rgba(2,12,40,.45), inset 0 -4px 8px rgba(0,0,0,.18);
       }
-      #rr-celebration-route .rrc-title{margin:14px 0 0;font-size:24px;line-height:1.18;font-weight:800;letter-spacing:-.01em}
+      #rr-celebration-route .rrc-title{margin:14px 0 0;font-size:24px;line-height:1.18;font-weight:700;letter-spacing:-.01em}
       #rr-celebration-route .rrc-divider{margin:16px auto 14px;height:1px;width:80%;background:#e5e7eb}
       #rr-celebration-route .rrc-msg{margin:0;font-size:15px;line-height:1.45;color:#475569}
       /* The CTA is an <a> tag styled as a button.  iOS native anchor

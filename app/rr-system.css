@@ -1359,14 +1359,20 @@ textarea.rrx-input {
    only an inner panel to scroll.
    ============================================================ */
 
+/* 100dvh with a 100vh fallback: identical on desktop (the dashboard),
+   correct on phones — plain 100vh is the *large* viewport on iOS, and
+   because this sheet loads after app/styles.css it silently overrode
+   the driver app's own 100dvh sizing. */
 html,
 body {
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 
 .app {
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 
