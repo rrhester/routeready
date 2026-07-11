@@ -522,6 +522,17 @@
     var root = ROOT(); if (!root) return;
     if (!S.be) chooseBackend();
     bindOnce();
+    // Object-notebook navigation (RRNotebooks.openFor) — consumed here,
+    // synchronously, so it wins over any concurrent default load.
+    var po = S.pendingObject; S.pendingObject = null;
+    if (po) {
+      return S.be.ensureFor(po.t, po.i, po.title).then(function (nb) {
+        return S.be.listNotebooks().then(function (list) {
+          S.notebooks = list || []; renderNotebookMenu(); S.activeSection = null;
+          return selectNotebook(nb.id);
+        });
+      }).catch(onLoadError);
+    }
     S.be.listNotebooks().then(function (list) {
       S.notebooks = list || [];
       renderNotebookMenu();
@@ -1442,13 +1453,18 @@
     __inited: true,
     loadView: function (opts) { chooseBackend(); loadView(opts); },
     reload: function () { S.be = null; loadView(); },
-    // Open the notebook bound to any RouteReady object (driver, vehicle, …)
+    // Open the notebook bound to any RouteReady object (driver, vehicle, …).
+    // We stash the target; loadView() consumes it synchronously at its top,
+    // so whether it's driven by goto()'s notebooks hook or by our fallback
+    // tick, exactly one load selects the object notebook (no race).
     openFor: function (subjectType, subjectId, title) {
-      try { if (typeof window.goto === "function") window.goto("notebooks"); } catch (e) {}
+      S.pendingObject = { t: subjectType, i: String(subjectId), title: title || null };
       chooseBackend();
-      S.be.ensureFor(subjectType, String(subjectId), title).then(function (nb) {
-        return S.be.listNotebooks().then(function (list) { S.notebooks = list; renderNotebookMenu(); S.activeSection = null; return selectNotebook(nb.id); });
-      }).catch(fail);
+      try { if (typeof window.goto === "function") window.goto("notebooks"); } catch (e) {}
+      // If goto didn't drive a load (no live.js hook, e.g. already active or
+      // a bare router), do it ourselves. pendingObject is already null if a
+      // load consumed it synchronously.
+      setTimeout(function () { if (S.pendingObject) loadView(); }, 0);
     }
   };
   // also expose the legacy hook name live.js may call
