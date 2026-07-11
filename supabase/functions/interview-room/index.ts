@@ -12,7 +12,11 @@
 // their meet.jit.si URLs and still work.)
 import { serviceClient, jsonResponse } from "../_shared/supabase.ts";
 
-const PUBLIC_BASE = (Deno.env.get("PUBLIC_BASE_URL") || "https://gorouteready.com").replace(/\/+$/, "");
+// MEET_PUBLIC_BASE_URL is Meet-specific on purpose: the deployed
+// PUBLIC_BASE_URL secret is webhook-twilio's own callback URL (see
+// supabase/SECRETS.md) — reusing it here would mint interview links
+// under the functions domain instead of the public site.
+const PUBLIC_BASE = (Deno.env.get("MEET_PUBLIC_BASE_URL") || "https://gorouteready.com").replace(/\/+$/, "");
 
 // Mirrors meet_create's alphabet (i/l/o removed) and xxx-xxxx-xxx shape.
 const MEET_ALPHABET = "abcdefghjkmnpqrstuvwxyz";

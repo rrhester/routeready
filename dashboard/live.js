@@ -25451,6 +25451,7 @@ function _ivcalNewEvent(dateISO, startMin, endMin, editEv) {
   const _calOptions = `<option value="">No calendar</option>` + _calList.map(c =>
     `<option value="${escapeHtml(c.id)}"${String(c.id)===String(_calCurrent)?" selected":""}>${escapeHtml(c.name)}</option>`).join("");
   let roomUrl = "";
+  let roomMintPending = null; // in-flight meet_create — Save/Send awaits it
   const rsvpToken = ((typeof crypto !== "undefined" && crypto.randomUUID)
     ? crypto.randomUUID().replace(/-/g, "")
     : (Date.now().toString(36) + Math.random().toString(36).slice(2)));
@@ -26236,10 +26237,13 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
           applyRoom(ev0.meeting_url);
         } else {
           // Minting is a server round-trip now (RouteReady Meet room);
-          // disable the toggle so a double-click can't mint two rooms.
+          // disable the toggle so a double-click can't mint two rooms,
+          // and stash the promise so Save/Send can await it (an invite
+          // must never go out missing the link the operator just added).
           const mintBtn = e.target.closest("[data-ne-act]");
           if (mintBtn) mintBtn.disabled = true;
-          _ivcalVideoRoom(titleInp.value.trim() || "Driver interview").then((url) => {
+          roomMintPending = _ivcalVideoRoom(titleInp.value.trim() || "Driver interview").then((url) => {
+            roomMintPending = null;
             if (mintBtn) mintBtn.disabled = false;
             applyRoom(url);
           });
@@ -26261,6 +26265,9 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
     if (chipBtn) { attachments.splice(+chipBtn.getAttribute("data-ne-chip"), 1); renderChips(); return; }
 
     if (act === "send" || act === "save" || e.target.closest("#rr-ne-create")) {
+      // A video-room mint may still be in flight (it's an RPC round-trip
+      // now) — wait for it so the saved event/invite carries the link.
+      if (roomMintPending) { toast("Adding the video link…", "info"); await roomMintPending; }
       // "Save" puts the event on the calendar without inviting/emailing anyone
       // (personal blocks); "Send" also invites the attendees.
       const isSave   = act === "save";
