@@ -121,6 +121,15 @@ jobs:
           set -euo pipefail
           psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/role_gate_compliance_test.sql
 
+      - name: Audit-coverage tests (0454 · time_off_requests / receipt_uploads / coachings)
+        # Asserts the three new audit triggers are wired and that an insert
+        # into time_off_requests actually lands an audit_events row.
+        env:
+          SUPABASE_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: |
+          set -euo pipefail
+          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/audit_coverage_test.sql
+
       - name: Tear down
         if: always()
         run: supabase stop --no-backup || true
