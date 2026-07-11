@@ -71,7 +71,11 @@
 // inset-pinned AND explicitly heighted, which over-constrains the box
 // (CSS drops the bottom pin) — any dvh shortfall vs the real viewport
 // left a dead strip under the tab bar. Now edge-pinned with no height.
-const SHELL_CACHE = "rr-app-shell-v141";
+// v142 · Denser tab bar: 58px band (was 68) and the bar now reserves
+// max(inset - 14px, 0) of the iPhone home-indicator zone instead of the
+// full ~34px — the labels sit visibly lower, killing the dead-space read.
+// Bar, main scroller, chat shell, and toast all share the new token.
+const SHELL_CACHE = "rr-app-shell-v142";
 const SHELL_FILES = [
   "./",
   "index.html",
