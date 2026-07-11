@@ -128,5 +128,15 @@ verify_jwt = false
 [functions.box-ingest]
 verify_jwt = false
 
+# DVIC AI photo-damage review. Invoked server-to-server via pg_net (the
+# vehicle_inspections AFTER-INSERT trigger + the dashboard's
+# vehicle_dvic_request_ai RPC), both presenting the service-role key as a
+# bearer (migration 0242). Gateway verify_jwt off (the sb_secret_… key is
+# not a JWT and 401s at the gateway); the function bearer-checks in-code via
+# requireServiceKey(). Previously absent here (deployed by hand) and
+# un-gated — an IDOR + Anthropic-key-drain surface.
+[functions.dvic-ai-review]
+verify_jwt = false
+
 [analytics]
 enabled = false

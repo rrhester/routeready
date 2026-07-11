@@ -9,19 +9,25 @@
 // JSON verdict via tool use: status / confidence / summary / findings.
 // The verdict is then persisted via public.vehicle_dvic_ai_save.
 //
-// Auth: this endpoint is invoked by the AFTER INSERT trigger on
-// vehicle_inspections (via pg_net) using the service-role key, and by
-// the dashboard via "Run AI scan" buttons (using the user's JWT).
-// Either is accepted — we re-derive the DSP from the inspection row
-// using the service-role client and write back through the SECURITY
-// DEFINER RPC, so a malicious caller can't see other tenants' data.
+// Auth: this endpoint is ONLY ever invoked server-to-server via pg_net —
+// by the AFTER INSERT trigger on vehicle_inspections and by the dashboard's
+// "Run AI scan" button, which routes through the vehicle_dvic_request_ai RPC
+// → private.dvic_request_ai_review → pg_net. Both present the service-role
+// key as a bearer (migration 0242). We require that key (requireServiceKey)
+// so an anonymous or cross-tenant caller can't POST a guessed inspection_id
+// to burn RouteReady's Anthropic key or overwrite another DSP's inspection
+// verdict. Deployed with --no-verify-jwt (the sb_secret_… key is not a JWT
+// and would 401 at the gateway); the bearer check happens in-function.
 //
 // Env (Supabase secrets):
 //   ANTHROPIC_API_KEY   sk-ant-…                         (required)
 //   ANTHROPIC_MODEL     defaults to claude-sonnet-4-6    (optional)
 //   SUPABASE_URL        auto-injected
 //   SUPABASE_SERVICE_ROLE_KEY  auto-injected
-import { serviceClient, jsonResponse, badRequest } from "../_shared/supabase.ts";
+//   FUNCTION_INTERNAL_TOKEN    optional override if the trigger's
+//                              app.service_role_key GUC drifts from the
+//                              auto-injected key (see _shared/supabase.ts)
+import { serviceClient, jsonResponse, badRequest, requireServiceKey } from "../_shared/supabase.ts";
 
 const CORS = {
   "access-control-allow-origin": "*",
@@ -129,6 +135,10 @@ const VERDICT_TOOL = {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
   if (req.method !== "POST") return badRequest("method_not_allowed", 405);
+
+  // Server-to-server only: reject anything without the service-role bearer.
+  const authFail = requireServiceKey(req);
+  if (authFail) return authFail;
 
   const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
   if (!apiKey) return json({ error: "anthropic_key_missing" }, 500);
