@@ -754,8 +754,8 @@
    Schedule-parity split affordance: a hover-revealed caret pinned to the
    tile's bottom edge (same silhouette + behaviour as the tile rules-feet)
    that opens a small dropdown of add paths. Uses its own class so the
-   actions-group `.ob-rules-foot{display:none !important}` rule (line 380)
-   can't hide it. The menu (.ob-split-menu) is re-parented to <body> and
+   actions-group rule that force-hides .ob-rules-foot (line 380) can't
+   hide it too. The menu (.ob-split-menu) is re-parented to <body> and
    positioned fixed by the inline wiring, escaping the strip's clip. */
 #view-onboarding-ops.rrx-onboarding .ob-split-caret {
   position: absolute;
