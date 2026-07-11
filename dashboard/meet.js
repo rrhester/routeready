@@ -54,6 +54,12 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 const LOCAL_MODE = new URLSearchParams(location.search).has("local")
   && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
 
+// ?embed=1 · chromeless room for the dashboard's interview panel: the
+// host page already shows the title/invite/end controls, so the inner
+// header would be a "screen in a screen". Timer, count, REC and the
+// header buttons relocate into the bottom control bar instead.
+const EMBED = new URLSearchParams(location.search).has("embed");
+
 const state = {
   code: null,          // canonical "xxx-xxxx-xxx"
   meeting: null,       // meet_lookup/meet_create payload
@@ -1216,10 +1222,14 @@ function renderGrid() {
   }
 
   $("people-count").textContent = String(roster.length);
+  $("embed-count").textContent = String(roster.length);
   const viewBtn = $("btn-view");
   if (viewBtn) viewBtn.classList.toggle("on", state.view === "speaker");
+  const recOn = roster.some((r) => r.rec);
   const pill = $("rec-pill");
-  if (pill) pill.style.display = roster.some((r) => r.rec) ? "" : "none";
+  if (pill) pill.style.display = recOn ? "" : "none";
+  const embedRec = $("embed-rec");
+  if (embedRec) embedRec.style.display = recOn ? "" : "none";
 }
 
 // ─── ui · controls ────────────────────────────────────────────────────────
@@ -1487,7 +1497,9 @@ function startInCall() {
   $("room-code").textContent = state.code;
   clearInterval(state.timerId);
   state.timerId = setInterval(() => {
-    $("room-timer").textContent = fmtDuration(Date.now() - state.joinedAt);
+    const t = fmtDuration(Date.now() - state.joinedAt);
+    $("room-timer").textContent = t;
+    $("embed-timer").textContent = t;
   }, 1000);
   $("btn-end").style.display = state.isHost ? "" : "none";
   $("btn-record").style.display = state.isHost ? "" : "none";
@@ -1796,6 +1808,15 @@ function wire() {
 async function boot() {
   wire();
   state.sinkId = devicePrefs().spk || "";
+  if (EMBED) {
+    document.body.classList.add("embed");
+    // The header is hidden in embed mode — its buttons (speaker view,
+    // waiting-room queue) move into the control bar so hosts can still
+    // admit applicants from the embedded interview room.
+    const bar = document.querySelector(".room-ctrls");
+    bar.insertBefore($("btn-view"), $("btn-end"));
+    bar.insertBefore($("btn-waiting"), $("btn-end"));
+  }
   if (LOCAL_MODE) {
     $("btn-new").style.display = "";
     $("home-signin").style.display = "none";
