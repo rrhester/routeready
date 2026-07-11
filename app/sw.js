@@ -35,7 +35,16 @@
 // shots. Best-effort — a failed thumb just falls back to the full image.
 // Covers both the online and offline (queued) submission paths. Bumped so
 // installed driver PWAs pick up the new app.js.
-const SHELL_CACHE = "rr-app-shell-v135";
+//
+// v136 · Professional-polish pass #1: real icon set (192/512 + maskable +
+// apple-touch + favicon) and iOS splash screens; font preload; warn/offline
+// surfaces moved to --amber-dark for AA contrast; toast() understands
+// "success"/"info"; raw RPC error text routed through _friendlyError on a
+// dozen surfaces; Tasks hub shows an error state instead of a false
+// "Nothing to do" when its fetches fail; boot guard renders a readable
+// retry screen if config.js fails to load. Bumped so installed driver PWAs
+// purge the old shell and pick up the new app.js + CSS + index.html.
+const SHELL_CACHE = "rr-app-shell-v136";
 const SHELL_FILES = [
   "./",
   "index.html",

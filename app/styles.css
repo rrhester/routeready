@@ -1135,7 +1135,9 @@ body.scan-camming{overflow:hidden}
 }
 .toast.show{opacity:1}
 .toast.success,.toast.ok{background:var(--green-dark);color:var(--rr-white);border-left-color:var(--green-dark)}
-.toast.warn{background:var(--amber);color:var(--rr-white);border-left-color:var(--amber)}
+/* Warn surfaces use --amber-dark: white on the lighter --amber is ~3.2:1 —
+   below AA — and these are exactly the messages read in sunlight. */
+.toast.warn{background:var(--amber-dark);color:var(--rr-white);border-left-color:var(--amber-dark)}
 .toast.error,.toast.danger{background:var(--red);color:var(--rr-white);border-left-color:var(--red)}
 .toast.info{border-left-color:var(--accent)}
 
@@ -1343,7 +1345,7 @@ body.scan-camming{overflow:hidden}
   transition:opacity 180ms cubic-bezier(.2,.7,.2,1), transform 180ms cubic-bezier(.2,.7,.2,1);
 }
 .chat-conn-banner.show{ opacity:1;transform:translate(-50%,0); }
-.chat-conn-banner.warn{ background:var(--amber, var(--rr-amber-600)); }
+.chat-conn-banner.warn{ background:var(--amber-dark, var(--rr-amber-700)); }
 .chat-conn-banner.ok{ background:var(--green, var(--rr-green-600)); }
 
 /* Quick-action chips — a horizontally-scrollable strip inside the
@@ -2052,7 +2054,7 @@ body.scan-camming{overflow:hidden}
   display:inline-flex;align-items:center;gap:6px;
   padding:5px 12px;
   font-size:11px;font-weight:700;letter-spacing:.02em;
-  color:var(--rr-white);background:var(--amber);
+  color:var(--rr-white);background:var(--amber-dark);
   border-radius:999px;
   box-shadow:0 6px 18px -6px rgba(15,23,42,.28),
              0 2px 4px rgba(15,23,42,.10);
