@@ -73,12 +73,34 @@ jobs:
         # keys, the gateway stopped accepting the legacy JWT that the
         # drain cron + private.fire_message_send trigger pass through;
         # gating those two in-function via requireServiceKey() instead.
+        #
+        # Each deploy retries ×3 with backoff: bundling fetches
+        # supabase-js from esm.sh, whose transient 522s failed two runs
+        # on 2026-07-11 (finch-sync 20:55, invite-team-member +
+        # notebook-ai 21:32) with no code change involved. A failed
+        # function keeps its previous deployed version, so the real risk
+        # is a genuine change silently staying undeployed — retries make
+        # the common flake self-heal while real failures still fail.
         run: |
           set +e
+          deploy_with_retry() {
+            local fn="$1"; shift
+            local attempt
+            for attempt in 1 2 3; do
+              if supabase functions deploy "$fn" "$@" --project-ref "$SUPABASE_PROJECT_REF"; then
+                return 0
+              fi
+              if [ "$attempt" -lt 3 ]; then
+                echo "::warning::deploy attempt $attempt failed for $fn — retrying in $((attempt * 15))s"
+                sleep $((attempt * 15))
+              fi
+            done
+            return 1
+          }
           failed=()
           for fn in send-driver-push cal-availability invite-team-member admin-delete-dsp google-oauth-start google-calendar-disconnect google-calendar-events google-drive-create google-drive-status dispatch-optimization-run finch-oauth-start finch-sync workbook-ai notebook-ai flex-capacity; do
             echo "▶ deploying $fn (auth required)"
-            if ! supabase functions deploy "$fn" --project-ref "$SUPABASE_PROJECT_REF"; then
+            if ! deploy_with_retry "$fn"; then
               echo "::error::deploy failed for $fn"
               failed+=("$fn")
             fi
@@ -94,12 +116,27 @@ jobs:
         # by triggers + crons that present the service role key in a
         # bearer header. The functions check the bearer themselves via
         # requireServiceKey() — see supabase/functions/_shared/supabase.ts.
+        # Same ×3 retry-with-backoff as the JWT-gated loop (esm.sh 522s).
         run: |
           set +e
+          deploy_with_retry() {
+            local fn="$1"; shift
+            local attempt
+            for attempt in 1 2 3; do
+              if supabase functions deploy "$fn" "$@" --project-ref "$SUPABASE_PROJECT_REF"; then
+                return 0
+              fi
+              if [ "$attempt" -lt 3 ]; then
+                echo "::warning::deploy attempt $attempt failed for $fn — retrying in $((attempt * 15))s"
+                sleep $((attempt * 15))
+              fi
+            done
+            return 1
+          }
           failed=()
           for fn in send-email send-sms webhook-twilio webhook-cal webhook-apply webhook-email-inbound upload-applicant-video upload-driver-photo driver-document-fetch document-verify document-classify dvic-ai-review desktop-pair ai-proxy box-ingest google-oauth-callback google-calendar-sync google-calendar-pull calendar-feed interview-room finch-oauth-callback; do
             echo "▶ deploying $fn (no jwt)"
-            if ! supabase functions deploy "$fn" --no-verify-jwt --project-ref "$SUPABASE_PROJECT_REF"; then
+            if ! deploy_with_retry "$fn" --no-verify-jwt; then
               echo "::error::deploy failed for $fn"
               failed+=("$fn")
             fi
