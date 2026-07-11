@@ -1,9 +1,13 @@
 // notebook-ai · RouteReady's in-notebook writing assistant.
 //
 // POST { action: string, text: string, title?: string }
+//   or { action: "ocr", image: "data:image/png;base64,…" }
 //
 // The notebook editor sends the current selection (or whole page) plus an
 // action verb; Claude returns a transformed version of the text as Markdown.
+// The special "ocr" action instead sends a pasted image and gets back the
+// legible text inside it, which the editor stores alongside the image so
+// screenshots become full-text-searchable (OneNote-style image OCR).
 // One Claude round-trip, no tools — the client renders the Markdown into the
 // page. We never read DSP data here (only the text the client sends), but the
 // call burns our API key, so it's gated to a signed-in, active DSP member —
@@ -47,7 +51,16 @@ const ACTIONS: Record<string, string> = {
   tags: "Suggest 3 to 6 short, lowercase topical tags for this note (single or two words each). Reply with ONLY the tags, comma-separated, on one line. No other text.",
 };
 
-async function callClaude(system: string, userText: string, apiKey: string) {
+// OCR input: a browser-produced data URL. The editor compresses images to
+// ≤1600px JPEG/PNG before sending, so real payloads are far below this cap.
+const OCR_MEDIA = /^data:(image\/(?:png|jpeg|webp|gif));base64,([A-Za-z0-9+/=]+)$/;
+const MAX_IMAGE_B64 = 6_000_000;
+const OCR_SYSTEM =
+  "You extract text from images for a delivery operations notebook. Reply with ONLY the legible text in the " +
+  "image, preserving line breaks and reading order (tables as one row per line, cells separated by ' | '). " +
+  "No commentary, no code fences. If the image contains no legible text, reply with an empty string.";
+
+async function callClaude(system: string, userContent: unknown, apiKey: string) {
   const r = await fetch(ANTHROPIC_API, {
     method: "POST",
     headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
@@ -55,7 +68,7 @@ async function callClaude(system: string, userText: string, apiKey: string) {
       model: DEFAULT_MODEL,
       max_tokens: 2048,
       system,
-      messages: [{ role: "user", content: userText }],
+      messages: [{ role: "user", content: userContent }],
     }),
   });
   const text = await r.text();
@@ -85,6 +98,23 @@ Deno.serve(async (req) => {
   let body: any;
   try { body = await req.json(); } catch { return json({ error: "invalid_json" }, 400); }
   const action = String(body?.action || "").trim();
+
+  if (action === "ocr") {
+    const image = String(body?.image || "");
+    if (image.length > MAX_IMAGE_B64) return json({ error: "image_too_large" }, 413);
+    const m = OCR_MEDIA.exec(image);
+    if (!m) return json({ error: "bad_image", detail: "Expected a base64 data URL (png/jpeg/webp/gif)." }, 400);
+    try {
+      const out = await callClaude(OCR_SYSTEM, [
+        { type: "image", source: { type: "base64", media_type: m[1], data: m[2] } },
+        { type: "text", text: "Extract the text from this image." },
+      ], apiKey);
+      return json({ ok: true, result: out || "", meta: { action, model: DEFAULT_MODEL, generated_at: new Date().toISOString() } });
+    } catch (e) {
+      return json({ error: "ai_failed", detail: String((e as Error).message || e).slice(0, 300) }, 502);
+    }
+  }
+
   const instruction = ACTIONS[action];
   if (!instruction) return json({ error: "unknown_action", detail: `Unsupported action "${action}".` }, 400);
   const text = String(body?.text || "").trim().slice(0, MAX_INPUT);
