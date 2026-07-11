@@ -62,13 +62,18 @@ export function effectiveSupply(weekIndex, rawAvail, rates = {}) {
   const notReady = Math.min(avail, Math.max(0, Number(rates.onboardingNotReady) || 0));
   const attrRate = clamp(Number(rates.weeklyAttritionRate), 0, 0.10, 0);
   const callRate = clamp(Number(rates.calloutRate), 0, 0.50, 0);
+  // Hypothetical hires (the calculator's "what if I hire N arriving week X").
+  // They join the body count before the callout discount — a new hire calls
+  // out at the same observed rate as everyone else — but are exempt from the
+  // attrition decay, which is computed off the CURRENT roster only.
+  const extraHires = Math.max(0, Math.round(Number(rates.extraHires) || 0));
 
   // Attrition compounds week over week; week 0 is "now", so no decay yet.
   const attritionLoss = Math.round(avail * (1 - Math.pow(1 - attrRate, idx)));
-  const bodies = Math.max(0, avail - notReady - attritionLoss);
+  const bodies = Math.max(0, avail - notReady - attritionLoss) + extraHires;
   const calloutLoss = Math.round(bodies * callRate);
   const effective = Math.max(0, bodies - calloutLoss);
-  return { rawAvail: avail, notReadyOnboarding: notReady, attritionLoss, calloutLoss, effective };
+  return { rawAvail: avail, notReadyOnboarding: notReady, attritionLoss, extraHires, calloutLoss, effective };
 }
 
 export function coverageKind(needed, avail) {
@@ -83,13 +88,19 @@ export function coverageKind(needed, avail) {
 // ── Plan assessment ────────────────────────────────────────────────────────
 //
 // weeks: [{ idx, weekStartIso, label, dates, needed, avail,
-//           isSimulated?, onPto?, onTimeOff? }]
+//           routesMax?, isSimulated?, onPto?, onTimeOff? }]
 // opts:  { todayIso (required),
 //          hireLeadDays = 28,
 //          calloutRate = 0,               // fraction of shifts lost, 0..0.5
 //          weeklyAttritionRate = 0,       // fraction of actives lost / week
 //          onboardingNotReadyByWeek = {}, // { weekStartIso: count }
-//          horizonWeeks = 4 }
+//          horizonWeeks = 4,
+//          extraSupply = null,            // { fromIso, count } — hypothetical
+//                                         // hires on the roster from fromIso on
+//          demandOverride = null }        // { driversPerRoute, padPct } —
+//                                         // recompute needed from routesMax
+//                                         // (weeks without routesMax keep
+//                                         // their planned needed)
 //
 // Returns { weeks, worstWeek, driverWeeksShort, horizon, trend, firstBreak,
 //           headline, prescription } — everything the gap card and the risk
@@ -101,13 +112,22 @@ export function assessPlan(weeks, opts = {}) {
   const horizonN = Math.max(1, Number(opts.horizonWeeks) || 4);
   const notReadyBy = opts.onboardingNotReadyByWeek || {};
 
+  const extraSupply = opts.extraSupply && Number(opts.extraSupply.count) > 0 && opts.extraSupply.fromIso
+    ? { fromIso: String(opts.extraSupply.fromIso), count: Math.round(Number(opts.extraSupply.count)) }
+    : null;
+  const demandOverride = opts.demandOverride || null;
+
   const assessed = (weeks || []).map((w, i) => {
     const idx = Number.isFinite(Number(w.idx)) ? Number(w.idx) : i;
-    const needed = Math.max(0, Number(w.needed) || 0);
+    const needed = demandOverride && Number.isFinite(Number(w.routesMax))
+      ? driversNeeded(w.routesMax, demandOverride)
+      : Math.max(0, Number(w.needed) || 0);
     const supply = effectiveSupply(idx, w.avail, {
       onboardingNotReady: notReadyBy[w.weekStartIso] || 0,
       weeklyAttritionRate: opts.weeklyAttritionRate,
       calloutRate: opts.calloutRate,
+      extraHires: extraSupply && w.weekStartIso && w.weekStartIso >= extraSupply.fromIso
+        ? extraSupply.count : 0,
     });
     const gap = supply.effective - needed;
     const kind = coverageKind(needed, supply.effective);
