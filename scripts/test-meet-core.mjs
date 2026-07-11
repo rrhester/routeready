@@ -9,6 +9,7 @@ import {
   MEET_CODE_ALPHABET, MEET_CODE_LENGTH,
   genMeetCode, formatMeetCode, normalizeMeetCode, buildMeetUrl,
   isPolite, sortRoster, gridDims, fmtDuration, initials,
+  sendPolicy, qualityLevel, pickActiveSpeaker,
 } from "../dashboard/meet-core.js";
 
 let failures = 0;
@@ -106,6 +107,39 @@ eq(initials(null), "?", "null → ?");
 console.log("buildMeetUrl");
 eq(buildMeetUrl("https://gorouteready.com", "abc-defg-hjk"), "https://gorouteready.com/m/abc-defg-hjk", "plain base");
 eq(buildMeetUrl("https://gorouteready.com/", "abc-defg-hjk"), "https://gorouteready.com/m/abc-defg-hjk", "trailing slash stripped");
+
+console.log("sendPolicy");
+eq(sendPolicy(2), { maxBitrate: 2_500_000, scaleResolutionDownBy: 1, degradationPreference: "maintain-framerate" }, "1:1 call sends full quality");
+eq(sendPolicy(1), sendPolicy(2), "solo clamps to the 1:1 tier");
+eq(sendPolicy(4).maxBitrate, 1_200_000, "4-way halves the bitrate");
+eq(sendPolicy(4).scaleResolutionDownBy, 1.5, "4-way scales resolution down 1.5×");
+eq(sendPolicy(6).maxBitrate, 800_000, "6-way sends 800kbps per peer");
+eq(sendPolicy(9).scaleResolutionDownBy, 2, "big rooms cap at 2× downscale");
+eq(sendPolicy(9).maxBitrate, 500_000, "big rooms cap at 500kbps per peer");
+eq(sendPolicy(6, true), { maxBitrate: 2_500_000, scaleResolutionDownBy: 1, degradationPreference: "maintain-resolution" }, "screen share never degrades with roster size and prefers resolution");
+
+console.log("qualityLevel");
+eq(qualityLevel(40, 0), 3, "LAN-grade → 3 bars");
+eq(qualityLevel(149, 1.9), 3, "just inside the good thresholds → 3");
+eq(qualityLevel(200, 1), 2, "150-300ms RTT → 2 bars");
+eq(qualityLevel(100, 4), 2, "2-5% loss → 2 bars");
+eq(qualityLevel(400, 8), 1, "high but usable → 1 bar");
+eq(qualityLevel(600, 1), 0, "600ms RTT → 0 bars regardless of loss");
+eq(qualityLevel(50, 20), 0, "20% loss → 0 bars regardless of RTT");
+eq(qualityLevel(undefined, undefined), 0, "missing stats read as bad, not good");
+
+console.log("pickActiveSpeaker");
+{
+  const t0 = 10_000;
+  eq(pickActiveSpeaker({ a: 0.001, b: 0.002 }, "a", 0, t0), "a", "nobody above threshold → keep current");
+  eq(pickActiveSpeaker({ a: 0.2, b: 0.05 }, "a", 0, t0), "a", "current is loudest → keep");
+  eq(pickActiveSpeaker({ a: 0.02, b: 0.2 }, "a", t0 - 500, t0), "a", "within hold window → keep (debounce)");
+  eq(pickActiveSpeaker({ a: 0.02, b: 0.2 }, "a", t0 - 5000, t0), "b", "clearly louder after hold → switch");
+  eq(pickActiveSpeaker({ a: 0.1, b: 0.11 }, "a", t0 - 5000, t0), "a", "barely louder than a still-speaking current → keep (margin)");
+  eq(pickActiveSpeaker({ a: 0.001, b: 0.2 }, "a", t0 - 5000, t0), "b", "current silent + challenger speaking → switch");
+  eq(pickActiveSpeaker({}, "a", 0, t0), "a", "empty levels → keep");
+  eq(pickActiveSpeaker({ b: 0.2 }, null, 0, t0), "b", "no current speaker → first talker takes the stage");
+}
 
 if (failures) {
   console.error(`\n${failures} failure(s)`);
