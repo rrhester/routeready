@@ -26666,7 +26666,8 @@ function _ivcalEventBlock(ev, type, lay) {
   const hue = _ivcalHue(ev, type);
   const isPend = type !== "session" && (ev.rsvp || "accepted") === "pending"
     && ev.status !== "no_show" && ev.status !== "cancelled";
-  const hover = time + " · " + label + (_stWord ? " · " + _stWord : "");
+  const _ivw = ev.metadata && ev.metadata.interviewer && ev.metadata.interviewer.name;
+  const hover = time + " · " + label + (_stWord ? " · " + _stWord : "") + (_ivw ? " · with " + _ivw : "");
   return `<div class="oc-ev cat-${cat}${rsvp==="declined"?" declined":""}${isPend?" is-pending":""}${sel?" sel":""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" tabindex="0" role="button" aria-label="${escapeHtml(hover)}" style="top:${top}px;height:${h}px${_ivcalLayStyle(lay)};--ev-hue:${hue}" title="${escapeHtml(hover)}">${inner}${_stLine}${rz}</div>`;
 }
 
@@ -27134,6 +27135,37 @@ function _ivcalFindEv(kind, id) {
 function _ivcalSelect(kind, id) { _ivcalSelected = { kind, id }; _ivcalRender(); }
 function _ivcalDeselect() { if (_ivcalSelected) { _ivcalSelected = null; _ivcalRender(); } }
 
+// ── Interviewer assignment (world-class pass B, 2026-07-11) ─────────
+// v1 is assignment-not-capacity: the interviewer lives in
+// cal_events.metadata.interviewer ({id, name}) so no schema change and
+// no booking-engine change — it answers "who is running this
+// interview", it does not gate slot capacity. Staff list is the same
+// active app_users set the Team screen shows, cached per page load.
+let _ivcalStaffCache = null;
+async function _ivcalLoadStaff() {
+  if (_ivcalStaffCache) return _ivcalStaffCache;
+  const { data, error } = await sb.from("app_users")
+    .select("id, full_name, email, role")
+    .eq("dsp_id", window.RR.dsp.id)
+    .eq("active", true)
+    .order("full_name", { ascending: true });
+  if (error) throw error;
+  _ivcalStaffCache = (data || []).map(u => ({ id: u.id, name: rrTitleCaseName(u.full_name) || u.email || "Teammate" }));
+  return _ivcalStaffCache;
+}
+async function _ivcalSetInterviewer(kind, id, staff) {
+  const { data: row, error: e1 } = await sb.from("cal_events").select("metadata").eq("id", id).maybeSingle();
+  if (e1) throw e1;
+  const md = { ...((row && row.metadata) || {}) };
+  if (staff) md.interviewer = { id: staff.id, name: staff.name };
+  else delete md.interviewer;
+  const { error: e2 } = await sb.from("cal_events").update({ metadata: md }).eq("id", id);
+  if (e2) throw e2;
+  const ev = _ivcalFindEv(kind, id);
+  if (ev) ev.metadata = md;
+  toast(staff ? `Interviewer: ${staff.name}` : "Interviewer cleared", "success");
+  _ivcalRender();
+}
 function _ivcalPaneHtml() {
   const ev = _ivcalSelected && _ivcalFindEv(_ivcalSelected.kind, _ivcalSelected.id);
   if (!ev) return "";
@@ -27151,6 +27183,16 @@ function _ivcalPaneHtml() {
   if (_ivcalHttps(ev.meeting_url)) rows += drow(_IVCAL_CAM_SVG, `<a href="${escapeHtml(_ivcalHttps(ev.meeting_url))}" target="_blank" rel="noreferrer noopener">Join video meeting</a>`);
   else rows += drow(_IVCAL_CAM_SVG, `<span style="color:var(--oc-sub)">No video link yet</span>`);
   if (type !== "session") rows += drow("●", `${escapeHtml(catLabel)}`);
+  // Interviewer · who's running this interview/orientation. The select
+  // renders with just the current value; _ivcalWirePane fills the
+  // options from the (cached) staff list on open.
+  if (type !== "session" && ev.kind !== "event") {
+    const who = ev.metadata && ev.metadata.interviewer;
+    rows += drow("👤", `<select class="oc-ivw-sel" data-oc-interviewer aria-label="Interviewer" style="font:inherit;font-size:var(--fs-sm);padding:4px 6px;border:1px solid var(--rr-ctl-border);border-radius:6px;background:var(--surface);color:var(--text);max-width:200px">
+      <option value="">${who ? "Unassigned" : "Assign interviewer…"}</option>
+      ${who ? `<option value="${escapeHtml(who.id)}" selected>${escapeHtml(who.name)}</option>` : ""}
+    </select>`);
+  }
   const note = ev.metadata && ev.metadata.note;
   if (note) rows += drow("🗒", `<span style="white-space:pre-wrap;color:#3a3a45">${escapeHtml(String(note))}</span>`);
   // Vault attachments → clickable links that open the file (signed URL / Google).
@@ -27173,6 +27215,25 @@ function _ivcalPaneHtml() {
   </div>`;
 }
 function _ivcalWirePane(host) {
+  const ivwSel = host.querySelector("[data-oc-interviewer]");
+  if (ivwSel) {
+    const sel0 = _ivcalSelected;
+    _ivcalLoadStaff().then(staff => {
+      if (!document.body.contains(ivwSel)) return; // pane re-rendered meanwhile
+      const ev = sel0 && _ivcalFindEv(sel0.kind, sel0.id);
+      const cur = (ev && ev.metadata && ev.metadata.interviewer && ev.metadata.interviewer.id) || "";
+      ivwSel.innerHTML = `<option value="">${cur ? "Unassigned" : "Assign interviewer…"}</option>`
+        + staff.map(u => `<option value="${escapeHtml(u.id)}"${String(u.id) === String(cur) ? " selected" : ""}>${escapeHtml(u.name)}</option>`).join("");
+    }).catch(() => { /* keep the placeholder options; change still works for clearing */ });
+    ivwSel.onchange = async (e) => {
+      e.stopPropagation();
+      const sel = _ivcalSelected; if (!sel) return;
+      const staff = (_ivcalStaffCache || []).find(u => String(u.id) === String(ivwSel.value)) || null;
+      try { await _ivcalSetInterviewer(sel.kind, sel.id, staff); }
+      catch (err) { toast("Couldn't set interviewer: " + (err.message || err), "warn"); }
+    };
+    ivwSel.onclick = (e) => e.stopPropagation();
+  }
   host.querySelectorAll("[data-oc-att]").forEach(a => a.onclick = (e) => {
     e.preventDefault(); e.stopPropagation();
     const sel = _ivcalSelected; if (!sel) return;
@@ -27497,12 +27558,14 @@ function _ivcalContextMenu(e, kind, id) {
     + labels.map(l => `<button type="button" class="oc-ctx-sw${curColor.toLowerCase()===String(l.color).toLowerCase()?" on":""}" data-oc-color="${l.color}" data-oc-label="${escapeHtml(l.id)}" title="${escapeHtml(l.name||l.color)}" aria-label="${escapeHtml(l.name||l.color)}" style="background:${l.color}"></button>`).join("")
     + `</div>`
     + `<button type="button" class="oc-ctx-default${curColor?"":" on"}" data-oc-color="" data-oc-default><span class="oc-ctx-defck">${ckSvg}</span>Default</button>`;
+  const ivwName = ev.metadata && ev.metadata.interviewer && ev.metadata.interviewer.name;
   menu.innerHTML =
     item("open", "Open") +
     (kind !== "session" ? item("edit", "Edit") : "") +
     item("email", "Email") +
     item("duplicate", "Duplicate") +
     (ev.applicant_id ? item("applicant", "Open applicant") : "") +
+    (kind !== "session" && ev.kind !== "event" ? item("interviewer", ivwName ? `Interviewer: ${escapeHtml(ivwName)}…` : "Assign interviewer…") : "") +
     `<div class="sep"></div>` +
     item("delete", kind === "session" ? "Remove" : "Cancel / delete", true) +
     colorRow;
@@ -27524,7 +27587,36 @@ function _ivcalContextMenu(e, kind, id) {
     else if (act === "email") _ivcalOpenEmail(kind, id);
     else if (act === "duplicate") { const s = new Date(ev.starts_at); _ivcalNewEvent(_ivcalISODate(s), s.getHours()*60+s.getMinutes(), s.getHours()*60+s.getMinutes()+30); }
     else if (act === "applicant" && ev.applicant_id) _ivcalOpenApplicant(ev.applicant_id);
+    else if (act === "interviewer") _ivcalInterviewerMenu(kind, id, ev2.clientX, ev2.clientY);
     else if (act === "delete") _ivcalDeleteEvent(kind, id, true);
+  });
+  setTimeout(() => document.addEventListener("click", function off() { _ivcalCloseMenus(); document.removeEventListener("click", off); }, { once: true }), 0);
+}
+
+// Staff submenu for "Assign interviewer" — same .oc-menu chrome, one
+// button per active teammate + Unassign. Rides _ivcalSetInterviewer.
+async function _ivcalInterviewerMenu(kind, id, x, y) {
+  let staff = [];
+  try { staff = await _ivcalLoadStaff(); }
+  catch (err) { toast("Couldn't load the team list: " + (err.message || err), "warn"); return; }
+  _ivcalCloseMenus();
+  const ev = _ivcalFindEv(kind, id); if (!ev) return;
+  const cur = (ev.metadata && ev.metadata.interviewer && ev.metadata.interviewer.id) || "";
+  const menu = document.createElement("div");
+  menu.className = "oc-menu";
+  menu.innerHTML =
+    staff.map(u => `<button data-oc-ivw="${escapeHtml(u.id)}">${String(u.id) === String(cur) ? "✓ " : ""}${escapeHtml(u.name)}</button>`).join("")
+    + (staff.length ? `<div class="sep"></div>` : "")
+    + `<button data-oc-ivw="">Unassign</button>`;
+  document.body.appendChild(menu);
+  menu.style.left = Math.min(x, window.innerWidth - menu.offsetWidth - 6) + "px";
+  menu.style.top = Math.min(y, window.innerHeight - menu.offsetHeight - 6) + "px";
+  menu.addEventListener("click", async (e) => {
+    const b = e.target.closest("[data-oc-ivw]"); if (!b) return;
+    e.stopPropagation(); _ivcalCloseMenus();
+    const pick = staff.find(u => String(u.id) === String(b.getAttribute("data-oc-ivw"))) || null;
+    try { await _ivcalSetInterviewer(kind, id, pick); }
+    catch (err) { toast("Couldn't set interviewer: " + (err.message || err), "warn"); }
   });
   setTimeout(() => document.addEventListener("click", function off() { _ivcalCloseMenus(); document.removeEventListener("click", off); }, { once: true }), 0);
 }
