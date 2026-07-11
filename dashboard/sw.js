@@ -158,7 +158,8 @@
 //   2026-07-11.9 · Notebooks: anchor the picker's ⋯ context menu at the kebab — measure the button's rect BEFORE hiding the dropdown (a display:none element measures 0×0 at 0,0, so the menu opened at the window's top-left corner). view-notebooks.frag only.
 //   2026-07-11.10 · Navigation: add a "Dashboard" item to the sidebar (and make the brand logo click home). The Today's Plan command center is the app's landing view but had NO sidebar entry — once you left it, the only way back was a full reload, so the whole command center (KPIs, at-risk pill, fleet/pipeline tiles, week matrix) looked "missing." Now it's a first-class, always-reachable destination. index.html + live.js.
 //   2026-07-11.11 · Dashboard nav honors page permissions (Codex review): the new nav item respects allowed_pages like any other view (Today is a togglable page that aggregates schedule/fleet/pipeline data), instead of being force-shown. Owners/admins still always see it; only Settings keeps the always-reachable escape-hatch. live.js.
-const SW_DEPLOY_NONCE = "2026-07-11.11";
+//   2026-07-11.12 · Notebooks: rename a notebook inline in the picker header (double-click the name, or ⋯ → Rename notebook) instead of a modal prompt — Enter/blur commits, Escape cancels; plus ⋯ → Delete notebook (soft-delete to Recycle Bin, switches to the next notebook or the empty-state CTA). view-notebooks.frag only.
+const SW_DEPLOY_NONCE = "2026-07-11.12";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without

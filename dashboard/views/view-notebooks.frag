@@ -62,6 +62,8 @@
 .rrnb-nbcurrent:hover{background:var(--surface-hover)}
 .rrnb-nbcurrent .rrnb-swatch{flex:0 0 auto}
 .rrnb-nbcurrent .nm{flex:1;min-width:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rrnb-nbcurrent .nm.is-editing{overflow:visible;text-overflow:clip;cursor:text;padding:0 3px;margin:0 -3px;
+  border-radius:4px;outline:2px solid var(--accent);outline-offset:1px;background:var(--surface)}
 .rrnb-nbcurrent .chev{flex:0 0 auto;color:var(--text-subtle)}
 .rrnb-swatch{width:12px;height:12px;border-radius:3px;background:var(--accent)}
 .rrnb-menu{position:absolute;z-index:40;left:var(--s-2);right:var(--s-2);top:calc(100% - var(--s-1));
@@ -677,6 +679,60 @@
     }).join("");
     html += '<div class="rrnb-menu-sep"></div><div class="rrnb-menu-item rrnb-menu-add" data-new="1">＋ New notebook</div>';
     m.innerHTML = html;
+  }
+
+  // ── rename a notebook inline, right in the picker header ─────────────
+  // No modal prompt: the current-notebook name becomes editable in place
+  // (double-click it, or ⋯ → Rename notebook). Enter / blur commits,
+  // Escape cancels.
+  function startNotebookRename(id) {
+    // Renaming happens in the header, which only shows the active notebook,
+    // so switch to it first when the ⋯ came from another row.
+    if (id && id !== S.nbId) { S.activeSection = null; return selectNotebook(id).then(beginHeaderEdit); }
+    beginHeaderEdit();
+  }
+  function beginHeaderEdit() {
+    var nm = $id("rrnb-nb-name"); if (!nm || !S.nbId || S._nbEditing) return;
+    S._nbEditing = true; S._nbEditOrig = nm.textContent || "";
+    nm.classList.add("is-editing");
+    nm.setAttribute("contenteditable", "true"); nm.setAttribute("spellcheck", "false");
+    nm.focus();
+    try { var r = document.createRange(); r.selectNodeContents(nm); var s = window.getSelection(); s.removeAllRanges(); s.addRange(r); } catch (e) {}
+  }
+  function endHeaderEdit(commit) {
+    var nm = $id("rrnb-nb-name"); if (!nm || !S._nbEditing) return;
+    S._nbEditing = false;
+    nm.removeAttribute("contenteditable"); nm.classList.remove("is-editing");
+    var next = (nm.textContent || "").replace(/\s+/g, " ").trim();
+    var orig = (S._nbEditOrig || "").trim();
+    var id = S.nbId;
+    if (!commit || !next || next === orig) { nm.textContent = orig; return; }
+    nm.textContent = next;
+    S.be.rename("notebook", id, next).then(function () {
+      var n = (S.notebooks || []).filter(function (x) { return x.id === id; })[0]; if (n) n.name = next;
+      renderNotebookMenu();
+      if (S.nbId === id) { var b = $(".rrnb-breadcrumb"); if (b) { var parts = b.innerHTML.split("›"); parts[0] = esc(next) + " "; b.innerHTML = parts.join("<span class=sep>›</span>"); } }
+    }).catch(function (e) { nm.textContent = orig; fail(e); });
+  }
+
+  // ── delete a notebook (soft-delete → recycle) ───────────────────────
+  function deleteNotebook(id) {
+    var n = (S.notebooks || []).filter(function (x) { return x.id === id; })[0];
+    var nm = n ? n.name : "this notebook";
+    var pc = n ? (n.page_count || 0) : 0;
+    var msg = 'Delete "' + nm + '"?' + (pc ? ' Its ' + pc + ' page' + (pc === 1 ? '' : 's') + ' will move to the Recycle Bin.' : '');
+    if (!window.confirm(msg)) return;
+    S.be.deleteItem("notebook", id).then(function () {
+      return S.be.listNotebooks().then(function (list) {
+        S.notebooks = list || []; renderNotebookMenu();
+        if (S.nbId !== id) return;
+        S.nbId = null; S.tree = null; S.pageId = null; S.activeSection = null; S.mode = "notebook";
+        if (S.notebooks[0]) return selectNotebook(S.notebooks[0].id);
+        var hn = $id("rrnb-nb-name"); if (hn) hn.textContent = "Notebooks";
+        var sw = $id("rrnb-nb-swatch"); if (sw) sw.style.background = "var(--accent)";
+        renderSections(); renderPageList(); renderFirstRun();
+      });
+    }).catch(fail);
   }
 
   // ── sections rail ────────────────────────────────────────────────
@@ -1355,7 +1411,8 @@
   }
   function notebookMenu(id, x, y) {
     showCtx(x, y, [
-      { act: "rename", label: "Rename notebook" }
+      { act: "rename", label: "Rename notebook" },
+      { sep: 1 }, { act: "del", label: "Delete notebook", danger: true }
     ]);
     $id("rrnb-ctx")._target = { kind: "notebook", id: id };
   }
@@ -1379,7 +1436,8 @@
       if (act === "promote") return indentPage(t.id, -1);
     }
     if (t.kind === "notebook") {
-      if (act === "rename") return renamePrompt("notebook", t.id);
+      if (act === "rename") return startNotebookRename(t.id);
+      if (act === "del") return deleteNotebook(t.id);
     }
     if (t.kind === "section") {
       if (act === "rename") return renamePrompt("section", t.id);
@@ -1396,20 +1454,11 @@
   }
   function renamePrompt(kind, id) {
     var cur = kind === "page" ? (pageById(id) || {}).title
-      : kind === "notebook" ? ((S.notebooks || []).filter(function (x) { return x.id === id; })[0] || {}).name
       : (((S.tree && S.tree.sections) || []).filter(function (x) { return x.id === id; })[0] || {}).name;
     var v = window.prompt("Rename", cur || ""); if (v == null) return;
     v = v.trim(); if (!v) return;
     S.be.rename(kind, id, v).then(function () {
       if (kind === "page") { var p = pageById(id); if (p) p.title = v; if (S.pageId === id) { var t = $id("rrnb-title"); if (t) t.value = v; updateBreadcrumbTitle(); } renderPageList(); }
-      else if (kind === "notebook") {
-        var n = (S.notebooks || []).filter(function (x) { return x.id === id; })[0]; if (n) n.name = v;
-        renderNotebookMenu();
-        if (S.nbId === id) {
-          var nm = $id("rrnb-nb-name"); if (nm) nm.textContent = v;
-          var b = $(".rrnb-breadcrumb"); if (b) { var parts = b.innerHTML.split("›"); parts[0] = esc(v) + " "; b.innerHTML = parts.join("<span class=sep>›</span>"); }
-        }
-      }
       else { var s = ((S.tree && S.tree.sections) || []).filter(function (x) { return x.id === id; })[0]; if (s) s.name = v; renderSections(); }
     }).catch(fail);
   }
@@ -1436,7 +1485,20 @@
 
     // notebook picker
     var cur = $id("rrnb-nb-current");
-    if (cur) cur.addEventListener("click", function () { var m = $id("rrnb-nb-menu"); m.hidden = !m.hidden; });
+    if (cur) cur.addEventListener("click", function () { if (S._nbEditing) return; var m = $id("rrnb-nb-menu"); m.hidden = !m.hidden; });
+    // inline rename: double-click the header name to edit it in place
+    var nmEl = $id("rrnb-nb-name");
+    if (nmEl) {
+      nmEl.addEventListener("dblclick", function (e) { e.preventDefault(); e.stopPropagation(); var m = $id("rrnb-nb-menu"); if (m) m.hidden = true; if (S.nbId) beginHeaderEdit(); });
+      nmEl.addEventListener("click", function (e) { if (S._nbEditing) e.stopPropagation(); });
+      nmEl.addEventListener("keydown", function (e) {
+        if (!S._nbEditing) return;
+        if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); nmEl.blur(); }
+        else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); endHeaderEdit(false); }
+        else e.stopPropagation(); // keep typing from reaching global shortcuts
+      });
+      nmEl.addEventListener("blur", function () { if (S._nbEditing) endHeaderEdit(true); });
+    }
     var menu = $id("rrnb-nb-menu");
     if (menu) menu.addEventListener("click", function (e) {
       var kb = e.target.closest("[data-menu='notebook']"); if (kb) { var r = kb.getBoundingClientRect(); menu.hidden = true; return notebookMenu(kb.getAttribute("data-id"), r.left, r.bottom); }
