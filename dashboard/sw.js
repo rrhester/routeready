@@ -150,7 +150,8 @@
 //   2026-07-11.1 · Dashboard: Call-out exposure pill on the Today's Plan command center — counts today's scheduled drivers on an open corrective action vs the cushion, red when at-risk outnumber cushion. live.js only.
 //   2026-07-11.2 · Call-out exposure: narrow the at-risk set to active FINAL corrective actions only (drop termination), matching the roster / Schedule Callout Exposure definition so the two surfaces agree (Codex review). live.js only.
 //   2026-07-11.3 · Excel interaction model, round 2 (workbook). Enter/Tab now navigate instead of opening the editor (Excel, not Sheets): Enter moves down, Tab right, and inside a selection they cycle + wrap; Tab remembers the row's entry column so Enter returns to it. Adds Ctrl+Space / Shift+Space / Ctrl+Shift+Space (column / row / sheet), Shift+Home + Ctrl+Shift+Home/End extend variants, F8 / Shift+F8 (Extend / Add to Selection), non-contiguous multi-selection via Ctrl+click (painted, aggregated in stats, honored by clear/format), Ctrl+mouse-wheel zoom, Alt+Enter in-cell line breaks (editor is now a <textarea>, auto-wraps on commit), a live Ready/Enter/Edit/Point status-bar mode word, and a "NR x NC" Name-Box readout while drag-selecting/resizing. workbook.js + inline-styles.css.
-const SW_DEPLOY_NONCE = "2026-07-11.3";
+//   2026-07-11.4 · Dashboard: the Call-out exposure pill is now one-click actionable — clicking "N At-risk" opens a compact popover listing the at-risk scheduled drivers (name · station · wave), each a jump into that driver's record (openDriverDrawer), plus a footer link to Schedule → Callout Exposure for the backup-plan flow. live.js + inline-styles.css.
+const SW_DEPLOY_NONCE = "2026-07-11.4";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without

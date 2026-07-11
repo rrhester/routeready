@@ -8,9 +8,9 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=20fff63bdb36";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=20fff63bdb36";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=20fff63bdb36";
+import { planScheduleWeek } from "./scheduling-engine.js?v=6e6264c62cd2";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=6e6264c62cd2";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=6e6264c62cd2";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -18866,7 +18866,17 @@ function _renderTpMeta(attData, rosterData, otData, planData, fleetData, pipeDat
   // likely to no-show, defined identically to the Schedule Callout Exposure
   // panel. Red when at-risk outnumbers the cushion drivers who'd cover them.
   const atRiskIds = new Set((Array.isArray(riskData) ? riskData : []).map(c => c.driver_id).filter(Boolean));
-  const atRiskScheduled = atRiskIds.size ? rows.filter(r => atRiskIds.has(r.driver_id)).length : 0;
+  const atRiskRows = atRiskIds.size ? rows.filter(r => atRiskIds.has(r.driver_id)) : [];
+  const atRiskScheduled = atRiskRows.length;
+  // Stash the named at-risk drivers so the pill's drill popover can list them
+  // with a one-click "Open record". Cleared to [] when none, so a stale list
+  // never survives into a day with no exposure.
+  window._rrTpAtRisk = atRiskRows.map(r => ({
+    id: r.driver_id,
+    name: r.driver_name || r.name || "Driver",
+    station: r.station_code || "",
+    wave: r.wave_index ?? 0,
+  }));
   const flagged = rows.filter(r => ["tardy","ncns","missed_reported"].includes(r.computed_outcome) && !r.decision).length;
   const checkedIn = rows.filter(r => ["checked_in", "checked_out"].includes(r.computed_outcome)).length;
   const navy = "#1E293B";
@@ -18877,7 +18887,7 @@ function _renderTpMeta(attData, rosterData, otData, planData, fleetData, pipeDat
     extras:     dayPills ? { value: extras, sub: "Cushion / Ex drivers", tone: "navy" } : null,
     openroutes: (openRoutes == null || (!dayPills && openRoutes === 0)) ? null : { value: openRoutes, sub: openRoutes === 0 ? "All routes covered" : "to assign", tone: openRoutes > 0 ? "red" : "green", onclick: "goto('schedule')", navTitle: "Open the schedule to assign routes" },
     otrisk:     (otSum && (dayPills || otRiskCount > 0)) ? { value: otRiskCount, sub: otExposure ? `~$${Math.round(otExposure).toLocaleString()} OT exposure` : `${otActive} in OT · ${otProjected} projected`, tone: otActive > 0 ? "red" : (otProjected > 0 ? "amber" : "navy"), onclick: "goto('schedule')", navTitle: "Overtime intelligence on the schedule" } : null,
-    callout:    (dayPills && atRiskScheduled > 0) ? { value: atRiskScheduled, sub: `vs ${extras} cushion`, tone: atRiskScheduled > extras ? "red" : "amber", onclick: "goto('schedule')", navTitle: "At-risk drivers scheduled today (open Final corrective action)" } : null,
+    callout:    (dayPills && atRiskScheduled > 0) ? { value: atRiskScheduled, sub: `vs ${extras} cushion`, tone: atRiskScheduled > extras ? "red" : "amber", onclick: "_rrTpCalloutDrill(event)", navTitle: "At-risk drivers scheduled today — open a record to act (final corrective action)" } : null,
     license:    dlList.length ? { value: dlList.length, sub: "license expiring ≤7 days", tone: dlUrgent ? "red" : (dlSoon ? "amber" : "navy"), onclick: "window._rrGotoSubIntent={view:'schedule',sub:'roster'};goto('schedule')", navTitle: "Open the roster" } : null,
     fleet:      (vorr && fleetBranded > 0 && fleetPct != null) ? { value: `${fleetPct}%`, sub: fleetGrounded > 0 ? `${fleetGrounded} grounded` : "fleet ready", tone: vorr.threshold_status === "critical" ? "red" : (vorr.threshold_status === "warning" ? "amber" : "green"), onclick: "goto('fleet2')", navTitle: "Open Fleet" } : null,
     pipeline:   pipeCounts.length ? { value: inPipeline, sub: "in hiring pipeline", tone: "navy", onclick: "goto('pipeline')", navTitle: "Open the hiring pipeline" } : null,
@@ -18947,6 +18957,62 @@ async function _fillTpSparklines() {
     document.querySelectorAll('[data-rr-tp-spark="attention"]').forEach((s) => { s.innerHTML = svg; });
   } catch (e) { /* silent — the KPI numbers stand on their own */ }
 }
+
+// One-click act on the Call-out exposure pill. Instead of a bare jump to the
+// schedule, clicking the At-risk pill opens a compact popover listing the
+// at-risk scheduled drivers (from window._rrTpAtRisk, set in _renderTpMeta) —
+// each row a button that drops the operator straight into that driver's record
+// (openDriverDrawer) to message / coach / arrange coverage. A footer link still
+// opens the schedule's Callout Exposure surface for the backup-plan flow.
+function _rrTpCalloutDrill(ev) {
+  try { ev && ev.stopPropagation && ev.stopPropagation(); } catch (_) {}
+  const anchor = ev && (ev.currentTarget || ev.target && ev.target.closest && ev.target.closest('[data-rr-tp-kpi="callout"]'));
+  const existing = document.getElementById("rr-tp-callout-drill");
+  if (existing) { existing.remove(); if (existing._anchor === anchor) return; }
+  const drivers = Array.isArray(window._rrTpAtRisk) ? window._rrTpAtRisk : [];
+  if (!drivers.length) { if (typeof goto === "function") goto("schedule"); return; }
+
+  const pop = document.createElement("div");
+  pop.id = "rr-tp-callout-drill";
+  pop.className = "tp-callout-drill";
+  pop._anchor = anchor;
+  const rowHtml = drivers.map((d) => {
+    const meta = [d.station, d.wave != null && d.wave !== "" ? `Wave ${Number(d.wave) + 1}` : ""].filter(Boolean).join(" · ");
+    return `<button type="button" class="tp-callout-drill-row" data-rr-callout-driver="${escapeHtml(String(d.id))}" title="Open ${escapeHtml(String(d.name))}'s record">
+      <span class="tp-callout-drill-name">${escapeHtml(String(d.name))}</span>
+      ${meta ? `<span class="tp-callout-drill-meta">${escapeHtml(meta)}</span>` : ""}
+      <span class="tp-callout-drill-go" aria-hidden="true">→</span>
+    </button>`;
+  }).join("");
+  pop.innerHTML = `
+    <div class="tp-callout-drill-head">${drivers.length} at-risk driver${drivers.length === 1 ? "" : "s"} scheduled</div>
+    <div class="tp-callout-drill-list">${rowHtml}</div>
+    <button type="button" class="tp-callout-drill-foot" data-rr-callout-schedule>Plan backups in Schedule → Callout Exposure →</button>`;
+  document.body.appendChild(pop);
+
+  // Anchor below the pill, clamped into the viewport.
+  const r = anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : { left: 24, bottom: 80, top: 60 };
+  const pw = pop.offsetWidth || 260, ph = pop.offsetHeight || 200;
+  let left = Math.min(r.left, window.innerWidth - pw - 12);
+  left = Math.max(12, left);
+  let top = r.bottom + 6;
+  if (top + ph > window.innerHeight - 12) top = Math.max(12, r.top - ph - 6);
+  pop.style.left = left + "px";
+  pop.style.top = top + "px";
+
+  const close = () => { pop.remove(); document.removeEventListener("keydown", onKey, true); document.removeEventListener("click", onDoc, true); };
+  const onKey = (e) => { if (e.key === "Escape") close(); };
+  const onDoc = (e) => { if (!pop.contains(e.target) && e.target !== anchor && !(anchor && anchor.contains && anchor.contains(e.target))) close(); };
+  pop.addEventListener("click", (e) => {
+    const row = e.target.closest("[data-rr-callout-driver]");
+    if (row) { const id = row.getAttribute("data-rr-callout-driver"); close(); if (typeof openDriverDrawer === "function") openDriverDrawer(id, { tab: "attendance" }); return; }
+    if (e.target.closest("[data-rr-callout-schedule]")) { close(); if (typeof goto === "function") goto("schedule"); return; }
+  });
+  // Defer the outside-click / key listeners a tick so the opening click
+  // doesn't immediately close the popover.
+  setTimeout(() => { document.addEventListener("keydown", onKey, true); document.addEventListener("click", onDoc, true); }, 0);
+}
+window._rrTpCalloutDrill = _rrTpCalloutDrill;
 
 // When the schedule's Today sub-view is the visible host for the
 // Today's Plan shell, mirror the in-shell minimal KPI strip into the
