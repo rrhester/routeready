@@ -26972,16 +26972,9 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-onboarding-ops[data-obsub="calendar"] #rr-iv-rules-toggle:hover{
   background:rgba(15,23,42,.05) !important; color:var(--sidebar-bg, var(--rr-slate-900)) !important;
 }
-/* New event · the one primary (.rr-ab-primary spec — Amazon orange
-   since the 2026-07 enterprise pass; a later Google-calendar block
-   restyles this pill white, this is the fallback). */
-#view-onboarding-ops[data-obsub="calendar"] .rr-cal-newgroup .subnav-item:first-child{
-  background:var(--rr-amber-primary) !important; color:var(--rr-white) !important; border-color:var(--rr-amber-primary) !important;
-  box-shadow:none !important;
-}
-#view-onboarding-ops[data-obsub="calendar"] .rr-cal-newgroup .subnav-item:first-child:hover{
-  background:var(--rr-amber-primary-hover) !important; border-color:var(--rr-amber-primary-hover) !important; color:var(--rr-white) !important;
-}
+/* (The Schedule Interview primary is styled once, in the final ribbon
+   block further down — the redundant fallback that lived here was
+   deleted in the 2026-07-11 calendar-hierarchy pass.) */
 /* Active view · solid navy "selected" pill — sits in the Schedule bar's navy
    chrome system, distinct from the blue New-event primary. (Applies to a view
    pill if one is ever shown outside the dropdown; the menu rows below override
@@ -28368,19 +28361,19 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-onboarding-ops[data-obsub="calendar"] #rr-iv-rules-toggle{
   font-weight:500 !important; color:#5F6368 !important;
 }
-/* Schedule Interview · a quiet white command pill in the Schedule
-   chrome — hairline border, neutral hover (enterprise pass 2026-07-11;
-   the navy 1.5px edge + blue-50 hover copied the retired Smart Fill
-   emphasis recipe). */
+/* Schedule Interview · the calendar's ONE primary — Amazon orange
+   (.rr-ab-primary spec, enterprise pass 2026-07-11). "Add calendar"
+   left the ribbon for the sidebar's My-calendars "+", so this pill
+   alone carries the emphasis. */
 #view-onboarding-ops[data-obsub="calendar"] .rr-cal-newgroup .subnav-item:first-child{
   height:36px !important; padding:0 16px !important; border-radius:6px !important;
-  background:var(--rr-white) !important; color:var(--rr-gray-900) !important;
-  border:1px solid var(--rr-ctl-border) !important;
-  font-weight:600 !important; font-size:var(--fs-12-5) !important; box-shadow:none !important;
+  background:var(--rr-amber-primary) !important; color:var(--rr-white) !important;
+  border:1px solid var(--rr-amber-primary) !important;
+  font-weight:700 !important; font-size:var(--fs-12-5) !important; box-shadow:none !important;
   transition:background .18s ease, box-shadow .18s ease !important;
 }
 #view-onboarding-ops[data-obsub="calendar"] .rr-cal-newgroup .subnav-item:first-child:hover{
-  background:var(--rr-ctl-hover) !important; border-color:var(--rr-ctl-border-hover) !important;
+  background:var(--rr-amber-primary-hover) !important; border-color:var(--rr-amber-primary-hover) !important;
   box-shadow:0 1px 2px rgba(15,23,42,.07) !important;
 }
 /* View dropdown · match the ghost weight + radius. */
@@ -29026,6 +29019,60 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-await-empty,
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-cals-empty{
   color:var(--rrp-sub) !important; font-size:var(--fs-12-5) !important; line-height:1.5 !important;
+}
+
+/* ── Calendar hierarchy pass (enterprise 2026-07-11) ─────────────────
+   The Interview-booking queue leads the sidebar (it renders as a
+   direct .oc-side child above the mini-month — see _ivcalRender), rows
+   carry a quiet queue-age chip, booking pages get a status dot instead
+   of a shouting ACTIVE pill, chips spell their status out, and day
+   headers show slot utilization with an amber shortfall tint. */
+/* Queue panel spacing in its new slot above the mini-month. */
+#rr-ivcal .oc-side > .oc-await{ margin-top:12px; flex:0 0 auto; }
+/* Copy-link icon reveals on row hover/focus — the row got tighter when
+   the age chip arrived, and the candidate's NAME is the row's payload. */
+#rr-ivcal .oc-await-row .oc-await-copy{ opacity:0; transition:opacity .12s ease; }
+#rr-ivcal .oc-await-row:hover .oc-await-copy,
+#rr-ivcal .oc-await-row:focus-within .oc-await-copy{ opacity:1; }
+/* Queue-age chip · quiet day count; amber once a candidate has waited
+   2+ days (the tint IS the triage signal). */
+#rr-ivcal .oc-await-age{
+  flex:0 0 auto; font-size:var(--fs-10); font-weight:700; line-height:1;
+  padding:3px 6px; border-radius:999px;
+  background:var(--rr-ctl-active); color:var(--rr-gray-500);
+  font-variant-numeric:tabular-nums;
+}
+#rr-ivcal .oc-await-age.is-old{
+  background:var(--amber-soft); color:var(--amber-dark);
+}
+/* Booking-page "active" · a status, not a call-to-action: quiet green
+   dot + label replaces the blue uppercase pill. (Base rule has no
+   !important, so this later, more specific rule wins plainly.) */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-bp-active{
+  display:inline-flex; align-items:center; gap:5px;
+  background:transparent; padding:0; border-radius:0;
+  color:var(--rr-green-700); letter-spacing:.02em;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-bp-active::before{
+  content:""; width:6px; height:6px; border-radius:50%; flex:0 0 auto;
+  background:var(--rr-green-600);
+}
+/* Chip status word · third line on taller chips, folded into the time
+   row on two-line chips ("Confirmed" / "Awaiting reply" / "No-show"),
+   inheriting the chip's status ink. */
+#rr-ivcal .oc-ev .oc-ev-status:not(.is-inline){
+  font-size:var(--fs-10); font-weight:600; line-height:1.2;
+  opacity:.8; margin-top:1px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+/* Inline variant rides the time row and inherits its size. */
+#rr-ivcal .oc-ev .oc-ev-status.is-inline{
+  display:inline; font-weight:500; opacity:.85;
+}
+/* Day-header shortfall · open slots while candidates wait to book.
+   Amber = attention, per the app's status vocabulary. */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-dh .oc-dh-meta.is-short{
+  color:var(--amber-dark) !important; font-weight:600 !important;
 }
 
 /* ── Mini month · soft-blue range + hover ── */

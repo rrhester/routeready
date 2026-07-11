@@ -383,19 +383,21 @@
                  Rules live on the Week tile. Wired in live.js. order:1 = first. -->
             <div class="sched-ribbon-group" data-group="calendar-controls" id="rr-cal-ribbon" style="order:1;position:relative">
               <div class="subnav" data-rr-tabbar="calendar-controls">
-                <!-- New-action subgroup (New event / Add calendar) · same
-                     full-height group treatment as the view-selector below, so
-                     the "New" group caption centers under the pair and sits on
-                     the strip's bottom line, mirroring "Rules". -->
+                <!-- New-action subgroup (Schedule Interview — the page's one
+                     primary) · same full-height group treatment as the
+                     view-selector below, so the "New" group caption centers
+                     under it and sits on the strip's bottom line, mirroring
+                     "Rules". -->
                 <div class="rr-cal-newgroup">
                 <button class="subnav-item" type="button" onclick="rrIvcalNewEvent()" title="Schedule a new interview">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="7" y1="2" x2="7" y2="6"/><line x1="17" y1="2" x2="17" y2="6"/><line x1="12" y1="12" x2="12" y2="18"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
                   <span>Schedule Interview</span>
                 </button>
-                <button class="subnav-item" type="button" onclick="rrIvcalAddCalendar()" title="Add calendar">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="7" y1="2" x2="7" y2="6"/><line x1="17" y1="2" x2="17" y2="6"/><line x1="16" y1="13" x2="16" y2="19"/><line x1="13" y1="16" x2="19" y2="16"/></svg>
-                  <span>Add calendar</span>
-                </button>
+                <!-- "Add calendar" left the ribbon (enterprise pass
+                     2026-07-11): a setup task, not a daily command — and a
+                     duplicate of the "+" on the sidebar's My-calendars
+                     section (data-ivcal-addcal → the same calendar dialog).
+                     One command group, one primary. -->
                 <!-- App-launcher dock · hosts the global #rr-applauncher in the
                      calendar header (far right), so it sits in the same spot as
                      the Schedule page instead of the fixed top-right corner.
