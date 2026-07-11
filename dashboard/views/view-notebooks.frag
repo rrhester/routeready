@@ -540,7 +540,18 @@
     var off = $id("rrnb-offline"); if (off) off.hidden = !!sb;
   }
 
-  function notify(msg) { try { if (window.toast) return window.toast(msg); if (window.rrToast) return window.rrToast(msg); } catch (e) {} }
+  function notify(msg) {
+    try { if (window.toast) { window.toast(msg); return; } if (window.rrToast) { window.rrToast(msg); return; } } catch (e) {}
+    // Self-rendered fallback so notebook feedback always shows, even if the
+    // host app's toast isn't exposed on window.
+    try {
+      var t = document.getElementById("rrnb-toast");
+      if (!t) { t = document.createElement("div"); t.id = "rrnb-toast";
+        t.style.cssText = "position:fixed;z-index:2147483000;left:50%;bottom:28px;transform:translateX(-50%);background:#111827;color:#fff;padding:9px 16px;border-radius:8px;font-size:13px;font-family:inherit;box-shadow:0 8px 24px rgba(0,0,0,.28);opacity:0;transition:opacity .15s;pointer-events:none;max-width:80vw";
+        document.body.appendChild(t); }
+      t.textContent = msg; t.style.opacity = "1"; clearTimeout(t._h); t._h = setTimeout(function () { t.style.opacity = "0"; }, 2400);
+    } catch (e) {}
+  }
   function fail(e) { console.warn("[notebooks]", e); notify((e && e.message) || "Something went wrong"); }
 
   // ── first load ──────────────────────────────────────────────────
@@ -897,9 +908,19 @@
     var pl = e.target.closest("a.rrnb-pagelink");
     if (pl && (e.ctrlKey || e.metaKey || e.type === "click")) { var pid = pl.getAttribute("data-page-id"); if (pid) { e.preventDefault(); openPage(pid); } return; }
     var ol = e.target.closest("a.rrnb-objlink");
-    if (ol) { e.preventDefault(); var ot = ol.getAttribute("data-obj-type"), oi = ol.getAttribute("data-obj-id"); openObjectRef(ot, oi, ol.getAttribute("data-obj-name") || ol.textContent); }
+    if (ol) {
+      e.preventDefault(); e.stopPropagation();
+      var ot = ol.getAttribute("data-obj-type"), oi = ol.getAttribute("data-obj-id");
+      var onm = ol.getAttribute("data-obj-name") || ol.textContent || "record";
+      if (!oi) { notify("“" + onm + "” isn’t linked to a record yet."); return; }
+      notify("Opening " + onm + "’s notebook…");
+      openObjectRef(ot, oi, onm);
+    }
   }
-  function openObjectRef(type, id, name) { if (window.RRNotebooks && window.RRNotebooks.openFor) window.RRNotebooks.openFor(type, id, name || null); }
+  function openObjectRef(type, id, name) {
+    try { if (window.RRNotebooks && window.RRNotebooks.openFor) window.RRNotebooks.openFor(type, id, name || null); }
+    catch (e) { notify("Couldn’t open that notebook: " + ((e && e.message) || e)); }
+  }
 
   // ══════════════════════════════════════════════════════════════════
   //  MEDIA — images (paste / drop / pick, client-side compressed) + files
