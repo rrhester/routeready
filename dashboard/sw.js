@@ -174,7 +174,8 @@
 //   2026-07-11.25 · Notebooks AI: billing-aware error copy — a "credit balance too low" AI failure now says the account is out of credits (top up at console.anthropic.com → Plans & Billing) instead of "try again in a moment"; rate-limit/overload failures say the service is busy. view-notebooks.frag only.
 //   2026-07-11.26 · Interview calendar: interviewer assignment (world-class pass B, v1 = assignment-not-capacity). Right-click an interview/orientation chip → "Assign interviewer…" opens a staff submenu (active teammates + Unassign); the reading pane gets an Interviewer select. Stored in cal_events.metadata.interviewer ({id,name}) — no schema change, no booking-engine change; it answers "who is running this interview", it does not gate slot capacity. Assignment surfaces in the chip tooltip/accessible name ("· with NAME") and the pane. live.js only.
 //   2026-07-11.27 · Schedule action bar: the coverage card between Assign Fleet and Finalize stays mounted on weeks with no plan — a muted "– / – Routes · No plan yet" placeholder (empty meter track, no red/green voice) instead of hiding, so Finalize keeps the exact same spot week to week. live.js + inline-styles.css.
-const SW_DEPLOY_NONCE = "2026-07-11.27";
+//   2026-07-11.28 · Interview calendar: the Work Week + Availability toolbar pills drop their 1.5px navy outline for the same 1px --rr-border-primary hairline the rest of the Schedule/Calendar toolbar controls use (hover keeps the hairline too). inline-styles.css only.
+const SW_DEPLOY_NONCE = "2026-07-11.28";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without
