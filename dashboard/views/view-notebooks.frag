@@ -379,6 +379,24 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
 .rrnb-tablectl button:hover{border-color:var(--accent);color:var(--accent)}
 .rrnb-tablectl button.danger:hover{border-color:var(--red);color:var(--red)}
 
+/* ink annotation overlay (draw on a picture) */
+.rrnb-ink{position:fixed;inset:0;z-index:120;background:rgba(15,23,42,.66);display:flex;
+  flex-direction:column;align-items:center;justify-content:center;gap:var(--s-3);padding:var(--s-4)}
+.rrnb-ink[hidden]{display:none}
+.rrnb-ink-bar{display:flex;align-items:center;gap:var(--s-2);flex-wrap:wrap;background:var(--surface);
+  border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s-2) var(--s-3);box-shadow:var(--shadow-pop)}
+.rrnb-ink-bar .sw{width:24px;height:24px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0}
+.rrnb-ink-bar .sw.on{border-color:var(--text);box-shadow:0 0 0 2px var(--surface) inset}
+.rrnb-ink-bar .wd{height:28px;padding:0 var(--s-2);border:1px solid var(--border);border-radius:var(--r-md);
+  background:var(--surface);color:var(--text-muted);font-size:var(--fs-xs);font-weight:700;cursor:pointer}
+.rrnb-ink-bar .wd.on{border-color:var(--accent);color:var(--accent)}
+.rrnb-ink-bar .gap{width:1px;align-self:stretch;background:var(--border);margin:2px 4px}
+.rrnb-ink-bar button.act{height:28px;padding:0 var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);
+  background:var(--surface);color:var(--text-muted);font-size:var(--fs-sm);font-weight:600;cursor:pointer}
+.rrnb-ink-bar button.act.pri{background:var(--accent);color:#fff;border-color:var(--accent)}
+.rrnb-ink canvas{max-width:92vw;max-height:72vh;background:#fff;border-radius:var(--r-md);
+  box-shadow:var(--shadow-pop);cursor:crosshair;touch-action:none}
+
 /* dictation */
 .rrnb-tb.rec{background:var(--red-soft,rgba(220,38,38,.12));color:var(--red)}
 .rrnb-tb.rec .rrnb-recdot{width:8px;height:8px;border-radius:50%;background:var(--red);
@@ -694,6 +712,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     if (!S.be) chooseBackend();
     bindOnce();
     initRealtime();
+    setTimeout(outboxFlush, 400); // replay edits queued while offline / in a closed tab
     // Object-notebook navigation (RRNotebooks.openFor) — consumed here,
     // synchronously, so it wins over any concurrent default load.
     var po = S.pendingObject; S.pendingObject = null;
@@ -1102,6 +1121,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     ed.addEventListener("drop", onEditorDrop);
     bindToolbar();
     makeCaptionsEditable();
+    hydrateMedia(ed);
     renderTags(p.tags || []);
     renderBacklinks(id_of(p));
     refreshSaveLabel();
@@ -1267,7 +1287,20 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     if (ed) ed.querySelectorAll("figure.rrnb-fig.sel, img.sel").forEach(function (f) { f.classList.remove("sel"); });
     hideImgResize();
     if (img) { var fig = img.closest("figure.rrnb-fig") || img; fig.classList.add("sel"); showImgResize(fig, img); openImageSize(fig, img); return; }
-    var fl = e.target.closest("a.rrnb-file"); if (fl) { return; } // let the download link work
+    var fl = e.target.closest("a.rrnb-file");
+    if (fl) {
+      var mp = fl.getAttribute("data-media-path");
+      if (mp) { // stored file: the saved href expires — sign a fresh URL now
+        e.preventDefault();
+        mediaSign([mp], function (map) {
+          if (!map[mp]) { notify("Couldn't fetch that file — are you online?"); return; }
+          var a = document.createElement("a");
+          a.href = map[mp]; a.download = fl.getAttribute("download") || "file";
+          document.body.appendChild(a); a.click(); setTimeout(function () { a.remove(); }, 200);
+        });
+      }
+      return; // inline (base64) chips download natively
+    }
     var pl = e.target.closest("a.rrnb-pagelink");
     if (pl && (e.ctrlKey || e.metaKey || e.type === "click")) { var pid = pl.getAttribute("data-page-id"); if (pid) { e.preventDefault(); openPage(pid); } return; }
     var ol = e.target.closest("a.rrnb-objlink");
@@ -1288,7 +1321,74 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   // ══════════════════════════════════════════════════════════════════
   //  MEDIA — images (paste / drop / pick, client-side compressed) + files
   // ══════════════════════════════════════════════════════════════════
-  var MAX_IMG_DIM = 1600, MAX_FILE_BYTES = 8 * 1024 * 1024; // 8MB inline cap
+  var MAX_IMG_DIM = 1600, MAX_FILE_BYTES = 8 * 1024 * 1024; // 8MB inline (base64) fallback cap
+  var MEDIA_BUCKET = "notebook-media", MAX_STORE_BYTES = 25 * 1024 * 1024; // storage path cap (migration 0453)
+
+  // ── storage offload: media lives in the notebook-media bucket ─────
+  // Pages store only data-media-path; render hydrates short-lived signed
+  // URLs. When storage isn't reachable (signed-out/offline), media falls
+  // back to inline base64 exactly as before.
+  function storageClient() {
+    var sb = (window.RR && window.RR.sb) || window.sb;
+    var dsp = window.RR && window.RR.dsp && window.RR.dsp.id;
+    return (S.be && S.be.kind === "supabase" && sb && sb.storage && dsp) ? { sb: sb, dsp: dsp } : null;
+  }
+  function safeName(n) { return (String(n || "file").replace(/[^\w.\-]+/g, "_").slice(-80)) || "file"; }
+  function mediaUpload(blob, name, cb) {
+    var st = storageClient(); if (!st || !blob) return cb(null);
+    var path = st.dsp + "/" + (S.pageId || "page") + "/" + uid() + "-" + safeName(name);
+    st.sb.storage.from(MEDIA_BUCKET)
+      .upload(path, blob, { contentType: blob.type || "application/octet-stream", upsert: false })
+      .then(function (r) { cb(r && !r.error ? path : null); }, function () { cb(null); });
+  }
+  function mediaSign(paths, cb) {
+    var st = storageClient(); if (!st || !paths || !paths.length) return cb({});
+    st.sb.storage.from(MEDIA_BUCKET).createSignedUrls(paths, 3600).then(function (r) {
+      var map = {};
+      (((r && r.data) || [])).forEach(function (row) {
+        var u = row && (row.signedUrl || row.signedURL);
+        if (row && row.path && u) map[row.path] = u;
+      });
+      cb(map);
+    }, function () { cb({}); });
+  }
+  // refresh signed URLs on stored media (srcs in saved HTML expire after 1h)
+  function hydrateMedia(root) {
+    if (!root || !storageClient()) return;
+    var els = Array.prototype.slice.call(root.querySelectorAll("[data-media-path]"));
+    if (!els.length) return;
+    var paths = els.map(function (el) { return el.getAttribute("data-media-path"); });
+    mediaSign(paths, function (map) {
+      els.forEach(function (el) {
+        var u = map[el.getAttribute("data-media-path")]; if (!u) return;
+        if (el.tagName === "IMG") { if (el.src !== u) el.src = u; }
+        else el.setAttribute("href", u);
+      });
+    });
+  }
+  function dataUrlToBlob(dataUrl) {
+    try {
+      var m = /^data:([^;,]+);base64,(.*)$/.exec(dataUrl); if (!m) return null;
+      var bin = atob(m[2]), arr = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      return new Blob([arr], { type: m[1] });
+    } catch (e) { return null; }
+  }
+  // after an image lands as base64, quietly move it to storage and slim the page
+  function offloadFigure(fig, dataUrl, name) {
+    var blob = dataUrlToBlob(dataUrl); if (!blob) return;
+    mediaUpload(blob, name || "image", function (path) {
+      if (!path || !fig || !fig.isConnected) return;
+      var img = fig.querySelector("img"); if (!img) return;
+      mediaSign([path], function (map) {
+        if (!fig.isConnected) return;
+        img.setAttribute("data-media-path", path);
+        if (map[path]) img.src = map[path];
+        scheduleSave();
+      });
+    });
+  }
+
   function pickFile(accept, isImage) {
     var inp = document.createElement("input");
     inp.type = "file"; inp.accept = accept; inp.style.display = "none";
@@ -1309,7 +1409,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       insertHTMLAtCursor('<figure class="rrnb-fig" id="' + fid + '"><img src="' + dataUrl + '" alt="' + esc(file.name || "image") + '" /><figcaption></figcaption></figure><p><br></p>');
       makeCaptionsEditable(); scheduleSave();
       var fig = $id(fid);
-      if (fig) { fig.removeAttribute("id"); ocrFigure(fig, dataUrl); }
+      if (fig) { fig.removeAttribute("id"); ocrFigure(fig, dataUrl); offloadFigure(fig, dataUrl, file.name); }
     }); };
     reader.readAsDataURL(file);
   }
@@ -1329,14 +1429,43 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       im.src = dataUrl;
     } catch (e) { cb(dataUrl); }
   }
+  function fileChipHTML(file, href, mediaPath) {
+    var ext = ((file.name || "").split(".").pop() || "file").slice(0, 4);
+    return '<a class="rrnb-file" contenteditable="false" href="' + esc(href || "#") + '"' +
+      (mediaPath ? ' data-media-path="' + esc(mediaPath) + '"' : '') +
+      ' download="' + esc(file.name || "file") + '">' +
+      '<span class="fic">' + esc(ext) + '</span><span class="fnm"><b>' + esc(file.name || "file") + '</b><span>' +
+      fmtBytes(file.size) + '</span></span></a><p><br></p>';
+  }
   function insertFileAttachment(file) {
     if (!file) return;
-    if (file.size > MAX_FILE_BYTES) { notify('"' + (file.name || "file") + '" is over 8 MB — large files land in Phase 3 (Storage offload).'); return; }
+    if (storageClient()) {
+      if (file.size > MAX_STORE_BYTES) { notify('"' + (file.name || "file") + '" is over 25 MB.'); return; }
+      var range = savedSelection();
+      notify("Uploading " + (file.name || "file") + "…");
+      mediaUpload(file, file.name, function (path) {
+        if (!path) { notify("Upload failed — attaching inline instead"); return insertInlineFile(file); }
+        mediaSign([path], function (map) {
+          var ed = $id("rrnb-editor"); if (!ed) return;
+          ed.focus();
+          // the canvas may have re-rendered during the upload (realtime,
+          // outbox sync) — a range into the old DOM would insert nowhere
+          if (range && ed.contains(range.startContainer)) restoreSelection(range);
+          else caretToEl(ed, false);
+          insertHTMLAtCursor(fileChipHTML(file, map[path] || "#", path));
+          scheduleSave();
+        });
+      });
+      return;
+    }
+    insertInlineFile(file);
+  }
+  function insertInlineFile(file) {
+    if (!file) return;
+    if (file.size > MAX_FILE_BYTES) { notify('"' + (file.name || "file") + '" is over 8 MB — larger files need a signed-in session.'); return; }
     var reader = new FileReader();
     reader.onload = function () {
-      var ext = ((file.name || "").split(".").pop() || "file").slice(0, 4);
-      insertHTMLAtCursor('<a class="rrnb-file" contenteditable="false" href="' + reader.result + '" download="' + esc(file.name || "file") + '">' +
-        '<span class="fic">' + esc(ext) + '</span><span class="fnm"><b>' + esc(file.name || "file") + '</b><span>' + fmtBytes(file.size) + '</span></span></a><p><br></p>');
+      insertHTMLAtCursor(fileChipHTML(file, reader.result, null));
       scheduleSave();
     };
     reader.readAsDataURL(file);
@@ -1366,10 +1495,12 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     var r = img.getBoundingClientRect();
     var pop = showPop('<label>Picture</label><div class="rrnb-sizes">' +
       '<button data-imgw="25">25%</button><button data-imgw="50">50%</button><button data-imgw="75">75%</button><button data-imgw="100">100%</button></div>' +
-      '<div class="rrnb-sizes"><button data-imgocr="1" style="flex:1">Copy text from picture</button></div>', r);
+      '<div class="rrnb-sizes"><button data-imgann="1" style="flex:1">✏ Annotate</button>' +
+      '<button data-imgocr="1" style="flex:1">Copy text from picture</button></div>', r);
     pop.addEventListener("click", function (e) {
       var b = e.target.closest("[data-imgw]");
       if (b) { img.style.width = b.getAttribute("data-imgw") + "%"; img.style.height = "auto"; hidePop(); positionImgResize(); scheduleSave(); return; }
+      if (e.target.closest("[data-imgann]")) { hidePop(); hideImgResize(); openAnnotate(fig, img); return; }
       if (e.target.closest("[data-imgocr]")) {
         hidePop();
         var put = function (t) {
@@ -1447,6 +1578,88 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     h.addEventListener("pointercancel", onUp);
   }
 
+  // ── ink: draw on a picture (OneNote-style annotation) ─────────────
+  // Loads the image fresh (crossOrigin for stored media), lets the operator
+  // draw pen strokes on a canvas, then bakes the strokes into the picture
+  // and re-stores it (storage upload when signed in, base64 otherwise).
+  var INK_COLORS = ["#dc2626", "#d97706", "#2563eb", "#16a34a", "#111827", "#ffffff"];
+  function openAnnotate(fig, img) {
+    var src = img.currentSrc || img.src; if (!src) return;
+    var base = new Image();
+    if (!/^data:/.test(src)) base.crossOrigin = "anonymous";
+    base.onload = function () { buildInkOverlay(fig, img, base); };
+    base.onerror = function () { notify("Couldn't open this picture for annotation"); };
+    base.src = src;
+  }
+  function buildInkOverlay(fig, img, base) {
+    var old = $id("rrnb-ink"); if (old) old.remove();
+    var W = base.naturalWidth || base.width, H = base.naturalHeight || base.height;
+    if (!W || !H) { notify("Couldn't read this picture"); return; }
+    var scale = Math.min(1, MAX_IMG_DIM / Math.max(W, H)); W = Math.round(W * scale); H = Math.round(H * scale);
+    var wrap = document.createElement("div"); wrap.className = "rrnb-ink"; wrap.id = "rrnb-ink";
+    wrap.innerHTML = '<div class="rrnb-ink-bar">' +
+      INK_COLORS.map(function (c, i) { return '<button class="sw' + (i === 0 ? " on" : "") + '" data-ink-c="' + c + '" style="background:' + c + (c === "#ffffff" ? ";border:2px solid var(--border-strong)" : "") + '" title="' + c + '"></button>'; }).join("") +
+      '<span class="gap"></span>' +
+      '<button class="wd on" data-ink-w="4">Thin</button><button class="wd" data-ink-w="8">Med</button><button class="wd" data-ink-w="14">Thick</button>' +
+      '<span class="gap"></span>' +
+      '<button class="act" data-ink-undo>Undo</button>' +
+      '<button class="act" data-ink-cancel>Cancel</button>' +
+      '<button class="act pri" data-ink-save>Save</button></div>';
+    var cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+    wrap.appendChild(cv);
+    document.body.appendChild(wrap);
+    var ctx = cv.getContext("2d");
+    var strokes = [], cur = null, color = INK_COLORS[0], width = 4;
+    function redraw() {
+      ctx.clearRect(0, 0, W, H);
+      ctx.drawImage(base, 0, 0, W, H);
+      ctx.lineJoin = ctx.lineCap = "round";
+      strokes.concat(cur ? [cur] : []).forEach(function (s) {
+        if (s.points.length < 2) return;
+        ctx.strokeStyle = s.color; ctx.lineWidth = s.width;
+        ctx.beginPath(); ctx.moveTo(s.points[0][0], s.points[0][1]);
+        for (var i = 1; i < s.points.length; i++) ctx.lineTo(s.points[i][0], s.points[i][1]);
+        ctx.stroke();
+      });
+    }
+    function pt(e) {
+      var r = cv.getBoundingClientRect();
+      return [(e.clientX - r.left) * (W / r.width), (e.clientY - r.top) * (H / r.height)];
+    }
+    cv.addEventListener("pointerdown", function (e) {
+      e.preventDefault(); cv.setPointerCapture(e.pointerId);
+      cur = { color: color, width: width, points: [pt(e)] };
+    });
+    cv.addEventListener("pointermove", function (e) { if (cur) { cur.points.push(pt(e)); redraw(); } });
+    function endStroke() { if (cur) { if (cur.points.length > 1) strokes.push(cur); cur = null; redraw(); } }
+    cv.addEventListener("pointerup", endStroke);
+    cv.addEventListener("pointercancel", endStroke);
+    wrap.addEventListener("click", function (e) {
+      var c = e.target.closest("[data-ink-c]");
+      if (c) { color = c.getAttribute("data-ink-c"); wrap.querySelectorAll(".sw").forEach(function (b) { b.classList.toggle("on", b === c); }); return; }
+      var w = e.target.closest("[data-ink-w]");
+      if (w) { width = +w.getAttribute("data-ink-w"); wrap.querySelectorAll(".wd").forEach(function (b) { b.classList.toggle("on", b === w); }); return; }
+      if (e.target.closest("[data-ink-undo]")) { strokes.pop(); redraw(); return; }
+      if (e.target.closest("[data-ink-cancel]")) { wrap.remove(); return; }
+      if (e.target.closest("[data-ink-save]")) {
+        if (!strokes.length) { wrap.remove(); return; }
+        var out;
+        try { out = cv.toDataURL("image/jpeg", 0.88); }
+        catch (err) { wrap.remove(); notify("This picture can't be edited here (cross-origin)"); return; }
+        wrap.remove();
+        img.src = out;
+        img.removeAttribute("data-media-path"); // annotated = new artifact; re-offload below
+        scheduleSave();
+        if (fig && fig.tagName === "FIGURE") offloadFigure(fig, out, "annotated.jpg");
+        notify("Annotation saved");
+      }
+    });
+    document.addEventListener("keydown", function esc(e) {
+      if (e.key === "Escape") { var el = $id("rrnb-ink"); if (el) el.remove(); document.removeEventListener("keydown", esc); }
+    });
+    redraw();
+  }
+
   // ── keyboard shortcuts in the editor ─────────────────────────────
   function onEditorKey(e) {
     var mod = e.ctrlKey || e.metaKey;
@@ -1512,6 +1725,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       S.saving = false; S.savedAt = (r && r.updated_at) || new Date().toISOString();
       S.baseUpdatedAt = (r && r.updated_at) || S.baseUpdatedAt;
       hideConflict();
+      outboxRemove(pid);
       setSaveState("saved");
       // reflect the new title in the list
       if (S.tree) { var pg = S.tree.pages.filter(function (x) { return x.id === pid; })[0]; if (pg) { pg.title = data.title; pg.updated_at = S.savedAt; } }
@@ -1520,7 +1734,12 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     }).catch(function (e) {
       S.saving = false;
       if (/stale_write/.test(String((e && e.message) || ""))) { setSaveState("conflict"); showConflict(); return; }
-      setSaveState("err"); console.warn(e);
+      // network-ish failure: park the edit in the outbox so closing the tab
+      // can't lose it — it replays on reconnect / next boot. Only claim
+      // "saved on this device" if the outbox write actually persisted.
+      if (S.be.kind === "supabase" && outboxPut(pid, data, force ? null : (S.baseUpdatedAt || null))) setSaveState("queued");
+      else setSaveState("err");
+      console.warn(e);
     });
   }
   function setSaveState(st) {
@@ -1528,9 +1747,68 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     box.classList.remove("saving", "err");
     if (st === "saving") { box.classList.add("saving"); $id("rrnb-save-txt").textContent = "Saving…"; }
     else if (st === "err") { box.classList.add("err"); $id("rrnb-save-txt").textContent = "Save failed — retrying"; setTimeout(doSave, 2500); }
+    else if (st === "queued") { box.classList.add("saving"); $id("rrnb-save-txt").textContent = "Offline — saved on this device, will sync"; setTimeout(doSave, 4000); }
     else if (st === "conflict") { box.classList.add("err"); $id("rrnb-save-txt").textContent = "Conflict — not saved"; }
     else refreshSaveLabel();
   }
+
+  // ── offline outbox: edits survive a dead connection AND a closed tab ──
+  // Queued saves replay on reconnect or next boot. If the page changed on
+  // the server while we were offline, the queued edit becomes a
+  // "(conflicted copy)" page — both versions survive, OneNote-style.
+  function outboxKey() { return "rrnb-outbox:" + (((window.RR && window.RR.dsp && window.RR.dsp.id) || "local")); }
+  function outboxRead() { try { return JSON.parse(localStorage.getItem(outboxKey()) || "{}"); } catch (e) { return {}; } }
+  function outboxWrite(ob) { try { localStorage.setItem(outboxKey(), JSON.stringify(ob)); return true; } catch (e) { return false; } }
+  // returns false when persistence failed (quota, private browsing) — callers
+  // must NOT claim "saved on this device" in that case (Codex review)
+  function outboxPut(pid, data, base) {
+    var ob = outboxRead(); ob[pid] = { data: data, base: base || null, at: new Date().toISOString() };
+    return outboxWrite(ob) && !!outboxRead()[pid];
+  }
+  function outboxRemove(pid) { var ob = outboxRead(); if (ob[pid]) { delete ob[pid]; outboxWrite(ob); } }
+  var _outboxBusy = false;
+  function outboxFlush() {
+    if (_outboxBusy || !S.be || S.be.kind !== "supabase") return;
+    var ob = outboxRead(); var ids = Object.keys(ob); if (!ids.length) return;
+    _outboxBusy = true;
+    var ok = 0;
+    (function next(i) {
+      if (i >= ids.length) {
+        _outboxBusy = false;
+        if (ok) {
+          notify(ok + " offline change" + (ok > 1 ? "s" : "") + " synced");
+          // refresh the tree quietly; reload the canvas only if the open page
+          // was one of the synced ones and the operator isn't mid-edit
+          if (S.nbId) S.be.tree(S.nbId).then(function (t) { S.tree = t; renderSections(); renderPageList(); }).catch(function () {});
+          if (ids.indexOf(S.pageId) >= 0 && !S.saveTimer && !S.saving) openPage(S.pageId);
+        }
+        return;
+      }
+      var pid = ids[i], entry = ob[pid];
+      if (pid === S.pageId && S.saveTimer) { next(i + 1); return; } // live editor owns this page right now
+      S.be.savePage(pid, entry.data, entry.base).then(function () {
+        ok++; outboxRemove(pid); next(i + 1);
+      }, function (e) {
+        var msg = String((e && e.message) || "");
+        if (/stale_write/.test(msg)) { outboxRemove(pid); conflictedCopy(pid, entry).then(function () { ok++; next(i + 1); }, function () { next(i + 1); }); }
+        else if (/page_not_found/.test(msg)) { outboxRemove(pid); next(i + 1); }
+        else next(i + 1); // still unreachable — keep queued for the next flush
+      });
+    })(0);
+  }
+  function conflictedCopy(pid, entry) {
+    return S.be.getPage(pid).then(function (orig) {
+      var sec = (orig && orig.section_id) || S.activeSection;
+      if (!sec) throw new Error("no_section");
+      var title = ((entry.data && entry.data.title) || "Untitled") + " (conflicted copy)";
+      return S.be.createPage(sec, title, null, 0).then(function (p) {
+        return S.be.savePage(p.id, { title: title, content_html: entry.data.content_html, content_text: entry.data.content_text, tags: entry.data.tags }).then(function () {
+          notify("The page changed while you were offline — your edits were kept as “" + title + "”");
+        });
+      });
+    });
+  }
+  window.addEventListener("online", function () { setTimeout(outboxFlush, 800); });
   // Someone else saved this page after the version we loaded: never clobber
   // silently — the operator picks which version wins.
   function showConflict() {
@@ -1616,6 +1894,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       p.innerHTML = '<div class="ph">Version from ' + esc(relTime(rev.created_at)) +
         '<span class="sp"><button class="pri" data-rv-restore="1">Restore this version</button><button data-ai-x="1">Close</button></span></div>' +
         '<div class="bd">' + (rev.content_html || "<p>(empty page)</p>") + '</div>';
+      hydrateMedia(p.querySelector(".bd"));
       p.querySelector("[data-ai-x]").onclick = function () { p.remove(); };
       p.querySelector("[data-rv-restore]").onclick = function () {
         p.remove();
@@ -1743,10 +2022,26 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     return S.be.getPage(id);
   }
   function printPage(id) {
+    var w = window.open("", "_blank", "width=900,height=700");
+    if (!w) { notify("Pop-up blocked — allow pop-ups to print"); return; }
     pageSnapshotFor(id).then(function (p) {
-      if (!p) return;
-      var w = window.open("", "_blank", "width=900,height=700");
-      if (!w) { notify("Pop-up blocked — allow pop-ups to print"); return; }
+      if (!p) { try { w.close(); } catch (e) {} return; }
+      // stored media: saved srcs may be expired signed URLs — re-sign for print
+      var host = document.createElement("div"); host.innerHTML = p.content_html || "";
+      var els = Array.prototype.slice.call(host.querySelectorAll("[data-media-path]"));
+      var writeDoc = function () { p.content_html = host.innerHTML; writePrintDoc(w, p); };
+      if (els.length && storageClient()) {
+        mediaSign(els.map(function (el) { return el.getAttribute("data-media-path"); }), function (map) {
+          els.forEach(function (el) {
+            var u = map[el.getAttribute("data-media-path")]; if (!u) return;
+            if (el.tagName === "IMG") el.src = u; else el.setAttribute("href", u);
+          });
+          writeDoc();
+        });
+      } else writeDoc();
+    }).catch(fail);
+  }
+  function writePrintDoc(w, p) {
       w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>' + esc(p.title || "Page") + '</title><style>' +
         'body{font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#111;max-width:760px;margin:32px auto;padding:0 24px}' +
         'h1{font-size:26px;margin:0 0 16px}h2{font-size:20px}h3{font-size:15px;text-transform:uppercase;letter-spacing:.03em}' +
@@ -1762,7 +2057,6 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       w.document.close();
       w.focus();
       setTimeout(function () { try { w.print(); } catch (e) {} }, 300);
-    }).catch(fail);
   }
   function exportMarkdown(id) {
     pageSnapshotFor(id).then(function (p) {
