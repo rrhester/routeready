@@ -1,14 +1,43 @@
-// interview-room · Assigns a Jitsi video room to a freshly-booked native
+// interview-room · Assigns a video room to a freshly-booked native
 // interview, stores the join URL on the cal_event, and queues the DSP-branded
 // confirmation email. Group sessions share ONE room (stored on the session).
 // Fired by the cal_events trigger (private.fire_interview_room) via pg_net.
 // Deployed --no-verify-jwt; gated by the shared x-rr-sync-token.
 //
-// Video uses Jitsi (meet.jit.si): no API key / server call, just a unique
-// unguessable room URL — Whereby's API edge was blocking room creation (403).
+// Video uses RouteReady Meet (dashboard/meet.html, first-party WebRTC):
+// rooms live in the meetings table (migration 0457) and join links are the
+// short /m/<code> form. Falls back to a unique meet.jit.si URL if the
+// insert fails — the booking + confirmation email must never die because
+// room minting hiccuped. (Jitsi was the original provider; old events keep
+// their meet.jit.si URLs and still work.)
 import { serviceClient, jsonResponse } from "../_shared/supabase.ts";
 
-function createRoom(): string {
+const PUBLIC_BASE = (Deno.env.get("PUBLIC_BASE_URL") || "https://gorouteready.com").replace(/\/+$/, "");
+
+// Mirrors meet_create's alphabet (i/l/o removed) and xxx-xxxx-xxx shape.
+const MEET_ALPHABET = "abcdefghjkmnpqrstuvwxyz";
+function meetCode(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(10));
+  let raw = "";
+  for (const b of bytes) raw += MEET_ALPHABET[b % MEET_ALPHABET.length];
+  return raw.slice(0, 3) + "-" + raw.slice(3, 7) + "-" + raw.slice(7);
+}
+
+// deno-lint-ignore no-explicit-any
+async function createRoom(supa: any, dspId: string, title: string): Promise<string> {
+  for (let i = 0; i < 5; i++) {
+    const code = meetCode();
+    const { error } = await supa.from("meetings").insert({
+      dsp_id: dspId,
+      code,
+      title: (title || "Interview").slice(0, 200),
+      host_name: "RouteReady",
+    });
+    if (!error) return `${PUBLIC_BASE}/m/${code}`;
+    // Code collision (astronomically rare) → roll again; anything else
+    // (e.g. meetings table not migrated yet) → Jitsi fallback below.
+    if (!/duplicate|unique/i.test(error.message || "")) break;
+  }
   return "https://meet.jit.si/RouteReady-" + crypto.randomUUID().replace(/-/g, "");
 }
 
@@ -41,11 +70,11 @@ Deno.serve(async (req) => {
       if (s?.meeting_url) {
         roomUrl = s.meeting_url;
       } else if (s) {
-        roomUrl = createRoom();
+        roomUrl = await createRoom(supa, ev.dsp_id, ev.title || "Group interview");
         await supa.from("interview_sessions").update({ meeting_url: roomUrl }).eq("id", s.id);
       }
     } else {
-      roomUrl = createRoom();
+      roomUrl = await createRoom(supa, ev.dsp_id, ev.title || "Interview");
     }
     if (!roomUrl) return jsonResponse({ ok: true, skipped: "no_room" });
 
