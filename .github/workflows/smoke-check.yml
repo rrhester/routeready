@@ -1,0 +1,38 @@
+name: smoke-check
+
+# The dashboard/driver monoliths (live.js, workbook.js, reports.js, app.js)
+# have no unit tests — their only guard against orphan top-level code that
+# reverts the app to a static mockup (a failure that has bitten us before) is
+# scripts/smoke-check-live.mjs, which parses each file with acorn and rejects
+# conflict markers, unreachable top-level statements, and other boot hazards.
+# Until now it ran ONLY in the .githooks/pre-push hook, which is bypassable
+# (--no-verify) and absent on any clone that never ran `npm run prepare`. This
+# makes it a required PR gate so the core app is actually validated in CI.
+on:
+  pull_request:
+    paths:
+      - "dashboard/live.js"
+      - "dashboard/workbook.js"
+      - "dashboard/reports.js"
+      - "app/app.js"
+      - "scripts/smoke-check-live.mjs"
+      - ".github/workflows/smoke-check.yml"
+  push:
+    branches: [main]
+    paths:
+      - "dashboard/live.js"
+      - "dashboard/workbook.js"
+      - "dashboard/reports.js"
+      - "app/app.js"
+      - "scripts/smoke-check-live.mjs"
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm install
+      - run: npm run smoke

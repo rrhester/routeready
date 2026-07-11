@@ -148,9 +148,20 @@ Deno.serve(async (req) => {
     }
   }
 
-  let sent = 0;
+  let sent = 0, skipped = 0;
   for (const row of rows as QueuedRow[]) {
-    await supa.from("email_messages").update({ status: "sending" }).eq("id", row.id);
+    // Atomically claim the row: flip queued→sending only if it is STILL
+    // queued. The pg_net insert trigger and the 1-minute cron drainer both
+    // select status='queued' and can race for the same row; without this
+    // guard both would send it (duplicate email). The conditional update
+    // returns the row only to the worker that won the claim; a loser gets
+    // zero rows and skips.
+    const { data: claimed } = await supa.from("email_messages")
+      .update({ status: "sending" })
+      .eq("id", row.id)
+      .eq("status", "queued")
+      .select("id");
+    if (!claimed || claimed.length === 0) { skipped++; continue; }
 
     const dsp = dspById.get(row.dsp_id);
     // Fleet Bridge mail (row.folder_id set) is the operator-to-vendor
@@ -304,7 +315,7 @@ Deno.serve(async (req) => {
     sent++;
   }
 
-  return jsonResponse({ sent, total: rows.length });
+  return jsonResponse({ sent, skipped, total: rows.length });
 });
 
 // redeploy: retry after a transient JWT-gated deploy failure (no logic change)
