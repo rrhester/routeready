@@ -8,9 +8,9 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=30297fbceaf3";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=30297fbceaf3";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=30297fbceaf3";
+import { planScheduleWeek } from "./scheduling-engine.js?v=20fff63bdb36";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=20fff63bdb36";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=20fff63bdb36";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -1374,7 +1374,10 @@ function _paToggleNotesDrawer(card) {
   drawer.innerHTML = `
     <div class="pa-drawer-inner">
       <div class="pa-drawer-body">
-        <div class="pa-drawer-label">Private notes${name ? " · " + escapeHtml(name) : ""}</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <div class="pa-drawer-label">Private notes${name ? " · " + escapeHtml(name) : ""}</div>
+          <button type="button" class="btn btn-sm btn-ghost" data-rr-pa-notebook title="Open this candidate's notebook" style="display:inline-flex;align-items:center;gap:6px"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h11l5 5v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M14 4v6h6"/></svg>Notebook</button>
+        </div>
         <div class="pa-pop-notes" data-rr-notes-slot>
           <textarea class="pa-notes-input" data-rr-notes-input placeholder="Private notes for your team — call summaries, follow-ups, gut checks…" disabled></textarea>
           <div class="pa-pop-status" data-rr-notes-status>Loading…</div>
@@ -1382,6 +1385,12 @@ function _paToggleNotesDrawer(card) {
       </div>
     </div>`;
   card.appendChild(drawer);
+
+  const _paNbBtn = drawer.querySelector("[data-rr-pa-notebook]");
+  if (_paNbBtn) _paNbBtn.addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    if (window.RRNotebooks) window.RRNotebooks.openFor("applicant", id, name || "Applicant");
+  });
 
   const slot = drawer.querySelector("[data-rr-notes-slot]");
   if (slot) _initApplicantNotes(slot, id);
@@ -56003,7 +56012,7 @@ async function openShiftEditModal(arg) {
   const destructiveButtons = isTimeOff
     ? `<button class="btn btn-sm" data-rr-timeoff-delete style="color:var(--red);border-color:rgba(220,38,38,.3)">Remove ${escapeHtml(timeOff.rrPtoLabel || "time off")}</button>`
     : isAdd ? ""
-    : `${pinButton}<button class="btn btn-sm" data-rr-shift-edit-delete style="color:var(--red);border-color:rgba(220,38,38,.3)">Delete shift</button>`;
+    : `<button class="btn btn-sm" data-rr-shift-edit-notebook title="Open this shift's notebook">Notebook</button>${pinButton}<button class="btn btn-sm" data-rr-shift-edit-delete style="color:var(--red);border-color:rgba(220,38,38,.3)">Delete shift</button>`;
   const primaryBtnLabel = isAdd ? "Add shift" : "Save";
   // Time off has no Save/Add — just Remove (left) + Cancel.
   const primaryBtn = isTimeOff ? ""
@@ -56227,6 +56236,15 @@ async function openShiftEditModal(arg) {
   let _ackedViolationsKey = null;
   m.addEventListener("click", async (e) => {
     if (e.target.closest("[data-rr-shift-edit-cancel]")) { close(); return; }
+    if (e.target.closest("[data-rr-shift-edit-notebook]")) {
+      close();
+      if (window.RRNotebooks && shiftId) {
+        const _drv = sh && sh.drivers && sh.drivers.full_name;
+        const _lbl = _drv ? `Shift · ${_drv}` : (sh && sh.date ? `Shift · ${sh.date}` : "Shift");
+        window.RRNotebooks.openFor("shift", shiftId, _lbl);
+      }
+      return;
+    }
 
     // Pin / Unpin — toggle is_locked so Smart Fill won't move this shift's
     // driver. The chip's 📌 marker + engine honoring of is_locked already

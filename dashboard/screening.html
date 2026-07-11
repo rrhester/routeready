@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#FFFFFF">
 <title>Application</title>
 <!-- Headings use the self-hosted Inter (DS title spec: 600 / 28px); the
@@ -637,11 +637,11 @@ body {
     <p class="step-body">We need this to get back to you.</p>
 
     <div class="contact-grid">
-      <input class="form-input" type="text" id="input-firstName" placeholder="First name" autocomplete="given-name">
-      <input class="form-input" type="text" id="input-lastName" placeholder="Last name" autocomplete="family-name">
+      <input class="form-input" type="text" id="input-firstName" placeholder="First name" aria-label="First name" autocomplete="given-name">
+      <input class="form-input" type="text" id="input-lastName" placeholder="Last name" aria-label="Last name" autocomplete="family-name">
     </div>
-    <input class="form-input" type="email" id="input-email" placeholder="Email address" autocomplete="email" style="margin-bottom: 14px">
-    <input class="form-input" type="tel" id="input-phone" placeholder="Phone number" autocomplete="tel" style="margin-bottom: 14px">
+    <input class="form-input" type="email" id="input-email" placeholder="Email address" aria-label="Email address" autocomplete="email" style="margin-bottom: 14px">
+    <input class="form-input" type="tel" id="input-phone" placeholder="Phone number" aria-label="Phone number" autocomplete="tel" style="margin-bottom: 14px">
 
     <div class="footer-actions">
       <button class="btn-primary" onclick="goToStep('form')">Continue &rarr;</button>
