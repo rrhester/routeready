@@ -52,7 +52,7 @@
                Assign Fleet .rr-ab-caret split exactly — same markup + a
                view-scoped .rr-ab-menu recipe (inline-styles.css). -->
           <div class="rr-ab-split-wrap">
-            <button type="button" class="rr-ab-btn rr-ab-emph" id="rr-fleet-add" aria-label="Add van" title="Add van">
+            <button type="button" class="rr-ab-btn" id="rr-fleet-add" aria-label="Add van" title="Add van">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               <span>Add van</span>
               <span class="rr-ab-caret" id="rr-fleet-add-caret" role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="More van actions">

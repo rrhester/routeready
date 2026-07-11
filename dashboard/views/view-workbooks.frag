@@ -38,7 +38,7 @@
                  them — the caret's own click stopPropagation()s so the pill's
                  create action never fires when only the caret is clicked. -->
             <div class="rr-ab-split-wrap">
-              <button type="button" class="rr-ab-btn rr-ab-emph" data-wb-act="new-workbook" aria-label="New workbook" title="New workbook">
+              <button type="button" class="rr-ab-btn" data-wb-act="new-workbook" aria-label="New workbook" title="New workbook">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 New workbook
                 <span class="rr-ab-caret" data-wb-split-caret role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="More ways to create">
@@ -67,7 +67,7 @@
                 <button type="button" role="menuitem" data-wb-act="browse-templates">Browse all templates…</button>
               </div>
             </div>
-            <button type="button" class="rr-ab-btn rr-ab-emph" data-wb-act="new-report" hidden aria-label="New report" title="New report">
+            <button type="button" class="rr-ab-btn" data-wb-act="new-report" hidden aria-label="New report" title="New report">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               New report
             </button>
