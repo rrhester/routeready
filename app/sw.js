@@ -63,7 +63,11 @@
 // anatomy (999px pill, weight 700, 11px token size), micro-labels get a
 // 10px floor (shift-card meta, date blocks, tab badge), and tab labels
 // step up to 11px/600. Bumped so installed driver PWAs pick up the CSS.
-const SHELL_CACHE = "rr-app-shell-v139";
+// v140 · Chat navigation joins the hash router: /chat, /chat/channels,
+// /chat/channel?id=… — hardware Back pops thread → list → out instead of
+// exiting Chat, channels are deep-linkable, and the header back arrow is
+// route-driven. Bumped so installed driver PWAs pick up the new app.js.
+const SHELL_CACHE = "rr-app-shell-v140";
 const SHELL_FILES = [
   "./",
   "index.html",
