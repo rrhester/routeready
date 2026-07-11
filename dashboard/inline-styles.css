@@ -28832,10 +28832,10 @@ body.rr-cmdk-open{ overflow:hidden }
      buttons all use border:1px solid var(--rr-border-primary) =
      var(--rr-gray-200) (defined in app/rr-system.css). Previously #E9EDF3 — a cooler
      blue-gray that read as a different gray from the Schedule buttons. */
-  /* Navy outline to match the Schedule page's Smart Fill button
-     (schedule-rrx.css:5396 — border:1.5px solid var(--sidebar-bg,var(--rr-slate-900))),
-     per operator request. Heavier than the 1px hairline the other tiles use. */
-  border:1.5px solid var(--sidebar-bg, var(--rr-slate-900)) !important;
+  /* Light hairline like the rest of the Schedule toolbar controls (the
+     ‹ › week arrows, cards, page buttons). The earlier navy Smart-Fill-style
+     outline was removed per operator request 2026-07-11. */
+  border:1px solid var(--rr-border-primary, var(--rr-gray-200)) !important;
   border-radius:8px !important;
   box-shadow:none !important;
   color:var(--rr-gray-900) !important;
@@ -28868,7 +28868,7 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .rr-cal-viewdd-trigger:hover,
 #view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon #rr-iv-rules-toggle:hover{
   background:var(--rr-blue-50) !important;     /* match Smart Fill's hover wash */
-  border-color:var(--sidebar-bg, var(--rr-slate-900)) !important;   /* keep the navy outline on hover */
+  border-color:var(--rr-border-primary, var(--rr-gray-200)) !important;   /* keep the hairline on hover */
   color:#202124 !important;
 }
 
