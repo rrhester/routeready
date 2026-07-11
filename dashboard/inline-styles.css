@@ -29029,6 +29029,14 @@ body.rr-cmdk-open{ overflow:hidden }
    headers show slot utilization with an amber shortfall tint. */
 /* Queue panel spacing in its new slot above the mini-month. */
 #rr-ivcal .oc-side > .oc-await{ margin-top:12px; flex:0 0 auto; }
+/* Drag-to-book affordances · queue rows are draggable onto the shaded
+   bookable bands; a dragged-over column brightens its bands so the
+   legal drop zones are unmistakable. */
+#rr-ivcal .oc-await-row[draggable]{ cursor:grab; }
+#rr-ivcal .oc-await-row[draggable]:active{ cursor:grabbing; }
+#rr-ivcal .oc-col.is-bk-dropover .oc-avail{
+  background:rgba(66,133,244,.16); border-color:rgba(66,133,244,.45);
+}
 /* Copy-link icon reveals on row hover/focus — the row got tighter when
    the age chip arrived, and the candidate's NAME is the row's payload. */
 #rr-ivcal .oc-await-row .oc-await-copy{ opacity:0; transition:opacity .12s ease; }

@@ -23749,7 +23749,7 @@ function _ivcalAwaiting() {
       ? `<span class="oc-await-age${ageDays >= 2 ? " is-old" : ""}" title="In the pipeline ${ageDays} day${ageDays === 1 ? "" : "s"}">${ageDays}d</span>` : "";
     const sub = ago ? `Link sent ${escapeHtml(ago)}` : (a.email ? escapeHtml(a.email) : "Invited — no time booked");
     const linkIco = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`;
-    return `<div class="oc-await-row" data-ivcal-await="${escapeHtml(a.id)}" title="Open ${escapeHtml(name)}">
+    return `<div class="oc-await-row" data-ivcal-await="${escapeHtml(a.id)}" data-ivcal-await-name="${escapeHtml(name)}" draggable="true" title="Open ${escapeHtml(name)} — or drag onto a shaded bookable slot to book them">
       <span class="oc-await-dot" aria-hidden="true"></span>
       <span class="oc-await-main"><span class="oc-await-name">${escapeHtml(name)}</span><span class="oc-await-sub">${sub}</span></span>
       ${ageChip}
@@ -24566,6 +24566,85 @@ function _ivcalRender() {
     if (act === "connect") _ivcalGoogleConnect();
     else if (act === "menu") _ivcalGoogleMenu(e);
     else _ivcalGoogleDisconnect();
+  });
+
+  // ── Drag-to-book (enterprise pass 2026-07-11) · drag a candidate from
+  //    the Interview-booking queue onto a shaded bookable band to book
+  //    that slot on their behalf. Deliberately rides the SAME hardened
+  //    engine as candidate self-booking (booking_link_get →
+  //    book_interview_slot), so every server guard — eligibility,
+  //    double-book, minimum lead time, grid alignment, capacity, busy
+  //    overlap — applies identically. No new write path.
+  host.querySelectorAll(".oc-await-row[draggable]").forEach(rowEl => {
+    rowEl.addEventListener("dragstart", (e) => {
+      e.dataTransfer.setData("text/plain", JSON.stringify({
+        rr: "awaiting",
+        id: rowEl.getAttribute("data-ivcal-await"),
+        name: rowEl.getAttribute("data-ivcal-await-name") || "",
+      }));
+      e.dataTransfer.effectAllowed = "copy";
+    });
+  });
+  // Snap a raw drop minute to the availability grid exactly the way the
+  // server validates it (window start + k·(slot+buffer), fully inside).
+  const _bkSnap = (dateISO, rawMin) => {
+    const wd = new Date(dateISO + "T00:00:00").getDay();
+    const slot = (_ivcalCache && _ivcalCache.slot) || 30, buf = (_ivcalCache && _ivcalCache.buffer) || 0;
+    for (const w of ((_ivcalCache && _ivcalCache.windows) || []).filter(w => w.weekday === wd)) {
+      if (rawMin < w.start_min || rawMin >= w.end_min) continue;
+      const step = Math.max(slot + buf, 1);
+      const mm = w.start_min + Math.floor((rawMin - w.start_min) / step) * step;
+      if (mm + slot <= w.end_min) return mm;
+    }
+    return null;
+  };
+  host.querySelectorAll(".oc-col[data-ivcal-date]").forEach(col => {
+    col.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+      col.classList.add("is-bk-dropover");
+    });
+    col.addEventListener("dragleave", () => col.classList.remove("is-bk-dropover"));
+    col.addEventListener("drop", async (e) => {
+      col.classList.remove("is-bk-dropover");
+      let payload = null;
+      try { payload = JSON.parse(e.dataTransfer.getData("text/plain") || "null"); } catch (_) {}
+      if (!payload || payload.rr !== "awaiting" || !payload.id) return;
+      e.preventDefault(); e.stopPropagation();
+      const dateISO = col.getAttribute("data-ivcal-date");
+      const y = e.clientY - col.getBoundingClientRect().top;
+      const mm = _bkSnap(dateISO, _IVCAL_H0 * 60 + (y / _IVCAL_RH) * 60);
+      if (mm === null) { toast("Drop onto a shaded bookable band — those are the offered slots", "warn"); return; }
+      const slot = (_ivcalCache && _ivcalCache.slot) || 30;
+      const tz = (_ivcalCache && _ivcalCache.tz) || "America/Chicago";
+      const hh = String(Math.floor(mm / 60)).padStart(2, "0"), mi = String(mm % 60).padStart(2, "0");
+      const startISO = _ivLocalToISO(dateISO, hh + ":" + mi, tz);
+      const tt = new Date(); tt.setHours(Math.floor(mm / 60), mm % 60, 0, 0);
+      const whenTxt = new Date(dateISO + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })
+        + " at " + tt.toLocaleTimeString([], _ivClockOpts());
+      const nm = rrTitleCaseName(payload.name) || "this candidate";
+      if (!(await _rrConfirmDialog({ title: `Book ${nm}?`, body: `${whenTxt} · ${slot} min — the confirmation email with the interview details goes out automatically.`, confirmLabel: "Book interview" }))) return;
+      try {
+        const { data: lk, error: e1 } = await sb.rpc("booking_link_get", { p_id: payload.id });
+        if (e1) throw e1;
+        if (!lk || !lk.token) throw new Error("No booking token returned");
+        const { data: res, error: e2 } = await sb.rpc("book_interview_slot", { p_token: lk.token, p_slot_start: startISO });
+        if (e2) throw e2;
+        if (!res || !res.ok) throw new Error("Could not book that time.");
+        toast(`${nm} booked · ${whenTxt}`, "success");
+        await loadIvCalendar();
+      } catch (err) {
+        const s = String((err && err.message) || err).toLowerCase();
+        const msg = s.includes("already_booked") ? `${nm} already has an interview on the calendar.`
+          : s.includes("slot_taken") ? "That slot just filled — pick another."
+          : s.includes("slot_too_soon") ? "That slot is inside the minimum booking lead time."
+          : s.includes("slot_unavailable") ? "That time isn't inside a bookable window."
+          : s.includes("not_eligible") ? `${nm} is past the interview stage.`
+          : s.includes("booking_link_get") || s.includes("does not exist") ? "Update needed — run the latest Supabase migration to enable booking links."
+          : "Couldn't book: " + ((err && err.message) || err);
+        toast(msg, "warn");
+      }
+    });
   });
 
   // Event interactions: click the camera glyph → open the video interview
