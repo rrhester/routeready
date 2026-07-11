@@ -45,6 +45,12 @@
      for the whole driver surface: hero, primary CTAs, active tab,
      inline links, focus rings.  Ramp = communicationBlueShade30
      for pressed, Tint10/20 for hover/glow. */
+  /* Chrome — the app's structural band (header, home hero). Deep ink
+     navy (the icon tile's own gradient) instead of wall-to-wall brand
+     blue: the chrome recedes, and blue CTAs/cards pop against it. */
+  --chrome: var(--rr-ink-800);
+  --chrome-deep: var(--rr-ink-900);
+  --chrome-grad: linear-gradient(180deg, var(--rr-ink-800) 0%, var(--rr-ink-900) 100%);
   --accent: var(--rr-blue-600);
   --accent-hover: var(--rr-blue-700);
   --accent-strong: var(--rr-blue-800);
@@ -182,7 +188,7 @@ a{color:var(--accent);text-decoration:none}
    chrome reads as one continuous brand surface from Home into
    any sub-screen.  Title + gear icon flip to white. */
 .app-head{
-  background:linear-gradient(180deg, var(--rr-blue-600) 0%, var(--rr-blue-700) 100%);
+  background:var(--chrome-grad);
   border-bottom:1px solid rgba(0,0,0,.12);
   padding:calc(12px + env(safe-area-inset-top, 0px)) 18px 12px;
   display:flex;align-items:center;justify-content:space-between;gap:var(--s-3);
@@ -2596,12 +2602,8 @@ body.is-home main > .home-hero{
   position:relative;
   color:var(--rr-white);
   padding:calc(14px + env(safe-area-inset-top, 0px)) 22px 64px;
-  background:
-    /* Single restrained Fluent communicationBlue gradient — the
-       same chrome the dashboard sidebar uses, lifted to the
-       driver's primary surface. */
-    linear-gradient(180deg, var(--rr-blue-600) 0%, var(--rr-blue-700) 100%);
-  border-radius:0 0 16px 16px;
+  background:var(--chrome-grad);
+  border-radius:0;
   box-shadow:var(--shadow-lg);
   text-align:center;
   display:flex;flex-direction:column;align-items:center;
