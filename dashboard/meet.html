@@ -28,6 +28,7 @@
   body[data-screen="home"]  section[data-screen="home"],
   body[data-screen="lobby"] section[data-screen="lobby"],
   body[data-screen="room"]  section[data-screen="room"],
+  body[data-screen="waiting"] section[data-screen="waiting"],
   body[data-screen="done"]  section[data-screen="done"]{display:flex}
 
   /* ── shared chrome ─────────────────────────────────────────────── */
@@ -143,6 +144,9 @@
   #settings-pop label{display:block;font-size:12px;font-weight:600;color:var(--room-muted);margin:10px 0 4px}
   #settings-pop label:first-child{margin-top:0}
   #settings-pop select{width:100%;background:var(--room-tile);border:1px solid var(--room-line);color:var(--room-text);border-radius:8px;padding:8px;font:inherit;font-size:13px}
+  .blur-block{margin-top:12px;padding-top:12px;border-top:1px solid var(--room-line)}
+  .blur-row{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:600;cursor:pointer}
+  .blur-row input{width:16px;height:16px;accent-color:var(--accent)}
 
   /* lobby mic level meter */
   .lobby-meter{position:absolute;left:0;right:0;bottom:0;height:4px;background:rgba(255,255,255,.14)}
@@ -154,6 +158,31 @@
   .rh-btn:hover{color:var(--room-text)}
   .rh-btn.on{background:var(--accent);border-color:var(--accent);color:#fff}
   .rh-btn svg{width:14px;height:14px}
+
+  /* recording */
+  #rec-pill{display:flex;align-items:center;gap:6px;color:#F87171;font-weight:800;font-size:12.5px;letter-spacing:.05em}
+  .rec-dot{width:8px;height:8px;border-radius:50%;background:#DC2626;animation:recblink 1.4s ease-in-out infinite}
+  @keyframes recblink{0%,100%{opacity:1}50%{opacity:.25}}
+  @media (prefers-reduced-motion:reduce){.rec-dot{animation:none}}
+  #btn-record.on{background:var(--red);border-color:var(--red)}
+  #btn-record.on:hover{background:#B91C1C}
+
+  /* waiting room */
+  #btn-waiting{background:#B45309;border-color:#B45309;color:#fff}
+  #btn-waiting:hover{background:#92400E}
+  #waiting-pop{min-width:300px;bottom:auto;top:52px;left:auto;right:14px;transform:none}
+  #waiting-pop h4{margin:0 0 8px;font-size:13px;color:var(--room-muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+  .wait-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid var(--room-line)}
+  .wait-row:first-of-type{border-top:0}
+  .wait-name{flex:1;font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .wait-admit{background:var(--green);border:0;color:#fff;border-radius:7px;padding:6px 12px;font-weight:700;font-size:13px}
+  .wait-admit:hover{filter:brightness(.92)}
+  .wait-deny{background:transparent;border:1px solid var(--room-line);color:#F87171;border-radius:7px;padding:6px 12px;font-weight:700;font-size:13px}
+  .wait-deny:hover{background:rgba(220,38,38,.14)}
+  .waiting-wrap{flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:24px;text-align:center}
+  .waiting-wrap .big{font-size:20px;font-weight:800;margin-top:16px}
+  .waiting-wrap .sub{color:var(--muted);font-size:15px}
+  .waiting-wrap .btn-secondary{margin-top:18px;padding:11px 22px}
 
   /* chat panel */
   #chat{width:0;overflow:hidden;transition:width .18s ease;background:var(--room-panel);border-left:1px solid var(--room-line);display:flex;flex-direction:column}
@@ -269,11 +298,13 @@
     <header class="room-head">
       <div class="rh-title" id="room-title">RouteReady meeting</div>
       <button class="code-chip" id="room-code" type="button" title="Copy invite link"></button>
+      <button class="rh-btn" id="btn-waiting" type="button" style="display:none" title="Guests waiting to join"></button>
       <button class="rh-btn" id="btn-view" type="button" title="Toggle speaker view">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="12" rx="2"/><rect x="3" y="18" width="5" height="3" rx="1"/><rect x="10" y="18" width="5" height="3" rx="1"/><rect x="17" y="18" width="4" height="3" rx="1"/></svg>
         Speaker view
       </button>
       <div class="rh-right">
+        <span id="rec-pill" style="display:none"><span class="rec-dot"></span>REC</span>
         <span id="room-timer">0:00</span>
         <span class="dot" aria-hidden="true"></span>
         <span title="Participants"><span id="people-count">1</span> in call</span>
@@ -306,6 +337,9 @@
         <svg class="ic-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
         <span id="chat-unread" style="display:none">0</span>
       </button>
+      <button id="btn-record" class="ctrl" type="button" title="Record meeting" style="display:none">
+        <svg class="ic-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/></svg>
+      </button>
       <button id="btn-react" class="ctrl" type="button" title="Reactions">
         <svg class="ic-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
       </button>
@@ -327,7 +361,23 @@
       <div class="set-block"><label for="sel-mic">Microphone</label><select id="sel-mic"></select></div>
       <div class="set-block"><label for="sel-cam">Camera</label><select id="sel-cam"></select></div>
       <div class="set-block" id="spk-block"><label for="sel-spk">Speaker</label><select id="sel-spk"></select></div>
+      <div class="set-block blur-block">
+        <label class="blur-row"><input type="checkbox" id="chk-blur"><span id="blur-label">Blur my background</span></label>
+      </div>
     </div>
+    <div id="waiting-pop" class="pop" hidden>
+      <h4>Waiting to join</h4>
+      <div id="waiting-list"></div>
+    </div>
+  </section>
+
+  <!-- waiting room (guests, until a host admits them) -->
+  <section data-screen="waiting" class="waiting-wrap">
+    <div class="brand"><div class="logo">R</div><div class="t">RouteReady Meet</div></div>
+    <div class="spin" style="margin:26px auto 0"></div>
+    <div class="big" id="waiting-title">RouteReady meeting</div>
+    <div class="sub">You're in the waiting room — the host will let you in shortly.</div>
+    <button id="btn-wait-leave" class="btn-secondary" type="button">Leave</button>
   </section>
 
   <!-- done -->

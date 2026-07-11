@@ -85,6 +85,10 @@ const state = {
   sinkId: "",          // chosen output device ("" = default)
   statsTimer: null,
   levelTimer: null,
+  // waiting room
+  knock: false,        // I'm a guest awaiting admission
+  waiting: [],         // (hosts) guests currently knocking
+  rec: false,          // I'm recording (mirrored to presence meta)
 };
 
 const peers = new Map(); // key → {pc, polite, makingOffer, ignoreOffer, isSettingRemoteAnswerPending, pending:[], stream}
@@ -282,7 +286,13 @@ async function switchDevice(kind, deviceId) {
       state.camTrack = track;
       if (old) { try { state.localStream.removeTrack(old); old.stop(); } catch { /* replaced */ } }
       state.localStream.addTrack(track);
-      if (!state.sharing) replaceOutgoingVideo(track);
+      if (blur.active && blur.srcVideo) {
+        // Blur pipeline keeps flowing — just point it at the new camera.
+        blur.srcVideo.srcObject = new MediaStream([track]);
+        blur.srcVideo.play().catch(() => {});
+      } else if (!state.sharing) {
+        replaceOutgoingVideo(track);
+      }
       const lv = $("lobby-video");
       if (lv && document.body.dataset.screen === "lobby") { lv.srcObject = localPreviewStream(); lv.play().catch(() => {}); }
     } else if (kind === "spk") {
@@ -306,9 +316,10 @@ function applySinkId() {
   }
 }
 
-// The video track peers should currently receive.
+// The video track peers should currently receive: a screen share wins,
+// then the blurred camera composite, then the raw camera.
 function currentVideoTrack() {
-  return state.screenTrack || state.camTrack;
+  return state.screenTrack || (blur.active && blur.track) || state.camTrack;
 }
 
 function replaceOutgoingVideo(track) {
@@ -403,7 +414,7 @@ function tuneAllSenders() {
 }
 
 async function handleSignal(from, data) {
-  if (state.left || !data) return;
+  if (state.left || state.knock || !data) return;
   const p = ensurePeer(from);
   const pc = p.pc;
   try {
@@ -450,33 +461,113 @@ function handlePresence(stateMap) {
     const meta = metas[metas.length - 1] || {};
     entries.push({ key, ...meta });
   }
+  // Waiting room: knocking guests are held OUT of the mesh — no tiles,
+  // no peer connections, no media — until a host admits them. This is a
+  // cooperative gate (the invite code stays the security boundary), but
+  // it gives interviews the Zoom flow: applicants wait, staff admit.
+  const participants = entries.filter((e) => !e.knock);
+  const knockers = sortRoster(entries.filter((e) => e.knock && e.key !== state.peerKey));
   const prevByKey = new Map(state.roster.map((r) => [r.key, r]));
-  state.roster = sortRoster(entries);
-  const nowKeys = new Set(entries.map((r) => r.key));
+  const prevWaitKeys = new Set(state.waiting.map((w) => w.key));
+  state.roster = sortRoster(participants);
+  state.waiting = knockers;
+  const nowKeys = new Set(participants.map((r) => r.key));
 
-  for (const ent of state.roster) {
-    // Raised-hand rising edge → toast, for remote peers only.
-    const prev = prevByKey.get(ent.key);
-    if (ent.key !== state.peerKey && ent.hand && prev && !prev.hand) {
-      toast(`✋ ${ent.name || "Someone"} raised their hand`);
+  if (!state.knock) {
+    for (const ent of state.roster) {
+      // Raised-hand / recording rising edges → toast, remote peers only.
+      const prev = prevByKey.get(ent.key);
+      if (ent.key !== state.peerKey && ent.hand && prev && !prev.hand) {
+        toast(`✋ ${ent.name || "Someone"} raised their hand`);
+      }
+      if (ent.key !== state.peerKey && prev && !prev.rec && ent.rec) {
+        toast(`⏺ ${ent.name || "Someone"} is recording this meeting`);
+        chime(true);
+      }
+      if (ent.key !== state.peerKey && prev && prev.rec && !ent.rec) {
+        toast(`${ent.name || "Someone"} stopped recording`);
+      }
+      if (ent.key !== state.peerKey) {
+        ensurePeer(ent.key);
+        if (!prevByKey.has(ent.key) && prevByKey.size) {
+          toast(`${ent.name || "Someone"} joined`);
+          chime(true);
+        }
+      }
     }
-    if (ent.key !== state.peerKey) {
-      ensurePeer(ent.key);
-      if (!prevByKey.has(ent.key) && prevByKey.size) {
-        toast(`${ent.name || "Someone"} joined`);
+    for (const key of [...peers.keys()]) {
+      if (!nowKeys.has(key)) {
+        removePeer(key);
+        toast("A participant left");
+        chime(false);
+      }
+    }
+  }
+  if (state.isHost) {
+    for (const k of knockers) {
+      if (!prevWaitKeys.has(k.key)) {
+        toast(`${k.name || "Someone"} is waiting to join`);
         chime(true);
       }
     }
   }
-  for (const key of [...peers.keys()]) {
-    if (!nowKeys.has(key)) {
-      removePeer(key);
-      toast("A participant left");
-      chime(false);
-    }
-  }
+  renderWaitingUI();
   tuneAllSenders(); // roster size changed → re-apply the mesh send policy
   renderGrid();
+}
+
+// ─── waiting room · host queue UI + admission events ─────────────────────
+
+function renderWaitingUI() {
+  const btn = $("btn-waiting");
+  if (!btn) return;
+  const q = state.waiting;
+  const visible = state.isHost && q.length > 0 && document.body.dataset.screen === "room";
+  btn.style.display = visible ? "" : "none";
+  btn.textContent = q.length === 1 ? "1 waiting" : `${q.length} waiting`;
+  const pop = $("waiting-pop");
+  if (!visible) { pop.hidden = true; return; }
+  const list = $("waiting-list");
+  list.innerHTML = "";
+  for (const k of q) {
+    const row = document.createElement("div");
+    row.className = "wait-row";
+    const name = document.createElement("span");
+    name.className = "wait-name";
+    name.textContent = k.name || "Guest"; // remote input — textContent only
+    const admit = document.createElement("button");
+    admit.type = "button";
+    admit.className = "wait-admit";
+    admit.textContent = "Admit";
+    admit.onclick = () => admitGuest(k.key, k.name);
+    const deny = document.createElement("button");
+    deny.type = "button";
+    deny.className = "wait-deny";
+    deny.textContent = "Deny";
+    deny.onclick = () => denyGuest(k.key);
+    row.append(name, admit, deny);
+    list.appendChild(row);
+  }
+}
+
+function admitGuest(key, name) {
+  if (!state.transport) return;
+  state.transport.send("admit", { to: key });
+  toast(`Letting ${name || "them"} in…`);
+}
+
+function denyGuest(key) {
+  if (!state.transport) return;
+  state.transport.send("deny", { to: key });
+}
+
+function beAdmitted() {
+  if (!state.knock || state.left) return;
+  state.knock = false;
+  state.joinedAt = Date.now(); // in-call clock starts at admission
+  publishMeta();
+  startInCall();
+  toast("The host let you in");
 }
 
 // ─── audio levels · speaking rings + active speaker + lobby meter ─────────
@@ -512,6 +603,9 @@ function attachMonitor(key, stream, track) {
     analyser.fftSize = 512;
     source.connect(analyser);
     monitors.set(key, { source, analyser, data: new Uint8Array(analyser.fftSize), track });
+    // A live recording mixes every participant — including ones who
+    // join mid-recording — so each new monitor feeds the record bus.
+    if (rec.active && rec.dest) { try { source.connect(rec.dest); } catch { /* mix is best-effort */ } }
   } catch { /* no audio in stream yet */ }
 }
 
@@ -615,6 +709,320 @@ function stopStatsLoop() {
   state.statsTimer = null;
 }
 
+// ─── recording (host) · canvas composite + mixed audio → .webm ───────────
+// Local recording, Zoom-style: the host's browser composites the live
+// gallery (or the screen-share stage) onto a 1280×720 canvas at ~30fps,
+// mixes every participant's audio through a MediaStreamDestination bus,
+// and MediaRecorder writes the file. Stopping downloads it — nothing is
+// uploaded anywhere. Every participant sees a red REC pill + toast the
+// moment it starts (presence meta.rec).
+
+const rec = {
+  active: false, recorder: null, chunks: [], canvas: null, cctx: null,
+  drawTimer: null, dest: null, stream: null,
+};
+const REC_W = 1280, REC_H = 720;
+
+function toggleRecording() {
+  if (rec.active) stopRecording();
+  else startRecording();
+}
+
+function startRecording() {
+  const actx = getAudioCtx();
+  if (!actx || !window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) {
+    toast("Recording isn't supported in this browser");
+    return;
+  }
+  rec.canvas = document.createElement("canvas");
+  rec.canvas.width = REC_W;
+  rec.canvas.height = REC_H;
+  rec.cctx = rec.canvas.getContext("2d");
+  rec.dest = actx.createMediaStreamDestination();
+  for (const mon of monitors.values()) {
+    try { mon.source.connect(rec.dest); } catch { /* mix is best-effort */ }
+  }
+  const vTrack = rec.canvas.captureStream(30).getVideoTracks()[0];
+  rec.stream = new MediaStream([vTrack, ...rec.dest.stream.getAudioTracks()]);
+  const mime = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm", "video/mp4"]
+    .find((m) => MediaRecorder.isTypeSupported(m)) || "";
+  try {
+    rec.recorder = new MediaRecorder(rec.stream, mime ? { mimeType: mime, videoBitsPerSecond: 2_500_000 } : undefined);
+  } catch (err) {
+    console.warn("MediaRecorder failed", err);
+    toast("Recording isn't supported in this browser");
+    cleanupRecording();
+    return;
+  }
+  rec.chunks = [];
+  rec.recorder.ondataavailable = (e) => { if (e.data && e.data.size) rec.chunks.push(e.data); };
+  rec.recorder.onstop = finalizeRecording;
+  rec.recorder.start(1000);
+  rec.drawTimer = setInterval(drawRecFrame, 33);
+  rec.active = true;
+  state.rec = true;
+  $("btn-record").classList.add("on");
+  publishMeta();
+  toast("Recording started — every participant sees the indicator");
+}
+
+function stopRecording() {
+  if (!rec.active) return;
+  rec.active = false;
+  state.rec = false;
+  $("btn-record").classList.remove("on");
+  clearInterval(rec.drawTimer);
+  try { rec.recorder.stop(); } catch { finalizeRecording(); }
+  publishMeta();
+}
+
+function finalizeRecording() {
+  if (rec.chunks.length) {
+    const blob = new Blob(rec.chunks, { type: rec.chunks[0].type || "video/webm" });
+    const ext = /mp4/.test(blob.type) ? "mp4" : "webm";
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[T:]/g, "-");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `RouteReady-Meet-${state.code || "call"}-${stamp}.${ext}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 30_000);
+    toast("Recording saved to your downloads");
+  }
+  cleanupRecording();
+}
+
+function cleanupRecording() {
+  clearInterval(rec.drawTimer);
+  if (rec.dest) {
+    for (const mon of monitors.values()) {
+      try { mon.source.disconnect(rec.dest); } catch { /* already gone */ }
+    }
+  }
+  if (rec.stream) for (const t of rec.stream.getTracks()) { try { t.stop(); } catch { /* stopped */ } }
+  rec.recorder = null; rec.stream = null; rec.dest = null;
+  rec.canvas = null; rec.cctx = null; rec.chunks = [];
+}
+
+function drawRecTile(entry, x, y, w, h, contain) {
+  const c = rec.cctx;
+  c.fillStyle = "#20242E";
+  c.fillRect(x, y, w, h);
+  const tile = tiles.get(entry.key);
+  const video = tile && tile.querySelector("video");
+  const me = entry.key === state.peerKey;
+  const camOn = me ? (state.sharing || (state.cam && !!state.camTrack)) : (entry.cam || entry.screen);
+  if (video && video.videoWidth && camOn) {
+    const vw = video.videoWidth, vh = video.videoHeight;
+    if (contain) {
+      const s = Math.min(w / vw, h / vh);
+      const dw = vw * s, dh = vh * s;
+      c.fillStyle = "#000";
+      c.fillRect(x, y, w, h);
+      c.drawImage(video, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+    } else {
+      const s = Math.max(w / vw, h / vh);
+      const sw = w / s, sh = h / s;
+      c.drawImage(video, (vw - sw) / 2, (vh - sh) / 2, sw, sh, x, y, w, h);
+    }
+  } else {
+    c.fillStyle = "#333B4E";
+    const r = Math.min(w, h) * 0.18;
+    c.beginPath();
+    c.arc(x + w / 2, y + h / 2, r, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = "#E5E7EB";
+    c.font = `700 ${Math.round(r * 0.8)}px Inter, sans-serif`;
+    c.textAlign = "center";
+    c.textBaseline = "middle";
+    c.fillText(initials(entry.name), x + w / 2, y + h / 2);
+  }
+  const label = (entry.name || "Guest") + (entry.key === state.peerKey ? " (you)" : "");
+  c.font = "600 13px Inter, sans-serif";
+  c.textAlign = "left";
+  c.textBaseline = "alphabetic";
+  const tw = c.measureText(label).width;
+  c.fillStyle = "rgba(10,12,16,.72)";
+  c.fillRect(x + 8, y + h - 28, tw + 14, 20);
+  c.fillStyle = "#F3F4F6";
+  c.fillText(label, x + 15, y + h - 14);
+}
+
+function drawRecFrame() {
+  if (!rec.cctx) return;
+  const c = rec.cctx;
+  c.fillStyle = "#111318";
+  c.fillRect(0, 0, REC_W, REC_H);
+  const roster = state.roster.length ? state.roster : [{ key: state.peerKey, ...myMeta() }];
+  const sharer = roster.find((r) => r.screen);
+  const GAP = 8;
+  if (sharer) {
+    const stripH = 132;
+    drawRecTile(sharer, GAP, GAP, REC_W - GAP * 2, REC_H - stripH - GAP * 3, true);
+    const rest = roster.filter((r) => r.key !== sharer.key);
+    const tw = Math.round(stripH * 16 / 9);
+    let x = GAP;
+    for (const entry of rest) {
+      if (x + tw > REC_W - GAP) break; // strip overflow — recorded layout stays clean
+      drawRecTile(entry, x, REC_H - stripH - GAP, tw, stripH, false);
+      x += tw + GAP;
+    }
+  } else {
+    const { cols, rows } = gridDims(roster.length);
+    const cw = (REC_W - GAP * (cols + 1)) / cols;
+    const ch = (REC_H - GAP * (rows + 1)) / rows;
+    roster.forEach((entry, i) => {
+      const col = i % cols, row = Math.floor(i / cols);
+      drawRecTile(entry, GAP + col * (cw + GAP), GAP + row * (ch + GAP), cw, ch, false);
+    });
+  }
+  // On-canvas REC marker so the file itself shows it was a recording.
+  c.fillStyle = "#DC2626";
+  c.beginPath();
+  c.arc(REC_W - 74, 26, 6, 0, Math.PI * 2);
+  c.fill();
+  c.font = "700 14px Inter, sans-serif";
+  c.textAlign = "left";
+  c.fillText("REC", REC_W - 60, 31);
+}
+
+// ─── background blur · MediaPipe selfie segmentation ─────────────────────
+// Camera → hidden <video> → per-frame person mask (MediaPipe tasks-vision,
+// lazy-loaded from CDN only when toggled) → canvas composite (sharp person
+// over blur(14px) background) → captureStream track replaces the outgoing
+// camera. Segmentation runs on a downscaled frame (480px) for speed; the
+// mask upscales with canvas smoothing. Everything degrades gracefully: if
+// the CDN/model/GPU fails, the toggle flips back and the raw camera flows.
+
+const blur = {
+  active: false, loading: false, segmenter: null, srcVideo: null,
+  canvas: null, cctx: null, small: null, sctx: null, maskCanvas: null,
+  maskCtx: null, timer: null, track: null, lastTs: 0,
+};
+// ?blurbase= (local test mode only) points at a served copy of the
+// @mediapipe/tasks-vision package + model so the blur pipeline is
+// testable offline; production loads from the CDN.
+const BLUR_BASE_OVERRIDE = LOCAL_MODE ? new URLSearchParams(location.search).get("blurbase") : null;
+const BLUR_CDN = BLUR_BASE_OVERRIDE || "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+const BLUR_MODEL = BLUR_BASE_OVERRIDE
+  ? BLUR_BASE_OVERRIDE + "/selfie_segmenter.tflite"
+  : "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite";
+const BLUR_SEG_W = 480;
+
+async function loadSegmenter() {
+  const vision = await import(BLUR_CDN + "/vision_bundle.mjs");
+  const files = await vision.FilesetResolver.forVisionTasks(BLUR_CDN + "/wasm");
+  return vision.ImageSegmenter.createFromOptions(files, {
+    baseOptions: { modelAssetPath: BLUR_MODEL, delegate: "GPU" },
+    runningMode: "VIDEO",
+    outputCategoryMask: true,
+    outputConfidenceMasks: false,
+  });
+}
+
+function blurFrame() {
+  const v = blur.srcVideo;
+  if (!v || !v.videoWidth || !blur.segmenter) return;
+  const W = blur.canvas.width = v.videoWidth;
+  const H = blur.canvas.height = v.videoHeight;
+  const sw = BLUR_SEG_W, sh = Math.max(2, Math.round(H * (BLUR_SEG_W / W)));
+  blur.small.width = sw; blur.small.height = sh;
+  blur.sctx.drawImage(v, 0, 0, sw, sh);
+  let ts = performance.now();
+  if (ts <= blur.lastTs) ts = blur.lastTs + 1; // segmentForVideo needs monotonic timestamps
+  blur.lastTs = ts;
+  let result;
+  try {
+    result = blur.segmenter.segmentForVideo(blur.small, ts);
+  } catch (err) {
+    console.warn("segmentation failed — disabling blur", err);
+    stopBlur();
+    toast("Background blur hit an error and was turned off");
+    return;
+  }
+  const mask = result.categoryMask;
+  if (mask) {
+    const data = mask.getAsUint8Array();
+    blur.maskCanvas.width = sw; blur.maskCanvas.height = sh;
+    const img = blur.maskCtx.createImageData(sw, sh);
+    for (let i = 0; i < data.length; i++) {
+      img.data[i * 4 + 3] = data[i] > 0 ? 255 : 0; // category 1 = person
+    }
+    blur.maskCtx.putImageData(img, 0, 0);
+    mask.close();
+  }
+  result.close?.();
+  const c = blur.cctx;
+  c.save();
+  c.globalCompositeOperation = "source-over";
+  c.filter = "none";
+  c.drawImage(v, 0, 0, W, H);                    // 1 · sharp frame
+  c.globalCompositeOperation = "destination-in";
+  c.imageSmoothingEnabled = true;
+  c.drawImage(blur.maskCanvas, 0, 0, W, H);       // 2 · keep person pixels
+  c.globalCompositeOperation = "destination-over";
+  c.filter = "blur(14px)";
+  c.drawImage(v, 0, 0, W, H);                    // 3 · blurred bg behind
+  c.restore();
+}
+
+async function toggleBlur(on) {
+  const want = on ?? !blur.active;
+  if (want === blur.active || blur.loading) { syncBlurUI(); return; }
+  if (!want) { stopBlur(); return; }
+  if (!state.camTrack) { toast("Turn your camera on to blur the background"); syncBlurUI(); return; }
+  blur.loading = true;
+  syncBlurUI();
+  try {
+    blur.segmenter = blur.segmenter || await loadSegmenter();
+    blur.canvas = document.createElement("canvas");
+    blur.cctx = blur.canvas.getContext("2d");
+    blur.small = document.createElement("canvas");
+    blur.sctx = blur.small.getContext("2d", { willReadFrequently: false });
+    blur.maskCanvas = document.createElement("canvas");
+    blur.maskCtx = blur.maskCanvas.getContext("2d");
+    blur.srcVideo = document.createElement("video");
+    blur.srcVideo.muted = true;
+    blur.srcVideo.playsInline = true;
+    blur.srcVideo.srcObject = new MediaStream([state.camTrack]);
+    await blur.srcVideo.play();
+    blurFrame(); // paint a real frame before the capture stream starts
+    blur.track = blur.canvas.captureStream(30).getVideoTracks()[0];
+    blur.track.contentHint = "motion";
+    blur.timer = setInterval(blurFrame, 33);
+    blur.active = true;
+    if (!state.sharing) replaceOutgoingVideo(blur.track);
+    renderGrid();
+    toast("Background blur on");
+  } catch (err) {
+    console.warn("blur unavailable", err);
+    toast("Background blur couldn't load — check your connection and try again");
+  }
+  blur.loading = false;
+  syncBlurUI();
+}
+
+function stopBlur() {
+  clearInterval(blur.timer);
+  blur.timer = null;
+  if (blur.track) { try { blur.track.stop(); } catch { /* stopped */ } blur.track = null; }
+  if (blur.srcVideo) { try { blur.srcVideo.srcObject = null; } catch { /* detached */ } blur.srcVideo = null; }
+  const wasActive = blur.active;
+  blur.active = false;
+  if (wasActive && !state.sharing) replaceOutgoingVideo(state.camTrack);
+  renderGrid();
+  syncBlurUI();
+}
+
+function syncBlurUI() {
+  const chk = $("chk-blur");
+  if (!chk) return;
+  chk.checked = blur.active;
+  chk.disabled = blur.loading;
+  $("blur-label").textContent = blur.loading ? "Blur my background (loading…)" : "Blur my background";
+}
+
 // ─── join/leave chime ─────────────────────────────────────────────────────
 // Two soft sine blips, synthesized — no audio asset to load or cache.
 
@@ -646,6 +1054,8 @@ function myMeta() {
     screen: state.sharing,
     hand: state.hand,
     host: state.isHost,
+    knock: state.knock,
+    rec: state.rec,
     joined_at: state.joinedAt,
   };
 }
@@ -803,6 +1213,8 @@ function renderGrid() {
   $("people-count").textContent = String(roster.length);
   const viewBtn = $("btn-view");
   if (viewBtn) viewBtn.classList.toggle("on", state.view === "speaker");
+  const pill = $("rec-pill");
+  if (pill) pill.style.display = roster.some((r) => r.rec) ? "" : "none";
 }
 
 // ─── ui · controls ────────────────────────────────────────────────────────
@@ -885,7 +1297,7 @@ function stopShare() {
     state.screenAudioTrack = null;
   }
   state.sharing = false;
-  replaceOutgoingVideo(state.camTrack);
+  replaceOutgoingVideo(blur.active ? blur.track : state.camTrack);
   tuneAllSenders(); // back to the camera policy for this roster size
   syncControls();
   publishMeta();
@@ -1010,11 +1422,21 @@ function sendChat() {
 
 // ─── lifecycle ────────────────────────────────────────────────────────────
 
+// Guests knock (waiting room) — hosts/staff walk straight in. In the
+// hermetic local mode knocking is opt-in (?knock=1) so signaling tests
+// don't all need an admit step.
+function shouldKnock() {
+  if (state.isHost) return false;
+  if (LOCAL_MODE) return new URLSearchParams(location.search).has("knock");
+  return true;
+}
+
 async function enterRoom() {
   state.name = ($("name-input").value || "").trim() || "Guest";
   try { localStorage.setItem("rr_meet_name", state.name); } catch { /* private mode */ }
   state.joinedAt = Date.now();
   state.left = false;
+  state.knock = shouldKnock();
 
   let transport;
   if (LOCAL_MODE) {
@@ -1025,10 +1447,6 @@ async function enterRoom() {
   }
   state.transport = transport;
 
-  show("room");
-  $("room-title").textContent = state.meeting?.title || "RouteReady meeting";
-  $("room-code").textContent = state.code;
-
   try {
     await transport.join(myMeta(), {
       onSignal: handleSignal,
@@ -1036,6 +1454,10 @@ async function enterRoom() {
       onEvent: (type, payload) => {
         if (type === "chat" && payload && payload.from !== state.peerKey) appendChat(payload);
         if (type === "react" && payload && payload.from !== state.peerKey) showReaction(payload.from, payload.emoji);
+        if (type === "admit" && payload && payload.to === state.peerKey) beAdmitted();
+        if (type === "deny" && payload && payload.to === state.peerKey && state.knock) {
+          endLocally("The host declined your request to join.");
+        }
         if (type === "ended") handleEndedEvent();
       },
     });
@@ -1046,20 +1468,37 @@ async function enterRoom() {
     return;
   }
 
+  if (state.knock) {
+    $("waiting-title").textContent = state.meeting?.title || "RouteReady meeting";
+    show("waiting");
+    return;
+  }
+  startInCall();
+}
+
+function startInCall() {
+  show("room");
+  $("room-title").textContent = state.meeting?.title || "RouteReady meeting";
+  $("room-code").textContent = state.code;
+  clearInterval(state.timerId);
   state.timerId = setInterval(() => {
     $("room-timer").textContent = fmtDuration(Date.now() - state.joinedAt);
   }, 1000);
   $("btn-end").style.display = state.isHost ? "" : "none";
+  $("btn-record").style.display = state.isHost ? "" : "none";
   getAudioCtx();      // resume within the Join-click gesture
   monitorLocalMic();
   startLevelLoop();
   startStatsLoop();
   syncControls();
+  renderWaitingUI();
   renderGrid();
 }
 
 function teardown() {
   state.left = true;
+  if (rec.active) stopRecording(); // finalizes + downloads before we tear the mesh down
+  if (blur.active) stopBlur();
   clearInterval(state.timerId);
   stopLevelLoop();
   stopStatsLoop();
@@ -1075,6 +1514,8 @@ function teardown() {
   state.hand = false;
   state.pinnedKey = null;
   state.activeSpeaker = null;
+  state.knock = false;
+  state.waiting = [];
 }
 
 function endLocally(message) {
@@ -1296,6 +1737,9 @@ function wire() {
   $("btn-invite").onclick = copyInvite;
   $("room-code").onclick = copyInvite;
   $("btn-leave").onclick = leaveMeeting;
+  $("btn-wait-leave").onclick = leaveMeeting;
+  $("btn-waiting").onclick = () => { const pop = $("waiting-pop"); pop.hidden = !pop.hidden; };
+  $("btn-record").onclick = toggleRecording;
   $("btn-end").onclick = endForAll;
   $("btn-rejoin").onclick = () => { location.reload(); };
   $("btn-home").onclick = () => { location.href = location.pathname + (LOCAL_MODE ? "?local=1" : ""); };
@@ -1320,6 +1764,7 @@ function wire() {
   $("sel-mic").onchange = (e) => switchDevice("mic", e.target.value);
   $("sel-cam").onchange = (e) => switchDevice("cam", e.target.value);
   $("sel-spk").onchange = (e) => switchDevice("spk", e.target.value);
+  $("chk-blur").onchange = (e) => toggleBlur(e.target.checked);
   document.addEventListener("click", (e) => {
     // Popovers dismiss on outside click.
     if (!e.target.closest("#settings-pop") && !e.target.closest("#btn-settings")) $("settings-pop").hidden = true;
