@@ -513,17 +513,72 @@
   function fail(e) { console.warn("[notebooks]", e); notify((e && e.message) || "Something went wrong"); }
 
   // ── first load ──────────────────────────────────────────────────
+  function provKey() { return "rrnb-provisioned:" + (((window.RR && window.RR.dsp && window.RR.dsp.id) || "local")); }
+  function defaultNbName() {
+    var d = window.RR && window.RR.dsp && window.RR.dsp.name;
+    return d ? (d + " Notebook") : "Workspace";
+  }
   function loadView(opts) {
     var root = ROOT(); if (!root) return;
     if (!S.be) chooseBackend();
     bindOnce();
     S.be.listNotebooks().then(function (list) {
       S.notebooks = list || [];
-      var want = (opts && opts.notebookId) || S.nbId || (S.notebooks[0] && S.notebooks[0].id);
       renderNotebookMenu();
+      var want = (opts && opts.notebookId) || S.nbId || (S.notebooks[0] && S.notebooks[0].id);
       if (want) return selectNotebook(want, opts && opts.pageId);
-      renderSections(); renderPageList();
-    }).catch(fail);
+      // No notebooks yet. On a signed-in workspace, provision a starter
+      // notebook once (so the user lands somewhere usable, like OneNote's
+      // "My Notebook"); if they've since emptied it, show a create CTA.
+      var firstRun = false;
+      try { firstRun = !localStorage.getItem(provKey()); } catch (e) {}
+      if (S.be.kind === "supabase" && firstRun) {
+        try { localStorage.setItem(provKey(), "1"); } catch (e) {}
+        return S.be.createNotebook(defaultNbName(), "#2563eb").then(function (nb) {
+          return S.be.listNotebooks().then(function (l) {
+            S.notebooks = l || []; renderNotebookMenu(); S.activeSection = null;
+            return selectNotebook((nb && nb.id) || (S.notebooks[0] && S.notebooks[0].id));
+          });
+        }).catch(onLoadError);
+      }
+      renderSections(); renderPageList(); renderFirstRun();
+    }).catch(onLoadError);
+  }
+
+  // Distinguish "database not set up yet" (migration missing) from real errors
+  // so the operator sees a clear next step instead of a silent blank view.
+  function onLoadError(e) {
+    console.warn("[notebooks]", e);
+    var msg = (e && (e.message || e.hint || e.details)) || "";
+    var m = String(msg).toLowerCase();
+    var host = $id("rrnb-canvas-wrap");
+    var needsSetup = /does not exist|not find|schema cache|function .*notebook|relation .*notebook|pgrst|404/.test(m);
+    var forbidden = /forbidden|permission|not allowed|42501/.test(m);
+    if (host) {
+      if (needsSetup) {
+        host.innerHTML = '<div class="rrnb-blank"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M12 3l9 4-9 4-9-4 9-4z"/><path d="M3 12l9 4 9-4M3 17l9 4 9-4"/></svg>' +
+          '<div style="max-width:420px"><b style="color:var(--text);display:block;margin-bottom:6px">Almost there — Notebooks needs its database tables</b>' +
+          'An admin needs to run migration <code style="font-family:ui-monospace,monospace">0451_notebooks.sql</code> in the Supabase SQL Editor. It\'s a one-time, idempotent step.</div>' +
+          '<button class="rrnb-pop-btn" id="rrnb-retry" style="margin-top:6px">Retry</button></div>';
+      } else if (forbidden) {
+        host.innerHTML = '<div class="rrnb-blank"><div style="max-width:420px"><b style="color:var(--text)">Notebooks is staff-only</b><br>Your role doesn\'t have notebook access yet. Ask an owner or manager to grant it.</div></div>';
+      } else {
+        host.innerHTML = '<div class="rrnb-blank"><div style="max-width:420px"><b style="color:var(--text)">Couldn\'t load notebooks</b><br>' + esc(msg || "Something went wrong.") + '</div><button class="rrnb-pop-btn" id="rrnb-retry" style="margin-top:6px">Retry</button></div>';
+      }
+      var rb = $id("rrnb-retry"); if (rb) rb.addEventListener("click", function () { S.be = null; loadView(); });
+    }
+    var sec = $id("rrnb-sections"); if (sec) sec.innerHTML = '<div class="rrnb-empty">Not set up yet.</div>';
+  }
+
+  // Signed-in workspace with zero notebooks (after the user emptied it):
+  // an unmistakable way to start a new one.
+  function renderFirstRun() {
+    var host = $id("rrnb-canvas-wrap"); if (!host) return;
+    host.innerHTML = '<div class="rrnb-blank"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4 4h11l5 5v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M14 4v6h6"/></svg>' +
+      '<div><b style="color:var(--text);display:block;margin-bottom:4px">No notebooks yet</b>Create your first notebook to start capturing notes.</div>' +
+      '<button class="rrnb-pop-btn" id="rrnb-firstnb" style="margin-top:6px">＋ New notebook</button></div>';
+    var b = $id("rrnb-firstnb"); if (b) b.addEventListener("click", createNotebookFlow);
+    var sec = $id("rrnb-sections"); if (sec) sec.innerHTML = '<button class="rrnb-newpage" data-new-notebook="1" style="margin:var(--s-2)">＋ New notebook</button>';
   }
 
   function selectNotebook(id, pageId) {
@@ -1194,6 +1249,7 @@
     // sections rail (delegated)
     var secHost = $id("rrnb-sections");
     if (secHost) secHost.addEventListener("click", function (e) {
+      var nn = e.target.closest("[data-new-notebook]"); if (nn) return createNotebookFlow();
       var kb = e.target.closest("[data-menu='section']"); if (kb) { var r = kb.getBoundingClientRect(); return sectionMenu(kb.getAttribute("data-id"), r.left, r.bottom); }
       var tg = e.target.closest("[data-toggle]"); if (tg) { var g = tg.getAttribute("data-toggle"); S.collapsedGroups[g] = !S.collapsedGroups[g]; return renderSections(); }
       var add = e.target.closest("[data-add-section]"); if (add) { return S.be.createSection(S.nbId, "New Section", null, PALETTE[(S.tree.sections.length) % PALETTE.length]).then(function (s) { S.activeSection = s.id; return selectNotebook(S.nbId, null); }); }
