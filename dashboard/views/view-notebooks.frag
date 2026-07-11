@@ -616,7 +616,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     function nb(id) { return db.notebooks.filter(function (n) { return n.id === id; })[0]; }
     return {
       kind: "local",
-      listNotebooks: function () { return P(db.notebooks.map(function (n) {
+      listNotebooks: function () { return P(db.notebooks.filter(function (n) { return !n.deleted_at; }).map(function (n) {
         return { id: n.id, name: n.name, color: n.color, kind: n.kind, subject_type: n.subject_type, subject_id: n.subject_id, is_pinned: n.is_pinned, position: n.position,
           page_count: db.pages.filter(function (p) { return p.notebook_id === n.id && !p.deleted_at; }).length }; })); },
       tree: function (id) { return P({
@@ -628,6 +628,8 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       }); },
       ensureFor: function (t, i, title) {
         var found = db.notebooks.filter(function (n) { return n.subject_type === t && n.subject_id === String(i); })[0];
+        // a deleted object notebook is revived, not duplicated — matches notebook_ensure_for
+        if (found && found.deleted_at) { delete found.deleted_at; persist(); }
         if (!found) { var id = uid(); found = { id: id, name: title || (t.charAt(0).toUpperCase() + t.slice(1) + " notebook"), color: "#2563eb", kind: "object", subject_type: t, subject_id: String(i), is_pinned: false, position: db.notebooks.length };
           db.notebooks.push(found); db.sections.push({ id: uid(), notebook_id: id, group_id: null, name: "Notes", color: "#2563eb", position: 0 }); persist(); }
         return P(found);
@@ -942,7 +944,9 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     var host = $id("rrnb-sections"); if (!host) return;
     if (!S.tree) { host.innerHTML = '<div class="rrnb-empty">No notebook selected.</div>'; return; }
     var groups = S.tree.groups || [], sections = S.tree.sections || [];
-    var byGroup = {}; sections.forEach(function (s) { var g = s.group_id || "_"; (byGroup[g] = byGroup[g] || []).push(s); });
+    var liveGroups = {}; groups.forEach(function (g) { liveGroups[g.id] = 1; });
+    // a section whose group was deleted renders as ungrouped, not invisible
+    var byGroup = {}; sections.forEach(function (s) { var g = (s.group_id && liveGroups[s.group_id]) ? s.group_id : "_"; (byGroup[g] = byGroup[g] || []).push(s); });
     var html = "";
     function secRow(s) {
       var on = s.id === S.activeSection ? " active" : "";
@@ -2257,7 +2261,18 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   function onEditorCtx(e) {
     var ed = $id("rrnb-editor");
     var cell = e.target.closest && e.target.closest("td,th");
-    if (cell && ed && ed.contains(cell)) { e.preventDefault(); showTableControls(cell); }
+    if (cell && ed && ed.contains(cell)) { e.preventDefault(); showTableControls(cell); return; }
+    // block objects: right-click any of them to delete it
+    var node = e.target.closest && e.target.closest("figure.rrnb-fig,.rrnb-file,.rrnb-callout,.rrnb-todo,hr");
+    if (node && ed && ed.contains(node)) {
+      e.preventDefault();
+      var label = node.classList.contains("rrnb-fig") ? "picture"
+        : node.classList.contains("rrnb-file") ? "attachment"
+        : node.classList.contains("rrnb-callout") ? "callout"
+        : node.classList.contains("rrnb-todo") ? "to-do" : "divider";
+      showCtx(e.clientX, e.clientY, [{ act: "del", label: "Delete " + label, danger: true }]);
+      $id("rrnb-ctx")._target = { kind: "ednode", el: node };
+    }
   }
   function showTableControls(cell) {
     var table = cell.closest("table"); if (!table) return;
@@ -2494,6 +2509,13 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     ]);
     $id("rrnb-ctx")._target = { kind: "section", id: id };
   }
+  function groupMenu(id, x, y) {
+    showCtx(x, y, [
+      { act: "rename", label: "Rename group" },
+      { sep: 1 }, { act: "del", label: "Delete group", danger: true }
+    ]);
+    $id("rrnb-ctx")._target = { kind: "group", id: id };
+  }
   function handleCtx(act) {
     var t = $id("rrnb-ctx")._target; hideCtx(); if (!t) return;
     if (t.kind === "page") {
@@ -2516,6 +2538,14 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       if (act === "recolor") return recolorSection(t.id);
       if (act === "newgroup") return S.be.createGroup(S.nbId, "New Group").then(function () { return selectNotebook(S.nbId, S.pageId); });
       if (act === "del") return S.be.deleteItem("section", t.id).then(function () { S.activeSection = null; return selectNotebook(S.nbId, null); });
+    }
+    if (t.kind === "group") {
+      if (act === "rename") return editGroupTitle(t.id);
+      if (act === "del") return S.be.deleteItem("group", t.id).then(function () { notify("Group deleted — its sections were kept"); return selectNotebook(S.nbId, S.pageId); });
+    }
+    if (t.kind === "ednode") {
+      if (act === "del" && t.el) { t.el.remove(); scheduleSave(); }
+      return;
     }
   }
   function pageById(id) { return ((S.tree && S.tree.pages) || []).filter(function (x) { return x.id === id; })[0]; }
@@ -2571,7 +2601,18 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       });
       nmEl.addEventListener("blur", function () { if (S._nbEditing) endHeaderEdit(true); });
     }
+    // right-click the header (current notebook) for its options menu
+    if (cur) cur.addEventListener("contextmenu", function (e) {
+      if (S._nbEditing || !S.nbId) return;
+      e.preventDefault(); var m0 = $id("rrnb-nb-menu"); if (m0) m0.hidden = true;
+      notebookMenu(S.nbId, e.clientX, e.clientY);
+    });
     var menu = $id("rrnb-nb-menu");
+    if (menu) menu.addEventListener("contextmenu", function (e) {
+      var it = e.target.closest("[data-nb]"); if (!it) return;
+      e.preventDefault(); menu.hidden = true;
+      notebookMenu(it.getAttribute("data-nb"), e.clientX, e.clientY);
+    });
     if (menu) menu.addEventListener("click", function (e) {
       var kb = e.target.closest("[data-menu='notebook']"); if (kb) { var r = kb.getBoundingClientRect(); menu.hidden = true; return notebookMenu(kb.getAttribute("data-id"), r.left, r.bottom); }
       var add = e.target.closest("[data-new]"); if (add) { menu.hidden = true; return createNotebookFlow(); }
@@ -2583,6 +2624,10 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     if (secHost) secHost.addEventListener("dblclick", function (e) {
       var gh = e.target.closest(".rrnb-group-hd"); if (gh && e.target.closest(".gnm")) { e.preventDefault(); return editGroupTitle(gh.getAttribute("data-toggle")); }
       var srow = e.target.closest("[data-sec]"); if (srow && e.target.closest(".nm")) { e.preventDefault(); return editSectionTitle(srow.getAttribute("data-sec")); }
+    });
+    if (secHost) secHost.addEventListener("contextmenu", function (e) {
+      var srow = e.target.closest("[data-sec]"); if (srow) { e.preventDefault(); return sectionMenu(srow.getAttribute("data-sec"), e.clientX, e.clientY); }
+      var gh = e.target.closest(".rrnb-group-hd"); if (gh) { e.preventDefault(); return groupMenu(gh.getAttribute("data-toggle"), e.clientX, e.clientY); }
     });
     if (secHost) secHost.addEventListener("click", function (e) {
       if (S._inlineEditing) return;
