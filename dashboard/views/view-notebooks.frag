@@ -887,9 +887,9 @@
     var pl = e.target.closest("a.rrnb-pagelink");
     if (pl && (e.ctrlKey || e.metaKey || e.type === "click")) { var pid = pl.getAttribute("data-page-id"); if (pid) { e.preventDefault(); openPage(pid); } return; }
     var ol = e.target.closest("a.rrnb-objlink");
-    if (ol) { e.preventDefault(); var ot = ol.getAttribute("data-obj-type"), oi = ol.getAttribute("data-obj-id"); openObjectRef(ot, oi); }
+    if (ol) { e.preventDefault(); var ot = ol.getAttribute("data-obj-type"), oi = ol.getAttribute("data-obj-id"); openObjectRef(ot, oi, ol.getAttribute("data-obj-name") || ol.textContent); }
   }
-  function openObjectRef(type, id) { if (window.RRNotebooks && window.RRNotebooks.openFor) window.RRNotebooks.openFor(type, id); }
+  function openObjectRef(type, id, name) { if (window.RRNotebooks && window.RRNotebooks.openFor) window.RRNotebooks.openFor(type, id, name || null); }
 
   // ══════════════════════════════════════════════════════════════════
   //  MEDIA — images (paste / drop / pick, client-side compressed) + files
@@ -1178,11 +1178,55 @@
     }, function () { _entLoading = false; _entIndex = buildEntIndex(); cb(_entIndex); });
   }
   function reEsc(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
-  function smartLink(manual, skipNode) {
+  // Absolute caret offset within the editor (counts all text, incl. inside
+  // existing links) — mirrors Range.toString() so it round-trips with setCaretAt.
+  function caretOffsetIn(el) {
+    var sel = window.getSelection(); if (!sel || !sel.rangeCount) return -1;
+    var r = sel.getRangeAt(0); if (!el.contains(r.startContainer)) return -1;
+    var pre = document.createRange(); pre.selectNodeContents(el);
+    try { pre.setEnd(r.startContainer, r.startOffset); } catch (e) { return -1; }
+    return pre.toString().length;
+  }
+  function setCaretAt(el, offset) {
+    if (offset < 0) return; var acc = 0, target = null, toff = 0;
+    (function walk(node) {
+      for (var i = 0; i < node.childNodes.length && !target; i++) {
+        var c = node.childNodes[i];
+        if (c.nodeType === 3) { var len = c.nodeValue.length; if (acc + len >= offset) { target = c; toff = offset - acc; } else acc += len; }
+        else if (c.nodeType === 1) walk(c);
+      }
+    })(el);
+    if (target) { var r = document.createRange(); r.setStart(target, Math.max(0, Math.min(toff, target.nodeValue.length))); r.collapse(true); var s = window.getSelection(); s.removeAllRanges(); s.addRange(r); }
+  }
+  // Snapshot linkable text nodes with their absolute start offsets. Text inside
+  // A/PRE/CODE still advances the offset (so caret math stays aligned) but isn't
+  // itself linkable (never link inside a link or a code block).
+  function snapshotTextNodes(root) {
+    var nodes = [], acc = { v: 0 };
+    (function walk(node, linkable) {
+      for (var i = 0; i < node.childNodes.length; i++) {
+        var c = node.childNodes[i];
+        if (c.nodeType === 3) { if (linkable) nodes.push({ node: c, start: acc.v, text: c.nodeValue }); acc.v += c.nodeValue.length; }
+        else if (c.nodeType === 1) walk(c, linkable && !/^(A|PRE|CODE)$/.test(c.tagName));
+      }
+    })(root, true);
+    return nodes;
+  }
+  function makeObjLink(word, byName) {
+    var a = document.createElement("a"); a.className = "rrnb-objlink"; a.href = "#";
+    var known = byName[word.toLowerCase()];
+    if (known) { a.setAttribute("data-obj-type", known.type); a.setAttribute("data-obj-id", known.id); }
+    else if (/^route/i.test(word)) { a.setAttribute("data-obj-type", "route"); a.setAttribute("data-obj-id", word.replace(/\D+/g, "")); }
+    else { a.setAttribute("data-obj-type", "vehicle"); a.setAttribute("data-obj-id", word.replace(/\D+/g, "")); }
+    a.textContent = word; return a;
+  }
+  // The linkifier. caretAware=true (auto-as-you-type): only link matches that
+  // END at or before the caret, then restore the caret — so what you just
+  // finished typing links, but the word under construction and anything after
+  // the caret are left alone. caretAware=false (⚡ button): link the whole page.
+  function linkifyEditor(caretAware, manual) {
     var ed = $id("rrnb-editor"); if (!ed) return;
     ensureEntIndex(function (index) {
-      var replaced = 0;
-      // Build one alternation: known entity names + Van/Route number patterns.
       var names = (index || []).slice(0, 400).map(function (e) { return reEsc(e.name); });
       var byName = {}; (index || []).forEach(function (e) { byName[e.name.toLowerCase()] = e; });
       var reParts = [];
@@ -1190,47 +1234,30 @@
       reParts.push("(?:Van|Vehicle)\\s*#?\\s*\\d{1,4}");
       reParts.push("Route\\s*#?\\s*[A-Z]{0,2}\\d{1,4}");
       var re = new RegExp("\\b(" + reParts.join("|") + ")\\b", "g");
-      walkText(ed, function (node) {
-        if (skipNode && node === skipNode) return;   // never rewrite the node holding the caret
-        var text = node.nodeValue; if (!text || text.length < 2) return;
-        var out = document.createDocumentFragment(); var last = 0, m, hit = false;
-        re.lastIndex = 0;
+      var caretAbs = caretAware ? caretOffsetIn(ed) : -1;
+      var nodes = snapshotTextNodes(ed);
+      var replaced = 0;
+      nodes.forEach(function (rec) {
+        var text = rec.text; if (!text || text.length < 2) return;
+        var out = document.createDocumentFragment(); var last = 0, m, hit = false; re.lastIndex = 0;
         while ((m = re.exec(text))) {
-          var word = m[0]; var lc = word.toLowerCase(); var known = byName[lc];
-          var a = document.createElement("a"); a.className = "rrnb-objlink"; a.href = "#";
-          if (known) { a.setAttribute("data-obj-type", known.type); a.setAttribute("data-obj-id", known.id); }
-          else if (/^route/i.test(word)) { a.setAttribute("data-obj-type", "route"); a.setAttribute("data-obj-id", word.replace(/\D+/g, "")); }
-          else { a.setAttribute("data-obj-type", "vehicle"); a.setAttribute("data-obj-id", word.replace(/\D+/g, "")); }
+          var absEnd = rec.start + m.index + m[0].length;
+          if (caretAware && caretAbs >= 0 && absEnd >= caretAbs) break;  // stop before the caret — the word there may still be growing
           out.appendChild(document.createTextNode(text.slice(last, m.index)));
-          a.textContent = word; out.appendChild(a); last = m.index + word.length; replaced++; hit = true;
+          out.appendChild(makeObjLink(m[0], byName)); last = m.index + m[0].length; replaced++; hit = true;
         }
-        if (hit) { out.appendChild(document.createTextNode(text.slice(last))); node.parentNode.replaceChild(out, node); }
+        if (hit) { out.appendChild(document.createTextNode(text.slice(last))); rec.node.parentNode.replaceChild(out, rec.node); }
       });
-      if (replaced) { scheduleSave(); persistLinks(S.pageId); if (manual) notify(replaced + " link" + (replaced > 1 ? "s" : "") + " added"); }
-      else if (manual) notify("No drivers, vehicles or routes recognized on this page");
+      if (replaced) {
+        if (caretAware && caretAbs >= 0) setCaretAt(ed, caretAbs);
+        scheduleSave(); persistLinks(S.pageId);
+        if (manual) notify(replaced + " link" + (replaced > 1 ? "s" : "") + " added");
+      } else if (manual) notify("No drivers, vehicles or routes recognized on this page");
     });
   }
-  // Auto-link as you type: ~1.6s after a pause, link every recognized entity
-  // EXCEPT the text node currently holding the caret (so typing is never
-  // disrupted). Toggleable off via the ⚡ button's long-press? kept simple here.
-  var autoLinkify = debounce(function () {
-    if (!S.pageId) return;
-    var sel = window.getSelection();
-    var node = sel && sel.anchorNode && sel.anchorNode.nodeType === 3 ? sel.anchorNode : null;
-    smartLink(false, node);
-  }, 1600);
-
-  function walkText(root, fn) {
-    var stack = [root], n;
-    var todo = [];
-    while (stack.length) { n = stack.pop(); if (!n) continue;
-      for (var i = 0; i < n.childNodes.length; i++) { var c = n.childNodes[i];
-        if (c.nodeType === 3) todo.push(c);
-        else if (c.nodeType === 1 && !/^(A|PRE|CODE)$/.test(c.tagName)) stack.push(c);
-      }
-    }
-    todo.forEach(fn);
-  }
+  function smartLink(manual) { linkifyEditor(false, manual); }
+  // Auto-link ~1.4s after a pause in typing.
+  var autoLinkify = debounce(function () { if (S.pageId) linkifyEditor(true, false); }, 1400);
 
   // ══════════════════════════════════════════════════════════════════
   //  SEARCH
