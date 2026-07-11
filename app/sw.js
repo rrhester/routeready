@@ -82,7 +82,14 @@
 // token app.js loaded with), installed-app vs browser-tab, and live
 // viewport/safe-area numbers — so a screenshot answers which build a
 // phone is on and who owns any dead space at the screen edges.
-const SHELL_CACHE = "rr-app-shell-v144";
+// v145 · Viewport-shortfall diagnosis: the installed app on Dynamic
+// Island iPhones gets a viewport one status-bar (59pt) shorter than the
+// screen (WebKit standalone bug) — iOS paints the manifest
+// background_color into the uncovered strip. Manifest background goes
+// white so the strip blends with the tab bar, Settings gains frame/
+// inset-top numbers plus two corner probes that tell the two bug
+// variants apart from a single screenshot.
+const SHELL_CACHE = "rr-app-shell-v145";
 const SHELL_FILES = [
   "./",
   "index.html",
