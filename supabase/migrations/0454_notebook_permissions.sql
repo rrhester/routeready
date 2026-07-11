@@ -69,7 +69,7 @@ do $$
 declare t text;
 begin
   foreach t in array array[
-    'notebook_section_groups', 'notebook_sections', 'notebook_pages', 'notebook_links'
+    'notebook_section_groups', 'notebook_sections', 'notebook_pages'
   ] loop
     execute format('drop policy if exists %I on public.%I;', t || '_rw', t);
     execute format(
@@ -79,7 +79,7 @@ begin
       t || '_rw', t);
   end loop;
 end $$;
--- links has no notebook_id column — scope it via its source page instead
+-- notebook_links has no notebook_id column — scope it via its source page
 drop policy if exists notebook_links_rw on public.notebook_links;
 create policy notebook_links_rw on public.notebook_links for all
   using (exists (select 1 from public.notebook_pages p where p.id = source_page_id and private.notebook_visible(p.notebook_id)))
