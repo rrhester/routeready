@@ -8,9 +8,9 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=93943cccea8f";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=93943cccea8f";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=93943cccea8f";
+import { planScheduleWeek } from "./scheduling-engine.js?v=30297fbceaf3";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=30297fbceaf3";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=30297fbceaf3";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -18177,9 +18177,12 @@ async function _refreshTodayPlanData() {
     // Date-independent; a failure just hides the tile.
     sb.rpc("fleet_execution_summary"),
     sb.rpc("pipeline_counts"),
-    // Call-out exposure: drivers on an open Final/Termination corrective action
-    // are the ones most likely to call out. Just the at-risk driver ids.
-    sb.from("coachings").select("driver_id").eq("dsp_id", window.RR.dsp.id).is("archived_at", null).is("resolved_at", null).in("severity", ["final", "termination"]),
+    // Call-out exposure: drivers on an active (unresolved) FINAL corrective
+    // action are the "High Risk" population most likely to call out. FINAL-only
+    // — matching the roster / Schedule Callout Exposure definition exactly
+    // (termination was dropped per operator definition, sw.js nonce .53) so the
+    // two surfaces never disagree. Just the at-risk driver ids.
+    sb.from("coachings").select("driver_id").eq("dsp_id", window.RR.dsp.id).is("archived_at", null).is("resolved_at", null).eq("severity", "final"),
   ]);
 
   const attData    = (attRes.status === "fulfilled"    ? attRes.value.data    : null);
@@ -18849,9 +18852,10 @@ function _renderTpMeta(attData, rosterData, otData, planData, fleetData, pipeDat
   const dayPills = rows.length > 0;
   const waves = new Set(rows.map(r => r.wave_index ?? 0));
   const extras = rows.filter(r => r.is_cushion).length;
-  // Call-out exposure: how many of today's scheduled drivers are on an open
-  // Final/Termination corrective action — the population most likely to no-show.
-  // Red when at-risk outnumbers the cushion drivers who'd have to cover them.
+  // Call-out exposure: how many of today's scheduled drivers are on an active
+  // (unresolved) FINAL corrective action — the "High Risk" population most
+  // likely to no-show, defined identically to the Schedule Callout Exposure
+  // panel. Red when at-risk outnumbers the cushion drivers who'd cover them.
   const atRiskIds = new Set((Array.isArray(riskData) ? riskData : []).map(c => c.driver_id).filter(Boolean));
   const atRiskScheduled = atRiskIds.size ? rows.filter(r => atRiskIds.has(r.driver_id)).length : 0;
   const flagged = rows.filter(r => ["tardy","ncns","missed_reported"].includes(r.computed_outcome) && !r.decision).length;
@@ -18864,7 +18868,7 @@ function _renderTpMeta(attData, rosterData, otData, planData, fleetData, pipeDat
     extras:     dayPills ? { value: extras, sub: "Cushion / Ex drivers", tone: "navy" } : null,
     openroutes: (openRoutes == null || (!dayPills && openRoutes === 0)) ? null : { value: openRoutes, sub: openRoutes === 0 ? "All routes covered" : "to assign", tone: openRoutes > 0 ? "red" : "green", onclick: "goto('schedule')", navTitle: "Open the schedule to assign routes" },
     otrisk:     (otSum && (dayPills || otRiskCount > 0)) ? { value: otRiskCount, sub: otExposure ? `~$${Math.round(otExposure).toLocaleString()} OT exposure` : `${otActive} in OT · ${otProjected} projected`, tone: otActive > 0 ? "red" : (otProjected > 0 ? "amber" : "navy"), onclick: "goto('schedule')", navTitle: "Overtime intelligence on the schedule" } : null,
-    callout:    (dayPills && atRiskScheduled > 0) ? { value: atRiskScheduled, sub: `vs ${extras} cushion`, tone: atRiskScheduled > extras ? "red" : "amber", onclick: "goto('schedule')", navTitle: "At-risk drivers scheduled today (open Final/Termination CA)" } : null,
+    callout:    (dayPills && atRiskScheduled > 0) ? { value: atRiskScheduled, sub: `vs ${extras} cushion`, tone: atRiskScheduled > extras ? "red" : "amber", onclick: "goto('schedule')", navTitle: "At-risk drivers scheduled today (open Final corrective action)" } : null,
     license:    dlList.length ? { value: dlList.length, sub: "license expiring ≤7 days", tone: dlUrgent ? "red" : (dlSoon ? "amber" : "navy"), onclick: "window._rrGotoSubIntent={view:'schedule',sub:'roster'};goto('schedule')", navTitle: "Open the roster" } : null,
     fleet:      (vorr && fleetBranded > 0 && fleetPct != null) ? { value: `${fleetPct}%`, sub: fleetGrounded > 0 ? `${fleetGrounded} grounded` : "fleet ready", tone: vorr.threshold_status === "critical" ? "red" : (vorr.threshold_status === "warning" ? "amber" : "green"), onclick: "goto('fleet2')", navTitle: "Open Fleet" } : null,
     pipeline:   pipeCounts.length ? { value: inPipeline, sub: "in hiring pipeline", tone: "navy", onclick: "goto('pipeline')", navTitle: "Open the hiring pipeline" } : null,
