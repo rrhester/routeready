@@ -111,6 +111,16 @@ jobs:
           set -euo pipefail
           psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/role_gate_planning_test.sql
 
+      - name: Role-gate RLS + RPC tests (0453 · compliance_dismissals)
+        # Asserts a role='driver' app_user can neither INSERT compliance_dismissals
+        # directly (RLS) nor dismiss via the compliance_dismiss() RPC (is_staff
+        # guard), while a 'dispatcher' can do both.
+        env:
+          SUPABASE_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: |
+          set -euo pipefail
+          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/role_gate_compliance_test.sql
+
       - name: Tear down
         if: always()
         run: supabase stop --no-backup || true
