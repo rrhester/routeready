@@ -78,7 +78,11 @@
 // v143 · The zone iOS paints below the page (Safari bottom-toolbar strip,
 // any viewport shortfall) now blends into the white tab bar instead of
 // showing the gray canvas — the bar reads as running to the screen edge.
-const SHELL_CACHE = "rr-app-shell-v143";
+// v144 · Settings gains a quiet support footer: deploy build id (the ?v=
+// token app.js loaded with), installed-app vs browser-tab, and live
+// viewport/safe-area numbers — so a screenshot answers which build a
+// phone is on and who owns any dead space at the screen edges.
+const SHELL_CACHE = "rr-app-shell-v144";
 const SHELL_FILES = [
   "./",
   "index.html",

@@ -1780,6 +1780,19 @@ function _rrInstallRulesPopoverStyle() {
   `;
   document.head.appendChild(st);
 }
+// Left edge of the fixed right utility rail when it's visible. The rail is
+// an opaque body-level strip that deliberately paints ABOVE in-page chrome
+// (z 90 vs the TCP strip's stacking context), so fixed popovers anchored to
+// the viewport's right edge slide underneath it and lose their right-hand
+// controls. Fitters clamp against this edge instead of the raw viewport.
+// Falls back to the viewport width when the rail is hidden (other views).
+function _rrRightChromeEdge() {
+  const rail = document.querySelector("#rr-util-rail-mount .sched-util-rail");
+  if (!rail) return window.innerWidth;
+  const r = rail.getBoundingClientRect();
+  if (!r.width || r.left <= 0 || r.left >= window.innerWidth) return window.innerWidth;
+  return Math.round(r.left);
+}
 function _rrFitRulesPopover(pop) {
   if (!pop) return;
   _rrInstallRulesPopoverStyle();
@@ -1788,9 +1801,13 @@ function _rrFitRulesPopover(pop) {
     || document.querySelector("#view-onboarding-ops .sched-nav-heading");
   if (strip) { const r = strip.getBoundingClientRect(); if (r.bottom > 0) top = Math.round(r.bottom + 8); }
   const set = (k, v) => pop.style.setProperty(k, v, "important");
-  set("position", "fixed"); set("top", top + "px"); set("right", "16px");
+  // Keep clear of the right utility rail — anchoring at right:16 put the
+  // popover's right edge underneath the opaque rail on 13"/scaled displays.
+  const rightGap = (window.innerWidth - _rrRightChromeEdge()) + 16;
+  set("position", "fixed"); set("top", top + "px"); set("right", rightGap + "px");
   set("left", "auto"); set("bottom", "auto"); set("box-sizing", "border-box");
-  set("width", "min(720px, calc(100vw - 32px))"); set("max-width", "calc(100vw - 32px)");
+  set("width", "min(720px, calc(100vw - " + (rightGap + 16) + "px))");
+  set("max-width", "calc(100vw - " + (rightGap + 16) + "px)");
   set("max-height", "calc(100vh - " + (top + 16) + "px)");
   set("overflow-y", "auto"); set("overflow-x", "hidden");
   set("z-index", "9998");
@@ -8362,23 +8379,30 @@ function _ivToggleRules(force) {
     // Clamp so the card stays fully on screen on narrow viewports.
     const fitIv = () => {
       const tog = document.getElementById("rr-iv-rules-toggle");
-      const vw = window.innerWidth;
-      const width = Math.min(820, vw - 32);
+      // Clamp against the right utility rail's edge, not the raw viewport —
+      // the rail is opaque and paints above this popover, so anything laid
+      // out underneath it (Save availability, + Add time, the Active
+      // checkbox) is invisible on 13"/scaled displays.
+      const edge = (typeof _rrRightChromeEdge === "function") ? _rrRightChromeEdge() : window.innerWidth;
+      const width = Math.min(820, edge - 32);
       let left = 20, top = 72;
       if (tog) {
         const r = tog.getBoundingClientRect();
         if (r.bottom > 0) top = Math.round(r.bottom + 8);
         left = Math.round(r.left);
       }
-      if (left + width > vw - 16) left = vw - 16 - width;
+      if (left + width > edge - 16) left = edge - 16 - width;
       if (left < 16) left = 16;
       pop.style.setProperty("right", "auto", "important");
       pop.style.setProperty("left", left + "px", "important");
       pop.style.setProperty("top", top + "px", "important");
       pop.style.setProperty("width", width + "px", "important");
-      pop.style.setProperty("max-width", "calc(100vw - 32px)", "important");
+      pop.style.setProperty("max-width", (edge - 32) + "px", "important");
       pop.style.setProperty("max-height", "calc(100vh - " + (top + 16) + "px)", "important");
       pop.style.setProperty("overflow-y", "auto", "important");
+      // If the viewport is narrower than the editor's natural width, scroll
+      // inside the card instead of clipping the right-hand controls.
+      pop.style.setProperty("overflow-x", "auto", "important");
     };
     fitIv();
     if (!pop._rrIvFitBound) {

@@ -1197,6 +1197,16 @@ body.scan-camming{overflow:hidden}
 }
 .clk-photo-del::after{content:"";position:absolute;inset:-10px}
 
+/* Support footer at the bottom of Settings — build + viewport facts so a
+   screenshot answers "which build is this phone on / who owns the dead
+   space at the screen edges". Deliberately quiet. */
+.settings-diag{
+  margin-top:22px;text-align:center;
+  font-size:var(--fs-xs);line-height:1.6;color:var(--text-subtle);
+  font-variant-numeric:tabular-nums;
+  user-select:text;
+}
+
 /* Push-permission nudge — floating card just below the Dispatch/Channels
    tab strip (the chat body is absolutely positioned, so in-flow content
    would render under the tabs). The ask itself lives on the button (iOS

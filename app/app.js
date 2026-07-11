@@ -7210,7 +7210,30 @@ function renderSettings() {
       </section>
 
       <button class="btn btn-block btn-danger" id="rr-signout" style="margin-top:18px">Sign out</button>
+
+      <div class="settings-diag" id="rr-settings-diag" aria-hidden="true"></div>
     </div>`;
+
+  // Support footer: build stamp + live viewport numbers. The build id is
+  // the deploy-unique ?v= token app.js was loaded with (bust-cache.mjs
+  // stamps the commit sha), so "is the update actually on this phone?"
+  // is answerable from a screenshot — as is where any dead space at the
+  // screen edges comes from (standalone vs browser, inset, vp vs screen).
+  try {
+    const build = (new URL(import.meta.url).searchParams.get("v") || "dev").slice(0, 12);
+    const standalone = (window.matchMedia && matchMedia("(display-mode: standalone)").matches) || window.navigator.standalone === true;
+    const probe = document.createElement("div");
+    probe.style.cssText = "position:fixed;visibility:hidden;padding-bottom:env(safe-area-inset-bottom, 0px)";
+    document.body.appendChild(probe);
+    const insetB = Math.round(parseFloat(getComputedStyle(probe).paddingBottom) || 0);
+    probe.remove();
+    const vv = window.visualViewport;
+    document.getElementById("rr-settings-diag").textContent =
+      `RouteReady Driver · build ${build} · ${standalone ? "installed app" : "browser tab"} · ` +
+      `vp ${window.innerWidth}×${window.innerHeight}` +
+      (vv ? ` · vv ${Math.round(vv.width)}×${Math.round(vv.height)}` : "") +
+      ` · screen ${screen.width}×${screen.height} · inset-b ${insetB}px`;
+  } catch {}
 
   main.querySelectorAll("[data-rr-settings-go]").forEach(el =>
     el.addEventListener("click", () => navigate(el.getAttribute("data-rr-settings-go"))));
