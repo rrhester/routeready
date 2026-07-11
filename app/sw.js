@@ -75,7 +75,10 @@
 // max(inset - 14px, 0) of the iPhone home-indicator zone instead of the
 // full ~34px — the labels sit visibly lower, killing the dead-space read.
 // Bar, main scroller, chat shell, and toast all share the new token.
-const SHELL_CACHE = "rr-app-shell-v142";
+// v143 · The zone iOS paints below the page (Safari bottom-toolbar strip,
+// any viewport shortfall) now blends into the white tab bar instead of
+// showing the gray canvas — the bar reads as running to the screen edge.
+const SHELL_CACHE = "rr-app-shell-v143";
 const SHELL_FILES = [
   "./",
   "index.html",

@@ -149,6 +149,12 @@ html,body{
   overscroll-behavior:none;
   touch-action:none;
 }
+/* Canvas color — what iOS paints into any zone it owns below the page
+   (Safari's collapsed bottom-toolbar strip, viewport shortfalls).  The
+   default was the gray page bg, which rendered as a dead band glued to
+   the white tab bar; white makes that zone read as the bar continuing
+   to the physical screen edge. Body keeps the gray app canvas. */
+html{ background-color:var(--rr-white); }
 /* Both elements are fixed and inset-pinned; an explicit height would
    over-constrain the box (CSS then ignores `bottom`), and any dvh/vh
    shortfall vs the real viewport opens a dead strip under the tab bar.
