@@ -268,6 +268,9 @@ async function switchDevice(kind, deviceId) {
       for (const p of peers.values()) {
         const sender = p.pc.getSenders().find((se) => se.track === old || (se.track && se.track.kind === "audio" && se.track !== state.screenAudioTrack));
         if (sender) sender.replaceTrack(track).catch(() => {});
+        // No audio sender = we joined mic-less (denied/unplugged) —
+        // add one so peers already in the call hear the new mic too.
+        else p.pc.addTrack(track, state.localStream); // renegotiates
       }
       monitorLocalMic();
     } else if (kind === "cam") {
@@ -335,6 +338,9 @@ function ensurePeer(key) {
   if (state.micTrack) pc.addTrack(state.micTrack, state.localStream);
   const v = currentVideoTrack();
   if (v) pc.addTrack(v, state.localStream);
+  // Mid-share joiner: hand them the live tab/system audio too, not
+  // just the screen video (stopShare removes it by track scan).
+  if (state.screenAudioTrack) pc.addTrack(state.screenAudioTrack, state.localStream);
 
   pc.onnegotiationneeded = async () => {
     try {
