@@ -94,8 +94,9 @@
   #grid.has-stage .tile:not(.stage){flex:0 0 auto;height:140px;aspect-ratio:16/9}
   .tile{position:relative;background:var(--room-tile);border-radius:11px;overflow:hidden;min-height:0}
   .tile video{width:100%;height:100%;object-fit:cover;display:block}
-  .tile.stage video{object-fit:contain;background:#000}
+  .tile.stage.stage-screen video{object-fit:contain;background:#000}
   .tile video.mirror{transform:scaleX(-1)}
+  .tile.speaking::after{content:"";position:absolute;inset:0;border-radius:11px;box-shadow:inset 0 0 0 2px #34D399;pointer-events:none}
   .tile.cam-off video{visibility:hidden}
   .tile .avatar{position:absolute;inset:0;display:none;align-items:center;justify-content:center}
   .tile.cam-off .avatar{display:flex}
@@ -106,6 +107,53 @@
   .plate-mic.muted{display:inline-flex}
   .plate-mic svg{width:13px;height:13px}
   .tile-status{position:absolute;inset:0;display:flex;align-items:flex-start;justify-content:center;padding-top:14px;color:var(--room-muted);font-size:13px;pointer-events:none}
+
+  /* zoom-quality pass · tile chrome */
+  .qbars{position:absolute;right:9px;bottom:10px;display:flex;align-items:flex-end;gap:2px;background:rgba(10,12,16,.6);border-radius:5px;padding:4px 5px}
+  .qbars i{width:3px;border-radius:1px;background:#3B4254}
+  .qbars i:nth-child(1){height:5px}
+  .qbars i:nth-child(2){height:8px}
+  .qbars i:nth-child(3){height:11px}
+  .qbars[data-level="3"] i{background:#34D399}
+  .qbars[data-level="2"] i:nth-child(-n+2){background:#34D399}
+  .qbars[data-level="1"] i:nth-child(1){background:#FBBF24}
+  .qbars[data-level="0"] i:nth-child(1){background:#F87171}
+  .pin-btn{position:absolute;top:8px;right:8px;width:32px;height:32px;border-radius:8px;border:0;background:rgba(10,12,16,.62);color:#E5E7EB;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .12s}
+  .pin-btn svg{width:15px;height:15px}
+  .tile:hover .pin-btn,.tile.pinned .pin-btn{opacity:1}
+  .tile.pinned .pin-btn{background:var(--accent)}
+  @media (prefers-reduced-motion:reduce){.pin-btn{transition:none}}
+  .hand-badge{position:absolute;top:8px;left:8px;display:none;background:rgba(10,12,16,.72);border-radius:8px;padding:4px 8px;font-size:16px}
+  .tile.hand-up .hand-badge{display:block;animation:handpop .25s ease-out}
+  @keyframes handpop{from{transform:scale(.4)}to{transform:scale(1)}}
+  .reactions{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+  .reaction-float{position:absolute;bottom:8%;font-size:32px;animation:rfloat 2.3s ease-out forwards}
+  @keyframes rfloat{0%{transform:translateY(0);opacity:0}12%{opacity:1}100%{transform:translateY(-220px);opacity:0}}
+  @media (prefers-reduced-motion:reduce){.reaction-float{animation-duration:.8s}}
+
+  /* popovers (reactions + device settings) */
+  .pop{position:fixed;bottom:92px;left:50%;transform:translateX(-50%);background:var(--room-panel);border:1px solid var(--room-line);border-radius:12px;padding:12px;z-index:50;box-shadow:0 12px 34px rgba(0,0,0,.45);color:var(--room-text)}
+  #react-emojis{display:flex;gap:6px}
+  #react-emojis button{background:var(--room-tile);border:1px solid var(--room-line);border-radius:9px;font-size:22px;line-height:1;padding:8px 10px}
+  #react-emojis button:hover{background:#2A3040;transform:scale(1.12)}
+  .hand-row{margin-top:10px}
+  #btn-hand{width:100%;background:var(--room-tile);border:1px solid var(--room-line);color:var(--room-text);border-radius:9px;padding:9px;font-weight:600;font-size:14px}
+  #btn-hand.on{background:var(--accent);border-color:var(--accent)}
+  #settings-pop{min-width:280px}
+  #settings-pop label{display:block;font-size:12px;font-weight:600;color:var(--room-muted);margin:10px 0 4px}
+  #settings-pop label:first-child{margin-top:0}
+  #settings-pop select{width:100%;background:var(--room-tile);border:1px solid var(--room-line);color:var(--room-text);border-radius:8px;padding:8px;font:inherit;font-size:13px}
+
+  /* lobby mic level meter */
+  .lobby-meter{position:absolute;left:0;right:0;bottom:0;height:4px;background:rgba(255,255,255,.14)}
+  #lobby-meter-fill{height:100%;width:0%;background:#34D399;transition:width .18s linear}
+  @media (prefers-reduced-motion:reduce){#lobby-meter-fill{transition:none}}
+
+  /* header view toggle */
+  .rh-btn{display:flex;align-items:center;gap:6px;border:1px solid var(--room-line);background:var(--room-panel);color:var(--room-muted);border-radius:7px;padding:4px 10px;font-size:13px;font-weight:600}
+  .rh-btn:hover{color:var(--room-text)}
+  .rh-btn.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .rh-btn svg{width:14px;height:14px}
 
   /* chat panel */
   #chat{width:0;overflow:hidden;transition:width .18s ease;background:var(--room-panel);border-left:1px solid var(--room-line);display:flex;flex-direction:column}
@@ -195,6 +243,7 @@
     <div class="preview">
       <video id="lobby-video" autoplay muted playsinline></video>
       <div class="avatar-big" id="lobby-avatar" style="display:none"><span id="lobby-avatar-initials">?</span></div>
+      <div class="lobby-meter" aria-hidden="true"><div id="lobby-meter-fill"></div></div>
       <div class="preview-ctrls">
         <button id="lobby-mic" class="ctrl" type="button" title="Toggle microphone">
           <svg class="ic-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
@@ -220,6 +269,10 @@
     <header class="room-head">
       <div class="rh-title" id="room-title">RouteReady meeting</div>
       <button class="code-chip" id="room-code" type="button" title="Copy invite link"></button>
+      <button class="rh-btn" id="btn-view" type="button" title="Toggle speaker view">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="12" rx="2"/><rect x="3" y="18" width="5" height="3" rx="1"/><rect x="10" y="18" width="5" height="3" rx="1"/><rect x="17" y="18" width="4" height="3" rx="1"/></svg>
+        Speaker view
+      </button>
       <div class="rh-right">
         <span id="room-timer">0:00</span>
         <span class="dot" aria-hidden="true"></span>
@@ -253,12 +306,28 @@
         <svg class="ic-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
         <span id="chat-unread" style="display:none">0</span>
       </button>
+      <button id="btn-react" class="ctrl" type="button" title="Reactions">
+        <svg class="ic-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+      </button>
+      <button id="btn-settings" class="ctrl" type="button" title="Audio & video settings">
+        <svg class="ic-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
       <button id="btn-invite" class="ctrl" type="button" title="Copy invite link">
         <svg class="ic-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
       </button>
       <button id="btn-end" class="btn-endall" type="button" style="display:none">End for all</button>
       <button id="btn-leave" class="btn-leave" type="button">Leave</button>
     </footer>
+
+    <div id="react-pop" class="pop" hidden>
+      <div id="react-emojis"></div>
+      <div class="hand-row"><button id="btn-hand" type="button">✋ Raise hand</button></div>
+    </div>
+    <div id="settings-pop" class="pop" hidden>
+      <div class="set-block"><label for="sel-mic">Microphone</label><select id="sel-mic"></select></div>
+      <div class="set-block"><label for="sel-cam">Camera</label><select id="sel-cam"></select></div>
+      <div class="set-block" id="spk-block"><label for="sel-spk">Speaker</label><select id="sel-spk"></select></div>
+    </div>
   </section>
 
   <!-- done -->

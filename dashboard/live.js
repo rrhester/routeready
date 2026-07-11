@@ -9,6 +9,7 @@
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
 import { planScheduleWeek } from "./scheduling-engine.js?v=b2ebeec00db5";
+import { assessPlan as rrAssessLaborPlan, driversNeeded as rrDriversNeeded, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=b2ebeec00db5";
 import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=b2ebeec00db5";
 import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=b2ebeec00db5";
 import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=b2ebeec00db5";
@@ -3079,6 +3080,93 @@ function _rrIntelHide() {
 window._rrSimResultsByWeek = window._rrSimResultsByWeek || null;
 window._rrSimResultsRanAt  = window._rrSimResultsRanAt  || null;
 
+// ── Forecast rates · observed callout %, attrition %, onboarding ramp ──────
+// The honest-supply inputs for forecast-core.js: how often scheduled shifts
+// actually go uncovered (60-day callout/no-show rate), how fast the roster
+// shrinks (90-day termination rate, pro-rated weekly), which onboarding
+// drivers aren't road-ready yet (hire_date gate — same convention as the
+// staffing outlook), and the configured drivers-per-route ratio so OKAMI
+// and the outlook stop disagreeing about demand. Cached 10 minutes; loads
+// lazily so the Targets page and Risk Forecast first-paint stay instant,
+// then repaints both surfaces when the real rates land.
+window._rrForecastRates = window._rrForecastRates || null;
+let _rrForecastRatesPromise = null;
+function _rrEnsureForecastRates() {
+  const cached = window._rrForecastRates;
+  if (cached && Date.now() - cached.loadedAt < 10 * 60 * 1000) return Promise.resolve(cached);
+  if (_rrForecastRatesPromise) return _rrForecastRatesPromise;
+  _rrForecastRatesPromise = (async () => {
+    const dspId = window.RR?.dsp?.id;
+    if (!dspId) return null;
+    const since60 = fmtIsoDate(addDays(new Date(), -60));
+    const since90 = new Date(Date.now() - 90 * 86400000).toISOString();
+    const [calloutRes, totalRes, termRes, activeRes, onbRes, hsRes] = await Promise.all([
+      sb.from("shifts").select("id", { count: "exact", head: true }).eq("dsp_id", dspId).gte("date", since60).in("status", ["called_off", "no_show"]),
+      sb.from("shifts").select("id", { count: "exact", head: true }).eq("dsp_id", dspId).gte("date", since60).in("status", ["scheduled", "completed", "called_off", "no_show"]),
+      sb.from("drivers").select("id", { count: "exact", head: true }).eq("dsp_id", dspId).eq("status", "terminated").gte("updated_at", since90),
+      sb.from("drivers").select("id", { count: "exact", head: true }).eq("dsp_id", dspId).eq("status", "active"),
+      sb.from("drivers").select("id, hire_date").eq("dsp_id", dspId).eq("status", "onboarding"),
+      sb.rpc("hiring_settings_get"),
+    ]);
+    const totalShifts = totalRes.count || 0;
+    const calloutRate = totalShifts > 0 ? Math.min(0.5, (calloutRes.count || 0) / totalShifts) : 0;
+    const activeCount = activeRes.count || 0;
+    const terms90 = termRes.count || 0;
+    // Terminations per week over the trailing 90 days ÷ current actives.
+    // Capped at 10%/wk so one bad data import can't zero the forecast.
+    const weeklyAttritionRate = activeCount > 0
+      ? Math.min(0.10, (terms90 / (90 / 7)) / activeCount)
+      : 0;
+    const onboarding = (onbRes.data || []).map((d) => ({ id: d.id, hire_date: d.hire_date || null }));
+    const dprRaw = Number(hsRes?.data?.drivers_per_route);
+    const driversPerRoute = Number.isFinite(dprRaw) ? Math.max(1, Math.min(5, dprRaw)) : 2;
+    const rates = {
+      calloutRate, weeklyAttritionRate, onboarding, driversPerRoute,
+      terms90, activeCount, totalShifts60: totalShifts, loadedAt: Date.now(),
+    };
+    window._rrForecastRates = rates;
+    // Repaint the surfaces that fold these in, if they're on screen.
+    try { if (typeof _rrRefreshTargetsGapCard === "function") _rrRefreshTargetsGapCard(); } catch (_) {}
+    try {
+      if (typeof _rrIntelActiveName !== "undefined" && _rrIntelActiveName === "risk-forecast") {
+        const view = document.getElementById("rr-intel-view-risk-forecast");
+        if (view) _rrIntelRenderRiskForecast(view);
+      }
+    } catch (_) {}
+    return rates;
+  })().catch((e) => { console.warn("forecast-rates:", e?.message || e); return null; })
+     .finally(() => { _rrForecastRatesPromise = null; });
+  return _rrForecastRatesPromise;
+}
+
+// Onboarding drivers count toward supply only from their road-ready week
+// (hire_date ≤ week start — the staffing outlook's convention). Missing
+// hire_date = not schedulable for planning purposes.
+function _rrOnboardingNotReadyByWeek(weeks) {
+  const rates = window._rrForecastRates;
+  const out = {};
+  if (!rates || !Array.isArray(rates.onboarding) || !rates.onboarding.length) return out;
+  for (const w of weeks) {
+    if (!w.weekStartIso) continue;
+    out[w.weekStartIso] = rates.onboarding
+      .filter((o) => !o.hire_date || o.hire_date > w.weekStartIso).length;
+  }
+  return out;
+}
+
+// One assessment call shared by the Risk Forecast view and the Targets gap
+// card — both render from the exact same forecast-core result.
+function _rrAssessOkamiPlan(weeks) {
+  const rates = window._rrForecastRates || {};
+  return rrAssessLaborPlan(weeks, {
+    todayIso: fmtIsoDate(new Date()),
+    hireLeadDays: RR_OKAMI_HIRE_LEAD_DAYS,
+    calloutRate: rates.calloutRate || 0,
+    weeklyAttritionRate: rates.weeklyAttritionRate || 0,
+    onboardingNotReadyByWeek: _rrOnboardingNotReadyByWeek(weeks),
+  });
+}
+
 // Map an OKAMI row's week label (e.g. "W22 May 24–30") to an ISO date
 // the simulation cache is keyed by. _okamiStart is the ISO date of
 // week-0 in the table; each subsequent row is +7 days. Returns null
@@ -3095,7 +3183,41 @@ function _rrOkamiWeekStartIso(idx) {
 }
 
 function _rrReadOkamiWeeks() {
-  // Each non-detail <tr> = one week. Cells:
+  // Preferred path: the data model renderOkamiLive publishes on every
+  // render (window._rrOkamiModel). Reading data instead of scraping table
+  // cells means the Risk Forecast and gap card can't drift from the
+  // planner because of markup changes, and they keep working even when
+  // the OKAMI table isn't mounted.
+  const model = window._rrOkamiModel;
+  if (model && Array.isArray(model.weeks) && model.weeks.length) {
+    return model.weeks.map((w) => {
+      let simAvail = null, simOnPto = null, simOnTimeOff = null;
+      if (window._rrSimResultsByWeek && w.weekStartIso) {
+        const sim = window._rrSimResultsByWeek[w.weekStartIso];
+        if (sim) {
+          simAvail     = sim.available;
+          simOnPto     = sim.onPto;
+          simOnTimeOff = sim.onTimeOff;
+        }
+      }
+      const effectiveAvail = simAvail != null ? simAvail : w.avail;
+      const effectiveGap   = effectiveAvail - w.needed;
+      return {
+        idx: w.idx, label: w.label, dates: w.dates, needed: w.needed,
+        weekStartIso: w.weekStartIso,
+        avail: effectiveAvail,
+        gap: effectiveGap,
+        gapKind: effectiveGap >= 0 ? "ok" : "bad",
+        statusText: w.statusText, statusKind: w.statusKind, hireBy: w.hireBy,
+        plannedAvail: w.avail,
+        simAvail, simOnPto, simOnTimeOff,
+        isSimulated: simAvail != null,
+      };
+    });
+  }
+
+  // Fallback: scrape the rendered table (pre-model mock content). Each
+  // non-detail <tr> = one week. Cells:
   //   col 0: Week label + dates (+ tags)
   //   col 1: Routes (max) — operator input
   //   col 2: Drivers needed (.plan-calc)
@@ -3141,7 +3263,7 @@ function _rrReadOkamiWeeks() {
     const effectiveAvail = simAvail != null ? simAvail : avail;
     const effectiveGap   = simAvail != null ? (effectiveAvail - needed) : gap;
     weeks.push({
-      idx, label, dates, needed,
+      idx, label, dates, needed, weekStartIso,
       avail: effectiveAvail,
       gap: effectiveGap,
       gapKind, statusText, statusKind, hireBy,
@@ -3306,109 +3428,111 @@ function _rrIntelRenderRiskForecast(view) {
     return;
   }
 
-  const thisWeek = weeks[0];
-  const next4 = weeks.slice(0, 4);
-  const horizonNeeded = next4.reduce((a, w) => a + w.needed, 0);
-  const horizonAvail  = next4.reduce((a, w) => a + w.avail,  0);
-  const horizonGap    = next4.reduce((a, w) => a + Math.max(0, -w.gap), 0); // total open across 4 wks
-  const coveragePct = thisWeek.needed > 0
-    ? Math.min(100, Math.round((thisWeek.avail / thisWeek.needed) * 100))
-    : 100;
-
-  // Trend across the next 4 weeks · improving / steady / declining.
-  let trendLabel = "Steady";
-  let trendDetail = "Coverage holds across the next 4 weeks";
-  if (next4.length >= 2) {
-    const startCov = next4[0].needed > 0 ? next4[0].avail / next4[0].needed : 1;
-    const endCov   = next4[next4.length - 1].needed > 0
-      ? next4[next4.length - 1].avail / next4[next4.length - 1].needed : 1;
-    const delta = endCov - startCov;
-    if (delta > 0.05)      { trendLabel = "Improving"; trendDetail = "Coverage strengthens over the next 4 weeks"; }
-    else if (delta < -0.05){ trendLabel = "Declining"; trendDetail = "Coverage erodes over the next 4 weeks"; }
-  }
-
-  // Next break + headline status are derived from the ACTUAL coverage
-  // ratio per week, NOT from OKAMI's per-row status pill — OKAMI's pill
-  // can read "On track" for a peak week when its strategy column claims
-  // the peak is "absorbed" by ADW + OT, but that's a planning assumption,
-  // not a real-time signal. From a risk-forecast standpoint, a week
-  // where avail / needed < 80% IS at risk regardless of what the
-  // strategy column says, so we surface that honestly here.
-  function deriveKind(w) {
-    if (w.needed <= 0) return "ok";
-    const cov = w.avail / w.needed;
-    if (cov < 0.80) return "risk";
-    if (cov < 0.95) return "tight";
-    return "ok";
-  }
-  weeks.forEach((w) => { w.derivedKind = deriveKind(w); });
-  const nextRisk  = weeks.find((w) => w.derivedKind === "risk");
-  const nextTight = weeks.find((w) => w.derivedKind === "tight");
-  const nextBreak = nextRisk || nextTight || null;
-
-  // Headline pill · honest summary of the worst signal we're showing.
-  // Any of: a current-week coverage hole, a declining 4-week trend
-  // with open shifts, a per-week risk, or aggregate open shifts moves
-  // the headline. A handful of borderline-tight weeks moves it down
-  // a notch to "Tight" but not to "At risk".
-  let overallKind = "ok";
-  let overallLabel = "On track";
-  if (
-    nextRisk
-    || coveragePct < 80
-    || (trendLabel === "Declining" && horizonGap > 0)
-    || horizonGap >= 30
-  ) {
-    overallKind = "risk";
-    overallLabel = "At risk";
-  } else if (
-    nextTight
-    || coveragePct < 95
-    || horizonGap >= 5
-    || trendLabel === "Declining"
-  ) {
-    overallKind = "tight";
-    overallLabel = "Tight";
-  }
+  // All math lives in forecast-core.js (shared with the Targets gap card):
+  // per-week effective supply (payroll − onboarding-not-ready − projected
+  // attrition − expected callouts), coverage kinds on ONE vocabulary
+  // (On track / Watch / At risk), hire-by reachability, and the plan-level
+  // prescription. Rates load lazily — first paint runs with zeros and this
+  // view repaints itself when the observed rates land.
+  _rrEnsureForecastRates();
+  const rates = window._rrForecastRates || null;
+  const A  = _rrAssessOkamiPlan(weeks);
+  const aw = A.weeks;
+  const thisWeek = aw[0];
+  const coveragePct = Math.min(100, thisWeek.coveragePct);
+  const trendLabel  = A.trend === "improving" ? "Improving"
+                    : A.trend === "declining" ? "Declining" : "Steady";
+  const trendDetail = A.trend === "improving" ? "Coverage strengthens over the next 4 weeks"
+                    : A.trend === "declining" ? "Coverage erodes over the next 4 weeks"
+                    : "Coverage holds across the next 4 weeks";
+  const nextBreak    = A.firstBreak;
+  const overallKind  = A.headline;               // ok | watch | risk
+  const overallLabel = RR_FC_LABEL[overallKind];
+  const overallClass = RR_FC_CLASS[overallKind]; // legacy css class names
+  const fmtIsoShort  = (iso) => (iso ? fmtMD(new Date(iso + "T12:00:00")) : "");
 
   // Narrative · plain, calm sentences. No alarm color in the prose;
-  // status carries that signal via the pill + bars.
+  // status carries that signal via the pill + bars. Shows its work on
+  // effective supply, and never presents a past hire-by as actionable.
+  const rx = A.prescription;
   let narrative;
   if (!nextBreak) {
     narrative = `Coverage holds across your full 13-week horizon. The 4-week look-ahead shows
-      <strong>${horizonAvail.toLocaleString()}</strong> drivers available against
-      <strong>${horizonNeeded.toLocaleString()}</strong> needed — every week sits at or above 95% cushion.
+      <strong>${A.horizon.effAvail.toLocaleString()}</strong> effective drivers against
+      <strong>${A.horizon.needed.toLocaleString()}</strong> needed — every week sits at or above 95% cushion.
       Hire-by dates from the planner stay quiet through this window.`;
   } else {
-    const breakKind = nextBreak.derivedKind === "risk" ? "critical" : "tight";
-    const breakShort = Math.max(0, nextBreak.needed - nextBreak.avail);
+    const breakKind = nextBreak.kind === "risk" ? "critical" : "watch";
+    const breakShort = Math.max(0, nextBreak.needed - nextBreak.effAvail);
     const idx = nextBreak.idx;
     const lead = idx === 0 ? "this week" : `in ${idx} week${idx === 1 ? "" : "s"}`;
+    const s = nextBreak.supply;
+    const supplyBits = [];
+    if (s.notReadyOnboarding) supplyBits.push(`${s.notReadyOnboarding} onboarding not yet road-ready`);
+    if (s.attritionLoss)      supplyBits.push(`${s.attritionLoss} projected attrition`);
+    if (s.calloutLoss)        supplyBits.push(`${s.calloutLoss} expected callout${s.calloutLoss === 1 ? "" : "s"} at your ${Math.round((rates?.calloutRate || 0) * 100)}% observed rate`);
+    const supplyTxt = supplyBits.length
+      ? ` Effective supply starts from ${s.rawAvail.toLocaleString()} on payroll minus ${supplyBits.join(", ")}.`
+      : "";
+    let actionTxt = "";
+    if (rx.action === "hire") {
+      actionTxt = `Hiring <strong>${rx.hires}</strong> by <strong>${fmtIsoShort(rx.deadlineIso)}</strong> closes every week hiring can still reach.`;
+      if (rx.unreachable.length) {
+        const names = rx.unreachable.map((u) => escapeHtml(u.label)).join(", ");
+        actionTxt += ` <strong>${names}</strong> ${rx.unreachable.length === 1 ? "is" : "are"} already inside the
+          ${RR_OKAMI_HIRE_LEAD_DAYS}-day hire window — cover ${rx.unreachable.length === 1 ? "it" : "them"} with OT,
+          voluntary 5th days, or flex instead.`;
+      }
+    } else if (rx.action === "mitigate") {
+      actionTxt = `The hire window for every short week has passed — a hire started today is road-ready
+        around <strong>${fmtIsoShort(rx.readyByIso)}</strong>. Cover the gap with OT, voluntary 5th days,
+        or flex, and hire now to protect the weeks after that.`;
+    }
     narrative = `Your next ${breakKind} window is <strong>${escapeHtml(nextBreak.label)}</strong>
-      (${escapeHtml(nextBreak.dates)}) — ${lead}. The planner sees
+      (${escapeHtml(nextBreak.dates)}) — ${lead}. The forecast sees
       <strong>${nextBreak.needed.toLocaleString()}</strong> drivers needed against
-      <strong>${nextBreak.avail.toLocaleString()}</strong> available, leaving
-      <strong>${breakShort.toLocaleString()}</strong> open. ${nextBreak.hireBy && nextBreak.hireBy !== "—"
-        ? `Hire-by date in the 13-week plan: <strong>${escapeHtml(nextBreak.hireBy)}</strong>.`
-        : `The planner flags this as <em>${escapeHtml(nextBreak.statusText)}</em> — review the strategy on the Targets page.`}`;
+      <strong>${nextBreak.effAvail.toLocaleString()}</strong> effective, leaving
+      <strong>${breakShort.toLocaleString()}</strong> open.${supplyTxt} ${actionTxt}`;
   }
 
   // 13-week strip · one bar per week. Height encodes drivers needed
-  // (relative to the peak) so peak weeks visually stand out; color
-  // encodes status (ok / tight / risk).
-  const maxNeeded = Math.max(1, ...weeks.map((w) => w.needed));
-  const stripHtml = weeks.map((w) => {
+  // (relative to the peak); the solid cap on top is the UNCOVERED slice,
+  // so a big-but-covered week no longer looks scarier than a small-but-
+  // short one. Color encodes the shared coverage vocabulary.
+  const maxNeeded = Math.max(1, ...aw.map((w) => w.needed));
+  const stripHtml = aw.map((w) => {
     const heightPx = 14 + Math.round((w.needed / maxNeeded) * 46); // 14–60px
+    const shortPx = w.gap < 0 && w.needed > 0
+      ? Math.max(2, Math.round(heightPx * Math.min(1, -w.gap / w.needed)))
+      : 0;
     const isCurrent = w.idx === 0;
-    const covPct = w.needed > 0 ? Math.round((w.avail / w.needed) * 100) : 100;
-    const titleAttr = `${w.label} · ${w.dates} · ${w.needed} needed / ${w.avail} avail · ${covPct}% coverage`;
+    const titleAttr = `${w.label} · ${w.dates} · ${w.needed} needed / ${w.effAvail} effective · ${w.coveragePct}% coverage`
+      + (w.gap < 0 ? ` · ${-w.gap} open` : "");
     return `<div class="rr-intel-strip-bar${isCurrent ? " is-current" : ""}" title="${escapeHtml(titleAttr)}">
-      <div class="rr-intel-strip-fill ${w.derivedKind}" style="height:${heightPx}px"></div>
+      <div class="rr-intel-strip-fill ${RR_FC_CLASS[w.kind]}" style="height:${heightPx}px">${
+        shortPx ? `<div class="rr-intel-strip-short" style="height:${shortPx}px"></div>` : ""}</div>
       <div class="rr-intel-strip-label">${escapeHtml(w.label)}</div>
     </div>`;
   }).join("");
 
-  // Detail fact card · only when there's a next break to talk about.
+  // Detail fact card · shows the effective-supply work line by line so
+  // the number is auditable, and never shows a past hire-by date as if
+  // it were still an action.
+  const supplyFacts = (w) => {
+    const s = w.supply;
+    const rows = [`<div class="rr-intel-detail-fact"><span>On payroll</span><span>${s.rawAvail.toLocaleString()}</span></div>`];
+    if (s.notReadyOnboarding) rows.push(`<div class="rr-intel-detail-fact"><span>− Onboarding not ready</span><span>${s.notReadyOnboarding}</span></div>`);
+    if (s.attritionLoss)      rows.push(`<div class="rr-intel-detail-fact"><span>− Projected attrition</span><span>${s.attritionLoss}</span></div>`);
+    if (s.calloutLoss)        rows.push(`<div class="rr-intel-detail-fact"><span>− Expected callouts</span><span>${s.calloutLoss}</span></div>`);
+    rows.push(`<div class="rr-intel-detail-fact"><span>Effective</span><span>${w.effAvail.toLocaleString()}</span></div>`);
+    return rows.join("");
+  };
+  const hireByFact = (w) => {
+    if (w.gap >= 0 || !w.hireByIso) return "";
+    return w.hireByStatus === "past"
+      ? `<div class="rr-intel-detail-fact"><span>Hire by</span><span class="is-past-due">${escapeHtml(fmtIsoShort(w.hireByIso))} · window passed</span></div>`
+      : `<div class="rr-intel-detail-fact"><span>Hire by</span><span>${escapeHtml(fmtIsoShort(w.hireByIso))}</span></div>`;
+  };
   const detailHtml = nextBreak ? `
     <div class="rr-intel-detail">
       <div class="rr-intel-detail-narrative">${narrative}</div>
@@ -3416,13 +3540,11 @@ function _rrIntelRenderRiskForecast(view) {
         <div class="rr-intel-detail-fact"><span>Week</span><span>${escapeHtml(nextBreak.label)}</span></div>
         <div class="rr-intel-detail-fact"><span>Dates</span><span>${escapeHtml(nextBreak.dates)}</span></div>
         <div class="rr-intel-detail-fact"><span>Needed</span><span>${nextBreak.needed.toLocaleString()}</span></div>
-        <div class="rr-intel-detail-fact"><span>Available</span><span>${nextBreak.avail.toLocaleString()}</span></div>
-        <div class="rr-intel-detail-fact"><span>Open</span><span>${Math.max(0, nextBreak.needed - nextBreak.avail).toLocaleString()}</span></div>
-        <div class="rr-intel-detail-fact"><span>Coverage</span><span>${nextBreak.needed > 0 ? Math.round((nextBreak.avail / nextBreak.needed) * 100) : 100}%</span></div>
-        ${nextBreak.hireBy && nextBreak.hireBy !== "—"
-          ? `<div class="rr-intel-detail-fact"><span>Hire by</span><span>${escapeHtml(nextBreak.hireBy)}</span></div>`
-          : ""}
-        <div class="rr-intel-detail-fact"><span>Status</span><span>${nextBreak.derivedKind === "risk" ? "At risk" : "Tight"}</span></div>
+        ${supplyFacts(nextBreak)}
+        <div class="rr-intel-detail-fact"><span>Open</span><span>${Math.max(0, -nextBreak.gap).toLocaleString()}</span></div>
+        <div class="rr-intel-detail-fact"><span>Coverage</span><span>${nextBreak.coveragePct}%</span></div>
+        ${hireByFact(nextBreak)}
+        <div class="rr-intel-detail-fact"><span>Status</span><span>${RR_FC_LABEL[nextBreak.kind]}</span></div>
       </aside>
     </div>
   ` : `
@@ -3430,7 +3552,7 @@ function _rrIntelRenderRiskForecast(view) {
       <div class="rr-intel-detail-narrative">${narrative}</div>
       <aside class="rr-intel-detail-facts">
         <div class="rr-intel-detail-fact"><span>This week needed</span><span>${thisWeek.needed.toLocaleString()}</span></div>
-        <div class="rr-intel-detail-fact"><span>Available</span><span>${thisWeek.avail.toLocaleString()}</span></div>
+        ${supplyFacts(thisWeek)}
         <div class="rr-intel-detail-fact"><span>Coverage</span><span>${coveragePct}%</span></div>
         <div class="rr-intel-detail-fact"><span>4-wk trend</span><span>${escapeHtml(trendLabel)}</span></div>
       </aside>
@@ -3443,11 +3565,11 @@ function _rrIntelRenderRiskForecast(view) {
         <p class="rr-intel-view-eyebrow">Intelligence · Risk forecast</p>
         <h2 class="rr-intel-view-title">
           Risk forecast
-          <span class="rr-intel-headline-pill ${overallKind}"><span class="dot"></span>${overallLabel}</span>
+          <span class="rr-intel-headline-pill ${overallClass}"><span class="dot"></span>${overallLabel}</span>
         </h2>
         <p class="rr-intel-view-sub">${window._rrSimResultsByWeek
-          ? "Reading from your last <strong>Simulate 13 weeks</strong> run — each week's available count is the actual driver pool minus anyone with an approved time-off request that covers it."
-          : "Smart Fill projections of coverage across your 13-week plan. Numbers come straight from your live OKAMI grid — click <strong>Simulate 13 weeks</strong> on the Targets page to project against approved PTO + time-off."}</p>
+          ? "Reading from your last <strong>Simulate 13 weeks</strong> run — each week starts from the actual driver pool minus approved time-off, then folds in your observed callout and attrition rates."
+          : "Effective-supply projections across your 13-week plan — payroll minus onboarding ramp, projected attrition, and expected callouts. Click <strong>Simulate 13 weeks</strong> on the Targets page to fold in approved PTO + time-off."}</p>
       </div>
       <button type="button" class="rr-intel-view-close" data-rr-intel-close title="Close" aria-label="Close">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -3458,7 +3580,7 @@ function _rrIntelRenderRiskForecast(view) {
       <div class="rr-intel-kpi">
         <div class="rr-intel-kpi-label">Coverage · this week</div>
         <div class="rr-intel-kpi-val ${coveragePct < 90 ? "is-warn" : ""}">${coveragePct}<span style="font-size:13px;font-weight:500;color:var(--text-subtle)">%</span></div>
-        <div class="rr-intel-kpi-sub">${thisWeek.avail.toLocaleString()} of ${thisWeek.needed.toLocaleString()} drivers</div>
+        <div class="rr-intel-kpi-sub">${thisWeek.effAvail.toLocaleString()} of ${thisWeek.needed.toLocaleString()} effective drivers</div>
       </div>
       <div class="rr-intel-kpi">
         <div class="rr-intel-kpi-label">4-week trend</div>
@@ -3466,13 +3588,13 @@ function _rrIntelRenderRiskForecast(view) {
         <div class="rr-intel-kpi-sub">${trendDetail}</div>
       </div>
       <div class="rr-intel-kpi">
-        <div class="rr-intel-kpi-label">Open over 4 weeks</div>
-        <div class="rr-intel-kpi-val ${horizonGap > 0 ? "is-warn" : ""}">${horizonGap.toLocaleString()}</div>
-        <div class="rr-intel-kpi-sub">Drivers short, summed</div>
+        <div class="rr-intel-kpi-label">Short over 4 weeks</div>
+        <div class="rr-intel-kpi-val ${A.horizon.driverWeeksShort > 0 ? "is-warn" : ""}">${A.horizon.driverWeeksShort.toLocaleString()}</div>
+        <div class="rr-intel-kpi-sub">Driver-weeks (weekly gaps summed — not people to hire)</div>
       </div>
       <div class="rr-intel-kpi">
         <div class="rr-intel-kpi-label">Next break</div>
-        <div class="rr-intel-kpi-val ${overallKind === "risk" ? "is-risk" : (overallKind === "tight" ? "is-warn" : "")}">${nextBreak ? escapeHtml(nextBreak.label) : "None"}</div>
+        <div class="rr-intel-kpi-val ${overallKind === "risk" ? "is-risk" : (overallKind === "watch" ? "is-warn" : "")}">${nextBreak ? escapeHtml(nextBreak.label) : "None"}</div>
         <div class="rr-intel-kpi-sub">${nextBreak ? escapeHtml(nextBreak.dates) + " · " + (nextBreak.idx === 0 ? "this week" : "in " + nextBreak.idx + " wk" + (nextBreak.idx === 1 ? "" : "s")) : "Clear horizon"}</div>
       </div>
     </div>
@@ -3480,26 +3602,341 @@ function _rrIntelRenderRiskForecast(view) {
     <div class="rr-intel-strip-section">
       <div class="rr-intel-section-head">
         <h3 class="rr-intel-section-title">13-week risk strip</h3>
-        <span class="rr-intel-section-aside">Bar height = drivers needed · color = coverage status</span>
+        <span class="rr-intel-section-aside">Bar height = drivers needed · solid cap = uncovered · color = coverage status</span>
       </div>
       <div class="rr-intel-strip" role="list" aria-label="13-week risk bars">${stripHtml}</div>
     </div>
 
     ${detailHtml}
 
+    <div id="rr-intel-upper-funnel"></div>
+
     <footer class="rr-intel-foot">
       <span class="rr-intel-foot-bullet"><span class="dot"></span>${window._rrSimResultsByWeek
         ? "Simulation ran " + (window._rrSimResultsRanAt ? new Date(window._rrSimResultsRanAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "just now") + " — PTO + time-off folded in."
         : "Reads from the live 13-week plan — click Simulate 13 weeks on Targets for the PTO-aware projection."}</span>
-      <span>Want a deeper analysis? Run the solver against the next 4 weeks from Targets → Smart Fill.</span>
+      <span>${rates
+        ? `Observed rates folded in: ${Math.round((rates.calloutRate || 0) * 100)}% callouts (60d) · ${(100 * (rates.weeklyAttritionRate || 0)).toFixed(1)}%/wk attrition (90d) · ${(rates.onboarding || []).length} onboarding gated by ready date.`
+        : "Loading observed callout + attrition rates…"}</span>
     </footer>
   `;
+
+  // Upper funnel · backward-solve the next break into a sourcing quota.
+  // Async (one cached RPC) so the core forecast still paints instantly.
+  // Assessed weeks carry the forecast-core shape: gap = effAvail − needed.
+  if (nextBreak && nextBreak.gap < 0) {
+    const ufHost = view.querySelector("#rr-intel-upper-funnel");
+    if (ufHost) {
+      ufHost.innerHTML = `<div class="rr-intel-empty">Sizing your hiring funnel…</div>`;
+      _rrFetchHiringPlanning().then((plan) => {
+        if (!view.isConnected) return;
+        const host = view.querySelector("#rr-intel-upper-funnel");
+        if (host) host.innerHTML = _rrUpperFunnelSectionHtml(_rrUpperFunnelMath(plan), nextBreak);
+      });
+    }
+  }
+}
+
+// ── Upper funnel · backward-solve the hiring funnel ────────────────
+// The Amazon "upper funnel" discipline: routes → drivers needed (2:1
+// + cushion, already in the 13-week plan) → gap → ÷ conversion rate →
+// applicants needed at the top of the funnel, due by (hire-by − funnel
+// velocity). Powered by hiring_pipeline_planning (migration 0458),
+// which returns the DSP's own measured stage→hire rates, median
+// applied→hired days, application pace, and the live in-funnel counts.
+
+// Industry-default P(hire | currently at stage), used verbatim until the
+// DSP has RR_UF_MIN_HIRES hires of history in the lookback window. The
+// UI always labels which basis is in effect.
+const RR_UF_DEFAULT_STAGE_RATES = { 1: 8, 2: 12, 3: 20, 4: 30, 5: 35, 6: 45, 7: 85 };
+const RR_UF_DEFAULT_FUNNEL_DAYS = 21;   // applied → hired, when unmeasured
+const RR_UF_MIN_HIRES = 5;              // measured rates need ≥ this many hires
+const RR_UF_WINDOW_DAYS = 180;
+
+let _rrHiringPlanCache = null;          // { at: ms, data: payload|null }
+let _rrHiringPlanPromise = null;
+
+function _rrFetchHiringPlanning() {
+  const FRESH_MS = 5 * 60 * 1000;
+  if (_rrHiringPlanCache && Date.now() - _rrHiringPlanCache.at < FRESH_MS) {
+    return Promise.resolve(_rrHiringPlanCache.data);
+  }
+  if (_rrHiringPlanPromise) return _rrHiringPlanPromise;
+  _rrHiringPlanPromise = sb.rpc("hiring_pipeline_planning", { p_window_days: RR_UF_WINDOW_DAYS })
+    .then(({ data, error }) => {
+      if (error) throw error;
+      // Guard: a not-yet-migrated backend (or a stub) can hand back an
+      // array / null — treat anything but a plain object as "no data"
+      // and fall through to the labeled industry defaults.
+      const obj = data && typeof data === "object" && !Array.isArray(data) ? data : null;
+      _rrHiringPlanCache = { at: Date.now(), data: obj };
+      return obj;
+    })
+    .catch((e) => {
+      console.warn("hiring_pipeline_planning:", e);
+      _rrHiringPlanCache = { at: Date.now(), data: null };
+      return null;
+    })
+    .finally(() => { _rrHiringPlanPromise = null; });
+  return _rrHiringPlanPromise;
+}
+
+// Fold the RPC payload into the numbers backward-planning needs. Works
+// with plan = null (cold start / RPC unavailable): defaults everywhere,
+// zero live pipeline, and measured=false so every surface says so.
+function _rrUpperFunnelMath(plan) {
+  const stages = Array.isArray(plan?.stages) ? plan.stages : [];
+  const hired = Number(plan?.hired || 0);
+  const byRank = {};
+  for (const s of stages) byRank[Number(s.rank)] = s;
+  const reachedTop = Number(byRank[1]?.reached || 0);
+  const measured = hired >= RR_UF_MIN_HIRES && reachedTop > 0;
+
+  let inFunnelTotal = 0;
+  let expectedHires = 0;
+  const rows = [];
+  for (let r = 1; r <= 7; r++) {
+    const s = byRank[r] || {};
+    const inF = Number(s.in_funnel || 0);
+    const reached = Number(s.reached || 0);
+    const hiredFrom = Number(s.hired_from || 0);
+    const ratePct = measured && reached > 0
+      ? (100 * hiredFrom) / reached
+      : RR_UF_DEFAULT_STAGE_RATES[r];
+    inFunnelTotal += inF;
+    expectedHires += (inF * ratePct) / 100;
+    rows.push({ rank: r, key: s.key || String(r), label: s.label || "", inFunnel: inF, ratePct });
+  }
+
+  const e2ePct = measured
+    ? Math.max(0.5, (100 * Number(byRank[1]?.hired_from || 0)) / reachedTop)
+    : RR_UF_DEFAULT_STAGE_RATES[1];
+  const medianTTH = Number(plan?.median_days_to_hire);
+  const funnelDays = measured && Number.isFinite(medianTTH) && medianTTH > 0
+    ? Math.round(medianTTH)
+    : RR_UF_DEFAULT_FUNNEL_DAYS;
+
+  return {
+    measured, hired,
+    windowDays: Number(plan?.window_days || RR_UF_WINDOW_DAYS),
+    applied: Number(plan?.applied || 0),
+    appsPerWeek: Number(plan?.apps_per_week || 0),
+    e2ePct, funnelDays,
+    inFunnelTotal,
+    expectedHires,
+    stages: rows,
+  };
+}
+
+// Applications needed at the top of the funnel to yield `gap` hires.
+function _rrUfAppsNeeded(gap, e2ePct) {
+  if (!(gap > 0)) return 0;
+  return Math.ceil(gap / (Math.max(0.5, e2ePct) / 100));
+}
+
+// "Get them into the funnel by" — the week's hire-by (which already
+// backs out the 28-day onboarding/training lead) minus the funnel's own
+// applied→hired velocity. Returns { date, label, overdue }.
+function _rrUfEntryDeadline(weekIdx, funnelDays) {
+  const iso = _rrOkamiWeekStartIso(weekIdx);
+  if (!iso) return null;
+  const d = addDays(new Date(iso + "T12:00:00"), -(RR_OKAMI_HIRE_LEAD_DAYS + funnelDays));
+  return { date: d, label: fmtMD(d), overdue: d < new Date() };
+}
+
+// One-line description of the basis behind the math, shown under every
+// upper-funnel surface so the numbers are never mystery meat.
+function _rrUfBasisNote(m) {
+  if (m.measured) {
+    return `Using your measured rates — ${m.hired} hire${m.hired === 1 ? "" : "s"} from `
+      + `${m.applied.toLocaleString()} applications over the last ${Math.round(m.windowDays / 7)} weeks `
+      + `(${m.e2ePct.toFixed(m.e2ePct < 10 ? 1 : 0)}% application→hire, ~${m.funnelDays} days applied→hired).`;
+  }
+  return `Using industry defaults (${RR_UF_DEFAULT_STAGE_RATES[1]}% application→hire, `
+    + `~${RR_UF_DEFAULT_FUNNEL_DAYS} days in funnel) until you have ${RR_UF_MIN_HIRES}+ hires of history — `
+    + `your own rates take over automatically as the funnel fills.`;
+}
+
+// Upper-funnel section for the Risk forecast: the backward-solve for the
+// next break week. gap → live pipeline yield → unsourced gap → apps
+// needed → funnel-entry deadline.
+function _rrUpperFunnelSectionHtml(m, nextBreak) {
+  // Accepts a forecast-core assessed week (gap = effAvail − needed).
+  const gap = Math.max(0, -(Number(nextBreak.gap) || 0));
+  if (gap <= 0) return "";
+  const covered = Math.min(gap, m.expectedHires);
+  const unsourced = Math.max(0, Math.ceil(gap - m.expectedHires));
+  const apps = _rrUfAppsNeeded(unsourced, m.e2ePct);
+  const dl = _rrUfEntryDeadline(nextBreak.idx, m.funnelDays);
+  const weeksOfPace = m.appsPerWeek > 0 ? Math.ceil(apps / m.appsPerWeek) : null;
+  return `
+    <div class="rr-intel-strip-section">
+      <div class="rr-intel-section-head">
+        <h3 class="rr-intel-section-title">Upper funnel · ${escapeHtml(nextBreak.label)}</h3>
+        <span class="rr-intel-section-aside">Work backwards from the gap to a sourcing quota</span>
+      </div>
+      <div class="rr-intel-kpis">
+        <div class="rr-intel-kpi">
+          <div class="rr-intel-kpi-label">Open · ${escapeHtml(nextBreak.label)}</div>
+          <div class="rr-intel-kpi-val is-risk">${gap.toLocaleString()}</div>
+          <div class="rr-intel-kpi-sub">Drivers short of plan</div>
+        </div>
+        <div class="rr-intel-kpi">
+          <div class="rr-intel-kpi-label">In your funnel now</div>
+          <div class="rr-intel-kpi-val">${m.inFunnelTotal.toLocaleString()}</div>
+          <div class="rr-intel-kpi-sub">≈ ${m.expectedHires.toFixed(1)} expected hire${m.expectedHires.toFixed(1) === "1.0" ? "" : "s"}${covered >= gap ? " — covers this gap" : ` of the ${gap.toLocaleString()} you need`}</div>
+        </div>
+        <div class="rr-intel-kpi">
+          <div class="rr-intel-kpi-label">Applications needed</div>
+          <div class="rr-intel-kpi-val ${unsourced > 0 ? "is-warn" : ""}">${unsourced > 0 ? "≈ " + apps.toLocaleString() : "0"}</div>
+          <div class="rr-intel-kpi-sub">${unsourced > 0
+            ? `To source the remaining ${unsourced.toLocaleString()} driver${unsourced === 1 ? "" : "s"}`
+            : "Your live pipeline already covers this gap"}</div>
+        </div>
+        <div class="rr-intel-kpi">
+          <div class="rr-intel-kpi-label">In funnel by</div>
+          <div class="rr-intel-kpi-val ${dl?.overdue ? "is-risk" : ""}">${dl ? escapeHtml(dl.label) : "—"}</div>
+          <div class="rr-intel-kpi-sub">${dl?.overdue
+            ? "Already inside your funnel lead time — source now"
+            : `Hire-by minus ~${m.funnelDays} days of funnel time`}</div>
+        </div>
+      </div>
+      <div class="rr-intel-section-aside" style="display:block;margin-top:8px">${escapeHtml(_rrUfBasisNote(m))}${
+        weeksOfPace && unsourced > 0
+          ? escapeHtml(` At your current pace of ${m.appsPerWeek}/week, that's ~${weeksOfPace} week${weeksOfPace === 1 ? "" : "s"} of applications.`)
+          : ""}</div>
+    </div>`;
+}
+
+// ── Hiring pulse · the always-on upper-funnel view ─────────────────
+// Left-to-right: funnel health KPIs, the live stage ladder, then every
+// short week in the 13-week plan solved back to an application quota.
+function _rrIntelRenderHiringPulse(view) {
+  view.innerHTML = `
+    <header class="rr-intel-view-head">
+      <div class="rr-intel-view-head-l">
+        <p class="rr-intel-view-eyebrow">Intelligence · Hiring pulse</p>
+        <h2 class="rr-intel-view-title">Hiring pulse</h2>
+        <p class="rr-intel-view-sub">Your hiring funnel, solved against the 13-week plan — how many applicants you need at the top, and by when.</p>
+      </div>
+      <button type="button" class="rr-intel-view-close" data-rr-intel-close title="Close" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </header>
+    <div class="rr-intel-empty" id="rr-hp-loading">Reading your funnel…</div>
+    <div id="rr-hp-body"></div>`;
+
+  _rrFetchHiringPlanning().then((plan) => {
+    if (!view.isConnected) return;
+    const loading = view.querySelector("#rr-hp-loading");
+    const body = view.querySelector("#rr-hp-body");
+    if (loading) loading.remove();
+    if (!body) return;
+    const m = _rrUpperFunnelMath(plan);
+
+    // Live stage ladder — count in funnel × P(hire | stage).
+    const ladderHtml = m.stages.map((s) => `
+      <div class="rr-intel-detail-fact">
+        <span>${escapeHtml(s.label)}</span>
+        <span>${s.inFunnel.toLocaleString()} <span style="color:var(--text-subtle);font-weight:500">· ${s.ratePct.toFixed(s.ratePct < 10 ? 1 : 0)}% hire</span></span>
+      </div>`).join("");
+
+    // Per-short-week backward solve. Each week is solved independently —
+    // the live pipeline's expected yield applies to every week (a hire
+    // made for W28 is still on the roster in W29). Gaps come from the
+    // shared forecast-core assessment (effective supply, same numbers
+    // the Risk forecast and gap card show); raw plan rows are the
+    // fallback if the assessment can't run.
+    let weeks = [];
+    try {
+      const raw = (_rrReadOkamiWeeks() || []).filter((w) => Number.isFinite(w.gap));
+      try {
+        _rrEnsureForecastRates();
+        weeks = (_rrAssessOkamiPlan(raw)?.weeks || []).filter((w) => Number.isFinite(w.gap));
+      } catch (_) { weeks = raw; }
+    } catch (_) {}
+    const shortWeeks = weeks.filter((w) => w.gap < 0);
+    let weeksHtml;
+    if (!weeks.length) {
+      weeksHtml = `<div class="rr-intel-empty">No 13-week plan data yet. Visit Schedule → Targets to load it, then come back.</div>`;
+    } else if (!shortWeeks.length) {
+      weeksHtml = `<div class="rr-intel-empty">Fully staffed through the plan — and your funnel adds ≈ ${m.expectedHires.toFixed(1)} expected hires of cushion on top.</div>`;
+    } else {
+      const rows = shortWeeks.map((w) => {
+        const gap = Math.abs(w.gap);
+        const unsourced = Math.max(0, Math.ceil(gap - m.expectedHires));
+        const apps = _rrUfAppsNeeded(unsourced, m.e2ePct);
+        const dl = _rrUfEntryDeadline(w.idx, m.funnelDays);
+        return `
+          <div style="display:grid;grid-template-columns:minmax(120px,1.4fr) repeat(4,minmax(90px,1fr));gap:8px;padding:9px 4px;border-top:1px solid var(--rr-ctl-border,rgba(15,23,42,.08));align-items:baseline">
+            <span><strong>${escapeHtml(w.label)}</strong> <span style="color:var(--text-subtle)">${escapeHtml(w.dates)}</span></span>
+            <span class="rr-intel-kpi-val is-risk" style="font-size:inherit">${gap.toLocaleString()} open</span>
+            <span>${unsourced > 0 ? `${unsourced.toLocaleString()} unsourced` : "pipeline covers it"}</span>
+            <span>${unsourced > 0 ? `≈ ${apps.toLocaleString()} apps` : "—"}</span>
+            <span class="${dl?.overdue ? "rr-intel-kpi-val is-risk" : ""}" style="font-size:inherit">${dl ? "by " + escapeHtml(dl.label) : "—"}</span>
+          </div>`;
+      }).join("");
+      weeksHtml = `
+        <div class="rr-intel-strip-section">
+          <div class="rr-intel-section-head">
+            <h3 class="rr-intel-section-title">Short weeks · sourcing quotas</h3>
+            <span class="rr-intel-section-aside">Week · open · after pipeline · applications · in funnel by</span>
+          </div>
+          ${rows}
+        </div>`;
+    }
+
+    body.innerHTML = `
+      <div class="rr-intel-kpis">
+        <div class="rr-intel-kpi">
+          <div class="rr-intel-kpi-label">In funnel now</div>
+          <div class="rr-intel-kpi-val">${m.inFunnelTotal.toLocaleString()}</div>
+          <div class="rr-intel-kpi-sub">Active applicants, all stages</div>
+        </div>
+        <div class="rr-intel-kpi">
+          <div class="rr-intel-kpi-label">Expected hires</div>
+          <div class="rr-intel-kpi-val">${m.expectedHires.toFixed(1)}</div>
+          <div class="rr-intel-kpi-sub">Pipeline × ${m.measured ? "your" : "default"} stage rates</div>
+        </div>
+        <div class="rr-intel-kpi">
+          <div class="rr-intel-kpi-label">Application→hire</div>
+          <div class="rr-intel-kpi-val">${m.e2ePct.toFixed(m.e2ePct < 10 ? 1 : 0)}%</div>
+          <div class="rr-intel-kpi-sub">${m.measured ? `Measured · ${m.hired} hires / ${Math.round(m.windowDays / 7)} wks` : "Industry default"}</div>
+        </div>
+        <div class="rr-intel-kpi">
+          <div class="rr-intel-kpi-label">Funnel velocity</div>
+          <div class="rr-intel-kpi-val">${m.funnelDays}<span style="font-size:13px;font-weight:500;color:var(--text-subtle)"> days</span></div>
+          <div class="rr-intel-kpi-sub">${m.measured ? "Median applied→hired" : "Default applied→hired"}</div>
+        </div>
+        <div class="rr-intel-kpi">
+          <div class="rr-intel-kpi-label">Application pace</div>
+          <div class="rr-intel-kpi-val">${m.appsPerWeek || "—"}</div>
+          <div class="rr-intel-kpi-sub">Per week, recent window</div>
+        </div>
+      </div>
+      <div class="rr-intel-detail">
+        <div class="rr-intel-detail-narrative">
+          Your funnel holds <strong>${m.inFunnelTotal.toLocaleString()}</strong> active applicant${m.inFunnelTotal === 1 ? "" : "s"},
+          worth about <strong>${m.expectedHires.toFixed(1)}</strong> hires at ${m.measured ? "your measured" : "default"} stage rates.
+          Every short week below is solved back to an application quota: open drivers, minus what the pipeline
+          should yield, divided by your ${m.e2ePct.toFixed(m.e2ePct < 10 ? 1 : 0)}% application→hire rate — due in the funnel
+          <em>hire-by minus ~${m.funnelDays} days</em> so training still lands before the week breaks.
+        </div>
+        <aside class="rr-intel-detail-facts">${ladderHtml}</aside>
+      </div>
+      ${weeksHtml}
+      <footer class="rr-intel-foot">
+        <span class="rr-intel-foot-bullet"><span class="dot"></span>${escapeHtml(_rrUfBasisNote(m))}</span>
+        <span>Source more applicants from Onboarding → Funnel.</span>
+      </footer>`;
+  });
 }
 
 const _RR_INTEL_RENDERERS = {
   "risk-forecast": _rrIntelRenderRiskForecast,
-  // 4 other intel views land in follow-up PRs:
-  //   compliance-watch, hiring-pulse, peak-days, what-if
+  "hiring-pulse": _rrIntelRenderHiringPulse,
+  // 3 other intel views land in follow-up PRs:
+  //   compliance-watch, peak-days, what-if
 };
 
 // ── Undo stack ─────────────────────────────────────────────────────
@@ -7413,25 +7850,20 @@ window.obSub = function (which) {
   show("obsub-overview",  which === "overview");
   show("obsub-workauth",  which === "workauth");
   show("obsub-pipeline",  isPipe);
-  // The onboarding KPI band belongs on the Onboarding (overview) page and the
-  // Funnel (its own funnel metrics). Hide it on Interview / Calendar / Work
-  // auth so those views start right under the icon strip.
+  // The KPI band only carries the Funnel metrics now — the Overview's
+  // step-count pills were removed (operator request); the matrix rings
+  // carry that read. Keep the host displayable on the overview so
+  // roster mode (entered from there) can paint its pills into it; when
+  // empty the #rr-ob-kpis:empty rule collapses it.
   show("rr-ob-kpis",      which === "overview" || which === "funnel");
   // Calendar view tiles live permanently on the strip — keep their active
   // highlight in sync (cleared whenever we're not on the Calendar view).
   if (typeof _ivcalSyncStripView === "function") _ivcalSyncStripView(which === "calendar");
   if (which === "overview") {
-    // Swap the TCP KPI bar back to the onboarding-stage pills.
-    // Uses the cached enriched + stepCols last computed by
-    // loadOnboardingOps so no refetch is needed; if the cache is
-    // empty (very first render before data lands) we no-op and
-    // the next matrix render will fill the bar.
-    try {
-      const cache = window.__obKpiCache;
-      if (cache && cache.stepCols && typeof window.__obRenderKpis === "function") {
-        window.__obRenderKpis(cache.enriched || [], cache.stepCols);
-      }
-    } catch (_) { /* non-fatal */ }
+    // Clear any pills left behind by the Funnel sub-tab so the strip
+    // collapses instead of showing stale funnel metrics.
+    const kpiHost = document.getElementById("rr-ob-kpis");
+    if (kpiHost) kpiHost.innerHTML = "";
   }
   // The page title + sub-line follow the active icon.
   const _OB_META = {
@@ -8596,93 +9028,6 @@ async function loadOnboardingOps(opts) {
   _rosterState = new Map((Array.isArray(stateRes?.data) ? stateRes.data : []).map((r) => [r.driver_id, (r && r.steps) || {}]));
   if (subEl) subEl.textContent = N ? `${N} driver${N === 1 ? "" : "s"} in onboarding` : "No one in onboarding right now";
 
-  // ── Per-step "is this driver done with that step?" predicate.
-  // Mirrors matrixRow's done-detection logic so the KPI counts agree
-  // with the dots painted in the matrix below. Walks the same data
-  // sources matrixRow does (_rosterProg, _rosterState, _rosterI9,
-  // _rosterPairings); centralizing here means the matrix and the KPI
-  // bar can never drift.
-  function _obIsStepDoneFor(d, stepCol) {
-    if (!d || !stepCol || !stepCol.map) return false;
-    const m = stepCol.map;
-    if (m.kind === "drv") return !!d[m.done];
-    if (m.kind === "prog") {
-      const prog = (_rosterProg && _rosterProg.get(d.id)) || {};
-      return !!prog[m.done];
-    }
-    if (m.kind === "state") {
-      if (stepCol.key === "trainer_pair") {
-        const pair = _rosterPairings && _rosterPairings.get(d.id);
-        return !!(pair && pair.status === "materialized");
-      }
-      const st = (_rosterState && _rosterState.get(d.id)) || {};
-      return !!st[m.done];
-    }
-    if (m.kind === "i9") {
-      const i9r = (_rosterI9 && _rosterI9.get(d.id)) || null;
-      if (!i9r) return false;
-      const i9 = _i9Derived(i9r);
-      return i9.key === "verified" || i9.key === "verified_expiring" || i9.key === "sealing";
-    }
-    return false;
-  }
-
-  // ── Paint the dynamic KPI bar from the blueprint. The KPI bar
-  // (#rr-ob-kpis) sits in the TCP slot above the matrix. Pills are
-  // built from the same `stepCols` array the matrix uses, so the bar
-  // reflects whatever steps the operator has configured in the
-  // Onboarding Builder — add a step → new pill, remove a step → pill
-  // disappears, on the next render.
-  function _obRenderKpis(rowsEnriched, stepCols) {
-    const host = document.getElementById("rr-ob-kpis");
-    if (!host) return;
-    // Don't overwrite the roster KPI pills when the operator is in
-    // Roster mode — refreshDriverStatRow paints Active / On LOA /
-    // Avg tenure into this same host, and any matrix re-render
-    // (driver updates, polling refresh, blueprint edits) was
-    // wiping it back to onboarding step pills. The outer scope in
-    // loadOnboardingOps keeps the cache up to date so _obCmdTab
-    // can still restore the step pills when the operator exits
-    // roster mode.
-    const obShell = document.getElementById("rr-ob-cmd");
-    if (obShell && obShell.classList.contains("is-roster")) return;
-    const total = rowsEnriched.length;
-    const navy  = "#1F2A44";
-    const green = "#10B981";
-
-    const pill = (key, dotColor, valHtml, subText) =>
-      `<span class="sched-kpi-pill" data-rr-ob-kpi="${escapeHtml(key)}">` +
-        `<span class="sched-kpi-dot" style="background:${dotColor}"></span>` +
-        `<span class="sched-kpi-text">` +
-          `<span class="sched-kpi-val">${valHtml}</span>` +
-          `<span class="sched-kpi-sub">${escapeHtml(subText)}</span>` +
-        `</span>` +
-      `</span>`;
-
-    // Leftmost · total onboarding-drivers count. The value reads as
-    // a plain number; sub-line says "Onboarding drivers" so the
-    // operator immediately knows what's being totalled.
-    const header = pill("total", navy, String(total), "Onboarding drivers");
-
-    // Per blueprint step · "N/total Step Name". Dot greens when
-    // every onboarding driver has cleared that step.
-    const stages = stepCols.map(s => {
-      const n = rowsEnriched.filter(({ d }) => _obIsStepDoneFor(d, s)).length;
-      const color = total > 0 && n === total ? green : navy;
-      const valHtml = `${n}<span style="color:var(--rr-fg-secondary);font-weight:500">/${total}</span>`;
-      return pill(s.key || s.map.head, color, valHtml, s.map.head);
-    }).join("");
-
-    // Rightmost · drivers who have flipped to status="active". This
-    // mirrors the Active column on the right edge of the matrix.
-    const activeN = rowsEnriched.filter(({ d }) => d && d.status === "active").length;
-    const activeColor = activeN > 0 ? green : navy;
-    const activeVal = `${activeN}<span style="color:var(--rr-fg-secondary);font-weight:500">/${total}</span>`;
-    const activePill = pill("active", activeColor, activeVal, "Active");
-
-    host.innerHTML = header + stages + activePill;
-  }
-
   // The matrix is the page.  Sorted urgency-first — compliance risks
   // rise to the top, then ready-to-activate, then due-soon, etc. — so
   // the colour-coded status pills carry the at-a-glance read with no
@@ -8704,14 +9049,6 @@ async function loadOnboardingOps(opts) {
   // column comes from the blueprint loop now (driver-state-backed),
   // so no special-case column rendering is needed.
   const stepCols = _obSteps().filter(s => s && s.enabled).map(_obStepColumn);
-  // Cache the latest matrix inputs + the renderer itself on window
-  // so obSub('overview') can repaint the KPI bar with onboarding
-  // stages WITHOUT having to re-run loadOnboardingOps (which would
-  // refetch the roster). The Funnel sub-tab installs its own pills
-  // via _obRenderFunnelKpis; the overview path uses this cache to
-  // swap back.
-  window.__obKpiCache   = { enriched, stepCols };
-  window.__obRenderKpis = _obRenderKpis;
   const fmtCellDate = (x) => x ? new Date(x).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : null;
   // Onboarding dot: green once the step is complete, no fill otherwise.
   // Every step in the overview is visible to the driver; hover for status.
@@ -8844,24 +9181,10 @@ async function loadOnboardingOps(opts) {
   // as a real row so adding a real applicant just replaces a skeleton.
   // Ghost/skeleton filler rows removed by request — the table now ends after
   // the real applicants instead of padding to the viewport bottom.
-  // Paint the dynamic KPI bar above the matrix with one pill per
-  // blueprint stage (Drug clear / BG clear / Job offer / …) plus
-  // a leftmost "Onboarding drivers" total and a rightmost "Active"
-  // count. Stages come from the same blueprint that drives the
-  // matrix columns, so adding or removing a step in the builder
-  // updates the KPI bar on the next render. Guarded so it ONLY
-  // paints when the Overview sub-tab is active — otherwise the
-  // matrix-render path would overwrite the Funnel KPIs that obSub
-  // just installed and the operator would see a brief onboarding-
-  // stage flash before the funnel pills repaint.
-  try {
-    const activeSub = document.querySelector(
-      "#view-onboarding-ops .subnav .subnav-item[data-obsub].active"
-    )?.getAttribute("data-obsub");
-    if (!activeSub || activeSub === "overview") {
-      _obRenderKpis(enriched, stepCols);
-    }
-  } catch (_) { /* non-fatal */ }
+  // Overview KPI strip (step-count pills above the matrix) removed by
+  // request — #rr-ob-kpis stays empty on the Overview and the :empty
+  // rule collapses it. The Funnel sub-tab and Roster mode still paint
+  // their own pills into the same host.
 
   body.querySelectorAll("[data-rr-onboardops-open]").forEach(el => {
     el.addEventListener("click", (e) => {
@@ -20793,8 +21116,8 @@ async function refreshDriverStatRow(rows) {
 
   // Onboarding page's roster mode · the visible KPI strip is
   // #rr-ob-kpis. Overwrite it with the roster pills while the
-  // operator is in roster mode; _obCmdTab restores onboarding pills
-  // on exit via the window.__obRenderKpis cache.
+  // operator is in roster mode; _obCmdTab clears the strip on exit
+  // (the Overview no longer paints its own pills).
   const obShell = document.getElementById("rr-ob-cmd");
   if (obShell && obShell.classList.contains("is-roster")) {
     const obHost = document.getElementById("rr-ob-kpis");
@@ -25253,9 +25576,18 @@ async function _ivcalOpenEmail(kind, id) {
   }
 }
 
-// A unique, unguessable Jitsi room URL. No API key / server call — Whereby's
-// API edge was blocking room creation (403), so video uses meet.jit.si.
-function _ivcalVideoRoom() {
+// Mint a first-party RouteReady Meet room (dashboard/meet.html, meetings
+// table via meet_create RPC) and return its short /m/<code> invite link.
+// Falls back to a unique meet.jit.si URL if the RPC fails — a booking must
+// never die because room minting hiccuped.
+async function _ivcalVideoRoom(title) {
+  try {
+    const { data, error } = await sb.rpc("meet_create", { p_title: title || "Interview" });
+    if (!error && data && data.code) {
+      const base = ((window.RR_CONFIG && window.RR_CONFIG.PUBLIC_BASE_URL) || location.origin).replace(/\/+$/, "");
+      return base + "/m/" + data.code;
+    }
+  } catch (_) { /* fall through to Jitsi */ }
   const rand = (typeof crypto !== "undefined" && crypto.randomUUID)
     ? crypto.randomUUID().replace(/-/g, "")
     : (Date.now().toString(36) + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2));
@@ -25531,6 +25863,7 @@ function _ivcalNewEvent(dateISO, startMin, endMin, editEv) {
   const _calOptions = `<option value="">No calendar</option>` + _calList.map(c =>
     `<option value="${escapeHtml(c.id)}"${String(c.id)===String(_calCurrent)?" selected":""}>${escapeHtml(c.name)}</option>`).join("");
   let roomUrl = "";
+  let roomMintPending = null; // in-flight meet_create — Save/Send awaits it
   const rsvpToken = ((typeof crypto !== "undefined" && crypto.randomUUID)
     ? crypto.randomUUID().replace(/-/g, "")
     : (Date.now().toString(36) + Math.random().toString(36).slice(2)));
@@ -26302,14 +26635,31 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
         renderRoomState();
         toast("Video meeting removed — this is now a plain calendar invite", "info");
       } else {
-        roomUrl = (isEdit && ev0 && ev0.meeting_url) ? ev0.meeting_url : _ivcalVideoRoom();
-        if (loc && !loc.value.trim()) loc.value = "Online video meeting";
-        // Convenience: seed the interview template/title on a blank event.
-        const bodyEl = document.getElementById("rr-ne-body");
-        if (bodyEl && !bodyEl.value.trim()) bodyEl.value = INTERVIEW_TEMPLATE;
-        if (!titleInp.value.trim()) { titleInp.value = "Driver interview"; document.getElementById("rr-ne-tt").textContent = "Driver interview"; }
-        renderRoomState();
-        toast("Video meeting added · link included in the invite", "success");
+        const applyRoom = (url) => {
+          roomUrl = url;
+          if (loc && !loc.value.trim()) loc.value = "Online video meeting";
+          // Convenience: seed the interview template/title on a blank event.
+          const bodyEl = document.getElementById("rr-ne-body");
+          if (bodyEl && !bodyEl.value.trim()) bodyEl.value = INTERVIEW_TEMPLATE;
+          if (!titleInp.value.trim()) { titleInp.value = "Driver interview"; document.getElementById("rr-ne-tt").textContent = "Driver interview"; }
+          renderRoomState();
+          toast("Video meeting added · link included in the invite", "success");
+        };
+        if (isEdit && ev0 && ev0.meeting_url) {
+          applyRoom(ev0.meeting_url);
+        } else {
+          // Minting is a server round-trip now (RouteReady Meet room);
+          // disable the toggle so a double-click can't mint two rooms,
+          // and stash the promise so Save/Send can await it (an invite
+          // must never go out missing the link the operator just added).
+          const mintBtn = e.target.closest("[data-ne-act]");
+          if (mintBtn) mintBtn.disabled = true;
+          roomMintPending = _ivcalVideoRoom(titleInp.value.trim() || "Driver interview").then((url) => {
+            roomMintPending = null;
+            if (mintBtn) mintBtn.disabled = false;
+            applyRoom(url);
+          });
+        }
       }
       return;
     }
@@ -26327,6 +26677,9 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
     if (chipBtn) { attachments.splice(+chipBtn.getAttribute("data-ne-chip"), 1); renderChips(); return; }
 
     if (act === "send" || act === "save" || e.target.closest("#rr-ne-create")) {
+      // A video-room mint may still be in flight (it's an RPC round-trip
+      // now) — wait for it so the saved event/invite carries the link.
+      if (roomMintPending) { toast("Adding the video link…", "info"); await roomMintPending; }
       // "Save" puts the event on the calendar without inviting/emailing anyone
       // (personal blocks); "Send" also invites the attendees.
       const isSave   = act === "save";
@@ -27455,8 +27808,16 @@ function _ivcalOpenRoom(ev) {
   const apptId = ev.applicant_id || null;
   const me = (window.RR && window.RR.user && (window.RR.user.full_name || window.RR.user.name))
     || (window.RR && window.RR.dsp && window.RR.dsp.name) || "Interviewer";
+  // First-party Meet rooms (/m/<code> links) embed our own meet.html —
+  // same origin, ?name= prefills the lobby, and the operator's dashboard
+  // session carries over (staff get End-for-all via meet_lookup.is_host).
+  // Legacy meet.jit.si URLs (events booked before the switch) keep the
+  // old Jitsi iframe config.
+  const meetCode = (String(ev.meeting_url).match(/\/m\/([a-z0-9-]{8,16})(?:[/?#]|$)/i) || [])[1] || null;
   const hash = "#config.prejoinPageEnabled=false&userInfo.displayName=" + encodeURIComponent('"' + me + '"');
-  const src = ev.meeting_url + (ev.meeting_url.includes("#") ? "" : hash);
+  const src = meetCode
+    ? "/dashboard/meet.html?m=" + encodeURIComponent(meetCode) + "&name=" + encodeURIComponent(me)
+    : ev.meeting_url + (ev.meeting_url.includes("#") ? "" : hash);
   const canNotes = !!ev.id;
   const initials = (who || "?").split(/\s+/).map(s => s[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?";
   const scorecard = {};
@@ -42107,6 +42468,18 @@ async function _renderOkamiLiveImpl() {
     ? Array.from(okTbody.querySelectorAll("tr:not(.okami-detail)"))
     : [];
 
+  // Kick the shared forecast-rates load (drivers-per-route ratio, callout /
+  // attrition rates). First render may run on defaults; the repaint hooks
+  // inside the loader bring the dependent surfaces up to date.
+  try { _rrEnsureForecastRates(); } catch (_) {}
+  // Demand formula is shared with forecast-core: ceil(peak × dpr × (1+pad)).
+  // dpr comes from hiring settings (default 2 = 1 primary + 1 backup) so the
+  // planner and the staffing outlook finally agree on the ratio.
+  const _fcDpr = window._rrForecastRates?.driversPerRoute ?? 2;
+  // Data model published for the Risk Forecast + gap card (they read THIS,
+  // not the table's DOM). Rebuilt whole on every render.
+  const modelWeeks = [];
+
   for (let w = 0; w < RR_OKAMI_WEEKS; w++) {
     const row = allOkamiRows[w];
     if (!row) continue;
@@ -42121,12 +42494,7 @@ async function _renderOkamiLiveImpl() {
       if (t > routesMax) routesMax = t;
     }
 
-    // Drivers Needed = ceil(routes_max × 2 × (1 + plan_pad/100)).
-    // 2× = the per-route baseline (1 primary + 1 backup); pad layers
-    // additional buffer for callouts/turnover at the staffing-plan level.
-    const needed = routesMax > 0
-      ? Math.ceil(routesMax * 2 * (1 + padPct / 100))
-      : 0;
+    const needed  = rrDriversNeeded(routesMax, { driversPerRoute: _fcDpr, padPct });
     const gap     = _okamiActiveCount - needed;
     const hireBy  = addDays(weekStart, -RR_OKAMI_HIRE_LEAD_DAYS);
 
@@ -42179,29 +42547,49 @@ async function _renderOkamiLiveImpl() {
     }
 
     const hireByEl = tdCells[6]?.querySelector(".plan-calc");
+    const hireByText = gap >= 0 ? "—" : fmtMD(hireBy);
     if (hireByEl) {
-      hireByEl.textContent = gap >= 0 ? "—" : fmtMD(hireBy);
+      hireByEl.textContent = hireByText;
     }
 
+    // Status text uses the single forecast vocabulary (audit #84):
+    // On track / Watch / At risk — same words as the Risk Forecast view
+    // and the gap card, driven by the same coverage thresholds.
+    const statusText = gap >= 0
+      ? "On track"
+      : RR_FC_LABEL[(needed > 0 && _okamiActiveCount / needed < 0.80) ? "risk" : "watch"];
     const statusPill = tdCells[7]?.querySelector(".plan-status-pill");
     if (statusPill) {
       statusPill.classList.remove("ok", "warn", "bad");
-      const text = gap >= 0 ? "On track" : (gap >= -10 ? "Tight" : "Critical");
-      statusPill.outerHTML = `<span class="u-sm-muted">${text}</span>`;
+      statusPill.outerHTML = `<span class="u-sm-muted">${statusText}</span>`;
     }
+
+    modelWeeks.push({
+      idx: w,
+      weekStartIso: fmtIsoDate(weekStart),
+      label: `W${isoWeekNumber(weekStart)}`,
+      dates: `${fmtMD(weekStart)}–${weekEnd.getDate()}`,
+      routesMax, needed,
+      avail: _okamiActiveCount,
+      gap,
+      hireBy: hireByText,
+      statusText,
+      statusKind: gap >= 0 ? "ok" : (needed > 0 && _okamiActiveCount / needed < 0.80 ? "risk" : "tight"),
+    });
   }
 
-  // Update top hires-needed summary cell, if present.
-  let totalHires = 0;
-  for (let w = 0; w < RR_OKAMI_WEEKS; w++) {
-    const row = allOkamiRows[w];
-    const gapEl = row?.querySelectorAll("td")[4]?.querySelector(".plan-gap");
-    if (!gapEl) continue;
-    const g = parseInt(gapEl.textContent, 10);
-    if (Number.isFinite(g) && g < 0) totalHires += -g;
-  }
+  window._rrOkamiModel = { startIso: _okamiStart, weeks: modelWeeks };
+
+  // Update top hires-needed summary cell, if present. One hire covers a
+  // seat in every subsequent week, so this is the DEEPEST weekly shortfall
+  // — never the sum of weekly gaps (that unit is driver-weeks).
+  let peakHires = 0;
+  for (const mw of modelWeeks) if (mw.gap < 0 && -mw.gap > peakHires) peakHires = -mw.gap;
   const sumValue = document.querySelector(".okami-summary-grid .okami-sum:first-child .okami-sum-value");
-  if (sumValue) sumValue.textContent = totalHires;
+  if (sumValue) sumValue.textContent = peakHires;
+
+  // Keep the Targets gap card in lockstep with the fresh model.
+  try { if (typeof _rrRefreshTargetsGapCard === "function") _rrRefreshTargetsGapCard(); } catch (_) {}
 }
 
 let _okamiBound = false;
@@ -43549,30 +43937,54 @@ function _rrRefreshTargetsGapCard() {
   let weeks = [];
   try { weeks = (_rrReadOkamiWeeks() || []).filter((w) => Number.isFinite(w.gap)); } catch (_) {}
   if (!weeks.length) { card.hidden = true; return; }
-  let worstWeek = weeks[0];
-  for (const w of weeks) if (w.gap < worstWeek.gap) worstWeek = w;
-  const worst = worstWeek.gap;
+  // Shared forecast-core assessment (same one the Risk Forecast renders
+  // from): effective supply + hire-by reachability. Rates load lazily and
+  // this card repaints when they land.
+  _rrEnsureForecastRates();
+  let A = null;
+  try { A = _rrAssessOkamiPlan(weeks); } catch (_) {}
+  if (!A || !A.worstWeek) { card.hidden = true; return; }
+  const worst = A.worstWeek.gap;
   card.hidden = false;
   const mainEl = document.getElementById("rr-tgt-gap-card-main");
   if (mainEl) mainEl.textContent = `${worst > 0 ? "+" : ""}${worst} Driver${Math.abs(worst) === 1 ? "" : "s"}`;
   card.classList.toggle("rr-tgt-gap-card--pos", worst >= 0);
-  // Prescription line — the one action the number implies. N covers the
-  // deepest short week; the date comes from the FIRST short week's hire-by
-  // (hiring by the earliest deadline covers every later break too).
+  // Prescription line — the one action the number implies. Hire count =
+  // deepest shortfall among weeks hiring can still reach (one hire fills a
+  // seat in every later week, so weekly gaps are never summed); deadline =
+  // the earliest reachable hire-by. Once every short week is inside the
+  // hire lead time, "hire by <past date>" would be fiction — say what's
+  // actually left: mitigation.
   const subEl = document.getElementById("rr-tgt-gap-card-sub");
-  const firstShort = weeks.find((w) => w.gap < 0) || null;
+  const rx = A.prescription;
+  const fmtIsoShort = (iso) => (iso ? fmtMD(new Date(iso + "T12:00:00")) : "");
   if (subEl) {
-    if (worst < 0) {
-      const n = Math.abs(worst);
-      const hireBy = firstShort && firstShort.hireBy && firstShort.hireBy !== "—" ? firstShort.hireBy : "";
-      subEl.textContent = hireBy
-        ? `Hire ${n} by ${hireBy}`
-        : `Hire ${n} for ${(firstShort && (firstShort.label || firstShort.dates)) || "the short week"}`;
-      subEl.hidden = false;
+    if (rx.action === "hire") {
+      // Upper-funnel enrichment · when the planning payload is already
+      // cached, extend "Hire N" into the application quota it implies.
+      // Cold cache: kick the fetch and repaint this card once it lands
+      // (the fetch memoizes, so the repaint's re-entry takes the warm
+      // path and can't loop). Skipped when the line already carries the
+      // OT/flex tail — three clauses won't fit the card.
+      let appsSuffix = "";
+      if (!rx.unreachable.length && typeof _rrUpperFunnelMath === "function") {
+        if (_rrHiringPlanCache) {
+          const m = _rrUpperFunnelMath(_rrHiringPlanCache.data);
+          const unsourced = Math.max(0, Math.ceil(rx.hires - m.expectedHires));
+          if (unsourced > 0) appsSuffix = ` · ≈${_rrUfAppsNeeded(unsourced, m.e2ePct).toLocaleString()} apps`;
+        } else {
+          _rrFetchHiringPlanning().then(() => { try { _rrRefreshTargetsGapCard(); } catch (_) {} });
+        }
+      }
+      subEl.textContent = rx.unreachable.length
+        ? `Hire ${rx.hires} by ${fmtIsoShort(rx.deadlineIso)} · ${rx.unreachable.length} wk${rx.unreachable.length === 1 ? "" : "s"} need OT/flex`
+        : `Hire ${rx.hires} by ${fmtIsoShort(rx.deadlineIso)}` + appsSuffix;
+    } else if (rx.action === "mitigate") {
+      subEl.textContent = `Hire window passed — cover ${rx.shortNow} with OT/flex`;
     } else {
       subEl.textContent = "Staffed through the plan";
-      subEl.hidden = false;
     }
+    subEl.hidden = false;
   }
   // A short plan gets a click-through to the full Risk forecast analysis
   // (per-week narrative, hire-by dates, simulation deltas).
@@ -49368,13 +49780,12 @@ function _obCmdTab(mode) {
       }
     } catch (_) { /* non-fatal */ }
   } else {
-    // Leaving roster mode → restore the onboarding step pills via
-    // the cached renderer + cached inputs (set inside
-    // loadOnboardingOps when the matrix is rendered).
+    // Leaving roster mode → clear the roster pills. The Overview's
+    // own KPI strip was removed, so the host stays empty (collapsed
+    // by the :empty rule) until Funnel/Roster paint it again.
     try {
-      if (window.__obRenderKpis && window.__obKpiCache) {
-        window.__obRenderKpis(window.__obKpiCache.enriched, window.__obKpiCache.stepCols);
-      }
+      const obHost = document.getElementById("rr-ob-kpis");
+      if (obHost) obHost.innerHTML = "";
     } catch (_) { /* non-fatal */ }
   }
 }

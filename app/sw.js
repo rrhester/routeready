@@ -54,7 +54,20 @@
 // the fetch matcher is an exact-path allowlist (the old endsWith("") check
 // matched every same-origin GET). Bumped so installed driver PWAs purge
 // the old shell and pick up the new app.js + sw.js.
-const SHELL_CACHE = "rr-app-shell-v137";
+// v138 · Ink chrome: the header and home hero move from wall-to-wall
+// brand blue to the deep navy of the app icon tile (--rr-ink-800/900);
+// blue is demoted to the accent (CTAs, active states, avatar, check-in
+// card) so actions pop against the chrome. theme-color follows. Bumped
+// so installed driver PWAs pick up the new CSS + index.html.
+// v139 · Component discipline: the seven status-chip families share one
+// anatomy (999px pill, weight 700, 11px token size), micro-labels get a
+// 10px floor (shift-card meta, date blocks, tab badge), and tab labels
+// step up to 11px/600. Bumped so installed driver PWAs pick up the CSS.
+// v140 · Chat navigation joins the hash router: /chat, /chat/channels,
+// /chat/channel?id=… — hardware Back pops thread → list → out instead of
+// exiting Chat, channels are deep-linkable, and the header back arrow is
+// route-driven. Bumped so installed driver PWAs pick up the new app.js.
+const SHELL_CACHE = "rr-app-shell-v140";
 const SHELL_FILES = [
   "./",
   "index.html",

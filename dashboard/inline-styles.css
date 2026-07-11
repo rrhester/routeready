@@ -17659,6 +17659,18 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .rr-intel-strip-fill.ok   {background:rgba(34,162,111,.28); border:1px solid rgba(34,162,111,.45)}
           #view-schedule .rr-intel-strip-fill.tight{background:rgba(217,119,6,.28);  border:1px solid rgba(217,119,6,.45)}
           #view-schedule .rr-intel-strip-fill.risk {background:rgba(196,43,28,.24);  border:1px solid rgba(196,43,28,.45)}
+          /* Uncovered slice · solid cap on top of the bar sized to the
+             week's open shortfall, so bar height (demand) and actual risk
+             (gap) read separately at a glance. */
+          #view-schedule .rr-intel-strip-fill{position:relative;overflow:hidden}
+          #view-schedule .rr-intel-strip-short{
+            position:absolute;top:0;left:0;right:0;
+            background:rgba(196,43,28,.85);border-radius:3px 3px 0 0;
+          }
+          /* Hire-by deadlines that have already passed are facts, not
+             actions — render them in the alarm color so they can't be
+             misread as a live to-do. */
+          #view-schedule .rr-intel-detail-fact .is-past-due{color:var(--red);font-weight:600}
           #view-schedule .rr-intel-strip-label{
             font-size:var(--fs-10);font-weight:600;color:var(--text-muted);
             font-variant-numeric:tabular-nums;
@@ -31421,7 +31433,7 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.cat-orange{ border-left-color:var(--rr-amber-700) !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.cat-gray{ border-left-color:var(--rr-gray-400) !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.cat-red{ border-left-color:var(--rr-red-600) !important; }
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.cat-teal{ border-left-color:#0D9488 !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.cat-teal{ border-left-color:var(--teal) !important; }
 /* Top line · start time strong, duration muted, icons pushed right. */
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev .et{
   display:flex; align-items:center; gap:5px; min-width:0;
@@ -31470,7 +31482,7 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
   border-radius:5px; font-size:var(--fs-10-5, 10.5px); font-weight:600; line-height:1;
   letter-spacing:.01em; white-space:nowrap;
 }
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev-badge.st-ok{ background:rgba(13,148,136,.13); color:#0F766E; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev-badge.st-ok{ background:rgba(13,148,136,.13); color:var(--rr-teal-700); }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev-badge.st-pend{ background:rgba(180,83,9,.13); color:var(--rr-amber-800); }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev-badge.st-cancel{ background:rgba(220,38,38,.10); color:var(--rr-red-700); }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev-badge.st-noshow{ background:rgba(220,38,38,.12); color:var(--rr-red-700); }

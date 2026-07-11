@@ -45,6 +45,12 @@
      for the whole driver surface: hero, primary CTAs, active tab,
      inline links, focus rings.  Ramp = communicationBlueShade30
      for pressed, Tint10/20 for hover/glow. */
+  /* Chrome — the app's structural band (header, home hero). Deep ink
+     navy (the icon tile's own gradient) instead of wall-to-wall brand
+     blue: the chrome recedes, and blue CTAs/cards pop against it. */
+  --chrome: var(--rr-ink-800);
+  --chrome-deep: var(--rr-ink-900);
+  --chrome-grad: linear-gradient(180deg, var(--rr-ink-800) 0%, var(--rr-ink-900) 100%);
   --accent: var(--rr-blue-600);
   --accent-hover: var(--rr-blue-700);
   --accent-strong: var(--rr-blue-800);
@@ -182,7 +188,7 @@ a{color:var(--accent);text-decoration:none}
    chrome reads as one continuous brand surface from Home into
    any sub-screen.  Title + gear icon flip to white. */
 .app-head{
-  background:linear-gradient(180deg, var(--rr-blue-600) 0%, var(--rr-blue-700) 100%);
+  background:var(--chrome-grad);
   border-bottom:1px solid rgba(0,0,0,.12);
   padding:calc(12px + env(safe-area-inset-top, 0px)) 18px 12px;
   display:flex;align-items:center;justify-content:space-between;gap:var(--s-3);
@@ -280,7 +286,7 @@ main[data-page-enter] > *{
 .status-pill{
   display:inline-flex;align-items:center;gap:var(--s-1);
   padding:3px 9px;border-radius:999px;
-  font-size:10px;font-weight:700;line-height:1.4;
+  font-size:var(--fs-xs);font-weight:700;line-height:1.4;
   letter-spacing:.045em;text-transform:uppercase;
   background:var(--canvas);color:var(--text-muted);
   border:1px solid transparent;white-space:nowrap;
@@ -313,8 +319,8 @@ main[data-page-enter] > *{
    vs from a person. */
 .origin-badge{
   display:inline-flex;align-items:center;gap:var(--s-1);
-  font-size:var(--fs-xs);font-weight:600;line-height:1.5;
-  padding:1px 7px;border-radius:8px;
+  font-size:var(--fs-xs);font-weight:700;line-height:1.5;
+  padding:1px 7px;border-radius:999px;
   background:var(--canvas);color:var(--text-subtle);
   border:1px solid var(--border);
   white-space:nowrap;
@@ -567,9 +573,9 @@ select.field{
 .shift-weather-text{ color:var(--text-subtle) }
 .shift-card .meta-tags{display:flex;gap:var(--s-1);margin-top:6px;flex-wrap:wrap}
 .shift-card .tag{
-  font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
-  padding:2px 6px;border-radius:var(--r-sm);background:var(--canvas);
-  border:1px solid #DFE0E2;color:var(--text-muted);
+  font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+  padding:2px 6px;border-radius:999px;background:var(--canvas);
+  border:1px solid var(--border);color:var(--text-muted);
 }
 .shift-card .tag-status-confirmed{background:var(--green-soft);border-color:rgba(22,163,74,.22);color:var(--green-dark)}
 .shift-card .chev{color:var(--text-subtle)}
@@ -589,7 +595,7 @@ select.field{
 }
 .sc-cell{min-width:0}
 .sc-cell-l{
-  font-size:9px;font-weight:700;line-height:1;
+  font-size:10px;font-weight:700;line-height:1;
   letter-spacing:.07em;text-transform:uppercase;color:var(--text-subtle);
 }
 .sc-cell-v{
@@ -600,13 +606,13 @@ select.field{
 /* Van · the one operational fact worth a touch of accent. */
 .sc-cell-v--van{color:var(--accent-text)}
 /* Status / training tints — value-only, no chrome. */
-.sc-cell-v--train{color:#0F766E}
+.sc-cell-v--train{color:var(--rr-teal-700)}
 .sc-cell-v--road{color:var(--rr-amber-700)}
 .sc-cell-v--ex{color:var(--amber-dark)}
 .sc-cell-v--done{color:var(--green-dark)}
 /* Rotation · small clay qualifier riding alongside the van value. */
 .sc-cell-rotation{
-  font-size:9px;font-weight:700;line-height:1;
+  font-size:10px;font-weight:700;line-height:1;
   letter-spacing:.05em;text-transform:uppercase;color:var(--rr-amber-700);
 }
 
@@ -631,7 +637,7 @@ select.field{
 }
 .ss-off{color:var(--text-subtle)}
 .ss-on{background:var(--accent-soft);color:var(--accent-text);font-weight:700}
-.ss-train.ss-on{background:rgba(15,118,110,.12);color:#0F766E}
+.ss-train.ss-on{background:rgba(15,118,110,.12);color:var(--rr-teal-700)}
 .ss-past{opacity:.5}
 .ss-past.ss-on{background:var(--surface-pressed);color:var(--text-subtle);font-weight:700}
 .ss-today{box-shadow:inset 0 0 0 2px var(--accent);color:var(--accent);font-weight:700}
@@ -652,7 +658,7 @@ select.field{
   font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent-text);
 }
 .sched-spot-done{
-  font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+  font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
   color:var(--green-dark);background:var(--green-soft);
   padding:2px 7px;border-radius:999px;
 }
@@ -678,12 +684,12 @@ select.field{
 }
 .shift-card .sc-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .sc-chip{
-  font-size:10px;font-weight:700;letter-spacing:.02em;
+  font-size:var(--fs-xs);font-weight:700;letter-spacing:.02em;
   padding:3px 8px;border-radius:999px;
   background:var(--canvas);color:var(--text-muted);border:1px solid var(--border-subtle);
 }
 .sc-chip-rot{background:rgba(180,83,9,.10);color:var(--rr-amber-700);border-color:transparent}
-.sc-chip-train{background:rgba(15,118,110,.12);color:#0F766E;border-color:transparent}
+.sc-chip-train{background:rgba(15,118,110,.12);color:var(--rr-teal-700);border-color:transparent}
 .sc-chip-road{background:rgba(180,83,9,.10);color:var(--rr-amber-700);border-color:transparent}
 .sc-chip-cushion{background:var(--amber-soft);color:var(--amber-dark);border-color:transparent}
 .sc-chip-done{background:var(--green-soft);color:var(--green-dark);border-color:transparent}
@@ -716,8 +722,8 @@ select.field{
 .task-title{font-size:var(--fs-base);font-weight:600;letter-spacing:-.005em;color:var(--text)}
 .task-sub{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px;line-height:1.4;font-weight:500}
 .task-pill{
-  font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
-  padding:3px 7px;border-radius:var(--r-sm);background:var(--canvas);color:var(--text-muted);
+  font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  padding:3px 7px;border-radius:999px;background:var(--canvas);color:var(--text-muted);
   white-space:nowrap;
 }
 .task-pill.pill-required{background:var(--red-soft);color:var(--red-dark)}
@@ -997,7 +1003,7 @@ body.scan-camming{overflow:hidden}
 .tab{
   display:flex;flex-direction:column;align-items:center;justify-content:center;
   gap:4px;padding:var(--s-2) 0 var(--s-1);color:var(--text-subtle);
-  cursor:pointer;font-size:10px;font-weight:500;
+  cursor:pointer;font-size:var(--fs-xs);font-weight:600;
   letter-spacing:.01em;
   position:relative;
   z-index:1;
@@ -1037,8 +1043,8 @@ body.scan-camming{overflow:hidden}
 .tab .badge{
   position:absolute;top:6px;right:50%;transform:translateX(18px);
   background:var(--red);color:var(--rr-white);
-  font-size:9px;font-weight:600;
-  padding:1px 5px;border-radius:var(--r-md);
+  font-size:10px;font-weight:700;
+  padding:1px 5px;border-radius:999px;
   min-width:14px;text-align:center;
 }
 
@@ -1565,8 +1571,8 @@ body.scan-camming{overflow:hidden}
 .chat-pri-tag{
   display:inline-block;align-self:flex-start;
   background:var(--red);color:var(--rr-white);
-  font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
-  padding:2px 7px;border-radius:var(--r-sm);margin-bottom:6px;
+  font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  padding:2px 7px;border-radius:999px;margin-bottom:6px;
 }
 .chat-ack-btn{
   margin-top:8px;
@@ -1878,7 +1884,7 @@ body.scan-camming{overflow:hidden}
 .coaching-status.done{background:var(--green-soft);color:var(--green-dark);border-color:transparent}
 
 /* Category + severity badges */
-.coaching-badge{display:inline-flex;align-items:center;font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:var(--r-sm);background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)}
+.coaching-badge{display:inline-flex;align-items:center;font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:999px;background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)}
 .coaching-badge.cat-attendance{background:var(--accent-soft);color:var(--accent-text);border-color:transparent}
 .coaching-badge.cat-safety    {background:var(--red-soft);color:var(--red-dark);border-color:transparent}
 .coaching-badge.cat-quality   {background:rgba(124,58,237,.10);color:#7c3aed;border-color:transparent}
@@ -1954,7 +1960,7 @@ body.scan-camming{overflow:hidden}
 .ob-item.action{background:var(--amber-soft)}
 .ob-item.locked{opacity:.58}
 .ob-item-head{display:flex;align-items:center;gap:8px;min-width:0}
-.ob-chip{flex:0 0 auto;display:inline-flex;align-items:center;border:1px solid var(--border);background:var(--canvas);color:var(--text-subtle);border-radius:999px;padding:1px 7px;font-size:10px;font-weight:700;line-height:1.5}
+.ob-chip{flex:0 0 auto;display:inline-flex;align-items:center;border:1px solid var(--border);background:var(--canvas);color:var(--text-subtle);border-radius:999px;padding:1px 7px;font-size:var(--fs-xs);font-weight:700;line-height:1.5}
 .ob-chip.done{background:var(--green-soft);border-color:rgba(22,163,74,.24);color:var(--green-dark)}
 .ob-chip.active{background:var(--accent-soft);border-color:var(--accent-border);color:var(--accent-text)}
 .ob-chip.action{background:var(--amber-soft);border-color:var(--amber);color:var(--amber-dark)}
@@ -2596,12 +2602,8 @@ body.is-home main > .home-hero{
   position:relative;
   color:var(--rr-white);
   padding:calc(14px + env(safe-area-inset-top, 0px)) 22px 64px;
-  background:
-    /* Single restrained Fluent communicationBlue gradient — the
-       same chrome the dashboard sidebar uses, lifted to the
-       driver's primary surface. */
-    linear-gradient(180deg, var(--rr-blue-600) 0%, var(--rr-blue-700) 100%);
-  border-radius:0 0 16px 16px;
+  background:var(--chrome-grad);
+  border-radius:0;
   box-shadow:var(--shadow-lg);
   text-align:center;
   display:flex;flex-direction:column;align-items:center;
@@ -2701,7 +2703,7 @@ body.is-home main > .home-hero{
   padding:4px 10px 4px 8px;border-radius:var(--r-md);
   background:rgba(255,255,255,.16);
   border:1px solid rgba(255,255,255,.18);
-  font-size:10.5px;font-weight:600;letter-spacing:.06em;
+  font-size:var(--fs-xs);font-weight:600;letter-spacing:.06em;
   color:var(--rr-white);
 }
 .home-hero-status[hidden]{ display:none }

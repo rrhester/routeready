@@ -979,6 +979,8 @@ const routes = {
   "/settings/attendance":   { render: renderAttendance,      tab: "/profile", back: "/settings", title: "Attendance" },
   "/settings/time-off":     { render: renderTimeOff,         tab: "/profile", back: "/settings", title: "Time off" },
   "/chat":              { render: renderChat,            tab: "/chat" },
+  "/chat/channels":     { render: renderChatChannelsList, tab: "/chat" },
+  "/chat/channel":      { render: renderChatChannelThread, tab: "/chat", back: "/chat/channels" },
   "/team":              { render: renderTeam,            tab: "/team" },
   "/profile":           { render: renderProfileHub,      tab: "/profile" },
   "/settings":          { render: renderSettings,        tab: "/profile", back: "/profile", title: "Settings" },
@@ -1018,7 +1020,11 @@ function render() {
       || path === "/tasks/documents"
       || path === "/tasks/documents/sign"
       || path === "/tasks/i9"
+      // /chat plus its sub-routes — channels moved onto real routes
+      // (/chat/channels, /chat/channel), and onboarding drivers use
+      // Chat to receive dispatch instructions.
       || path === "/chat"
+      || path.startsWith("/chat/")
       // Schedule stays unlocked during onboarding so the driver can
       // see any training shifts the dispatcher slots in before they
       // flip to "active". Without this, manually-added training
@@ -2964,7 +2970,7 @@ function renderTasksHub() {
         const when = f.last_submitted_at ? new Date(f.last_submitted_at).toLocaleDateString() : "";
         return `
           <div class="task-card is-done" aria-disabled="true">
-            <span class="task-icon" style="color:var(--green,#16a34a)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+            <span class="task-icon" style="color:var(--green,var(--rr-green-600))"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
             <div class="task-text">
               <div class="task-title">${escapeHtml(f.title || "Untitled form")}</div>
               <div class="task-sub">Submitted${when ? " · " + escapeHtml(when) : ""}</div>
@@ -3062,7 +3068,7 @@ function taskCardHtml(c) {
   // Optional alert signal next to the title — a red count pill (number)
   // or a "NEW" pill (boolean). Used to flag a freshly-sent Coaching.
   const badge = c.badge
-    ? `<span class="task-card-badge" aria-label="New" style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 6px;margin-left:8px;border-radius:9px;background:#dc2626;color:#fff;font-size:10px;font-weight:700;letter-spacing:.02em;vertical-align:middle">${(typeof c.badge === "number" && c.badge > 0) ? (c.badge > 99 ? "99+" : c.badge) : "NEW"}</span>`
+    ? `<span class="task-card-badge" aria-label="New" style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 6px;margin-left:8px;border-radius:9px;background:var(--rr-red-600);color:var(--rr-white);font-size:10px;font-weight:700;letter-spacing:.02em;vertical-align:middle">${(typeof c.badge === "number" && c.badge > 0) ? (c.badge > 99 ? "99+" : c.badge) : "NEW"}</span>`
     : "";
   return `
     <div class="task-card" data-task-route="${c.route}">
@@ -5334,10 +5340,12 @@ function _onChatRealtimeStatus(status) {
 }
 
 async function renderChat() {
-  if (_chatTab === "channels") {
-    if (_chatChannelId) return renderChatChannelThread();
-    return renderChatChannelsList();
-  }
+  // Chat's internal navigation lives in the router now (/chat,
+  // /chat/channels, /chat/channel?id=…) so hardware Back pops
+  // thread → list → out, and channels are deep-linkable. The module
+  // vars remain as caches for pollers/guards and the thread header.
+  _chatTab = "dispatch";
+  _chatChannelId = null;
   setHeader("Chat", "");
   const main = document.getElementById("main");
   main.innerHTML = `
@@ -5622,16 +5630,13 @@ async function renderChat() {
     await refreshChat(false);
   });
 
-  // Tab toggle — Dispatch / Channels.
+  // Tab toggle — Dispatch / Channels. Real routes, so Back behaves.
   document.querySelectorAll("[data-rr-chat-tab]").forEach(btn => {
     btn.addEventListener("click", () => {
       const next = btn.getAttribute("data-rr-chat-tab");
       if (next === _chatTab) return;
       if (_chatPollTimer) { clearInterval(_chatPollTimer); _chatPollTimer = null; }
-      _chatTab = next;
-      _chatChannelId = null;
-      _chatChannelMeta = null;
-      renderChat();
+      navigate(next === "channels" ? "/chat/channels" : "/chat");
     });
   });
 
@@ -6201,6 +6206,8 @@ function _rrChatBindAnchorRelease(wrap) {
 let _chatChannelPollTimer = null;
 
 async function renderChatChannelsList() {
+  _chatTab = "channels";
+  _chatChannelId = null;
   setHeader("Channels", "");
   const main = document.getElementById("main");
   main.innerHTML = `
@@ -6219,10 +6226,7 @@ async function renderChatChannelsList() {
       const next = btn.getAttribute("data-rr-chat-tab");
       if (next === _chatTab) return;
       if (_chatChannelPollTimer) { clearInterval(_chatChannelPollTimer); _chatChannelPollTimer = null; }
-      _chatTab = next;
-      _chatChannelId = null;
-      _chatChannelMeta = null;
-      renderChat();
+      navigate(next === "channels" ? "/chat/channels" : "/chat");
     });
   });
 
@@ -6230,7 +6234,7 @@ async function renderChatChannelsList() {
   if (_chatChannelPollTimer) clearInterval(_chatChannelPollTimer);
   _chatChannelPollTimer = setInterval(() => {
     if (document.hidden) return;
-    if (currentRoute() !== "/chat" || _chatTab !== "channels" || _chatChannelId) {
+    if (currentRoute() !== "/chat/channels") {
       clearInterval(_chatChannelPollTimer); _chatChannelPollTimer = null; return;
     }
     refreshChannelList();
@@ -6282,7 +6286,7 @@ async function refreshChannelList() {
       ? `<span style="font-size:var(--fs-xs);color:var(--text-subtle);background:var(--canvas);padding:1px 6px;border-radius:8px;margin-left:6px">${escapeHtml(c.station_code)}</span>`
       : "";
     const unread = c.unread > 0
-      ? `<span style="background:var(--accent);color:#fff;font-size:var(--fs-xs);font-weight:700;padding:2px 7px;border-radius:10px;min-width:20px;text-align:center">${c.unread}</span>`
+      ? `<span style="background:var(--accent);color:var(--rr-white);font-size:var(--fs-xs);font-weight:700;padding:2px 7px;border-radius:10px;min-width:20px;text-align:center">${c.unread}</span>`
       : "";
     return `
       <div class="chat-channel-row" data-rr-open-channel="${escapeHtml(c.id)}" style="display:flex;gap:12px;align-items:center;padding:14px 16px;background:var(--surface);margin:0 12px 8px;border:1px solid var(--border);border-radius:14px;cursor:pointer;min-height:64px;box-shadow:var(--shadow-xs)">
@@ -6304,27 +6308,42 @@ async function refreshChannelList() {
   list.querySelectorAll("[data-rr-open-channel]").forEach(el => {
     el.addEventListener("click", () => {
       const id = el.getAttribute("data-rr-open-channel");
-      _chatChannelId   = id;
+      // Cache the header meta so the thread paints its name instantly;
+      // the thread itself resolves meta from the RPC on deep links.
       _chatChannelMeta = channels.find(c => c.id === id) || null;
       if (_chatChannelPollTimer) { clearInterval(_chatChannelPollTimer); _chatChannelPollTimer = null; }
-      renderChat();
+      navigate("/chat/channel?id=" + encodeURIComponent(id));
     });
   });
 }
 
 async function renderChatChannelThread() {
+  // Route-driven: /chat/channel?id=… — the router supplies the back
+  // arrow (→ /chat/channels), history pops naturally, and dispatchers
+  // can deep-link a channel. Meta comes from the list tap when we have
+  // it; on a cold deep link it's resolved from driver_channels_list.
+  _chatTab = "channels";
+  const qid = routeQuery().get("id");
+  if (qid) _chatChannelId = qid;
+  if (!_chatChannelId) { navigate("/chat/channels"); return; }
+  if (_chatChannelMeta && _chatChannelMeta.id !== _chatChannelId) _chatChannelMeta = null;
   const meta = _chatChannelMeta || {};
   setHeader(`#${meta.name || "channel"}`, meta.station_code ? `station ${meta.station_code}` : `${meta.member_count || 0} member${meta.member_count === 1 ? "" : "s"}`);
-  // Show the back arrow — points to the channel list rather than the
-  // home tab, so the operator-style breadcrumb stays inside /chat.
-  const back = document.getElementById("head-back");
-  if (back) {
-    back.style.display = "inline-flex";
-    back.onclick = () => {
-      _chatChannelId   = null;
-      _chatChannelMeta = null;
-      renderChat();
-    };
+  if (!_chatChannelMeta) {
+    // Deep link — fill the header in once the channel list resolves.
+    const wantedId = _chatChannelId;
+    const s = readSession();
+    if (s?.token) {
+      sb.rpc("driver_channels_list", { p_token: s.token }).then(({ data }) => {
+        if (currentRoute() !== "/chat/channel" || _chatChannelId !== wantedId) return;
+        const m = (data?.channels || []).find((c) => c.id === wantedId);
+        if (!m) return;
+        _chatChannelMeta = m;
+        setHeader(`#${m.name || "channel"}`, m.station_code ? `station ${m.station_code}` : `${m.member_count || 0} member${m.member_count === 1 ? "" : "s"}`);
+        const taEl = document.getElementById("chat-input");
+        if (taEl) taEl.placeholder = `Post to #${m.name || "channel"}…`;
+      }).catch(() => {});
+    }
   }
 
   const main = document.getElementById("main");
@@ -6461,7 +6480,7 @@ async function renderChatChannelThread() {
   // Realtime is primary; the poller is just a safety net.
   _chatChannelPollTimer = setInterval(() => {
     if (document.hidden) return;
-    if (currentRoute() !== "/chat" || _chatTab !== "channels" || !_chatChannelId) {
+    if (currentRoute() !== "/chat/channel" || !_chatChannelId) {
       clearInterval(_chatChannelPollTimer); _chatChannelPollTimer = null; return;
     }
     refreshChannelThread(false);
@@ -6479,7 +6498,7 @@ function _chatChannelRealtimeWire(channelId) {
   const fire = () => {
     clearTimeout(_chatChannelRealtimeDebounce);
     _chatChannelRealtimeDebounce = setTimeout(() => {
-      if (currentRoute() !== "/chat" || _chatTab !== "channels" || _chatChannelId !== channelId) return;
+      if (currentRoute() !== "/chat/channel" || _chatChannelId !== channelId) return;
       refreshChannelThread(false);
     }, 200);
   };
@@ -8470,7 +8489,7 @@ function renderChecklistsHub() {
       // the phone instead of hiding behind a generic retry line.
       const detail = [error.code, error.message, error.hint].filter(Boolean).join(" · ");
       host.innerHTML = `<div class="rr-empty-inline" style="padding:48px 20px;color:var(--text-subtle);font-size:var(--fs-md)">Couldn't load checklists — pull down to retry.${
-        detail ? `<div style="margin-top:10px;font-size:12px;line-height:1.5;color:#b91c1c;overflow-wrap:anywhere">${escapeHtml(detail)}</div>` : ""
+        detail ? `<div style="margin-top:10px;font-size:12px;line-height:1.5;color:var(--rr-red-700);overflow-wrap:anywhere">${escapeHtml(detail)}</div>` : ""
       }</div>`;
       return;
     }
@@ -8492,7 +8511,7 @@ function renderChecklistsHub() {
     console.warn("driver_list_checklists rejected:", err);
     document.getElementById("rr-clk-hub-skel")?.remove();
     const host = document.getElementById("rr-clk-hub");
-    if (host) host.innerHTML = `<div class="rr-empty-inline" style="padding:48px 20px;color:var(--text-subtle);font-size:var(--fs-md)">Couldn't load checklists — pull down to retry.<div style="margin-top:10px;font-size:12px;line-height:1.5;color:#b91c1c;overflow-wrap:anywhere">${escapeHtml(String(err && err.message || err))}</div></div>`;
+    if (host) host.innerHTML = `<div class="rr-empty-inline" style="padding:48px 20px;color:var(--text-subtle);font-size:var(--fs-md)">Couldn't load checklists — pull down to retry.<div style="margin-top:10px;font-size:12px;line-height:1.5;color:var(--rr-red-700);overflow-wrap:anywhere">${escapeHtml(String(err && err.message || err))}</div></div>`;
   });
 }
 
@@ -8582,8 +8601,8 @@ function _clkRenderPhotoStrip(itemId) {
   strip.innerHTML = list.map((p, i) => `
     <div class="clk-thumb" style="position:relative;width:64px;height:64px;margin:0 8px 8px 0">
       ${p.url
-        ? `<img src="${escapeHtml(p.url)}" alt="Photo ${i + 1}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--border,#d1d5db)"/>`
-        : `<span style="display:flex;width:64px;height:64px;align-items:center;justify-content:center;border-radius:8px;border:1px solid var(--border,#d1d5db);background:var(--surface,#f3f4f6);font-size:11px;color:var(--text-subtle,#6b7280)">Photo ${i + 1}</span>`}
+        ? `<img src="${escapeHtml(p.url)}" alt="Photo ${i + 1}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--border,var(--rr-gray-300))"/>`
+        : `<span style="display:flex;width:64px;height:64px;align-items:center;justify-content:center;border-radius:8px;border:1px solid var(--border,var(--rr-gray-300));background:var(--surface,var(--rr-gray-100));font-size:11px;color:var(--text-subtle,var(--rr-gray-500))">Photo ${i + 1}</span>`}
       <button type="button" class="clk-photo-del" data-rr-clk-photodel="${escapeHtml(itemId)}|${i}" aria-label="Remove photo ${i + 1}">✕</button>
     </div>`).join("");
 }
@@ -8591,7 +8610,7 @@ function _clkRenderPhotoStrip(itemId) {
 function _clkItemHtml(item) {
   // Required is announced via aria-required on the control/group; the red
   // star is decorative (aria-hidden) so it isn't the only cue.
-  const req = item.required ? ' <span class="clk-req" aria-hidden="true" style="color:#dc2626">*</span>' : "";
+  const req = item.required ? ' <span class="clk-req" aria-hidden="true" style="color:var(--rr-red-600)">*</span>' : "";
   const areq = item.required ? ' aria-required="true"' : "";
   const help = item.helper_text ? `<div class="clk-helper" id="clk-help-${escapeHtml(item.id)}">${escapeHtml(item.helper_text)}</div>` : "";
   const descBy = item.helper_text ? ` aria-describedby="clk-help-${escapeHtml(item.id)}"` : "";
@@ -8615,7 +8634,7 @@ function _clkItemHtml(item) {
   } else if (item.item_type === "photo") {
     control = `<div class="clk-photos">
       <div class="clk-photo-strip" data-rr-clk-photostrip="${id}" style="display:flex;flex-wrap:wrap"></div>
-      <label class="clk-photo-add" style="display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border:1px dashed var(--border-strong,#cbd5e1);border-radius:10px;cursor:pointer;font-size:var(--fs-sm)">
+      <label class="clk-photo-add" style="display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border:1px dashed var(--border-strong,var(--rr-slate-300));border-radius:10px;cursor:pointer;font-size:var(--fs-sm)">
         <input type="file" id="${fid}" accept="image/*" multiple hidden data-rr-clk="${id}" data-rr-clk-type="photo"${areq}${descBy}/>
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
         <span>Add photo</span>
@@ -10336,7 +10355,7 @@ function _toRowHtml(r) {
     : `${lbl(r.start_date)} – ${lbl(r.end_date)}`;
   const pill = `<span class="to-pill to-pill-${r.status}">${escapeHtml(r.status[0].toUpperCase() + r.status.slice(1))}</span>`;
   const kindPill = r.is_pto
-    ? `<span class="to-pill" style="background:rgba(13,148,136,.12);color:#0F766E;margin-left:6px">PTO</span>`
+    ? `<span class="to-pill" style="background:rgba(13,148,136,.12);color:var(--rr-teal-700);margin-left:6px">PTO</span>`
     : `<span class="to-pill" style="background:var(--canvas);color:var(--text-muted);margin-left:6px">Unpaid</span>`;
   const note = r.decision_notes
     ? `<div class="to-row-note"><strong>Dispatch:</strong> ${escapeHtml(r.decision_notes)}</div>`
@@ -10805,10 +10824,10 @@ async function renderDocumentSign() {
 
       <div>
         <div style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px">Your signature</div>
-        <div style="position:relative;background:#ffffff;border:1px solid var(--border);border-radius:12px;overflow:hidden">
-          <canvas id="rr-sig-canvas" style="display:block;width:100%;height:200px;background:#ffffff;touch-action:none;cursor:crosshair"></canvas>
-          <button type="button" id="rr-sig-clear" style="position:absolute;top:8px;right:8px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:999px;padding:4px 10px;font:inherit;font-size:11px;font-weight:600;color:#475569;cursor:pointer">Clear</button>
-          <div id="rr-sig-hint" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:#94a3b8;font-size:var(--fs-xs);pointer-events:none">Draw your signature with your finger or mouse</div>
+        <div style="position:relative;background:var(--rr-white);border:1px solid var(--border);border-radius:12px;overflow:hidden">
+          <canvas id="rr-sig-canvas" style="display:block;width:100%;height:200px;background:var(--rr-white);touch-action:none;cursor:crosshair"></canvas>
+          <button type="button" id="rr-sig-clear" style="position:absolute;top:8px;right:8px;background:var(--rr-slate-100);border:1px solid var(--rr-slate-300);border-radius:999px;padding:4px 10px;font:inherit;font-size:11px;font-weight:600;color:var(--rr-slate-600);cursor:pointer">Clear</button>
+          <div id="rr-sig-hint" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:var(--rr-slate-400);font-size:var(--fs-xs);pointer-events:none">Draw your signature with your finger or mouse</div>
         </div>
         <label style="display:flex;flex-direction:column;gap:4px;margin-top:10px">
           <span style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)">Or type your full name</span>
@@ -11041,7 +11060,7 @@ function _i9RenderCompletion(main, rec, session) {
   const dest = onboarding ? "/tasks/onboarding" : "/tasks";
   main.innerHTML = `
     <div style="padding:36px 20px 24px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:14px">
-      <div style="width:64px;height:64px;border-radius:50%;background:#dcfce7;display:flex;align-items:center;justify-content:center">
+      <div style="width:64px;height:64px;border-radius:50%;background:var(--rr-green-100);display:flex;align-items:center;justify-content:center">
         <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#15803d" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
       </div>
       <div>
@@ -11118,7 +11137,7 @@ async function renderI9Section1() {
       </div>
 
       ${rec.status === "needs_correction" ? `
-        <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:12px 14px;font-size:var(--fs-sm);color:#991b1b;line-height:1.5">
+        <div style="background:var(--rr-red-50);border:1px solid var(--rr-red-200);border-radius:12px;padding:12px 14px;font-size:var(--fs-sm);color:var(--rr-red-800);line-height:1.5">
           <strong>Your employer asked for a correction.</strong>${rec.needs_correction_note ? `<div style="margin-top:4px">${escapeHtml(rec.needs_correction_note)}</div>` : ""}
         </div>` : ""}
 
@@ -11209,10 +11228,10 @@ async function renderI9Section1() {
           <div><span style="color:var(--text-muted);display:inline-block;min-width:62px">Status</span><span data-i9-recap="status">—</span></div>
           <div style="color:var(--text-subtle);font-size:var(--fs-xs);margin-top:6px">Check these are right, then sign below.</div>
         </div>
-        <div style="position:relative;background:#ffffff;border:1px solid var(--border);border-radius:12px;overflow:hidden">
-          <canvas id="i9-sig-canvas" style="display:block;width:100%;height:200px;background:#ffffff;touch-action:none;cursor:crosshair"></canvas>
-          <button type="button" id="i9-sig-clear" style="position:absolute;top:8px;right:8px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:999px;padding:4px 10px;font:inherit;font-size:11px;font-weight:600;color:#475569;cursor:pointer">Clear</button>
-          <div id="i9-sig-hint" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:#94a3b8;font-size:var(--fs-xs);pointer-events:none">Draw your signature with your finger or mouse</div>
+        <div style="position:relative;background:var(--rr-white);border:1px solid var(--border);border-radius:12px;overflow:hidden">
+          <canvas id="i9-sig-canvas" style="display:block;width:100%;height:200px;background:var(--rr-white);touch-action:none;cursor:crosshair"></canvas>
+          <button type="button" id="i9-sig-clear" style="position:absolute;top:8px;right:8px;background:var(--rr-slate-100);border:1px solid var(--rr-slate-300);border-radius:999px;padding:4px 10px;font:inherit;font-size:11px;font-weight:600;color:var(--rr-slate-600);cursor:pointer">Clear</button>
+          <div id="i9-sig-hint" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:var(--rr-slate-400);font-size:var(--fs-xs);pointer-events:none">Draw your signature with your finger or mouse</div>
         </div>
         <label style="display:flex;flex-direction:column;gap:4px;margin-top:10px">
           <span style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)">Or type your full legal name</span>
