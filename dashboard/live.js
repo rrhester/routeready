@@ -3697,6 +3697,7 @@ function _rrIntelRenderRiskForecast(view) {
         <span class="rr-intel-section-aside">Computing from live availability…</span>
       </div>
     </div>` : ""}
+    <div id="rr-intel-upper-funnel"></div>
 
     <footer class="rr-intel-foot">
       <span class="rr-intel-foot-bullet"><span class="dot"></span>${window._rrSimResultsByWeek
@@ -3714,6 +3715,316 @@ function _rrIntelRenderRiskForecast(view) {
   if (nextBreak && nextBreak.weekStartIso) {
     _rrFillFlexPlan(nextBreak.weekStartIso, nextBreak.label);
   }
+
+  // Upper funnel · backward-solve the next break into a sourcing quota.
+  // Async (one cached RPC) so the core forecast still paints instantly.
+  // Assessed weeks carry the forecast-core shape: gap = effAvail − needed.
+  if (nextBreak && nextBreak.gap < 0) {
+    const ufHost = view.querySelector("#rr-intel-upper-funnel");
+    if (ufHost) {
+      ufHost.innerHTML = `<div class="rr-intel-empty">Sizing your hiring funnel…</div>`;
+      _rrFetchHiringPlanning().then((plan) => {
+        if (!view.isConnected) return;
+        const host = view.querySelector("#rr-intel-upper-funnel");
+        if (host) host.innerHTML = _rrUpperFunnelSectionHtml(_rrUpperFunnelMath(plan), nextBreak);
+      });
+    }
+  }
+}
+
+// ── Upper funnel · backward-solve the hiring funnel ────────────────
+// The Amazon "upper funnel" discipline: routes → drivers needed (2:1
+// + cushion, already in the 13-week plan) → gap → ÷ conversion rate →
+// applicants needed at the top of the funnel, due by (hire-by − funnel
+// velocity). Powered by hiring_pipeline_planning (migration 0458),
+// which returns the DSP's own measured stage→hire rates, median
+// applied→hired days, application pace, and the live in-funnel counts.
+
+// Industry-default P(hire | currently at stage), used verbatim until the
+// DSP has RR_UF_MIN_HIRES hires of history in the lookback window. The
+// UI always labels which basis is in effect.
+const RR_UF_DEFAULT_STAGE_RATES = { 1: 8, 2: 12, 3: 20, 4: 30, 5: 35, 6: 45, 7: 85 };
+const RR_UF_DEFAULT_FUNNEL_DAYS = 21;   // applied → hired, when unmeasured
+const RR_UF_MIN_HIRES = 5;              // measured rates need ≥ this many hires
+const RR_UF_WINDOW_DAYS = 180;
+
+let _rrHiringPlanCache = null;          // { at: ms, data: payload|null }
+let _rrHiringPlanPromise = null;
+
+function _rrFetchHiringPlanning() {
+  const FRESH_MS = 5 * 60 * 1000;
+  if (_rrHiringPlanCache && Date.now() - _rrHiringPlanCache.at < FRESH_MS) {
+    return Promise.resolve(_rrHiringPlanCache.data);
+  }
+  if (_rrHiringPlanPromise) return _rrHiringPlanPromise;
+  _rrHiringPlanPromise = sb.rpc("hiring_pipeline_planning", { p_window_days: RR_UF_WINDOW_DAYS })
+    .then(({ data, error }) => {
+      if (error) throw error;
+      // Guard: a not-yet-migrated backend (or a stub) can hand back an
+      // array / null — treat anything but a plain object as "no data"
+      // and fall through to the labeled industry defaults.
+      const obj = data && typeof data === "object" && !Array.isArray(data) ? data : null;
+      _rrHiringPlanCache = { at: Date.now(), data: obj };
+      return obj;
+    })
+    .catch((e) => {
+      console.warn("hiring_pipeline_planning:", e);
+      _rrHiringPlanCache = { at: Date.now(), data: null };
+      return null;
+    })
+    .finally(() => { _rrHiringPlanPromise = null; });
+  return _rrHiringPlanPromise;
+}
+
+// Fold the RPC payload into the numbers backward-planning needs. Works
+// with plan = null (cold start / RPC unavailable): defaults everywhere,
+// zero live pipeline, and measured=false so every surface says so.
+function _rrUpperFunnelMath(plan) {
+  const stages = Array.isArray(plan?.stages) ? plan.stages : [];
+  const hired = Number(plan?.hired || 0);
+  const byRank = {};
+  for (const s of stages) byRank[Number(s.rank)] = s;
+  const reachedTop = Number(byRank[1]?.reached || 0);
+  const measured = hired >= RR_UF_MIN_HIRES && reachedTop > 0;
+
+  let inFunnelTotal = 0;
+  let expectedHires = 0;
+  const rows = [];
+  for (let r = 1; r <= 7; r++) {
+    const s = byRank[r] || {};
+    const inF = Number(s.in_funnel || 0);
+    const reached = Number(s.reached || 0);
+    const hiredFrom = Number(s.hired_from || 0);
+    const ratePct = measured && reached > 0
+      ? (100 * hiredFrom) / reached
+      : RR_UF_DEFAULT_STAGE_RATES[r];
+    inFunnelTotal += inF;
+    expectedHires += (inF * ratePct) / 100;
+    rows.push({ rank: r, key: s.key || String(r), label: s.label || "", inFunnel: inF, ratePct });
+  }
+
+  const e2ePct = measured
+    ? Math.max(0.5, (100 * Number(byRank[1]?.hired_from || 0)) / reachedTop)
+    : RR_UF_DEFAULT_STAGE_RATES[1];
+  const medianTTH = Number(plan?.median_days_to_hire);
+  const funnelDays = measured && Number.isFinite(medianTTH) && medianTTH > 0
+    ? Math.round(medianTTH)
+    : RR_UF_DEFAULT_FUNNEL_DAYS;
+
+  return {
+    measured, hired,
+    windowDays: Number(plan?.window_days || RR_UF_WINDOW_DAYS),
+    applied: Number(plan?.applied || 0),
+    appsPerWeek: Number(plan?.apps_per_week || 0),
+    e2ePct, funnelDays,
+    inFunnelTotal,
+    expectedHires,
+    stages: rows,
+  };
+}
+
+// Applications needed at the top of the funnel to yield `gap` hires.
+function _rrUfAppsNeeded(gap, e2ePct) {
+  if (!(gap > 0)) return 0;
+  return Math.ceil(gap / (Math.max(0.5, e2ePct) / 100));
+}
+
+// "Get them into the funnel by" — the week's hire-by (which already
+// backs out the 28-day onboarding/training lead) minus the funnel's own
+// applied→hired velocity. Returns { date, label, overdue }.
+function _rrUfEntryDeadline(weekIdx, funnelDays) {
+  const iso = _rrOkamiWeekStartIso(weekIdx);
+  if (!iso) return null;
+  const d = addDays(new Date(iso + "T12:00:00"), -(RR_OKAMI_HIRE_LEAD_DAYS + funnelDays));
+  return { date: d, label: fmtMD(d), overdue: d < new Date() };
+}
+
+// One-line description of the basis behind the math, shown under every
+// upper-funnel surface so the numbers are never mystery meat.
+function _rrUfBasisNote(m) {
+  if (m.measured) {
+    return `Using your measured rates — ${m.hired} hire${m.hired === 1 ? "" : "s"} from `
+      + `${m.applied.toLocaleString()} applications over the last ${Math.round(m.windowDays / 7)} weeks `
+      + `(${m.e2ePct.toFixed(m.e2ePct < 10 ? 1 : 0)}% application→hire, ~${m.funnelDays} days applied→hired).`;
+  }
+  return `Using industry defaults (${RR_UF_DEFAULT_STAGE_RATES[1]}% application→hire, `
+    + `~${RR_UF_DEFAULT_FUNNEL_DAYS} days in funnel) until you have ${RR_UF_MIN_HIRES}+ hires of history — `
+    + `your own rates take over automatically as the funnel fills.`;
+}
+
+// Upper-funnel section for the Risk forecast: the backward-solve for the
+// next break week. gap → live pipeline yield → unsourced gap → apps
+// needed → funnel-entry deadline.
+function _rrUpperFunnelSectionHtml(m, nextBreak) {
+  // Accepts a forecast-core assessed week (gap = effAvail − needed).
+  const gap = Math.max(0, -(Number(nextBreak.gap) || 0));
+  if (gap <= 0) return "";
+  const covered = Math.min(gap, m.expectedHires);
+  const unsourced = Math.max(0, Math.ceil(gap - m.expectedHires));
+  const apps = _rrUfAppsNeeded(unsourced, m.e2ePct);
+  const dl = _rrUfEntryDeadline(nextBreak.idx, m.funnelDays);
+  const weeksOfPace = m.appsPerWeek > 0 ? Math.ceil(apps / m.appsPerWeek) : null;
+  return `
+    <div class="rr-intel-strip-section">
+      <div class="rr-intel-section-head">
+        <h3 class="rr-intel-section-title">Upper funnel · ${escapeHtml(nextBreak.label)}</h3>
+        <span class="rr-intel-section-aside">Work backwards from the gap to a sourcing quota</span>
+      </div>
+      <div class="rr-intel-kpis">
+        <div class="rr-intel-kpi">
+          <div class="rr-intel-kpi-label">Open · ${escapeHtml(nextBreak.label)}</div>
+          <div class="rr-intel-kpi-val is-risk">${gap.toLocaleString()}</div>
+          <div class="rr-intel-kpi-sub">Drivers short of plan</div>
+        </div>
+        <div class="rr-intel-kpi">
+          <div class="rr-intel-kpi-label">In your funnel now</div>
+          <div class="rr-intel-kpi-val">${m.inFunnelTotal.toLocaleString()}</div>
+          <div class="rr-intel-kpi-sub">≈ ${m.expectedHires.toFixed(1)} expected hire${m.expectedHires.toFixed(1) === "1.0" ? "" : "s"}${covered >= gap ? " — covers this gap" : ` of the ${gap.toLocaleString()} you need`}</div>
+        </div>
+        <div class="rr-intel-kpi">
+          <div class="rr-intel-kpi-label">Applications needed</div>
+          <div class="rr-intel-kpi-val ${unsourced > 0 ? "is-warn" : ""}">${unsourced > 0 ? "≈ " + apps.toLocaleString() : "0"}</div>
+          <div class="rr-intel-kpi-sub">${unsourced > 0
+            ? `To source the remaining ${unsourced.toLocaleString()} driver${unsourced === 1 ? "" : "s"}`
+            : "Your live pipeline already covers this gap"}</div>
+        </div>
+        <div class="rr-intel-kpi">
+          <div class="rr-intel-kpi-label">In funnel by</div>
+          <div class="rr-intel-kpi-val ${dl?.overdue ? "is-risk" : ""}">${dl ? escapeHtml(dl.label) : "—"}</div>
+          <div class="rr-intel-kpi-sub">${dl?.overdue
+            ? "Already inside your funnel lead time — source now"
+            : `Hire-by minus ~${m.funnelDays} days of funnel time`}</div>
+        </div>
+      </div>
+      <div class="rr-intel-section-aside" style="display:block;margin-top:8px">${escapeHtml(_rrUfBasisNote(m))}${
+        weeksOfPace && unsourced > 0
+          ? escapeHtml(` At your current pace of ${m.appsPerWeek}/week, that's ~${weeksOfPace} week${weeksOfPace === 1 ? "" : "s"} of applications.`)
+          : ""}</div>
+    </div>`;
+}
+
+// ── Hiring pulse · the always-on upper-funnel view ─────────────────
+// Left-to-right: funnel health KPIs, the live stage ladder, then every
+// short week in the 13-week plan solved back to an application quota.
+function _rrIntelRenderHiringPulse(view) {
+  view.innerHTML = `
+    <header class="rr-intel-view-head">
+      <div class="rr-intel-view-head-l">
+        <p class="rr-intel-view-eyebrow">Intelligence · Hiring pulse</p>
+        <h2 class="rr-intel-view-title">Hiring pulse</h2>
+        <p class="rr-intel-view-sub">Your hiring funnel, solved against the 13-week plan — how many applicants you need at the top, and by when.</p>
+      </div>
+      <button type="button" class="rr-intel-view-close" data-rr-intel-close title="Close" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </header>
+    <div class="rr-intel-empty" id="rr-hp-loading">Reading your funnel…</div>
+    <div id="rr-hp-body"></div>`;
+
+  _rrFetchHiringPlanning().then((plan) => {
+    if (!view.isConnected) return;
+    const loading = view.querySelector("#rr-hp-loading");
+    const body = view.querySelector("#rr-hp-body");
+    if (loading) loading.remove();
+    if (!body) return;
+    const m = _rrUpperFunnelMath(plan);
+
+    // Live stage ladder — count in funnel × P(hire | stage).
+    const ladderHtml = m.stages.map((s) => `
+      <div class="rr-intel-detail-fact">
+        <span>${escapeHtml(s.label)}</span>
+        <span>${s.inFunnel.toLocaleString()} <span style="color:var(--text-subtle);font-weight:500">· ${s.ratePct.toFixed(s.ratePct < 10 ? 1 : 0)}% hire</span></span>
+      </div>`).join("");
+
+    // Per-short-week backward solve. Each week is solved independently —
+    // the live pipeline's expected yield applies to every week (a hire
+    // made for W28 is still on the roster in W29). Gaps come from the
+    // shared forecast-core assessment (effective supply, same numbers
+    // the Risk forecast and gap card show); raw plan rows are the
+    // fallback if the assessment can't run.
+    let weeks = [];
+    try {
+      const raw = (_rrReadOkamiWeeks() || []).filter((w) => Number.isFinite(w.gap));
+      try {
+        _rrEnsureForecastRates();
+        weeks = (_rrAssessOkamiPlan(raw)?.weeks || []).filter((w) => Number.isFinite(w.gap));
+      } catch (_) { weeks = raw; }
+    } catch (_) {}
+    const shortWeeks = weeks.filter((w) => w.gap < 0);
+    let weeksHtml;
+    if (!weeks.length) {
+      weeksHtml = `<div class="rr-intel-empty">No 13-week plan data yet. Visit Schedule → Targets to load it, then come back.</div>`;
+    } else if (!shortWeeks.length) {
+      weeksHtml = `<div class="rr-intel-empty">Fully staffed through the plan — and your funnel adds ≈ ${m.expectedHires.toFixed(1)} expected hires of cushion on top.</div>`;
+    } else {
+      const rows = shortWeeks.map((w) => {
+        const gap = Math.abs(w.gap);
+        const unsourced = Math.max(0, Math.ceil(gap - m.expectedHires));
+        const apps = _rrUfAppsNeeded(unsourced, m.e2ePct);
+        const dl = _rrUfEntryDeadline(w.idx, m.funnelDays);
+        return `
+          <div style="display:grid;grid-template-columns:minmax(120px,1.4fr) repeat(4,minmax(90px,1fr));gap:8px;padding:9px 4px;border-top:1px solid var(--rr-ctl-border,rgba(15,23,42,.08));align-items:baseline">
+            <span><strong>${escapeHtml(w.label)}</strong> <span style="color:var(--text-subtle)">${escapeHtml(w.dates)}</span></span>
+            <span class="rr-intel-kpi-val is-risk" style="font-size:inherit">${gap.toLocaleString()} open</span>
+            <span>${unsourced > 0 ? `${unsourced.toLocaleString()} unsourced` : "pipeline covers it"}</span>
+            <span>${unsourced > 0 ? `≈ ${apps.toLocaleString()} apps` : "—"}</span>
+            <span class="${dl?.overdue ? "rr-intel-kpi-val is-risk" : ""}" style="font-size:inherit">${dl ? "by " + escapeHtml(dl.label) : "—"}</span>
+          </div>`;
+      }).join("");
+      weeksHtml = `
+        <div class="rr-intel-strip-section">
+          <div class="rr-intel-section-head">
+            <h3 class="rr-intel-section-title">Short weeks · sourcing quotas</h3>
+            <span class="rr-intel-section-aside">Week · open · after pipeline · applications · in funnel by</span>
+          </div>
+          ${rows}
+        </div>`;
+    }
+
+    body.innerHTML = `
+      <div class="rr-intel-kpis">
+        <div class="rr-intel-kpi">
+          <div class="rr-intel-kpi-label">In funnel now</div>
+          <div class="rr-intel-kpi-val">${m.inFunnelTotal.toLocaleString()}</div>
+          <div class="rr-intel-kpi-sub">Active applicants, all stages</div>
+        </div>
+        <div class="rr-intel-kpi">
+          <div class="rr-intel-kpi-label">Expected hires</div>
+          <div class="rr-intel-kpi-val">${m.expectedHires.toFixed(1)}</div>
+          <div class="rr-intel-kpi-sub">Pipeline × ${m.measured ? "your" : "default"} stage rates</div>
+        </div>
+        <div class="rr-intel-kpi">
+          <div class="rr-intel-kpi-label">Application→hire</div>
+          <div class="rr-intel-kpi-val">${m.e2ePct.toFixed(m.e2ePct < 10 ? 1 : 0)}%</div>
+          <div class="rr-intel-kpi-sub">${m.measured ? `Measured · ${m.hired} hires / ${Math.round(m.windowDays / 7)} wks` : "Industry default"}</div>
+        </div>
+        <div class="rr-intel-kpi">
+          <div class="rr-intel-kpi-label">Funnel velocity</div>
+          <div class="rr-intel-kpi-val">${m.funnelDays}<span style="font-size:13px;font-weight:500;color:var(--text-subtle)"> days</span></div>
+          <div class="rr-intel-kpi-sub">${m.measured ? "Median applied→hired" : "Default applied→hired"}</div>
+        </div>
+        <div class="rr-intel-kpi">
+          <div class="rr-intel-kpi-label">Application pace</div>
+          <div class="rr-intel-kpi-val">${m.appsPerWeek || "—"}</div>
+          <div class="rr-intel-kpi-sub">Per week, recent window</div>
+        </div>
+      </div>
+      <div class="rr-intel-detail">
+        <div class="rr-intel-detail-narrative">
+          Your funnel holds <strong>${m.inFunnelTotal.toLocaleString()}</strong> active applicant${m.inFunnelTotal === 1 ? "" : "s"},
+          worth about <strong>${m.expectedHires.toFixed(1)}</strong> hires at ${m.measured ? "your measured" : "default"} stage rates.
+          Every short week below is solved back to an application quota: open drivers, minus what the pipeline
+          should yield, divided by your ${m.e2ePct.toFixed(m.e2ePct < 10 ? 1 : 0)}% application→hire rate — due in the funnel
+          <em>hire-by minus ~${m.funnelDays} days</em> so training still lands before the week breaks.
+        </div>
+        <aside class="rr-intel-detail-facts">${ladderHtml}</aside>
+      </div>
+      ${weeksHtml}
+      <footer class="rr-intel-foot">
+        <span class="rr-intel-foot-bullet"><span class="dot"></span>${escapeHtml(_rrUfBasisNote(m))}</span>
+        <span>Source more applicants from Onboarding → Funnel.</span>
+      </footer>`;
+  });
 }
 
 // ── What-if · stress-test a week against the flex-capacity engine ─────────
@@ -3833,9 +4144,10 @@ async function _rrRunWhatIf(view) {
 
 const _RR_INTEL_RENDERERS = {
   "risk-forecast": _rrIntelRenderRiskForecast,
+  "hiring-pulse": _rrIntelRenderHiringPulse,
   "what-if": _rrIntelRenderWhatIf,
-  // 3 other intel views land in follow-up PRs:
-  //   compliance-watch, hiring-pulse, peak-days
+  // 2 other intel views land in follow-up PRs:
+  //   compliance-watch, peak-days
 };
 
 // ── Undo stack ─────────────────────────────────────────────────────
@@ -43690,15 +44002,31 @@ function _rrRefreshTargetsGapCard() {
   if (subEl) {
     if (rx.action === "hire") {
       // FT/PT split rides along when the flex engine has already scored the
-      // first reachable week (cache-only — the card never fetches).
+      // first reachable week (cache-only — the card never fetches flex).
       let split = "";
       const flexData = rx.firstReachable && rx.firstReachable.weekStartIso
         ? _rrFlexBaseCached(rx.firstReachable.weekStartIso) : null;
       const wi = flexData && flexData.whatIf;
       if (wi && wi.driversNeeded > 0) split = ` (${wi.recommendedFtHires} FT + ${wi.recommendedPtHires} PT)`;
+      // Upper-funnel enrichment · when the planning payload is already
+      // cached, extend "Hire N" into the application quota it implies.
+      // Cold cache: kick the fetch and repaint this card once it lands
+      // (the fetch memoizes, so the repaint's re-entry takes the warm
+      // path and can't loop). Skipped when the line already carries the
+      // OT/flex tail — three clauses won't fit the card.
+      let appsSuffix = "";
+      if (!rx.unreachable.length && typeof _rrUpperFunnelMath === "function") {
+        if (_rrHiringPlanCache) {
+          const m = _rrUpperFunnelMath(_rrHiringPlanCache.data);
+          const unsourced = Math.max(0, Math.ceil(rx.hires - m.expectedHires));
+          if (unsourced > 0) appsSuffix = ` · ≈${_rrUfAppsNeeded(unsourced, m.e2ePct).toLocaleString()} apps`;
+        } else {
+          _rrFetchHiringPlanning().then(() => { try { _rrRefreshTargetsGapCard(); } catch (_) {} });
+        }
+      }
       subEl.textContent = rx.unreachable.length
         ? `Hire ${rx.hires}${split} by ${fmtIsoShort(rx.deadlineIso)} · ${rx.unreachable.length} wk${rx.unreachable.length === 1 ? "" : "s"} need OT/flex`
-        : `Hire ${rx.hires}${split} by ${fmtIsoShort(rx.deadlineIso)}`;
+        : `Hire ${rx.hires}${split} by ${fmtIsoShort(rx.deadlineIso)}` + appsSuffix;
     } else if (rx.action === "mitigate") {
       subEl.textContent = `Hire window passed — cover ${rx.shortNow} with OT/flex`;
     } else {

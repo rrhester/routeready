@@ -1306,7 +1306,7 @@
                 </svg>
                 <span>Compliance watch</span>
               </button>
-              <button type="button" class="sched-v2-intel-tile sched-v2-intel-tile-soon" data-rr-intel="hiring-pulse" disabled aria-disabled="true" title="Hiring pulse — coming soon">
+              <button type="button" class="sched-v2-intel-tile" data-rr-intel="hiring-pulse" title="Hiring pulse · how many applicants your plan needs in the funnel, and by when">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
                   <circle cx="9" cy="7" r="4"/>
@@ -1701,6 +1701,7 @@
              restore the normal schedule surfaces. -->
         <section class="rr-intel-host" id="rr-intel-host" aria-live="polite" hidden>
           <article class="rr-intel-view" id="rr-intel-view-risk-forecast" data-rr-intel-view="risk-forecast" hidden></article>
+          <article class="rr-intel-view" id="rr-intel-view-hiring-pulse" data-rr-intel-view="hiring-pulse" hidden></article>
           <article class="rr-intel-view" id="rr-intel-view-what-if" data-rr-intel-view="what-if" hidden></article>
         </section>
 

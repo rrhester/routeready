@@ -116,3 +116,62 @@ export function initials(name) {
   const last = parts.length > 1 ? parts[parts.length - 1][0] : "";
   return (first + last).toUpperCase();
 }
+
+// ─── quality pass (Zoom-parity) ─────────────────────────────────────────
+
+// sendPolicy(participantCount, isScreen) → RTCRtpSender tuning for one
+// outgoing video encoding. A mesh sends one copy of your video to EVERY
+// peer, so upload cost grows linearly with the roster — the only way a
+// 6-person call stays smooth on a normal uplink is to shrink what each
+// copy costs as the room grows. Screen shares are exempt: legibility of
+// shared text beats motion smoothness, and there's only ever one stage.
+export function sendPolicy(participantCount, isScreen = false) {
+  if (isScreen) {
+    return { maxBitrate: 2_500_000, scaleResolutionDownBy: 1, degradationPreference: "maintain-resolution" };
+  }
+  const n = Math.max(2, Math.floor(Number(participantCount) || 0));
+  if (n <= 2) return { maxBitrate: 2_500_000, scaleResolutionDownBy: 1, degradationPreference: "maintain-framerate" };
+  if (n <= 4) return { maxBitrate: 1_200_000, scaleResolutionDownBy: 1.5, degradationPreference: "maintain-framerate" };
+  if (n <= 6) return { maxBitrate: 800_000, scaleResolutionDownBy: 2, degradationPreference: "maintain-framerate" };
+  return { maxBitrate: 500_000, scaleResolutionDownBy: 2, degradationPreference: "maintain-framerate" };
+}
+
+// qualityLevel(rttMs, lossPct) → 3 (good) / 2 (ok) / 1 (poor) / 0 (bad)
+// for the per-tile connection bars. Thresholds follow the usual video-
+// call rules of thumb: <150ms/<2% is transparent, <300ms/<5% is fine,
+// beyond ~450ms or ~10% loss the call is visibly degrading.
+export function qualityLevel(rttMs, lossPct) {
+  const rtt = Number(rttMs);
+  const loss = Number(lossPct);
+  const r = Number.isFinite(rtt) ? rtt : 9999;
+  const l = Number.isFinite(loss) ? loss : 100;
+  if (r < 150 && l < 2) return 3;
+  if (r < 300 && l < 5) return 2;
+  if (r < 450 && l < 10) return 1;
+  return 0;
+}
+
+// pickActiveSpeaker(levels, current, lastSwitchAt, now, opts) → the key
+// that should hold the speaker-view stage. Pure so the hysteresis is
+// testable: without the hold window + louder-by-a-margin rule, the
+// stage ping-pongs on every "mm-hm" and the view feels broken.
+//  · nobody above the noise threshold → keep current
+//  · loudest IS current → keep
+//  · within holdMs of the last switch → keep (debounce)
+//  · current still audibly speaking and challenger not clearly louder
+//    (< margin ×) → keep
+export function pickActiveSpeaker(levels, current, lastSwitchAt, now, opts = {}) {
+  const { threshold = 0.015, margin = 1.4, holdMs = 1200 } = opts;
+  let bestKey = null;
+  let bestLevel = 0;
+  for (const [key, lvl] of Object.entries(levels || {})) {
+    const v = Number(lvl) || 0;
+    if (v > bestLevel) { bestLevel = v; bestKey = key; }
+  }
+  if (!bestKey || bestLevel < threshold) return current;
+  if (bestKey === current) return current;
+  if ((Number(now) || 0) - (Number(lastSwitchAt) || 0) < holdMs) return current;
+  const curLevel = Number(levels?.[current]) || 0;
+  if (curLevel >= threshold && bestLevel < curLevel * margin) return current;
+  return bestKey;
+}
