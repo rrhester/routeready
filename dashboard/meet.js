@@ -609,7 +609,7 @@ async function enterRoom() {
       onPresence: handlePresence,
       onEvent: (type, payload) => {
         if (type === "chat" && payload && payload.from !== state.peerKey) appendChat(payload);
-        if (type === "ended") endLocally("The host ended this meeting for everyone.");
+        if (type === "ended") handleEndedEvent();
       },
     });
   } catch (err) {
@@ -644,6 +644,23 @@ function endLocally(message) {
   $("done-msg").textContent = message;
   $("btn-rejoin").style.display = message.includes("ended") ? "none" : "";
   show("done");
+}
+
+// An `ended` broadcast is NOT trusted on its own: the signaling channel
+// is public to every invite holder, so any participant could forge one
+// and kick the room, bypassing meet_end's host/staff gate. The gate
+// lives server-side — confirm via meet_lookup (anon-callable) that the
+// room is really ended before closing; a forged event is a no-op.
+async function handleEndedEvent() {
+  if (state.left) return;
+  if (LOCAL_MODE) { endLocally("The host ended this meeting for everyone."); return; }
+  try {
+    const sb = await getSb();
+    const { data } = await sb.rpc("meet_lookup", { p_code: state.code });
+    if (data?.ok && data.ended) endLocally("The host ended this meeting for everyone.");
+  } catch (err) {
+    console.warn("could not verify ended event — staying in the call", err);
+  }
 }
 
 function leaveMeeting() {
