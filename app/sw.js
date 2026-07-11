@@ -59,7 +59,11 @@
 // blue is demoted to the accent (CTAs, active states, avatar, check-in
 // card) so actions pop against the chrome. theme-color follows. Bumped
 // so installed driver PWAs pick up the new CSS + index.html.
-const SHELL_CACHE = "rr-app-shell-v138";
+// v139 · Component discipline: the seven status-chip families share one
+// anatomy (999px pill, weight 700, 11px token size), micro-labels get a
+// 10px floor (shift-card meta, date blocks, tab badge), and tab labels
+// step up to 11px/600. Bumped so installed driver PWAs pick up the CSS.
+const SHELL_CACHE = "rr-app-shell-v139";
 const SHELL_FILES = [
   "./",
   "index.html",
