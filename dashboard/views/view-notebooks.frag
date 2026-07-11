@@ -3051,12 +3051,37 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     sb.functions.invoke("notebook-ai", { body: { action: action, text: ctx.text.slice(0, 12000), title: title } }).then(function (res) {
       var data = res && res.data, error = res && res.error;
       if (error || !data || data.error || (!data.result && !data.tags)) {
-        aiError(p, (error && error.message) || (data && (data.detail || data.error)) || "The notebook-ai function isn't available yet.");
+        aiExplainError(error, data, function (msg) { aiError(p, msg); });
         return;
       }
       if (data.tags && data.tags.length) return aiShowTags(p, label, data.tags);
       aiShowResult(p, label, String(data.result || ""), ctx.hasSelection);
     }).catch(function (e) { aiError(p, (e && e.message) || "AI request failed."); });
+  }
+  // supabase-js buries the function's real error payload: on a non-2xx the
+  // error is a FunctionsHttpError whose .message is always the generic
+  // "Edge Function returned a non-2xx status code" — the actual JSON body
+  // lives in error.context (a Response). Read it and translate the known
+  // notebook-ai error codes into something the operator can act on.
+  function aiExplainError(error, data, cb) {
+    function explain(p) {
+      if (!p) return null;
+      var code = String(p.error || "");
+      if (code.indexOf("ANTHROPIC_API_KEY") >= 0) return "AI isn't set up on the server yet — the ANTHROPIC_API_KEY secret is missing on the Supabase project. An admin can add it under Project Settings → Edge Functions → Secrets.";
+      if (code === "missing_auth" || code === "invalid_auth") return "Your session has expired — sign out and back in to use AI.";
+      if (code === "no_membership") return "AI is available to active team members only. Ask an admin to check your account.";
+      if (code === "ai_failed") return "The AI service returned an error: " + (p.detail || "unknown error") + ". Try again in a moment.";
+      if (code === "image_too_large") return "That picture is too large for AI to read.";
+      return p.detail || p.error || null;
+    }
+    var direct = explain(data);
+    if (direct) return cb(direct);
+    if (error && error.context && typeof error.context.json === "function") {
+      error.context.json().then(function (p) { cb(explain(p) || (error && error.message) || "AI request failed."); })
+        .catch(function () { cb((error && error.message) || "AI request failed."); });
+      return;
+    }
+    cb((error && error.message) || (data && (data.detail || data.error)) || "The notebook-ai function isn't available yet.");
   }
   function aiError(p, msg) {
     p.innerHTML = '<div class="ph">AI<span class="sp"><button data-ai-x="1">Dismiss</button></span></div><div class="bd" style="color:var(--red)">' + esc(msg) + '</div>';
