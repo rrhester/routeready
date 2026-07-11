@@ -130,9 +130,14 @@ class SupabaseTransport {
     ch.on("broadcast", { event: "signal" }, ({ payload }) => {
       if (payload && payload.to === this.key) handlers.onSignal(payload.from, payload.data);
     });
-    ch.on("broadcast", { event: "chat" }, ({ payload }) => handlers.onEvent("chat", payload));
-    ch.on("broadcast", { event: "react" }, ({ payload }) => handlers.onEvent("react", payload));
-    ch.on("broadcast", { event: "ended" }, ({ payload }) => handlers.onEvent("ended", payload));
+    // ONE list for every forwarded app event. Supabase needs a
+    // subscription per event name, unlike LocalTransport which forwards
+    // anything — an event wired into onEvent but missing here works in
+    // local tests and silently never arrives in production (that exact
+    // gap shipped admit/deny broken to review). Keep this list complete.
+    for (const evt of ["chat", "react", "ended", "admit", "deny"]) {
+      ch.on("broadcast", { event: evt }, ({ payload }) => handlers.onEvent(evt, payload));
+    }
     ch.on("presence", { event: "sync" }, () => handlers.onPresence(ch.presenceState()));
     return new Promise((resolve, reject) => {
       ch.subscribe(async (status) => {
