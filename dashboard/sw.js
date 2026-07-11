@@ -176,7 +176,8 @@
 //   2026-07-11.27 · Schedule action bar: the coverage card between Assign Fleet and Finalize stays mounted on weeks with no plan — a muted "– / – Routes · No plan yet" placeholder (empty meter track, no red/green voice) instead of hiding, so Finalize keeps the exact same spot week to week. live.js + inline-styles.css.
 //   2026-07-11.28 · Interview calendar: the Work Week + Availability toolbar pills drop their 1.5px navy outline for the same 1px --rr-border-primary hairline the rest of the Schedule/Calendar toolbar controls use (hover keeps the hairline too). inline-styles.css only.
 //   2026-07-11.29 · Targets: closing the Risk forecast opened from the Forecast-gap card returns to the Targets page instead of the weekly Schedule grid. _rrIntelShow recorded the "visible" sub-view with a [style*='display:none'] attribute match, which misses JS-hidden views (CSSOM serializes "display: none" with a space) and always fell back to the first sub-view in DOM order — the week grid. Now reads style.display via the CSSOM; restore uses display:block to match schedSub. live.js only.
-const SW_DEPLOY_NONCE = "2026-07-11.29";
+//   2026-07-11.30 · Onboarding overview: remove the Documents card from the right column — the readiness matrix owns the full page width (the two-column .ob-overview-cols grid, the #ob-docs-mount placeholder and _obMountDocuments() are deleted; #view-documents stays dormant in the DOM). view-onboarding-ops.frag + live.js + inline-styles.css + onboarding-rrx.css.
+const SW_DEPLOY_NONCE = "2026-07-11.30";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without
