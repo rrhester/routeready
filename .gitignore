@@ -15,3 +15,8 @@ solver-service/.pytest_cache/
 # Playwright visual-regression artifacts
 tests/visual/test-results/
 test-results/
+
+# Local secrets — never commit
+.env
+.env.*
+!.env.example
