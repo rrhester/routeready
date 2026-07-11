@@ -2265,6 +2265,21 @@ button.card:focus-visible{
 .tp-kpi-sparkslot{display:block;margin-top:3px;min-height:16px}
 .tp-kpi-spark{display:block;opacity:.9}
 
+/* Call-out exposure drill — a compact popover off the At-risk pill listing
+   the at-risk scheduled drivers, each a one-click jump into their record. */
+.tp-callout-drill{position:fixed;z-index:1200;min-width:236px;max-width:300px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 10px 30px rgba(15,23,42,.16);padding:8px;animation:tpCalloutIn .12s ease}
+@keyframes tpCalloutIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.tp-callout-drill-head{font-size:var(--fs-xs);font-weight:700;letter-spacing:.02em;text-transform:uppercase;color:var(--text-subtle);padding:4px 6px 6px}
+.tp-callout-drill-list{display:flex;flex-direction:column;gap:2px;max-height:280px;overflow:auto}
+.tp-callout-drill-row{display:flex;align-items:baseline;gap:8px;width:100%;text-align:left;background:none;border:0;border-radius:8px;padding:7px 8px;cursor:pointer;color:var(--text);transition:background .12s ease}
+.tp-callout-drill-row:hover,.tp-callout-drill-row:focus-visible{background:var(--canvas);outline:none}
+.tp-callout-drill-name{font-size:var(--fs-sm);font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tp-callout-drill-meta{font-size:var(--fs-xs);color:var(--text-subtle);white-space:nowrap}
+.tp-callout-drill-go{font-size:var(--fs-sm);color:var(--accent);font-weight:700;opacity:.4;white-space:nowrap;transition:opacity .12s ease,transform .12s ease}
+.tp-callout-drill-row:hover .tp-callout-drill-go,.tp-callout-drill-row:focus-visible .tp-callout-drill-go{opacity:1;transform:translateX(2px)}
+.tp-callout-drill-foot{display:block;width:100%;text-align:left;margin-top:6px;padding:8px;background:none;border:0;border-top:1px solid var(--border);border-radius:0 0 8px 8px;color:var(--accent);font-size:var(--fs-xs);font-weight:600;cursor:pointer}
+.tp-callout-drill-foot:hover{text-decoration:underline}
+
 /* ── Today's Plan · main row ───────────────────────────────────
    Roster on the left, Coverage rail (open shifts + expiring DLs
    from today_plan()) on the right. A fixed side column used to
