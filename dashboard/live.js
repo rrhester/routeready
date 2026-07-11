@@ -3012,8 +3012,14 @@ function _rrIntelShow(name) {
   const view = document.getElementById("rr-intel-view-" + name);
   if (!host || !view) return;
   // Remember which sched-subview was visible so we can restore it.
+  // Check the CSSOM property, not the style attribute: schedSub hides
+  // views with el.style.display = "none", which serializes as
+  // "display: none" (with a space), so a [style*='display:none']
+  // attribute match misses every JS-hidden view and would always
+  // record the first subview in DOM order (the week grid).
   if (!_rrIntelActiveName) {
-    const active = document.querySelector("#view-schedule .sched-subview:not([style*='display:none'])");
+    const active = Array.from(document.querySelectorAll("#view-schedule .sched-subview"))
+      .find((s) => s.style.display !== "none");
     _rrIntelPriorSubview = active?.id || null;
   }
   // Hide every sched-subview while the intel view is up.
@@ -3041,16 +3047,18 @@ function _rrIntelHide() {
   document.querySelectorAll(".rr-intel-view").forEach((v) => { v.hidden = true; });
   document.querySelectorAll(".sched-v2-intel-tile").forEach((t) => t.classList.remove("is-active"));
   // Restore the sched-subview that was visible before we took over.
+  // "block" (not "") matches how schedSub shows a subview, and keeps
+  // the rrx flex-sizing rule keyed on [style*="block"] applying.
   if (_rrIntelPriorSubview) {
     const prior = document.getElementById(_rrIntelPriorSubview);
-    if (prior) prior.style.display = "";
+    if (prior) prior.style.display = "block";
   } else {
     // No prior recorded — default to whatever the data-sub button
     // says is active in the schedule's sub-nav.
     const activeBtn = document.querySelector("#view-schedule .subnav-item.active[data-sub]");
     const sub = activeBtn?.getAttribute("data-sub") || "week";
     const target = document.getElementById("sched-sub-" + sub);
-    if (target) target.style.display = "";
+    if (target) target.style.display = "block";
   }
   _rrIntelActiveName = null;
   _rrIntelPriorSubview = null;
