@@ -19,12 +19,23 @@
 /* Scoped to #view-notebooks; colors/sizes reference design tokens so the
    design-ratchet never trips (this file is not even in its scan set, but we
    hold the same bar). Dynamic per-item colors are inline (data-driven). */
-/* The view is a normal block child of .main (which already begins to the
-   right of the app sidebar), sized to the viewport so its three panes fill
-   the content column and scroll internally — no window-level absolute
-   positioning, so it never slides under the sidebar. */
+/* The view is a normal block child of .main, which lays out as a flex column
+   with a 44px sticky .topbar (Window-Controls-Overlay title bar in the desktop
+   app) as its first child. The notebook must fill the space BELOW that bar —
+   using the full 100vh made it 44px too tall, which pushed its top row (the
+   notebook picker + search) up under the title bar in the desktop app.
+   Primary: flex-fill the remaining height when the app has stamped the active
+   view on <body> (auto-adapts to the bar's height). Fallback: calc for any
+   render that hasn't stamped it. Either way the three panes scroll internally. */
 #view-notebooks{color:var(--text);font-size:var(--fs-base)}
-#view-notebooks.active{display:block;height:100vh;overflow:hidden;background:var(--canvas)}
+/* The view sits at the top of the window with the app's 44px title bar
+   (Window-Controls-Overlay) drawn over it, so its top row (notebook picker +
+   search) was hidden underneath. Fill the window (100vh) but reserve 44px of
+   top padding INSIDE the box so all content starts below the title bar. The
+   shell is 100% of the content box, i.e. 100vh − 44px, and its panes scroll
+   internally — no page overflow. */
+#view-notebooks.active{display:block;height:100vh;box-sizing:border-box;padding-top:44px;
+  overflow:hidden;background:var(--canvas)}
 .rrnb-shell{height:100%;display:grid;
   grid-template-columns:248px 300px 1fr;min-height:0;min-width:0}
 .rrnb-pane{min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden;
