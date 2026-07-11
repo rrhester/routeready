@@ -7236,29 +7236,6 @@ function renderSettings() {
       `vp ${window.innerWidth}×${window.innerHeight}` +
       (vv ? ` · vv ${Math.round(vv.width)}×${Math.round(vv.height)}` : "") +
       ` · screen ${screen.width}×${screen.height} · frame ${frame} · inset-t ${insetT} · inset-b ${insetB}`;
-
-    // Temporary viewport-shortfall probes (Settings only, removed on nav).
-    // Some devices lay the installed app out under the status bar but size
-    // it one status-bar short (vp < screen above). Two variants exist and
-    // they need opposite fixes, so we let a screenshot tell them apart:
-    // · teal square — bottom of a FIXED, top-anchored box exactly
-    //   screen.height tall: lands at the true screen bottom IF the app is
-    //   allowed to paint there (fix = stretch the frame).
-    // · orange square — fixed bottom:0: lands at the (possibly short)
-    //   layout-viewport bottom. Teal visibly BELOW orange ⇒ paintable.
-    //   Teal and orange level ⇒ the strip is OS-owned; mask it instead.
-    if (standalone && screen.height - window.innerHeight > 8) {
-      const probes = document.createElement("div");
-      probes.id = "rr-vp-probes";
-      probes.setAttribute("aria-hidden", "true");
-      probes.innerHTML =
-        `<div style="position:fixed;top:0;left:0;width:14px;height:${screen.height}px;pointer-events:none;z-index:2147483000">` +
-          `<div style="position:absolute;left:0;bottom:0;width:14px;height:14px;background:#0d9488"></div></div>` +
-        `<div style="position:fixed;left:20px;bottom:0;width:14px;height:14px;background:#ea580c;pointer-events:none;z-index:2147483000"></div>`;
-      document.body.appendChild(probes);
-      const clearProbes = () => { document.getElementById("rr-vp-probes")?.remove(); window.removeEventListener("hashchange", clearProbes); };
-      window.addEventListener("hashchange", clearProbes);
-    }
   } catch {}
 
   main.querySelectorAll("[data-rr-settings-go]").forEach(el =>

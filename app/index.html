@@ -7,7 +7,16 @@
   <meta name="color-scheme" content="light">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <!-- default, NOT black-translucent: translucent triggers the WebKit
+       standalone bug where the web view sits at y=0 but is sized as if it
+       started below the status bar — a dead, unpaintable strip one
+       status-bar tall appears under the tab bar (probe-verified on a real
+       Dynamic Island iPhone: vp 793 on an 852 screen, teal probe clipped).
+       In default mode position and size agree: the app runs flush to the
+       physical bottom, and iOS paints the status bar from theme-color
+       (ink), which blends seamlessly with the app header. Baked in at
+       Add-to-Home-Screen time — takes effect on reinstall. -->
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="RouteReady">
   <meta name="format-detection" content="telephone=no">
   <title>RouteReady · Driver</title>
