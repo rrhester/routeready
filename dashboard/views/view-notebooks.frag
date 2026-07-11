@@ -73,6 +73,8 @@
 .rrnb-menu-item:hover,.rrnb-menu-item.sel{background:var(--accent-soft)}
 .rrnb-menu-item .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rrnb-menu-item .ct{color:var(--text-subtle);font-size:var(--fs-xs)}
+.rrnb-menu-item .kebab{opacity:0;flex:0 0 auto}
+.rrnb-menu-item:hover .kebab{opacity:1}
 .rrnb-menu-sep{height:1px;background:var(--border);margin:var(--s-1) 0}
 .rrnb-menu-add{color:var(--accent);font-weight:600}
 
@@ -670,7 +672,8 @@
     var m = $id("rrnb-nb-menu"); if (!m) return;
     var html = S.notebooks.map(function (n) {
       return '<div class="rrnb-menu-item" data-nb="' + n.id + '"><span class="rrnb-swatch" style="background:' + esc(n.color) + '"></span>' +
-        '<span class="nm">' + esc(n.name) + '</span><span class="ct">' + (n.page_count || 0) + '</span></div>';
+        '<span class="nm">' + esc(n.name) + '</span><span class="ct">' + (n.page_count || 0) + '</span>' +
+        '<button class="rrnb-iconbtn kebab" data-menu="notebook" data-id="' + n.id + '" title="Notebook options">⋯</button></div>';
     }).join("");
     html += '<div class="rrnb-menu-sep"></div><div class="rrnb-menu-item rrnb-menu-add" data-new="1">＋ New notebook</div>';
     m.innerHTML = html;
@@ -1350,6 +1353,12 @@
     ]);
     $id("rrnb-ctx")._target = { kind: "page", id: id };
   }
+  function notebookMenu(id, x, y) {
+    showCtx(x, y, [
+      { act: "rename", label: "Rename notebook" }
+    ]);
+    $id("rrnb-ctx")._target = { kind: "notebook", id: id };
+  }
   function sectionMenu(id, x, y) {
     showCtx(x, y, [
       { act: "rename", label: "Rename section" },
@@ -1369,6 +1378,9 @@
       if (act === "sub") return indentPage(t.id, +1);
       if (act === "promote") return indentPage(t.id, -1);
     }
+    if (t.kind === "notebook") {
+      if (act === "rename") return renamePrompt("notebook", t.id);
+    }
     if (t.kind === "section") {
       if (act === "rename") return renamePrompt("section", t.id);
       if (act === "recolor") return recolorSection(t.id);
@@ -1383,10 +1395,21 @@
     S.be.rename("section", id, s.name, next).then(function () { s.color = next; renderSections(); });
   }
   function renamePrompt(kind, id) {
-    var cur = kind === "page" ? (pageById(id) || {}).title : (((S.tree && S.tree.sections) || []).filter(function (x) { return x.id === id; })[0] || {}).name;
+    var cur = kind === "page" ? (pageById(id) || {}).title
+      : kind === "notebook" ? ((S.notebooks || []).filter(function (x) { return x.id === id; })[0] || {}).name
+      : (((S.tree && S.tree.sections) || []).filter(function (x) { return x.id === id; })[0] || {}).name;
     var v = window.prompt("Rename", cur || ""); if (v == null) return;
+    v = v.trim(); if (!v) return;
     S.be.rename(kind, id, v).then(function () {
       if (kind === "page") { var p = pageById(id); if (p) p.title = v; if (S.pageId === id) { var t = $id("rrnb-title"); if (t) t.value = v; updateBreadcrumbTitle(); } renderPageList(); }
+      else if (kind === "notebook") {
+        var n = (S.notebooks || []).filter(function (x) { return x.id === id; })[0]; if (n) n.name = v;
+        renderNotebookMenu();
+        if (S.nbId === id) {
+          var nm = $id("rrnb-nb-name"); if (nm) nm.textContent = v;
+          var b = $(".rrnb-breadcrumb"); if (b) { var parts = b.innerHTML.split("›"); parts[0] = esc(v) + " "; b.innerHTML = parts.join("<span class=sep>›</span>"); }
+        }
+      }
       else { var s = ((S.tree && S.tree.sections) || []).filter(function (x) { return x.id === id; })[0]; if (s) s.name = v; renderSections(); }
     }).catch(fail);
   }
@@ -1416,6 +1439,7 @@
     if (cur) cur.addEventListener("click", function () { var m = $id("rrnb-nb-menu"); m.hidden = !m.hidden; });
     var menu = $id("rrnb-nb-menu");
     if (menu) menu.addEventListener("click", function (e) {
+      var kb = e.target.closest("[data-menu='notebook']"); if (kb) { menu.hidden = true; var r = kb.getBoundingClientRect(); return notebookMenu(kb.getAttribute("data-id"), r.left, r.bottom); }
       var add = e.target.closest("[data-new]"); if (add) { menu.hidden = true; return createNotebookFlow(); }
       var it = e.target.closest("[data-nb]"); if (it) { menu.hidden = true; S.activeSection = null; selectNotebook(it.getAttribute("data-nb")); }
     });

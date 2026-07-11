@@ -154,7 +154,8 @@
 //   2026-07-11.5 · Excel interaction model, round 3 (workbook polish). Ctrl++ / Ctrl+- insert / delete rows or columns from the keyboard (based on the selection shape). A dashed guide line follows a row/column divider while dragging (alongside the Name-Box size readout). The fill handle gains Excel's right-drag menu: right-drag previews the range and, on release, offers Copy Cells / Fill Series / Fill Formatting Only / Fill Without Formatting, plus Fill Days / Weekdays / Months / Years when the source is dates (applyFill gains fill modes + a date-unit series). workbook.js + inline-styles.css.
 //   2026-07-11.6 · Excel interaction model, round 4 (workbook). The fill handle shows a tooltip with the value the last cell will get while you drag it, and holding Ctrl during a left-drag forces a plain copy instead of a smart series. Enter/Tab now cycle the active cell across ALL disjoint selection areas (Ctrl+click multi-select), wrapping area→area, not just within the active rectangle. workbook.js + inline-styles.css.
 //   2026-07-11.7 · Dashboard: week-ahead call-out-exposure matrix on the Today's Plan command center. A compact heat strip of the days ahead — covered (green) vs exposed (amber/red by how many drivers are uncovered) — reading the schedule's canonical Callout Exposure (window._rrCalloutExposure) with a persisted snapshot fallback so it's populated before the schedule is opened; each cell opens the schedule. live.js + inline-styles.css.
-const SW_DEPLOY_NONCE = "2026-07-11.7";
+//   2026-07-11.8 · Notebooks: notebooks can be renamed from the picker dropdown — hover a notebook row, click ⋯ → Rename notebook. Header label, picker row and breadcrumb update in place; uses the existing notebook_item_rename RPC. view-notebooks.frag only.
+const SW_DEPLOY_NONCE = "2026-07-11.8";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without
