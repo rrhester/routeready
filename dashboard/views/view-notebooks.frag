@@ -79,6 +79,9 @@
 .rrnb-menu-item:hover .kebab{opacity:1}
 .rrnb-menu-sep{height:1px;background:var(--border);margin:var(--s-1) 0}
 .rrnb-menu-add{color:var(--accent);font-weight:600}
+/* inline title editing — double-click a section / page / group title */
+.rrnb-inline-edit{outline:2px solid var(--accent);outline-offset:1px;border-radius:4px;background:var(--surface);
+  cursor:text;white-space:normal;overflow:visible;text-overflow:clip;padding:0 3px;margin:0 -3px;box-shadow:var(--shadow-pop)}
 
 /* ── section list ────────────────────────────────────────────────── */
 .rrnb-sections{flex:1;min-height:0;overflow:auto;padding:var(--s-2)}
@@ -805,7 +808,7 @@
     S.be.rename("notebook", id, next).then(function () {
       var n = (S.notebooks || []).filter(function (x) { return x.id === id; })[0]; if (n) n.name = next;
       renderNotebookMenu();
-      if (S.nbId === id) { var b = $(".rrnb-breadcrumb"); if (b) { var parts = b.innerHTML.split("›"); parts[0] = esc(next) + " "; b.innerHTML = parts.join("<span class=sep>›</span>"); } }
+      if (S.nbId === id) { var cn = $(".rrnb-cr-nb"); if (cn) cn.textContent = next; }
     }).catch(function (e) { nm.textContent = orig; fail(e); });
   }
 
@@ -829,8 +832,75 @@
     }).catch(fail);
   }
 
+  // ── generic inline title editing (sections, pages, groups) ──────────
+  // Double-click any title to rename it in place — no modal. Enter / blur
+  // commits, Escape cancels. renderSections()/renderPageList() no-op while
+  // an edit is live (S._inlineEditing) so an async re-render can't wipe the
+  // field mid-edit; we re-render once the edit settles.
+  function startInlineEdit(el, commit, refresh) {
+    if (!el || S._inlineEditing) return;
+    S._inlineEditing = true;
+    var orig = el.textContent, done = false;
+    el.setAttribute("contenteditable", "true"); el.setAttribute("spellcheck", "false");
+    el.classList.add("rrnb-inline-edit");
+    el.focus();
+    try { var r = document.createRange(); r.selectNodeContents(el); var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r); } catch (e) {}
+    function finish(save) {
+      if (done) return; done = true; S._inlineEditing = false;
+      el.removeEventListener("keydown", onKey); el.removeEventListener("blur", onBlur);
+      el.removeAttribute("contenteditable"); el.classList.remove("rrnb-inline-edit");
+      var next = (el.textContent || "").replace(/\s+/g, " ").trim();
+      if (!save || !next || next === (orig || "").trim()) { el.textContent = orig; if (refresh) refresh(); return; }
+      el.textContent = next;
+      try { commit(next); } catch (e2) {}
+      if (refresh) refresh();
+    }
+    function onKey(e) {
+      e.stopPropagation();
+      if (e.key === "Enter") { e.preventDefault(); el.blur(); }
+      else if (e.key === "Escape") { e.preventDefault(); finish(false); }
+    }
+    function onBlur() { finish(true); }
+    el.addEventListener("keydown", onKey); el.addEventListener("blur", onBlur);
+  }
+  function editSectionTitle(id) {
+    var host = $id("rrnb-sections");
+    var el = host && host.querySelector('.rrnb-section[data-sec="' + id + '"] .nm');
+    if (!el) return renamePrompt("section", id);
+    startInlineEdit(el, function (next) {
+      var s = ((S.tree && S.tree.sections) || []).filter(function (x) { return x.id === id; })[0];
+      var prev = s ? s.name : ""; if (s) s.name = next;
+      if (S.pageId) { var op = pageById(S.pageId); if (op && op.section_id === id) { var cs = $(".rrnb-cr-sec"); if (cs) cs.textContent = next; } }
+      S.be.rename("section", id, next).catch(function (err) { if (s) s.name = prev; renderSections(); fail(err); });
+    }, renderSections);
+  }
+  function editPageTitle(id) {
+    var host = $id("rrnb-pagelist");
+    var el = host && host.querySelector('.rrnb-page[data-page="' + id + '"] .ttl');
+    if (!el) return renamePrompt("page", id);
+    startInlineEdit(el, function (next) {
+      var p = pageById(id); var prev = p ? p.title : ""; if (p) p.title = next;
+      if (S.pageId === id) { if (S.page) S.page.title = next; var t = $id("rrnb-title"); if (t) t.value = next; updateBreadcrumbTitle(); }
+      S.be.rename("page", id, next).catch(function (err) {
+        if (p) p.title = prev; if (S.pageId === id) { var t2 = $id("rrnb-title"); if (t2) t2.value = prev; updateBreadcrumbTitle(); }
+        renderPageList(); fail(err);
+      });
+    }, renderPageList);
+  }
+  function editGroupTitle(id) {
+    var host = $id("rrnb-sections");
+    var el = host && host.querySelector('.rrnb-group-hd[data-toggle="' + id + '"] .gnm');
+    if (!el) return;
+    startInlineEdit(el, function (next) {
+      var g = ((S.tree && S.tree.groups) || []).filter(function (x) { return x.id === id; })[0];
+      var prev = g ? g.name : ""; if (g) g.name = next;
+      S.be.rename("group", id, next).catch(function (err) { if (g) g.name = prev; renderSections(); fail(err); });
+    }, renderSections);
+  }
+
   // ── sections rail ────────────────────────────────────────────────
   function renderSections() {
+    if (S._inlineEditing) return; // don't wipe an in-progress inline rename
     var host = $id("rrnb-sections"); if (!host) return;
     if (!S.tree) { host.innerHTML = '<div class="rrnb-empty">No notebook selected.</div>'; return; }
     var groups = S.tree.groups || [], sections = S.tree.sections || [];
@@ -846,7 +916,7 @@
     groups.forEach(function (g) {
       var col = S.collapsedGroups[g.id] ? " collapsed" : "";
       html += '<div class="rrnb-group' + col + '" data-grp="' + g.id + '"><div class="rrnb-group-hd" data-toggle="' + g.id + '">' +
-        '<span class="tw">▾</span><span>' + esc(g.name) + '</span></div>' +
+        '<span class="tw">▾</span><span class="gnm">' + esc(g.name) + '</span></div>' +
         (byGroup[g.id] || []).map(secRow).join("") + '</div>';
     });
     html += '<button class="rrnb-newpage" data-add-section="1" style="margin-top:var(--s-2)">＋ New section</button>';
@@ -855,6 +925,7 @@
 
   // ── page list ────────────────────────────────────────────────────
   function renderPageList() {
+    if (S._inlineEditing) return; // don't wipe an in-progress inline rename
     var host = $id("rrnb-pagelist"); if (!host) return;
     if (S.mode === "search") return; // search owns the list
     if (S.mode === "recycle") return renderRecycle(host);
@@ -953,6 +1024,7 @@
       S.pageId = id; S.page = p; S.mode = "notebook"; S.savedAt = p.updated_at;
       S.baseUpdatedAt = p.updated_at;
       trackRecent(p);
+      if (S._inlineEditing) { renderPageList(); return; } // a live inline rename owns the DOM — don't rebuild over it
       renderCanvas(p);
       renderPageList();
       joinPresence(id);
@@ -967,7 +1039,7 @@
     var sec = ((S.tree && S.tree.sections) || []).filter(function (s) { return s.id === p.section_id; })[0] || {};
     wrap.innerHTML =
       '<div class="rrnb-doc">' +
-        '<div class="rrnb-breadcrumb">' + esc(nb.name || "Notebook") + ' <span class="sep">›</span> ' + esc(sec.name || "Section") + ' <span class="sep">›</span> ' + esc(p.title || "Page") + '</div>' +
+        '<div class="rrnb-breadcrumb"><span class="rrnb-cr-nb">' + esc(nb.name || "Notebook") + '</span> <span class="sep">›</span> <span class="rrnb-cr-sec">' + esc(sec.name || "Section") + '</span> <span class="sep">›</span> <span class="rrnb-cr-pg">' + esc(p.title || "Page") + '</span></div>' +
         '<input class="rrnb-title" id="rrnb-title" placeholder="Untitled Page" value="' + esc(p.title || "") + '" />' +
         '<div class="rrnb-metaline"><span class="rrnb-save" id="rrnb-save"><span class="dot"></span><span id="rrnb-save-txt">Saved</span></span>' +
           '<span id="rrnb-author">' + esc(p.author || "") + '</span>' +
@@ -1014,7 +1086,7 @@
   }
   function id_of(p) { return p.id || S.pageId; }
   function autoGrow(el) { if (!el) return; el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; }
-  function updateBreadcrumbTitle() { var b = $(".rrnb-breadcrumb"); var t = $id("rrnb-title"); if (b && t) { var parts = b.innerHTML.split("›"); parts[parts.length - 1] = " " + esc(t.value || "Page"); b.innerHTML = parts.join("<span class=sep>›</span>"); } }
+  function updateBreadcrumbTitle() { var el = $(".rrnb-cr-pg"); var t = $id("rrnb-title"); if (el && t) el.textContent = t.value || "Page"; }
 
   // ── toolbar behaviour ────────────────────────────────────────────
   function bindToolbar() {
@@ -2040,7 +2112,7 @@
   function handleCtx(act) {
     var t = $id("rrnb-ctx")._target; hideCtx(); if (!t) return;
     if (t.kind === "page") {
-      if (act === "rename") return renamePrompt("page", t.id);
+      if (act === "rename") return editPageTitle(t.id);
       if (act === "pin") { var p = pageById(t.id); return S.be.pinPage(t.id, !(p && p.is_pinned)).then(function () { if (p) p.is_pinned = !p.is_pinned; renderPageList(); }); }
       if (act === "print") return printPage(t.id);
       if (act === "md") return exportMarkdown(t.id);
@@ -2055,7 +2127,7 @@
       if (act === "del") return deleteNotebook(t.id);
     }
     if (t.kind === "section") {
-      if (act === "rename") return renamePrompt("section", t.id);
+      if (act === "rename") return editSectionTitle(t.id);
       if (act === "recolor") return recolorSection(t.id);
       if (act === "newgroup") return S.be.createGroup(S.nbId, "New Group").then(function () { return selectNotebook(S.nbId, S.pageId); });
       if (act === "del") return S.be.deleteItem("section", t.id).then(function () { S.activeSection = null; return selectNotebook(S.nbId, null); });
@@ -2123,18 +2195,29 @@
 
     // sections rail (delegated)
     var secHost = $id("rrnb-sections");
+    if (secHost) secHost.addEventListener("dblclick", function (e) {
+      var gh = e.target.closest(".rrnb-group-hd"); if (gh && e.target.closest(".gnm")) { e.preventDefault(); return editGroupTitle(gh.getAttribute("data-toggle")); }
+      var srow = e.target.closest("[data-sec]"); if (srow && e.target.closest(".nm")) { e.preventDefault(); return editSectionTitle(srow.getAttribute("data-sec")); }
+    });
     if (secHost) secHost.addEventListener("click", function (e) {
+      if (S._inlineEditing) return;
       var nn = e.target.closest("[data-new-notebook]"); if (nn) return createNotebookFlow();
       var kb = e.target.closest("[data-menu='section']"); if (kb) { var r = kb.getBoundingClientRect(); return sectionMenu(kb.getAttribute("data-id"), r.left, r.bottom); }
       var tg = e.target.closest("[data-toggle]"); if (tg) { var g = tg.getAttribute("data-toggle"); S.collapsedGroups[g] = !S.collapsedGroups[g]; return renderSections(); }
       var add = e.target.closest("[data-add-section]"); if (add) { return S.be.createSection(S.nbId, "New Section", null, PALETTE[(S.tree.sections.length) % PALETTE.length]).then(function (s) { S.activeSection = s.id; return selectNotebook(S.nbId, null); }); }
       var sec = e.target.closest("[data-sec]"); if (sec) {
-        S.activeSection = sec.getAttribute("data-sec"); S.mode = "notebook"; renderSections(); renderPageList();
-        // on mobile, picking a section flows into the pages drawer — and stays
-        // there so the operator can pick a page (openPage would close it)
+        var sid = sec.getAttribute("data-sec");
+        // on mobile, picking a section (even the active one) flows into the
+        // pages drawer — and stays there so the operator can pick a page
+        // (openPage would close it)
         var sh = $id("rrnb-shell"), mobileFlow = false;
         if (sh && sh.classList.contains("show-rail")) { sh.classList.remove("show-rail"); sh.classList.add("show-pages"); mobileFlow = true; }
-        var f = firstPageOf(S.activeSection);
+        // re-clicking the active section is a no-op on desktop — and crucially
+        // must NOT re-render, or a synchronous rail rebuild between the two
+        // clicks of a double-click breaks native dblclick-to-rename
+        if (sid === S.activeSection) return;
+        S.activeSection = sid; S.mode = "notebook"; renderSections(); renderPageList();
+        var f = firstPageOf(sid);
         if (f && !mobileFlow) openPage(f); else if (!f) showBlank();
       }
     });
@@ -2142,7 +2225,11 @@
     // page list (delegated)
     var plHost = $id("rrnb-pagelist");
     if (plHost) {
+      plHost.addEventListener("dblclick", function (e) {
+        var prow = e.target.closest("[data-page]"); if (prow && e.target.closest(".ttl")) { e.preventDefault(); return editPageTitle(prow.getAttribute("data-page")); }
+      });
       plHost.addEventListener("click", function (e) {
+        if (S._inlineEditing) return;
         var kb = e.target.closest("[data-menu='page']"); if (kb) { var r = kb.getBoundingClientRect(); return pageMenu(kb.getAttribute("data-id"), r.left, r.bottom); }
         var add = e.target.closest("[data-add-page]"); if (add) return newPage();
         var tpl = e.target.closest("[data-template-menu]"); if (tpl) return openTemplateMenu(tpl);
@@ -2218,7 +2305,7 @@
       if (e.key === "Escape") { hidePop(); hideCtx(); hideAiMenu(); }
       // OneNote-style page ops — only when NOT typing in the editor/inputs
       if (!typingContext() && S.pageId && S.mode === "notebook") {
-        if (e.key === "F2") { e.preventDefault(); renamePrompt("page", S.pageId); return; }
+        if (e.key === "F2") { e.preventDefault(); editPageTitle(S.pageId); return; }
         if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); if (window.confirm("Move this page to the Recycle Bin?")) S.be.deleteItem("page", S.pageId).then(function () { showBlank(); return selectNotebook(S.nbId, null); }).catch(fail); return; }
         if (e.altKey && e.key === "ArrowDown") { e.preventDefault(); navPage(1); return; }
         if (e.altKey && e.key === "ArrowUp") { e.preventDefault(); navPage(-1); return; }
