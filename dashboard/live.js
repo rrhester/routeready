@@ -23811,6 +23811,11 @@ function _ivcalOpenBookPicker(applicantId, name) {
         body.innerHTML = `<div style="font-size:13px;color:var(--text-subtle,#6B7280);padding:6px 0 10px">No open slots in the booking window — add availability, or check Holidays &amp; date overrides.</div>`;
         return;
       }
+      // Buttons key by ROW INDEX, not slot_start (Codex review): two
+      // open rows can share a start time — a weekly slot and a one-off
+      // group session — distinguished only by session_id, and a
+      // start-keyed map would book the wrong one.
+      slots.forEach((s, i) => { s._idx = i; });
       const byDay = new Map();
       for (const s of slots) { if (!byDay.has(s._date)) byDay.set(s._date, []); byDay.get(s._date).push(s); }
       const CAP = 36;
@@ -23818,14 +23823,13 @@ function _ivcalOpenBookPicker(applicantId, name) {
       for (const [, list] of byDay) {
         if (shown >= CAP) break;
         html += `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-subtle,#6B7280);margin:10px 0 6px">${escapeHtml(list[0]._dayTxt)}</div><div style="display:flex;flex-wrap:wrap;gap:6px">`;
-        for (const s of list) { if (shown >= CAP) break; html += `<button type="button" class="btn btn-sm" data-bookpick-slot="${escapeHtml(String(s.slot_start))}">${escapeHtml(s._timeTxt)}</button>`; shown++; }
+        for (const s of list) { if (shown >= CAP) break; html += `<button type="button" class="btn btn-sm" data-bookpick-slot="${s._idx}">${escapeHtml(s._timeTxt)}${s.session_id ? " · group" : ""}</button>`; shown++; }
         html += `</div>`;
       }
       if (slots.length > shown) html += `<div style="font-size:11px;color:var(--text-subtle,#6B7280);margin-top:8px">+${slots.length - shown} more later in the window</div>`;
       body.innerHTML = html;
-      const bySlotStart = new Map(slots.map(s => [String(s.slot_start), s]));
       body.querySelectorAll("[data-bookpick-slot]").forEach(btn => btn.onclick = async () => {
-        const slot = bySlotStart.get(btn.getAttribute("data-bookpick-slot"));
+        const slot = slots[parseInt(btn.getAttribute("data-bookpick-slot"), 10)];
         if (!slot) return;
         back.querySelectorAll("button").forEach(x => { x.disabled = true; });
         btn.textContent = "Booking…";
@@ -23856,9 +23860,9 @@ function _ivcalAwaiting() {
       <span class="oc-await-dot" aria-hidden="true"></span>
       <span class="oc-await-main"><span class="oc-await-name">${escapeHtml(name)}</span><span class="oc-await-sub">${sub}</span></span>
       ${ageChip}
+      <button type="button" class="oc-await-book" data-ivcal-await-book="${escapeHtml(a.id)}" data-ivcal-await-book-name="${escapeHtml(name)}" title="Book ${escapeHtml(name)} onto an open slot">Book</button>
       <button type="button" class="oc-await-copy" data-ivcal-await-copy="${escapeHtml(a.id)}" title="Copy ${escapeHtml(name)}'s booking link" aria-label="Copy booking link">${linkIco}</button>
       <button type="button" class="oc-await-send" data-ivcal-await-send="${escapeHtml(a.id)}"${ago ? " disabled" : ""} title="${ago ? `Link sent ${escapeHtml(ago)} — resend from the candidate's profile if needed` : `Resend booking link to ${escapeHtml(name)}`}">${ago ? "Sent ✓" : "Send link"}</button>
-      <button type="button" class="oc-await-book" data-ivcal-await-book="${escapeHtml(a.id)}" data-ivcal-await-book-name="${escapeHtml(name)}" title="Book ${escapeHtml(name)} onto an open slot">Book</button>
     </div>`;
   }).join("");
   const more = list.length > LIM

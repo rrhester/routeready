@@ -29041,8 +29041,9 @@ body.rr-cmdk-open{ overflow:hidden }
    action is now the "Book" button, the candidate's NAME is the row's
    payload, and the send state already lives in the sub-line ("Link
    sent 2h ago"). display (not opacity) so the hidden buttons release
-   their flex space back to the name; tabbing to the always-visible
-   Book button reveals them for keyboard users via :focus-within. */
+   their flex space back to the name. Keyboard path (Codex review):
+   Book renders BEFORE Copy/Send in the DOM, so focusing it reveals
+   them ahead in forward tab order — no reverse-tabbing needed. */
 #rr-ivcal .oc-await-row .oc-await-copy,
 #rr-ivcal .oc-await-row .oc-await-send{ display:none; }
 #rr-ivcal .oc-await-row:hover .oc-await-copy,
