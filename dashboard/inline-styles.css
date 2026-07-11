@@ -31195,13 +31195,13 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
    inline-styles.css so it wins source order over the premium/M3/white-pill
    passes above at equal specificity. Design tokens per the reference brief:
    36px controls · 6px control radius · 7px event radius · 8px panel radius ·
-   hairline #E3E8EF / #E9EDF3 · 13px UI type · 11px metadata.
+   hairline var(--sch-line-strong, rgba(15,23,42,.10)) / var(--sch-line, rgba(15,23,42,.07)) · 13px UI type · 11px metadata.
    ════════════════════════════════════════════════════════════════════════ */
 
 /* ── Calendar container · one bordered panel, grid clipped at 8px ─────── */
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal{
   background:var(--rr-white) !important;
-  border:1px solid #DDE3EB !important;
+  border:1px solid var(--sch-line-strong, rgba(15,23,42,.10)) !important;
   border-radius:8px !important;
   box-shadow:none !important;
   overflow:hidden !important;
@@ -31313,24 +31313,24 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-head,
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-allday,
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-grid{
-  grid-template-columns:64px repeat(var(--days),1fr) !important;
+  grid-template-columns:64px repeat(var(--days),1fr);
 }
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-corner{ border-right:1px solid #E3E8EF !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-corner{ border-right:1px solid var(--sch-line-strong, rgba(15,23,42,.10)) !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-corner-tz{
-  top:10px; bottom:auto !important; font-size:var(--fs-10) !important; font-weight:600 !important;
-  letter-spacing:.04em; color:var(--rr-slate-500) !important;
+  top:10px; bottom:auto; font-size:var(--fs-10); font-weight:600;
+  letter-spacing:.04em; color:var(--rr-slate-500);
 }
 
 /* Day headers · 12px weekday, 22px/600 date, 11px metadata. */
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-dh{
-  padding:10px 0 10px 14px !important; border-left:1px solid #E3E8EF !important;
+  padding:10px 0 10px 14px !important; border-left:1px solid var(--sch-line-strong, rgba(15,23,42,.10)) !important;
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-dh .dow{
   text-transform:none !important; font-size:var(--fs-xs) !important; font-weight:500 !important;
   letter-spacing:0 !important; color:var(--rr-slate-500) !important;
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-dh .dn{
-  font-size:22px !important; font-weight:600 !important; color:var(--rr-gray-900) !important;
+  font-size:var(--fs-21) !important; font-weight:600 !important; color:var(--rr-gray-900) !important;
   margin-top:2px !important; line-height:1.1 !important;
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-dh .oc-dh-meta{
@@ -31342,7 +31342,7 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-dh.today .dn{
   background:none !important; color:var(--rr-blue-700) !important;
   width:auto !important; height:auto !important; border-radius:0 !important;
-  display:block !important; font-size:22px !important; font-weight:600 !important;
+  display:block !important; font-size:var(--fs-21) !important; font-weight:600 !important;
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-dh.today .dow{
   color:var(--rr-blue-700) !important; font-weight:600 !important;
@@ -31350,7 +31350,7 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 
 /* All-day lane · always present, compact when empty. */
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-allday{
-  border-bottom:1px solid #E3E8EF !important; background:var(--rr-white) !important;
+  border-bottom:1px solid var(--sch-line-strong, rgba(15,23,42,.10)) !important; background:var(--rr-white) !important;
   min-height:38px;
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-allday.is-empty{ min-height:30px; }
@@ -31359,23 +31359,23 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
   letter-spacing:.01em !important; color:var(--rr-slate-500) !important;
   padding:8px 8px 0 0 !important;
 }
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-adcol{ border-left:1px solid #E9EDF3 !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-adcol{ border-left:1px solid var(--sch-line, rgba(15,23,42,.07)) !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-adbar{ border-radius:5px; }
 
 /* Grid rules · day separators strongest, hour lines lighter, half-hour
    dotted lightest. Time labels 11px, right-aligned to the gutter. */
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-col{
-  background:var(--rr-white) !important; border-left:1px solid #E3E8EF !important;
+  background:var(--rr-white) !important; border-left:1px solid var(--sch-line-strong, rgba(15,23,42,.10)) !important;
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-col.today{ background:rgba(37,99,235,.03) !important; }
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-hline{ border-top:1px solid #EAEEF4 !important; }
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-hhline{ border-top:1px dotted #EEF1F6 !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-hline{ border-top:1px solid var(--sch-line, rgba(15,23,42,.07)) !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-hhline{ border-top:1px dotted var(--sch-line-subtle, rgba(15,23,42,.04)) !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-hr span{
   font-size:var(--fs-11, 11px) !important; font-weight:500 !important; color:var(--rr-slate-400) !important;
   right:8px !important; background:var(--rr-white) !important; opacity:1 !important;
 }
 /* Empty-slot hover feedback · a faint wash on the hovered day column. */
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-col:hover{ background:#FAFBFD !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-col:hover{ background:var(--rr-slate-50) !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-col.today:hover{ background:rgba(37,99,235,.045) !important; }
 
 /* Bookable-hours shading · quieter tint so events keep visual priority. */
@@ -31390,7 +31390,7 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-now{
   left:64px !important; right:0 !important; border-top:2px solid var(--rr-red-600) !important;
 }
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-now::before{ content:none !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-now::before{ content:none; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-now-dot{
   position:absolute; top:-5px; width:8px; height:8px; border-radius:50%;
   background:var(--rr-red-600);
@@ -31399,8 +31399,8 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
   left:-64px !important; top:-8px !important; width:56px; text-align:right;
   background:var(--rr-white) !important; color:var(--rr-red-600) !important;
   font-size:var(--fs-10) !important; font-weight:700 !important;
-  padding:1px 2px !important; line-height:13px !important; border-radius:3px;
-  font-variant-numeric:tabular-nums;
+  padding:1px 2px !important; line-height:13px !important; border-radius:3px !important;
+  font-variant-numeric:tabular-nums; box-shadow:none !important;
 }
 
 /* ── Event cards · 7px radius, strong left status edge, layered content ── */
@@ -31446,7 +31446,7 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 }
 /* Single-line tier: the start time never shrinks; the name truncates. */
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev .oc-ev-line1 .et{
-  display:inline !important; flex:0 0 auto !important;
+  display:inline; flex:0 0 auto;
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev .oc-ev-n1{
   flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
@@ -31461,7 +31461,7 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
   display:inline-flex; align-items:center; justify-content:center;
   min-width:16px; height:14px; padding:0 3px; border-radius:999px;
   background:rgba(255,255,255,.72); box-shadow:inset 0 0 0 1px rgba(15,23,42,.10);
-  font-size:9px; font-weight:700; letter-spacing:.02em; vertical-align:-2px;
+  font-size:var(--fs-9); font-weight:700; letter-spacing:.02em; vertical-align:-2px;
 }
 /* Status chip · compact, 5px radius, color-independent of the card hue. */
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev-foot{ margin-top:2px; }
@@ -31471,11 +31471,11 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
   letter-spacing:.01em; white-space:nowrap;
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev-badge.st-ok{ background:rgba(13,148,136,.13); color:#0F766E; }
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev-badge.st-pend{ background:rgba(180,83,9,.13); color:#92400E; }
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev-badge.st-cancel{ background:rgba(220,38,38,.10); color:#B91C1C; }
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev-badge.st-noshow{ background:rgba(220,38,38,.12); color:#991B1B; }
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev-badge.st-decl{ background:rgba(100,116,139,.14); color:#475569; }
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev-badge.st-resched{ background:rgba(180,83,9,.12); color:#92400E; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev-badge.st-pend{ background:rgba(180,83,9,.13); color:var(--rr-amber-800); }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev-badge.st-cancel{ background:rgba(220,38,38,.10); color:var(--rr-red-700); }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev-badge.st-noshow{ background:rgba(220,38,38,.12); color:var(--rr-red-700); }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev-badge.st-decl{ background:rgba(100,116,139,.14); color:var(--rr-slate-600); }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev-badge.st-resched{ background:rgba(180,83,9,.12); color:var(--rr-amber-800); }
 /* Hover ⋮ · quiet until the card is hovered or focused. */
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev-menu{
   appearance:none; border:0; background:transparent; cursor:pointer; padding:0;
@@ -31499,7 +31499,7 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 /* ── Left context panel · one structured 248px column ─────────────────── */
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-side{
   flex:0 0 248px !important; padding:12px 14px !important;
-  background:var(--rr-white) !important; border-right:1px solid #E3E8EF !important;
+  background:var(--rr-white) !important; border-right:1px solid var(--sch-line-strong, rgba(15,23,42,.10)) !important;
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-sec-h{ padding:8px 2px 6px !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-sec-t{
@@ -31573,7 +31573,7 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
   border-radius:50%;
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-mini-d.in-range{
-  background:#E8F0FE !important; color:var(--rr-blue-800) !important; font-weight:600 !important;
+  background:var(--rr-blue-50) !important; color:var(--rr-blue-800) !important; font-weight:600 !important;
   border-radius:0 !important;
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-mini-d.in-range.rng-s{ border-radius:12px 0 0 12px !important; }
@@ -31589,7 +31589,7 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 /* Booking pages · green Active chip with a status dot. */
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-bp-active{
   display:inline-flex; align-items:center; gap:4px;
-  background:rgba(22,163,74,.10) !important; color:#15803D !important;
+  background:rgba(22,163,74,.10) !important; color:var(--rr-green-700) !important;
   border-radius:5px !important; padding:1px 6px !important;
   font-size:var(--fs-10-5, 10.5px) !important; font-weight:600 !important;
   text-transform:none !important; letter-spacing:.01em !important;
@@ -31619,14 +31619,14 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-gcal-sub{
   display:inline-flex; align-items:center; gap:5px; min-width:0;
-  font-size:var(--fs-11, 11px); font-weight:500; color:#15803D;
+  font-size:var(--fs-11, 11px); font-weight:500; color:var(--rr-green-700);
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-gcal-sub.is-warn{ color:#92400E; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-gcal-sub.is-warn{ color:var(--rr-amber-800); }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-gcal-dot{
   width:6px; height:6px; border-radius:50%; background:var(--rr-green-600); flex:0 0 auto;
 }
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-gcal-sub.is-warn .oc-gcal-dot{ background:#D97706; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-gcal-sub.is-warn .oc-gcal-dot{ background:var(--rr-amber-600); }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-cals-feed{
   display:flex; align-items:center; gap:6px; font-size:var(--fs-xs) !important;
 }
@@ -31634,7 +31634,7 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 /* ── Right utility rail · integrated chrome (shared mount, all views) ─── */
 #rr-util-rail-mount .sched-util-rail{
   background:var(--rr-white);
-  border-left:1px solid #E3E8EF;
+  border-left:1px solid var(--sch-line-strong, rgba(15,23,42,.10));
   gap:4px; padding:10px 0;
 }
 #rr-util-rail-mount .sched-util-btn{ border-radius:8px; }
