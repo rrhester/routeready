@@ -89,7 +89,14 @@
 // white so the strip blends with the tab bar, Settings gains frame/
 // inset-top numbers plus two corner probes that tell the two bug
 // variants apart from a single screenshot.
-const SHELL_CACHE = "rr-app-shell-v145";
+// v146 · The real dead-strip fix: iOS status-bar mode goes translucent ->
+// default. Translucent triggers the WebKit standalone bug (web view at
+// y=0 sized one status-bar short — probe-verified: the strip under the
+// tab bar is unpaintable OS territory). Default mode aligns position
+// with size, so the app runs flush to the physical bottom and iOS
+// paints the status bar ink from theme-color. Applies on reinstall
+// (Add to Home Screen). Diagnostic probes removed; footer stays.
+const SHELL_CACHE = "rr-app-shell-v146";
 const SHELL_FILES = [
   "./",
   "index.html",
