@@ -159,6 +159,20 @@
   .rh-btn.on{background:var(--accent);border-color:var(--accent);color:#fff}
   .rh-btn svg{width:14px;height:14px}
 
+  /* embed mode · chromeless room for the dashboard's interview panel.
+     The host page owns the title/invite/end chrome, so the inner header
+     disappears and its info/buttons live in the control bar instead. */
+  .ctrl-info{display:none}
+  body.embed .room-head{display:none}
+  body.embed #grid{padding:8px;gap:8px}
+  body.embed .tile{border-radius:8px}
+  body.embed .room-ctrls{position:relative;padding:9px 12px calc(9px + env(safe-area-inset-bottom))}
+  body.embed .ctrl-info{display:flex;align-items:center;gap:8px;position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--room-muted);font-size:12.5px;font-weight:600}
+  body.embed .ctrl-info .dot{width:4px;height:4px;border-radius:50%;background:var(--room-line)}
+  body.embed .rh-btn{padding:8px 10px}
+  body.embed #waiting-pop{top:auto;bottom:78px;right:12px;left:auto;transform:none}
+  @media (max-width:900px){body.embed .ctrl-info{display:none}}
+
   /* recording */
   #rec-pill{display:flex;align-items:center;gap:6px;color:#F87171;font-weight:800;font-size:12.5px;letter-spacing:.05em}
   .rec-dot{width:8px;height:8px;border-radius:50%;background:#DC2626;animation:recblink 1.4s ease-in-out infinite}
@@ -322,6 +336,12 @@
       </aside>
     </main>
     <footer class="room-ctrls">
+      <div class="ctrl-info" aria-hidden="true">
+        <span id="embed-rec" style="display:none"><span class="rec-dot"></span></span>
+        <span id="embed-timer">0:00</span>
+        <span class="dot"></span>
+        <span><span id="embed-count">1</span> in call</span>
+      </div>
       <button id="btn-mic" class="ctrl" type="button" title="Mute">
         <svg class="ic-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
         <svg class="ic-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"/><line x1="12" y1="19" x2="12" y2="23"/></svg>

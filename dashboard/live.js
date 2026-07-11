@@ -28027,7 +28027,7 @@ function _ivcalOpenRoom(ev) {
   const meetCode = (String(ev.meeting_url).match(/\/m\/([a-z0-9-]{8,16})(?:[/?#]|$)/i) || [])[1] || null;
   const hash = "#config.prejoinPageEnabled=false&userInfo.displayName=" + encodeURIComponent('"' + me + '"');
   const src = meetCode
-    ? "/dashboard/meet.html?m=" + encodeURIComponent(meetCode) + "&name=" + encodeURIComponent(me)
+    ? "/dashboard/meet.html?m=" + encodeURIComponent(meetCode) + "&name=" + encodeURIComponent(me) + "&embed=1"
     : ev.meeting_url + (ev.meeting_url.includes("#") ? "" : hash);
   const canNotes = !!ev.id;
   const initials = (who || "?").split(/\s+/).map(s => s[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?";
