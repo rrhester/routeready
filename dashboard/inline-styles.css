@@ -17671,6 +17671,67 @@ body.rr-cmdk-open{ overflow:hidden }
              actions — render them in the alarm color so they can't be
              misread as a live to-do. */
           #view-schedule .rr-intel-detail-fact .is-past-due{color:var(--red);font-weight:600}
+
+          /* Coverage plan (flex tiers) + What-if · shared blocks. */
+          #view-schedule .rr-intel-flexplan{
+            padding:18px 22px;border-bottom:1px solid rgba(15,23,42,.05);
+          }
+          #view-schedule .rr-intel-flexplan-verdict{
+            display:flex;align-items:center;gap:12px;margin:10px 0 14px;
+          }
+          #view-schedule .rr-intel-flexplan-hint{
+            font-size:var(--fs-sm);color:var(--text-muted);
+          }
+          #view-schedule .rr-intel-flexplan-tiers{
+            display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--s-3);
+          }
+          @media (max-width:900px){
+            #view-schedule .rr-intel-flexplan-tiers{grid-template-columns:1fr}
+          }
+          #view-schedule .rr-intel-flexplan-tier{
+            border:1px solid var(--rr-ctl-border,var(--border));border-radius:8px;
+            padding:10px 14px;display:flex;flex-direction:column;gap:2px;
+          }
+          #view-schedule .rr-intel-flexplan-tier span{
+            font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);
+            letter-spacing:.04em;text-transform:uppercase;
+          }
+          #view-schedule .rr-intel-flexplan-tier strong{
+            font-size:var(--fs-lg);color:var(--text);font-variant-numeric:tabular-nums;
+          }
+          #view-schedule .rr-intel-flexplan-tier em{
+            font-size:var(--fs-xs);color:var(--text-subtle);font-style:normal;
+          }
+          #view-schedule .rr-intel-flexplan-hire{
+            margin-top:12px;font-size:var(--fs-md);color:var(--text);line-height:1.5;
+          }
+
+          /* What-if form · one row of labeled dials + Run. */
+          #view-schedule .rr-intel-whatif{padding:18px 22px}
+          #view-schedule .rr-intel-whatif-form{
+            display:flex;flex-wrap:wrap;gap:var(--s-3);align-items:flex-end;
+            margin-bottom:16px;
+          }
+          #view-schedule .rr-intel-whatif-field{
+            display:flex;flex-direction:column;gap:4px;min-width:110px;
+          }
+          #view-schedule .rr-intel-whatif-field > span{
+            font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);
+            letter-spacing:.04em;text-transform:uppercase;
+          }
+          #view-schedule .rr-intel-whatif-field select,
+          #view-schedule .rr-intel-whatif-field input{
+            height:36px;padding:0 10px;border:1px solid var(--rr-ctl-border,var(--border));
+            border-radius:6px;background:var(--surface,transparent);color:var(--text);
+            font-size:var(--fs-sm);
+          }
+          #view-schedule .rr-intel-whatif-run{
+            height:36px;padding:0 16px;border:1px solid var(--rr-ctl-border,var(--border));
+            border-radius:6px;background:var(--surface,transparent);color:var(--text);
+            font-size:var(--fs-sm);font-weight:600;cursor:pointer;
+          }
+          #view-schedule .rr-intel-whatif-run:hover{filter:brightness(.96)}
+          #view-schedule .rr-intel-whatif-run:disabled{opacity:.6;cursor:default}
           #view-schedule .rr-intel-strip-label{
             font-size:var(--fs-10);font-weight:600;color:var(--text-muted);
             font-variant-numeric:tabular-nums;
