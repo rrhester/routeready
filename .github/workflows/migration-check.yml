@@ -100,6 +100,17 @@ jobs:
           set -euo pipefail
           psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/schedule_concurrency_test.sql
 
+      - name: Role-gate RLS tests (0452 · hiring_targets + route_forecasts)
+        # Drops to the real `authenticated` role and asserts a role='driver'
+        # app_user cannot INSERT hiring_targets / route_forecasts while a
+        # 'dispatcher' can — i.e. the 0452 intra-tenant write gates actually
+        # enforce, not just apply.
+        env:
+          SUPABASE_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: |
+          set -euo pipefail
+          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/role_gate_planning_test.sql
+
       - name: Tear down
         if: always()
         run: supabase stop --no-backup || true
