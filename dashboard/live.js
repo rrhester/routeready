@@ -9,6 +9,7 @@
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
 import { planScheduleWeek } from "./scheduling-engine.js?v=b2ebeec00db5";
+import { assessPlan as rrAssessLaborPlan, driversNeeded as rrDriversNeeded, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=b2ebeec00db5";
 import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=b2ebeec00db5";
 import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=b2ebeec00db5";
 import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=b2ebeec00db5";
@@ -3071,6 +3072,93 @@ function _rrIntelHide() {
 window._rrSimResultsByWeek = window._rrSimResultsByWeek || null;
 window._rrSimResultsRanAt  = window._rrSimResultsRanAt  || null;
 
+// ── Forecast rates · observed callout %, attrition %, onboarding ramp ──────
+// The honest-supply inputs for forecast-core.js: how often scheduled shifts
+// actually go uncovered (60-day callout/no-show rate), how fast the roster
+// shrinks (90-day termination rate, pro-rated weekly), which onboarding
+// drivers aren't road-ready yet (hire_date gate — same convention as the
+// staffing outlook), and the configured drivers-per-route ratio so OKAMI
+// and the outlook stop disagreeing about demand. Cached 10 minutes; loads
+// lazily so the Targets page and Risk Forecast first-paint stay instant,
+// then repaints both surfaces when the real rates land.
+window._rrForecastRates = window._rrForecastRates || null;
+let _rrForecastRatesPromise = null;
+function _rrEnsureForecastRates() {
+  const cached = window._rrForecastRates;
+  if (cached && Date.now() - cached.loadedAt < 10 * 60 * 1000) return Promise.resolve(cached);
+  if (_rrForecastRatesPromise) return _rrForecastRatesPromise;
+  _rrForecastRatesPromise = (async () => {
+    const dspId = window.RR?.dsp?.id;
+    if (!dspId) return null;
+    const since60 = fmtIsoDate(addDays(new Date(), -60));
+    const since90 = new Date(Date.now() - 90 * 86400000).toISOString();
+    const [calloutRes, totalRes, termRes, activeRes, onbRes, hsRes] = await Promise.all([
+      sb.from("shifts").select("id", { count: "exact", head: true }).eq("dsp_id", dspId).gte("date", since60).in("status", ["called_off", "no_show"]),
+      sb.from("shifts").select("id", { count: "exact", head: true }).eq("dsp_id", dspId).gte("date", since60).in("status", ["scheduled", "completed", "called_off", "no_show"]),
+      sb.from("drivers").select("id", { count: "exact", head: true }).eq("dsp_id", dspId).eq("status", "terminated").gte("updated_at", since90),
+      sb.from("drivers").select("id", { count: "exact", head: true }).eq("dsp_id", dspId).eq("status", "active"),
+      sb.from("drivers").select("id, hire_date").eq("dsp_id", dspId).eq("status", "onboarding"),
+      sb.rpc("hiring_settings_get"),
+    ]);
+    const totalShifts = totalRes.count || 0;
+    const calloutRate = totalShifts > 0 ? Math.min(0.5, (calloutRes.count || 0) / totalShifts) : 0;
+    const activeCount = activeRes.count || 0;
+    const terms90 = termRes.count || 0;
+    // Terminations per week over the trailing 90 days ÷ current actives.
+    // Capped at 10%/wk so one bad data import can't zero the forecast.
+    const weeklyAttritionRate = activeCount > 0
+      ? Math.min(0.10, (terms90 / (90 / 7)) / activeCount)
+      : 0;
+    const onboarding = (onbRes.data || []).map((d) => ({ id: d.id, hire_date: d.hire_date || null }));
+    const dprRaw = Number(hsRes?.data?.drivers_per_route);
+    const driversPerRoute = Number.isFinite(dprRaw) ? Math.max(1, Math.min(5, dprRaw)) : 2;
+    const rates = {
+      calloutRate, weeklyAttritionRate, onboarding, driversPerRoute,
+      terms90, activeCount, totalShifts60: totalShifts, loadedAt: Date.now(),
+    };
+    window._rrForecastRates = rates;
+    // Repaint the surfaces that fold these in, if they're on screen.
+    try { if (typeof _rrRefreshTargetsGapCard === "function") _rrRefreshTargetsGapCard(); } catch (_) {}
+    try {
+      if (typeof _rrIntelActiveName !== "undefined" && _rrIntelActiveName === "risk-forecast") {
+        const view = document.getElementById("rr-intel-view-risk-forecast");
+        if (view) _rrIntelRenderRiskForecast(view);
+      }
+    } catch (_) {}
+    return rates;
+  })().catch((e) => { console.warn("forecast-rates:", e?.message || e); return null; })
+     .finally(() => { _rrForecastRatesPromise = null; });
+  return _rrForecastRatesPromise;
+}
+
+// Onboarding drivers count toward supply only from their road-ready week
+// (hire_date ≤ week start — the staffing outlook's convention). Missing
+// hire_date = not schedulable for planning purposes.
+function _rrOnboardingNotReadyByWeek(weeks) {
+  const rates = window._rrForecastRates;
+  const out = {};
+  if (!rates || !Array.isArray(rates.onboarding) || !rates.onboarding.length) return out;
+  for (const w of weeks) {
+    if (!w.weekStartIso) continue;
+    out[w.weekStartIso] = rates.onboarding
+      .filter((o) => !o.hire_date || o.hire_date > w.weekStartIso).length;
+  }
+  return out;
+}
+
+// One assessment call shared by the Risk Forecast view and the Targets gap
+// card — both render from the exact same forecast-core result.
+function _rrAssessOkamiPlan(weeks) {
+  const rates = window._rrForecastRates || {};
+  return rrAssessLaborPlan(weeks, {
+    todayIso: fmtIsoDate(new Date()),
+    hireLeadDays: RR_OKAMI_HIRE_LEAD_DAYS,
+    calloutRate: rates.calloutRate || 0,
+    weeklyAttritionRate: rates.weeklyAttritionRate || 0,
+    onboardingNotReadyByWeek: _rrOnboardingNotReadyByWeek(weeks),
+  });
+}
+
 // Map an OKAMI row's week label (e.g. "W22 May 24–30") to an ISO date
 // the simulation cache is keyed by. _okamiStart is the ISO date of
 // week-0 in the table; each subsequent row is +7 days. Returns null
@@ -3087,7 +3175,41 @@ function _rrOkamiWeekStartIso(idx) {
 }
 
 function _rrReadOkamiWeeks() {
-  // Each non-detail <tr> = one week. Cells:
+  // Preferred path: the data model renderOkamiLive publishes on every
+  // render (window._rrOkamiModel). Reading data instead of scraping table
+  // cells means the Risk Forecast and gap card can't drift from the
+  // planner because of markup changes, and they keep working even when
+  // the OKAMI table isn't mounted.
+  const model = window._rrOkamiModel;
+  if (model && Array.isArray(model.weeks) && model.weeks.length) {
+    return model.weeks.map((w) => {
+      let simAvail = null, simOnPto = null, simOnTimeOff = null;
+      if (window._rrSimResultsByWeek && w.weekStartIso) {
+        const sim = window._rrSimResultsByWeek[w.weekStartIso];
+        if (sim) {
+          simAvail     = sim.available;
+          simOnPto     = sim.onPto;
+          simOnTimeOff = sim.onTimeOff;
+        }
+      }
+      const effectiveAvail = simAvail != null ? simAvail : w.avail;
+      const effectiveGap   = effectiveAvail - w.needed;
+      return {
+        idx: w.idx, label: w.label, dates: w.dates, needed: w.needed,
+        weekStartIso: w.weekStartIso,
+        avail: effectiveAvail,
+        gap: effectiveGap,
+        gapKind: effectiveGap >= 0 ? "ok" : "bad",
+        statusText: w.statusText, statusKind: w.statusKind, hireBy: w.hireBy,
+        plannedAvail: w.avail,
+        simAvail, simOnPto, simOnTimeOff,
+        isSimulated: simAvail != null,
+      };
+    });
+  }
+
+  // Fallback: scrape the rendered table (pre-model mock content). Each
+  // non-detail <tr> = one week. Cells:
   //   col 0: Week label + dates (+ tags)
   //   col 1: Routes (max) — operator input
   //   col 2: Drivers needed (.plan-calc)
@@ -3133,7 +3255,7 @@ function _rrReadOkamiWeeks() {
     const effectiveAvail = simAvail != null ? simAvail : avail;
     const effectiveGap   = simAvail != null ? (effectiveAvail - needed) : gap;
     weeks.push({
-      idx, label, dates, needed,
+      idx, label, dates, needed, weekStartIso,
       avail: effectiveAvail,
       gap: effectiveGap,
       gapKind, statusText, statusKind, hireBy,
@@ -3298,109 +3420,111 @@ function _rrIntelRenderRiskForecast(view) {
     return;
   }
 
-  const thisWeek = weeks[0];
-  const next4 = weeks.slice(0, 4);
-  const horizonNeeded = next4.reduce((a, w) => a + w.needed, 0);
-  const horizonAvail  = next4.reduce((a, w) => a + w.avail,  0);
-  const horizonGap    = next4.reduce((a, w) => a + Math.max(0, -w.gap), 0); // total open across 4 wks
-  const coveragePct = thisWeek.needed > 0
-    ? Math.min(100, Math.round((thisWeek.avail / thisWeek.needed) * 100))
-    : 100;
-
-  // Trend across the next 4 weeks · improving / steady / declining.
-  let trendLabel = "Steady";
-  let trendDetail = "Coverage holds across the next 4 weeks";
-  if (next4.length >= 2) {
-    const startCov = next4[0].needed > 0 ? next4[0].avail / next4[0].needed : 1;
-    const endCov   = next4[next4.length - 1].needed > 0
-      ? next4[next4.length - 1].avail / next4[next4.length - 1].needed : 1;
-    const delta = endCov - startCov;
-    if (delta > 0.05)      { trendLabel = "Improving"; trendDetail = "Coverage strengthens over the next 4 weeks"; }
-    else if (delta < -0.05){ trendLabel = "Declining"; trendDetail = "Coverage erodes over the next 4 weeks"; }
-  }
-
-  // Next break + headline status are derived from the ACTUAL coverage
-  // ratio per week, NOT from OKAMI's per-row status pill — OKAMI's pill
-  // can read "On track" for a peak week when its strategy column claims
-  // the peak is "absorbed" by ADW + OT, but that's a planning assumption,
-  // not a real-time signal. From a risk-forecast standpoint, a week
-  // where avail / needed < 80% IS at risk regardless of what the
-  // strategy column says, so we surface that honestly here.
-  function deriveKind(w) {
-    if (w.needed <= 0) return "ok";
-    const cov = w.avail / w.needed;
-    if (cov < 0.80) return "risk";
-    if (cov < 0.95) return "tight";
-    return "ok";
-  }
-  weeks.forEach((w) => { w.derivedKind = deriveKind(w); });
-  const nextRisk  = weeks.find((w) => w.derivedKind === "risk");
-  const nextTight = weeks.find((w) => w.derivedKind === "tight");
-  const nextBreak = nextRisk || nextTight || null;
-
-  // Headline pill · honest summary of the worst signal we're showing.
-  // Any of: a current-week coverage hole, a declining 4-week trend
-  // with open shifts, a per-week risk, or aggregate open shifts moves
-  // the headline. A handful of borderline-tight weeks moves it down
-  // a notch to "Tight" but not to "At risk".
-  let overallKind = "ok";
-  let overallLabel = "On track";
-  if (
-    nextRisk
-    || coveragePct < 80
-    || (trendLabel === "Declining" && horizonGap > 0)
-    || horizonGap >= 30
-  ) {
-    overallKind = "risk";
-    overallLabel = "At risk";
-  } else if (
-    nextTight
-    || coveragePct < 95
-    || horizonGap >= 5
-    || trendLabel === "Declining"
-  ) {
-    overallKind = "tight";
-    overallLabel = "Tight";
-  }
+  // All math lives in forecast-core.js (shared with the Targets gap card):
+  // per-week effective supply (payroll − onboarding-not-ready − projected
+  // attrition − expected callouts), coverage kinds on ONE vocabulary
+  // (On track / Watch / At risk), hire-by reachability, and the plan-level
+  // prescription. Rates load lazily — first paint runs with zeros and this
+  // view repaints itself when the observed rates land.
+  _rrEnsureForecastRates();
+  const rates = window._rrForecastRates || null;
+  const A  = _rrAssessOkamiPlan(weeks);
+  const aw = A.weeks;
+  const thisWeek = aw[0];
+  const coveragePct = Math.min(100, thisWeek.coveragePct);
+  const trendLabel  = A.trend === "improving" ? "Improving"
+                    : A.trend === "declining" ? "Declining" : "Steady";
+  const trendDetail = A.trend === "improving" ? "Coverage strengthens over the next 4 weeks"
+                    : A.trend === "declining" ? "Coverage erodes over the next 4 weeks"
+                    : "Coverage holds across the next 4 weeks";
+  const nextBreak    = A.firstBreak;
+  const overallKind  = A.headline;               // ok | watch | risk
+  const overallLabel = RR_FC_LABEL[overallKind];
+  const overallClass = RR_FC_CLASS[overallKind]; // legacy css class names
+  const fmtIsoShort  = (iso) => (iso ? fmtMD(new Date(iso + "T12:00:00")) : "");
 
   // Narrative · plain, calm sentences. No alarm color in the prose;
-  // status carries that signal via the pill + bars.
+  // status carries that signal via the pill + bars. Shows its work on
+  // effective supply, and never presents a past hire-by as actionable.
+  const rx = A.prescription;
   let narrative;
   if (!nextBreak) {
     narrative = `Coverage holds across your full 13-week horizon. The 4-week look-ahead shows
-      <strong>${horizonAvail.toLocaleString()}</strong> drivers available against
-      <strong>${horizonNeeded.toLocaleString()}</strong> needed — every week sits at or above 95% cushion.
+      <strong>${A.horizon.effAvail.toLocaleString()}</strong> effective drivers against
+      <strong>${A.horizon.needed.toLocaleString()}</strong> needed — every week sits at or above 95% cushion.
       Hire-by dates from the planner stay quiet through this window.`;
   } else {
-    const breakKind = nextBreak.derivedKind === "risk" ? "critical" : "tight";
-    const breakShort = Math.max(0, nextBreak.needed - nextBreak.avail);
+    const breakKind = nextBreak.kind === "risk" ? "critical" : "watch";
+    const breakShort = Math.max(0, nextBreak.needed - nextBreak.effAvail);
     const idx = nextBreak.idx;
     const lead = idx === 0 ? "this week" : `in ${idx} week${idx === 1 ? "" : "s"}`;
+    const s = nextBreak.supply;
+    const supplyBits = [];
+    if (s.notReadyOnboarding) supplyBits.push(`${s.notReadyOnboarding} onboarding not yet road-ready`);
+    if (s.attritionLoss)      supplyBits.push(`${s.attritionLoss} projected attrition`);
+    if (s.calloutLoss)        supplyBits.push(`${s.calloutLoss} expected callout${s.calloutLoss === 1 ? "" : "s"} at your ${Math.round((rates?.calloutRate || 0) * 100)}% observed rate`);
+    const supplyTxt = supplyBits.length
+      ? ` Effective supply starts from ${s.rawAvail.toLocaleString()} on payroll minus ${supplyBits.join(", ")}.`
+      : "";
+    let actionTxt = "";
+    if (rx.action === "hire") {
+      actionTxt = `Hiring <strong>${rx.hires}</strong> by <strong>${fmtIsoShort(rx.deadlineIso)}</strong> closes every week hiring can still reach.`;
+      if (rx.unreachable.length) {
+        const names = rx.unreachable.map((u) => escapeHtml(u.label)).join(", ");
+        actionTxt += ` <strong>${names}</strong> ${rx.unreachable.length === 1 ? "is" : "are"} already inside the
+          ${RR_OKAMI_HIRE_LEAD_DAYS}-day hire window — cover ${rx.unreachable.length === 1 ? "it" : "them"} with OT,
+          voluntary 5th days, or flex instead.`;
+      }
+    } else if (rx.action === "mitigate") {
+      actionTxt = `The hire window for every short week has passed — a hire started today is road-ready
+        around <strong>${fmtIsoShort(rx.readyByIso)}</strong>. Cover the gap with OT, voluntary 5th days,
+        or flex, and hire now to protect the weeks after that.`;
+    }
     narrative = `Your next ${breakKind} window is <strong>${escapeHtml(nextBreak.label)}</strong>
-      (${escapeHtml(nextBreak.dates)}) — ${lead}. The planner sees
+      (${escapeHtml(nextBreak.dates)}) — ${lead}. The forecast sees
       <strong>${nextBreak.needed.toLocaleString()}</strong> drivers needed against
-      <strong>${nextBreak.avail.toLocaleString()}</strong> available, leaving
-      <strong>${breakShort.toLocaleString()}</strong> open. ${nextBreak.hireBy && nextBreak.hireBy !== "—"
-        ? `Hire-by date in the 13-week plan: <strong>${escapeHtml(nextBreak.hireBy)}</strong>.`
-        : `The planner flags this as <em>${escapeHtml(nextBreak.statusText)}</em> — review the strategy on the Targets page.`}`;
+      <strong>${nextBreak.effAvail.toLocaleString()}</strong> effective, leaving
+      <strong>${breakShort.toLocaleString()}</strong> open.${supplyTxt} ${actionTxt}`;
   }
 
   // 13-week strip · one bar per week. Height encodes drivers needed
-  // (relative to the peak) so peak weeks visually stand out; color
-  // encodes status (ok / tight / risk).
-  const maxNeeded = Math.max(1, ...weeks.map((w) => w.needed));
-  const stripHtml = weeks.map((w) => {
+  // (relative to the peak); the solid cap on top is the UNCOVERED slice,
+  // so a big-but-covered week no longer looks scarier than a small-but-
+  // short one. Color encodes the shared coverage vocabulary.
+  const maxNeeded = Math.max(1, ...aw.map((w) => w.needed));
+  const stripHtml = aw.map((w) => {
     const heightPx = 14 + Math.round((w.needed / maxNeeded) * 46); // 14–60px
+    const shortPx = w.gap < 0 && w.needed > 0
+      ? Math.max(2, Math.round(heightPx * Math.min(1, -w.gap / w.needed)))
+      : 0;
     const isCurrent = w.idx === 0;
-    const covPct = w.needed > 0 ? Math.round((w.avail / w.needed) * 100) : 100;
-    const titleAttr = `${w.label} · ${w.dates} · ${w.needed} needed / ${w.avail} avail · ${covPct}% coverage`;
+    const titleAttr = `${w.label} · ${w.dates} · ${w.needed} needed / ${w.effAvail} effective · ${w.coveragePct}% coverage`
+      + (w.gap < 0 ? ` · ${-w.gap} open` : "");
     return `<div class="rr-intel-strip-bar${isCurrent ? " is-current" : ""}" title="${escapeHtml(titleAttr)}">
-      <div class="rr-intel-strip-fill ${w.derivedKind}" style="height:${heightPx}px"></div>
+      <div class="rr-intel-strip-fill ${RR_FC_CLASS[w.kind]}" style="height:${heightPx}px">${
+        shortPx ? `<div class="rr-intel-strip-short" style="height:${shortPx}px"></div>` : ""}</div>
       <div class="rr-intel-strip-label">${escapeHtml(w.label)}</div>
     </div>`;
   }).join("");
 
-  // Detail fact card · only when there's a next break to talk about.
+  // Detail fact card · shows the effective-supply work line by line so
+  // the number is auditable, and never shows a past hire-by date as if
+  // it were still an action.
+  const supplyFacts = (w) => {
+    const s = w.supply;
+    const rows = [`<div class="rr-intel-detail-fact"><span>On payroll</span><span>${s.rawAvail.toLocaleString()}</span></div>`];
+    if (s.notReadyOnboarding) rows.push(`<div class="rr-intel-detail-fact"><span>− Onboarding not ready</span><span>${s.notReadyOnboarding}</span></div>`);
+    if (s.attritionLoss)      rows.push(`<div class="rr-intel-detail-fact"><span>− Projected attrition</span><span>${s.attritionLoss}</span></div>`);
+    if (s.calloutLoss)        rows.push(`<div class="rr-intel-detail-fact"><span>− Expected callouts</span><span>${s.calloutLoss}</span></div>`);
+    rows.push(`<div class="rr-intel-detail-fact"><span>Effective</span><span>${w.effAvail.toLocaleString()}</span></div>`);
+    return rows.join("");
+  };
+  const hireByFact = (w) => {
+    if (w.gap >= 0 || !w.hireByIso) return "";
+    return w.hireByStatus === "past"
+      ? `<div class="rr-intel-detail-fact"><span>Hire by</span><span class="is-past-due">${escapeHtml(fmtIsoShort(w.hireByIso))} · window passed</span></div>`
+      : `<div class="rr-intel-detail-fact"><span>Hire by</span><span>${escapeHtml(fmtIsoShort(w.hireByIso))}</span></div>`;
+  };
   const detailHtml = nextBreak ? `
     <div class="rr-intel-detail">
       <div class="rr-intel-detail-narrative">${narrative}</div>
@@ -3408,13 +3532,11 @@ function _rrIntelRenderRiskForecast(view) {
         <div class="rr-intel-detail-fact"><span>Week</span><span>${escapeHtml(nextBreak.label)}</span></div>
         <div class="rr-intel-detail-fact"><span>Dates</span><span>${escapeHtml(nextBreak.dates)}</span></div>
         <div class="rr-intel-detail-fact"><span>Needed</span><span>${nextBreak.needed.toLocaleString()}</span></div>
-        <div class="rr-intel-detail-fact"><span>Available</span><span>${nextBreak.avail.toLocaleString()}</span></div>
-        <div class="rr-intel-detail-fact"><span>Open</span><span>${Math.max(0, nextBreak.needed - nextBreak.avail).toLocaleString()}</span></div>
-        <div class="rr-intel-detail-fact"><span>Coverage</span><span>${nextBreak.needed > 0 ? Math.round((nextBreak.avail / nextBreak.needed) * 100) : 100}%</span></div>
-        ${nextBreak.hireBy && nextBreak.hireBy !== "—"
-          ? `<div class="rr-intel-detail-fact"><span>Hire by</span><span>${escapeHtml(nextBreak.hireBy)}</span></div>`
-          : ""}
-        <div class="rr-intel-detail-fact"><span>Status</span><span>${nextBreak.derivedKind === "risk" ? "At risk" : "Tight"}</span></div>
+        ${supplyFacts(nextBreak)}
+        <div class="rr-intel-detail-fact"><span>Open</span><span>${Math.max(0, -nextBreak.gap).toLocaleString()}</span></div>
+        <div class="rr-intel-detail-fact"><span>Coverage</span><span>${nextBreak.coveragePct}%</span></div>
+        ${hireByFact(nextBreak)}
+        <div class="rr-intel-detail-fact"><span>Status</span><span>${RR_FC_LABEL[nextBreak.kind]}</span></div>
       </aside>
     </div>
   ` : `
@@ -3422,7 +3544,7 @@ function _rrIntelRenderRiskForecast(view) {
       <div class="rr-intel-detail-narrative">${narrative}</div>
       <aside class="rr-intel-detail-facts">
         <div class="rr-intel-detail-fact"><span>This week needed</span><span>${thisWeek.needed.toLocaleString()}</span></div>
-        <div class="rr-intel-detail-fact"><span>Available</span><span>${thisWeek.avail.toLocaleString()}</span></div>
+        ${supplyFacts(thisWeek)}
         <div class="rr-intel-detail-fact"><span>Coverage</span><span>${coveragePct}%</span></div>
         <div class="rr-intel-detail-fact"><span>4-wk trend</span><span>${escapeHtml(trendLabel)}</span></div>
       </aside>
@@ -3435,11 +3557,11 @@ function _rrIntelRenderRiskForecast(view) {
         <p class="rr-intel-view-eyebrow">Intelligence · Risk forecast</p>
         <h2 class="rr-intel-view-title">
           Risk forecast
-          <span class="rr-intel-headline-pill ${overallKind}"><span class="dot"></span>${overallLabel}</span>
+          <span class="rr-intel-headline-pill ${overallClass}"><span class="dot"></span>${overallLabel}</span>
         </h2>
         <p class="rr-intel-view-sub">${window._rrSimResultsByWeek
-          ? "Reading from your last <strong>Simulate 13 weeks</strong> run — each week's available count is the actual driver pool minus anyone with an approved time-off request that covers it."
-          : "Smart Fill projections of coverage across your 13-week plan. Numbers come straight from your live OKAMI grid — click <strong>Simulate 13 weeks</strong> on the Targets page to project against approved PTO + time-off."}</p>
+          ? "Reading from your last <strong>Simulate 13 weeks</strong> run — each week starts from the actual driver pool minus approved time-off, then folds in your observed callout and attrition rates."
+          : "Effective-supply projections across your 13-week plan — payroll minus onboarding ramp, projected attrition, and expected callouts. Click <strong>Simulate 13 weeks</strong> on the Targets page to fold in approved PTO + time-off."}</p>
       </div>
       <button type="button" class="rr-intel-view-close" data-rr-intel-close title="Close" aria-label="Close">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -3450,7 +3572,7 @@ function _rrIntelRenderRiskForecast(view) {
       <div class="rr-intel-kpi">
         <div class="rr-intel-kpi-label">Coverage · this week</div>
         <div class="rr-intel-kpi-val ${coveragePct < 90 ? "is-warn" : ""}">${coveragePct}<span style="font-size:13px;font-weight:500;color:var(--text-subtle)">%</span></div>
-        <div class="rr-intel-kpi-sub">${thisWeek.avail.toLocaleString()} of ${thisWeek.needed.toLocaleString()} drivers</div>
+        <div class="rr-intel-kpi-sub">${thisWeek.effAvail.toLocaleString()} of ${thisWeek.needed.toLocaleString()} effective drivers</div>
       </div>
       <div class="rr-intel-kpi">
         <div class="rr-intel-kpi-label">4-week trend</div>
@@ -3458,13 +3580,13 @@ function _rrIntelRenderRiskForecast(view) {
         <div class="rr-intel-kpi-sub">${trendDetail}</div>
       </div>
       <div class="rr-intel-kpi">
-        <div class="rr-intel-kpi-label">Open over 4 weeks</div>
-        <div class="rr-intel-kpi-val ${horizonGap > 0 ? "is-warn" : ""}">${horizonGap.toLocaleString()}</div>
-        <div class="rr-intel-kpi-sub">Drivers short, summed</div>
+        <div class="rr-intel-kpi-label">Short over 4 weeks</div>
+        <div class="rr-intel-kpi-val ${A.horizon.driverWeeksShort > 0 ? "is-warn" : ""}">${A.horizon.driverWeeksShort.toLocaleString()}</div>
+        <div class="rr-intel-kpi-sub">Driver-weeks (weekly gaps summed — not people to hire)</div>
       </div>
       <div class="rr-intel-kpi">
         <div class="rr-intel-kpi-label">Next break</div>
-        <div class="rr-intel-kpi-val ${overallKind === "risk" ? "is-risk" : (overallKind === "tight" ? "is-warn" : "")}">${nextBreak ? escapeHtml(nextBreak.label) : "None"}</div>
+        <div class="rr-intel-kpi-val ${overallKind === "risk" ? "is-risk" : (overallKind === "watch" ? "is-warn" : "")}">${nextBreak ? escapeHtml(nextBreak.label) : "None"}</div>
         <div class="rr-intel-kpi-sub">${nextBreak ? escapeHtml(nextBreak.dates) + " · " + (nextBreak.idx === 0 ? "this week" : "in " + nextBreak.idx + " wk" + (nextBreak.idx === 1 ? "" : "s")) : "Clear horizon"}</div>
       </div>
     </div>
@@ -3472,7 +3594,7 @@ function _rrIntelRenderRiskForecast(view) {
     <div class="rr-intel-strip-section">
       <div class="rr-intel-section-head">
         <h3 class="rr-intel-section-title">13-week risk strip</h3>
-        <span class="rr-intel-section-aside">Bar height = drivers needed · color = coverage status</span>
+        <span class="rr-intel-section-aside">Bar height = drivers needed · solid cap = uncovered · color = coverage status</span>
       </div>
       <div class="rr-intel-strip" role="list" aria-label="13-week risk bars">${stripHtml}</div>
     </div>
@@ -3483,7 +3605,9 @@ function _rrIntelRenderRiskForecast(view) {
       <span class="rr-intel-foot-bullet"><span class="dot"></span>${window._rrSimResultsByWeek
         ? "Simulation ran " + (window._rrSimResultsRanAt ? new Date(window._rrSimResultsRanAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "just now") + " — PTO + time-off folded in."
         : "Reads from the live 13-week plan — click Simulate 13 weeks on Targets for the PTO-aware projection."}</span>
-      <span>Want a deeper analysis? Run the solver against the next 4 weeks from Targets → Smart Fill.</span>
+      <span>${rates
+        ? `Observed rates folded in: ${Math.round((rates.calloutRate || 0) * 100)}% callouts (60d) · ${(100 * (rates.weeklyAttritionRate || 0)).toFixed(1)}%/wk attrition (90d) · ${(rates.onboarding || []).length} onboarding gated by ready date.`
+        : "Loading observed callout + attrition rates…"}</span>
     </footer>
   `;
 }
@@ -42002,6 +42126,18 @@ async function _renderOkamiLiveImpl() {
     ? Array.from(okTbody.querySelectorAll("tr:not(.okami-detail)"))
     : [];
 
+  // Kick the shared forecast-rates load (drivers-per-route ratio, callout /
+  // attrition rates). First render may run on defaults; the repaint hooks
+  // inside the loader bring the dependent surfaces up to date.
+  try { _rrEnsureForecastRates(); } catch (_) {}
+  // Demand formula is shared with forecast-core: ceil(peak × dpr × (1+pad)).
+  // dpr comes from hiring settings (default 2 = 1 primary + 1 backup) so the
+  // planner and the staffing outlook finally agree on the ratio.
+  const _fcDpr = window._rrForecastRates?.driversPerRoute ?? 2;
+  // Data model published for the Risk Forecast + gap card (they read THIS,
+  // not the table's DOM). Rebuilt whole on every render.
+  const modelWeeks = [];
+
   for (let w = 0; w < RR_OKAMI_WEEKS; w++) {
     const row = allOkamiRows[w];
     if (!row) continue;
@@ -42016,12 +42152,7 @@ async function _renderOkamiLiveImpl() {
       if (t > routesMax) routesMax = t;
     }
 
-    // Drivers Needed = ceil(routes_max × 2 × (1 + plan_pad/100)).
-    // 2× = the per-route baseline (1 primary + 1 backup); pad layers
-    // additional buffer for callouts/turnover at the staffing-plan level.
-    const needed = routesMax > 0
-      ? Math.ceil(routesMax * 2 * (1 + padPct / 100))
-      : 0;
+    const needed  = rrDriversNeeded(routesMax, { driversPerRoute: _fcDpr, padPct });
     const gap     = _okamiActiveCount - needed;
     const hireBy  = addDays(weekStart, -RR_OKAMI_HIRE_LEAD_DAYS);
 
@@ -42074,29 +42205,49 @@ async function _renderOkamiLiveImpl() {
     }
 
     const hireByEl = tdCells[6]?.querySelector(".plan-calc");
+    const hireByText = gap >= 0 ? "—" : fmtMD(hireBy);
     if (hireByEl) {
-      hireByEl.textContent = gap >= 0 ? "—" : fmtMD(hireBy);
+      hireByEl.textContent = hireByText;
     }
 
+    // Status text uses the single forecast vocabulary (audit #84):
+    // On track / Watch / At risk — same words as the Risk Forecast view
+    // and the gap card, driven by the same coverage thresholds.
+    const statusText = gap >= 0
+      ? "On track"
+      : RR_FC_LABEL[(needed > 0 && _okamiActiveCount / needed < 0.80) ? "risk" : "watch"];
     const statusPill = tdCells[7]?.querySelector(".plan-status-pill");
     if (statusPill) {
       statusPill.classList.remove("ok", "warn", "bad");
-      const text = gap >= 0 ? "On track" : (gap >= -10 ? "Tight" : "Critical");
-      statusPill.outerHTML = `<span class="u-sm-muted">${text}</span>`;
+      statusPill.outerHTML = `<span class="u-sm-muted">${statusText}</span>`;
     }
+
+    modelWeeks.push({
+      idx: w,
+      weekStartIso: fmtIsoDate(weekStart),
+      label: `W${isoWeekNumber(weekStart)}`,
+      dates: `${fmtMD(weekStart)}–${weekEnd.getDate()}`,
+      routesMax, needed,
+      avail: _okamiActiveCount,
+      gap,
+      hireBy: hireByText,
+      statusText,
+      statusKind: gap >= 0 ? "ok" : (needed > 0 && _okamiActiveCount / needed < 0.80 ? "risk" : "tight"),
+    });
   }
 
-  // Update top hires-needed summary cell, if present.
-  let totalHires = 0;
-  for (let w = 0; w < RR_OKAMI_WEEKS; w++) {
-    const row = allOkamiRows[w];
-    const gapEl = row?.querySelectorAll("td")[4]?.querySelector(".plan-gap");
-    if (!gapEl) continue;
-    const g = parseInt(gapEl.textContent, 10);
-    if (Number.isFinite(g) && g < 0) totalHires += -g;
-  }
+  window._rrOkamiModel = { startIso: _okamiStart, weeks: modelWeeks };
+
+  // Update top hires-needed summary cell, if present. One hire covers a
+  // seat in every subsequent week, so this is the DEEPEST weekly shortfall
+  // — never the sum of weekly gaps (that unit is driver-weeks).
+  let peakHires = 0;
+  for (const mw of modelWeeks) if (mw.gap < 0 && -mw.gap > peakHires) peakHires = -mw.gap;
   const sumValue = document.querySelector(".okami-summary-grid .okami-sum:first-child .okami-sum-value");
-  if (sumValue) sumValue.textContent = totalHires;
+  if (sumValue) sumValue.textContent = peakHires;
+
+  // Keep the Targets gap card in lockstep with the fresh model.
+  try { if (typeof _rrRefreshTargetsGapCard === "function") _rrRefreshTargetsGapCard(); } catch (_) {}
 }
 
 let _okamiBound = false;
@@ -43444,30 +43595,38 @@ function _rrRefreshTargetsGapCard() {
   let weeks = [];
   try { weeks = (_rrReadOkamiWeeks() || []).filter((w) => Number.isFinite(w.gap)); } catch (_) {}
   if (!weeks.length) { card.hidden = true; return; }
-  let worstWeek = weeks[0];
-  for (const w of weeks) if (w.gap < worstWeek.gap) worstWeek = w;
-  const worst = worstWeek.gap;
+  // Shared forecast-core assessment (same one the Risk Forecast renders
+  // from): effective supply + hire-by reachability. Rates load lazily and
+  // this card repaints when they land.
+  _rrEnsureForecastRates();
+  let A = null;
+  try { A = _rrAssessOkamiPlan(weeks); } catch (_) {}
+  if (!A || !A.worstWeek) { card.hidden = true; return; }
+  const worst = A.worstWeek.gap;
   card.hidden = false;
   const mainEl = document.getElementById("rr-tgt-gap-card-main");
   if (mainEl) mainEl.textContent = `${worst > 0 ? "+" : ""}${worst} Driver${Math.abs(worst) === 1 ? "" : "s"}`;
   card.classList.toggle("rr-tgt-gap-card--pos", worst >= 0);
-  // Prescription line — the one action the number implies. N covers the
-  // deepest short week; the date comes from the FIRST short week's hire-by
-  // (hiring by the earliest deadline covers every later break too).
+  // Prescription line — the one action the number implies. Hire count =
+  // deepest shortfall among weeks hiring can still reach (one hire fills a
+  // seat in every later week, so weekly gaps are never summed); deadline =
+  // the earliest reachable hire-by. Once every short week is inside the
+  // hire lead time, "hire by <past date>" would be fiction — say what's
+  // actually left: mitigation.
   const subEl = document.getElementById("rr-tgt-gap-card-sub");
-  const firstShort = weeks.find((w) => w.gap < 0) || null;
+  const rx = A.prescription;
+  const fmtIsoShort = (iso) => (iso ? fmtMD(new Date(iso + "T12:00:00")) : "");
   if (subEl) {
-    if (worst < 0) {
-      const n = Math.abs(worst);
-      const hireBy = firstShort && firstShort.hireBy && firstShort.hireBy !== "—" ? firstShort.hireBy : "";
-      subEl.textContent = hireBy
-        ? `Hire ${n} by ${hireBy}`
-        : `Hire ${n} for ${(firstShort && (firstShort.label || firstShort.dates)) || "the short week"}`;
-      subEl.hidden = false;
+    if (rx.action === "hire") {
+      subEl.textContent = rx.unreachable.length
+        ? `Hire ${rx.hires} by ${fmtIsoShort(rx.deadlineIso)} · ${rx.unreachable.length} wk${rx.unreachable.length === 1 ? "" : "s"} need OT/flex`
+        : `Hire ${rx.hires} by ${fmtIsoShort(rx.deadlineIso)}`;
+    } else if (rx.action === "mitigate") {
+      subEl.textContent = `Hire window passed — cover ${rx.shortNow} with OT/flex`;
     } else {
       subEl.textContent = "Staffed through the plan";
-      subEl.hidden = false;
     }
+    subEl.hidden = false;
   }
   // A short plan gets a click-through to the full Risk forecast analysis
   // (per-week narrative, hire-by dates, simulation deltas).

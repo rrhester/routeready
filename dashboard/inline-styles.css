@@ -17899,6 +17899,18 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .rr-intel-strip-fill.ok   {background:rgba(34,162,111,.28); border:1px solid rgba(34,162,111,.45)}
           #view-schedule .rr-intel-strip-fill.tight{background:rgba(217,119,6,.28);  border:1px solid rgba(217,119,6,.45)}
           #view-schedule .rr-intel-strip-fill.risk {background:rgba(196,43,28,.24);  border:1px solid rgba(196,43,28,.45)}
+          /* Uncovered slice · solid cap on top of the bar sized to the
+             week's open shortfall, so bar height (demand) and actual risk
+             (gap) read separately at a glance. */
+          #view-schedule .rr-intel-strip-fill{position:relative;overflow:hidden}
+          #view-schedule .rr-intel-strip-short{
+            position:absolute;top:0;left:0;right:0;
+            background:rgba(196,43,28,.85);border-radius:3px 3px 0 0;
+          }
+          /* Hire-by deadlines that have already passed are facts, not
+             actions — render them in the alarm color so they can't be
+             misread as a live to-do. */
+          #view-schedule .rr-intel-detail-fact .is-past-due{color:var(--red);font-weight:600}
           #view-schedule .rr-intel-strip-label{
             font-size:var(--fs-10);font-weight:600;color:var(--text-muted);
             font-variant-numeric:tabular-nums;
