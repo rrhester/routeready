@@ -54,7 +54,12 @@
 // the fetch matcher is an exact-path allowlist (the old endsWith("") check
 // matched every same-origin GET). Bumped so installed driver PWAs purge
 // the old shell and pick up the new app.js + sw.js.
-const SHELL_CACHE = "rr-app-shell-v137";
+// v138 · Ink chrome: the header and home hero move from wall-to-wall
+// brand blue to the deep navy of the app icon tile (--rr-ink-800/900);
+// blue is demoted to the accent (CTAs, active states, avatar, check-in
+// card) so actions pop against the chrome. theme-color follows. Bumped
+// so installed driver PWAs pick up the new CSS + index.html.
+const SHELL_CACHE = "rr-app-shell-v138";
 const SHELL_FILES = [
   "./",
   "index.html",
