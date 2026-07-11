@@ -18165,7 +18165,7 @@ async function _refreshTodayPlanData() {
   //
   // overtime_intelligence() drives the "until OT" sub-line on each
   // roster row. Pulled in parallel; a failure here just hides the line.
-  const [attRes, rosterRes, otRes, planRes] = await Promise.allSettled([
+  const [attRes, rosterRes, otRes, planRes, fleetRes, pipeRes] = await Promise.allSettled([
     isToday ? sb.rpc("today_attendance") : Promise.resolve({ data: null, error: null }),
     sb.rpc("today_roster", { p_date: viewIso }),
     sb.rpc("overtime_intelligence"),
@@ -18173,6 +18173,10 @@ async function _refreshTodayPlanData() {
     // live shift state for the current date only, so skip it on
     // future-day views (the renderer paints a static note instead).
     isToday ? sb.rpc("today_plan") : Promise.resolve({ data: null, error: null }),
+    // Command-center tiles: current-state fleet readiness + hiring pipeline.
+    // Date-independent; a failure just hides the tile.
+    sb.rpc("fleet_execution_summary"),
+    sb.rpc("pipeline_counts"),
   ]);
 
   const attData    = (attRes.status === "fulfilled"    ? attRes.value.data    : null);
@@ -18186,6 +18190,8 @@ async function _refreshTodayPlanData() {
 
   const planData  = (planRes.status === "fulfilled" ? planRes.value.data  : null);
   const planError = (planRes.status === "fulfilled" ? planRes.value.error : planRes.reason);
+  const fleetData = (fleetRes.status === "fulfilled" ? fleetRes.value.data : null);
+  const pipeData  = (pipeRes.status === "fulfilled"  ? pipeRes.value.data  : null);
 
   if (attData)  _tpCacheWrite(_TP_CACHE_KEYS.att,  attData);
   if (planData) _tpCacheWrite(_TP_CACHE_KEYS.plan, planData);
@@ -18206,7 +18212,7 @@ async function _refreshTodayPlanData() {
   // Update the meta line (page-level scheduled-driver count + on-app).
   // Pass rosterData so the future-day KPIs can synthesize counts the
   // same way the roster card does.
-  try { _renderTpMeta(attData, rosterData, otData, planData); } catch (e) { console.warn("tp meta:", e); }
+  try { _renderTpMeta(attData, rosterData, otData, planData, fleetData, pipeData); } catch (e) { console.warn("tp meta:", e); }
 
   // The single unified roster card replaces the old four-card layout.
   try { _renderTpUnifiedRoster(attData, rosterData, attError || rosterError, otData); }
@@ -18773,7 +18779,7 @@ function _tpRowActions(r) {
 }
 
 // Top-of-page overview — a quiet SaaS summary strip above the roster.
-function _renderTpMeta(attData, rosterData, otData, planData) {
+function _renderTpMeta(attData, rosterData, otData, planData, fleetData, pipeData) {
   const el = document.getElementById("rr-tp-kpis");
   if (!el) return;
   const viewIso = (typeof _tpDateIso === "string" && _tpDateIso) || (typeof _tpToday === "function" ? _tpToday() : null);
@@ -18815,12 +18821,27 @@ function _renderTpMeta(attData, rosterData, otData, planData) {
   const dlList = (!planning && planData) ? (planData.dl_expiring || []) : [];
   const dlUrgent = dlList.some((d) => Number(d.days_left) <= 0);
   const dlSoon = dlList.some((d) => Number(d.days_left) <= 2);
+  // Current-state fleet readiness (VORR) + hiring pipeline — date-independent.
+  const vorr = (fleetData && fleetData.vorr) || null;
+  const fleetPct = vorr && vorr.percent != null ? Math.round(Number(vorr.percent)) : null;
+  const fleetGrounded = vorr ? Number(vorr.grounded) || 0 : 0;
+  const fleetBranded = vorr ? Number(vorr.total_branded) || 0 : 0;
+  const pipeCounts = Array.isArray(pipeData) ? pipeData : [];
+  const pipeMap = Object.fromEntries(pipeCounts.map((r) => [r.stage, Number(r.count) || 0]));
+  const inPipeline = (pipeMap.applied || 0) + (pipeMap.screened || 0) + (pipeMap.booking_pending || 0);
   const hasOpsSignal = (openRoutes || 0) > 0 || dlList.length > 0;
-  if (!rows.length && !hasOpsSignal) {
+  // Fleet readiness + pipeline are date-independent, so they should surface even
+  // on a no-shift day (e.g. Sunday) with grounded vans or active candidates.
+  const hasCurrentState = (vorr && fleetBranded > 0 && fleetPct != null) || inPipeline > 0;
+  if (!rows.length && !hasOpsSignal && !hasCurrentState) {
     el.innerHTML = `<span class="tp-kpi-empty">${escapeHtml(planning ? "No shifts scheduled for this day." : "No shifts scheduled today.")}</span>`;
     _renderSchedTodayKpisMirror(null);
     return;
   }
+  // On a no-shift day we still fall through (there's fleet/pipeline/open-route
+  // signal) — but suppress the day-specific pills so the strip shows only the
+  // meaningful current-state signals, not a row of zeros.
+  const dayPills = rows.length > 0;
   const waves = new Set(rows.map(r => r.wave_index ?? 0));
   const extras = rows.filter(r => r.is_cushion).length;
   const flagged = rows.filter(r => ["tardy","ncns","missed_reported"].includes(r.computed_outcome) && !r.decision).length;
@@ -18828,13 +18849,15 @@ function _renderTpMeta(attData, rosterData, otData, planData) {
   const navy = "#1E293B";
   const pct = rows.length ? Math.round((checkedIn / rows.length) * 100) : 0;
   const summary = {
-    scheduled:  { value: rows.length, sub: `${waves.size} wave${waves.size === 1 ? "" : "s"}`,    tone: "navy" },
-    attendance: { value: planning ? "—" : checkedIn, sub: planning ? "Planning mode" : `${pct}% checked in`, tone: "navy" },
-    extras:     { value: extras, sub: "Cushion / Ex drivers", tone: "navy" },
-    openroutes: openRoutes == null ? null : { value: openRoutes, sub: openRoutes === 0 ? "All routes covered" : "to assign", tone: openRoutes > 0 ? "red" : "green", onclick: "goto('schedule')", navTitle: "Open the schedule to assign routes" },
-    otrisk:     otSum ? { value: otRiskCount, sub: otExposure ? `~$${Math.round(otExposure).toLocaleString()} OT exposure` : `${otActive} in OT · ${otProjected} projected`, tone: otActive > 0 ? "red" : (otProjected > 0 ? "amber" : "navy"), onclick: "goto('schedule')", navTitle: "Overtime intelligence on the schedule" } : null,
+    scheduled:  dayPills ? { value: rows.length, sub: `${waves.size} wave${waves.size === 1 ? "" : "s"}`,    tone: "navy" } : null,
+    attendance: dayPills ? { value: planning ? "—" : checkedIn, sub: planning ? "Planning mode" : `${pct}% checked in`, tone: "navy" } : null,
+    extras:     dayPills ? { value: extras, sub: "Cushion / Ex drivers", tone: "navy" } : null,
+    openroutes: (openRoutes == null || (!dayPills && openRoutes === 0)) ? null : { value: openRoutes, sub: openRoutes === 0 ? "All routes covered" : "to assign", tone: openRoutes > 0 ? "red" : "green", onclick: "goto('schedule')", navTitle: "Open the schedule to assign routes" },
+    otrisk:     (otSum && (dayPills || otRiskCount > 0)) ? { value: otRiskCount, sub: otExposure ? `~$${Math.round(otExposure).toLocaleString()} OT exposure` : `${otActive} in OT · ${otProjected} projected`, tone: otActive > 0 ? "red" : (otProjected > 0 ? "amber" : "navy"), onclick: "goto('schedule')", navTitle: "Overtime intelligence on the schedule" } : null,
     license:    dlList.length ? { value: dlList.length, sub: "license expiring ≤7 days", tone: dlUrgent ? "red" : (dlSoon ? "amber" : "navy"), onclick: "window._rrGotoSubIntent={view:'schedule',sub:'roster'};goto('schedule')", navTitle: "Open the roster" } : null,
-    attention:  { value: planning ? "—" : flagged, sub: planning ? "Live attendance starts day-of" : (flagged > 0 ? `${flagged} decision${flagged === 1 ? "" : "s"} to review` : "No open attendance decisions"), tone: flagged > 0 ? "red" : "navy", spark: !planning },
+    fleet:      (vorr && fleetBranded > 0 && fleetPct != null) ? { value: `${fleetPct}%`, sub: fleetGrounded > 0 ? `${fleetGrounded} grounded` : "fleet ready", tone: vorr.threshold_status === "critical" ? "red" : (vorr.threshold_status === "warning" ? "amber" : "green"), onclick: "goto('fleet2')", navTitle: "Open Fleet" } : null,
+    pipeline:   pipeCounts.length ? { value: inPipeline, sub: "in hiring pipeline", tone: "navy", onclick: "goto('pipeline')", navTitle: "Open the hiring pipeline" } : null,
+    attention:  dayPills ? { value: planning ? "—" : flagged, sub: planning ? "Live attendance starts day-of" : (flagged > 0 ? `${flagged} decision${flagged === 1 ? "" : "s"} to review` : "No open attendance decisions"), tone: flagged > 0 ? "red" : "navy", spark: !planning } : null,
   };
   const toneColor = (t) => t === "red" ? "var(--red)" : t === "amber" ? "var(--amber)" : t === "green" ? "var(--green)" : navy;
   const pill = (key, label, val) => {
@@ -18852,6 +18875,8 @@ function _renderTpMeta(attData, rosterData, otData, planData) {
     + pill("openroutes", openRoutes === 1 ? "Open route" : "Open routes", summary.openroutes)
     + pill("otrisk",     "OT risk",    summary.otrisk)
     + pill("license",    dlList.length === 1 ? "License" : "Licenses", summary.license)
+    + pill("fleet",      "Fleet ready", summary.fleet)
+    + pill("pipeline",   inPipeline === 1 ? "Candidate" : "Candidates", summary.pipeline)
     + pill("attention",  flagged === 1 ? "Open decision" : "Open decisions", summary.attention);
   _renderSchedTodayKpisMirror(el.innerHTML);
   _fillTpSparklines();
