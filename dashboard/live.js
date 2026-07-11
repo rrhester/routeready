@@ -18830,11 +18830,18 @@ function _renderTpMeta(attData, rosterData, otData, planData, fleetData, pipeDat
   const pipeMap = Object.fromEntries(pipeCounts.map((r) => [r.stage, Number(r.count) || 0]));
   const inPipeline = (pipeMap.applied || 0) + (pipeMap.screened || 0) + (pipeMap.booking_pending || 0);
   const hasOpsSignal = (openRoutes || 0) > 0 || dlList.length > 0;
-  if (!rows.length && !hasOpsSignal) {
+  // Fleet readiness + pipeline are date-independent, so they should surface even
+  // on a no-shift day (e.g. Sunday) with grounded vans or active candidates.
+  const hasCurrentState = (vorr && fleetBranded > 0 && fleetPct != null) || inPipeline > 0;
+  if (!rows.length && !hasOpsSignal && !hasCurrentState) {
     el.innerHTML = `<span class="tp-kpi-empty">${escapeHtml(planning ? "No shifts scheduled for this day." : "No shifts scheduled today.")}</span>`;
     _renderSchedTodayKpisMirror(null);
     return;
   }
+  // On a no-shift day we still fall through (there's fleet/pipeline/open-route
+  // signal) — but suppress the day-specific pills so the strip shows only the
+  // meaningful current-state signals, not a row of zeros.
+  const dayPills = rows.length > 0;
   const waves = new Set(rows.map(r => r.wave_index ?? 0));
   const extras = rows.filter(r => r.is_cushion).length;
   const flagged = rows.filter(r => ["tardy","ncns","missed_reported"].includes(r.computed_outcome) && !r.decision).length;
@@ -18842,15 +18849,15 @@ function _renderTpMeta(attData, rosterData, otData, planData, fleetData, pipeDat
   const navy = "#1E293B";
   const pct = rows.length ? Math.round((checkedIn / rows.length) * 100) : 0;
   const summary = {
-    scheduled:  { value: rows.length, sub: `${waves.size} wave${waves.size === 1 ? "" : "s"}`,    tone: "navy" },
-    attendance: { value: planning ? "—" : checkedIn, sub: planning ? "Planning mode" : `${pct}% checked in`, tone: "navy" },
-    extras:     { value: extras, sub: "Cushion / Ex drivers", tone: "navy" },
-    openroutes: openRoutes == null ? null : { value: openRoutes, sub: openRoutes === 0 ? "All routes covered" : "to assign", tone: openRoutes > 0 ? "red" : "green", onclick: "goto('schedule')", navTitle: "Open the schedule to assign routes" },
-    otrisk:     otSum ? { value: otRiskCount, sub: otExposure ? `~$${Math.round(otExposure).toLocaleString()} OT exposure` : `${otActive} in OT · ${otProjected} projected`, tone: otActive > 0 ? "red" : (otProjected > 0 ? "amber" : "navy"), onclick: "goto('schedule')", navTitle: "Overtime intelligence on the schedule" } : null,
+    scheduled:  dayPills ? { value: rows.length, sub: `${waves.size} wave${waves.size === 1 ? "" : "s"}`,    tone: "navy" } : null,
+    attendance: dayPills ? { value: planning ? "—" : checkedIn, sub: planning ? "Planning mode" : `${pct}% checked in`, tone: "navy" } : null,
+    extras:     dayPills ? { value: extras, sub: "Cushion / Ex drivers", tone: "navy" } : null,
+    openroutes: (openRoutes == null || (!dayPills && openRoutes === 0)) ? null : { value: openRoutes, sub: openRoutes === 0 ? "All routes covered" : "to assign", tone: openRoutes > 0 ? "red" : "green", onclick: "goto('schedule')", navTitle: "Open the schedule to assign routes" },
+    otrisk:     (otSum && (dayPills || otRiskCount > 0)) ? { value: otRiskCount, sub: otExposure ? `~$${Math.round(otExposure).toLocaleString()} OT exposure` : `${otActive} in OT · ${otProjected} projected`, tone: otActive > 0 ? "red" : (otProjected > 0 ? "amber" : "navy"), onclick: "goto('schedule')", navTitle: "Overtime intelligence on the schedule" } : null,
     license:    dlList.length ? { value: dlList.length, sub: "license expiring ≤7 days", tone: dlUrgent ? "red" : (dlSoon ? "amber" : "navy"), onclick: "window._rrGotoSubIntent={view:'schedule',sub:'roster'};goto('schedule')", navTitle: "Open the roster" } : null,
     fleet:      (vorr && fleetBranded > 0 && fleetPct != null) ? { value: `${fleetPct}%`, sub: fleetGrounded > 0 ? `${fleetGrounded} grounded` : "fleet ready", tone: vorr.threshold_status === "critical" ? "red" : (vorr.threshold_status === "warning" ? "amber" : "green"), onclick: "goto('fleet2')", navTitle: "Open Fleet" } : null,
     pipeline:   pipeCounts.length ? { value: inPipeline, sub: "in hiring pipeline", tone: "navy", onclick: "goto('pipeline')", navTitle: "Open the hiring pipeline" } : null,
-    attention:  { value: planning ? "—" : flagged, sub: planning ? "Live attendance starts day-of" : (flagged > 0 ? `${flagged} decision${flagged === 1 ? "" : "s"} to review` : "No open attendance decisions"), tone: flagged > 0 ? "red" : "navy", spark: !planning },
+    attention:  dayPills ? { value: planning ? "—" : flagged, sub: planning ? "Live attendance starts day-of" : (flagged > 0 ? `${flagged} decision${flagged === 1 ? "" : "s"} to review` : "No open attendance decisions"), tone: flagged > 0 ? "red" : "navy", spark: !planning } : null,
   };
   const toneColor = (t) => t === "red" ? "var(--red)" : t === "amber" ? "var(--amber)" : t === "green" ? "var(--green)" : navy;
   const pill = (key, label, val) => {
