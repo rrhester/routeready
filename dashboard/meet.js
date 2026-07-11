@@ -32,13 +32,18 @@
 import {
   genMeetCode, normalizeMeetCode, buildMeetUrl,
   isPolite, sortRoster, gridDims, fmtDuration, initials,
+  sendPolicy, qualityLevel, pickActiveSpeaker,
 } from "/dashboard/meet-core.js?v=dev";
 
 const SUPABASE_ESM_URL = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
 
-const ICE_SERVERS = [
+const DEFAULT_ICE = [
   { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
 ];
+// Replaced by meet_ice_servers(p_code) at join time (migration 0458):
+// operators can add a TURN relay with one app_settings INSERT and every
+// subsequent join picks it up — no deploy.
+let iceServers = DEFAULT_ICE;
 
 const cfg = window.RR_CONFIG || {};
 const $ = (id) => document.getElementById(id);
@@ -64,12 +69,22 @@ const state = {
   camTrack: null,
   micTrack: null,
   screenTrack: null,
+  screenAudioTrack: null,
   transport: null,
   roster: [],          // sorted presence entries incl. self
   chatOpen: false,
   unread: 0,
   timerId: null,
   left: false,
+  // zoom-quality pass
+  view: "gallery",     // "gallery" | "speaker"
+  pinnedKey: null,
+  hand: false,
+  activeSpeaker: null,
+  lastSpeakerSwitch: 0,
+  sinkId: "",          // chosen output device ("" = default)
+  statsTimer: null,
+  levelTimer: null,
 };
 
 const peers = new Map(); // key → {pc, polite, makingOffer, ignoreOffer, isSettingRemoteAnswerPending, pending:[], stream}
@@ -99,26 +114,36 @@ class SupabaseTransport {
   constructor(sb, code, key) {
     this.sb = sb;
     this.key = key;
+    this.lastMeta = null;
+    this.joined = false;
     this.channel = sb.channel("rr-meet:" + code.replace(/-/g, ""), {
       config: { broadcast: { self: false }, presence: { key } },
     });
   }
   join(meta, handlers) {
     const ch = this.channel;
+    this.lastMeta = meta;
     ch.on("broadcast", { event: "signal" }, ({ payload }) => {
       if (payload && payload.to === this.key) handlers.onSignal(payload.from, payload.data);
     });
     ch.on("broadcast", { event: "chat" }, ({ payload }) => handlers.onEvent("chat", payload));
+    ch.on("broadcast", { event: "react" }, ({ payload }) => handlers.onEvent("react", payload));
     ch.on("broadcast", { event: "ended" }, ({ payload }) => handlers.onEvent("ended", payload));
     ch.on("presence", { event: "sync" }, () => handlers.onPresence(ch.presenceState()));
     return new Promise((resolve, reject) => {
       ch.subscribe(async (status) => {
-        if (status === "SUBSCRIBED") { await ch.track(meta); resolve(); }
-        else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") reject(new Error("realtime_" + status.toLowerCase()));
+        if (status === "SUBSCRIBED") {
+          // Fires again after every websocket drop/rejoin — re-announce
+          // our presence so the roster heals without a manual refresh.
+          await ch.track(this.lastMeta);
+          if (!this.joined) { this.joined = true; resolve(); }
+        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          if (!this.joined) reject(new Error("realtime_" + status.toLowerCase()));
+        }
       });
     });
   }
-  track(meta) { return this.channel.track(meta); }
+  track(meta) { this.lastMeta = meta; return this.channel.track(meta); }
   send(event, payload) { return this.channel.send({ type: "broadcast", event, payload }); }
   signal(to, data) { return this.send("signal", { from: this.key, to, data }); }
   async leave() { try { await this.channel.untrack(); } catch { /* leaving anyway */ } try { await this.sb.removeChannel(this.channel); } catch { /* leaving anyway */ } }
@@ -178,16 +203,35 @@ class LocalTransport {
 
 // ─── media ────────────────────────────────────────────────────────────────
 
-const GUM_VIDEO = { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" };
+const GUM_VIDEO = { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 }, facingMode: "user" };
 const GUM_AUDIO = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+
+// Remembered device choices (settings popover). `ideal` not `exact`:
+// an unplugged headset must never block the join.
+function devicePrefs() {
+  try { return JSON.parse(localStorage.getItem("rr_meet_devices") || "{}"); } catch { return {}; }
+}
+function saveDevicePref(kind, deviceId) {
+  const prefs = devicePrefs();
+  prefs[kind] = deviceId;
+  try { localStorage.setItem("rr_meet_devices", JSON.stringify(prefs)); } catch { /* private mode */ }
+}
+function gumVideo() {
+  const prefs = devicePrefs();
+  return prefs.cam ? { ...GUM_VIDEO, deviceId: { ideal: prefs.cam } } : GUM_VIDEO;
+}
+function gumAudio() {
+  const prefs = devicePrefs();
+  return prefs.mic ? { ...GUM_AUDIO, deviceId: { ideal: prefs.mic } } : GUM_AUDIO;
+}
 
 // Tiered acquisition: cam+mic → mic only → cam only → nothing. Joining
 // with zero devices is legal (recvonly listener), same as Zoom.
 async function acquireMedia() {
   const tries = [
-    { video: GUM_VIDEO, audio: GUM_AUDIO },
-    { video: false, audio: GUM_AUDIO },
-    { video: GUM_VIDEO, audio: false },
+    { video: gumVideo(), audio: gumAudio() },
+    { video: false, audio: gumAudio() },
+    { video: gumVideo(), audio: false },
   ];
   for (const constraints of tries) {
     try { return await navigator.mediaDevices.getUserMedia(constraints); }
@@ -202,8 +246,61 @@ function adoptStream(stream) {
   state.micTrack = state.localStream.getAudioTracks()[0] || null;
   if (!state.camTrack) state.cam = false;
   if (!state.micTrack) state.mic = false;
-  if (state.camTrack) state.camTrack.enabled = state.cam;
-  if (state.micTrack) state.micTrack.enabled = state.mic;
+  if (state.camTrack) { state.camTrack.enabled = state.cam; state.camTrack.contentHint = "motion"; }
+  if (state.micTrack) { state.micTrack.enabled = state.mic; state.micTrack.contentHint = "speech"; }
+}
+
+// Swap the live microphone or camera mid-call (settings popover).
+// Replaces the track in the local stream, in every sender, in the
+// preview, and in the level monitor — without renegotiating.
+async function switchDevice(kind, deviceId) {
+  saveDevicePref(kind, deviceId);
+  try {
+    if (kind === "mic") {
+      const s = await navigator.mediaDevices.getUserMedia({ audio: { ...GUM_AUDIO, deviceId: { exact: deviceId } } });
+      const track = s.getAudioTracks()[0];
+      track.contentHint = "speech";
+      track.enabled = state.mic;
+      const old = state.micTrack;
+      state.micTrack = track;
+      if (old) { try { state.localStream.removeTrack(old); old.stop(); } catch { /* replaced */ } }
+      state.localStream.addTrack(track);
+      for (const p of peers.values()) {
+        const sender = p.pc.getSenders().find((se) => se.track === old || (se.track && se.track.kind === "audio" && se.track !== state.screenAudioTrack));
+        if (sender) sender.replaceTrack(track).catch(() => {});
+      }
+      monitorLocalMic();
+    } else if (kind === "cam") {
+      const s = await navigator.mediaDevices.getUserMedia({ video: { ...GUM_VIDEO, deviceId: { exact: deviceId } } });
+      const track = s.getVideoTracks()[0];
+      track.contentHint = "motion";
+      track.enabled = state.cam;
+      const old = state.camTrack;
+      state.camTrack = track;
+      if (old) { try { state.localStream.removeTrack(old); old.stop(); } catch { /* replaced */ } }
+      state.localStream.addTrack(track);
+      if (!state.sharing) replaceOutgoingVideo(track);
+      const lv = $("lobby-video");
+      if (lv && document.body.dataset.screen === "lobby") { lv.srcObject = localPreviewStream(); lv.play().catch(() => {}); }
+    } else if (kind === "spk") {
+      state.sinkId = deviceId;
+      applySinkId();
+    }
+    renderGrid();
+    syncControls();
+  } catch (err) {
+    console.warn("device switch failed", err);
+    toast("Couldn't switch device — check it's connected.");
+  }
+}
+
+// Route remote audio to the chosen output device (Chrome/Edge).
+function applySinkId() {
+  if (!("setSinkId" in HTMLMediaElement.prototype)) return;
+  for (const tile of tiles.values()) {
+    const v = tile.querySelector("video");
+    if (v && !v.muted) v.setSinkId(state.sinkId || "").catch(() => {});
+  }
 }
 
 // The video track peers should currently receive.
@@ -224,7 +321,7 @@ function replaceOutgoingVideo(track) {
 function ensurePeer(key) {
   let p = peers.get(key);
   if (p) return p;
-  const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+  const pc = new RTCPeerConnection({ iceServers });
   p = {
     key, pc,
     polite: isPolite(state.peerKey, key),
@@ -233,6 +330,7 @@ function ensurePeer(key) {
     isSettingRemoteAnswerPending: false,
     pending: [],
     stream: new MediaStream(),
+    prevStats: null, // {packetsLost, packetsReceived, at} for loss deltas
   };
   if (state.micTrack) pc.addTrack(state.micTrack, state.localStream);
   const v = currentVideoTrack();
@@ -262,14 +360,40 @@ function ensurePeer(key) {
       if (video.srcObject !== p.stream) video.srcObject = p.stream;
       video.play().catch(() => { /* autoplay retries on next user gesture */ });
     }
+    if (track.kind === "audio") monitorRemote(key, p.stream);
     renderGrid();
   };
   pc.onconnectionstatechange = () => {
     if (pc.connectionState === "failed") pc.restartIce();
+    if (pc.connectionState === "connected") tunePeerSenders(p);
     renderGrid();
   };
   peers.set(key, p);
+  tunePeerSenders(p);
   return p;
+}
+
+// Apply the mesh send policy (meet-core sendPolicy) to one peer's video
+// sender: cap bitrate + downscale as the roster grows so upload stays
+// inside a normal uplink, keep full quality for screen shares, prefer
+// framerate for camera motion and resolution for shared text.
+function tunePeerSenders(p) {
+  const policy = sendPolicy(Math.max(state.roster.length, peers.size + 1), state.sharing);
+  for (const sender of p.pc.getSenders()) {
+    if (!sender.track || sender.track.kind !== "video") continue;
+    try {
+      const params = sender.getParameters();
+      if (!params.encodings || !params.encodings.length) params.encodings = [{}];
+      params.encodings[0].maxBitrate = policy.maxBitrate;
+      params.encodings[0].scaleResolutionDownBy = policy.scaleResolutionDownBy;
+      params.degradationPreference = policy.degradationPreference;
+      sender.setParameters(params).catch(() => { /* pre-negotiation — retried on connect */ });
+    } catch { /* pre-negotiation — retried on connect */ }
+  }
+}
+
+function tuneAllSenders() {
+  for (const p of peers.values()) tunePeerSenders(p);
 }
 
 async function handleSignal(from, data) {
@@ -306,6 +430,9 @@ async function handleSignal(from, data) {
 function removePeer(key) {
   const p = peers.get(key);
   if (p) { try { p.pc.close(); } catch { /* already closed */ } peers.delete(key); }
+  dropMonitor(key);
+  if (state.pinnedKey === key) state.pinnedKey = null;
+  if (state.activeSpeaker === key) state.activeSpeaker = null;
   const tile = tiles.get(key);
   if (tile) { tile.remove(); tiles.delete(key); }
 }
@@ -317,23 +444,190 @@ function handlePresence(stateMap) {
     const meta = metas[metas.length - 1] || {};
     entries.push({ key, ...meta });
   }
-  const prevKeys = new Set(state.roster.map((r) => r.key));
+  const prevByKey = new Map(state.roster.map((r) => [r.key, r]));
   state.roster = sortRoster(entries);
   const nowKeys = new Set(entries.map((r) => r.key));
 
   for (const ent of state.roster) {
+    // Raised-hand rising edge → toast, for remote peers only.
+    const prev = prevByKey.get(ent.key);
+    if (ent.key !== state.peerKey && ent.hand && prev && !prev.hand) {
+      toast(`✋ ${ent.name || "Someone"} raised their hand`);
+    }
     if (ent.key !== state.peerKey) {
       ensurePeer(ent.key);
-      if (!prevKeys.has(ent.key) && prevKeys.size) toast(`${ent.name || "Someone"} joined`);
+      if (!prevByKey.has(ent.key) && prevByKey.size) {
+        toast(`${ent.name || "Someone"} joined`);
+        chime(true);
+      }
     }
   }
   for (const key of [...peers.keys()]) {
     if (!nowKeys.has(key)) {
       removePeer(key);
       toast("A participant left");
+      chime(false);
     }
   }
+  tuneAllSenders(); // roster size changed → re-apply the mesh send policy
   renderGrid();
+}
+
+// ─── audio levels · speaking rings + active speaker + lobby meter ─────────
+// One AnalyserNode per participant (mic for self, remote stream for
+// peers), sampled 4×/s. Levels drive the green speaking ring on tiles,
+// the lobby mic meter, and — through meet-core's pickActiveSpeaker
+// hysteresis — who holds the stage in speaker view.
+
+let audioCtx = null;
+const monitors = new Map(); // key → {source, analyser, data, track}
+
+function getAudioCtx() {
+  if (!audioCtx) {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return null;
+    audioCtx = new Ctx();
+  }
+  if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
+  return audioCtx;
+}
+
+function attachMonitor(key, stream, track) {
+  const ctx = getAudioCtx();
+  if (!ctx || !track) return;
+  const existing = monitors.get(key);
+  if (existing) {
+    if (existing.track === track) return;
+    try { existing.source.disconnect(); } catch { /* replacing */ }
+  }
+  try {
+    const source = ctx.createMediaStreamSource(stream);
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 512;
+    source.connect(analyser);
+    monitors.set(key, { source, analyser, data: new Uint8Array(analyser.fftSize), track });
+  } catch { /* no audio in stream yet */ }
+}
+
+function monitorLocalMic() {
+  if (!state.micTrack) return;
+  attachMonitor(state.peerKey, new MediaStream([state.micTrack]), state.micTrack);
+}
+
+function monitorRemote(key, stream) {
+  const track = stream.getAudioTracks()[0];
+  if (track) attachMonitor(key, stream, track);
+}
+
+function dropMonitor(key) {
+  const m = monitors.get(key);
+  if (m) { try { m.source.disconnect(); } catch { /* gone */ } monitors.delete(key); }
+}
+
+function levelOf(mon) {
+  mon.analyser.getByteTimeDomainData(mon.data);
+  let sum = 0;
+  for (let i = 0; i < mon.data.length; i++) {
+    const v = (mon.data[i] - 128) / 128;
+    sum += v * v;
+  }
+  return Math.sqrt(sum / mon.data.length);
+}
+
+const SPEAK_THRESHOLD = 0.02;
+
+function startLevelLoop() {
+  if (state.levelTimer) return;
+  state.levelTimer = setInterval(() => {
+    const levels = {};
+    for (const [key, mon] of monitors) {
+      // A muted self mic still captures locally — gate it to zero so we
+      // never show our own speaking ring while muted.
+      if (key === state.peerKey && !(state.mic && state.micTrack)) { levels[key] = 0; continue; }
+      levels[key] = levelOf(mon);
+    }
+    // Lobby meter
+    if (document.body.dataset.screen === "lobby") {
+      const meter = $("lobby-meter-fill");
+      if (meter) meter.style.width = Math.min(100, Math.round((levels[state.peerKey] || 0) * 400)) + "%";
+      return;
+    }
+    if (document.body.dataset.screen !== "room") return;
+    for (const [key, tile] of tiles) {
+      tile.classList.toggle("speaking", (levels[key] || 0) > SPEAK_THRESHOLD);
+    }
+    const next = pickActiveSpeaker(levels, state.activeSpeaker, state.lastSpeakerSwitch, Date.now());
+    if (next !== state.activeSpeaker) {
+      state.activeSpeaker = next;
+      state.lastSpeakerSwitch = Date.now();
+      if (state.view === "speaker" && !state.pinnedKey) renderGrid();
+    }
+  }, 250);
+}
+
+function stopLevelLoop() {
+  clearInterval(state.levelTimer);
+  state.levelTimer = null;
+}
+
+// ─── connection quality · per-tile bars from getStats ────────────────────
+// RTT from the nominated candidate pair + incoming packet-loss delta,
+// classified by meet-core qualityLevel into 0-3 bars every 3s.
+
+function startStatsLoop() {
+  if (state.statsTimer) return;
+  state.statsTimer = setInterval(async () => {
+    if (document.body.dataset.screen !== "room") return;
+    for (const [key, p] of peers) {
+      let rttMs = null, lost = 0, received = 0;
+      try {
+        const stats = await p.pc.getStats();
+        stats.forEach((s) => {
+          if (s.type === "candidate-pair" && (s.nominated || s.selected) && s.state === "succeeded" && s.currentRoundTripTime != null) {
+            rttMs = s.currentRoundTripTime * 1000;
+          }
+          if (s.type === "inbound-rtp" && !s.isRemote) {
+            lost += s.packetsLost || 0;
+            received += s.packetsReceived || 0;
+          }
+        });
+      } catch { continue; }
+      const prev = p.prevStats || { lost: 0, received: 0 };
+      const dLost = Math.max(0, lost - prev.lost);
+      const dRecv = Math.max(0, received - prev.received);
+      p.prevStats = { lost, received };
+      const lossPct = dLost + dRecv > 0 ? (dLost / (dLost + dRecv)) * 100 : 0;
+      const level = p.pc.connectionState === "connected" ? qualityLevel(rttMs ?? 40, lossPct) : 0;
+      const tile = tiles.get(key);
+      if (tile) tile.querySelector(".qbars")?.setAttribute("data-level", String(level));
+    }
+  }, 3000);
+}
+
+function stopStatsLoop() {
+  clearInterval(state.statsTimer);
+  state.statsTimer = null;
+}
+
+// ─── join/leave chime ─────────────────────────────────────────────────────
+// Two soft sine blips, synthesized — no audio asset to load or cache.
+
+function chime(up = true) {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  const t0 = ctx.currentTime;
+  for (const [i, freq] of (up ? [523, 784] : [784, 523]).entries()) {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.frequency.value = freq;
+    osc.type = "sine";
+    gain.gain.setValueAtTime(0.0001, t0 + i * 0.12);
+    gain.gain.exponentialRampToValueAtTime(0.06, t0 + i * 0.12 + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + i * 0.12 + 0.25);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(t0 + i * 0.12);
+    osc.stop(t0 + i * 0.12 + 0.3);
+  }
 }
 
 // ─── presence meta ────────────────────────────────────────────────────────
@@ -344,6 +638,7 @@ function myMeta() {
     mic: state.mic,
     cam: state.cam,
     screen: state.sharing,
+    hand: state.hand,
     host: state.isHost,
     joined_at: state.joinedAt,
   };
@@ -383,6 +678,12 @@ function tileFor(entry) {
     tile.innerHTML = `
       <video autoplay playsinline></video>
       <div class="avatar"><span></span></div>
+      <div class="hand-badge" aria-hidden="true">✋</div>
+      <div class="reactions" aria-hidden="true"></div>
+      <div class="qbars" data-level="3" aria-hidden="true"><i></i><i></i><i></i></div>
+      <button class="pin-btn" type="button" title="Pin">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 4h6l1 7 3 2H5l3-2 1-7z"/></svg>
+      </button>
       <div class="plate">
         <span class="plate-mic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"/><line x1="12" y1="19" x2="12" y2="23"/></svg></span>
         <span class="plate-name"></span>
@@ -392,14 +693,23 @@ function tileFor(entry) {
     if (entry.key === state.peerKey) {
       video.muted = true; // never monitor our own audio
       video.srcObject = localPreviewStream();
+      tile.querySelector(".qbars").style.display = "none"; // stats are for remote links
     } else {
       const p = peers.get(entry.key);
       if (p) video.srcObject = p.stream;
+      if (state.sinkId && "setSinkId" in video) video.setSinkId(state.sinkId).catch(() => {});
     }
+    tile.querySelector(".pin-btn").onclick = (e) => { e.stopPropagation(); togglePin(entry.key); };
+    tile.addEventListener("dblclick", () => togglePin(entry.key));
     tiles.set(entry.key, tile);
     $("grid").appendChild(tile);
   }
   return tile;
+}
+
+function togglePin(key) {
+  state.pinnedKey = state.pinnedKey === key ? null : key;
+  renderGrid();
 }
 
 function localPreviewStream() {
@@ -415,17 +725,26 @@ function renderGrid() {
   const roster = state.roster.length
     ? state.roster
     : [{ key: state.peerKey, ...myMeta() }];
-
-  // One screen-sharer gets the stage; first in roster order wins.
-  const sharer = roster.find((r) => r.screen);
-  grid.classList.toggle("has-stage", !!sharer);
-
   const nowKeys = new Set(roster.map((r) => r.key));
+
+  // Stage precedence (Zoom semantics): a screen share always wins, then
+  // an explicit pin, then — in speaker view — the active speaker.
+  const sharer = roster.find((r) => r.screen);
+  let stageKey = null;
+  if (sharer) stageKey = sharer.key;
+  else if (state.pinnedKey && nowKeys.has(state.pinnedKey)) stageKey = state.pinnedKey;
+  else if (state.view === "speaker" && roster.length > 1) {
+    stageKey = (state.activeSpeaker && nowKeys.has(state.activeSpeaker))
+      ? state.activeSpeaker
+      : (roster.find((r) => r.key !== state.peerKey) || roster[0]).key;
+  }
+  grid.classList.toggle("has-stage", !!stageKey);
+
   for (const [key, tile] of tiles) {
     if (!nowKeys.has(key)) { tile.remove(); tiles.delete(key); }
   }
 
-  const { cols, rows } = gridDims(sharer ? Math.max(1, roster.length - 1) : roster.length);
+  const { cols, rows } = gridDims(stageKey ? Math.max(1, roster.length - 1) : roster.length);
   grid.style.setProperty("--cols", cols);
   grid.style.setProperty("--rows", rows);
 
@@ -446,13 +765,18 @@ function renderGrid() {
     const camOn = me ? (state.sharing || (state.cam && !!state.camTrack)) : (entry.cam || entry.screen);
     tile.classList.toggle("cam-off", !camOn);
     tile.classList.toggle("is-me", me);
-    tile.classList.toggle("stage", !!sharer && sharer.key === entry.key);
+    tile.classList.toggle("stage", stageKey === entry.key);
+    // Screen content letterboxes (never crop shared text); camera stages crop-fill.
+    tile.classList.toggle("stage-screen", !!sharer && stageKey === entry.key);
+    tile.classList.toggle("pinned", state.pinnedKey === entry.key);
+    tile.classList.toggle("hand-up", !!entry.hand);
     // Mirror our own camera like every meeting tool; never mirror a screen.
     video.classList.toggle("mirror", me && !state.sharing);
 
     tile.querySelector(".avatar span").textContent = initials(entry.name);
     tile.querySelector(".plate-name").textContent = (entry.name || "Guest") + (me ? " (you)" : "") + (entry.host ? " · host" : "");
     tile.querySelector(".plate-mic").classList.toggle("muted", me ? !(state.mic && state.micTrack) : !entry.mic);
+    tile.querySelector(".pin-btn").title = state.pinnedKey === entry.key ? "Unpin" : "Pin";
 
     const p = me ? null : peers.get(entry.key);
     const connecting = p && p.pc.connectionState !== "connected" && !p.stream.getTracks().length;
@@ -461,8 +785,9 @@ function renderGrid() {
 
   // Keep DOM order = roster order (stage tile first) so CSS lays out
   // deterministically on every client.
-  const ordered = sharer
-    ? [sharer, ...roster.filter((r) => r.key !== sharer.key)]
+  const stagedEntry = roster.find((r) => r.key === stageKey);
+  const ordered = stagedEntry
+    ? [stagedEntry, ...roster.filter((r) => r.key !== stageKey)]
     : roster;
   for (const entry of ordered) {
     const tile = tiles.get(entry.key);
@@ -470,6 +795,8 @@ function renderGrid() {
   }
 
   $("people-count").textContent = String(roster.length);
+  const viewBtn = $("btn-view");
+  if (viewBtn) viewBtn.classList.toggle("on", state.view === "speaker");
 }
 
 // ─── ui · controls ────────────────────────────────────────────────────────
@@ -511,16 +838,31 @@ async function toggleShare() {
   if (state.sharing) { stopShare(); return; }
   let display;
   try {
-    display = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+    display = await navigator.mediaDevices.getDisplayMedia({
+      video: { frameRate: { ideal: 30 } },
+      audio: true,                    // tab/system audio when the browser offers it
+      selfBrowserSurface: "exclude",  // don't offer the meeting tab itself (hall of mirrors)
+      surfaceSwitching: "include",
+      systemAudio: "include",
+    });
   } catch {
     return; // user dismissed the picker
   }
   const track = display.getVideoTracks()[0];
   if (!track) return;
+  track.contentHint = "detail"; // shared text: sharpness beats smoothness
   state.screenTrack = track;
   state.sharing = true;
   track.onended = () => stopShare(); // browser's own "Stop sharing" bar
   replaceOutgoingVideo(track);
+  // Tab/system audio rides along as an EXTRA track (music, videos, demos
+  // stay audible remotely) — the mic track keeps flowing untouched.
+  const audio = display.getAudioTracks()[0];
+  if (audio) {
+    state.screenAudioTrack = audio;
+    for (const p of peers.values()) p.pc.addTrack(audio, state.localStream); // renegotiates
+  }
+  tuneAllSenders(); // switch the video sender to the screen policy
   syncControls();
   publishMeta();
 }
@@ -528,10 +870,88 @@ async function toggleShare() {
 function stopShare() {
   if (state.screenTrack) { try { state.screenTrack.stop(); } catch { /* already stopped */ } }
   state.screenTrack = null;
+  if (state.screenAudioTrack) {
+    for (const p of peers.values()) {
+      const sender = p.pc.getSenders().find((s) => s.track === state.screenAudioTrack);
+      if (sender) { try { p.pc.removeTrack(sender); } catch { /* renegotiates */ } }
+    }
+    try { state.screenAudioTrack.stop(); } catch { /* already stopped */ }
+    state.screenAudioTrack = null;
+  }
   state.sharing = false;
   replaceOutgoingVideo(state.camTrack);
+  tuneAllSenders(); // back to the camera policy for this roster size
   syncControls();
   publishMeta();
+}
+
+// ─── reactions + raise hand ───────────────────────────────────────────────
+
+const REACTION_EMOJI = ["👍", "👏", "❤️", "😂", "🎉"];
+
+function sendReaction(emoji) {
+  if (!state.transport) return;
+  state.transport.send("react", { from: state.peerKey, emoji });
+  showReaction(state.peerKey, emoji); // self:false broadcast doesn't echo
+  toggleReactPop(false);
+}
+
+function showReaction(key, emoji) {
+  if (!REACTION_EMOJI.includes(emoji)) return; // whitelist — remote input
+  const tile = tiles.get(key);
+  if (!tile) return;
+  const span = document.createElement("span");
+  span.className = "reaction-float";
+  span.textContent = emoji;
+  span.style.left = 15 + Math.random() * 55 + "%";
+  tile.querySelector(".reactions").appendChild(span);
+  setTimeout(() => span.remove(), 2400);
+}
+
+function toggleHand() {
+  state.hand = !state.hand;
+  $("btn-hand").classList.toggle("on", state.hand);
+  publishMeta();
+  toggleReactPop(false);
+}
+
+function toggleReactPop(open) {
+  const pop = $("react-pop");
+  const want = open ?? pop.hidden;
+  pop.hidden = !want;
+  $("settings-pop").hidden = true;
+}
+
+// ─── settings popover · device pickers ────────────────────────────────────
+
+async function toggleSettingsPop(open) {
+  const pop = $("settings-pop");
+  const want = open ?? pop.hidden;
+  pop.hidden = !want;
+  $("react-pop").hidden = true;
+  if (!want) return;
+  let devices = [];
+  try { devices = await navigator.mediaDevices.enumerateDevices(); } catch { /* no device API */ }
+  const prefs = devicePrefs();
+  const fill = (selectId, kind, current) => {
+    const sel = $(selectId);
+    const list = devices.filter((d) => d.kind === kind);
+    sel.innerHTML = "";
+    if (!list.length) {
+      sel.appendChild(new Option("None found", ""));
+      sel.disabled = true;
+      return;
+    }
+    sel.disabled = false;
+    for (const [i, d] of list.entries()) {
+      sel.appendChild(new Option(d.label || `${kind === "videoinput" ? "Camera" : kind === "audioinput" ? "Microphone" : "Speaker"} ${i + 1}`, d.deviceId));
+    }
+    if (current && [...sel.options].some((o) => o.value === current)) sel.value = current;
+  };
+  fill("sel-mic", "audioinput", state.micTrack?.getSettings?.().deviceId || prefs.mic);
+  fill("sel-cam", "videoinput", state.camTrack?.getSettings?.().deviceId || prefs.cam);
+  fill("sel-spk", "audiooutput", state.sinkId || prefs.spk);
+  $("spk-block").style.display = "setSinkId" in HTMLMediaElement.prototype ? "" : "none";
 }
 
 async function copyInvite() {
@@ -609,6 +1029,7 @@ async function enterRoom() {
       onPresence: handlePresence,
       onEvent: (type, payload) => {
         if (type === "chat" && payload && payload.from !== state.peerKey) appendChat(payload);
+        if (type === "react" && payload && payload.from !== state.peerKey) showReaction(payload.from, payload.emoji);
         if (type === "ended") handleEndedEvent();
       },
     });
@@ -623,6 +1044,10 @@ async function enterRoom() {
     $("room-timer").textContent = fmtDuration(Date.now() - state.joinedAt);
   }, 1000);
   $("btn-end").style.display = state.isHost ? "" : "none";
+  getAudioCtx();      // resume within the Join-click gesture
+  monitorLocalMic();
+  startLevelLoop();
+  startStatsLoop();
   syncControls();
   renderGrid();
 }
@@ -630,13 +1055,20 @@ async function enterRoom() {
 function teardown() {
   state.left = true;
   clearInterval(state.timerId);
+  stopLevelLoop();
+  stopStatsLoop();
   for (const key of [...peers.keys()]) removePeer(key);
+  for (const key of [...monitors.keys()]) dropMonitor(key);
   if (state.transport) { state.transport.leave(); state.transport = null; }
   if (state.screenTrack) { try { state.screenTrack.stop(); } catch { /* already stopped */ } state.screenTrack = null; }
+  if (state.screenAudioTrack) { try { state.screenAudioTrack.stop(); } catch { /* already stopped */ } state.screenAudioTrack = null; }
   if (state.localStream) for (const t of state.localStream.getTracks()) { try { t.stop(); } catch { /* already stopped */ } }
   state.localStream = null; state.camTrack = null; state.micTrack = null;
   state.roster = [];
   state.sharing = false;
+  state.hand = false;
+  state.pinnedKey = null;
+  state.activeSpeaker = null;
 }
 
 function endLocally(message) {
@@ -706,6 +1138,8 @@ async function openLobby() {
   if (!stream) toast("Joining without camera or microphone — check browser permissions.");
   $("lobby-video").srcObject = localPreviewStream();
   $("lobby-video").play().catch(() => {});
+  monitorLocalMic();
+  startLevelLoop(); // drives the lobby mic meter
   syncControls();
   syncLobbyPreview();
 }
@@ -775,6 +1209,14 @@ async function resolveCode(code) {
     }
     state.meeting = data;
     state.isHost = !!data.is_host; // server-computed: auth.uid() = host_id
+    // ICE config is DB-driven (migration 0458): STUN by default, TURN
+    // the moment the operator adds relay credentials to app_settings.
+    try {
+      const { data: ice } = await sb.rpc("meet_ice_servers", { p_code: code });
+      if (ice?.ok && Array.isArray(ice.ice_servers) && ice.ice_servers.length) {
+        iceServers = ice.ice_servers;
+      }
+    } catch { /* STUN-only fallback */ }
     await openLobby();
   } catch (err) {
     console.error("meet_lookup failed", err);
@@ -849,10 +1291,52 @@ function wire() {
   $("btn-rejoin").onclick = () => { location.reload(); };
   $("btn-home").onclick = () => { location.href = location.pathname + (LOCAL_MODE ? "?local=1" : ""); };
   if (!("getDisplayMedia" in (navigator.mediaDevices || {}))) $("btn-share").style.display = "none";
+
+  // zoom-quality pass
+  $("btn-view").onclick = () => {
+    state.view = state.view === "gallery" ? "speaker" : "gallery";
+    renderGrid();
+  };
+  $("btn-settings").onclick = () => toggleSettingsPop();
+  $("btn-react").onclick = () => toggleReactPop();
+  $("btn-hand").onclick = toggleHand;
+  const emojiWrap = $("react-emojis");
+  for (const emoji of REACTION_EMOJI) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = emoji;
+    b.onclick = () => sendReaction(emoji);
+    emojiWrap.appendChild(b);
+  }
+  $("sel-mic").onchange = (e) => switchDevice("mic", e.target.value);
+  $("sel-cam").onchange = (e) => switchDevice("cam", e.target.value);
+  $("sel-spk").onchange = (e) => switchDevice("spk", e.target.value);
+  document.addEventListener("click", (e) => {
+    // Popovers dismiss on outside click.
+    if (!e.target.closest("#settings-pop") && !e.target.closest("#btn-settings")) $("settings-pop").hidden = true;
+    if (!e.target.closest("#react-pop") && !e.target.closest("#btn-react")) $("react-pop").hidden = true;
+  });
+  document.addEventListener("keydown", (e) => {
+    if (document.body.dataset.screen !== "room") return;
+    if (e.target.closest("input,textarea,select,[contenteditable]")) return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const k = e.key.toLowerCase();
+    if (k === "m") { toggleMic(); }
+    else if (k === "v") { toggleCam(); }
+    else if (k === "c") { toggleChat(); }
+    else if (k === "h") { toggleHand(); }
+    else if (k === "escape") { toggleReactPop(false); $("settings-pop").hidden = true; }
+  });
+  // Network changed (wifi → hotspot, VPN toggled): restart ICE on every
+  // link instead of waiting for the failure timeout.
+  window.addEventListener("online", () => {
+    for (const p of peers.values()) { try { p.pc.restartIce(); } catch { /* closed */ } }
+  });
 }
 
 async function boot() {
   wire();
+  state.sinkId = devicePrefs().spk || "";
   if (LOCAL_MODE) {
     $("btn-new").style.display = "";
     $("home-signin").style.display = "none";
