@@ -8,9 +8,9 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=a27d4cda200d";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=a27d4cda200d";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=a27d4cda200d";
+import { planScheduleWeek } from "./scheduling-engine.js?v=b2ebeec00db5";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=b2ebeec00db5";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=b2ebeec00db5";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -218,6 +218,12 @@ window.RR.user = profile;
   const apply = () => {
     document.querySelectorAll(".nav-item[data-view]").forEach(btn => {
       const view = btn.getAttribute("data-view");
+      // Settings is the one documented escape-hatch (account / sign-out must
+      // always be reachable). Dashboard/Today is a real content page that
+      // aggregates schedule + fleet + pipeline data and IS a togglable page
+      // in the permissions catalog ({ key: "dashboard", label: "Today" }), so
+      // it must honor allowed_pages like any other view — owners/admins still
+      // always see it via the role short-circuit above.
       if (view === "settings") return;
       if (!allowed.includes(view)) {
         btn.style.display = "none";
