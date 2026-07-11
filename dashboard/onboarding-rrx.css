@@ -750,6 +750,86 @@
   stroke-linejoin: miter !important;
 }
 
+/* ── Split ▾ caret on action tiles (Add applicant) ───────────────
+   Schedule-parity split affordance: a hover-revealed caret pinned to the
+   tile's bottom edge (same silhouette + behaviour as the tile rules-feet)
+   that opens a small dropdown of add paths. Uses its own class so the
+   actions-group rule that force-hides .ob-rules-foot (line 380) can't
+   hide it too. The menu (.ob-split-menu) is re-parented to <body> and
+   positioned fixed by the inline wiring, escaping the strip's clip. */
+#view-onboarding-ops.rrx-onboarding .ob-split-caret {
+  position: absolute;
+  left: 50%;
+  bottom: 1px;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 5px;
+  margin: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  color: var(--rr-fg-secondary);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity var(--rr-motion-fast),
+    background var(--rr-motion-fast),
+    color var(--rr-motion-fast);
+}
+#view-onboarding-ops.rrx-onboarding .ob-tab-wrap:hover .ob-split-caret,
+#view-onboarding-ops.rrx-onboarding .ob-tab-wrap:focus-within .ob-split-caret,
+#view-onboarding-ops.rrx-onboarding .ob-split-caret:focus-visible {
+  opacity: .6;
+  pointer-events: auto;
+}
+#view-onboarding-ops.rrx-onboarding .ob-split-caret:hover,
+#view-onboarding-ops.rrx-onboarding .ob-split-caret:focus-visible,
+#view-onboarding-ops.rrx-onboarding .ob-split-caret[aria-expanded="true"] {
+  opacity: 1;
+  color: var(--sch-blue, var(--rr-brand-primary));
+  background: var(--sch-blue-soft, var(--rr-brand-soft));
+  outline: none;
+}
+#view-onboarding-ops.rrx-onboarding .ob-split-caret svg {
+  width: 11px;
+  height: 11px;
+  flex: 0 0 auto;
+  stroke-linecap: butt;
+  stroke-linejoin: miter;
+}
+/* Dropdown card · same recipe as the Schedule / Fleet .rr-ab-menu. Lives
+   on <body> when open, so it is scoped by its own class (not the view id)
+   to survive the re-parent. */
+.ob-split-menu {
+  z-index: 9000;
+  min-width: 200px;
+  padding: 6px;
+  border: 1px solid var(--rr-border-primary, rgba(15, 23, 42, .20));
+  border-radius: 10px;
+  background: var(--rr-white, #fff);
+  box-shadow: 0 10px 28px rgba(2, 6, 23, .14);
+  font-family: var(--rr-font-family, 'Inter', 'Segoe UI', sans-serif);
+}
+.ob-split-menu[hidden] { display: none; }
+.ob-split-menu button {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  font: inherit;
+  font-size: var(--fs-md, 14px);
+  font-weight: 500;
+  text-align: left;
+  color: var(--rr-fg-primary, var(--rr-gray-900, #111827));
+  cursor: pointer;
+}
+.ob-split-menu button:hover { background: rgba(15, 23, 42, .05); }
+
 /* ── Rules footer · ROSTER strip — EXACT match to Schedule ───────
    The rules above are the Onboarding/hiring treatment (in-flow, visible
    "Rules" text). The Roster strip must match Schedule's .sched-v2-rules-foot

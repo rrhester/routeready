@@ -5312,13 +5312,22 @@ function syncWbTabs(screen) {
     b.classList.toggle("active", on);
     b.setAttribute("aria-selected", String(on));
   });
-  // the strip action follows the tab: New workbook ↔ New report
-  const nwb = cmd.querySelector('[data-wb-act="new-workbook"]');
-  const nrp = cmd.querySelector('[data-wb-act="new-report"]');
-  const tpl = cmd.querySelector('[data-wb-act="browse-templates"]');
-  if (nwb) nwb.hidden = screen !== "workbooks";
+  // the strip action follows the tab: New workbook ↔ New report. The lead
+  // buttons are now split-buttons, so hide the whole .rr-ab-split-wrap (its
+  // caret + menu ride along). Pick the TOP-LEVEL action button — skip the
+  // same data-wb-act values that now also appear on the split-menu items.
+  const topAct = (name) => {
+    const list = cmd.querySelectorAll(`#rr-wb-ab [data-wb-act="${name}"]`);
+    for (const el of list) { if (!el.closest(".rr-ab-menu")) return el; }
+    return null;
+  };
+  const wrapOf = (b) => (b && b.closest(".rr-ab-split-wrap")) || b;
+  const nwb = topAct("new-workbook");
+  const nrp = topAct("new-report");
+  const tpl = topAct("browse-templates");
+  if (nwb) wrapOf(nwb).hidden = screen !== "workbooks";
   if (nrp) nrp.hidden = screen !== "reports";
-  if (tpl) tpl.hidden = screen !== "workbooks";
+  if (tpl) wrapOf(tpl).hidden = screen !== "workbooks";
   const ab = cmd.querySelector("#rr-wb-ab");
   if (ab) ab.hidden = screen === "vault";
 }
@@ -6397,6 +6406,24 @@ async function createBlankWorkbookNow() {
   _toast("Creating workbook…", "info");
   try {
     const wb = await createWorkbook({ title: "", description: "", visibility: "org", templateKey: null });
+    await openWorkbook(wb.id);
+  } catch (e) {
+    const msg = (e && e.message) || String(e);
+    _toast(wbMigrationErr(msg) ? "Workbooks schema isn't deployed yet — apply migration 0412 and retry" : "Couldn't create the workbook: " + msg, "error");
+  } finally { WB.creating = false; }
+}
+
+// One-click a specific template from the "Templates ▾" split menu — the
+// same create+open flow as createBlankWorkbookNow, but seeded from a
+// WB_TEMPLATES entry. Falls back to the gallery if the key is unknown.
+async function createTemplateWorkbookNow(key) {
+  if (WB.creating) return;
+  const tpl = key ? WB_TEMPLATES.find((t) => t.key === key) : null;
+  if (!tpl) { openCreateModal(); return; }
+  WB.creating = true;
+  _toast(`Creating “${tpl.name}”…`, "info");
+  try {
+    const wb = await createWorkbook({ title: "", description: "", visibility: "org", templateKey: tpl.key });
     await openWorkbook(wb.id);
   } catch (e) {
     const msg = (e && e.message) || String(e);
@@ -18766,6 +18793,7 @@ function installRootListeners() {
 
     switch (act) {
       case "new-workbook": createBlankWorkbookNow(); break;
+      case "new-from-template": createTemplateWorkbookNow(actBtn.getAttribute("data-tpl")); break;
       case "browse-templates": openCreateModal(); break;
       case "toggle-archived": WB.showArchived = !WB.showArchived; renderListPage(); break;
       case "back-to-list": {
