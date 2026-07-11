@@ -3267,24 +3267,22 @@ async function _rrFillFlexPlan(weekStartIso, weekLabel) {
   const v = _RR_FLEX_VERDICT[whatIf?.status] || _RR_FLEX_VERDICT.green;
   const kpi = flex.kpi || {};
   const hireLine = whatIf && whatIf.driversNeeded > 0
-    ? `<div class="rr-intel-flexplan-hire"><strong>Hire ${whatIf.driversNeeded}</strong>
-        (${whatIf.recommendedFtHires} FT + ${whatIf.recommendedPtHires} PT) to restore comfortable coverage
-        · OT risk ${escapeHtml(whatIf.otRisk || "—")} · confidence ${Math.round(whatIf.confidenceScore || 0)}%</div>`
-    : `<div class="rr-intel-flexplan-hire">No hires required for this week's plan${
-        whatIf?.status === "yellow" ? " — ask for voluntary 5th days / non-preferred days" : ""}.</div>`;
+    ? `<div class="rr-intel-flexmini-hire"><strong>Hire ${whatIf.driversNeeded}</strong>
+        (${whatIf.recommendedFtHires} FT + ${whatIf.recommendedPtHires} PT)
+        · OT risk ${escapeHtml(whatIf.otRisk || "—")} · ${Math.round(whatIf.confidenceScore || 0)}% conf</div>`
+    : `<div class="rr-intel-flexmini-hire">No hires required${
+        whatIf?.status === "yellow" ? " — use voluntary 5th days" : ""}.</div>`;
+  // Compact card — lives in the third column of the detail band so the
+  // panel fits one viewport. Tier meanings move to title tooltips.
   still.innerHTML = `
-    <div class="rr-intel-section-head">
-      <h3 class="rr-intel-section-title">Coverage plan · ${escapeHtml(weekLabel)}</h3>
-      <span class="rr-intel-section-aside">From live availability, preferred days, 5th-day opt-ins, certs, PTO + scheduled shifts</span>
-    </div>
-    <div class="rr-intel-flexplan-verdict">
+    <div class="rr-intel-flexmini-head" title="From live availability, preferred days, 5th-day opt-ins, certs, PTO + scheduled shifts">
+      <span>Coverage plan · ${escapeHtml(weekLabel)}</span>
       <span class="rr-intel-headline-pill ${v.cls}"><span class="dot"></span>${escapeHtml(v.label)}</span>
-      <span class="rr-intel-flexplan-hint">${escapeHtml(v.hint)}</span>
     </div>
-    <div class="rr-intel-flexplan-tiers">
-      <div class="rr-intel-flexplan-tier"><span>Comfortable headroom</span><strong>+${Number(kpi.comfortableRoutesAvailable) || 0} routes/day</strong><em>preferred days, no pattern disruption</em></div>
-      <div class="rr-intel-flexplan-tier"><span>Stretch headroom</span><strong>+${Number(kpi.stretchRoutesAvailable) || 0} routes/day</strong><em>non-preferred days + voluntary 5th days</em></div>
-      <div class="rr-intel-flexplan-tier"><span>Maximum ceiling</span><strong>+${Number(kpi.maximumRoutesAvailable) || 0} routes/day</strong><em>emergency only — not sustainable</em></div>
+    <div class="rr-intel-flexmini-rows">
+      <div title="Preferred days, no pattern disruption"><span>Comfortable</span><strong>+${Number(kpi.comfortableRoutesAvailable) || 0} rt/day</strong></div>
+      <div title="Non-preferred days + voluntary 5th days"><span>Stretch</span><strong>+${Number(kpi.stretchRoutesAvailable) || 0} rt/day</strong></div>
+      <div title="Emergency only — not sustainable"><span>Maximum</span><strong>+${Number(kpi.maximumRoutesAvailable) || 0} rt/day</strong></div>
     </div>
     ${hireLine}`;
   // The gap card can now enrich its prescription with the FT/PT split.
@@ -3746,7 +3744,7 @@ function _rrRenderRiskForecastOut(view, weeks) {
   // short one. Color encodes the shared coverage vocabulary.
   const maxNeeded = Math.max(1, ...aw.map((w) => w.needed));
   const stripHtml = aw.map((w) => {
-    const heightPx = 14 + Math.round((w.needed / maxNeeded) * 46); // 14–60px
+    const heightPx = 10 + Math.round((w.needed / maxNeeded) * 30); // 10–40px
     const shortPx = w.gap < 0 && w.needed > 0
       ? Math.max(2, Math.round(heightPx * Math.min(1, -w.gap / w.needed)))
       : 0;
@@ -3779,31 +3777,33 @@ function _rrRenderRiskForecastOut(view, weeks) {
       ? `<div class="rr-intel-detail-fact"><span>Hire by</span><span class="is-past-due">${escapeHtml(fmtIsoShort(w.hireByIso))} · window passed</span></div>`
       : `<div class="rr-intel-detail-fact"><span>Hire by</span><span>${escapeHtml(fmtIsoShort(w.hireByIso))}</span></div>`;
   };
-  const detailHtml = nextBreak ? `
-    <div class="rr-intel-detail">
-      <div class="rr-intel-detail-narrative">${narrative}</div>
+  // One three-column band — narrative · facts · coverage plan — so the
+  // whole panel fits a single viewport (operator: "I don't want to
+  // scroll"). The facts card compacts to a first-break week: fewer
+  // redundant rows; Week/Dates/Coverage already live in the KPI strip
+  // and the narrative.
+  const factsHtml = nextBreak ? `
       <aside class="rr-intel-detail-facts">
-        <div class="rr-intel-detail-fact"><span>Week</span><span>${escapeHtml(nextBreak.label)}</span></div>
-        <div class="rr-intel-detail-fact"><span>Dates</span><span>${escapeHtml(nextBreak.dates)}</span></div>
         <div class="rr-intel-detail-fact"><span>Needed</span><span>${nextBreak.needed.toLocaleString()}</span></div>
         ${supplyFacts(nextBreak)}
         <div class="rr-intel-detail-fact"><span>Open</span><span>${Math.max(0, -nextBreak.gap).toLocaleString()}</span></div>
-        <div class="rr-intel-detail-fact"><span>Coverage</span><span>${nextBreak.coveragePct}%</span></div>
         ${hireByFact(nextBreak)}
-        <div class="rr-intel-detail-fact"><span>Status</span><span>${RR_FC_LABEL[nextBreak.kind]}</span></div>
-      </aside>
-    </div>
-  ` : `
-    <div class="rr-intel-detail">
-      <div class="rr-intel-detail-narrative">${narrative}</div>
+      </aside>` : `
       <aside class="rr-intel-detail-facts">
-        <div class="rr-intel-detail-fact"><span>This week needed</span><span>${thisWeek.needed.toLocaleString()}</span></div>
+        <div class="rr-intel-detail-fact"><span>Needed</span><span>${thisWeek.needed.toLocaleString()}</span></div>
         ${supplyFacts(thisWeek)}
         <div class="rr-intel-detail-fact"><span>Coverage</span><span>${coveragePct}%</span></div>
-        <div class="rr-intel-detail-fact"><span>4-wk trend</span><span>${escapeHtml(trendLabel)}</span></div>
-      </aside>
-    </div>
-  `;
+      </aside>`;
+  const detailHtml = `
+    <div class="rr-intel-grid3">
+      <div class="rr-intel-detail-narrative">${narrative}</div>
+      ${factsHtml}
+      ${nextBreak && nextBreak.weekStartIso ? `
+      <div class="rr-intel-flexmini" id="rr-intel-flex-plan" data-week="${escapeHtml(nextBreak.weekStartIso)}">
+        <div class="rr-intel-flexmini-head"><span>Coverage plan · ${escapeHtml(nextBreak.label)}</span></div>
+        <div class="rr-intel-flexmini-hint">Computing from live availability…</div>
+      </div>` : ""}
+    </div>`;
 
   // Headline pill lives in the shell header — update it in place.
   const pill = view.querySelector("#rr-rf-pill");
@@ -3831,6 +3831,7 @@ function _rrRenderRiskForecastOut(view, weeks) {
     }
   }
 
+  out.classList.add("rr-intel-dense");
   out.innerHTML = `
     <div class="rr-intel-kpis">
       <div class="rr-intel-kpi">
@@ -3846,7 +3847,7 @@ function _rrRenderRiskForecastOut(view, weeks) {
       <div class="rr-intel-kpi">
         <div class="rr-intel-kpi-label">Short over 4 weeks</div>
         <div class="rr-intel-kpi-val ${A.horizon.driverWeeksShort > 0 ? "is-warn" : ""}">${A.horizon.driverWeeksShort.toLocaleString()}</div>
-        <div class="rr-intel-kpi-sub">Driver-weeks (weekly gaps summed — not people to hire)</div>
+        <div class="rr-intel-kpi-sub" title="Weekly gaps summed — a workload unit, not people to hire">Driver-weeks — not hires</div>
       </div>
       <div class="rr-intel-kpi">
         <div class="rr-intel-kpi-label">Next break</div>
@@ -3865,22 +3866,14 @@ function _rrRenderRiskForecastOut(view, weeks) {
 
     ${detailHtml}
 
-    ${nextBreak && nextBreak.weekStartIso ? `
-    <div class="rr-intel-flexplan" id="rr-intel-flex-plan" data-week="${escapeHtml(nextBreak.weekStartIso)}">
-      <div class="rr-intel-section-head">
-        <h3 class="rr-intel-section-title">Coverage plan · ${escapeHtml(nextBreak.label)}</h3>
-        <span class="rr-intel-section-aside">Computing from live availability…</span>
-      </div>
-    </div>` : ""}
     <div id="rr-intel-upper-funnel"></div>
 
-    <footer class="rr-intel-foot">
+    <footer class="rr-intel-foot rr-intel-foot--one">
       <span class="rr-intel-foot-bullet"><span class="dot"></span>${window._rrSimResultsByWeek
-        ? "Simulation ran " + (window._rrSimResultsRanAt ? new Date(window._rrSimResultsRanAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "just now") + " — PTO + time-off folded in."
-        : "Reads from the live 13-week plan — click Simulate 13 weeks on Targets for the PTO-aware projection."}</span>
-      <span>${rates
-        ? `Observed rates folded in: ${Math.round((rates.calloutRate || 0) * 100)}% callouts (60d) · ${(100 * (rates.weeklyAttritionRate || 0)).toFixed(1)}%/wk attrition (90d) · ${(rates.onboarding || []).length} onboarding gated by ready date.`
-        : "Loading observed callout + attrition rates…"}</span>
+        ? "Simulation ran " + (window._rrSimResultsRanAt ? new Date(window._rrSimResultsRanAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "just now") + " — PTO folded in"
+        : "Live 13-week plan — Simulate 13 weeks folds in PTO"}${rates
+        ? ` · observed: ${Math.round((rates.calloutRate || 0) * 100)}% callouts · ${(100 * (rates.weeklyAttritionRate || 0)).toFixed(1)}%/wk attrition · ${(rates.onboarding || []).length} onboarding gated`
+        : " · loading observed rates…"}</span>
     </footer>
   `;
 
@@ -4034,47 +4027,30 @@ function _rrUpperFunnelSectionHtml(m, nextBreak) {
   // Accepts a forecast-core assessed week (gap = effAvail − needed).
   const gap = Math.max(0, -(Number(nextBreak.gap) || 0));
   if (gap <= 0) return "";
-  const covered = Math.min(gap, m.expectedHires);
   const unsourced = Math.max(0, Math.ceil(gap - m.expectedHires));
   const apps = _rrUfAppsNeeded(unsourced, m.e2ePct);
   const dl = _rrUfEntryDeadline(nextBreak.idx, m.funnelDays);
   const weeksOfPace = m.appsPerWeek > 0 ? Math.ceil(apps / m.appsPerWeek) : null;
+  // Single stat line so the risk panel fits one viewport; the full
+  // basis sentence lives in the tooltip, the ladder in Hiring pulse.
+  const basisTip = _rrUfBasisNote(m)
+    + (weeksOfPace && unsourced > 0
+      ? ` At your current pace of ${m.appsPerWeek}/week, that's ~${weeksOfPace} week${weeksOfPace === 1 ? "" : "s"} of applications.`
+      : "");
   return `
-    <div class="rr-intel-strip-section">
+    <div class="rr-intel-ufsec" title="${escapeHtml(basisTip)}">
       <div class="rr-intel-section-head">
         <h3 class="rr-intel-section-title">Upper funnel · ${escapeHtml(nextBreak.label)}</h3>
-        <span class="rr-intel-section-aside">Work backwards from the gap to a sourcing quota</span>
+        <span class="rr-intel-section-aside">${m.measured
+          ? `Your measured rates · ${m.e2ePct.toFixed(m.e2ePct < 10 ? 1 : 0)}% app→hire · ~${m.funnelDays}d in funnel`
+          : "Industry defaults until 5+ hires of history"}</span>
       </div>
-      <div class="rr-intel-kpis">
-        <div class="rr-intel-kpi">
-          <div class="rr-intel-kpi-label">Open · ${escapeHtml(nextBreak.label)}</div>
-          <div class="rr-intel-kpi-val is-risk">${gap.toLocaleString()}</div>
-          <div class="rr-intel-kpi-sub">Drivers short of plan</div>
-        </div>
-        <div class="rr-intel-kpi">
-          <div class="rr-intel-kpi-label">In your funnel now</div>
-          <div class="rr-intel-kpi-val">${m.inFunnelTotal.toLocaleString()}</div>
-          <div class="rr-intel-kpi-sub">≈ ${m.expectedHires.toFixed(1)} expected hire${m.expectedHires.toFixed(1) === "1.0" ? "" : "s"}${covered >= gap ? " — covers this gap" : ` of the ${gap.toLocaleString()} you need`}</div>
-        </div>
-        <div class="rr-intel-kpi">
-          <div class="rr-intel-kpi-label">Applications needed</div>
-          <div class="rr-intel-kpi-val ${unsourced > 0 ? "is-warn" : ""}">${unsourced > 0 ? "≈ " + apps.toLocaleString() : "0"}</div>
-          <div class="rr-intel-kpi-sub">${unsourced > 0
-            ? `To source the remaining ${unsourced.toLocaleString()} driver${unsourced === 1 ? "" : "s"}`
-            : "Your live pipeline already covers this gap"}</div>
-        </div>
-        <div class="rr-intel-kpi">
-          <div class="rr-intel-kpi-label">In funnel by</div>
-          <div class="rr-intel-kpi-val ${dl?.overdue ? "is-risk" : ""}">${dl ? escapeHtml(dl.label) : "—"}</div>
-          <div class="rr-intel-kpi-sub">${dl?.overdue
-            ? "Already inside your funnel lead time — source now"
-            : `Hire-by minus ~${m.funnelDays} days of funnel time`}</div>
-        </div>
+      <div class="rr-intel-ufline">
+        <span><em>Open</em><strong class="is-risk">${gap.toLocaleString()}</strong></span>
+        <span><em>In funnel</em><strong>${m.inFunnelTotal.toLocaleString()}</strong> ≈ ${m.expectedHires.toFixed(1)} hires</span>
+        <span><em>Apps needed</em><strong${unsourced > 0 ? ' class="is-warn"' : ""}>${unsourced > 0 ? "≈ " + apps.toLocaleString() : "0"}</strong>${unsourced > 0 ? ` for the last ${unsourced.toLocaleString()}` : " — pipeline covers it"}</span>
+        <span><em>In funnel by</em><strong${dl?.overdue ? ' class="is-risk"' : ""}>${dl ? escapeHtml(dl.label) : "—"}</strong>${dl?.overdue ? " — source now" : ""}</span>
       </div>
-      <div class="rr-intel-section-aside" style="display:block;margin-top:8px">${escapeHtml(_rrUfBasisNote(m))}${
-        weeksOfPace && unsourced > 0
-          ? escapeHtml(` At your current pace of ${m.appsPerWeek}/week, that's ~${weeksOfPace} week${weeksOfPace === 1 ? "" : "s"} of applications.`)
-          : ""}</div>
     </div>`;
 }
 

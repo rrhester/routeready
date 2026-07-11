@@ -17736,6 +17736,66 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .rr-intel-calcbar[hidden]{display:none}
           #view-schedule .rr-intel-calcbar .rr-intel-whatif-field{min-width:96px}
 
+          /* Dense single-viewport layout · Risk Forecast body. Everything
+             below the calc row compresses so the panel fits one screen:
+             tighter KPI/strip padding, a 3-column narrative·facts·plan
+             band, a one-line upper funnel, a one-line footer. */
+          #view-schedule .rr-intel-dense .rr-intel-kpi{padding:10px 22px}
+          #view-schedule .rr-intel-dense .rr-intel-strip-section{padding:10px 22px}
+          #view-schedule .rr-intel-dense .rr-intel-section-head{margin:0 0 6px}
+          #view-schedule .rr-intel-dense .rr-intel-empty{padding:12px 22px}
+          #view-schedule .rr-intel-grid3{
+            display:grid;
+            grid-template-columns:minmax(0,1.25fr) minmax(230px,.7fr) minmax(250px,.75fr);
+            gap:18px;padding:12px 22px;align-items:start;
+            border-bottom:1px solid rgba(15,23,42,.05);
+          }
+          @media (max-width:1100px){
+            #view-schedule .rr-intel-grid3{grid-template-columns:1fr}
+          }
+          #view-schedule .rr-intel-grid3 .rr-intel-detail-narrative{
+            font-size:var(--fs-sm);line-height:1.55;max-width:none;
+          }
+          #view-schedule .rr-intel-dense .rr-intel-detail-facts{padding:10px 14px;gap:6px}
+          #view-schedule .rr-intel-dense .rr-intel-detail-fact{font-size:var(--fs-xs)}
+          #view-schedule .rr-intel-flexmini{
+            border:1px solid rgba(15,23,42,.06);border-radius:var(--r-lg);
+            padding:10px 14px;display:flex;flex-direction:column;gap:8px;min-width:0;
+          }
+          #view-schedule .rr-intel-flexmini-head{
+            display:flex;align-items:center;justify-content:space-between;gap:8px;
+            font-size:var(--fs-xs);font-weight:600;color:var(--text);
+          }
+          #view-schedule .rr-intel-flexmini-hint{font-size:var(--fs-xs);color:var(--text-subtle)}
+          #view-schedule .rr-intel-flexmini-rows{display:flex;flex-direction:column;gap:4px}
+          #view-schedule .rr-intel-flexmini-rows > div{
+            display:flex;justify-content:space-between;align-items:baseline;gap:8px;
+          }
+          #view-schedule .rr-intel-flexmini-rows span{
+            font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);
+            letter-spacing:.04em;text-transform:uppercase;
+          }
+          #view-schedule .rr-intel-flexmini-rows strong{
+            font-size:var(--fs-sm);font-variant-numeric:tabular-nums;color:var(--text);
+          }
+          #view-schedule .rr-intel-flexmini-hire{font-size:var(--fs-xs);color:var(--text);line-height:1.4}
+          #view-schedule .rr-intel-ufsec{padding:10px 22px;border-bottom:1px solid rgba(15,23,42,.05)}
+          #view-schedule .rr-intel-ufline{
+            display:flex;flex-wrap:wrap;gap:8px 32px;align-items:baseline;
+            font-size:var(--fs-xs);color:var(--text-subtle);
+          }
+          #view-schedule .rr-intel-ufline em{
+            font-style:normal;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
+            font-size:var(--fs-10);margin-right:6px;
+          }
+          #view-schedule .rr-intel-ufline strong{
+            font-size:var(--fs-md);font-weight:600;color:var(--text);
+            font-variant-numeric:tabular-nums;margin-right:4px;
+          }
+          #view-schedule .rr-intel-ufline strong.is-warn{color:var(--rr-amber-700)}
+          #view-schedule .rr-intel-ufline strong.is-risk{color:var(--rr-red-700)}
+          #view-schedule .rr-intel-foot--one{padding:10px 22px}
+
           /* What-if form · one row of labeled dials + Run. */
           #view-schedule .rr-intel-whatif{padding:18px 22px}
           #view-schedule .rr-intel-whatif-form{
