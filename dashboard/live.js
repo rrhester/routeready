@@ -3167,6 +3167,87 @@ function _rrAssessOkamiPlan(weeks) {
   });
 }
 
+// ── Flex capacity · tier-aware absorption + hiring plan (edge engine) ──────
+// Calls the flex-capacity edge function, which loads the DSP-week's live
+// rows (driver availability, preferred days, 5th-day opt-ins, certs, PTO,
+// scheduled shifts, demand) and runs the pure engine in /flex-capacity.
+// scenario_simple carries what-if counts; omitted → a no-op scenario, whose
+// WhatIfResult is the coverage verdict for the week exactly as planned.
+// Results cache 10 minutes per (week, scenario). Degrades silently when the
+// function isn't reachable — the UI simply doesn't show the plan block.
+window._rrFlexByWeek = window._rrFlexByWeek || {};
+const _RR_FLEX_NOOP = { addRoutesPerDay: 0 };
+async function _rrFlexForWeek(weekStartIso, scenarioSimple) {
+  if (!weekStartIso) return null;
+  const simple = scenarioSimple || _RR_FLEX_NOOP;
+  const key = weekStartIso + "|" + JSON.stringify(simple);
+  const cached = window._rrFlexByWeek[key];
+  if (cached && Date.now() - cached.at < 10 * 60 * 1000) return cached.data;
+  try {
+    const { data, error } = await sb.functions.invoke("flex-capacity", {
+      body: { week_start: weekStartIso, scenario_simple: simple },
+    });
+    if (error || !data || data.error) throw (error || new Error(data?.error || "flex_failed"));
+    window._rrFlexByWeek[key] = { at: Date.now(), data };
+    return data;
+  } catch (e) {
+    console.warn("flex-capacity:", e?.message || e);
+    return null;
+  }
+}
+function _rrFlexBaseCached(weekStartIso) {
+  const hit = window._rrFlexByWeek[weekStartIso + "|" + JSON.stringify(_RR_FLEX_NOOP)];
+  return hit && Date.now() - hit.at < 10 * 60 * 1000 ? hit.data : null;
+}
+
+// Engine verdict (green/yellow/red/critical) → display language + the
+// legacy status classes. Tier words, not alarm words: the verdict answers
+// "HOW would this week be covered", not "is it at risk".
+const _RR_FLEX_VERDICT = {
+  green:    { label: "Covered comfortably",  cls: "ok",    hint: "Preferred days and normal patterns absorb it." },
+  yellow:   { label: "Covered at stretch",   cls: "tight", hint: "Needs non-preferred days and voluntary 5th days." },
+  red:      { label: "Needs hires",          cls: "risk",  hint: "Even the emergency ceiling barely covers it — hire." },
+  critical: { label: "Cannot cover",         cls: "risk",  hint: "Demand exceeds the maximum tier — hire and mitigate." },
+};
+
+// Fill the Risk Forecast coverage-plan block for the break week. Patches
+// the placeholder in place (no full re-render); bails silently if the view
+// changed underneath or the engine isn't reachable.
+async function _rrFillFlexPlan(weekStartIso, weekLabel) {
+  const host = document.getElementById("rr-intel-flex-plan");
+  if (!host || host.dataset.week !== weekStartIso) return;
+  const data = await _rrFlexForWeek(weekStartIso);
+  const still = document.getElementById("rr-intel-flex-plan");
+  if (!still || still.dataset.week !== weekStartIso) return;
+  if (!data || !data.flex) { still.remove(); return; }
+  const { flex, whatIf } = data;
+  const v = _RR_FLEX_VERDICT[whatIf?.status] || _RR_FLEX_VERDICT.green;
+  const kpi = flex.kpi || {};
+  const hireLine = whatIf && whatIf.driversNeeded > 0
+    ? `<div class="rr-intel-flexplan-hire"><strong>Hire ${whatIf.driversNeeded}</strong>
+        (${whatIf.recommendedFtHires} FT + ${whatIf.recommendedPtHires} PT) to restore comfortable coverage
+        · OT risk ${escapeHtml(whatIf.otRisk || "—")} · confidence ${Math.round(whatIf.confidenceScore || 0)}%</div>`
+    : `<div class="rr-intel-flexplan-hire">No hires required for this week's plan${
+        whatIf?.status === "yellow" ? " — ask for voluntary 5th days / non-preferred days" : ""}.</div>`;
+  still.innerHTML = `
+    <div class="rr-intel-section-head">
+      <h3 class="rr-intel-section-title">Coverage plan · ${escapeHtml(weekLabel)}</h3>
+      <span class="rr-intel-section-aside">From live availability, preferred days, 5th-day opt-ins, certs, PTO + scheduled shifts</span>
+    </div>
+    <div class="rr-intel-flexplan-verdict">
+      <span class="rr-intel-headline-pill ${v.cls}"><span class="dot"></span>${escapeHtml(v.label)}</span>
+      <span class="rr-intel-flexplan-hint">${escapeHtml(v.hint)}</span>
+    </div>
+    <div class="rr-intel-flexplan-tiers">
+      <div class="rr-intel-flexplan-tier"><span>Comfortable headroom</span><strong>+${Number(kpi.comfortableRoutesAvailable) || 0} routes/day</strong><em>preferred days, no pattern disruption</em></div>
+      <div class="rr-intel-flexplan-tier"><span>Stretch headroom</span><strong>+${Number(kpi.stretchRoutesAvailable) || 0} routes/day</strong><em>non-preferred days + voluntary 5th days</em></div>
+      <div class="rr-intel-flexplan-tier"><span>Maximum ceiling</span><strong>+${Number(kpi.maximumRoutesAvailable) || 0} routes/day</strong><em>emergency only — not sustainable</em></div>
+    </div>
+    ${hireLine}`;
+  // The gap card can now enrich its prescription with the FT/PT split.
+  try { if (typeof _rrRefreshTargetsGapCard === "function") _rrRefreshTargetsGapCard(); } catch (_) {}
+}
+
 // Map an OKAMI row's week label (e.g. "W22 May 24–30") to an ISO date
 // the simulation cache is keyed by. _okamiStart is the ISO date of
 // week-0 in the table; each subsequent row is +7 days. Returns null
@@ -3609,6 +3690,13 @@ function _rrIntelRenderRiskForecast(view) {
 
     ${detailHtml}
 
+    ${nextBreak && nextBreak.weekStartIso ? `
+    <div class="rr-intel-flexplan" id="rr-intel-flex-plan" data-week="${escapeHtml(nextBreak.weekStartIso)}">
+      <div class="rr-intel-section-head">
+        <h3 class="rr-intel-section-title">Coverage plan · ${escapeHtml(nextBreak.label)}</h3>
+        <span class="rr-intel-section-aside">Computing from live availability…</span>
+      </div>
+    </div>` : ""}
     <div id="rr-intel-upper-funnel"></div>
 
     <footer class="rr-intel-foot">
@@ -3620,6 +3708,13 @@ function _rrIntelRenderRiskForecast(view) {
         : "Loading observed callout + attrition rates…"}</span>
     </footer>
   `;
+
+  // Tier-aware coverage plan for the break week — fills in asynchronously
+  // from the flex-capacity engine; the placeholder disappears quietly if
+  // the engine isn't reachable.
+  if (nextBreak && nextBreak.weekStartIso) {
+    _rrFillFlexPlan(nextBreak.weekStartIso, nextBreak.label);
+  }
 
   // Upper funnel · backward-solve the next break into a sourcing quota.
   // Async (one cached RPC) so the core forecast still paints instantly.
@@ -3932,11 +4027,127 @@ function _rrIntelRenderHiringPulse(view) {
   });
 }
 
+// ── What-if · stress-test a week against the flex-capacity engine ─────────
+// The operator picks a week and turns four dials (extra routes/day, demand
+// multiplier, callouts, attrition); the edge function materializes the
+// counts against the live roster (deterministic — most-scheduled drivers
+// first) and scores the scenario at the three capacity tiers.
+function _rrIntelRenderWhatIf(view) {
+  const weeks = _rrReadOkamiWeeks();
+  const head = `
+    <header class="rr-intel-view-head">
+      <div class="rr-intel-view-head-l">
+        <p class="rr-intel-view-eyebrow">Intelligence · What-if</p>
+        <h2 class="rr-intel-view-title">What-if</h2>
+        <p class="rr-intel-view-sub">Stress-test a week before it happens: pile on routes, a Prime-Week multiplier,
+          callouts, or attrition, and the flex engine answers with tier headroom and a hiring plan —
+          from live availability, preferred days, 5th-day opt-ins, certs, PTO and scheduled shifts.</p>
+      </div>
+      <button type="button" class="rr-intel-view-close" data-rr-intel-close title="Close" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </header>`;
+  if (!weeks.length) {
+    view.innerHTML = head + `<div class="rr-intel-empty">No 13-week plan data yet. Visit Schedule → Targets to load it, then come back.</div>`;
+    return;
+  }
+  let A = null;
+  try { A = _rrAssessOkamiPlan(weeks); } catch (_) {}
+  const defaultIso = (A && A.firstBreak && A.firstBreak.weekStartIso) || weeks[0].weekStartIso || "";
+  const options = weeks
+    .filter((w) => w.weekStartIso)
+    .map((w) => `<option value="${escapeHtml(w.weekStartIso)}"${w.weekStartIso === defaultIso ? " selected" : ""}>${escapeHtml(w.label)} · ${escapeHtml(w.dates)}</option>`)
+    .join("");
+  view.innerHTML = head + `
+    <div class="rr-intel-whatif">
+      <form class="rr-intel-whatif-form" id="rr-wi-form">
+        <label class="rr-intel-whatif-field">
+          <span>Week</span>
+          <select id="rr-wi-week">${options}</select>
+        </label>
+        <label class="rr-intel-whatif-field">
+          <span>Extra routes/day</span>
+          <input type="number" id="rr-wi-routes" min="0" max="30" step="1" value="0">
+        </label>
+        <label class="rr-intel-whatif-field">
+          <span>Demand</span>
+          <select id="rr-wi-mult">
+            <option value="1" selected>As planned</option>
+            <option value="1.15">+15% surge</option>
+            <option value="1.25">Prime Week (+25%)</option>
+            <option value="1.5">Peak (+50%)</option>
+          </select>
+        </label>
+        <label class="rr-intel-whatif-field">
+          <span>Callouts</span>
+          <input type="number" id="rr-wi-callouts" min="0" max="15" step="1" value="0">
+        </label>
+        <label class="rr-intel-whatif-field">
+          <span>Drivers quit</span>
+          <input type="number" id="rr-wi-attrition" min="0" max="10" step="1" value="0">
+        </label>
+        <button type="submit" class="rr-intel-whatif-run" id="rr-wi-run">Run scenario</button>
+      </form>
+      <div class="rr-intel-whatif-result" id="rr-wi-result">
+        <div class="rr-intel-empty">Pick a week, set the dials, and run. Callouts and attrition are simulated
+        against your most-scheduled drivers first, so reruns are comparable.</div>
+      </div>
+    </div>`;
+  const form = view.querySelector("#rr-wi-form");
+  if (form) form.addEventListener("submit", (e) => { e.preventDefault(); _rrRunWhatIf(view); });
+}
+
+async function _rrRunWhatIf(view) {
+  const btn = view.querySelector("#rr-wi-run");
+  const out = view.querySelector("#rr-wi-result");
+  if (!out) return;
+  const weekIso = view.querySelector("#rr-wi-week")?.value || "";
+  const clampInt = (id, max) => Math.max(0, Math.min(max, parseInt(view.querySelector(id)?.value, 10) || 0));
+  const simple = {
+    addRoutesPerDay: clampInt("#rr-wi-routes", 30),
+    routeMultiplier: Number(view.querySelector("#rr-wi-mult")?.value) || 1,
+    calloutCount: clampInt("#rr-wi-callouts", 15),
+    attritionCount: clampInt("#rr-wi-attrition", 10),
+  };
+  if (btn) { btn.disabled = true; btn.textContent = "Running…"; }
+  out.innerHTML = `<div class="rr-intel-empty">Loading the week's live roster and scoring the scenario…</div>`;
+  const data = await _rrFlexForWeek(weekIso, simple);
+  if (btn) { btn.disabled = false; btn.textContent = "Run scenario"; }
+  if (!data || !data.whatIf) {
+    out.innerHTML = `<div class="rr-intel-empty">The flex-capacity engine isn't reachable right now
+      (it deploys with the next main build). Try again in a few minutes.</div>`;
+    return;
+  }
+  const w = data.whatIf;
+  const v = _RR_FLEX_VERDICT[w.status] || _RR_FLEX_VERDICT.green;
+  const shortDays = (w.dailyShortages || []).filter((d) => d.shortage > 0);
+  const dayNames = { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun" };
+  out.innerHTML = `
+    <div class="rr-intel-flexplan-verdict">
+      <span class="rr-intel-headline-pill ${v.cls}"><span class="dot"></span>${escapeHtml(v.label)}</span>
+      <span class="rr-intel-flexplan-hint">${escapeHtml(v.hint)}
+        · confidence ${Math.round(w.confidenceScore || 0)}%</span>
+    </div>
+    <div class="rr-intel-flexplan-tiers">
+      <div class="rr-intel-flexplan-tier"><span>Comfortable headroom left</span><strong>+${Number(w.comfortableRemaining) || 0} routes/day</strong><em>preferred days, no pattern disruption</em></div>
+      <div class="rr-intel-flexplan-tier"><span>Stretch headroom left</span><strong>+${Number(w.stretchRemaining) || 0} routes/day</strong><em>non-preferred days + voluntary 5th days</em></div>
+      <div class="rr-intel-flexplan-tier"><span>Maximum ceiling left</span><strong>+${Number(w.maximumRemaining) || 0} routes/day</strong><em>emergency only — not sustainable</em></div>
+    </div>
+    ${shortDays.length ? `<div class="rr-intel-flexplan-hire">Uncoverable even at maximum:
+      ${shortDays.map((d) => `<strong>${dayNames[d.day] || d.day} −${d.shortage}</strong>`).join(" · ")}
+      (${w.weeklyShortage} route-day${w.weeklyShortage === 1 ? "" : "s"} short across the week)</div>` : ""}
+    <div class="rr-intel-flexplan-hire">${w.driversNeeded > 0
+      ? `<strong>Hire ${w.driversNeeded}</strong> (${w.recommendedFtHires} FT + ${w.recommendedPtHires} PT)
+         to restore comfortable coverage · OT risk ${escapeHtml(w.otRisk || "—")} · schedule-disruption risk ${escapeHtml(w.scheduleDisruptionRisk || "—")}`
+      : `No hires required for this scenario.`}</div>`;
+}
+
 const _RR_INTEL_RENDERERS = {
   "risk-forecast": _rrIntelRenderRiskForecast,
   "hiring-pulse": _rrIntelRenderHiringPulse,
-  // 3 other intel views land in follow-up PRs:
-  //   compliance-watch, peak-days, what-if
+  "what-if": _rrIntelRenderWhatIf,
+  // 2 other intel views land in follow-up PRs:
+  //   compliance-watch, peak-days
 };
 
 // ── Undo stack ─────────────────────────────────────────────────────
@@ -23914,7 +24125,8 @@ function _ivcalMyCalendars() {
   const myBody = _ivSecOpen("mycals")
     ? `<div class="oc-cals-grp">${builtin}${custom}${tasksRow}${availRow}</div>`
     : "";
-  const feedRow = `<button type="button" class="oc-cals-feed" data-ivcal-feedall title="Subscribe to this calendar from Google, Apple or Outlook">🔗 Subscribe in another calendar app…</button>`;
+  const _linkIco = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`;
+  const feedRow = `<button type="button" class="oc-cals-feed" data-ivcal-feedall title="Subscribe to this calendar from Google, Apple or Outlook">${_linkIco} Subscribe in another calendar app…</button>`;
   const otherBody = _ivSecOpen("othercals")
     ? `<div class="oc-cals-grp">${_ivcalGoogleRow()}${feedRow}</div>`
     : "";
@@ -23924,7 +24136,7 @@ function _ivcalMyCalendars() {
   return `<div class="oc-cals">
     ${_ivcalBookingPagesSection()}
     <div class="oc-sec">${_ivSecHead("mycals", "My calendars", addCal)}${myBody}</div>
-    <div class="oc-sec">${_ivSecHead("othercals", "Other calendars")}${otherBody}</div>
+    <div class="oc-sec">${_ivSecHead("othercals", "Connected calendars")}${otherBody}</div>
     ${_ivcalLegend()}
   </div>`;
 }
@@ -23942,7 +24154,7 @@ function _ivcalBookingPagesSection() {
       `<div class="oc-bp-row" data-ivcal-bp="${escapeHtml(s.id)}" title="Edit “${escapeHtml(s.name)}”">
         <span class="oc-bp-ico">${pageIco}</span>
         <span class="oc-bp-name">${escapeHtml(s.name)}</span>
-        ${s.is_active ? `<span class="oc-bp-active" title="Active booking schedule">active</span>` : ""}
+        ${s.is_active ? `<span class="oc-bp-active" title="Active booking schedule"><span class="oc-bp-dot" aria-hidden="true"></span>Active</span>` : ""}
         <button type="button" class="oc-cal-menu oc-bp-preview" data-ivcal-bp-preview="${escapeHtml(s.id)}" title="Preview what applicants see" aria-label="Preview booking page">${eyeIco}</button>
       </div>`).join("")
       : `<div class="oc-cals-empty">No booking pages yet — click + to add one.</div>`;
@@ -24192,6 +24404,50 @@ function _ivcalOpenBookPicker(applicantId, name) {
     }
   })();
 }
+// The next genuinely-open interview slot: scans the coming two weeks of
+// effective windows (override-aware, same math as the grid shading) and
+// returns the first slot start that is in the future and not booked to
+// capacity. Pure client-side read of the cache — no new query.
+function _ivcalNextOpenSlot() {
+  if (!_ivcalCache) return null;
+  const slot = _ivcalCache.slot || 30, buf = _ivcalCache.buffer || 0;
+  const now = new Date();
+  const live = (_ivcalCache.bookings || []).filter(b =>
+    b && b.status !== "cancelled" && b.status !== "no_show"
+    && (b.rsvp || "accepted") !== "declined"
+    && !(b.metadata && b.metadata.is_task));
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(now); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + i);
+    for (const w of _ivcalDayWindows(d)) {
+      for (const mm of _slotStarts(w, slot, buf)) {
+        const st = new Date(d); st.setHours(0, mm, 0, 0);
+        if (st <= now) continue;
+        const en = new Date(st.getTime() + slot * 60000);
+        const cap = (w.capacity && w.capacity > 1) ? w.capacity : 1;
+        const taken = live.filter(b => {
+          const bs = new Date(b.starts_at);
+          const be = b.ends_at ? new Date(b.ends_at) : new Date(bs.getTime() + 30 * 60000);
+          return bs < en && be > st;
+        }).length;
+        if (taken < cap) return st;
+      }
+    }
+  }
+  return null;
+}
+// "Today at 2:30 PM" / "Tomorrow at 9:00 AM" / "Tuesday at 2:30 PM" /
+// "Tue, Jul 21 at 2:30 PM" — relative wording for the next-slot line.
+function _ivcalNextSlotTxt(st) {
+  const t = st.toLocaleTimeString([], _ivClockOpts());
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const dayDiff = Math.round((new Date(st.getFullYear(), st.getMonth(), st.getDate()) - today) / 864e5);
+  const day = dayDiff === 0 ? "Today"
+    : dayDiff === 1 ? "Tomorrow"
+    : dayDiff < 7 ? st.toLocaleDateString(undefined, { weekday: "long" })
+    : st.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  return `${day} at ${t}`;
+}
+
 function _ivcalAwaiting() {
   const list = (_ivcalCache && _ivcalCache.awaiting) || [];
   const LIM = 8;
@@ -24217,8 +24473,20 @@ function _ivcalAwaiting() {
   }).join("");
   const more = list.length > LIM
     ? `<button type="button" class="oc-await-more" data-ivcal-await-more>+${list.length - LIM} more in Funnel</button>` : "";
+  // Next genuinely-open slot (override- and capacity-aware) — the answer to
+  // "when can the next candidate actually book?", straight from the cache.
+  const nextAt = _ivcalNextOpenSlot();
+  const nextRow = `<div class="oc-next-slot">
+    <span class="oc-next-slot-l">Next available slot</span>
+    ${nextAt
+      ? `<button type="button" class="oc-next-slot-v" data-ivcal-nextslot="${nextAt.toISOString()}" title="Go to this slot on the calendar">${escapeHtml(_ivcalNextSlotTxt(nextAt))}</button>`
+      : `<span class="oc-next-slot-none">None in the next 2 weeks</span>`}
+  </div>`;
+  const pendRow = `<div class="oc-await-pend"><span>Pending requests</span><span class="oc-await-count${list.length ? "" : " is-zero"}">${list.length}</span></div>`;
   const body = _ivSecOpen("awaiting")
-    ? (list.length ? rows + more : `<div class="oc-await-empty">All caught up — nobody's waiting on a time.</div>`)
+    ? (list.length
+        ? nextRow + pendRow + rows + more
+        : `<div class="oc-await-empty">No interview requests are awaiting scheduling.</div>` + nextRow)
     : "";
   const count = list.length ? `<span class="oc-await-count">${list.length}</span>` : "";
   return `<div class="oc-sec oc-await">${_ivSecHead("awaiting", "Interview booking", count)}${body}</div>`;
@@ -24239,7 +24507,6 @@ function _ivcalSetGoogleColor(c) {
 function _ivcalGoogleRow() {
   const g = _ivcalCache && _ivcalCache.gcal;
   const connected = !!(g && g.connected);
-  const head = `<div class="oc-cals-sub">Google Calendar</div>`;
   if (connected) {
     const on = _ivcalCalVis["google"] !== false;
     // Surface push-sync failures (events that didn't reach Google). Without this
@@ -24251,12 +24518,16 @@ function _ivcalGoogleRow() {
     const errNote = (on && _ivcalGoogleErr)
       ? `<div class="oc-gcal-err" title="${escapeHtml(_ivcalGoogleErr)}">⚠ Couldn't load Google events — is the google-calendar-events function deployed?</div>`
       : "";
-    return head + `<div class="oc-cal-row oc-gcal-row">
-      <label class="oc-cal-lbl"><input type="checkbox" data-ivcal-cal="google"${on?" checked":""}><span class="oc-cal-dot" style="background:${_ivcalGoogleColor}"></span><span class="oc-gcal-ico">${_IVCAL_GOOGLE_ICON}</span><span class="oc-cal-name" title="${escapeHtml(g.email||"")}">${escapeHtml(g.email||"Google")}</span></label>
+    // Connection state below the name — green "Connected" normally; amber
+    // "Sync issue" when any push failed (details in the note underneath).
+    const stCls = syncFails || (on && _ivcalGoogleErr) ? " is-warn" : "";
+    const stTxt = syncFails || (on && _ivcalGoogleErr) ? "Sync issue" : "Connected";
+    return `<div class="oc-cal-row oc-gcal-row">
+      <label class="oc-cal-lbl"><input type="checkbox" data-ivcal-cal="google"${on?" checked":""}><span class="oc-gcal-ico">${_IVCAL_GOOGLE_ICON}</span><span class="oc-gcal-main"><span class="oc-cal-name" title="${escapeHtml(g.email||"")}">Google Calendar</span><span class="oc-gcal-sub${stCls}"><span class="oc-gcal-dot" aria-hidden="true"></span>${stTxt}${g.email ? ` · ${escapeHtml(g.email)}` : ""}</span></span></label>
       <button class="oc-cal-menu" data-ivcal-gcal="menu" title="Calendar options" aria-label="Google calendar options">⋯</button>
     </div>${syncNote}${errNote}`;
   }
-  return head + `<button class="oc-gcal-connect" data-ivcal-gcal="connect"><span class="oc-gcal-ico">${_IVCAL_GOOGLE_ICON}</span>Connect Google Calendar</button>`;
+  return `<button class="oc-gcal-connect" data-ivcal-gcal="connect"><span class="oc-gcal-ico">${_IVCAL_GOOGLE_ICON}</span>Connect Google Calendar</button>`;
 }
 
 // ── Google event overlay ───────────────────────────────────────────────────
@@ -24543,8 +24814,6 @@ function _ivcalLegend() {
     ${labels.length ? `<div class="oc-cals-sub oc-leg-h oc-leg-lbls"><span>Labels</span></div>${labels.map(labTog).join("")}` : ""}
     <div class="oc-cals-sub">Icons</div>
     ${icon(_IVCAL_CAM_SVG, "Has video link")}
-    ${icon("✓", "RSVP accepted")}
-    ${icon("✉", "Awaiting reply")}
     </div>
   </details>`;
 }
@@ -24792,7 +25061,11 @@ function _ivcalMiniMonths() {
       const out = d.getMonth() !== mo;
       const isToday = d.getTime() === today.getTime();
       const inRange = rng && d >= rng.start && d <= rng.end;
-      cells += `<button class="oc-mini-d${out?" out":""}${isToday?" today":""}${inRange?" in-range":""}" data-mini-date="${_ivcalISODate(d)}">${d.getDate()}</button>`;
+      // Range endpoints get their own classes so the selected work-week reads
+      // as one continuous band with rounded ends (Outlook-style).
+      const rs = inRange && d.getTime() === rng.start.getTime();
+      const re = inRange && d.getTime() === new Date(rng.end.getFullYear(), rng.end.getMonth(), rng.end.getDate()).getTime();
+      cells += `<button class="oc-mini-d${out?" out":""}${isToday?" today":""}${inRange?" in-range":""}${rs?" rng-s":""}${re?" rng-e":""}" data-mini-date="${_ivcalISODate(d)}">${d.getDate()}</button>`;
       cur.setDate(cur.getDate()+1);
     }
     rows += `<div class="oc-mini-row">${cells}</div>`;
@@ -24840,6 +25113,23 @@ function _ivcalRenderNow() {
   const pane = _ivcalSelected ? _ivcalPaneHtml() : "";
 
   const _panelSvg = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="9" y1="4" x2="9" y2="20"/></svg>`;
+  const _chevL = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="14 6 8 12 14 18"/></svg>`;
+  const _chevR = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="10 6 16 12 10 18"/></svg>`;
+  // Toolbar in two clusters so _ivcalDockBar (below) can lift them into the
+  // command ribbon: navigation (panel · Today · ‹ › · date range) and
+  // utilities (zoom · search · settings). Undocked they render as one bar.
+  const _barNav = `<div class="oc-bar-group oc-bar-nav">
+          <button class="oc-btn oc-ico oc-side-toggle${_ivcalSideOpen ? " on" : ""}" data-ivcal-side title="${_ivcalSideOpen ? "Hide calendar panel" : "Show calendar panel"}" aria-label="Toggle calendar panel" aria-pressed="${_ivcalSideOpen ? "true" : "false"}">${_panelSvg}</button>
+          <button class="oc-btn" data-ivcal-nav="0" title="Today (T)">Today</button>
+          <button class="oc-btn oc-ico" data-ivcal-nav="-1" title="Previous" aria-label="Previous ${_ivcalView === "day" ? "day" : "period"}">${_chevL}</button>
+          <button class="oc-btn oc-ico" data-ivcal-nav="1" title="Next" aria-label="Next ${_ivcalView === "day" ? "day" : "period"}">${_chevR}</button>
+          <span class="oc-period">${escapeHtml(_ivcalPeriodLabel())}</span>
+        </div>`;
+  const _barUtils = `<div class="oc-bar-group oc-bar-utils">
+          ${(_ivcalView === "month" || _ivcalView === "year" || _ivcalView === "agenda") ? "" : `<div class="oc-seg oc-zoom" title="Time scale — make slots bigger or smaller"><button data-ivcal-zoom="-8" aria-label="Smaller time slots">−</button><button data-ivcal-zoom="8" aria-label="Bigger time slots">＋</button></div>`}
+          <button class="oc-btn oc-ico oc-search-btn" data-ivcal-search title="Search events (/)" aria-label="Search events"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
+          <button class="oc-btn oc-ico" data-ivcal-settings title="Calendar settings" aria-label="Calendar settings"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+        </div>`;
   host.innerHTML = `
     <div class="oc${_ivcalSideOpen ? "" : " oc-side-closed"}">
       ${_ivcalSideOpen ? `<div class="oc-side">
@@ -24848,17 +25138,7 @@ function _ivcalRenderNow() {
         ${_ivcalAwaiting()}
         ${_ivcalMiniMonths()}${_ivcalMyCalendars()}</div>` : ""}
       <div class="oc-main">
-        <div class="oc-bar">
-          <button class="oc-btn oc-ico oc-side-toggle${_ivcalSideOpen ? " on" : ""}" data-ivcal-side title="${_ivcalSideOpen ? "Hide calendar panel" : "Show calendar panel"}" aria-label="Toggle calendar panel" aria-pressed="${_ivcalSideOpen ? "true" : "false"}">${_panelSvg}</button>
-          <button class="oc-btn" data-ivcal-nav="0" title="Today (T)">Today</button>
-          <button class="oc-btn oc-ico" data-ivcal-nav="-1" title="Previous">‹</button>
-          <button class="oc-btn oc-ico" data-ivcal-nav="1" title="Next">›</button>
-          <span class="oc-period">${escapeHtml(_ivcalPeriodLabel())}</span>
-          ${(_ivcalView === "month" || _ivcalView === "year" || _ivcalView === "agenda") ? "" : `<div class="oc-seg oc-zoom" title="Time scale — make slots bigger or smaller"><button data-ivcal-zoom="-8" aria-label="Smaller time slots">−</button><button data-ivcal-zoom="8" aria-label="Bigger time slots">＋</button></div>`}
-          <span class="oc-sp"></span>
-          <button class="oc-btn oc-ico oc-search-btn" data-ivcal-search title="Search events (/)" aria-label="Search events"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
-          <button class="oc-btn oc-ico" data-ivcal-settings title="Calendar settings" aria-label="Calendar settings"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
-        </div>
+        <div class="oc-bar">${_ivcalSideOpen ? "" : _ivcalCreatePill()}${_barNav}<span class="oc-sp"></span>${_barUtils}</div>
         ${_ivcalAvailNudge()}
         ${inner}
       </div>
@@ -25042,6 +25322,12 @@ function _ivcalRenderNow() {
   host.querySelector("[data-ivcal-await-more]")?.addEventListener("click", () => {
     if (typeof window.obSub === "function") window.obSub("funnel");
   });
+  // "Next available slot" → jump the main calendar to that date.
+  host.querySelector("[data-ivcal-nextslot]")?.addEventListener("click", (e) => {
+    const iso = e.currentTarget.getAttribute("data-ivcal-nextslot");
+    if (!iso) return;
+    _ivcalAnchor = new Date(iso); _ivcalMiniAnchor = null; _ivcalRender();
+  });
   host.querySelectorAll("[data-ivcal-addcal]").forEach(b => b.onclick = (e) => { e.stopPropagation(); _ivcalCalendarDialog(null); });
   host.querySelectorAll("[data-ivcal-feedall]").forEach(b => b.onclick = (e) => { e.stopPropagation(); _ivcalFeedDialog(null); });
   host.querySelectorAll("[data-ivcal-calmenu]").forEach(b => b.onclick = (e) => {
@@ -25116,6 +25402,8 @@ function _ivcalRenderNow() {
       e.stopPropagation();
       // The task-complete circle toggles done instead of opening the editor.
       if (e.target.closest("[data-oc-task-toggle]")) { _ivcalToggleTask(el.getAttribute("data-ivcal-id")); return; }
+      // The hover ⋮ opens the same actions menu as right-click.
+      if (e.target.closest("[data-oc-evmenu]")) { _ivcalContextMenu(e, el.getAttribute("data-ivcal-kind"), el.getAttribute("data-ivcal-id")); return; }
       if (e.target.closest(".ei-cam-hit")) { const ev = _ivcalFindEv(el.getAttribute("data-ivcal-kind"), el.getAttribute("data-ivcal-id")); if (ev && ev.meeting_url) { _ivcalOpenRoom(ev); return; } }
       if (_ivcalSuppressClick) { _ivcalSuppressClick = false; return; }
       _ivcalEditEvent(el.getAttribute("data-ivcal-kind"), el.getAttribute("data-ivcal-id"));
@@ -25174,6 +25462,28 @@ function _ivcalRenderNow() {
     });
     cell.addEventListener("dblclick", (e) => { if (e.target.closest("[data-ivcal-id]") || e.target.closest(".oc-more")) return; _ivcalNewEvent(cell.getAttribute("data-ivcal-date"), 9*60, 9*60+30); });
   });
+
+  // Dock the toolbar clusters into the command ribbon so the page reads as
+  // ONE toolbar row — Create · Today · ‹ › · date range · Work Week ·
+  // Availability on the left, zoom/search/settings + Schedule interview on
+  // the right. Runs AFTER the listeners above are attached (they move with
+  // the nodes). Stale clusters from the previous render are dropped first,
+  // mirroring _ivcalDockCreate; when the ribbon isn't present (calendar
+  // hosted outside the Onboarding shell) the bar simply stays in place.
+  (function _ivcalDockBar() {
+    const sub = document.querySelector("#rr-cal-ribbon .subnav");
+    const bar = host.querySelector(".oc-bar");
+    if (!sub || !bar) return;
+    const vg = sub.querySelector(".rr-cal-viewgroup");
+    const ng = sub.querySelector(".rr-cal-newgroup");
+    const navC = bar.querySelector(".oc-bar-nav");
+    const utilC = bar.querySelector(".oc-bar-utils");
+    if (!vg || !ng || !navC || !utilC) return;
+    sub.querySelectorAll(".oc-bar-nav, .oc-bar-utils").forEach(n => n.remove());
+    sub.insertBefore(navC, vg);
+    ng.insertBefore(utilC, ng.firstChild);
+    bar.remove();
+  })();
 
   // Reading pane wiring; preserve scroll across re-renders, else scroll to now.
   _ivcalInstallDrag(host);
@@ -25477,9 +25787,18 @@ async function _ivcalOpenEmail(kind, id) {
   }
 }
 
-// A unique, unguessable Jitsi room URL. No API key / server call — Whereby's
-// API edge was blocking room creation (403), so video uses meet.jit.si.
-function _ivcalVideoRoom() {
+// Mint a first-party RouteReady Meet room (dashboard/meet.html, meetings
+// table via meet_create RPC) and return its short /m/<code> invite link.
+// Falls back to a unique meet.jit.si URL if the RPC fails — a booking must
+// never die because room minting hiccuped.
+async function _ivcalVideoRoom(title) {
+  try {
+    const { data, error } = await sb.rpc("meet_create", { p_title: title || "Interview" });
+    if (!error && data && data.code) {
+      const base = ((window.RR_CONFIG && window.RR_CONFIG.PUBLIC_BASE_URL) || location.origin).replace(/\/+$/, "");
+      return base + "/m/" + data.code;
+    }
+  } catch (_) { /* fall through to Jitsi */ }
   const rand = (typeof crypto !== "undefined" && crypto.randomUUID)
     ? crypto.randomUUID().replace(/-/g, "")
     : (Date.now().toString(36) + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2));
@@ -25755,6 +26074,7 @@ function _ivcalNewEvent(dateISO, startMin, endMin, editEv) {
   const _calOptions = `<option value="">No calendar</option>` + _calList.map(c =>
     `<option value="${escapeHtml(c.id)}"${String(c.id)===String(_calCurrent)?" selected":""}>${escapeHtml(c.name)}</option>`).join("");
   let roomUrl = "";
+  let roomMintPending = null; // in-flight meet_create — Save/Send awaits it
   const rsvpToken = ((typeof crypto !== "undefined" && crypto.randomUUID)
     ? crypto.randomUUID().replace(/-/g, "")
     : (Date.now().toString(36) + Math.random().toString(36).slice(2)));
@@ -26526,14 +26846,31 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
         renderRoomState();
         toast("Video meeting removed — this is now a plain calendar invite", "info");
       } else {
-        roomUrl = (isEdit && ev0 && ev0.meeting_url) ? ev0.meeting_url : _ivcalVideoRoom();
-        if (loc && !loc.value.trim()) loc.value = "Online video meeting";
-        // Convenience: seed the interview template/title on a blank event.
-        const bodyEl = document.getElementById("rr-ne-body");
-        if (bodyEl && !bodyEl.value.trim()) bodyEl.value = INTERVIEW_TEMPLATE;
-        if (!titleInp.value.trim()) { titleInp.value = "Driver interview"; document.getElementById("rr-ne-tt").textContent = "Driver interview"; }
-        renderRoomState();
-        toast("Video meeting added · link included in the invite", "success");
+        const applyRoom = (url) => {
+          roomUrl = url;
+          if (loc && !loc.value.trim()) loc.value = "Online video meeting";
+          // Convenience: seed the interview template/title on a blank event.
+          const bodyEl = document.getElementById("rr-ne-body");
+          if (bodyEl && !bodyEl.value.trim()) bodyEl.value = INTERVIEW_TEMPLATE;
+          if (!titleInp.value.trim()) { titleInp.value = "Driver interview"; document.getElementById("rr-ne-tt").textContent = "Driver interview"; }
+          renderRoomState();
+          toast("Video meeting added · link included in the invite", "success");
+        };
+        if (isEdit && ev0 && ev0.meeting_url) {
+          applyRoom(ev0.meeting_url);
+        } else {
+          // Minting is a server round-trip now (RouteReady Meet room);
+          // disable the toggle so a double-click can't mint two rooms,
+          // and stash the promise so Save/Send can await it (an invite
+          // must never go out missing the link the operator just added).
+          const mintBtn = e.target.closest("[data-ne-act]");
+          if (mintBtn) mintBtn.disabled = true;
+          roomMintPending = _ivcalVideoRoom(titleInp.value.trim() || "Driver interview").then((url) => {
+            roomMintPending = null;
+            if (mintBtn) mintBtn.disabled = false;
+            applyRoom(url);
+          });
+        }
       }
       return;
     }
@@ -26551,6 +26888,9 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
     if (chipBtn) { attachments.splice(+chipBtn.getAttribute("data-ne-chip"), 1); renderChips(); return; }
 
     if (act === "send" || act === "save" || e.target.closest("#rr-ne-create")) {
+      // A video-room mint may still be in flight (it's an RPC round-trip
+      // now) — wait for it so the saved event/invite carries the link.
+      if (roomMintPending) { toast("Adding the video link…", "info"); await roomMintPending; }
       // "Save" puts the event on the calendar without inviting/emailing anyone
       // (personal blocks); "Send" also invites the attendees.
       const isSave   = act === "save";
@@ -26989,23 +27329,46 @@ function _ivcalEventBlock(ev, type, lay) {
   // interview workspace (the rest of the chip opens the reading pane/editor).
   if (ev.meeting_url) icons += `<span class="ei-cam-hit" data-ivcal-room="1" title="Open video interview" role="button" tabindex="-1">${_IVCAL_CAM_SVG}</span>`;
   if (ev.series_id) icons += `<span title="Recurring event">↻</span>`;
-  if (type !== "session" && rsvp === "accepted") icons += "✓"; else if (rsvp === "pending") icons += "✉";
-  const ico = icons ? `<span class="ei">${icons}</span>` : "";
-  // Explicit status word (enterprise pass 2026-07-11): the glyph-only
-  // ✓/✉ coding made confirmed-vs-pending guesswork. Chips tall enough
-  // for three lines carry the word on its own line; two-line chips
-  // fold it into the time row; every chip carries it in the tooltip
-  // and accessible name.
+  // Hover-revealed ⋮ opens the same context menu as right-click, so every
+  // action (Open / Edit / Email / Cancel / label) is mouse-discoverable.
+  const kebab = `<button type="button" class="oc-ev-menu" data-oc-evmenu tabindex="-1" title="Event actions" aria-label="Event actions"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button>`;
+  const ico = `<span class="ei">${icons}${kebab}</span>`;
+  // Explicit status word: mapped to a compact chip on cards tall enough to
+  // carry one; folded into the time row on medium cards; always present in
+  // the tooltip and accessible name.
   const _stWord = type === "session" ? ""
     : (ev.status === "no_show") ? "No-show"
-    : (ev.status === "cancelled") ? "Cancelled"
+    : (ev.status === "cancelled") ? "Canceled"
+    : (ev.status === "rescheduled") ? "Rescheduled"
     : (rsvp === "declined") ? "Declined"
     : (rsvp === "pending") ? "Awaiting reply" : "Confirmed";
-  const _stLine = (_stWord && h >= 44) ? `<div class="oc-ev-status">${_stWord}</div>` : "";
-  const _stInline = (_stWord && h >= 30 && h < 44) ? `<span class="oc-ev-status is-inline"> · ${_stWord}</span>` : "";
-  const inner = (h < 30)
-    ? `<div class="en"><span class="et">${escapeHtml(time)}</span> ${escapeHtml(label)}${ico}</div>`
-    : `<div class="et">${escapeHtml(time)}${_stInline}${ico}</div><div class="en">${escapeHtml(label)}</div>`;
+  const _stClass = { "Confirmed": "st-ok", "Awaiting reply": "st-pend", "Canceled": "st-cancel", "No-show": "st-noshow", "Declined": "st-decl", "Rescheduled": "st-resched" }[_stWord] || "st-ok";
+  // Duration in plain minutes/hours next to the start time (Outlook-style).
+  const durMin = Math.max(0, Math.round((e - s) / 60000));
+  const durTxt = durMin >= 60
+    ? (durMin % 60 === 0 ? `${durMin / 60}h` : `${Math.floor(durMin / 60)}h ${durMin % 60}m`)
+    : `${durMin}m`;
+  // Interview type + interviewer initials for the metadata line on tall cards.
+  const kindWord = type === "session" ? "Group session"
+    : ev.kind === "orientation" ? "Orientation"
+    : ev.kind === "event" ? "Event" : "Interview";
+  const _ivw = ev.metadata && ev.metadata.interviewer && ev.metadata.interviewer.name;
+  const _ivwInit = _ivw ? String(_ivw).trim().split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase() : "";
+  const chip = _stWord ? `<span class="oc-ev-badge ${_stClass}">${_stWord}</span>` : "";
+  const metaLine = `<div class="oc-ev-meta">${escapeHtml(kindWord)}${_ivwInit ? ` · <span class="oc-ev-ivw" title="${escapeHtml("Interviewer: " + _ivw)}">${escapeHtml(_ivwInit)}</span>` : ""}</div>`;
+  // Height-adaptive layout: 1 line < 32px · time+name < 56px · +status chip
+  // < 78px · full card (type + interviewer + chip) beyond. Every tier keeps
+  // truncation, the icons cluster and the resize handle.
+  let inner;
+  if (h < 32) {
+    inner = `<div class="en oc-ev-line1"><span class="et">${escapeHtml(time)}</span><span class="oc-ev-n1">${escapeHtml(label)}</span>${ico}</div>`;
+  } else if (h < 56) {
+    inner = `<div class="et"><span class="oc-ev-t">${escapeHtml(time)}</span><span class="oc-ev-dur">${escapeHtml(durTxt)}</span>${ico}</div><div class="en">${escapeHtml(label)}</div>`;
+  } else if (h < 78) {
+    inner = `<div class="et"><span class="oc-ev-t">${escapeHtml(time)}</span><span class="oc-ev-dur">${escapeHtml(durTxt)}</span>${ico}</div><div class="en">${escapeHtml(label)}</div><div class="oc-ev-foot">${chip}</div>`;
+  } else {
+    inner = `<div class="et"><span class="oc-ev-t">${escapeHtml(time)}</span><span class="oc-ev-dur">${escapeHtml(durTxt)}</span>${ico}</div><div class="en">${escapeHtml(label)}</div>${metaLine}<div class="oc-ev-foot">${chip}</div>`;
+  }
   const rz = kindAttr === "booking" ? `<div class="oc-rz" data-oc-resize></div>` : "";
   // A per-event color (right-click → recolor) wins over the custom-calendar
   // color, which in turn overrides the status-based category palette.
@@ -27016,9 +27379,8 @@ function _ivcalEventBlock(ev, type, lay) {
   const hue = _ivcalHue(ev, type);
   const isPend = type !== "session" && (ev.rsvp || "accepted") === "pending"
     && ev.status !== "no_show" && ev.status !== "cancelled";
-  const _ivw = ev.metadata && ev.metadata.interviewer && ev.metadata.interviewer.name;
-  const hover = time + " · " + label + (_stWord ? " · " + _stWord : "") + (_ivw ? " · with " + _ivw : "");
-  return `<div class="oc-ev cat-${cat}${rsvp==="declined"?" declined":""}${isPend?" is-pending":""}${sel?" sel":""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" tabindex="0" role="button" aria-label="${escapeHtml(hover)}" style="top:${top}px;height:${h}px${_ivcalLayStyle(lay)};--ev-hue:${hue}" title="${escapeHtml(hover)}">${inner}${_stLine}${rz}</div>`;
+  const hover = time + " · " + durTxt + " · " + label + (_stWord ? " · " + _stWord : "") + (_ivw ? " · with " + _ivw : "");
+  return `<div class="oc-ev cat-${cat}${rsvp==="declined"?" declined":""}${isPend?" is-pending":""}${sel?" sel":""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" tabindex="0" role="button" aria-label="${escapeHtml(hover)}" style="top:${top}px;height:${h}px${_ivcalLayStyle(lay)};--ev-hue:${hue}" title="${escapeHtml(hover)}">${inner}${rz}</div>`;
 }
 
 // Side-by-side column layout: when timed events overlap, split the column so
@@ -27213,7 +27575,7 @@ function _ivcalTimeGrid(ndays) {
     const short = cap > 0 && n < cap && waiting && !isPast;
     const meta = cap > 0 ? `${n} of ${cap} slot${cap === 1 ? "" : "s"}`
       : closed ? "Closed"
-      : (n ? `${n} interview${n === 1 ? "" : "s"}` : "—");
+      : (n ? `${n} interview${n === 1 ? "" : "s"}` : "No interviews");
     const _wk = d.getDay() === 0 || d.getDay() === 6;
     return `<div class="oc-dh${isToday?" today":""}${_wk?" oc-wknd":""}"><div class="dow">${d.toLocaleDateString(undefined,{weekday:"long"})}</div><div class="dn">${d.getDate()}</div><div class="oc-dh-meta${short ? " is-short" : ""}${closed && cap === 0 ? " is-closed" : ""}"${short ? ` title="${cap - n} open slot${cap - n === 1 ? "" : "s"} while candidates wait to book"` : (closed && cap === 0 ? ' title="Closed by a date override (Holidays & date overrides)"' : "")}>${meta}</div></div>`;
   }).join("");
@@ -27247,8 +27609,6 @@ function _ivcalTimeGrid(ndays) {
       const y = (h-_IVCAL_H0)*_IVCAL_RH;
       lines += `<div class="oc-hline" style="top:${y}px"></div><div class="oc-hhline" style="top:${y+_IVCAL_RH/2}px"></div>`;
     }
-    const nowLine = (isToday && nowMin >= _IVCAL_H0*60 && nowMin <= _IVCAL_H1*60)
-      ? `<div class="oc-now" style="top:${_ivcalYpos(nowMin)}px"><span class="oc-now-lbl">${escapeHtml(now.toLocaleTimeString(undefined,_ivClockOpts()))}</span></div>` : "";
     // Gather every timed event for the day across sources, then lay them out
     // side-by-side where they overlap. All-day Google chips stack at the top
     // and don't participate in the column layout.
@@ -27282,8 +27642,20 @@ function _ivcalTimeGrid(ndays) {
       if (we < h1) workShade += `<div class="oc-offhrs" style="top:${_ivcalYpos(we)}px;height:${_ivcalYpos(h1) - _ivcalYpos(we)}px"></div>`;
     }
     const _wk = d.getDay() === 0 || d.getDay() === 6;
-    return `<div class="oc-col${isToday?" today":""}${_wk?" oc-wknd":""}" data-ivcal-date="${_ivcalISODate(d)}" style="height:${gridH}px">${workShade}${shade}${lines}${nowLine}${evs}</div>`;
+    return `<div class="oc-col${isToday?" today":""}${_wk?" oc-wknd":""}" data-ivcal-date="${_ivcalISODate(d)}" style="height:${gridH}px">${workShade}${shade}${lines}${evs}</div>`;
   }).join("");
+
+  // Current-time indicator · a single overlay spanning the whole grid: the
+  // clock chip sits in the time gutter, the thin red line runs across every
+  // day column, and the dot pins to today's column edge. Rendered only when
+  // today is inside the visible range; _ivcalTickNow keeps it moving.
+  // aria-hidden — it's a purely visual operational signal.
+  let nowOverlay = "";
+  const _todayIdx = days.findIndex(d => d.getTime() === today.getTime());
+  if (_todayIdx >= 0 && nowMin >= _IVCAL_H0 * 60 && nowMin <= _IVCAL_H1 * 60) {
+    const dotLeft = `calc(${(_todayIdx / ndays * 100).toFixed(4)}% - 4px)`;
+    nowOverlay = `<div class="oc-now" style="top:${_ivcalYpos(nowMin)}px" aria-hidden="true"><span class="oc-now-lbl">${escapeHtml(now.toLocaleTimeString(undefined, _ivClockOpts()))}</span><span class="oc-now-dot" style="left:${dotLeft}"></span></div>`;
+  }
 
   // All-day lane · one horizontal cell per day, pinned with the day headers.
   let _anyAllDay = false;
@@ -27309,14 +27681,15 @@ function _ivcalTimeGrid(ndays) {
     }
     return `<div class="oc-adcol" data-ivcal-date="${_ivcalISODate(d)}">${bars}</div>`;
   }).join("");
-  // Render the lane whenever any all-day item exists this view (otherwise it
-  // stays out of the way, like Google/Outlook collapsing the empty row).
-  const adRow = _anyAllDay ? `<div class="oc-allday"><div class="oc-adgut">all-day</div>${adCols}</div>` : "";
+  // The all-day lane is always present beneath the day headers (a compact
+  // strip when empty), so all-day items never reflow the grid when they
+  // appear and the header band keeps a stable Outlook-style anatomy.
+  const adRow = `<div class="oc-allday${_anyAllDay ? "" : " is-empty"}"><div class="oc-adgut">All-day</div>${adCols}</div>`;
 
   return `<div class="oc-cal" style="--days:${ndays};--rh:${_IVCAL_RH}px">
     <div class="oc-scroll" id="rr-ivcal-scroll">
       <div class="oc-stick"><div class="oc-head">${head}</div>${adRow}</div>
-      <div class="oc-grid" style="height:${gridH}px"><div class="oc-gutter">${gutter}</div>${cols}</div>
+      <div class="oc-grid" style="height:${gridH}px"><div class="oc-gutter">${gutter}</div>${cols}${nowOverlay}</div>
     </div>
   </div>`;
 }
@@ -27646,8 +28019,16 @@ function _ivcalOpenRoom(ev) {
   const apptId = ev.applicant_id || null;
   const me = (window.RR && window.RR.user && (window.RR.user.full_name || window.RR.user.name))
     || (window.RR && window.RR.dsp && window.RR.dsp.name) || "Interviewer";
+  // First-party Meet rooms (/m/<code> links) embed our own meet.html —
+  // same origin, ?name= prefills the lobby, and the operator's dashboard
+  // session carries over (staff get End-for-all via meet_lookup.is_host).
+  // Legacy meet.jit.si URLs (events booked before the switch) keep the
+  // old Jitsi iframe config.
+  const meetCode = (String(ev.meeting_url).match(/\/m\/([a-z0-9-]{8,16})(?:[/?#]|$)/i) || [])[1] || null;
   const hash = "#config.prejoinPageEnabled=false&userInfo.displayName=" + encodeURIComponent('"' + me + '"');
-  const src = ev.meeting_url + (ev.meeting_url.includes("#") ? "" : hash);
+  const src = meetCode
+    ? "/dashboard/meet.html?m=" + encodeURIComponent(meetCode) + "&name=" + encodeURIComponent(me) + "&embed=1"
+    : ev.meeting_url + (ev.meeting_url.includes("#") ? "" : hash);
   const canNotes = !!ev.id;
   const initials = (who || "?").split(/\s+/).map(s => s[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?";
   const scorecard = {};
@@ -43790,6 +44171,13 @@ function _rrRefreshTargetsGapCard() {
   const fmtIsoShort = (iso) => (iso ? fmtMD(new Date(iso + "T12:00:00")) : "");
   if (subEl) {
     if (rx.action === "hire") {
+      // FT/PT split rides along when the flex engine has already scored the
+      // first reachable week (cache-only — the card never fetches flex).
+      let split = "";
+      const flexData = rx.firstReachable && rx.firstReachable.weekStartIso
+        ? _rrFlexBaseCached(rx.firstReachable.weekStartIso) : null;
+      const wi = flexData && flexData.whatIf;
+      if (wi && wi.driversNeeded > 0) split = ` (${wi.recommendedFtHires} FT + ${wi.recommendedPtHires} PT)`;
       // Upper-funnel enrichment · when the planning payload is already
       // cached, extend "Hire N" into the application quota it implies.
       // Cold cache: kick the fetch and repaint this card once it lands
@@ -43807,8 +44195,8 @@ function _rrRefreshTargetsGapCard() {
         }
       }
       subEl.textContent = rx.unreachable.length
-        ? `Hire ${rx.hires} by ${fmtIsoShort(rx.deadlineIso)} · ${rx.unreachable.length} wk${rx.unreachable.length === 1 ? "" : "s"} need OT/flex`
-        : `Hire ${rx.hires} by ${fmtIsoShort(rx.deadlineIso)}` + appsSuffix;
+        ? `Hire ${rx.hires}${split} by ${fmtIsoShort(rx.deadlineIso)} · ${rx.unreachable.length} wk${rx.unreachable.length === 1 ? "" : "s"} need OT/flex`
+        : `Hire ${rx.hires}${split} by ${fmtIsoShort(rx.deadlineIso)}` + appsSuffix;
     } else if (rx.action === "mitigate") {
       subEl.textContent = `Hire window passed — cover ${rx.shortNow} with OT/flex`;
     } else {

@@ -18,9 +18,12 @@
 #   (dashboard/meet.html) is a first-party video tool; (self) still
 #   denies embedded third-party iframes, and the browser's permission
 #   prompt continues to gate actual device access per page.
+#   X-Frame-Options SAMEORIGIN (was DENY): the dashboard's interview
+#   room embeds our own meet.html in an iframe; SAMEORIGIN still blocks
+#   every cross-origin framing attempt.
 # CSP: deferred — inline scripts/styles need nonce/hash refactor first.
 /*
-  X-Frame-Options: DENY
+  X-Frame-Options: SAMEORIGIN
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
