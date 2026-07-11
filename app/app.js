@@ -2746,17 +2746,27 @@ function renderTasksHub() {
     _tasksRevealed = true;
     if (currentRoute() !== "/tasks") return;
     document.getElementById("rr-tasks-skel")?.remove();
+    maybeShowEmpty();
+  };
+  // The empty-vs-error decision is separate from the skeleton reveal and
+  // only fires once every RPC has settled: the 3s safety net can drop the
+  // skeleton while fetches are still in flight on a slow connection, and
+  // a "Nothing to do" that's about to be buried under late-arriving task
+  // cards would read as a glitch. Content can't arrive after the last
+  // settle (each handler inserts before its finally()), so the decision
+  // is final when it runs.
+  const maybeShowEmpty = () => {
+    if (_tasksPending > 0 || currentRoute() !== "/tasks") return;
     const empty = document.getElementById("rr-tasks-empty");
-    if (empty && !slotHasContent()) {
-      if (_tasksErrCount > 0) empty.outerHTML = errorStateHtml("Couldn't load your tasks", _tasksFirstErr);
-      else empty.style.display = "";
-    }
+    if (!empty || slotHasContent()) return;
+    if (_tasksErrCount > 0) empty.outerHTML = errorStateHtml("Couldn't load your tasks", _tasksFirstErr);
+    else empty.style.display = "";
   };
   // Call after a slot is populated to drop the skeleton immediately.
   const onContent = () => { if (!_tasksRevealed && slotHasContent()) revealTasks(); };
   const rpcSettled = () => {
     _tasksPending--;
-    if (_tasksPending <= 0) revealTasks();
+    if (_tasksPending <= 0) { revealTasks(); maybeShowEmpty(); }
   };
   setTimeout(revealTasks, 3000);
   main.querySelectorAll("[data-task-route]").forEach((el) => {
@@ -2764,7 +2774,7 @@ function renderTasksHub() {
   });
 
   const session = readSession();
-  if (!session?.token) { revealTasks(); return; }
+  if (!session?.token) { _tasksPending = 0; revealTasks(); return; }
 
   // Onboarding card — only when status === 'onboarding'.
   sb.rpc("driver_get_profile", { p_token: session.token }).then(({ data, error }) => {
