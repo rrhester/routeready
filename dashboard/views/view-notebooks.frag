@@ -285,6 +285,37 @@
   background:var(--amber-soft,rgba(217,119,6,.12));color:var(--amber);font-size:var(--fs-xs);font-weight:600}
 .rrnb-offline[hidden]{display:none}
 
+/* drag-to-reorder pages */
+.rrnb-page.rrnb-dragging{opacity:.45}
+.rrnb-page.rrnb-dragover{box-shadow:inset 0 2px 0 var(--accent)}
+/* AI toolbar button + menu */
+.rrnb-tb-ai{color:var(--heritage,#7719aa)}
+.rrnb-tb-ai:hover{background:var(--heritage-soft,rgba(119,25,170,.08))}
+.rrnb-aimenu{position:fixed;z-index:85;background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-lg);box-shadow:var(--shadow-pop);padding:var(--s-1);min-width:230px}
+.rrnb-aimenu[hidden]{display:none}
+.rrnb-aimenu .hd{font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--text-subtle);padding:var(--s-2) var(--s-2-5) 4px}
+.rrnb-aimenu .it{display:flex;align-items:center;gap:var(--s-2);padding:var(--s-2) var(--s-2-5);
+  border-radius:var(--r-md);cursor:pointer;font-size:var(--fs-base);color:var(--text)}
+.rrnb-aimenu .it:hover{background:var(--accent-soft)}
+.rrnb-aimenu .it .k{margin-left:auto;font-size:var(--fs-xs);color:var(--text-disabled)}
+/* AI result panel */
+.rrnb-aipanel{margin:var(--s-3) 0;border:1px solid var(--accent-border,rgba(37,99,235,.22));
+  border-radius:var(--r-lg);background:var(--accent-soft);overflow:hidden}
+.rrnb-aipanel .ph{display:flex;align-items:center;gap:8px;padding:var(--s-2) var(--s-3);
+  border-bottom:1px solid var(--accent-border,rgba(37,99,235,.22));font-size:var(--fs-sm);font-weight:600;color:var(--accent-text)}
+.rrnb-aipanel .ph .sp{margin-left:auto;display:flex;gap:6px}
+.rrnb-aipanel .bd{padding:var(--s-3);font-size:var(--fs-base);color:var(--text);max-height:340px;overflow:auto;white-space:pre-wrap}
+.rrnb-aipanel .bd.busy{color:var(--text-subtle)}
+.rrnb-aipanel button{height:28px;padding:0 var(--s-2-5);border-radius:var(--r-md);border:1px solid var(--border);
+  background:var(--surface);color:var(--text-muted);font-size:var(--fs-sm);font-weight:600;cursor:pointer}
+.rrnb-aipanel button.pri{background:var(--accent);color:#fff;border-color:var(--accent)}
+.rrnb-aipanel button:hover{filter:brightness(.98)}
+.rrnb-spin{width:13px;height:13px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;
+  display:inline-block;animation:rrnbspin .6s linear infinite}
+@keyframes rrnbspin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.rrnb-spin{animation:none}}
 @media (max-width:1100px){.rrnb-shell{grid-template-columns:220px 260px 1fr}}
 @media (max-width:860px){.rrnb-shell{grid-template-columns:1fr}
   .rrnb-pane:not(.rrnb-pane--canvas){display:none}}
@@ -672,7 +703,7 @@
     var on = p.id === S.pageId ? " active" : "";
     var lvl = pinnedCtx ? "" : (p.level === 1 ? " lvl1" : p.level >= 2 ? " lvl2" : "");
     var pin = p.is_pinned ? " pinned" : "";
-    return '<div class="rrnb-page' + on + lvl + pin + '" data-page="' + p.id + '">' +
+    return '<div class="rrnb-page' + on + lvl + pin + '" data-page="' + p.id + '" draggable="true">' +
       '<div class="body"><div class="ttl">' + esc(p.title || "Untitled Page") + '</div>' +
       '<div class="sub">' + esc(relTime(p.updated_at)) + (p.tags && p.tags.length ? '  ·  ' + p.tags.map(esc).join(", ") : "") + '</div></div>' +
       '<span class="pin" title="Pinned">★</span>' +
@@ -730,7 +761,9 @@
       '<span class="rrnb-tb-sep"></span>' +
       '<button class="rrnb-tb" data-cmd="link" title="Link (Ctrl+K)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg></button>' +
       '<button class="rrnb-tb" data-cmd="pagelink" title="Link to a page">[[ ]]</button>' +
-      '<button class="rrnb-tb" data-cmd="smartlink" title="Auto-link objects (Van 27, Route 341, drivers)">⚡</button>' +
+      '<button class="rrnb-tb" data-cmd="smartlink" title="Auto-link objects (drivers, Van 27, Route 341)">⚡</button>' +
+      '<span class="rrnb-tb-sep"></span>' +
+      '<button class="rrnb-tb rrnb-tb-ai" data-cmd="ai" title="AI: summarize, rewrite, extract action items…"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.9L12 15.5 10.1 11 5.5 9l4.6-1.4L12 3z"/><path d="M18 15l.8 2 2 .8-2 .8L18 21l-.8-2-2-.8 2-.8.8-2z"/></svg><span style="margin-left:5px;font-weight:600">AI</span></button>' +
       '<button class="rrnb-tb" data-cmd="removeFormat" title="Clear formatting"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 5h13M9 5l-2 14M5 19h6"/><path d="M15 12l6 6M21 12l-6 6"/></svg></button>' +
     '</div>';
 
@@ -765,7 +798,7 @@
     autoGrow(title);
     title.addEventListener("input", function () { autoGrow(title); scheduleSave(); updateBreadcrumbTitle(); });
     title.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); ed.focus(); } });
-    ed.addEventListener("input", scheduleSave);
+    ed.addEventListener("input", function () { scheduleSave(); autoLinkify(); });
     ed.addEventListener("keydown", onEditorKey);
     ed.addEventListener("click", onEditorClick);
     ed.addEventListener("keyup", refreshToolbarState);
@@ -815,7 +848,8 @@
       case "attach": pickFile("*/*", false); break;
       case "link": openLinkPicker(); break;
       case "pagelink": openPagePicker(); break;
-      case "smartlink": smartLink(); break;
+      case "smartlink": smartLink(true); break;
+      case "ai": openAiMenu(); break;
     }
     scheduleSave(); refreshToolbarState();
   }
@@ -1112,26 +1146,80 @@
   }
 
   // ── smart-linking: detect Van 27 / Route 341 / driver names ──────
-  function smartLink() {
-    var ed = $id("rrnb-editor"); if (!ed) return;
-    var drivers = (window.RR && window.RR._driversIndex) || [];   // [{id,name}] if the app populated it
-    var replaced = 0;
-    walkText(ed, function (node) {
-      var text = node.nodeValue; var frag = null; var last = 0; var out = document.createDocumentFragment(); var m;
-      var re = /\b(Van|Vehicle)\s*#?\s*(\d{1,4})\b|\bRoute\s*#?\s*([A-Z]{0,2}\d{1,4})\b/g;
-      while ((m = re.exec(text))) {
-        frag = frag || true;
-        out.appendChild(document.createTextNode(text.slice(last, m.index)));
-        var a = document.createElement("a"); a.className = "rrnb-objlink"; a.href = "#";
-        if (m[2]) { a.setAttribute("data-obj-type", "vehicle"); a.setAttribute("data-obj-id", m[2]); }
-        else { a.setAttribute("data-obj-type", "route"); a.setAttribute("data-obj-id", m[3]); }
-        a.textContent = m[0]; out.appendChild(a); last = m.index + m[0].length; replaced++;
-      }
-      if (frag) { out.appendChild(document.createTextNode(text.slice(last))); node.parentNode.replaceChild(out, node); }
-    });
-    if (replaced) { scheduleSave(); persistLinks(S.pageId); notify(replaced + " object link" + (replaced > 1 ? "s" : "") + " added"); }
-    else notify("No Van/Route references found on this page");
+  // Entity index: real drivers (_rosterRows) + vehicles (_fleetRows) if those
+  // views have loaded; otherwise a lightweight one-time fetch. Names longer
+  // than 3 chars only, sorted longest-first so "John Smith" wins over "John".
+  var _entIndex = null, _entLoading = false;
+  function buildEntIndex(rows) {
+    var list = [];
+    ((window._rosterRows) || []).forEach(function (d) { var nm = (d.full_name || "").trim(); if (nm.length > 3) list.push({ type: "driver", id: d.id, name: nm }); });
+    ((window._fleetRows) || []).forEach(function (v) { var nm = (v.name || v.plate || "").trim(); if (nm.length > 2) list.push({ type: "vehicle", id: v.id, name: nm }); });
+    (rows || []).forEach(function (r) { if (r && r.name) list.push(r); });
+    // longest names first for greedy matching
+    list.sort(function (a, b) { return b.name.length - a.name.length; });
+    return list;
   }
+  function ensureEntIndex(cb) {
+    // prefer already-loaded globals
+    if ((window._rosterRows && window._rosterRows.length) || (window._fleetRows && window._fleetRows.length)) { _entIndex = buildEntIndex(); return cb(_entIndex); }
+    if (_entIndex) return cb(_entIndex);
+    if (_entLoading) return cb([]);
+    var sb = (window.RR && window.RR.sb) || window.sb, dsp = window.RR && window.RR.dsp && window.RR.dsp.id;
+    if (!sb || !dsp) { _entIndex = buildEntIndex(); return cb(_entIndex); }
+    _entLoading = true;
+    Promise.all([
+      sb.from("drivers").select("id, full_name").eq("dsp_id", dsp).neq("status", "terminated").limit(500).then(function (r) { return r.data || []; }, function () { return []; }),
+      sb.from("vehicles").select("id, name").eq("dsp_id", dsp).is("archived_at", null).limit(500).then(function (r) { return r.data || []; }, function () { return []; })
+    ]).then(function (res) {
+      var extra = [];
+      (res[0] || []).forEach(function (d) { var nm = (d.full_name || "").trim(); if (nm.length > 3) extra.push({ type: "driver", id: d.id, name: nm }); });
+      (res[1] || []).forEach(function (v) { var nm = (v.name || "").trim(); if (nm.length > 2) extra.push({ type: "vehicle", id: v.id, name: nm }); });
+      _entIndex = buildEntIndex(extra); _entLoading = false; cb(_entIndex);
+    }, function () { _entLoading = false; _entIndex = buildEntIndex(); cb(_entIndex); });
+  }
+  function reEsc(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+  function smartLink(manual, skipNode) {
+    var ed = $id("rrnb-editor"); if (!ed) return;
+    ensureEntIndex(function (index) {
+      var replaced = 0;
+      // Build one alternation: known entity names + Van/Route number patterns.
+      var names = (index || []).slice(0, 400).map(function (e) { return reEsc(e.name); });
+      var byName = {}; (index || []).forEach(function (e) { byName[e.name.toLowerCase()] = e; });
+      var reParts = [];
+      if (names.length) reParts.push("(?:" + names.join("|") + ")");
+      reParts.push("(?:Van|Vehicle)\\s*#?\\s*\\d{1,4}");
+      reParts.push("Route\\s*#?\\s*[A-Z]{0,2}\\d{1,4}");
+      var re = new RegExp("\\b(" + reParts.join("|") + ")\\b", "g");
+      walkText(ed, function (node) {
+        if (skipNode && node === skipNode) return;   // never rewrite the node holding the caret
+        var text = node.nodeValue; if (!text || text.length < 2) return;
+        var out = document.createDocumentFragment(); var last = 0, m, hit = false;
+        re.lastIndex = 0;
+        while ((m = re.exec(text))) {
+          var word = m[0]; var lc = word.toLowerCase(); var known = byName[lc];
+          var a = document.createElement("a"); a.className = "rrnb-objlink"; a.href = "#";
+          if (known) { a.setAttribute("data-obj-type", known.type); a.setAttribute("data-obj-id", known.id); }
+          else if (/^route/i.test(word)) { a.setAttribute("data-obj-type", "route"); a.setAttribute("data-obj-id", word.replace(/\D+/g, "")); }
+          else { a.setAttribute("data-obj-type", "vehicle"); a.setAttribute("data-obj-id", word.replace(/\D+/g, "")); }
+          out.appendChild(document.createTextNode(text.slice(last, m.index)));
+          a.textContent = word; out.appendChild(a); last = m.index + word.length; replaced++; hit = true;
+        }
+        if (hit) { out.appendChild(document.createTextNode(text.slice(last))); node.parentNode.replaceChild(out, node); }
+      });
+      if (replaced) { scheduleSave(); persistLinks(S.pageId); if (manual) notify(replaced + " link" + (replaced > 1 ? "s" : "") + " added"); }
+      else if (manual) notify("No drivers, vehicles or routes recognized on this page");
+    });
+  }
+  // Auto-link as you type: ~1.6s after a pause, link every recognized entity
+  // EXCEPT the text node currently holding the caret (so typing is never
+  // disrupted). Toggleable off via the ⚡ button's long-press? kept simple here.
+  var autoLinkify = debounce(function () {
+    if (!S.pageId) return;
+    var sel = window.getSelection();
+    var node = sel && sel.anchorNode && sel.anchorNode.nodeType === 3 ? sel.anchorNode : null;
+    smartLink(false, node);
+  }, 1600);
+
   function walkText(root, fn) {
     var stack = [root], n;
     var todo = [];
@@ -1284,6 +1372,11 @@
       plHost.addEventListener("contextmenu", function (e) { var pg = e.target.closest("[data-page]"); if (pg && pg.getAttribute("data-page")) { e.preventDefault(); pageMenu(pg.getAttribute("data-page"), e.clientX, e.clientY); } });
       // Tab / Shift+Tab to indent the active page from the list
       plHost.addEventListener("keydown", function (e) { if (e.key === "Tab" && S.pageId) { e.preventDefault(); indentPage(S.pageId, e.shiftKey ? -1 : 1); } });
+      // drag-to-reorder pages
+      plHost.addEventListener("dragstart", function (e) { var row = e.target.closest("[data-page]"); if (row) { S._dragPage = row.getAttribute("data-page"); row.classList.add("rrnb-dragging"); try { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", S._dragPage); } catch (x) {} } });
+      plHost.addEventListener("dragend", function () { S._dragPage = null; plHost.querySelectorAll(".rrnb-dragging,.rrnb-dragover").forEach(function (x) { x.classList.remove("rrnb-dragging", "rrnb-dragover"); }); });
+      plHost.addEventListener("dragover", function (e) { if (!S._dragPage) return; var row = e.target.closest("[data-page]"); if (!row) return; e.preventDefault(); plHost.querySelectorAll(".rrnb-dragover").forEach(function (x) { x.classList.remove("rrnb-dragover"); }); if (row.getAttribute("data-page") !== S._dragPage) row.classList.add("rrnb-dragover"); });
+      plHost.addEventListener("drop", function (e) { if (!S._dragPage) return; var row = e.target.closest("[data-page]"); if (!row) return; e.preventDefault(); var tgt = row.getAttribute("data-page"); var drag = S._dragPage; S._dragPage = null; reorderPage(drag, tgt); });
     }
 
     // recycle bin button
@@ -1315,6 +1408,7 @@
       if (!e.target.closest("#rrnb-ctx")) hideCtx();
       if (!e.target.closest("#rrnb-pop") && !e.target.closest("[data-cmd]")) hidePop();
       if (!e.target.closest("#rrnb-nb-menu") && !e.target.closest("#rrnb-nb-current")) { var m = $id("rrnb-nb-menu"); if (m) m.hidden = true; }
+      if (!e.target.closest("#rrnb-aimenu") && !e.target.closest(".rrnb-tb-ai")) hideAiMenu();
     });
 
     // global shortcuts while the view is active
@@ -1323,7 +1417,14 @@
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f" && !e.shiftKey) { var s = $id("rrnb-search-input"); if (s) { e.preventDefault(); s.focus(); s.select(); } }
       if (e.altKey && e.key.toLowerCase() === "n") { e.preventDefault(); if (e.shiftKey) newSection(); else newPage(); }
       if (e.altKey && e.key.toLowerCase() === "q") { e.preventDefault(); quickNote(); }
-      if (e.key === "Escape") { hidePop(); hideCtx(); }
+      if (e.key === "Escape") { hidePop(); hideCtx(); hideAiMenu(); }
+      // OneNote-style page ops — only when NOT typing in the editor/inputs
+      if (!typingContext() && S.pageId && S.mode === "notebook") {
+        if (e.key === "F2") { e.preventDefault(); renamePrompt("page", S.pageId); return; }
+        if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); if (window.confirm("Move this page to the Recycle Bin?")) S.be.deleteItem("page", S.pageId).then(function () { showBlank(); return selectNotebook(S.nbId, null); }).catch(fail); return; }
+        if (e.altKey && e.key === "ArrowDown") { e.preventDefault(); navPage(1); return; }
+        if (e.altKey && e.key === "ArrowUp") { e.preventDefault(); navPage(-1); return; }
+      }
     });
 
     // flush save when leaving the tab / page
@@ -1444,6 +1545,139 @@
     }).join("");
     html += '<button class="rrnb-newpage" data-exit-recent="1">‹ Back to pages</button>';
     host.innerHTML = html;
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  //  AI — summarize / rewrite / extract, via the notebook-ai edge function
+  // ══════════════════════════════════════════════════════════════════
+  var AI_ACTIONS = [
+    { k: "summarize", label: "Summarize" },
+    { k: "action_items", label: "Extract action items" },
+    { k: "rewrite", label: "Rewrite (clean up)" },
+    { k: "professional", label: "Make it professional" },
+    { k: "grammar", label: "Fix spelling & grammar" },
+    { k: "expand", label: "Expand into detail" },
+    { k: "minutes", label: "Meeting minutes" },
+    { k: "checklist", label: "Turn into a checklist" },
+    { k: "tags", label: "Suggest tags" }
+  ];
+  function openAiMenu() {
+    var btn = $(".rrnb-tb-ai"); if (!btn) return;
+    var r = btn.getBoundingClientRect();
+    var m = $id("rrnb-aimenu") || (function () { var d = document.createElement("div"); d.className = "rrnb-aimenu"; d.id = "rrnb-aimenu"; document.body.appendChild(d); return d; })();
+    m.innerHTML = '<div class="hd">AI · works on selection or whole page</div>' +
+      AI_ACTIONS.map(function (a) { return '<div class="it" data-ai="' + a.k + '">' + esc(a.label) + '</div>'; }).join("");
+    m.hidden = false;
+    m.style.left = Math.max(12, Math.min(window.innerWidth - m.offsetWidth - 12, r.left)) + "px";
+    m.style.top = (r.bottom + 6) + "px";
+    m.onclick = function (e) { var it = e.target.closest("[data-ai]"); if (!it) return; var k = it.getAttribute("data-ai"); m.hidden = true; runAI(k, (AI_ACTIONS.filter(function (a) { return a.k === k; })[0] || {}).label || "AI"); };
+  }
+  function hideAiMenu() { var m = $id("rrnb-aimenu"); if (m) m.hidden = true; }
+  function aiContext() {
+    var sel = window.getSelection(); var selText = sel && sel.toString().trim();
+    var ed = $id("rrnb-editor");
+    return { text: selText || (ed ? (ed.innerText || "") : ""), hasSelection: !!(selText && selText.length > 1) };
+  }
+  function aiPanel() {
+    var p = $id("rrnb-aipanel");
+    if (!p) { p = document.createElement("div"); p.className = "rrnb-aipanel"; p.id = "rrnb-aipanel";
+      var ed = $id("rrnb-editor"); if (ed && ed.parentNode) ed.parentNode.insertBefore(p, ed); }
+    return p;
+  }
+  function runAI(action, label) {
+    var ctx = aiContext();
+    if (!ctx.text || ctx.text.trim().length < 2) { notify("Write or select some text first."); return; }
+    var p = aiPanel();
+    p.innerHTML = '<div class="ph"><span class="rrnb-spin"></span> ' + esc(label) + '…<span class="sp"><button data-ai-x="1">Cancel</button></span></div><div class="bd busy">Thinking…</div>';
+    p.querySelector("[data-ai-x]").onclick = function () { p.remove(); };
+    var sb = (window.RR && window.RR.sb) || window.sb;
+    if (!sb || !sb.functions) { aiError(p, "AI needs a signed-in RouteReady session."); return; }
+    var title = ($id("rrnb-title") || {}).value || (S.page && S.page.title) || "";
+    sb.functions.invoke("notebook-ai", { body: { action: action, text: ctx.text.slice(0, 12000), title: title } }).then(function (res) {
+      var data = res && res.data, error = res && res.error;
+      if (error || !data || data.error || (!data.result && !data.tags)) {
+        aiError(p, (error && error.message) || (data && (data.detail || data.error)) || "The notebook-ai function isn't available yet.");
+        return;
+      }
+      if (data.tags && data.tags.length) return aiShowTags(p, label, data.tags);
+      aiShowResult(p, label, String(data.result || ""), ctx.hasSelection);
+    }).catch(function (e) { aiError(p, (e && e.message) || "AI request failed."); });
+  }
+  function aiError(p, msg) {
+    p.innerHTML = '<div class="ph">AI<span class="sp"><button data-ai-x="1">Dismiss</button></span></div><div class="bd" style="color:var(--red)">' + esc(msg) + '</div>';
+    p.querySelector("[data-ai-x]").onclick = function () { p.remove(); };
+  }
+  function aiShowResult(p, label, text, hasSel) {
+    var html = aiMdToHtml(text);
+    p.innerHTML = '<div class="ph">' + esc(label) +
+      '<span class="sp">' + (hasSel ? '<button data-ai-replace="1">Replace selection</button>' : '') +
+      '<button class="pri" data-ai-insert="1">Insert below</button><button data-ai-copy="1">Copy</button><button data-ai-x="1">Dismiss</button></span></div>' +
+      '<div class="bd" id="rrnb-ai-bd">' + html + '</div>';
+    p.querySelector("[data-ai-x]").onclick = function () { p.remove(); };
+    p.querySelector("[data-ai-copy]").onclick = function () { try { navigator.clipboard.writeText(text); notify("Copied"); } catch (e) {} };
+    p.querySelector("[data-ai-insert]").onclick = function () {
+      var ed = $id("rrnb-editor"); if (ed) { ed.focus(); ed.insertAdjacentHTML("beforeend", html); scheduleSave(); makeCaptionsEditable(); } p.remove();
+    };
+    var rep = p.querySelector("[data-ai-replace]");
+    if (rep) rep.onclick = function () { var ed = $id("rrnb-editor"); if (ed) { ed.focus(); try { document.execCommand("insertHTML", false, html); } catch (e) {} scheduleSave(); } p.remove(); };
+  }
+  function aiShowTags(p, label, tags) {
+    p.innerHTML = '<div class="ph">' + esc(label) + '<span class="sp"><button data-ai-x="1">Dismiss</button></span></div>' +
+      '<div class="bd">' + tags.map(function (t) { return '<button class="rrnb-addtag" data-ai-tag="' + esc(t) + '" style="margin:3px">＋ ' + esc(t) + '</button>'; }).join("") + '</div>';
+    p.querySelector("[data-ai-x]").onclick = function () { p.remove(); };
+    p.querySelectorAll("[data-ai-tag]").forEach(function (b) { b.onclick = function () { addTag(b.getAttribute("data-ai-tag")); b.disabled = true; b.textContent = "✓ " + b.getAttribute("data-ai-tag"); }; });
+  }
+  function aiInline(s) { return esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/(^|[^*])\*([^*]+?)\*/g, "$1<i>$2</i>"); }
+  function aiMdToHtml(t) {
+    var lines = String(t).split(/\r?\n/), html = "", inUl = false, inOl = false, m;
+    function closeLists() { if (inUl) { html += "</ul>"; inUl = false; } if (inOl) { html += "</ol>"; inOl = false; } }
+    lines.forEach(function (ln) {
+      if ((m = ln.match(/^\s*[-*]\s*\[([ xX]?)\]\s+(.*)/))) { closeLists(); var ck = m[1].trim() ? "1" : "0"; html += '<div class="rrnb-todo" data-checked="' + ck + '"><span class="rrnb-todo-box" contenteditable="false">' + (ck === "1" ? "✓" : "") + '</span><span class="rrnb-todo-text">' + aiInline(m[2]) + '</span></div>'; }
+      else if ((m = ln.match(/^\s*[-*•]\s+(.*)/))) { if (inOl) { html += "</ol>"; inOl = false; } if (!inUl) { html += "<ul>"; inUl = true; } html += "<li>" + aiInline(m[1]) + "</li>"; }
+      else if ((m = ln.match(/^\s*\d+[.)]\s+(.*)/))) { if (inUl) { html += "</ul>"; inUl = false; } if (!inOl) { html += "<ol>"; inOl = true; } html += "<li>" + aiInline(m[1]) + "</li>"; }
+      else if ((m = ln.match(/^\s*#{1,6}\s+(.*)/))) { closeLists(); html += "<h3>" + aiInline(m[1]) + "</h3>"; }
+      else if (ln.trim() === "") { closeLists(); }
+      else { closeLists(); html += "<p>" + aiInline(ln) + "</p>"; }
+    });
+    closeLists();
+    return html || "<p></p>";
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  //  PAGE REORDER (drag) + keyboard navigation
+  // ══════════════════════════════════════════════════════════════════
+  function orderedPages(secId) {
+    if (!S.tree) return [];
+    var pages = S.tree.pages.filter(function (p) { return p.section_id === secId; });
+    var tops = pages.filter(function (p) { return !p.parent_page_id; }).sort(function (a, b) { return a.position - b.position; });
+    var kids = {}; pages.forEach(function (p) { if (p.parent_page_id) (kids[p.parent_page_id] = kids[p.parent_page_id] || []).push(p); });
+    Object.keys(kids).forEach(function (k) { kids[k].sort(function (a, b) { return a.position - b.position; }); });
+    var out = []; (function walk(list) { list.forEach(function (p) { out.push(p); if (kids[p.id]) walk(kids[p.id]); }); })(tops);
+    return out;
+  }
+  function navPage(dir) {
+    if (!S.tree || !S.activeSection) return;
+    var ord = orderedPages(S.activeSection); var i = ord.map(function (p) { return p.id; }).indexOf(S.pageId);
+    var j = i < 0 ? 0 : i + dir; if (j < 0 || j >= ord.length) return; openPage(ord[j].id);
+  }
+  function reorderPage(dragId, targetId) {
+    if (dragId === targetId || !S.tree) return;
+    var pages = S.tree.pages;
+    var d = pages.filter(function (x) { return x.id === dragId; })[0];
+    var t = pages.filter(function (x) { return x.id === targetId; })[0];
+    if (!d || !t) return;
+    d.section_id = t.section_id; d.parent_page_id = t.parent_page_id || null; d.level = t.level;
+    var sibs = pages.filter(function (x) { return x.section_id === t.section_id && (x.parent_page_id || null) === (t.parent_page_id || null) && x.id !== dragId; }).sort(function (a, b) { return a.position - b.position; });
+    var ti = sibs.map(function (x) { return x.id; }).indexOf(targetId);
+    var prev = sibs[ti - 1];
+    var newPos = prev ? (prev.position + t.position) / 2 : t.position - 1;
+    d.position = newPos;
+    renderPageList();
+    S.be.movePage(dragId, { section_id: d.section_id, parent_page_id: d.parent_page_id, level: d.level, position: newPos }).catch(fail);
+  }
+  function typingContext() {
+    var a = document.activeElement;
+    return a && (a.id === "rrnb-editor" || a.id === "rrnb-title" || a.tagName === "INPUT" || a.tagName === "TEXTAREA" || a.isContentEditable);
   }
 
   // ══════════════════════════════════════════════════════════════════
