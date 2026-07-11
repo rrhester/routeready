@@ -30254,10 +30254,13 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 }
 #view-workbooks .wb-cell-editor{
   position:absolute;z-index:4;box-sizing:border-box;
-  font:inherit;font-size:calc(var(--fs-md) * var(--wb-zoom, 1));color:var(--text);
+  font:inherit;font-family:inherit;font-size:calc(var(--fs-md) * var(--wb-zoom, 1));color:var(--text);
   border:2px solid var(--accent);border-radius:1px;outline:none;
-  padding:0 5px;background:var(--surface);
+  padding:2px 5px;background:var(--surface);
   box-shadow:var(--shadow-md);
+  /* a <textarea> so Alt+Enter inserts real line breaks; keep it looking like
+     a cell — no resize grip, no scrollbars, single line until it grows */
+  resize:none;overflow:hidden;line-height:1.3;white-space:pre;
 }
 #view-workbooks .wb-gr-frozen-top,#view-workbooks .wb-gr-frozen-left{
   position:absolute;overflow:hidden;z-index:4;background:var(--surface);
