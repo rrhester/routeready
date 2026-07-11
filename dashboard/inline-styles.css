@@ -29037,11 +29037,35 @@ body.rr-cmdk-open{ overflow:hidden }
 #rr-ivcal .oc-col.is-bk-dropover .oc-avail{
   background:rgba(66,133,244,.16); border-color:rgba(66,133,244,.45);
 }
-/* Copy-link icon reveals on row hover/focus — the row got tighter when
-   the age chip arrived, and the candidate's NAME is the row's payload. */
-#rr-ivcal .oc-await-row .oc-await-copy{ opacity:0; transition:opacity .12s ease; }
+/* Copy-link + Send-link reveal on row hover/focus — the row's lead
+   action is now the "Book" button, the candidate's NAME is the row's
+   payload, and the send state already lives in the sub-line ("Link
+   sent 2h ago"). display (not opacity) so the hidden buttons release
+   their flex space back to the name. Keyboard path (Codex review):
+   Book renders BEFORE Copy/Send in the DOM, so focusing it reveals
+   them ahead in forward tab order — no reverse-tabbing needed. */
+#rr-ivcal .oc-await-row .oc-await-copy,
+#rr-ivcal .oc-await-row .oc-await-send{ display:none; }
 #rr-ivcal .oc-await-row:hover .oc-await-copy,
-#rr-ivcal .oc-await-row:focus-within .oc-await-copy{ opacity:1; }
+#rr-ivcal .oc-await-row:hover .oc-await-send,
+#rr-ivcal .oc-await-row:focus-within .oc-await-copy,
+#rr-ivcal .oc-await-row:focus-within .oc-await-send{ display:inline-flex; }
+/* Book · the queue row's lead action — quiet amber-ink pill (a solid
+   amber fill per row would shout; Schedule Interview keeps the one
+   filled primary on this page). */
+#rr-ivcal .oc-await-book{
+  flex:0 0 auto; appearance:none; cursor:pointer; font:inherit;
+  font-size:var(--fs-xs); font-weight:700; padding:3px 9px;
+  border-radius:5px; border:1px solid var(--rr-ctl-border);
+  background:var(--surface); color:var(--amber-dark);
+  transition:background var(--t-fast), border-color var(--t-fast);
+}
+#rr-ivcal .oc-await-book:hover{
+  background:var(--amber-soft); border-color:var(--amber-dark);
+}
+#rr-ivcal .oc-await-book:focus-visible{
+  outline:none; box-shadow:0 0 0 2px var(--rr-blue-600);
+}
 /* Queue-age chip · quiet day count; amber once a candidate has waited
    2+ days (the tint IS the triage signal). */
 #rr-ivcal .oc-await-age{

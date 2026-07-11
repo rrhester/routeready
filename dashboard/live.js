@@ -9,6 +9,7 @@
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
 import { planScheduleWeek } from "./scheduling-engine.js?v=b2ebeec00db5";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=b2ebeec00db5";
 import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=b2ebeec00db5";
 import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=b2ebeec00db5";
 
@@ -23735,6 +23736,112 @@ function _ivcalSentAgo(id) {
   const h = (Date.now() - t) / 3600000;
   return h > 24 ? null : (h < 1 ? "just now" : Math.round(h) + "h ago");
 }
+// ── Booking-engine plumbing · shared by drag-to-book and the queue's
+//    "Book" button. Both paths ride the SAME hardened engine as
+//    candidate self-booking (booking_link_get → interview_open_slots →
+//    book_interview_slot), so every server guard applies identically. ──
+async function _ivcalFetchOpenSlots(applicantId) {
+  const tz = (_ivcalCache && _ivcalCache.tz) || "America/Chicago";
+  const { data: lk, error: e1 } = await sb.rpc("booking_link_get", { p_id: applicantId });
+  if (e1) throw e1;
+  if (!lk || !lk.token) throw new Error("No booking token returned");
+  const { data: open, error: e2 } = await sb.rpc("interview_open_slots", { p_token: lk.token });
+  if (e2) throw e2;
+  const dayFmt = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" });
+  const minFmt = new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: false });
+  const slots = (Array.isArray(open) ? open : []).filter(s => s && s.slot_start).map(s => {
+    const d = new Date(s.slot_start);
+    const [hh, mi] = minFmt.format(d).split(":").map(Number);
+    const _date = dayFmt.format(d);
+    const tt = new Date(); tt.setHours(hh, mi, 0, 0);
+    const _slotMin = s.slot_end ? Math.max(5, Math.round((new Date(s.slot_end) - d) / 60000)) : ((_ivcalCache && _ivcalCache.slot) || 30);
+    const _timeTxt = tt.toLocaleTimeString([], _ivClockOpts());
+    const _dayTxt = new Date(_date + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+    return { ...s, _date, _min: hh * 60 + mi, _slotMin, _timeTxt, _dayTxt, _whenTxt: _dayTxt + " at " + _timeTxt };
+  });
+  return { token: lk.token, slots };
+}
+async function _ivcalBookOpenSlot(token, slot, nm) {
+  const args = { p_token: token, p_slot_start: slot.slot_start };
+  if (slot.session_id) args.p_session_id = slot.session_id;
+  const { data: res, error } = await sb.rpc("book_interview_slot", args);
+  if (error) throw error;
+  if (!res || !res.ok) throw new Error("Could not book that time.");
+  toast(`${nm} booked · ${slot._whenTxt}`, "success");
+  await loadIvCalendar();
+}
+function _ivcalBookErrMsg(err, nm) {
+  const s = String((err && err.message) || err).toLowerCase();
+  return s.includes("already_booked") ? `${nm} already has an interview on the calendar.`
+    : s.includes("slot_taken") ? "That slot just filled — pick another."
+    : s.includes("slot_too_soon") ? "That slot is inside the minimum booking lead time."
+    : s.includes("slot_unavailable") ? "That time isn't open for booking."
+    : s.includes("not_eligible") ? `${nm} is past the interview stage.`
+    : (s.includes("does not exist") || s.includes("schema cache")) ? "Update needed — run the latest Supabase migrations to enable booking links."
+    : "Couldn't book: " + ((err && err.message) || err);
+}
+// The queue's "Book" button — the keyboard/touch path to the same
+// engine drag-to-book uses (drag is mouse-only; this is a11y-first).
+// A compact modal lists the genuinely-open slots grouped by day;
+// picking one books it (the pick IS the confirmation).
+function _ivcalOpenBookPicker(applicantId, name) {
+  const nm = rrTitleCaseName(name) || "this candidate";
+  document.getElementById("rr-ivcal-bookpick")?.remove();
+  const back = document.createElement("div");
+  back.id = "rr-ivcal-bookpick";
+  back.style.cssText = "position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.32);display:flex;align-items:flex-start;justify-content:center;padding-top:84px";
+  back.innerHTML = `<div role="dialog" aria-modal="true" aria-label="Book ${escapeHtml(nm)}" style="width:400px;max-width:calc(100vw - 24px);max-height:72vh;display:flex;flex-direction:column;background:var(--surface,#fff);border:1px solid var(--border,#E5E7EB);border-radius:12px;box-shadow:0 16px 48px rgba(15,23,42,.24);overflow:hidden">
+    <div style="padding:14px 18px 10px;flex:0 0 auto">
+      <div style="font-size:15px;font-weight:700;color:var(--text,#111827)">Book ${escapeHtml(nm)}</div>
+      <div style="font-size:12px;color:var(--text-subtle,#6B7280);margin-top:3px">Pick an open slot — the confirmation email with the interview details goes out automatically.</div>
+    </div>
+    <div class="rr-bookpick-body" style="flex:1 1 auto;min-height:0;overflow-y:auto;padding:4px 18px 14px"><div style="font-size:13px;color:var(--text-subtle,#6B7280)">Loading open times…</div></div>
+    <div style="display:flex;justify-content:flex-end;padding:10px 18px;border-top:1px solid var(--border,#E5E7EB);background:var(--canvas,#F9FAFB);flex:0 0 auto"><button type="button" class="btn btn-sm" data-bookpick-cancel>Cancel</button></div>
+  </div>`;
+  const escHandler = (e) => { if (e.key === "Escape") close(); };
+  const close = () => { back.remove(); document.removeEventListener("keydown", escHandler, true); };
+  back.addEventListener("click", (e) => { if (e.target === back || e.target.closest("[data-bookpick-cancel]")) close(); });
+  document.addEventListener("keydown", escHandler, true);
+  document.body.appendChild(back);
+  const body = back.querySelector(".rr-bookpick-body");
+  (async () => {
+    try {
+      const { token, slots } = await _ivcalFetchOpenSlots(applicantId);
+      if (!slots.length) {
+        body.innerHTML = `<div style="font-size:13px;color:var(--text-subtle,#6B7280);padding:6px 0 10px">No open slots in the booking window — add availability, or check Holidays &amp; date overrides.</div>`;
+        return;
+      }
+      // Buttons key by ROW INDEX, not slot_start (Codex review): two
+      // open rows can share a start time — a weekly slot and a one-off
+      // group session — distinguished only by session_id, and a
+      // start-keyed map would book the wrong one.
+      slots.forEach((s, i) => { s._idx = i; });
+      const byDay = new Map();
+      for (const s of slots) { if (!byDay.has(s._date)) byDay.set(s._date, []); byDay.get(s._date).push(s); }
+      const CAP = 36;
+      let html = "", shown = 0;
+      for (const [, list] of byDay) {
+        if (shown >= CAP) break;
+        html += `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-subtle,#6B7280);margin:10px 0 6px">${escapeHtml(list[0]._dayTxt)}</div><div style="display:flex;flex-wrap:wrap;gap:6px">`;
+        for (const s of list) { if (shown >= CAP) break; html += `<button type="button" class="btn btn-sm" data-bookpick-slot="${s._idx}">${escapeHtml(s._timeTxt)}${s.session_id ? " · group" : ""}</button>`; shown++; }
+        html += `</div>`;
+      }
+      if (slots.length > shown) html += `<div style="font-size:11px;color:var(--text-subtle,#6B7280);margin-top:8px">+${slots.length - shown} more later in the window</div>`;
+      body.innerHTML = html;
+      body.querySelectorAll("[data-bookpick-slot]").forEach(btn => btn.onclick = async () => {
+        const slot = slots[parseInt(btn.getAttribute("data-bookpick-slot"), 10)];
+        if (!slot) return;
+        back.querySelectorAll("button").forEach(x => { x.disabled = true; });
+        btn.textContent = "Booking…";
+        try { await _ivcalBookOpenSlot(token, slot, nm); close(); }
+        catch (err) { toast(_ivcalBookErrMsg(err, nm), "warn"); close(); }
+      });
+      body.querySelector("[data-bookpick-slot]")?.focus();
+    } catch (err) {
+      body.innerHTML = `<div style="font-size:13px;color:var(--red,#DC2626);padding:6px 0 10px">${escapeHtml(_ivcalBookErrMsg(err, nm))}</div>`;
+    }
+  })();
+}
 function _ivcalAwaiting() {
   const list = (_ivcalCache && _ivcalCache.awaiting) || [];
   const LIM = 8;
@@ -23753,6 +23860,7 @@ function _ivcalAwaiting() {
       <span class="oc-await-dot" aria-hidden="true"></span>
       <span class="oc-await-main"><span class="oc-await-name">${escapeHtml(name)}</span><span class="oc-await-sub">${sub}</span></span>
       ${ageChip}
+      <button type="button" class="oc-await-book" data-ivcal-await-book="${escapeHtml(a.id)}" data-ivcal-await-book-name="${escapeHtml(name)}" title="Book ${escapeHtml(name)} onto an open slot">Book</button>
       <button type="button" class="oc-await-copy" data-ivcal-await-copy="${escapeHtml(a.id)}" title="Copy ${escapeHtml(name)}'s booking link" aria-label="Copy booking link">${linkIco}</button>
       <button type="button" class="oc-await-send" data-ivcal-await-send="${escapeHtml(a.id)}"${ago ? " disabled" : ""} title="${ago ? `Link sent ${escapeHtml(ago)} — resend from the candidate's profile if needed` : `Resend booking link to ${escapeHtml(name)}`}">${ago ? "Sent ✓" : "Send link"}</button>
     </div>`;
@@ -24124,7 +24232,7 @@ async function loadIvCalendar() {
   const firstLoad = !_ivcalCache || !host.querySelector(".oc");
   if (firstLoad) host.innerHTML = `<div class="rr-loading">Loading calendar…</div>`;
   try {
-    const [a, s, b, c, g, w, sch] = await Promise.all([
+    const [a, s, b, c, g, w, sch, ovr] = await Promise.all([
       sb.rpc("interview_availability_get"),
       sb.rpc("interview_sessions_list"),
       sb.from("cal_events")
@@ -24155,6 +24263,11 @@ async function loadIvCalendar() {
       // Named booking schedules for the "Booking pages" sidebar section.
       // Tolerated as empty until the 0400 migration is applied.
       sb.rpc("interview_schedules_list"),
+      // Holidays & date overrides — the grid shading and day-header
+      // capacity layer these over the weekly windows the same way the
+      // server's slot generation does (0407). Tolerated as empty until
+      // that migration is applied.
+      sb.rpc("interview_overrides_list"),
     ]);
     if (a.error) throw a.error;
     let bookings = b.data || [];
@@ -24190,6 +24303,7 @@ async function loadIvCalendar() {
       slot: (av.config && av.config.slot_minutes) || 30,
       buffer: (av.config && av.config.buffer_minutes) || 0,
       windows: av.windows || [],
+      overrides: (ovr && !ovr.error && Array.isArray(ovr.data)) ? ovr.data : [],
       sessions: s.data || [],
       bookings: bookings,
       calendars: (c && !c.error && c.data) ? c.data : [],
@@ -24342,7 +24456,26 @@ function _ivcalDayItems(day, arr, key) {
   return (arr || []).filter(x => { const t = new Date(x[key]); return t >= start && t < end; });
 }
 
+// Same-frame render coalescing (world-class pass 2026-07-11): the
+// renderer rebuilds the whole calendar via innerHTML, and several code
+// paths set state then call _ivcalRender() back-to-back. The FIRST
+// call in a frame renders synchronously (so callers that read the DOM
+// right after keep working); any further calls in the same frame
+// collapse into one trailing render on the next animation frame.
+let _ivcalRenderPending = false, _ivcalRenderedThisFrame = false;
 function _ivcalRender() {
+  if (_ivcalRenderedThisFrame) {
+    if (!_ivcalRenderPending) {
+      _ivcalRenderPending = true;
+      requestAnimationFrame(() => { _ivcalRenderPending = false; _ivcalRenderedThisFrame = false; _ivcalRenderNow(); });
+    }
+    return;
+  }
+  _ivcalRenderedThisFrame = true;
+  requestAnimationFrame(() => { _ivcalRenderedThisFrame = false; });
+  _ivcalRenderNow();
+}
+function _ivcalRenderNow() {
   const host = document.getElementById("rr-ivcal-body");
   if (!host || !_ivcalCache) return;
   _rrHiddenLabelSet = _rrHiddenLabelColors();
@@ -24474,8 +24607,12 @@ function _ivcalRender() {
   // Awaiting scheduling rail: open the applicant, resend their booking link, or
   // jump to the full Funnel when the list overflows.
   host.querySelectorAll("[data-ivcal-await]").forEach(r => r.onclick = (e) => {
-    if (e.target.closest("[data-ivcal-await-send]") || e.target.closest("[data-ivcal-await-copy]")) return;
+    if (e.target.closest("[data-ivcal-await-send]") || e.target.closest("[data-ivcal-await-copy]") || e.target.closest("[data-ivcal-await-book]")) return;
     _ivcalOpenApplicant(r.getAttribute("data-ivcal-await"));
+  });
+  host.querySelectorAll("[data-ivcal-await-book]").forEach(b => b.onclick = (e) => {
+    e.stopPropagation();
+    _ivcalOpenBookPicker(b.getAttribute("data-ivcal-await-book"), b.getAttribute("data-ivcal-await-book-name") || "");
   });
   // Copy a candidate's own /b/<token> booking link (mints it if needed, without
   // sending anything) — the sidebar way to grab a link and paste it yourself.
@@ -24601,54 +24738,22 @@ function _ivcalRender() {
       const dateISO = col.getAttribute("data-ivcal-date");
       const y = e.clientY - col.getBoundingClientRect().top;
       const aimMin = _IVCAL_H0 * 60 + (y / _IVCAL_RH) * 60;
-      const tz = (_ivcalCache && _ivcalCache.tz) || "America/Chicago";
       const nm = rrTitleCaseName(payload.name) || "this candidate";
       try {
         // The server's open-slot list is the source of truth (Codex
         // review): it honors Holidays & date overrides, capacity, lead
-        // time and existing bookings — the weekly-window shading does
-        // not. Snap the drop to the nearest genuinely-open slot on the
-        // target day instead of trusting the client grid.
-        const { data: lk, error: e1 } = await sb.rpc("booking_link_get", { p_id: payload.id });
-        if (e1) throw e1;
-        if (!lk || !lk.token) throw new Error("No booking token returned");
-        const { data: open, error: e2 } = await sb.rpc("interview_open_slots", { p_token: lk.token });
-        if (e2) throw e2;
-        const dayFmt = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" });
-        const minFmt = new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: false });
-        const daySlots = (Array.isArray(open) ? open : [])
-          .filter(s => s && s.slot_start && dayFmt.format(new Date(s.slot_start)) === dateISO)
-          .map(s => {
-            const [hh, mi] = minFmt.format(new Date(s.slot_start)).split(":").map(Number);
-            return { ...s, _min: hh * 60 + mi };
-          })
+        // time and existing bookings. Snap the drop to the nearest
+        // genuinely-open slot on the target day.
+        const { token, slots } = await _ivcalFetchOpenSlots(payload.id);
+        const daySlots = slots
+          .filter(s => s._date === dateISO)
           .sort((a, b) => Math.abs(a._min - aimMin) - Math.abs(b._min - aimMin));
         if (!daySlots.length) { toast("No open interview slots on that day (check Holidays & date overrides, capacity and lead time).", "warn"); return; }
         const pick = daySlots[0];
-        const tt = new Date(); tt.setHours(Math.floor(pick._min / 60), pick._min % 60, 0, 0);
-        const slotMin = pick.slot_end
-          ? Math.max(5, Math.round((new Date(pick.slot_end) - new Date(pick.slot_start)) / 60000))
-          : ((_ivcalCache && _ivcalCache.slot) || 30);
-        const whenTxt = new Date(dateISO + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })
-          + " at " + tt.toLocaleTimeString([], _ivClockOpts());
-        if (!(await _rrConfirmDialog({ title: `Book ${nm}?`, body: `${whenTxt} · ${slotMin} min — the confirmation email with the interview details goes out automatically.`, confirmLabel: "Book interview" }))) return;
-        const args = { p_token: lk.token, p_slot_start: pick.slot_start };
-        if (pick.session_id) args.p_session_id = pick.session_id;
-        const { data: res, error: e3 } = await sb.rpc("book_interview_slot", args);
-        if (e3) throw e3;
-        if (!res || !res.ok) throw new Error("Could not book that time.");
-        toast(`${nm} booked · ${whenTxt}`, "success");
-        await loadIvCalendar();
+        if (!(await _rrConfirmDialog({ title: `Book ${nm}?`, body: `${pick._whenTxt} · ${pick._slotMin} min — the confirmation email with the interview details goes out automatically.`, confirmLabel: "Book interview" }))) return;
+        await _ivcalBookOpenSlot(token, pick, nm);
       } catch (err) {
-        const s = String((err && err.message) || err).toLowerCase();
-        const msg = s.includes("already_booked") ? `${nm} already has an interview on the calendar.`
-          : s.includes("slot_taken") ? "That slot just filled — pick another."
-          : s.includes("slot_too_soon") ? "That slot is inside the minimum booking lead time."
-          : s.includes("slot_unavailable") ? "That time isn't open for booking."
-          : s.includes("not_eligible") ? `${nm} is past the interview stage.`
-          : (s.includes("does not exist") || s.includes("schema cache")) ? "Update needed — run the latest Supabase migrations to enable booking links."
-          : "Couldn't book: " + ((err && err.message) || err);
-        toast(msg, "warn");
+        toast(_ivcalBookErrMsg(err, nm), "warn");
       }
     });
   });
@@ -25627,8 +25732,14 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
     const d = dISO ? new Date(dISO + "T00:00:00") : null;
     if (!d || isNaN(d.getTime())) { _availBox.innerHTML = `<div class="rr-ne-anone">Pick a date first.</div>`; return; }
     const slotMin = _ivcalCache.slot || 30, buf = _ivcalCache.buffer || 0;
-    const wins = (_ivcalCache.windows || []).filter(w => w.weekday === d.getDay()).sort((a, b) => a.start_min - b.start_min);
-    if (!wins.length) { _availBox.innerHTML = `<div class="rr-ne-anone">No bookable times on ${d.toLocaleDateString(undefined, { weekday: "long" })}.</div>`; return; }
+    // Override-aware (0407 parity): a holiday suggests nothing, one-off
+    // hours suggest exactly their window.
+    const wins = _ivcalDayWindows(d).sort((a, b) => a.start_min - b.start_min);
+    if (!wins.length) {
+      const closed = _slotIsClosedDate(dISO, (_ivcalCache && _ivcalCache.overrides) || []);
+      _availBox.innerHTML = `<div class="rr-ne-anone">${closed ? "Closed on this date (Holidays & date overrides)." : `No bookable times on ${d.toLocaleDateString(undefined, { weekday: "long" })}.`}</div>`;
+      return;
+    }
     // Slot start-minutes already filled by a booking or group session that day.
     const taken = new Set();
     [].concat(_ivcalDayItems(d, _ivcalCache.bookings, "starts_at"), _ivcalDayItems(d, _ivcalCache.sessions, "starts_at"))
@@ -26709,6 +26820,14 @@ function _ivcalTzAbbr(tz, when) {
   return String(z).split("/").pop().replace(/_/g, " ");
 }
 
+// The windows in force on one calendar day — Holidays & date overrides
+// layered over the weekly schedule exactly like the server's slot
+// generation (0407). Pure math lives in ivcal-slots.js (unit-tested);
+// this just feeds it the cache.
+function _ivcalDayWindows(d) {
+  return _slotEffectiveWindows(_ivcalISODate(d), d.getDay(),
+    (_ivcalCache && _ivcalCache.windows) || [], (_ivcalCache && _ivcalCache.overrides) || []);
+}
 function _ivcalTimeGrid(ndays) {
   let startDay;
   if (ndays === 1) { startDay = new Date(_ivcalAnchor); startDay.setHours(0,0,0,0); }
@@ -26731,22 +26850,21 @@ function _ivcalTimeGrid(ndays) {
       .filter(b => _ivcalFilterOk(b, "booking") && !_ivcalIsAllDay(b)).length;
     // Capacity, not just a count (enterprise pass 2026-07-11): when the
     // day has availability windows, show utilization — "2 of 6 slots" —
-    // computed the same way the shading subdivides windows. Amber only
-    // when slots sit open AND candidates are actually waiting to book
+    // override-aware via _ivcalDayWindows so a holiday shows "Closed"
+    // and one-off hours count only their own slots. Amber only when
+    // slots sit open AND candidates are actually waiting to book
     // (capacity without demand isn't a shortfall).
     const _cSlot = (_ivcalCache && _ivcalCache.slot) || 30, _cBuf = (_ivcalCache && _ivcalCache.buffer) || 0;
-    let cap = 0;
-    for (const w of ((_ivcalCache && _ivcalCache.windows) || []).filter(w => w.weekday === d.getDay())) {
-      let k = 0;
-      for (let mm = w.start_min; mm + _cSlot <= w.end_min; mm += _cSlot + _cBuf) k++;
-      cap += k * ((w.capacity && w.capacity > 1) ? w.capacity : 1);
-    }
+    const cap = _slotDayCapacity(_ivcalDayWindows(d), _cSlot, _cBuf);
+    const closed = _slotIsClosedDate(_ivcalISODate(d), (_ivcalCache && _ivcalCache.overrides) || []);
     const waiting = ((_ivcalCache && _ivcalCache.awaiting) || []).length > 0;
     const isPast = d.getTime() < today.getTime();
     const short = cap > 0 && n < cap && waiting && !isPast;
-    const meta = cap > 0 ? `${n} of ${cap} slot${cap === 1 ? "" : "s"}` : (n ? `${n} interview${n === 1 ? "" : "s"}` : "—");
+    const meta = cap > 0 ? `${n} of ${cap} slot${cap === 1 ? "" : "s"}`
+      : closed ? "Closed"
+      : (n ? `${n} interview${n === 1 ? "" : "s"}` : "—");
     const _wk = d.getDay() === 0 || d.getDay() === 6;
-    return `<div class="oc-dh${isToday?" today":""}${_wk?" oc-wknd":""}"><div class="dow">${d.toLocaleDateString(undefined,{weekday:"long"})}</div><div class="dn">${d.getDate()}</div><div class="oc-dh-meta${short ? " is-short" : ""}"${short ? ` title="${cap - n} open slot${cap - n === 1 ? "" : "s"} while candidates wait to book"` : ""}>${meta}</div></div>`;
+    return `<div class="oc-dh${isToday?" today":""}${_wk?" oc-wknd":""}"><div class="dow">${d.toLocaleDateString(undefined,{weekday:"long"})}</div><div class="dn">${d.getDate()}</div><div class="oc-dh-meta${short ? " is-short" : ""}${closed && cap === 0 ? " is-closed" : ""}"${short ? ` title="${cap - n} open slot${cap - n === 1 ? "" : "s"} while candidates wait to book"` : (closed && cap === 0 ? ' title="Closed by a date override (Holidays & date overrides)"' : "")}>${meta}</div></div>`;
   }).join("");
 
   let gutter = "";
@@ -26759,11 +26877,14 @@ function _ivcalTimeGrid(ndays) {
     const _slotMin = _ivcalCache.slot || 30, _buf = _ivcalCache.buffer || 0;
     const _bookIco = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>';
     let shade = "";
-    for (const w of (_ivcalShowAvail ? (_ivcalCache.windows||[]) : []).filter(w => w.weekday === d.getDay())) {
+    // Override-aware: _ivcalDayWindows layers Holidays & date overrides
+    // over the weekly schedule (0407 parity), so a closed holiday paints
+    // NO bookable band and one-off hours paint exactly their window.
+    for (const w of (_ivcalShowAvail ? _ivcalDayWindows(d) : [])) {
       const top = _ivcalYpos(w.start_min), bot = _ivcalYpos(w.end_min);
       if (bot <= top) continue;
       let slots = "";
-      for (let mm = w.start_min; mm + _slotMin <= w.end_min; mm += _slotMin + _buf) {
+      for (const mm of _slotStarts(w, _slotMin, _buf)) {
         const st = _ivcalYpos(mm), en = _ivcalYpos(mm + _slotMin);
         if (en > st) slots += `<div class="oc-bk-slot" style="top:${Math.round(st - top)}px;height:${Math.max(6, Math.round(en - st - 2))}px"></div>`;
       }
