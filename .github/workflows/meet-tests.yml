@@ -1,0 +1,30 @@
+# RouteReady Meet · unit tests for the pure meeting logic
+# (dashboard/meet-core.js — code normalization, negotiation politeness,
+# roster ordering). Same per-suite pattern as workbook-tests.yml et al.
+name: Meet tests
+
+on:
+  pull_request:
+    paths:
+      - "dashboard/meet-core.js"
+      - "dashboard/meet.js"
+      - "scripts/test-meet-core.mjs"
+      - ".github/workflows/meet-tests.yml"
+  push:
+    branches: [main]
+    paths:
+      - "dashboard/meet-core.js"
+      - "dashboard/meet.js"
+      - "scripts/test-meet-core.mjs"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Meet core unit tests
+        run: node scripts/test-meet-core.mjs

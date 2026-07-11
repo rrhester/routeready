@@ -19,6 +19,12 @@
 /rsvp/:token/:resp /dashboard/rsvp.html?t=:token&r=:resp 302
 /rsvp/:token     /dashboard/rsvp.html?t=:token          302
 
+# RouteReady Meet — short invite links. 302 so the ?m= code survives
+# placeholder substitution (see note above); meet.js also parses the
+# /m/<code> path itself, so either shape works.
+/m/:code         /dashboard/meet.html?m=:code           302
+/meet            /dashboard/meet.html                   200
+
 # Public document-verification page. /verify/<token> and bare /verify
 # both resolve to verify.html (which also reads ?token=).
 /verify/:token   /verify.html?token=:token             302
