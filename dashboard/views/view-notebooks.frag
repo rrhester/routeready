@@ -798,6 +798,16 @@
     autoGrow(title);
     title.addEventListener("input", function () { autoGrow(title); scheduleSave(); updateBreadcrumbTitle(); });
     title.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); ed.focus(); } });
+    // Keep the host app's single-key global shortcuts (e.g. "c" opens a coaching
+    // log) from firing while you type here — let real chords (Ctrl/Meta/Alt) and
+    // Escape through so our own + the app's modified shortcuts still work.
+    var stopTypingLeak = function (e) { if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key !== "Escape") e.stopPropagation(); };
+    ed.addEventListener("keydown", stopTypingLeak);
+    ed.addEventListener("keyup", stopTypingLeak);
+    ed.addEventListener("keypress", stopTypingLeak);
+    title.addEventListener("keydown", stopTypingLeak);
+    title.addEventListener("keyup", stopTypingLeak);
+    title.addEventListener("keypress", stopTypingLeak);
     ed.addEventListener("input", function () { scheduleSave(); autoLinkify(); });
     ed.addEventListener("keydown", onEditorKey);
     ed.addEventListener("click", onEditorClick);
@@ -1125,7 +1135,7 @@
     pop.addEventListener("click", function (e) { var o = e.target.closest("[data-pick-page]"); if (!o) return;
       var pid = o.getAttribute("data-pick-page"); var pg = pages.filter(function (p) { return p.id === pid; })[0];
       $id("rrnb-editor").focus(); restoreSelection(range);
-      insertHTMLAtCursor('<a class="rrnb-pagelink" data-page-id="' + pid + '" href="#">' + esc(pg ? pg.title : "page") + '</a>&nbsp;');
+      insertHTMLAtCursor('<a class="rrnb-pagelink" contenteditable="false" data-page-id="' + pid + '" href="#">' + esc(pg ? pg.title : "page") + '</a>&nbsp;');
       hidePop(); scheduleSave();
     });
   }
@@ -1214,6 +1224,8 @@
   }
   function makeObjLink(word, byName) {
     var a = document.createElement("a"); a.className = "rrnb-objlink"; a.href = "#";
+    a.setAttribute("contenteditable", "false");   // atomic clickable chip, not editable text
+    a.setAttribute("data-obj-name", word);
     var known = byName[word.toLowerCase()];
     if (known) { a.setAttribute("data-obj-type", known.type); a.setAttribute("data-obj-id", known.id); }
     else if (/^route/i.test(word)) { a.setAttribute("data-obj-type", "route"); a.setAttribute("data-obj-id", word.replace(/\D+/g, "")); }
@@ -1249,7 +1261,11 @@
         if (hit) { out.appendChild(document.createTextNode(text.slice(last))); rec.node.parentNode.replaceChild(out, rec.node); }
       });
       if (replaced) {
-        if (caretAware && caretAbs >= 0) setCaretAt(ed, caretAbs);
+        // Rewriting text nodes can drop the caret/focus out of the editor —
+        // which then lets the app's single-key hotkeys (guarded on
+        // activeElement.isContentEditable) fire on your next keystroke. Put
+        // focus + caret back so typing continues seamlessly.
+        if (caretAware && caretAbs >= 0) { try { ed.focus({ preventScroll: true }); } catch (e2) { ed.focus(); } setCaretAt(ed, caretAbs); }
         scheduleSave(); persistLinks(S.pageId);
         if (manual) notify(replaced + " link" + (replaced > 1 ? "s" : "") + " added");
       } else if (manual) notify("No drivers, vehicles or routes recognized on this page");
