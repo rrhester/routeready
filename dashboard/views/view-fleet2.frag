@@ -45,18 +45,46 @@
              stat (painted by _flPaintTabCounts) and the shared-chrome
              host ride the right edge like Schedule's action bar. -->
         <div class="rr-ab" id="rr-fleet-ab">
-          <button type="button" class="rr-ab-btn rr-ab-emph" id="rr-fleet-add" aria-label="Add van" title="Add van">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            <span>Add van</span>
-          </button>
+          <!-- Add van · schedule-style SPLIT button. The main body opens
+               the add-van drawer (the delegated #rr-fleet-add handler);
+               the .rr-ab-caret segment opens a small dropdown of related
+               roster actions. Mirrors the Schedule page's Build Schedule /
+               Assign Fleet .rr-ab-caret split exactly — same markup + a
+               view-scoped .rr-ab-menu recipe (inline-styles.css). -->
+          <div class="rr-ab-split-wrap">
+            <button type="button" class="rr-ab-btn rr-ab-emph" id="rr-fleet-add" aria-label="Add van" title="Add van">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <span>Add van</span>
+              <span class="rr-ab-caret" id="rr-fleet-add-caret" role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="More van actions">
+                <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
+              </span>
+            </button>
+            <div class="rr-ab-menu" id="rr-fleet-add-menu" role="menu" aria-label="Van actions" hidden>
+              <button type="button" role="menuitem" data-fl-menu="add">Add a van</button>
+              <button type="button" role="menuitem" data-fl-menu="export">Export roster (CSV)</button>
+            </div>
+          </div>
           <!-- Print / Download Excel retired outright (operator
                2026-07-04). Proof of Use keeps its own in-modal print +
                CSV download, which still render through
                #rr-fleet-print-area below. -->
-          <button type="button" class="rr-ab-btn" id="rr-fl-proof-btn" aria-label="Proof of Use report" title="Generate a DVIC proof-of-use report for a van">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/><polyline points="9 9 11 9"/></svg>
-            <span>Proof of Use</span>
-          </button>
+          <!-- Proof of Use · schedule-style SPLIT button. Main body opens
+               the proof-of-use report modal; the caret drops a menu of the
+               page's other fleet reports (van rotation / open issues). -->
+          <div class="rr-ab-split-wrap">
+            <button type="button" class="rr-ab-btn" id="rr-fl-proof-btn" aria-label="Proof of Use report" title="Generate a DVIC proof-of-use report for a van">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/><polyline points="9 9 11 9"/></svg>
+              <span>Proof of Use</span>
+              <span class="rr-ab-caret" id="rr-fl-proof-caret" role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="More fleet reports">
+                <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
+              </span>
+            </button>
+            <div class="rr-ab-menu" id="rr-fl-proof-menu" role="menu" aria-label="Fleet reports" hidden>
+              <button type="button" role="menuitem" data-fl-menu="proof">Proof of Use report</button>
+              <button type="button" role="menuitem" data-fl-menu="rotation">Van rotation &amp; readiness</button>
+              <button type="button" role="menuitem" data-fl-menu="issues">Open issues</button>
+            </div>
+          </div>
           <!-- Fleet status stat · twin of Schedule's coverage card
                (.rr-ab-coverage + the premium floating-card pass):
                van count leads, the sub line reads grounded exposure —
@@ -72,6 +100,84 @@
                arrangement the Schedule action bar has. -->
           <span class="fl-ab-chrome-host" id="rr-fleet-chrome-host"></span>
         </div>
+        <!-- Hidden CSV-export trigger · the #rr-fleet-export delegated
+             handler (live.js → _flExportCsv) lost its visible button when
+             Print/Download retired. The "Export roster (CSV)" item in the
+             Add van split menu fires this inert button so the handler
+             resolves without exposing the module-local _flExportCsv. -->
+        <button type="button" id="rr-fleet-export" hidden aria-hidden="true" tabindex="-1"></button>
+        <script>
+          // Fleet action-bar SPLIT buttons · same idea as the Schedule
+          // action bar (view-schedule.frag inline script): the pill body
+          // fires the primary action through the existing delegated
+          // handlers, while each .rr-ab-caret segment opens a small
+          // .rr-ab-menu of related actions. The caret's own listener calls
+          // stopPropagation so the main button's delegated click never
+          // fires when only the caret is clicked. The menu is a CSS
+          // position:absolute card anchored to its .rr-ab-split-wrap.
+          (function () {
+            var bar = document.getElementById("rr-fleet-ab");
+            if (!bar || bar.__rrSplitWired) return;
+            bar.__rrSplitWired = true;
+            var PAIRS = [
+              { caret: "rr-fleet-add-caret", menu: "rr-fleet-add-menu" },
+              { caret: "rr-fl-proof-caret",  menu: "rr-fl-proof-menu" }
+            ];
+            function closeAll() {
+              PAIRS.forEach(function (p) {
+                var m = document.getElementById(p.menu);
+                var c = document.getElementById(p.caret);
+                if (m) m.hidden = true;
+                if (c) c.setAttribute("aria-expanded", "false");
+              });
+            }
+            // openFleetDrawer / _flExportCsv are module-local in live.js
+            // (not on window), so fire their EXISTING delegated handlers by
+            // clicking the real DOM buttons instead of calling the funcs.
+            // fleetSub / _flOpenProofModal ARE global, so call them direct.
+            var fire = function (id) { var b = document.getElementById(id); if (b) b.click(); };
+            function act(key) {
+              switch (key) {
+                case "add":      fire("rr-fleet-add"); break;
+                case "export":   fire("rr-fleet-export"); break;
+                case "proof":    if (typeof _flOpenProofModal === "function") _flOpenProofModal(); break;
+                case "rotation": if (typeof fleetSub === "function") fleetSub("rotation"); break;
+                case "issues":   if (typeof fleetSub === "function") fleetSub("issues"); break;
+              }
+            }
+            PAIRS.forEach(function (p) {
+              var caret = document.getElementById(p.caret);
+              var menu  = document.getElementById(p.menu);
+              if (!caret || !menu) return;
+              var toggle = function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                var willOpen = menu.hidden;
+                closeAll();
+                if (willOpen) {
+                  menu.hidden = false;
+                  caret.setAttribute("aria-expanded", "true");
+                }
+              };
+              caret.addEventListener("click", toggle);
+              caret.addEventListener("keydown", function (e) {
+                if (e.key === "Enter" || e.key === " ") toggle(e);
+              });
+              menu.addEventListener("click", function (e) {
+                var b = e.target.closest("[data-fl-menu]");
+                if (!b) return;
+                e.preventDefault();
+                e.stopPropagation();
+                closeAll();
+                act(b.getAttribute("data-fl-menu"));
+              });
+            });
+            document.addEventListener("click", function (e) {
+              if (!e.target.closest(".rr-ab-split-wrap")) closeAll();
+            });
+            document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeAll(); });
+          })();
+        </script>
 
         <!-- Print mount · receives a clone of the active sub-view when
              the operator hits Print. -->

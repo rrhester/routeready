@@ -525,6 +525,26 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="2" y="5" width="14" height="14"/><line x1="5" y1="9" x2="9" y2="9"/><line x1="5" y1="12" x2="13" y2="12"/><line x1="5" y1="15" x2="11" y2="15"/><line x1="20" y1="7" x2="20" y2="15"/><line x1="16" y1="11" x2="24" y2="11"/></svg>
                     <span>Add applicant</span>
                   </button>
+                  <!-- Split ▾ · schedule-style split affordance on this
+                       action tile (parity with the Schedule action bar's
+                       Build Schedule / Unassign Fleet .rr-ab-caret split).
+                       The tile body still opens the manual add-applicant
+                       form; this hover-revealed caret drops a small menu
+                       with BOTH add paths — manual entry and PDF import.
+                       Uses its own .ob-split-caret class (not .ob-rules-foot,
+                       which the actions-group `display:none` rule in
+                       onboarding-rrx.css would hide); wired by the inline
+                       script below. -->
+                  <button type="button" class="ob-split-caret" id="rr-ob-addapplicant-split"
+                          aria-haspopup="menu" aria-expanded="false"
+                          aria-controls="rr-ob-addapplicant-menu"
+                          title="Add options — manual entry or import">
+                    <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
+                  </button>
+                  <div class="ob-split-menu" id="rr-ob-addapplicant-menu" role="menu" aria-label="Add applicant options" hidden>
+                    <button type="button" role="menuitem" data-ob-add="manual">Add applicant manually</button>
+                    <button type="button" role="menuitem" data-ob-add="import">Import from PDF</button>
+                  </div>
                 </div>
                 <!-- Import · keeps the former PDF-Upload icon + action, relabeled
                      to "Import" per operator request. -->
@@ -548,6 +568,60 @@
             </div><!-- /group: actions -->
           </div>
         </div><!-- /page-header.sched-nav-heading -->
+        <script>
+          // Onboarding "Add applicant" SPLIT ▾ · parity with the Schedule
+          // action bar's split buttons. The tile body still opens the
+          // manual add form via its onclick; this caret opens a small menu
+          // offering the manual + PDF-import add paths (both real, existing
+          // handlers). The menu is re-parented to <body> and positioned
+          // fixed under the caret so the command strip's clipping can't
+          // swallow it — the same escape the rules popovers use.
+          (function () {
+            var caret = document.getElementById("rr-ob-addapplicant-split");
+            var menu  = document.getElementById("rr-ob-addapplicant-menu");
+            if (!caret || !menu || caret.__rrWired) return;
+            caret.__rrWired = true;
+            function close() { menu.hidden = true; caret.setAttribute("aria-expanded", "false"); }
+            function open() {
+              if (menu.parentElement !== document.body) document.body.appendChild(menu);
+              var r = caret.getBoundingClientRect();
+              var w = 208;
+              var left = Math.min(Math.max(8, r.left + r.width / 2 - w / 2), window.innerWidth - w - 8);
+              menu.style.position = "fixed";
+              menu.style.top = (r.bottom + 6) + "px";
+              menu.style.left = left + "px";
+              menu.style.right = "auto";
+              menu.hidden = false;
+              caret.setAttribute("aria-expanded", "true");
+            }
+            var toggle = function (e) {
+              e.preventDefault();
+              e.stopPropagation();
+              if (menu.hidden) open(); else close();
+            };
+            caret.addEventListener("click", toggle);
+            caret.addEventListener("keydown", function (e) {
+              if (e.key === "Enter" || e.key === " ") toggle(e);
+            });
+            menu.addEventListener("click", function (e) {
+              var b = e.target.closest("[data-ob-add]");
+              if (!b) return;
+              e.preventDefault();
+              e.stopPropagation();
+              close();
+              var k = b.getAttribute("data-ob-add");
+              if (k === "manual" && typeof openAddApplicantModal === "function") openAddApplicantModal();
+              else if (k === "import" && typeof openPdfUploadPicker === "function") openPdfUploadPicker();
+            });
+            document.addEventListener("click", function (e) {
+              if (menu.hidden) return;
+              if (!e.target.closest("#rr-ob-addapplicant-menu") && e.target !== caret && !caret.contains(e.target)) close();
+            });
+            document.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });
+            window.addEventListener("resize", close);
+            window.addEventListener("scroll", close, true);
+          })();
+        </script>
         </div><!-- /ob-cmd-shell -->
 
         <!-- TCP KPI band · Onboarding has no metrics yet, but the
