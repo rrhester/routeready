@@ -820,12 +820,12 @@
             if (hdr) {
               if (isFunnel) hdr.style.setProperty('display', 'none', 'important');
               else {
-                // Calendar keeps its title block HIDDEN (operator: no "Calendar"
-                // heading). The header is a clean, flat Google-Calendar-style bar
-                // — view/sorting tabs hard-left, New-event/Add-calendar actions
-                // hard-right. Other non-funnel subs show their title.
-                if (key === 'calendar') hdr.style.setProperty('display', 'none', 'important');
-                else hdr.style.removeProperty('display');
+                // Title block hidden on EVERY onboarding sub (parity pass
+                // 2026-07-11): the Schedule page goes tabs → toolbar →
+                // content with no page title, so Onboarding does too. The
+                // view tabs already name the page; the KPI band carries the
+                // counts the old subtitle used to.
+                hdr.style.setProperty('display', 'none', 'important');
                 hdr.style.removeProperty('margin-right');
                 // Calendar sub: the controls span the full bar (view tabs left,
                 // actions right) — the inner split is handled in CSS. Clear any
@@ -861,7 +861,7 @@
                 band.style.setProperty('align-items', 'center', 'important');
                 band.style.setProperty('justify-content', 'flex-start', 'important');
                 band.style.setProperty('gap', '10px', 'important');
-                band.style.setProperty('padding', '8px 18px', 'important');
+                band.style.setProperty('padding', '0 18px 8px', 'important');
                 if (actions) actions.style.setProperty('flex', '0 0 auto', 'important');
                 // Relocate the filter tabs into the top bar, left of the actions.
                 if (tabs && actions && tabs.parentNode !== band) band.insertBefore(tabs, actions);
@@ -934,30 +934,27 @@
                 ['min-height', 'height', 'max-height', 'background', 'border', 'border-bottom',
                  'border-radius', 'box-shadow', 'display', 'align-items', 'justify-content', 'gap', 'padding']
                   .forEach(function (p) { band.style.removeProperty(p); });
-                // Calendar sub: clean, flat Google-Calendar-style bar — no white
-                // card, no shadow, no divider; a single compact full-width row.
-                // The view/sorting tabs sit hard-left and the actions hard-right
-                // (the L/R split + pill buttons are styled in CSS). Other subs
-                // keep their normal card (restored via removeProperty above).
-                if (key === 'calendar') {
-                  band.style.setProperty('background', 'transparent', 'important');
-                  band.style.setProperty('border', '0', 'important');
-                  band.style.setProperty('border-radius', '0', 'important');
-                  band.style.setProperty('box-shadow', 'none', 'important');
-                  // Compact row, not the 115px --tcp-strip-h card.
-                  band.style.setProperty('min-height', '0', 'important');
-                  band.style.setProperty('height', 'auto', 'important');
-                  band.style.setProperty('max-height', 'none', 'important');
-                  band.style.setProperty('display', 'flex', 'important');
-                  band.style.setProperty('align-items', 'center', 'important');
-                  band.style.setProperty('gap', '12px', 'important');
-                  band.style.setProperty('padding', '12px 20px', 'important');
-                  // Kill any vertical ribbon-group hairline.
-                  band.querySelectorAll('.sched-ribbon-group').forEach(function (g) {
-                    g.style.setProperty('border-left', '0', 'important');
-                    g.style.setProperty('border-right', '0', 'important');
-                  });
-                }
+                // EVERY non-funnel sub gets the same clean, flat bar the
+                // Calendar pioneered (parity pass 2026-07-11): no white card,
+                // no shadow, no divider — a single compact full-width row,
+                // exactly like the Schedule action bar. The 115px
+                // --tcp-strip-h card is a roster/print-mode concern only.
+                band.style.setProperty('background', 'transparent', 'important');
+                band.style.setProperty('border', '0', 'important');
+                band.style.setProperty('border-radius', '0', 'important');
+                band.style.setProperty('box-shadow', 'none', 'important');
+                band.style.setProperty('min-height', '0', 'important');
+                band.style.setProperty('height', 'auto', 'important');
+                band.style.setProperty('max-height', 'none', 'important');
+                band.style.setProperty('display', 'flex', 'important');
+                band.style.setProperty('align-items', 'center', 'important');
+                band.style.setProperty('gap', key === 'calendar' ? '12px' : '10px', 'important');
+                band.style.setProperty('padding', key === 'calendar' ? '12px 20px' : '0 18px 8px', 'important');
+                // Kill any vertical ribbon-group hairline.
+                band.querySelectorAll('.sched-ribbon-group').forEach(function (g) {
+                  g.style.setProperty('border-left', '0', 'important');
+                  g.style.setProperty('border-right', '0', 'important');
+                });
                 if (actions) {
                   if (key === 'calendar') actions.style.setProperty('flex', '1 1 auto', 'important');
                   else actions.style.removeProperty('flex');
@@ -984,12 +981,11 @@
                   if (ribbon) ribbon.style.removeProperty('display');
                   var bell = document.getElementById('rr-hdr-notif'); if (bell) bell.style.removeProperty('order');
                   var av = document.getElementById('rr-hdr-avatar-btn'); if (av) av.style.removeProperty('order');
-                  // Don't restore the ribbon-group borders on the calendar sub —
-                  // the calendar branch above intentionally strips that hairline.
-                  if (key !== 'calendar') {
-                    document.querySelectorAll('.ob-tab-divider').forEach(function (d) { d.style.removeProperty('display'); });
-                    document.querySelectorAll('.sched-ribbon-group').forEach(function (g) { g.style.removeProperty('border-left'); g.style.removeProperty('border-right'); });
-                  }
+                  // Ribbon-group hairlines + tab dividers stay stripped on every
+                  // sub (parity pass 2026-07-11) — the flat Schedule-style bar
+                  // carries no vertical rules. (They were previously restored
+                  // here for non-calendar subs.)
+                  document.querySelectorAll('.ob-tab-divider').forEach(function (d) { d.style.setProperty('display', 'none', 'important'); });
                 })();
                 // Move the filter tabs back into the Applicants card header.
                 var home = document.querySelector('.pa-ws-header');
@@ -1015,35 +1011,39 @@
                 else shell.style.removeProperty('grid-template-columns');
               }
             }
-            // Add applicant + Import → clear white pills with the navy edge (the
-            // same look as the Funnel filter tabs), forced with !important so the
-            // command-strip tile rules can't win. Queried globally for the same
-            // relocation reason. (Operator: no solid-blue buttons on the Funnel.)
+            // Add applicant + Import → the Schedule action-bar button system
+            // (.rr-ab-btn — 36px, hairline border, 6px radius, 12.5/600 ink,
+            // 15px glyph). Add applicant is the module's ONE orange primary
+            // (same role Finalize plays on Schedule); Import is a white
+            // secondary. Applied on EVERY onboarding sub as the cache-proof
+            // baseline; set WITHOUT 'important' so the (fresher) stylesheet's
+            // !important rules — including :hover — win when present.
             var css = {
               'display': 'inline-flex', 'flex-direction': 'row', 'align-items': 'center',
-              'gap': '8px', 'height': '40px', 'min-width': '0', 'padding': '0 16px',
-              'background': 'var(--surface)', 'color': 'var(--text)',
-              'border': '1.5px solid var(--sidebar-bg,#0F172A)', 'border-radius': 'var(--r-lg)',
+              'gap': '7px', 'height': '36px', 'min-width': '0', 'padding': '0 12px',
+              'background': 'var(--rr-white,#fff)', 'color': 'var(--rr-gray-900,#111827)',
+              'border': '1px solid var(--rr-ctl-border,#D7DCE3)', 'border-radius': '6px',
               'box-shadow': 'none', 'font-weight': '600',
-              'font-size': 'var(--fs-sm)'
+              'font-size': 'var(--fs-12-5,12.5px)'
             };
             var keys = Object.keys(css);
             ['ob-addapplicant', 'ob-pdf-upload'].forEach(function (tile) {
               var btn = document.querySelector('.ob-tab-wrap[data-rr-tile="' + tile + '"] .subnav-item');
               if (!btn) return;
               var sp = btn.querySelector('span'), sv = btn.querySelector('svg');
-              if (isFunnel) {
-                keys.forEach(function (p) { btn.style.setProperty(p, css[p], 'important'); });
-                if (sp) sp.style.setProperty('color', 'var(--text)', 'important');
-                if (sv) {
-                  sv.style.setProperty('width', '16px', 'important');
-                  sv.style.setProperty('height', '16px', 'important');
-                  sv.style.setProperty('color', 'var(--accent)', 'important');
-                }
-              } else {
-                keys.forEach(function (p) { btn.style.removeProperty(p); });
-                if (sp) sp.style.removeProperty('color');
-                if (sv) { sv.style.removeProperty('width'); sv.style.removeProperty('height'); sv.style.removeProperty('color'); }
+              var primary = tile === 'ob-addapplicant';
+              keys.forEach(function (p) { btn.style.setProperty(p, css[p]); });
+              if (primary) {
+                btn.style.setProperty('background', 'var(--rr-amber-primary,#FF9900)');
+                btn.style.setProperty('border', '1px solid var(--rr-amber-primary,#FF9900)');
+                btn.style.setProperty('color', 'var(--rr-white,#fff)');
+                btn.style.setProperty('font-weight', '700');
+              }
+              if (sp) sp.style.setProperty('color', 'currentColor');
+              if (sv) {
+                sv.style.setProperty('width', '15px');
+                sv.style.setProperty('height', '15px');
+                sv.style.setProperty('color', 'currentColor');
               }
             });
           };
