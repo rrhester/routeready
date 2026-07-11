@@ -59936,12 +59936,19 @@ async function renderScheduleWeek() {
     if (abBadge) { abBadge.hidden = abOpen === 0; abBadge.textContent = String(abOpen); }
     const abCard = document.getElementById("rr-ab-coverage");
     if (abCard) {
-      abCard.hidden = abNeeded === 0;
+      // Always visible: a week with no plan renders a muted "No plan yet"
+      // placeholder instead of hiding the card, so Finalize keeps the same
+      // spot in the bar week to week (operator request 2026-07-11).
+      const abEmpty = abNeeded === 0;
+      abCard.hidden = false;
+      abCard.classList.toggle("is-empty", abEmpty);
       const abMain = document.getElementById("rr-ab-coverage-main");
       const abSub  = document.getElementById("rr-ab-coverage-sub");
       // Metric wrapped so the polish pass can enlarge the count and set a
       // clean title/metric/subtitle hierarchy inside the coverage card.
-      if (abMain) abMain.innerHTML = `<span class="rr-ab-cov-num">${abFilled} / ${abNeeded}</span> <span class="rr-ab-cov-unit">Routes</span>`;
+      if (abMain) abMain.innerHTML = abEmpty
+        ? `<span class="rr-ab-cov-num">– / –</span> <span class="rr-ab-cov-unit">Routes</span>`
+        : `<span class="rr-ab-cov-num">${abFilled} / ${abNeeded}</span> <span class="rr-ab-cov-unit">Routes</span>`;
       if (abSub) {
         // Real routes vs cushion: abRouteGap counts unfilled PLANNED
         // routes only. When the routes are covered but cushion seats
@@ -59951,14 +59958,16 @@ async function renderScheduleWeek() {
         // Open counts (real routes OR cushion seats) paint red so an
         // operator never reads "all clear" while seats sit open; only a
         // fully-filled week (routes + cushion) is the calm ok-state.
-        if (abRouteGap > 0) {
+        if (abEmpty) {
+          abSub.textContent = "No plan yet";
+        } else if (abRouteGap > 0) {
           abSub.innerHTML = `<span class="rr-ab-open">${abRouteGap} Open Route${abRouteGap === 1 ? "" : "s"}</span>`;
         } else if (abCushionOpen > 0) {
           abSub.innerHTML = `All routes covered · <span class="rr-ab-open">${abCushionOpen} cushion seat${abCushionOpen === 1 ? "" : "s"} open</span>`;
         } else {
           abSub.textContent = "All routes covered";
         }
-        abSub.classList.toggle("is-ok", abRouteGap === 0 && abCushionOpen === 0);
+        abSub.classList.toggle("is-ok", !abEmpty && abRouteGap === 0 && abCushionOpen === 0);
         // DIRECTION A · coverage meter — a slim fill bar under the count so
         // coverage reads as a metric, not a floating card. State drives the
         // colour: green (covered) / amber (cushion open) / red (routes open).
@@ -59967,7 +59976,7 @@ async function renderScheduleWeek() {
         let abMeter = abCard.querySelector(".rr-ab-cov-meter");
         if (!abMeter) { abMeter = document.createElement("span"); abMeter.className = "rr-ab-cov-meter"; abCard.appendChild(abMeter); }
         const abPct = abNeeded > 0 ? Math.max(3, Math.min(100, (abFilled / abNeeded) * 100)) : 0;
-        abMeter.dataset.state = abRouteGap > 0 ? "gap" : (abCushionOpen > 0 ? "cushion" : "ok");
+        abMeter.dataset.state = abEmpty ? "empty" : (abRouteGap > 0 ? "gap" : (abCushionOpen > 0 ? "cushion" : "ok"));
         abMeter.innerHTML = `<i style="width:${abPct}%"></i>`;
       }
     }
