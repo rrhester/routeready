@@ -135,15 +135,20 @@
    #main below opts back into vertical pan only. */
 html,body{
   margin:0;padding:0;
-  width:100%;
-  height:100%;
-  height:100dvh;
   overflow:hidden;
   position:fixed;
   inset:0;
   overscroll-behavior:none;
   touch-action:none;
 }
+/* Both elements are fixed and inset-pinned; an explicit height would
+   over-constrain the box (CSS then ignores `bottom`), and any dvh/vh
+   shortfall vs the real viewport opens a dead strip under the tab bar.
+   rr-system.css (shared with the dashboard, loads after this sheet)
+   re-adds heights for the dashboard's grid — these higher-specificity
+   rebinds keep the driver app edge-pinned instead. */
+:root{ height:auto; }
+html body{ height:auto; }
 body{
   background-color:var(--bg);
   background-image:var(--bg-grad);
@@ -171,8 +176,9 @@ a{color:var(--accent);text-decoration:none}
 #app{
   position:fixed;
   inset:0;
-  width:100%;
-  height:100dvh;
+  /* No width/height: inset pins all four edges to the *actual* viewport,
+     which is what keeps .tabbar{bottom:0} on the physical screen edge.
+     (height:100dvh here used to override the bottom pin — see html,body.) */
   background:transparent;
   /* Body owns the gradient + canvas color; #app is transparent so
      the depth shows through.  Don't add safe-area-inset padding

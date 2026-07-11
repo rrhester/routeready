@@ -67,7 +67,11 @@
 // /chat/channel?id=… — hardware Back pops thread → list → out instead of
 // exiting Chat, channels are deep-linkable, and the header back arrow is
 // route-driven. Bumped so installed driver PWAs pick up the new app.js.
-const SHELL_CACHE = "rr-app-shell-v140";
+// v141 · Tab bar reaches the physical bottom edge: #app/html/body were
+// inset-pinned AND explicitly heighted, which over-constrains the box
+// (CSS drops the bottom pin) — any dvh shortfall vs the real viewport
+// left a dead strip under the tab bar. Now edge-pinned with no height.
+const SHELL_CACHE = "rr-app-shell-v141";
 const SHELL_FILES = [
   "./",
   "index.html",
