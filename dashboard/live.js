@@ -3156,15 +3156,41 @@ function _rrOnboardingNotReadyByWeek(weeks) {
 
 // One assessment call shared by the Risk Forecast view and the Targets gap
 // card — both render from the exact same forecast-core result.
-function _rrAssessOkamiPlan(weeks) {
+function _rrAssessOkamiPlan(weeks, overrides) {
   const rates = window._rrForecastRates || {};
+  const o = overrides || {};
   return rrAssessLaborPlan(weeks, {
     todayIso: fmtIsoDate(new Date()),
-    hireLeadDays: RR_OKAMI_HIRE_LEAD_DAYS,
-    calloutRate: rates.calloutRate || 0,
-    weeklyAttritionRate: rates.weeklyAttritionRate || 0,
+    hireLeadDays: Number.isFinite(o.hireLeadDays) ? o.hireLeadDays : RR_OKAMI_HIRE_LEAD_DAYS,
+    calloutRate: Number.isFinite(o.calloutRate) ? o.calloutRate : (rates.calloutRate || 0),
+    weeklyAttritionRate: Number.isFinite(o.weeklyAttritionRate) ? o.weeklyAttritionRate : (rates.weeklyAttritionRate || 0),
     onboardingNotReadyByWeek: _rrOnboardingNotReadyByWeek(weeks),
+    extraSupply: o.extraSupply || null,
+    demandOverride: o.demandOverride || null,
   });
+}
+
+// ── Risk-forecast calculator · sandbox assumption overrides ───────────────
+// State behind the Risk Forecast's assumptions bar. Every field is an
+// override over the observed/configured value; null (or an empty state) =
+// use observed. Lives on window so the dials survive re-renders and rate
+// loads. Display-only — nothing here writes back to the plan.
+window._rrRfCalc = window._rrRfCalc || {};
+function _rrRfOverrides() {
+  const c = window._rrRfCalc || {};
+  const o = {};
+  if (c.calloutPct != null) o.calloutRate = c.calloutPct / 100;
+  if (c.attrPct != null) o.weeklyAttritionRate = c.attrPct / 100;
+  if (c.leadDays != null) o.hireLeadDays = c.leadDays;
+  if (c.dpr != null || c.padPct != null) {
+    o.demandOverride = {
+      driversPerRoute: c.dpr != null ? c.dpr : (window._rrForecastRates?.driversPerRoute ?? 2),
+      padPct: c.padPct != null ? c.padPct
+        : Math.max(0, Math.min(50, Number(window.RR?.dsp?.metadata?.staffing?.plan_pad_pct ?? 10) || 0)),
+    };
+  }
+  if (c.hires > 0 && c.fromIso) o.extraSupply = { fromIso: c.fromIso, count: c.hires };
+  return o;
 }
 
 // ── Flex capacity · tier-aware absorption + hiring plan (edge engine) ──────
@@ -3285,6 +3311,7 @@ function _rrReadOkamiWeeks() {
       const effectiveGap   = effectiveAvail - w.needed;
       return {
         idx: w.idx, label: w.label, dates: w.dates, needed: w.needed,
+        routesMax: w.routesMax,
         weekStartIso: w.weekStartIso,
         avail: effectiveAvail,
         gap: effectiveGap,
@@ -3509,15 +3536,115 @@ function _rrIntelRenderRiskForecast(view) {
     return;
   }
 
-  // All math lives in forecast-core.js (shared with the Targets gap card):
-  // per-week effective supply (payroll − onboarding-not-ready − projected
-  // attrition − expected callouts), coverage kinds on ONE vocabulary
-  // (On track / Watch / At risk), hire-by reachability, and the plan-level
-  // prescription. Rates load lazily — first paint runs with zeros and this
-  // view repaints itself when the observed rates land.
+  // Shell = header + the assumptions bar (a live calculator: every input
+  // re-runs the pure forecast-core client-side, instantly — no network) +
+  // the output host. The output re-renders on each dial change without
+  // touching the bar, so typing never loses focus. Rates load lazily and
+  // repaint the whole panel when they land; untouched dials reseed to the
+  // fresh observed values, edited dials persist via window._rrRfCalc.
   _rrEnsureForecastRates();
+  const shellRates = window._rrForecastRates || null;
+  const c = window._rrRfCalc || (window._rrRfCalc = {});
+  const seedCallout = c.calloutPct ?? Math.round(((shellRates?.calloutRate) || 0) * 100);
+  const seedAttr    = c.attrPct    ?? Number((100 * ((shellRates?.weeklyAttritionRate) || 0)).toFixed(1));
+  const seedLead    = c.leadDays   ?? RR_OKAMI_HIRE_LEAD_DAYS;
+  const seedDpr     = c.dpr        ?? (shellRates?.driversPerRoute ?? 2);
+  const seedPad     = c.padPct     ?? Math.max(0, Math.min(50, Number(window.RR?.dsp?.metadata?.staffing?.plan_pad_pct ?? 10) || 0));
+  const seedHires   = c.hires      ?? 0;
+  const weekIsos = weeks.filter((w) => w.weekStartIso);
+  const seedFrom = c.fromIso || (weekIsos[0]?.weekStartIso || "");
+  const fromOpts = weekIsos.map((w) =>
+    `<option value="${escapeHtml(w.weekStartIso)}"${w.weekStartIso === seedFrom ? " selected" : ""}>${escapeHtml(w.label)}</option>`).join("");
+
+  view.innerHTML = `
+    <header class="rr-intel-view-head">
+      <div class="rr-intel-view-head-l">
+        <p class="rr-intel-view-eyebrow">Intelligence · Risk forecast</p>
+        <h2 class="rr-intel-view-title">
+          Risk forecast
+          <span class="rr-intel-headline-pill ok" id="rr-rf-pill" hidden><span class="dot"></span></span>
+        </h2>
+        <p class="rr-intel-view-sub">${window._rrSimResultsByWeek
+          ? "Reading from your last <strong>Simulate 13 weeks</strong> run — each week starts from the actual driver pool minus approved time-off, then folds in your observed callout and attrition rates."
+          : "Effective-supply projections across your 13-week plan — payroll minus onboarding ramp, projected attrition, and expected callouts. Click <strong>Simulate 13 weeks</strong> on the Targets page to fold in approved PTO + time-off."}</p>
+      </div>
+      <button type="button" class="rr-intel-view-close" data-rr-intel-close title="Close" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </header>
+
+    <form class="rr-intel-whatif-form rr-intel-calcbar" id="rr-rf-calc" title="Every field recalculates the forecast instantly. Sandbox only — your plan is not changed.">
+      <label class="rr-intel-whatif-field"><span>Callout %</span><input type="number" id="rr-rf-callout" min="0" max="50" step="1" value="${seedCallout}"></label>
+      <label class="rr-intel-whatif-field"><span>Attrition %/wk</span><input type="number" id="rr-rf-attr" min="0" max="10" step="0.1" value="${seedAttr}"></label>
+      <label class="rr-intel-whatif-field"><span>Hire lead · days</span><input type="number" id="rr-rf-lead" min="7" max="90" step="1" value="${seedLead}"></label>
+      <label class="rr-intel-whatif-field"><span>Drivers/route</span><input type="number" id="rr-rf-dpr" min="1" max="5" step="0.1" value="${seedDpr}"></label>
+      <label class="rr-intel-whatif-field"><span>Pad %</span><input type="number" id="rr-rf-pad" min="0" max="50" step="1" value="${seedPad}"></label>
+      <label class="rr-intel-whatif-field"><span>+ Hires</span><input type="number" id="rr-rf-hires" min="0" max="200" step="1" value="${seedHires}"></label>
+      <label class="rr-intel-whatif-field"><span>Arriving</span><select id="rr-rf-from">${fromOpts}</select></label>
+      <button type="button" class="rr-intel-whatif-run" id="rr-rf-reset">Reset to observed</button>
+      <span class="rr-intel-flexplan-hint" id="rr-rf-calc-note"></span>
+    </form>
+    <div id="rr-intel-rf-out"></div>`;
+
+  const bar = view.querySelector("#rr-rf-calc");
+  let barDebounce = null;
+  // Only the dial the operator actually edited becomes an override —
+  // untouched dials keep tracking the observed rates (storing the whole
+  // bar would freeze pre-load fallbacks and rounded display seeds as
+  // unintended overrides). Clearing a field hands it back to observed.
+  const RR_RF_FIELDS = {
+    "rr-rf-callout": ["calloutPct", 0, 50],
+    "rr-rf-attr":    ["attrPct", 0, 10],
+    "rr-rf-lead":    ["leadDays", 7, 90],
+    "rr-rf-dpr":     ["dpr", 1, 5],
+    "rr-rf-pad":     ["padPct", 0, 50],
+    "rr-rf-hires":   ["hires", 0, 200],
+    "rr-rf-from":    ["fromIso"],
+  };
+  if (bar) {
+    bar.addEventListener("input", (e) => {
+      const spec = RR_RF_FIELDS[e.target?.id];
+      if (!spec) return;
+      const st = window._rrRfCalc || (window._rrRfCalc = {});
+      if (spec[0] === "fromIso") {
+        st.fromIso = e.target.value || "";
+      } else if (String(e.target.value).trim() === "") {
+        delete st[spec[0]]; // cleared → back to observed
+      } else {
+        const v = Number(e.target.value);
+        if (Number.isFinite(v)) st[spec[0]] = Math.max(spec[1], Math.min(spec[2], v));
+      }
+      // "+ Hires" needs an arrival week even if the select was never
+      // touched — capture its current value once.
+      if (spec[0] === "hires" && st.hires > 0 && !st.fromIso) {
+        st.fromIso = view.querySelector("#rr-rf-from")?.value || "";
+      }
+      clearTimeout(barDebounce);
+      barDebounce = setTimeout(() => _rrRenderRiskForecastOut(view, weeks), 120);
+    });
+    bar.addEventListener("submit", (e) => e.preventDefault());
+  }
+  const resetBtn = view.querySelector("#rr-rf-reset");
+  if (resetBtn) resetBtn.addEventListener("click", () => {
+    window._rrRfCalc = {};
+    _rrIntelRenderRiskForecast(view); // full re-render reseeds the bar
+  });
+
+  _rrRenderRiskForecastOut(view, weeks);
+}
+
+// The recomputable body: KPIs, strip, narrative, detail card, coverage
+// plan, upper funnel, footer. Pure forecast-core math over the plan weeks
+// plus whatever the assumptions bar overrides — cheap enough to run on
+// every keystroke.
+function _rrRenderRiskForecastOut(view, weeks) {
+  const out = view.querySelector("#rr-intel-rf-out");
+  if (!out) return;
   const rates = window._rrForecastRates || null;
-  const A  = _rrAssessOkamiPlan(weeks);
+  const overrides = _rrRfOverrides();
+  const activeCalloutPct = Math.round((Number.isFinite(overrides.calloutRate) ? overrides.calloutRate : (rates?.calloutRate || 0)) * 100);
+  const activeLeadDays = Number.isFinite(overrides.hireLeadDays) ? overrides.hireLeadDays : RR_OKAMI_HIRE_LEAD_DAYS;
+  const A  = _rrAssessOkamiPlan(weeks, overrides);
   const aw = A.weeks;
   const thisWeek = aw[0];
   const coveragePct = Math.min(100, thisWeek.coveragePct);
@@ -3551,9 +3678,10 @@ function _rrIntelRenderRiskForecast(view) {
     const supplyBits = [];
     if (s.notReadyOnboarding) supplyBits.push(`${s.notReadyOnboarding} onboarding not yet road-ready`);
     if (s.attritionLoss)      supplyBits.push(`${s.attritionLoss} projected attrition`);
-    if (s.calloutLoss)        supplyBits.push(`${s.calloutLoss} expected callout${s.calloutLoss === 1 ? "" : "s"} at your ${Math.round((rates?.calloutRate || 0) * 100)}% observed rate`);
-    const supplyTxt = supplyBits.length
-      ? ` Effective supply starts from ${s.rawAvail.toLocaleString()} on payroll minus ${supplyBits.join(", ")}.`
+    if (s.calloutLoss)        supplyBits.push(`${s.calloutLoss} expected callout${s.calloutLoss === 1 ? "" : "s"} at ${activeCalloutPct}%`);
+    const hiresTxt = s.extraHires ? ` plus ${s.extraHires} sandbox hire${s.extraHires === 1 ? "" : "s"}` : "";
+    const supplyTxt = supplyBits.length || s.extraHires
+      ? ` Effective supply starts from ${s.rawAvail.toLocaleString()} on payroll${supplyBits.length ? " minus " + supplyBits.join(", ") : ""}${hiresTxt}.`
       : "";
     let actionTxt = "";
     if (rx.action === "hire") {
@@ -3561,7 +3689,7 @@ function _rrIntelRenderRiskForecast(view) {
       if (rx.unreachable.length) {
         const names = rx.unreachable.map((u) => escapeHtml(u.label)).join(", ");
         actionTxt += ` <strong>${names}</strong> ${rx.unreachable.length === 1 ? "is" : "are"} already inside the
-          ${RR_OKAMI_HIRE_LEAD_DAYS}-day hire window — cover ${rx.unreachable.length === 1 ? "it" : "them"} with OT,
+          ${activeLeadDays}-day hire window — cover ${rx.unreachable.length === 1 ? "it" : "them"} with OT,
           voluntary 5th days, or flex instead.`;
       }
     } else if (rx.action === "mitigate") {
@@ -3604,6 +3732,7 @@ function _rrIntelRenderRiskForecast(view) {
     const rows = [`<div class="rr-intel-detail-fact"><span>On payroll</span><span>${s.rawAvail.toLocaleString()}</span></div>`];
     if (s.notReadyOnboarding) rows.push(`<div class="rr-intel-detail-fact"><span>− Onboarding not ready</span><span>${s.notReadyOnboarding}</span></div>`);
     if (s.attritionLoss)      rows.push(`<div class="rr-intel-detail-fact"><span>− Projected attrition</span><span>${s.attritionLoss}</span></div>`);
+    if (s.extraHires)         rows.push(`<div class="rr-intel-detail-fact"><span>+ Sandbox hires</span><span>${s.extraHires}</span></div>`);
     if (s.calloutLoss)        rows.push(`<div class="rr-intel-detail-fact"><span>− Expected callouts</span><span>${s.calloutLoss}</span></div>`);
     rows.push(`<div class="rr-intel-detail-fact"><span>Effective</span><span>${w.effAvail.toLocaleString()}</span></div>`);
     return rows.join("");
@@ -3640,23 +3769,29 @@ function _rrIntelRenderRiskForecast(view) {
     </div>
   `;
 
-  view.innerHTML = `
-    <header class="rr-intel-view-head">
-      <div class="rr-intel-view-head-l">
-        <p class="rr-intel-view-eyebrow">Intelligence · Risk forecast</p>
-        <h2 class="rr-intel-view-title">
-          Risk forecast
-          <span class="rr-intel-headline-pill ${overallClass}"><span class="dot"></span>${overallLabel}</span>
-        </h2>
-        <p class="rr-intel-view-sub">${window._rrSimResultsByWeek
-          ? "Reading from your last <strong>Simulate 13 weeks</strong> run — each week starts from the actual driver pool minus approved time-off, then folds in your observed callout and attrition rates."
-          : "Effective-supply projections across your 13-week plan — payroll minus onboarding ramp, projected attrition, and expected callouts. Click <strong>Simulate 13 weeks</strong> on the Targets page to fold in approved PTO + time-off."}</p>
-      </div>
-      <button type="button" class="rr-intel-view-close" data-rr-intel-close title="Close" aria-label="Close">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
-    </header>
+  // Headline pill lives in the shell header — update it in place.
+  const pill = view.querySelector("#rr-rf-pill");
+  if (pill) {
+    pill.hidden = false;
+    pill.className = "rr-intel-headline-pill " + overallClass;
+    pill.innerHTML = `<span class="dot"></span>${overallLabel}`;
+  }
+  // Sandbox note — deltas vs the observed baseline, shown while any dial
+  // is set so the operator always sees what their inputs changed.
+  const note = view.querySelector("#rr-rf-calc-note");
+  if (note) {
+    if (Object.keys(overrides).length) {
+      const B = _rrAssessOkamiPlan(weeks);
+      const shortN = (X) => X.weeks.filter((w) => w.gap < 0).length;
+      note.textContent = (B.worstWeek?.gap !== A.worstWeek?.gap || shortN(B) !== shortN(A))
+        ? `Sandbox · worst week ${B.worstWeek ? B.worstWeek.gap : 0} → ${A.worstWeek ? A.worstWeek.gap : 0} · short weeks ${shortN(B)} → ${shortN(A)} · plan unchanged`
+        : "Sandbox · matches observed · plan unchanged";
+    } else {
+      note.textContent = "";
+    }
+  }
 
+  out.innerHTML = `
     <div class="rr-intel-kpis">
       <div class="rr-intel-kpi">
         <div class="rr-intel-kpi-label">Coverage · this week</div>

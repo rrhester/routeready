@@ -17706,6 +17706,18 @@ body.rr-cmdk-open{ overflow:hidden }
             margin-top:12px;font-size:var(--fs-md);color:var(--text);line-height:1.5;
           }
 
+          /* Risk-forecast assumptions bar · the calculator. Reuses the
+             what-if field anatomy; sits directly under the view header. */
+          #view-schedule .rr-intel-calcbar{
+            padding:12px 22px 14px;margin-bottom:0;
+            border-bottom:1px solid rgba(15,23,42,.05);
+            align-items:flex-end;
+          }
+          #view-schedule .rr-intel-calcbar .rr-intel-whatif-field{min-width:96px}
+          #view-schedule .rr-intel-calcbar #rr-rf-calc-note{
+            flex-basis:100%;font-variant-numeric:tabular-nums;
+          }
+
           /* What-if form · one row of labeled dials + Run. */
           #view-schedule .rr-intel-whatif{padding:18px 22px}
           #view-schedule .rr-intel-whatif-form{
