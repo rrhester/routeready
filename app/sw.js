@@ -102,13 +102,14 @@
 // 0467) — so messages and the unread badge update instantly in-app instead
 // of on the 10–30s poll. Bumped so installed driver PWAs pick up the new
 // app.js.
-const SHELL_CACHE = "rr-app-shell-v147";
+const SHELL_CACHE = "rr-app-shell-v148";
 const SHELL_FILES = [
   "./",
   "index.html",
   "styles.css",
   "rr-system.css",
   "app.js",
+  "comms-native.js",
   "form-validation.js",
   "vendor/supabase-js.mjs",
   "manifest.webmanifest",
