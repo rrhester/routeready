@@ -79,6 +79,9 @@
   } else if (errCode === "session_expired") {
     msg.className = "msg err";
     msg.textContent = "Your session expired. Sign in again to continue.";
+  } else if (errCode === "idle_timeout") {
+    msg.className = "msg err";
+    msg.textContent = "You were signed out after a period of inactivity. Sign in again to continue.";
   } else if (errCode === "dsp_unresolved") {
     msg.className = "msg err";
     msg.textContent = "We couldn't load your workspace. Sign in again — if it keeps happening, contact support.";

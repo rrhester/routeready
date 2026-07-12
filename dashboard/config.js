@@ -12,4 +12,7 @@ window.RR_CONFIG = Object.freeze({
   SUPABASE_ANON_KEY: "sb_publishable_HvRuTWdEOrYlJPPIp4CLog_UNC3vNdI",
   ALLOWED_SIGNUP_DOMAINS: ["gorouteready.com"],
   PUBLIC_BASE_URL:  "https://gorouteready.com",
+  // Minutes of no interaction before the operator dashboard forces a clean
+  // re-login (HR/PII on shared machines). Set to 0 to disable.
+  IDLE_TIMEOUT_MINUTES: 30,
 });
