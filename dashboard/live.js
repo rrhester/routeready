@@ -37811,11 +37811,13 @@ async function refreshDriverChatThread(scrollToBottom) {
   // shell, so the skeleton only fires on initial open.
   const isFirstPaint = conv.dataset.rrDriverId !== driverId;
 
-  const [{ data, error }, _reactRes] = await Promise.all([
+  const [{ data, error }, _reactRes, _delivRes] = await Promise.all([
     sb.rpc("dispatch_chat_thread", { p_driver_id: driverId, p_limit: _mcThreadLimit }),
     sb.rpc("dispatch_chat_reactions", { p_driver_id: driverId }).then((r) => r, () => ({ data: null })),
+    sb.rpc("dispatch_chat_delivered", { p_driver_id: driverId }).then((r) => r, () => ({ data: null })),
   ]);
   const _reactions = _reactRes?.data?.reactions || [];
+  const peerDeliveredAt = _delivRes?.data ? new Date(_delivRes.data).getTime() : 0;
   if (error) {
     if (_isAuthError(error)) {
       conv.innerHTML = `<div style="margin:auto;text-align:center;padding:40px"><div style="font-weight:600;color:var(--text);margin-bottom:6px">Your session expired</div><div style="color:var(--text-subtle);font-size:var(--fs-sm);margin-bottom:14px">Sign in again to load this conversation.</div><button type="button" data-rr-relogin style="background:var(--accent);color:#fff;border:0;border-radius:var(--r-md);padding:var(--s-2) 14px;cursor:pointer;font-size:var(--fs-sm);font-weight:600">Sign in again</button></div>`;
@@ -38176,6 +38178,24 @@ async function refreshDriverChatThread(scrollToBottom) {
       if (new Date(m.created_at).getTime() <= peerReadAt) { lastReadDispatchIdx = i; break; }
     }
   }
+  // "Delivered" (device received, not yet opened) and the plain "Sent" fallback
+  // — a single WhatsApp-style pill showing the latest state of the last
+  // dispatch message: Read > Delivered > Sent.
+  let lastDeliveredDispatchIdx = -1;
+  if (peerDeliveredAt > 0) {
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      const m = msgs[i];
+      if (m.sender_kind !== "dispatch") continue;
+      if (new Date(m.created_at).getTime() <= peerDeliveredAt) { lastDeliveredDispatchIdx = i; break; }
+    }
+  }
+  let lastDispatchIdx = -1;
+  for (let i = msgs.length - 1; i >= 0; i--) { if (msgs[i].sender_kind === "dispatch") { lastDispatchIdx = i; break; } }
+  // Show exactly one pill: Read wins, else Delivered, else Sent — all on the
+  // last dispatch message that qualifies.
+  const _showReadAt = lastReadDispatchIdx;
+  const _showDelivAt = (lastReadDispatchIdx < 0 && lastDeliveredDispatchIdx >= 0) ? lastDeliveredDispatchIdx : -1;
+  const _showSentAt = (lastReadDispatchIdx < 0 && _showDelivAt < 0) ? lastDispatchIdx : -1;
 
   let html = "";
   if (msgs.length === 0) {
@@ -38271,8 +38291,12 @@ async function refreshDriverChatThread(scrollToBottom) {
       // dispatcher-sent message that's been read.  Single placement
       // is intentional — Slack/iMessage style, not "Read" on every
       // bubble.
-      if (i === lastReadDispatchIdx) {
-        html += `<div class="rr-mc-read-receipt">Read</div>`;
+      if (i === _showReadAt) {
+        html += `<div class="rr-mc-read-receipt read">✓✓ Read</div>`;
+      } else if (i === _showDelivAt) {
+        html += `<div class="rr-mc-read-receipt delivered">✓✓ Delivered</div>`;
+      } else if (i === _showSentAt) {
+        html += `<div class="rr-mc-read-receipt sent">✓ Sent</div>`;
       }
     });
   }
