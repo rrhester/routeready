@@ -113,7 +113,12 @@
 // "couldn't load" state carries the same alert icon + friendly-error text as
 // the rest of the app. Bumped so installed driver PWAs pick up the new
 // app.js + CSS.
-const SHELL_CACHE = "rr-app-shell-v152";
+// v153 · Component discipline: the attendance record's four ad-hoc inline
+// stat tiles (Points / Callouts / No-shows / Tardies) become a shared
+// .stat-tiles / .stat-tile primitive on the token scale (radius --r-lg,
+// value --fs-lg, label --fs-xs, tabular figures) — off-scale 10px/18px/10px
+// one-offs retired. Bumped so installed driver PWAs pick up the new CSS.
+const SHELL_CACHE = "rr-app-shell-v153";
 const SHELL_FILES = [
   "./",
   "index.html",
