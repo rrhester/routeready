@@ -2140,6 +2140,16 @@ async function resolveCode(code) {
         iceServers = ice.ice_servers;
       }
     } catch { /* STUN-only fallback */ }
+    // Add fresh Cloudflare TURN credentials (short-lived, minted per join by
+    // the meet-turn-credentials edge function) on TOP of the DB list. Strictly
+    // additive: if the Cloudflare secrets aren't set, the call fails, or the
+    // user is an anon guest (JWT-gated), we keep STUN + the default relay.
+    try {
+      const { data: cf } = await sb.functions.invoke("meet-turn-credentials", { body: { code } });
+      if (cf?.ok && Array.isArray(cf.ice_servers) && cf.ice_servers.length) {
+        iceServers = [...(iceServers || DEFAULT_ICE), ...cf.ice_servers];
+      }
+    } catch { /* not configured / guest — DB list stands */ }
     const q = new URLSearchParams(location.search);
     if (q.has("call")) {
       // Direct call (RouteReady Messages): skip the lobby and drop straight
