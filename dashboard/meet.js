@@ -1242,26 +1242,49 @@ function syncBlurUI() {
   $("blur-label").textContent = blur.loading ? "Blur my background (loading…)" : "Blur my background";
 }
 
-// ─── join/leave chime ─────────────────────────────────────────────────────
-// Two soft sine blips, synthesized — no audio asset to load or cache.
+// ─── meeting sounds ─────────────────────────────────────────────────────────
+// Subtle, synthesized cues — soft sine tones, no audio asset to load or cache.
+// Muteable in Settings (gear icon), remembered per browser. Each cue is a
+// little sequence of notes; gentle exponential attack/release keeps them
+// professional rather than beepy.
 
-function chime(up = true) {
+const SOUNDS_KEY = "rr_meet_sounds";
+function soundsOn() { try { return localStorage.getItem(SOUNDS_KEY) !== "off"; } catch { return true; } }
+function setSoundsOn(on) { try { localStorage.setItem(SOUNDS_KEY, on ? "on" : "off"); } catch { /* private mode */ } }
+
+// note: { f: Hz, t: start offset (s), d: duration (s), v: peak gain }
+const SOUND_CUES = {
+  selfJoin: [{ f: 523.25, t: 0, d: 0.30, v: 0.05 }, { f: 659.25, t: 0.10, d: 0.30, v: 0.05 }, { f: 783.99, t: 0.20, d: 0.40, v: 0.055 }], // C-E-G rising: "you're in"
+  join:     [{ f: 587.33, t: 0, d: 0.26, v: 0.045 }, { f: 880.00, t: 0.11, d: 0.30, v: 0.045 }], // soft rise: someone joined
+  leave:    [{ f: 659.25, t: 0, d: 0.26, v: 0.045 }, { f: 440.00, t: 0.11, d: 0.32, v: 0.045 }], // soft fall: someone left
+  message:  [{ f: 880.00, t: 0, d: 0.16, v: 0.03 }], // single quiet blip: chat received
+  end:      [{ f: 783.99, t: 0, d: 0.30, v: 0.05 }, { f: 587.33, t: 0.12, d: 0.32, v: 0.05 }, { f: 392.00, t: 0.24, d: 0.46, v: 0.05 }], // gentle descend: meeting ended
+};
+
+function sound(name) {
+  if (!soundsOn()) return;
+  const cue = SOUND_CUES[name];
+  if (!cue) return;
   const ctx = getAudioCtx();
   if (!ctx) return;
   const t0 = ctx.currentTime;
-  for (const [i, freq] of (up ? [523, 784] : [784, 523]).entries()) {
+  for (const n of cue) {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    osc.frequency.value = freq;
     osc.type = "sine";
-    gain.gain.setValueAtTime(0.0001, t0 + i * 0.12);
-    gain.gain.exponentialRampToValueAtTime(0.06, t0 + i * 0.12 + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + i * 0.12 + 0.25);
+    osc.frequency.value = n.f;
+    const s = t0 + n.t;
+    gain.gain.setValueAtTime(0.0001, s);
+    gain.gain.exponentialRampToValueAtTime(n.v, s + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, s + n.d);
     osc.connect(gain).connect(ctx.destination);
-    osc.start(t0 + i * 0.12);
-    osc.stop(t0 + i * 0.12 + 0.3);
+    osc.start(s);
+    osc.stop(s + n.d + 0.05);
   }
 }
+
+// Back-compat wrapper for the existing remote join/leave call sites.
+function chime(up = true) { sound(up ? "join" : "leave"); }
 
 // ─── presence meta ────────────────────────────────────────────────────────
 
@@ -1593,6 +1616,7 @@ async function toggleSettingsPop(open) {
   fill("sel-cam", "videoinput", state.camTrack?.getSettings?.().deviceId || prefs.cam);
   fill("sel-spk", "audiooutput", state.sinkId || prefs.spk);
   $("spk-block").style.display = "setSinkId" in HTMLMediaElement.prototype ? "" : "none";
+  $("chk-sounds").checked = soundsOn();
 }
 
 // The shareable link for the current room. Local test mode keeps the
@@ -1637,7 +1661,10 @@ function appendChat({ name, text, self }) {
   row.appendChild(body);
   list.appendChild(row);
   list.scrollTop = list.scrollHeight;
-  if (!self && !state.chatOpen) { state.unread++; syncControls(); }
+  if (!self) {
+    sound("message"); // soft blip on an incoming message
+    if (!state.chatOpen) { state.unread++; syncControls(); }
+  }
 }
 
 function sendChat() {
@@ -1731,6 +1758,7 @@ function startInCall() {
   $("btn-end").style.display = state.isHost ? "" : "none";
   $("btn-record").style.display = state.isHost ? "" : "none";
   getAudioCtx();      // resume within the Join-click gesture
+  sound("selfJoin");  // a soft "you're in" cue, like Google Meet
   monitorLocalMic();
   startLevelLoop();
   startStatsLoop();
@@ -1769,9 +1797,11 @@ function teardown() {
 }
 
 function endLocally(message) {
+  const ended = message.includes("ended");
   teardown();
+  if (ended) sound("end"); // gentle descending cue when the meeting is ended for you
   $("done-msg").textContent = message;
-  $("btn-rejoin").style.display = message.includes("ended") ? "none" : "";
+  $("btn-rejoin").style.display = ended ? "none" : "";
   show("done");
 }
 
@@ -2231,6 +2261,7 @@ function wire() {
   $("sel-cam").onchange = (e) => switchDevice("cam", e.target.value);
   $("sel-spk").onchange = (e) => switchDevice("spk", e.target.value);
   $("chk-blur").onchange = (e) => toggleBlur(e.target.checked);
+  $("chk-sounds").onchange = (e) => { setSoundsOn(e.target.checked); if (e.target.checked) sound("join"); };
   document.addEventListener("click", (e) => {
     // Popovers dismiss on outside click.
     if (!e.target.closest("#settings-pop") && !e.target.closest("#btn-settings")) $("settings-pop").hidden = true;
