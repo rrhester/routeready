@@ -99,12 +99,20 @@ Deno.serve(async (req) => {
     if (messageId) {
       const { data: msg } = await supa
         .from("driver_messages")
-        .select("body, link_url")
+        .select("body, link_url, attachment_mime")
         .eq("id", messageId)
         .single();
+      const mime = String(msg?.attachment_mime || "");
       if (msg?.body) {
         const txt = String(msg.body);
         bodyText = txt.length > 80 ? txt.slice(0, 80) + "…" : txt;
+      } else if (mime.startsWith("audio/")) {
+        // Voice note — the requested "Dispatch sent you a voice message."
+        bodyText = "🎤 Sent you a voice message";
+      } else if (mime.startsWith("image/")) {
+        bodyText = "📷 Sent you a photo";
+      } else if (mime) {
+        bodyText = "📎 Sent you an attachment";
       }
       if (msg?.link_url) linkUrl = String(msg.link_url);
     }

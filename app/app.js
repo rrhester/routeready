@@ -5405,6 +5405,9 @@ async function renderChat() {
         <button id="chat-attach" type="button" class="chat-attach" aria-label="Attach photo or document" title="Attach">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
         </button>
+        <button id="chat-mic" type="button" class="chat-attach" aria-label="Record a voice message" title="Voice message">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+        </button>
         <div style="flex:1;display:flex;flex-direction:column;gap:6px;min-width:0">
           <div class="chat-qa-strip" id="chat-qa-strip">
             <button type="button" class="chat-qa-chip" data-qa="Running late">Running late</button>
@@ -5502,6 +5505,120 @@ async function renderChat() {
   const fileInput = document.getElementById("chat-file");
   const previewEl = document.getElementById("chat-attachment-preview");
   document.getElementById("chat-attach").addEventListener("click", () => fileInput.click());
+
+  // ── Voice notes ──────────────────────────────────────────────────────
+  // Tap the mic to record; a recording bar (timer + send + cancel) replaces
+  // the quick-action strip while live. On send we upload the clip to the same
+  // driver-chat-attachments bucket and post it through driver_chat_send with
+  // an audio/* MIME — so it inherits threading, Web Push ("Voice message"),
+  // realtime delivery and unread badges with zero new backend surface.
+  const micBtn = document.getElementById("chat-mic");
+  if (micBtn) {
+    const canRecord = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+    if (!canRecord) {
+      micBtn.style.display = "none";
+    } else {
+      let _rec = null, _chunks = [], _stream = null, _t0 = 0, _timer = null;
+      const pickMime = () => {
+        const cands = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/aac", "audio/ogg;codecs=opus"];
+        for (const m of cands) { try { if (MediaRecorder.isTypeSupported(m)) return m; } catch {} }
+        return "";
+      };
+      const teardown = () => {
+        if (_timer) { clearInterval(_timer); _timer = null; }
+        if (_stream) { try { _stream.getTracks().forEach(t => t.stop()); } catch {} _stream = null; }
+        previewEl.style.display = "none"; previewEl.innerHTML = "";
+        micBtn.classList.remove("recording");
+      };
+      const renderBar = () => {
+        previewEl.style.display = "";
+        previewEl.innerHTML = `
+          <div style="display:flex;align-items:center;gap:10px;background:var(--canvas);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:var(--fs-sm)">
+            <span style="width:9px;height:9px;border-radius:50%;background:var(--danger,#e5484d);animation:rrPulse 1s ease-in-out infinite" aria-hidden="true"></span>
+            <span style="font-variant-numeric:tabular-nums;font-weight:600;color:var(--text)" id="rr-voice-timer">0:00</span>
+            <span style="flex:1;color:var(--text-subtle)">Recording…</span>
+            <button type="button" id="rr-voice-cancel" class="chat-attach-x" aria-label="Cancel recording">×</button>
+            <button type="button" id="rr-voice-send" class="chat-send" aria-label="Send voice message" style="width:34px;height:34px">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
+          </div>`;
+        _t0 = Date.now();
+        _timer = setInterval(() => {
+          const s = Math.floor((Date.now() - _t0) / 1000);
+          const el = document.getElementById("rr-voice-timer");
+          if (el) el.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+          if (s >= 300) stopAndSend(); // hard cap 5 min
+        }, 250);
+        document.getElementById("rr-voice-cancel").addEventListener("click", () => { _sendOnStop = false; try { _rec && _rec.stop(); } catch { teardown(); } });
+        document.getElementById("rr-voice-send").addEventListener("click", stopAndSend);
+      };
+      let _sendOnStop = false;
+      const stopAndSend = () => {
+        if (!_rec || _rec.state === "inactive") return;
+        _sendOnStop = true;
+        try { _rec.stop(); } catch { teardown(); }
+      };
+      const startRecording = async () => {
+        try {
+          _stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch {
+          toast("Microphone permission is needed to send a voice message", "warn");
+          return;
+        }
+        const mime = pickMime();
+        try { _rec = mime ? new MediaRecorder(_stream, { mimeType: mime }) : new MediaRecorder(_stream); }
+        catch { _rec = new MediaRecorder(_stream); }
+        _chunks = [];
+        _sendOnStop = false;
+        _rec.addEventListener("dataavailable", (e) => { if (e.data && e.data.size) _chunks.push(e.data); });
+        _rec.addEventListener("stop", async () => {
+          const send = _sendOnStop;
+          const type = (_rec && _rec.mimeType) || mime || "audio/webm";
+          const elapsed = Date.now() - _t0;
+          const blob = new Blob(_chunks, { type });
+          _chunks = [];
+          teardown();
+          if (!send) return;
+          if (!blob.size || elapsed < 700) { toast("Too short — hold to record a bit longer", "warn"); return; }
+          await sendVoiceNote(blob, type);
+        });
+        micBtn.classList.add("recording");
+        _haptic("tap");
+        renderBar();
+        _rec.start();
+      };
+      const sendVoiceNote = async (blob, type) => {
+        let dspId = session.dsp_id, driverId = session.driver_id;
+        if (!dspId || !driverId) {
+          const { data: me } = await sb.rpc("driver_me", { p_token: session.token });
+          if (me) {
+            dspId = me.dsp_id || dspId; driverId = me.id || driverId;
+            const cur = readSession(); if (cur) writeSession({ ...cur, dsp_id: dspId, driver_id: driverId });
+          }
+        }
+        if (!dspId || !driverId) { toast("Couldn't load profile — sign out and back in", "warn"); return; }
+        const ext = type.includes("mp4") || type.includes("aac") ? "m4a" : type.includes("ogg") ? "ogg" : "webm";
+        const path = `${dspId}/${driverId}/${Date.now()}-voice.${ext}`;
+        toast("Sending voice message…", "info");
+        const { error: upErr } = await sb.storage
+          .from("driver-chat-attachments").upload(path, blob, { contentType: type, upsert: false });
+        if (upErr) { toast(_friendlyError(upErr, "Couldn't send the voice message. Try again."), "warn"); return; }
+        const { error } = await sb.rpc("driver_chat_send", {
+          p_token:                 session.token,
+          p_body:                  null,
+          p_attachment_path:       path,
+          p_attachment_mime:       type,
+          p_attachment_name:       "Voice message",
+          p_attachment_size_bytes: blob.size,
+        });
+        if (error) { _haptic("warn"); toast(_friendlyError(error, "Couldn't send. Try again."), "warn"); return; }
+        _haptic("tap");
+        await refreshChat(false);
+      };
+      micBtn.addEventListener("click", () => { if (_rec && _rec.state === "recording") stopAndSend(); else startRecording(); });
+    }
+  }
+
   fileInput.addEventListener("change", () => {
     const f = fileInput.files?.[0];
     if (!f) { window._rrChatPending = null; previewEl.style.display = "none"; previewEl.innerHTML = ""; return; }
@@ -6259,6 +6376,7 @@ function chatBubbleHtml(m, pos) {
   let attachment = "";
   if (m.attachment_path) {
     const isImg = (m.attachment_mime || "").startsWith("image/");
+    const isAudio = (m.attachment_mime || "").startsWith("audio/");
     const name  = m.attachment_name || "Attachment";
     const sizeKb = m.attachment_size_bytes ? Math.round(m.attachment_size_bytes / 1024) : null;
     if (isImg) {
@@ -6279,6 +6397,14 @@ function chatBubbleHtml(m, pos) {
       const isVector = (m.attachment_mime || "").includes("svg");
       const extraStyle = isVector ? "object-fit:contain;background:#fff;" : "";
       attachment = `<img data-rr-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" width="240" height="240" loading="eager" decoding="async" style="max-width:240px;border-radius:10px;margin-bottom:6px;cursor:zoom-in;${extraStyle}" onclick="window.open(this.src,'_blank')"/>`;
+    } else if (isAudio) {
+      // Voice note — inline player. The signed URL is bound to .src by the
+      // same data-rr-attach resolver used for images (extended to <audio>).
+      attachment = `
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;max-width:260px">
+          <span style="font-size:16px" aria-hidden="true">🎤</span>
+          <audio data-rr-attach="${escapeHtml(m.attachment_path)}" controls preload="metadata" style="flex:1;min-width:0;height:38px"></audio>
+        </div>`;
     } else {
       attachment = `
         <a data-rr-attach="${escapeHtml(m.attachment_path)}" target="_blank" rel="noopener" style="display:flex;gap:8px;align-items:center;padding:8px 10px;background:var(--canvas);border:1px solid var(--border);border-radius:10px;margin-bottom:6px;text-decoration:none;color:inherit;max-width:240px">
@@ -6410,7 +6536,7 @@ async function _rrSignChatAttachments() {
     // "<uuid>/<file>" and never start with "/" or "http".
     const isDirect = /^https?:\/\//i.test(path) || path.startsWith("/");
     if (isDirect) {
-      if (el.tagName === "IMG") {
+      if (el.tagName === "IMG" || el.tagName === "AUDIO") {
         el.addEventListener("load",  () => el.setAttribute("data-rr-loaded", "1"), { once: true });
         el.addEventListener("error", () => el.setAttribute("data-rr-loaded", "1"), { once: true });
         el.src = path;
@@ -6424,11 +6550,12 @@ async function _rrSignChatAttachments() {
         .from("driver-chat-attachments")
         .createSignedUrl(path, 60 * 60 * 8); // 8h
       if (error || !data?.signedUrl) continue;
-      if (el.tagName === "IMG") {
+      if (el.tagName === "IMG" || el.tagName === "AUDIO") {
         // Bind load BEFORE assigning src so the loaded flag flips even
         // for cached images (cached <img>s can fire load synchronously
         // on src assignment, before any externally-attached listener).
         // Once loaded, we drop the shimmer / placeholder background.
+        // <audio> uses the same path so voice notes get their signed src.
         el.addEventListener("load", () => {
           el.setAttribute("data-rr-loaded", "1");
         }, { once: true });
@@ -6868,11 +6995,20 @@ function channelBubbleHtml(m, pos) {
   let attachment = "";
   if (m.attachment_path) {
     const isImg = (m.attachment_mime || "").startsWith("image/");
+    const isAudio = (m.attachment_mime || "").startsWith("audio/");
     const name  = m.attachment_name || "Attachment";
     const sizeKb = m.attachment_size_bytes ? Math.round(m.attachment_size_bytes / 1024) : null;
     if (isImg) {
       // Fixed 240x240 box (see chatBubbleHtml comment + styles.css).
       attachment = `<img data-rr-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" width="240" height="240" loading="eager" decoding="async" style="max-width:240px;border-radius:10px;margin-bottom:6px;cursor:zoom-in" onclick="window.open(this.src,'_blank')"/>`;
+    } else if (isAudio) {
+      // Voice note — inline player. The signed URL is bound to .src by the
+      // same data-rr-attach resolver used for images (extended to <audio>).
+      attachment = `
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;max-width:260px">
+          <span style="font-size:16px" aria-hidden="true">🎤</span>
+          <audio data-rr-attach="${escapeHtml(m.attachment_path)}" controls preload="metadata" style="flex:1;min-width:0;height:38px"></audio>
+        </div>`;
     } else {
       attachment = `
         <a data-rr-attach="${escapeHtml(m.attachment_path)}" target="_blank" rel="noopener" style="display:flex;gap:8px;align-items:center;padding:8px 10px;background:var(--canvas);border:1px solid var(--border);border-radius:10px;margin-bottom:6px;text-decoration:none;color:inherit;max-width:240px">
