@@ -92,10 +92,18 @@ sees a red **REC** pill and a toast the moment recording starts or stops.
 
 ## Waiting room
 
-Guests (anyone without a RouteReady staff session) land in a waiting room;
-staff see a "N waiting" chip and admit or deny each guest. This is a
-cooperative gate for flow control — the unguessable meeting code remains
-the actual security boundary, same as Zoom links with embedded passcodes.
+The waiting room is an **interview-only** gate. Guests of a system-minted
+interview room (host_id null → `meet_lookup` `personal_host:false`) land in
+a waiting room; staff get a loud, unmissable alert — a top-of-call banner
+("N waiting to join" + Admit/Admit all), a pulsing "N waiting" chip, a tab-
+title badge, and a repeating chime — and admit or deny each guest.
+
+Guests of a **person-created instant meeting** (`personal_host:true`, i.e.
+a room made via the "New meeting" menu) **join directly — no waiting room**
+(migration 0465). Parking them behind an admit step was a trap: if the host
+missed the knock, the guest was stuck with no way in. Hosts/staff always
+walk straight in regardless. The unguessable meeting code remains the
+security boundary, same as Zoom links with embedded passcodes.
 
 ## Background blur
 

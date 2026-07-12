@@ -1552,12 +1552,17 @@ function sendChat() {
 
 // ─── lifecycle ────────────────────────────────────────────────────────────
 
-// Guests knock (waiting room) — hosts/staff walk straight in. In the
-// hermetic local mode knocking is opt-in (?knock=1) so signaling tests
+// Who lands in the waiting room? Only guests of a system-minted INTERVIEW
+// room (host_id null → meet_lookup personal_host:false): applicants knock,
+// staff admit. Hosts/staff always walk straight in, and guests of a
+// person-created INSTANT meeting (personal_host:true) join directly — the
+// unguessable code is the security boundary, like a Zoom link's passcode.
+// In hermetic local mode knocking is opt-in (?knock=1) so signaling tests
 // don't all need an admit step.
 function shouldKnock() {
   if (state.isHost) return false;
   if (LOCAL_MODE) return new URLSearchParams(location.search).has("knock");
+  if (state.meeting && state.meeting.personal_host) return false;
   return true;
 }
 
