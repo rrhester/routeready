@@ -41713,6 +41713,7 @@ window.addEventListener("keydown", (e) => {
 const _presence = {
   channel: null,
   online: new Set(),  // driver IDs currently online in this DSP
+  staff: [],          // [{id, name}] other dispatchers online now (for calling)
   typingByDriver: new Map(),  // driverId -> timeoutId
   lastBroadcast: 0,
 };
@@ -41851,11 +41852,20 @@ function _presenceWire() {
     .on("presence", { event: "sync" }, () => {
       const state = channel.presenceState();
       _presence.online = new Set();
+      const staffById = new Map();
       Object.values(state).flat().forEach((entry) => {
         if (entry?.kind === "driver" && entry?.id) _presence.online.add(entry.id);
+        // Collect other dispatchers online now (for teammate calling), deduped
+        // by user id across multiple tabs — never include ourselves.
+        if (entry?.kind === "dispatch" && entry?.id && String(entry.id) !== String(userId)) {
+          if (!staffById.has(entry.id)) staffById.set(entry.id, { id: entry.id, name: entry.name || "Teammate" });
+        }
       });
+      _presence.staff = [...staffById.values()].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
       _presencePaintList();
       if (_msgInboxSelectedId) _presencePaintThreadHead(_msgInboxSelectedId);
+      // Keep an open teammate-call menu live as people come and go.
+      if (document.getElementById("rr-teammate-menu")) _rrRenderTeammateMenu();
     })
     .on("broadcast", { event: "typing" }, ({ payload }) => {
       if (!payload || payload.from_kind !== "driver") return;
@@ -41873,7 +41883,12 @@ function _presenceWire() {
     .on("broadcast", { event: "call-cancel" },  ({ payload }) => _rrCallOnCancel(payload))
     .subscribe(async (status) => {
       if (status === "SUBSCRIBED") {
-        await channel.track({ kind: "dispatch", id: userId, online_at: new Date().toISOString() });
+        await channel.track({
+          kind: "dispatch",
+          id: userId,
+          name: (window.RR?.user?.full_name || window.RR?.user?.email || "Teammate").trim(),
+          online_at: new Date().toISOString(),
+        });
       }
     });
 
@@ -42137,6 +42152,45 @@ window.rrPlaceCall = rrPlaceCall;
 // an incoming-call ring without going through the realtime broadcast.
 window.rrIncomingCall = _rrCallOnInvite;
 
+// ── Call a teammate ──────────────────────────────────────────────────────
+// A popover off the Messages header listing dispatchers who are online right
+// now (from presence) with voice/video call buttons. The person you call
+// needs to do nothing — their open dashboard already listens for the ring.
+function _rrRenderTeammateMenu() {
+  const menu = document.getElementById("rr-teammate-menu");
+  if (!menu) return;
+  const list = _presence.staff || [];
+  const rows = list.map((s) => {
+    const initials = (s.name || "?").split(/\s+/).map((p) => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?";
+    return `<div class="rr-tm-row">
+        <div class="rr-tm-avatar">${escapeHtml(initials)}<span class="rr-tm-dot"></span></div>
+        <div class="rr-tm-name">${escapeHtml(s.name || "Teammate")}<span class="rr-tm-sub">Online</span></div>
+        <div class="rr-tm-actions">
+          <button type="button" class="rr-tm-call" data-rr-call-staff="audio" data-id="${escapeHtml(s.id)}" data-name="${escapeHtml(s.name || "Teammate")}" title="Voice call" aria-label="Voice call ${escapeHtml(s.name || "teammate")}">${_RR_MC_ICONS.phone}</button>
+          <button type="button" class="rr-tm-call" data-rr-call-staff="video" data-id="${escapeHtml(s.id)}" data-name="${escapeHtml(s.name || "Teammate")}" title="Video call" aria-label="Video call ${escapeHtml(s.name || "teammate")}">${_RR_MC_ICONS.video}</button>
+        </div>
+      </div>`;
+  }).join("");
+  menu.querySelector(".rr-tm-list").innerHTML = rows
+    || `<div class="rr-tm-empty">No teammates are online right now.<br>They'll appear here the moment they open their dashboard.</div>`;
+}
+function _rrToggleTeammateMenu(btn) {
+  const existing = document.getElementById("rr-teammate-menu");
+  if (existing) { existing.remove(); return; }
+  const menu = document.createElement("div");
+  menu.id = "rr-teammate-menu";
+  menu.className = "rr-teammate-menu";
+  menu.setAttribute("role", "menu");
+  menu.innerHTML = `<div class="rr-tm-head">Call a teammate</div><div class="rr-tm-list"></div>`;
+  document.body.appendChild(menu);
+  _rrRenderTeammateMenu();
+  // Anchor under the button, clamped to the viewport.
+  const r = btn.getBoundingClientRect();
+  const w = 268;
+  menu.style.top = Math.round(r.bottom + 8) + "px";
+  menu.style.left = Math.round(Math.max(8, Math.min(r.left, window.innerWidth - w - 8))) + "px";
+}
+
 // Delegated controls for the call overlay + the conversation-header call
 // buttons. Bound once so it survives every thread re-render.
 if (!window.__rrCallWired) {
@@ -42145,6 +42199,17 @@ if (!window.__rrCallWired) {
     if (e.target.closest("[data-rr-call-accept]"))  { _rrCallAccept();  return; }
     if (e.target.closest("[data-rr-call-decline]")) { _rrCallDecline(); return; }
     if (e.target.closest("[data-rr-call-cancel]"))  { _rrCallCancel();  return; }
+    const teammateBtn = e.target.closest("[data-rr-call-teammate]");
+    if (teammateBtn) { e.preventDefault(); _rrToggleTeammateMenu(teammateBtn); return; }
+    const staffBtn = e.target.closest("[data-rr-call-staff]");
+    if (staffBtn) {
+      const media = staffBtn.getAttribute("data-rr-call-staff") === "audio" ? "audio" : "video";
+      document.getElementById("rr-teammate-menu")?.remove();
+      rrPlaceCall({ kind: "dispatch", id: staffBtn.getAttribute("data-id"), name: staffBtn.getAttribute("data-name") || "Teammate" }, media);
+      return;
+    }
+    // Outside-click closes the teammate menu.
+    if (!e.target.closest("#rr-teammate-menu")) document.getElementById("rr-teammate-menu")?.remove();
     const callBtn = e.target.closest("[data-rr-call]");
     if (callBtn) {
       const media = callBtn.getAttribute("data-rr-call") === "audio" ? "audio" : "video";
@@ -42157,6 +42222,7 @@ if (!window.__rrCallWired) {
   });
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
+    if (document.getElementById("rr-teammate-menu")) { document.getElementById("rr-teammate-menu").remove(); return; }
     if (_rrCall.state === "incoming") _rrCallDecline();
     else if (_rrCall.state === "outgoing") _rrCallCancel();
   });
