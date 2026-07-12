@@ -977,7 +977,10 @@ function blurFrame() {
     blur.maskCanvas.width = sw; blur.maskCanvas.height = sh;
     const img = blur.maskCtx.createImageData(sw, sh);
     for (let i = 0; i < data.length; i++) {
-      img.data[i * 4 + 3] = data[i] > 0 ? 255 : 0; // category 1 = person
+      // Selfie segmenter category mask: 0 = PERSON, non-zero = background
+      // (verified against mediapipe-assets/portrait.jpg, and the inverse
+      // shipped once — it blurred the person and kept the room sharp).
+      img.data[i * 4 + 3] = data[i] > 0 ? 0 : 255;
     }
     blur.maskCtx.putImageData(img, 0, 0);
     mask.close();
