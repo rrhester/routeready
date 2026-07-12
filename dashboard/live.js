@@ -189,6 +189,79 @@ sb.auth.onAuthStateChange((event, newSession) => {
   if (newSession?.access_token) sb.realtime.setAuth(newSession.access_token);
 });
 
+// ─── MFA step-up gate (dark until RR_CONFIG.MFA_ENABLED) ────────────────────
+// If MFA is enabled AND this user has a verified authenticator factor but the
+// current session is only AAL1, require the 6-digit code to step up to AAL2
+// before the dashboard loads. Opt-in by design: a user with NO factor is never
+// blocked, so turning MFA on can't lock out anyone who hasn't enrolled. Fails
+// OPEN on any MFA API error (a bug must never lock people out); only a wrong or
+// absent code blocks. Lost-device recovery: an admin deletes the user's row
+// from auth.mfa_factors — see docs/MFA.md.
+async function _rrMfaGateOnBoot() {
+  if (!(window.RR_CONFIG && window.RR_CONFIG.MFA_ENABLED)) return;
+  let factorId = null;
+  try {
+    const { data: aal, error } = await sb.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (error || !aal) return;                                   // fail open
+    if (aal.currentLevel === "aal2" || aal.nextLevel !== "aal2") return; // stepped up already, or no factor
+    const { data: fl, error: flErr } = await sb.auth.mfa.listFactors();
+    if (flErr) return;
+    const totp = (fl && fl.totp && fl.totp[0]) || null;
+    if (!totp || totp.status !== "verified") return;
+    factorId = totp.id;
+  } catch (_) { return; }
+
+  await new Promise((resolve) => {
+    const ov = document.createElement("div");
+    ov.setAttribute("role", "dialog");
+    ov.setAttribute("aria-modal", "true");
+    ov.setAttribute("aria-label", "Two-factor verification");
+    ov.style.cssText = "position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:#0d1320;color:#e9eef8;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;padding:24px";
+    ov.innerHTML =
+      '<div style="width:100%;max-width:360px;background:#141d2c;border:1px solid rgba(150,172,205,.18);border-radius:14px;padding:28px 24px;box-shadow:0 18px 50px -24px rgba(0,0,0,.7)">' +
+        '<div style="font-size:1.15rem;font-weight:680;letter-spacing:-.01em">Enter your code</div>' +
+        '<p style="margin:8px 0 18px;color:#95a7c2;font-size:.92rem;line-height:1.5">Open your authenticator app and enter the current 6-digit code to finish signing in.</p>' +
+        '<input id="rr-mfa-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" ' +
+          'style="width:100%;font-family:ui-monospace,Menlo,monospace;font-size:1.4rem;letter-spacing:.3em;text-align:center;padding:12px;border-radius:9px;border:1px solid rgba(150,172,205,.28);background:#0d1320;color:#e9eef8;box-sizing:border-box"/>' +
+        '<div id="rr-mfa-err" style="min-height:18px;margin-top:10px;color:#e5604d;font-size:.85rem" role="alert"></div>' +
+        '<button id="rr-mfa-verify" type="button" style="width:100%;margin-top:6px;padding:12px;border:none;border-radius:99px;background:#3d7bff;color:#f4f8ff;font-weight:640;font-size:.98rem;cursor:pointer">Verify</button>' +
+        '<button id="rr-mfa-signout" type="button" style="width:100%;margin-top:10px;padding:10px;border:1px solid rgba(150,172,205,.28);border-radius:99px;background:transparent;color:#95a7c2;font-weight:560;font-size:.88rem;cursor:pointer">Sign out</button>' +
+      '</div>';
+    document.body.appendChild(ov);
+    const input = ov.querySelector("#rr-mfa-code");
+    const errEl = ov.querySelector("#rr-mfa-err");
+    const verifyBtn = ov.querySelector("#rr-mfa-verify");
+    const signoutBtn = ov.querySelector("#rr-mfa-signout");
+    setTimeout(function () { if (input) input.focus(); }, 50);
+    let busy = false;
+    async function submit() {
+      if (busy) return;
+      const code = (input.value || "").replace(/\D/g, "");
+      if (code.length !== 6) { errEl.textContent = "Enter the 6-digit code."; return; }
+      busy = true; verifyBtn.disabled = true; verifyBtn.textContent = "Verifying…"; errEl.textContent = "";
+      try {
+        const { data: ch, error: chErr } = await sb.auth.mfa.challenge({ factorId });
+        if (chErr) throw chErr;
+        const { error: vErr } = await sb.auth.mfa.verify({ factorId, challengeId: ch.id, code });
+        if (vErr) throw vErr;
+        ov.remove(); resolve(); return;
+      } catch (_) {
+        errEl.textContent = "That code didn't work. Use the current one from your app.";
+        input.value = ""; input.focus();
+      } finally {
+        busy = false; verifyBtn.disabled = false; verifyBtn.textContent = "Verify";
+      }
+    }
+    verifyBtn.addEventListener("click", submit);
+    input.addEventListener("keydown", function (e) { if (e.key === "Enter") submit(); });
+    signoutBtn.addEventListener("click", async function () {
+      try { await sb.auth.signOut(); } catch (_) {}
+      location.replace("./login.html");
+    });
+  });
+}
+await _rrMfaGateOnBoot();
+
 const { data: profile, error: profileErr } = await sb.from("app_users")
   .select("id, dsp_id, email, full_name, role, allowed_pages").eq("id", session.user.id).maybeSingle();
 
@@ -211,6 +284,9 @@ window.RR.user = profile;
 // (e.g. the Settings → Export your data row) regardless of async frag load
 // order: `.rr-owner-only { display:none }` + `body[data-rr-role="owner"] …`.
 try { document.body.dataset.rrRole = profile.role || ""; } catch (_) {}
+// Reveal the Settings → Two-factor panel only when MFA is enabled
+// (`.rr-mfa-only { display:none }` + `body[data-rr-mfa="on"] …`).
+try { document.body.dataset.rrMfa = (window.RR_CONFIG && window.RR_CONFIG.MFA_ENABLED) ? "on" : "off"; } catch (_) {}
 
 // ─── Idle session timeout ────────────────────────────────────────────────
 // HR / termination / PII data on a shared dispatcher machine must not stay
@@ -771,6 +847,121 @@ async function rrExportMyData(btn) {
   }
 }
 window.rrExportMyData = rrExportMyData;
+
+// ─── Two-factor (TOTP) enrollment · Settings → Two-factor ───────────────────
+// Only wired when RR_CONFIG.MFA_ENABLED (the panel is CSS-hidden otherwise).
+// Supabase returns the QR as an SVG in enroll().data.totp.qr_code, so no QR
+// library is needed. A factor must be verified once (challenge+verify) to
+// activate; after that the boot gate challenges for it at login.
+async function rrMfaRefreshStatus() {
+  const statusEl = document.getElementById("rr-mfa-status");
+  const setupBtn = document.getElementById("rr-mfa-setup-btn");
+  const offBtn   = document.getElementById("rr-mfa-off-btn");
+  if (!statusEl) return;
+  try {
+    const { data, error } = await sb.auth.mfa.listFactors();
+    if (error) throw error;
+    const verified = ((data && data.totp) || []).filter((f) => f.status === "verified");
+    const on = verified.length > 0;
+    statusEl.textContent = on
+      ? "Two-factor is ON for your account."
+      : "Two-factor is off. Set it up to require a code at sign-in.";
+    statusEl.style.color = on ? "var(--good, #16965c)" : "";
+    if (setupBtn) setupBtn.style.display = on ? "none" : "";
+    if (offBtn)   offBtn.style.display   = on ? "" : "none";
+  } catch (_) {
+    statusEl.textContent = "";
+  }
+}
+window.rrMfaRefreshStatus = rrMfaRefreshStatus;
+
+async function rrMfaSetup(btn) {
+  const host = document.getElementById("rr-mfa-enroll");
+  if (!host) return;
+  if (btn) { btn.disabled = true; btn.textContent = "Starting…"; }
+  try {
+    // Clear any half-finished unverified factor so re-running is clean.
+    try {
+      const { data: existing } = await sb.auth.mfa.listFactors();
+      for (const f of ((existing && existing.totp) || [])) {
+        if (f.status !== "verified") await sb.auth.mfa.unenroll({ factorId: f.id });
+      }
+    } catch (_) {}
+    const { data, error } = await sb.auth.mfa.enroll({ factorType: "totp", friendlyName: "Authenticator" });
+    if (error) throw error;
+    const factorId = data.id;
+    const qr = data.totp && data.totp.qr_code ? data.totp.qr_code : "";
+    const secret = data.totp && data.totp.secret ? data.totp.secret : "";
+    host.style.display = "block";
+    host.innerHTML =
+      '<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start">' +
+        '<div style="background:#fff;padding:10px;border-radius:10px;line-height:0">' + qr + '</div>' +
+        '<div style="flex:1;min-width:220px">' +
+          '<div class="form-help">Scan this with Google Authenticator, Authy, or 1Password — then enter the 6-digit code it shows.</div>' +
+          '<div class="u-xs-subtle" style="margin-top:8px;font-family:ui-monospace,Menlo,monospace;word-break:break-all">Manual key: ' + escapeHtml(secret) + '</div>' +
+          '<div style="display:flex;gap:var(--s-2);align-items:center;margin-top:12px;flex-wrap:wrap">' +
+            '<input id="rr-mfa-activate-code" class="form-input" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" style="max-width:130px;letter-spacing:.15em;text-align:center"/>' +
+            '<button class="btn btn-sm btn-primary" type="button" id="rr-mfa-activate-btn">Activate</button>' +
+          '</div>' +
+          '<div id="rr-mfa-activate-err" style="min-height:16px;margin-top:8px;color:var(--bad,#cf4433);font-size:.85rem" role="alert"></div>' +
+        '</div>' +
+      '</div>';
+    const codeEl = document.getElementById("rr-mfa-activate-code");
+    const actBtn = document.getElementById("rr-mfa-activate-btn");
+    const errEl  = document.getElementById("rr-mfa-activate-err");
+    if (codeEl) setTimeout(() => codeEl.focus(), 50);
+    async function activate() {
+      const code = (codeEl.value || "").replace(/\D/g, "");
+      if (code.length !== 6) { errEl.textContent = "Enter the 6-digit code."; return; }
+      actBtn.disabled = true; actBtn.textContent = "Activating…"; errEl.textContent = "";
+      try {
+        const { data: ch, error: chErr } = await sb.auth.mfa.challenge({ factorId });
+        if (chErr) throw chErr;
+        const { error: vErr } = await sb.auth.mfa.verify({ factorId, challengeId: ch.id, code });
+        if (vErr) throw vErr;
+        host.style.display = "none"; host.innerHTML = "";
+        toast("Two-factor is on. You'll enter a code next time you sign in.", "success");
+        rrMfaRefreshStatus();
+      } catch (_) {
+        errEl.textContent = "That code didn't work. Use the current one from your app.";
+        actBtn.disabled = false; actBtn.textContent = "Activate";
+      }
+    }
+    if (actBtn) actBtn.addEventListener("click", activate);
+    if (codeEl) codeEl.addEventListener("keydown", (e) => { if (e.key === "Enter") activate(); });
+  } catch (e) {
+    toast("Couldn't start two-factor setup — " + (e?.message || "try again."), "warn");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Set up"; }
+  }
+}
+window.rrMfaSetup = rrMfaSetup;
+
+async function rrMfaDisable(btn) {
+  if (!confirm("Turn off two-factor for your account? You'll sign in with just the email link again.")) return;
+  if (btn) { btn.disabled = true; btn.textContent = "Turning off…"; }
+  try {
+    const { data, error } = await sb.auth.mfa.listFactors();
+    if (error) throw error;
+    for (const f of ((data && data.totp) || [])) {
+      await sb.auth.mfa.unenroll({ factorId: f.id });
+    }
+    toast("Two-factor turned off.", "info");
+    rrMfaRefreshStatus();
+  } catch (e) {
+    toast("Couldn't turn off two-factor — " + (e?.message || "try again."), "warn");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Turn off"; }
+  }
+}
+window.rrMfaDisable = rrMfaDisable;
+
+// Populate the panel's status once at boot when MFA is on (best-effort; the
+// frag may still be loading, in which case rrMfaRefreshStatus no-ops and the
+// user's first click on Set up still works).
+if (window.RR_CONFIG && window.RR_CONFIG.MFA_ENABLED) {
+  setTimeout(() => { try { rrMfaRefreshStatus(); } catch (_) {} }, 2500);
+}
 
 // Actionable toast — a blocking warning the operator can resolve in one
 // click (see mock-wiring.js toastAction). Falls back to a plain confirm()
