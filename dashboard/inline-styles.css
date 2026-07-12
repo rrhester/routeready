@@ -7145,8 +7145,8 @@ body.rr-cmdk-open{ overflow:hidden }
   background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:6px 11px 6px 7px }
 .rr-mc-bubble.dispatch .rr-vn{ background:rgba(255,255,255,.16);border-color:transparent }
 .rr-vn-play{ flex:0 0 auto;width:34px;height:34px;border-radius:50%;border:0;cursor:pointer;
-  background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center }
-.rr-mc-bubble.dispatch .rr-vn-play{ background:#fff;color:var(--accent) }
+  background:var(--accent);color:var(--rr-white);display:flex;align-items:center;justify-content:center }
+.rr-mc-bubble.dispatch .rr-vn-play{ background:var(--rr-white);color:var(--accent) }
 .rr-vn-play:active{ transform:scale(.94) }
 .rr-vn-play .rr-vn-ic-pause{ display:none }
 .rr-vn.playing .rr-vn-ic-play{ display:none }
@@ -7157,7 +7157,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-vn-bars.fill{ clip-path:inset(0 calc(100% * (1 - var(--vn-p,0))) 0 0) }
 .rr-vn-bars.fill i{ background:var(--accent) }
 .rr-mc-bubble.dispatch .rr-vn-bars i{ background:rgba(255,255,255,.4) }
-.rr-mc-bubble.dispatch .rr-vn-bars.fill i{ background:#fff }
+.rr-mc-bubble.dispatch .rr-vn-bars.fill i{ background:var(--rr-white) }
 .rr-vn-time{ flex:0 0 auto;min-width:30px;text-align:right;font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums }
 .rr-mc-bubble.dispatch .rr-vn-time{ color:rgba(255,255,255,.85) }
 .rr-vn-speed{ flex:0 0 auto;border:0;background:none;cursor:pointer;font-size:var(--fs-xs);font-weight:700;color:var(--text-subtle);padding:2px 3px }
