@@ -106,12 +106,23 @@ const tiles = new Map(); // key → tile element (reused across renders; recreat
 let _sbPromise = null;
 function getSb() {
   if (!_sbPromise) {
-    _sbPromise = import(SUPABASE_ESM_URL).then(({ createClient }) =>
+    _sbPromise = import(SUPABASE_ESM_URL).then(({ createClient }) => {
       // Same project + default storage key as dashboard/live.js, so an
       // operator already signed in to the dashboard is signed in here.
-      createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, {
+      const client = createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, {
         auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
-      }));
+      });
+      // Authenticate the Realtime socket, exactly like the dashboard
+      // (live.js). Since the key rotation the publishable key is NOT a
+      // JWT, so an un-authed socket subscribes but its presence/broadcast
+      // never reaches peers — two participants join the same room yet
+      // never link. Fires on INITIAL_SESSION (restored login) and every
+      // token refresh so a staff host's socket carries a valid JWT.
+      client.auth.onAuthStateChange((_evt, session) => {
+        if (session?.access_token) client.realtime.setAuth(session.access_token);
+      });
+      return client;
+    });
   }
   return _sbPromise;
 }
@@ -1578,6 +1589,14 @@ async function enterRoom() {
     transport = new LocalTransport(state.code, state.peerKey);
   } else {
     const sb = await getSb();
+    // Set the Realtime token BEFORE subscribing — the onAuthStateChange
+    // handler in getSb fires async, so a staff host could otherwise open
+    // the channel on the un-authed publishable key and never link up.
+    // Anon guests have no session and ride the public channel.
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (session?.access_token) sb.realtime.setAuth(session.access_token);
+    } catch { /* anon guest — nothing to set */ }
     transport = new SupabaseTransport(sb, state.code, state.peerKey);
   }
   state.transport = transport;
