@@ -72,6 +72,11 @@
   --amber: var(--rr-amber-600); --amber-bright: var(--rr-amber-500); --amber-dark: var(--rr-amber-700); --amber-soft: rgba(245,158,11,.12);
   --red:   var(--rr-red-600); --red-bright:   var(--rr-red-500); --red-dark:   var(--rr-red-700); --red-soft:   rgba(220,38,38,.10);
   --info:  var(--rr-blue-600); --info-bright:  var(--rr-blue-400); --info-dark:  var(--rr-blue-700); --info-soft:  rgba(37,99,235,.10);
+  /* --danger is an alias for the one system red. Several rules reference
+     var(--danger, …) with an off-palette #e5484d fallback; defining it
+     here collapses that second red hue onto --rr-red-600 so the whole
+     surface uses a single danger red. */
+  --danger: var(--red);
 
   /* ── System surfaces (modal overlay + focus ring tokens) ──── */
   --overlay: rgba(15,23,42,.55);
@@ -1957,14 +1962,14 @@ body.scan-camming{overflow:hidden}
 .coaching-feed{display:flex;flex-direction:column;gap:12px}
 .coaching-row{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-card);padding:14px 16px;cursor:pointer;display:flex;flex-direction:column;gap:var(--s-2);box-shadow:var(--shadow-card)}
 .coaching-row:active{transform:scale(.99)}
-.coaching-row-pending{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent-soft,#1A3956)}
+.coaching-row-pending{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent-soft)}
 .coaching-row-head{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .coaching-row-summary{font-size:var(--fs-md);font-weight:600;color:var(--text);line-height:1.4}
 .coaching-row-foot{display:flex;justify-content:space-between;align-items:center;gap:var(--s-2);font-size:var(--fs-xs);color:var(--text-subtle)}
 .coaching-row-by{font-weight:500}
 .coaching-row-date{margin-left:auto;font-size:var(--fs-xs);color:var(--text-subtle)}
 .coaching-status{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:var(--r-lg);background:var(--canvas);color:var(--text-subtle);border:1px solid var(--border)}
-.coaching-status.pending{background:var(--accent-soft,#1A3956);color:var(--accent);border-color:transparent}
+.coaching-status.pending{background:var(--accent-soft);color:var(--accent);border-color:transparent}
 .coaching-status.done{background:var(--green-soft);color:var(--green-dark);border-color:transparent}
 
 /* Category + severity badges */
@@ -1999,7 +2004,7 @@ body.scan-camming{overflow:hidden}
 .form-fill-help{font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.4}
 .form-fill-section{font-size:var(--fs-md);font-weight:700;color:var(--text);margin-top:8px;letter-spacing:-.005em}
 .form-fill-divider{border:0;border-top:1px solid var(--border);margin:4px 0}
-.form-fill-instructions{background:var(--accent-soft,#1A3956);border:1px solid var(--border);border-radius:12px;padding:var(--s-3-5) var(--s-4);color:var(--text);line-height:1.5;font-size:var(--fs-sm);white-space:pre-wrap}
+.form-fill-instructions{background:var(--accent-soft);border:1px solid var(--border);border-radius:12px;padding:var(--s-3-5) var(--s-4);color:var(--text);line-height:1.5;font-size:var(--fs-sm);white-space:pre-wrap}
 .form-fill-instructions-title{font-weight:700;color:var(--text);margin-bottom:6px;font-size:var(--fs-md)}
 /* Conditional fields — hidden until their trigger answer is satisfied.
    [hidden] is the source of truth (read by submit + validation); the soft
@@ -2795,8 +2800,8 @@ body.is-home main > .home-hero{
    solid color, no glow.  Matches the dashboard's Live pill. */
 .home-hero-status-dot{
   width:8px;height:8px;border-radius:50%;
-  background:#22C55E;
-  box-shadow:0 0 0 2px rgba(19,161,14,.20);
+  background:var(--green-bright);
+  box-shadow:0 0 0 2px var(--green-soft);
 }
 
 /* ── Content area below the hero ──────────────────────────────
