@@ -5814,7 +5814,12 @@ async function renderChat() {
     const stubAttach = file
       ? `<div style="font-size:var(--fs-xs);opacity:.85;margin-bottom:4px">📎 ${escapeHtml(file.name)} (uploading…)</div>`
       : "";
-    const stubHtml = `<div class="chat-bubble mine pending" data-rr-stub="${stubId}" data-group-pos="single">
+    // Tag pure-text stubs with their raw body so refreshChat can tell a
+    // still-in-flight stub from one the server has confirmed, and only drop it
+    // once the canonical message lands (see the reconciliation in refreshChat).
+    // Attachment stubs are left untagged and reconcile via the canonical fetch.
+    const stubBodyAttr = (body && !file) ? ` data-rr-stub-body="${encodeURIComponent(body)}"` : "";
+    const stubHtml = `<div class="chat-bubble mine pending" data-rr-stub="${stubId}"${stubBodyAttr} data-group-pos="single">
       ${stubAttach}${stubBody}
       <div class="chat-time">${escapeHtml(nowTime)} · sending</div>
     </div>`;
@@ -6385,10 +6390,17 @@ async function refreshChat(scrollToBottom) {
   wrap.dataset.rrMsgCount = String(messages.length);
   const _chatReactions = _reactRes?.data?.reactions || [];
 
-  // Strip optimistic stubs whose body now appears in the canonical set.
-  const stubBodies = new Set(
-    Array.from(wrap.querySelectorAll(".chat-bubble.pending"))
-      .map((el) => (el.textContent || "").trim().slice(0, 200))
+  // Bodies of driver-sent messages the server has now confirmed. An
+  // optimistic stub is reconciled (and dropped) only once its body shows up
+  // HERE — in the canonical set. Previously this set was (incorrectly) built
+  // from the pending stubs themselves, so every stub matched itself and was
+  // dropped on the very next refresh whether or not the server had the
+  // message yet: with any read-after-write lag between driver_chat_send and
+  // driver_chat_list, a just-sent message vanished until a later refresh.
+  const confirmedBodies = new Set(
+    messages
+      .filter((m) => m.sender_kind === "driver" && m.body)
+      .map((m) => String(m.body).trim().slice(0, 200))
   );
 
   if (messages.length === 0) {
@@ -6462,9 +6474,21 @@ async function refreshChat(scrollToBottom) {
         html += `<div class="chat-read-receipt sent">${_ckSent}Sent</div>`;
       }
     });
-    // Carry forward in-flight / failed optimistic bubbles.
+    // Carry forward optimistic bubbles that aren't reconciled yet:
+    //  · .failed stubs always stay (the driver taps them to retry);
+    //  · a pending text stub stays until its body appears in the confirmed
+    //    canonical set — so a just-sent message keeps showing as "sending"
+    //    through read-after-write lag instead of disappearing until the next
+    //    refresh. It carries data-rr-stub-body (its raw text) for the match;
+    //  · a pending attachment/voice stub (no data-rr-stub-body) reconciles via
+    //    the canonical fetch as before, so it isn't duplicated once it lands.
     const liveStubs = Array.from(wrap.querySelectorAll(".chat-bubble.pending, .chat-bubble.failed"))
-      .filter((el) => !stubBodies.has((el.textContent || "").trim().slice(0, 200)))
+      .filter((el) => {
+        if (el.classList.contains("failed")) return true;
+        const key = el.getAttribute("data-rr-stub-body");
+        if (key == null) return false;
+        return !confirmedBodies.has(decodeURIComponent(key).trim().slice(0, 200));
+      })
       .map((el) => el.outerHTML).join("");
     // Sentinel must be the LAST child for browser scroll-anchoring to
     // pick it as the anchor when the driver is at the bottom.  See the
