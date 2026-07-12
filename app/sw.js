@@ -118,7 +118,10 @@
 // .stat-tiles / .stat-tile primitive on the token scale (radius --r-lg,
 // value --fs-lg, label --fs-xs, tabular figures) — off-scale 10px/18px/10px
 // one-offs retired. Bumped so installed driver PWAs pick up the new CSS.
-const SHELL_CACHE = "rr-app-shell-v153";
+// v154 · Live "recording audio…" indicator: when either side records a voice
+// note, the other sees "recording audio…" in place of "typing…" (reuses the
+// presence broadcast). Bumped so installed driver PWAs pick up the new app.js.
+const SHELL_CACHE = "rr-app-shell-v154";
 const SHELL_FILES = [
   "./",
   "index.html",
