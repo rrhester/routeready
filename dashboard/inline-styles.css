@@ -7541,6 +7541,28 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-tm-call svg{ width:15px;height:15px }
 .rr-tm-empty{ padding:16px var(--s-4);text-align:center;font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.5 }
 
+/* ── Call-history popover rows ───────────────────────────────────────── */
+.rr-callhist-menu{ width:300px }
+.rr-ch-row{ display:flex;align-items:center;gap:var(--s-2-5);padding:7px var(--s-2);border-radius:var(--r-md) }
+.rr-ch-row[data-rr-ch-call]{ cursor:pointer }
+.rr-ch-row[data-rr-ch-call]:hover{ background:var(--surface-hover) }
+.rr-ch-row[data-rr-ch-call]:focus-visible{ outline:none;box-shadow:var(--ring-focus) }
+.rr-ch-dir{ display:inline-flex;flex:0 0 auto;color:var(--green) }
+.rr-ch-row.missed .rr-ch-dir{ color:var(--red) }
+.rr-ch-avatar{
+  width:32px;height:32px;flex:0 0 auto;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--accent-soft);color:var(--accent-text);font-size:var(--fs-xs);font-weight:700;
+}
+.rr-ch-body{ flex:1;min-width:0 }
+.rr-ch-name{ font-size:var(--fs-sm);font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap }
+.rr-ch-row.missed .rr-ch-name{ color:var(--red) }
+.rr-ch-meta{ font-size:var(--fs-10);color:var(--text-subtle);overflow:hidden;text-overflow:ellipsis;white-space:nowrap }
+.rr-ch-back{ display:inline-flex;flex:0 0 auto;color:var(--text-subtle);opacity:0;transition:opacity var(--t-fast) }
+.rr-ch-back svg{ width:15px;height:15px }
+.rr-ch-row[data-rr-ch-call]:hover .rr-ch-back,
+.rr-ch-row[data-rr-ch-call]:focus-visible .rr-ch-back{ opacity:1;color:var(--accent) }
+
 /* ── Direct-call overlay · incoming + outgoing ring cards ────────────── */
 .rr-call-overlay{
   position:fixed;inset:0;z-index:11000;
