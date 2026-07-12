@@ -288,6 +288,36 @@ try { document.body.dataset.rrRole = profile.role || ""; } catch (_) {}
 // (`.rr-mfa-only { display:none }` + `body[data-rr-mfa="on"] …`).
 try { document.body.dataset.rrMfa = (window.RR_CONFIG && window.RR_CONFIG.MFA_ENABLED) ? "on" : "off"; } catch (_) {}
 
+// ─── Product usage analytics ────────────────────────────────────────────────
+// Non-PII event log (event name + tenant + user + minimal props) → usage_events,
+// so you can see whether a tenant is actually active. Batched, non-blocking,
+// fails silent; disabled via RR_CONFIG.ANALYTICS_ENABLED=false. NEVER pass
+// record contents or PII in props. occurred_at is the server default (now()).
+const _rrEvQueue = [];
+function rrTrack(event, props) {
+  if (window.RR_CONFIG && window.RR_CONFIG.ANALYTICS_ENABLED === false) return;
+  try {
+    _rrEvQueue.push({
+      dsp_id:  (window.RR && window.RR.user && window.RR.user.dsp_id) || null,
+      user_id: (window.RR && window.RR.user && window.RR.user.id) || null,
+      event:   String(event).slice(0, 60),
+      props:   (props && typeof props === "object") ? props : {},
+    });
+    if (_rrEvQueue.length >= 25) _rrFlushEvents();
+  } catch (_) {}
+}
+async function _rrFlushEvents() {
+  if (!_rrEvQueue.length) return;
+  if (window.RR_CONFIG && window.RR_CONFIG.ANALYTICS_ENABLED === false) { _rrEvQueue.length = 0; return; }
+  const batch = _rrEvQueue.splice(0, _rrEvQueue.length);
+  try { await sb.from("usage_events").insert(batch); } catch (_) { /* fail silent — telemetry never blocks */ }
+}
+window.rrTrack = rrTrack;
+try { setInterval(_rrFlushEvents, 30000); } catch (_) {}
+window.addEventListener("visibilitychange", function () { if (document.visibilityState === "hidden") _rrFlushEvents(); });
+window.addEventListener("pagehide", function () { _rrFlushEvents(); });
+rrTrack("session_start", { role: profile.role });
+
 // ─── Idle session timeout ────────────────────────────────────────────────
 // HR / termination / PII data on a shared dispatcher machine must not stay
 // logged in indefinitely. After a stretch of no real interaction we force a
@@ -839,6 +869,7 @@ async function rrExportMyData(btn) {
     a.click();
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
     toast("Your data export downloaded.", "success");
+    try { rrTrack("export_data"); } catch (_) {}
   } catch (e) {
     if (typeof _isAuthError === "function" && _isAuthError(e)) { _forceRelogin("session_expired"); return; }
     toast("Export failed — " + (e?.message || "please try again."), "warn");
@@ -873,6 +904,7 @@ async function rrExportMyFiles(btn) {
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
     const n = (data && typeof data.count === "number") ? data.count : 0;
     toast(`File manifest downloaded — ${n} link${n === 1 ? "" : "s"}, valid 1 hour.`, "success");
+    try { rrTrack("export_files", { count: n }); } catch (_) {}
   } catch (e) {
     if (typeof _isAuthError === "function" && _isAuthError(e)) { _forceRelogin("session_expired"); return; }
     toast("File export failed — " + (e?.message || "please try again."), "warn");
@@ -955,6 +987,7 @@ async function rrMfaSetup(btn) {
         if (vErr) throw vErr;
         host.style.display = "none"; host.innerHTML = "";
         toast("Two-factor is on. You'll enter a code next time you sign in.", "success");
+        try { rrTrack("mfa_enroll"); } catch (_) {}
         rrMfaRefreshStatus();
       } catch (_) {
         errEl.textContent = "That code didn't work. Use the current one from your app.";

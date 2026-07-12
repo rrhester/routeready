@@ -152,6 +152,15 @@ jobs:
           set -euo pipefail
           psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/data_export_test.sql
 
+      - name: Usage-analytics RLS tests (0473 · self-bound insert, tenant-scoped read)
+        # Asserts usage_events can't be spoofed across tenants/users and that a
+        # tenant's staff see only their own events (non-staff see none).
+        env:
+          SUPABASE_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: |
+          set -euo pipefail
+          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/usage_events_test.sql
+
       - name: Tear down
         if: always()
         run: supabase stop --no-backup || true

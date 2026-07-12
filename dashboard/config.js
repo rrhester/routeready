@@ -22,4 +22,8 @@ window.RR_CONFIG = Object.freeze({
   // factor is never blocked, so enabling this cannot lock out anyone who
   // hasn't enrolled. See docs/MFA.md for the rollout + recovery steps.
   MFA_ENABLED: true,
+  // Product usage analytics — logs non-PII events (login, feature use) to
+  // usage_events so you can see whether a tenant is actually active. Set to
+  // false to disable all client tracking.
+  ANALYTICS_ENABLED: true,
 });
