@@ -58,6 +58,33 @@
   .fielderr{color:var(--red);font-size:13px;min-height:18px;margin-top:8px}
   .signin-hint{font-size:13px;color:var(--muted);margin-top:14px;text-align:center}
   .signin-hint a{color:var(--accent);font-weight:600}
+
+  /* new-meeting split menu (Google-Meet-style: instant vs. for-later) */
+  .new-wrap{position:relative}
+  .new-wrap .new-caret{margin-left:auto}
+  .new-menu{position:absolute;left:0;right:0;top:calc(100% + 8px);background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:6px;box-shadow:0 12px 34px rgba(17,24,39,.16);z-index:20}
+  .new-mi{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:none;border:0;border-radius:8px;padding:11px 12px;color:var(--text)}
+  .new-mi:hover{background:#F3F6FE}
+  .new-mi svg{width:20px;height:20px;color:var(--accent);flex:0 0 auto}
+  .new-mi span{display:flex;flex-direction:column;line-height:1.3}
+  .new-mi b{font-size:14px;font-weight:700}
+  .new-mi small{color:var(--muted);font-size:12.5px}
+
+  /* shared invite/link row (share card + for-later modal) */
+  .rc-linkrow{display:flex;align-items:center;gap:8px;background:var(--canvas);border:1px solid var(--border);border-radius:9px;padding:6px 6px 6px 12px}
+  .rc-link{flex:1;min-width:0;font-size:13.5px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rc-copy{flex:0 0 auto;background:var(--accent);border:0;color:#fff;border-radius:7px;padding:8px 14px;font-weight:700;font-size:13px}
+  .rc-copy:hover{background:var(--accent-d)}
+
+  /* for-later modal (home) */
+  .modal-back{position:fixed;inset:0;background:rgba(17,24,39,.5);display:flex;align-items:center;justify-content:center;padding:24px;z-index:70}
+  .modal-back[hidden]{display:none} /* author display:flex would otherwise beat [hidden] */
+  .modal-card{width:100%;max-width:440px;background:var(--surface);border-radius:14px;padding:24px;box-shadow:0 24px 60px rgba(0,0,0,.28)}
+  .modal-card h3{margin:0 0 6px;font-size:19px}
+  .modal-card p{margin:0 0 16px;color:var(--muted);font-size:14px;line-height:1.45}
+  .modal-actions{display:flex;gap:10px;margin-top:18px;justify-content:flex-end}
+  .modal-actions .btn-primary{width:auto;padding:11px 20px}
+  .modal-actions .btn-secondary{padding:11px 20px}
   #recent{display:none;width:100%;max-width:480px;margin-top:16px}
   #recent h3{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:0 0 8px}
   .recent-row{display:flex;justify-content:space-between;gap:10px;width:100%;text-align:left;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:11px 14px;margin-bottom:6px}
@@ -200,6 +227,18 @@
   .wait-admit:hover{filter:brightness(.92)}
   .wait-deny{background:transparent;border:1px solid var(--room-line);color:#F87171;border-radius:7px;padding:6px 12px;font-weight:700;font-size:13px}
   .wait-deny:hover{background:rgba(220,38,38,.14)}
+
+  /* in-room "your meeting's ready" share card (instant meetings) */
+  #ready-card{position:fixed;left:16px;bottom:96px;width:320px;max-width:calc(100vw - 32px);background:var(--room-panel);border:1px solid var(--room-line);border-radius:14px;padding:16px;box-shadow:0 16px 40px rgba(0,0,0,.5);color:var(--room-text);z-index:55}
+  #ready-card .rc-head{display:flex;align-items:center;justify-content:space-between;font-weight:800;font-size:16px}
+  #ready-card .rc-head button{background:none;border:0;color:var(--room-muted);font-size:20px;line-height:1;padding:2px 6px}
+  #ready-card .rc-head button:hover{color:var(--room-text)}
+  #ready-card .rc-sub{margin:6px 0 12px;color:var(--room-muted);font-size:13px;line-height:1.45}
+  #ready-card .rc-linkrow{background:var(--room-tile);border-color:var(--room-line)}
+  #ready-card .rc-link{color:var(--room-text)}
+  #ready-card .rc-joined{margin-top:12px;font-size:12px;color:var(--room-muted)}
+  body.embed #ready-card{display:none}
+  @media (max-width:760px){#ready-card{left:8px;bottom:88px}}
   .waiting-wrap{flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:24px;text-align:center}
   .waiting-wrap .big{font-size:20px;font-weight:800;margin-top:16px}
   .waiting-wrap .sub{color:var(--muted);font-size:15px}
@@ -272,10 +311,23 @@
     <div class="home-card">
       <h1>Instant video meetings</h1>
       <p class="sub">Start a meeting and share one link — applicants and drivers join right from their browser, no app, no account.</p>
-      <button id="btn-new" class="btn-primary" type="button" style="display:none">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
-        New meeting
-      </button>
+      <div id="new-wrap" class="new-wrap" style="display:none">
+        <button id="btn-new" class="btn-primary" type="button" aria-haspopup="true" aria-expanded="false">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+          New meeting
+          <svg class="new-caret" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div id="new-menu" class="new-menu" role="menu" hidden>
+          <button id="mi-instant" class="new-mi" type="button" role="menuitem">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <span><b>Start an instant meeting</b><small>Create a room and join right now</small></span>
+          </button>
+          <button id="mi-later" class="new-mi" type="button" role="menuitem">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            <span><b>Create a meeting for later</b><small>Get a link you can share</small></span>
+          </button>
+        </div>
+      </div>
       <div id="home-signin" class="signin-hint">Hosting a meeting requires a RouteReady account — <a href="/dashboard/login.html?next=%2Fdashboard%2Fmeet.html">sign in</a> to start one.</div>
       <div class="or">or join one</div>
       <div class="join-row">
@@ -398,6 +450,12 @@
       <h4>Waiting to join</h4>
       <div id="waiting-list"></div>
     </div>
+
+    <div id="ready-card" hidden>
+      <div class="rc-head">Your meeting's ready<button id="ready-close" type="button" aria-label="Dismiss">×</button></div>
+      <p class="rc-sub">Share this link with people you want in the meeting.</p>
+      <div class="rc-linkrow"><span id="ready-link" class="rc-link"></span><button id="ready-copy" class="rc-copy" type="button">Copy</button></div>
+    </div>
   </section>
 
   <!-- waiting room (guests, until a host admits them) -->
@@ -418,6 +476,19 @@
       <button id="btn-home" class="btn-secondary" type="button">Back to start</button>
     </div>
   </section>
+
+  <!-- create-for-later: link to share without joining -->
+  <div id="later-modal" class="modal-back" hidden>
+    <div class="modal-card">
+      <h3>Here's your joining info</h3>
+      <p>Send this to people you want in the meeting. Save it so you can start the call later, too.</p>
+      <div class="rc-linkrow"><span id="later-link" class="rc-link"></span><button id="later-copy" class="rc-copy" type="button">Copy</button></div>
+      <div class="modal-actions">
+        <button id="later-done" class="btn-secondary" type="button">Done</button>
+        <button id="later-join" class="btn-primary" type="button">Join now</button>
+      </div>
+    </div>
+  </div>
 
   <div id="toast" role="status" aria-live="polite"></div>
 

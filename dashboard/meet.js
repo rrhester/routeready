@@ -95,6 +95,7 @@ const state = {
   knock: false,        // I'm a guest awaiting admission
   waiting: [],         // (hosts) guests currently knocking
   rec: false,          // I'm recording (mirrored to presence meta)
+  instant: false,      // host started an instant meeting → show the ready card
 };
 
 const peers = new Map(); // key → {pc, polite, makingOffer, ignoreOffer, isSettingRemoteAnswerPending, pending:[], stream}
@@ -1409,10 +1410,16 @@ async function toggleSettingsPop(open) {
   $("spk-block").style.display = "setSinkId" in HTMLMediaElement.prototype ? "" : "none";
 }
 
-async function copyInvite() {
-  const url = LOCAL_MODE
+// The shareable link for the current room. Local test mode keeps the
+// ?local=1 transport flag so a copied link joins the same in-browser mesh.
+function meetInviteUrl() {
+  return LOCAL_MODE
     ? location.origin + "/dashboard/meet.html?local=1&m=" + state.code
     : buildMeetUrl(cfg.PUBLIC_BASE_URL || location.origin, state.code);
+}
+
+async function copyInvite() {
+  const url = meetInviteUrl();
   try {
     await navigator.clipboard.writeText(url);
     toast("Invite link copied");
@@ -1532,6 +1539,7 @@ function startInCall() {
   syncControls();
   renderWaitingUI();
   renderGrid();
+  if (state.instant) showReadyCard();
 }
 
 function teardown() {
@@ -1555,6 +1563,9 @@ function teardown() {
   state.activeSpeaker = null;
   state.knock = false;
   state.waiting = [];
+  state.instant = false;
+  const rc = $("ready-card");
+  if (rc) rc.hidden = true;
 }
 
 function endLocally(message) {
@@ -1663,8 +1674,12 @@ async function runNetTest() {
   btn.disabled = false;
 }
 
-async function openLobby() {
-  show("lobby");
+// `silent` sets up the lobby (media, preview, name) WITHOUT switching to
+// it — used by instant meetings, which show a spinner and go straight to
+// the room, but still want a fully-wired lobby to fall back to if the
+// transport join fails.
+async function openLobby({ silent = false } = {}) {
+  if (!silent) show("lobby");
   $("lobby-title").textContent = state.meeting?.title || "RouteReady meeting";
   $("lobby-code").textContent = state.code;
   let stored = "";
@@ -1687,31 +1702,84 @@ async function openLobby() {
 
 // ─── home ─────────────────────────────────────────────────────────────────
 
-async function newMeeting() {
+// Mint a fresh room (meet_create, or a local code in test mode) and put
+// its code in the URL, without joining. Shared by both host entry points:
+// "Start an instant meeting" and "Create a meeting for later".
+async function mintRoom() {
+  if (LOCAL_MODE) {
+    state.code = genMeetCode();
+    state.meeting = { title: "Local test meeting", code: state.code };
+    state.isHost = true;
+  } else {
+    const sb = await getSb();
+    const { data, error } = await sb.rpc("meet_create", { p_title: null });
+    if (error) throw error;
+    state.code = data.code;
+    state.meeting = data;
+    state.isHost = true;
+  }
+  const q = new URLSearchParams(location.search);
+  q.set("m", state.code);
+  history.replaceState(null, "", location.pathname + "?" + q.toString());
+}
+
+// New-meeting menu (Google-Meet-style split: instant vs. for-later).
+function toggleNewMenu(open) {
+  const menu = $("new-menu");
+  const want = open ?? menu.hidden;
+  menu.hidden = !want;
+  $("btn-new").setAttribute("aria-expanded", String(want));
+}
+
+// "Start an instant meeting": mint a room and drop the host straight into
+// the live call — no lobby step. openLobby() still runs first so media,
+// preview and name are set up (and so a failed transport join lands the
+// host in a fully-working lobby to retry from); enterRoom() then joins
+// immediately and startInCall() surfaces the "meeting's ready" share card.
+async function startInstantMeeting() {
+  toggleNewMenu(false);
   const btn = $("btn-new");
   btn.disabled = true;
   try {
-    if (LOCAL_MODE) {
-      state.code = genMeetCode();
-      state.meeting = { title: "Local test meeting", code: state.code };
-      state.isHost = true;
-    } else {
-      const sb = await getSb();
-      const { data, error } = await sb.rpc("meet_create", { p_title: null });
-      if (error) throw error;
-      state.code = data.code;
-      state.meeting = data;
-      state.isHost = true;
-    }
-    const q = new URLSearchParams(location.search);
-    q.set("m", state.code);
-    history.replaceState(null, "", location.pathname + "?" + q.toString());
-    await openLobby();
+    await mintRoom();
+    state.instant = true;
+    show("boot");
+    await openLobby({ silent: true }); // wire the lobby (media/name) but stay on the spinner
+    await enterRoom();                  // …then join straight away
+  } catch (err) {
+    console.error("instant meeting failed", err);
+    state.instant = false;
+    toast(err?.message === "forbidden" ? "Your account can't start meetings." : "Couldn't start a meeting — try again.");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// "Create a meeting for later": mint a room and show its shareable link
+// without joining. The host can copy it now and start the call whenever.
+async function createMeetingForLater() {
+  toggleNewMenu(false);
+  const btn = $("btn-new");
+  btn.disabled = true;
+  try {
+    await mintRoom();
+    $("later-link").textContent = meetInviteUrl();
+    $("later-modal").hidden = false;
   } catch (err) {
     console.error("meet_create failed", err);
     toast(err?.message === "forbidden" ? "Your account can't start meetings." : "Couldn't start a meeting — try again.");
+  } finally {
     btn.disabled = false;
   }
+}
+
+// In-room "Your meeting's ready" card — shown once when the host starts an
+// instant meeting, so the invite link is one click from the empty room.
+function showReadyCard() {
+  const card = $("ready-card");
+  if (!card || EMBED) return; // embedded interview room owns its own invite chrome
+  $("ready-link").textContent = meetInviteUrl();
+  card.hidden = false;
 }
 
 async function joinByInput() {
@@ -1773,7 +1841,7 @@ async function hydrateAuth() {
     const { data: { session } } = await sb.auth.getSession();
     state.session = session;
     if (session) {
-      $("btn-new").style.display = "";
+      $("new-wrap").style.display = "";
       $("home-signin").style.display = "none";
       const { data: me } = await sb.from("app_users").select("full_name").eq("id", session.user.id).maybeSingle();
       if (me?.full_name) state.prefillName = me.full_name;
@@ -1810,7 +1878,14 @@ async function loadRecent(sb) {
 // ─── boot ─────────────────────────────────────────────────────────────────
 
 function wire() {
-  $("btn-new").onclick = newMeeting;
+  $("btn-new").onclick = () => toggleNewMenu();
+  $("mi-instant").onclick = startInstantMeeting;
+  $("mi-later").onclick = createMeetingForLater;
+  $("ready-close").onclick = () => { $("ready-card").hidden = true; };
+  $("ready-copy").onclick = copyInvite;
+  $("later-copy").onclick = copyInvite;
+  $("later-done").onclick = () => { $("later-modal").hidden = true; show("home"); };
+  $("later-join").onclick = async () => { $("later-modal").hidden = true; await openLobby(); };
   $("btn-join").onclick = joinByInput;
   $("join-code").addEventListener("keydown", (e) => { if (e.key === "Enter") joinByInput(); });
   $("btn-enter").onclick = enterRoom;
@@ -1861,6 +1936,7 @@ function wire() {
     // Popovers dismiss on outside click.
     if (!e.target.closest("#settings-pop") && !e.target.closest("#btn-settings")) $("settings-pop").hidden = true;
     if (!e.target.closest("#react-pop") && !e.target.closest("#btn-react")) $("react-pop").hidden = true;
+    if (!e.target.closest("#new-menu") && !e.target.closest("#btn-new")) toggleNewMenu(false);
   });
   document.addEventListener("keydown", (e) => {
     if (document.body.dataset.screen !== "room") return;
@@ -1893,7 +1969,7 @@ async function boot() {
     bar.insertBefore($("btn-waiting"), $("btn-end"));
   }
   if (LOCAL_MODE) {
-    $("btn-new").style.display = "";
+    $("new-wrap").style.display = "";
     $("home-signin").style.display = "none";
   }
   const code = normalizeMeetCode(location.href);
