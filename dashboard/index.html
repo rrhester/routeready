@@ -334,6 +334,21 @@
             <span class="rr-al-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>
             <span class="rr-al-lbl">Indeed Import</span>
           </button>
+          <!-- Meet · RouteReady's first-party video meetings (dashboard/
+               meet.html). Moved here from the left rail (2026-07-12). Opens
+               in its own tab so a live call survives dashboard navigation. -->
+          <button type="button" class="rr-al-item" role="menuitem" data-al-act="meet">
+            <span class="rr-al-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></span>
+            <span class="rr-al-lbl">Meet</span>
+          </button>
+          <!-- Download · install the RouteReady app. Moved here from the left
+               rail (2026-07-12). Hidden until installable — its visibility
+               mirrors #rr-hdr-install and the click forwards to it, so the
+               existing install flow stays the single source of truth. -->
+          <button type="button" class="rr-al-item" role="menuitem" id="rr-al-download" data-al-act="download" hidden>
+            <span class="rr-al-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg></span>
+            <span class="rr-al-lbl">Download</span>
+          </button>
           </div><!-- /.rr-al-card -->
           <!-- Account actions · Settings + Sign out moved here from the
                retired top-right account menu. data-al-go routes through the
@@ -446,6 +461,8 @@
             try {
               if (act === 'indeed') { if (window.openPdfUploadPicker) window.openPdfUploadPicker(); }
               else if (act === 'adpsync') { if (window.openAdpSync) window.openAdpSync(); }
+              else if (act === 'meet') { window.open('meet.html', '_blank', 'noopener'); }
+              else if (act === 'download') { var _dl = document.getElementById('rr-hdr-install'); if (_dl) _dl.click(); }
               else if (act === 'drive') { if (window.openDrive) window.openDrive(); else if (window.goto) window.goto('drive'); }
               else if (act === 'reports') { if (window.openReportsScreen) window.openReportsScreen(); else if (window.toast) window.toast('Reports are coming soon'); }
               else if (go && window.goto) { window.goto(go); }
@@ -1156,57 +1173,24 @@
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 6L2 7"/></svg></span>
         Email
       </button>
-      <!-- Meet · RouteReady's first-party video meetings (dashboard/
-           meet.html — WebRTC mesh + Supabase Realtime signaling; replaces
-           the rented meet.jit.si rooms). Opens in its own tab on purpose:
-           a live call must survive dashboard navigation, and the room
-           page owns its mic/camera lifecycle. -->
-      <button class="nav-item" id="rr-nav-meet" data-c="messages" title="Meet — instant video meetings"
-              onclick="window.open('meet.html', '_blank', 'noopener')">
-        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></span>
-        Meet
-      </button>
-      <!-- Recognition · birthdays, anniversaries, milestones + the
-           send/schedule celebration modal (#view-recognition, backed by
-           recognition_* RPCs, migration 0290). Settings + the driver
-           app already consume the feature; this row is the missing
-           goto('recognition') path into the operator workspace. -->
-      <button class="nav-item" data-view="recognition" data-c="messages" title="Recognition" onclick="goto('recognition')">
-        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="6"/><polyline points="8.6 13 7.5 22 12 19.4 16.5 22 15.4 13"/></svg></span>
-        Recognition
-      </button>
-      <!-- Download · sidebar form of the app install button (operator
-           request 2026-06-12 — the small download glyph in the rail
-           foot becomes a normal nav row labeled "Download"). Visibility
-           mirrors #rr-hdr-install (revealed by beforeinstallprompt,
-           hidden once installed) and the click forwards to it, so the
-           existing install flow stays the single source of truth. -->
-      <button class="nav-item" id="rr-nav-download" title="Download the RouteReady app" hidden
-              onclick="document.getElementById('rr-hdr-install')?.click()">
-        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg></span>
-        Download
-      </button>
+      <!-- Meet, Recognition and Download were retired from the left rail
+           (2026-07-12). Meet + Download now live in the app-launcher waffle
+           (data-al-act="meet" / "download"); Recognition was removed. The
+           launcher's Download item mirrors #rr-hdr-install's visibility via
+           the script beside it (see #rr-al-download). -->
       <script>
-        // Mirror the install button's visibility onto the Download nav
-        // row. The source button keeps its hidden-attr lifecycle
-        // (beforeinstallprompt reveals, appinstalled hides); we just
-        // reflect it — and glue the row after Fleet Bridge so the
-        // drag-reorder re-appends can't strand it.
+        // Mirror the install button's visibility onto the launcher's
+        // Download item. The source button keeps its hidden-attr lifecycle
+        // (beforeinstallprompt reveals, appinstalled hides); we just reflect
+        // it onto the waffle item so Download only appears when installable.
         (function () {
           function wire() {
             var src = document.getElementById('rr-hdr-install');
-            var dst = document.getElementById('rr-nav-download');
+            var dst = document.getElementById('rr-al-download');
             if (!src || !dst) { setTimeout(wire, 500); return; }
             function sync() { dst.hidden = src.hidden; }
             new MutationObserver(sync).observe(src, { attributes: true, attributeFilter: ['hidden'] });
             sync();
-            var nav = document.querySelector('.sidebar .nav') || document.querySelector('.sidebar nav');
-            function glue() {
-              var anchor = document.querySelector('.sidebar .nav-item[data-view="email"]');
-              if (anchor && anchor.nextElementSibling !== dst) anchor.insertAdjacentElement('afterend', dst);
-            }
-            if (nav) new MutationObserver(glue).observe(nav, { childList: true });
-            glue();
           }
           if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire);
           else wire();
@@ -1285,6 +1269,99 @@
           }
           setTimeout(hook, 150);
         })();
+      })();
+    </script>
+    <style>
+      /* Sidebar drag-to-reorder affordances */
+      .sidebar .nav > .nav-item{ cursor: grab; }
+      .sidebar .nav > .nav-item:active{ cursor: grabbing; }
+      .sidebar .nav > .nav-item.rr-nav-dragging{ opacity: .4; }
+    </style>
+    <script>
+      // ── Sidebar drag-to-reorder ────────────────────────────────────
+      // The operator can click-drag the left-rail icons to reorder them;
+      // the order persists in localStorage across reloads (operator
+      // request 2026-07-12). Only the visible, top-level nav-items take
+      // part — hidden rows (Documents, the platform-admin gate) are left
+      // alone, and a plain click still navigates (native DnD suppresses
+      // the click only when an actual drag happened).
+      (function () {
+        var KEY = 'rr-nav-order-v1';
+        var dragEl = null;
+        function navEl(){ return document.querySelector('.sidebar .nav'); }
+        function itemKey(el){ return el.getAttribute('data-view') || el.id || (el.textContent || '').trim(); }
+        function items(nav){
+          // Direct-child nav-items only, and only the ones actually shown.
+          return Array.prototype.filter.call(nav.children, function (el){
+            return el.classList && el.classList.contains('nav-item')
+              && !el.hidden && el.style.display !== 'none';
+          });
+        }
+        function persist(){
+          var nav = navEl(); if (!nav) return;
+          try { localStorage.setItem(KEY, JSON.stringify(items(nav).map(itemKey))); } catch (_) {}
+        }
+        function applySaved(){
+          var nav = navEl(); if (!nav) return;
+          var saved; try { saved = JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (_) { saved = []; }
+          if (!saved || !saved.length) return;
+          var list = items(nav); if (!list.length) return;
+          var byKey = {}; list.forEach(function (el){ byKey[itemKey(el)] = el; });
+          var seen = {}, seq = [];
+          saved.forEach(function (k){ if (byKey[k] && !seen[k]) { seq.push(byKey[k]); seen[k] = 1; } });
+          list.forEach(function (el){ var k = itemKey(el); if (!seen[k]) { seq.push(el); seen[k] = 1; } });
+          var ref = list[list.length - 1].nextSibling; // stable anchor just after the block
+          seq.forEach(function (el){ nav.insertBefore(el, ref); });
+        }
+        function afterEl(nav, y){
+          var els = items(nav).filter(function (el){ return el !== dragEl; });
+          var best = { off: -Infinity, el: null };
+          els.forEach(function (el){
+            var b = el.getBoundingClientRect();
+            var off = y - b.top - b.height / 2;
+            if (off < 0 && off > best.off) { best = { off: off, el: el }; }
+          });
+          return best.el;
+        }
+        function wire(el){
+          if (el.__rrDrag) return; el.__rrDrag = true;
+          el.setAttribute('draggable', 'true');
+          el.addEventListener('dragstart', function (e){
+            dragEl = el; el.classList.add('rr-nav-dragging');
+            if (e.dataTransfer){ e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', itemKey(el)); } catch (_) {} }
+          });
+          el.addEventListener('dragend', function (){
+            el.classList.remove('rr-nav-dragging'); dragEl = null; persist();
+          });
+        }
+        function wireAll(){
+          var nav = navEl(); if (!nav) return;
+          Array.prototype.forEach.call(nav.querySelectorAll(':scope > .nav-item'), wire);
+        }
+        function init(){
+          var nav = navEl();
+          if (!nav) { setTimeout(init, 200); return; }
+          applySaved();
+          wireAll();
+          nav.addEventListener('dragover', function (e){
+            if (!dragEl) return; e.preventDefault();
+            if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+            var after = afterEl(nav, e.clientY);
+            if (after == null) {
+              var list = items(nav); var last = list[list.length - 1];
+              if (last && last !== dragEl) nav.insertBefore(dragEl, last.nextSibling);
+            } else if (after !== dragEl) {
+              nav.insertBefore(dragEl, after);
+            }
+          });
+          nav.addEventListener('drop', function (e){ if (dragEl) e.preventDefault(); });
+          // Wire late-revealed rows (e.g. platform admin) without reshuffling.
+          new MutationObserver(wireAll).observe(nav, {
+            childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'hidden']
+          });
+        }
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+        else init();
       })();
     </script>
     <!-- Sidebar collapse · subtle bottom button.  Toggles the
