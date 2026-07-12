@@ -36805,8 +36805,8 @@ function _renderDriverDetails(driverId, drv) {
         <div class="dd-id-role">${roleLine}</div>
         <div class="dd-id-actions">
           <button type="button" class="dd-act" data-rr-focus-composer title="Message">${_RR_MC_ICONS.msg}<span>Message</span></button>
-          <button type="button" class="dd-act" data-rr-start-meeting title="Call">${_RR_MC_ICONS.phone}<span>Call</span></button>
-          <button type="button" class="dd-act" data-rr-start-meeting title="Video">${_RR_MC_ICONS.video}<span>Video</span></button>
+          <button type="button" class="dd-act" data-rr-call="audio" title="Voice call">${_RR_MC_ICONS.phone}<span>Call</span></button>
+          <button type="button" class="dd-act" data-rr-call="video" title="Video call">${_RR_MC_ICONS.video}<span>Video</span></button>
         </div>
       </div>
 
@@ -37397,8 +37397,8 @@ async function refreshDriverChatThread(scrollToBottom) {
             <div class="rr-mc-sub">${_hSub}</div>
           </div>
           <div class="rr-mc-head-actions">
-            <button type="button" class="rr-mc-head-btn" data-rr-start-meeting title="Start voice meeting" aria-label="Start voice meeting">${_RR_MC_ICONS.phone}</button>
-            <button type="button" class="rr-mc-head-btn" data-rr-start-meeting title="Start video meeting" aria-label="Start video meeting">${_RR_MC_ICONS.video}</button>
+            <button type="button" class="rr-mc-head-btn" data-rr-call="audio" title="Voice call" aria-label="Voice call">${_RR_MC_ICONS.phone}</button>
+            <button type="button" class="rr-mc-head-btn" data-rr-call="video" title="Video call" aria-label="Video call">${_RR_MC_ICONS.video}</button>
             <button type="button" class="rr-mc-head-btn rr-mc-head-btn-details" data-rr-details-toggle aria-pressed="false" title="Driver details" aria-label="Toggle driver details">${_RR_MC_ICONS.panel}</button>
           </div>
         </div>
@@ -41862,6 +41862,15 @@ function _presenceWire() {
       // Only act on typing events from a driver in our DSP.
       _presenceShowTyping(payload.from);
     })
+    // ── Direct-call signaling (RouteReady Messages) ───────────────────
+    // The same shared DSP channel carries the call handshake so anyone on
+    // it (dispatch or driver) can ring anyone else with no new backend.
+    // Each event is targeted by payload.to = {kind,id}; handlers ignore
+    // anything not addressed to this client.
+    .on("broadcast", { event: "call-invite" },  ({ payload }) => _rrCallOnInvite(payload))
+    .on("broadcast", { event: "call-accept" },  ({ payload }) => _rrCallOnAccept(payload))
+    .on("broadcast", { event: "call-decline" }, ({ payload }) => _rrCallOnDecline(payload))
+    .on("broadcast", { event: "call-cancel" },  ({ payload }) => _rrCallOnCancel(payload))
     .subscribe(async (status) => {
       if (status === "SUBSCRIBED") {
         await channel.track({ kind: "dispatch", id: userId, online_at: new Date().toISOString() });
@@ -41891,6 +41900,236 @@ function _presenceBroadcastTyping(toDriverId) {
       payload: { from: window.RR?.user?.id, from_kind: "dispatch", to: toDriverId, ts: now },
     });
   } catch {}
+}
+
+// ─── Direct calling (Chime-style ring → answer → Meet) ───────────────────
+// Reuses the shared DSP presence channel for signaling and Meet for the
+// actual WebRTC call. Flow: caller mints a Meet room (meet_create), sends a
+// `call-invite` broadcast, and rings; the callee sees an incoming-call card +
+// ringtone + OS notification; on Accept both open meet.html?...&call=1 and
+// land in the same room (auto-join, no lobby). Fully cross-surface — the
+// driver app speaks the same events on the same channel.
+const _rrCall = {
+  state: "idle",   // idle | outgoing | incoming
+  callId: null,
+  peer: null,      // { kind, id, name }
+  room: null,
+  media: "video",  // video | audio
+  ring: null,
+  timer: null,
+  osNotif: null,
+};
+const RR_CALL_TIMEOUT_MS = 35000;
+
+function _rrCallMe() {
+  return {
+    kind: "dispatch",
+    id: window.RR?.user?.id,
+    name: (window.RR?.user?.full_name || window.RR?.user?.email || "RouteReady").trim(),
+  };
+}
+function _rrCallSend(event, payload) {
+  try { _presence.channel?.send({ type: "broadcast", event, payload }); } catch {}
+}
+function _rrCallInitials(name) {
+  return (name || "?").split(/\s+/).map((p) => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?";
+}
+
+// Looping WebAudio ring — no audio asset (matches Meet's sound engine).
+// `freq` distinguishes the incoming ringtone from the outgoing ringback.
+function _rrRingEngine(freq) {
+  let ctx = null, timer = null, stopped = false;
+  const pulse = () => {
+    if (stopped) return;
+    try {
+      ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
+      if (ctx.state === "suspended") ctx.resume().catch(() => {});
+      const t0 = ctx.currentTime;
+      // Classic double-ring: two short tones, then a rest until the next beat.
+      [0, 0.55].forEach((off) => {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.type = "sine"; o.frequency.value = freq;
+        g.gain.setValueAtTime(0.0001, t0 + off);
+        g.gain.exponentialRampToValueAtTime(0.14, t0 + off + 0.04);
+        g.gain.setValueAtTime(0.14, t0 + off + 0.34);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + off + 0.4);
+        o.connect(g).connect(ctx.destination);
+        o.start(t0 + off); o.stop(t0 + off + 0.42);
+      });
+    } catch {}
+  };
+  pulse();
+  timer = setInterval(pulse, 3000);
+  return { stop() { stopped = true; clearInterval(timer); try { ctx && ctx.close(); } catch {} } };
+}
+
+function _rrCallNotify(title, body) {
+  try {
+    if (!("Notification" in window) || Notification.permission !== "granted") return null;
+    const n = new Notification(title, { body, tag: "rr-call", requireInteraction: true });
+    n.onclick = () => { try { window.focus(); } catch {} n.close(); };
+    return n;
+  } catch { return null; }
+}
+function _rrCallAskNotifyPermission() {
+  try {
+    if ("Notification" in window && Notification.permission === "default") Notification.requestPermission();
+  } catch {}
+}
+
+function _rrCallOpenRoom(room, media) {
+  const me = _rrCallMe();
+  const url = "meet.html?m=" + encodeURIComponent(room) + "&call=1"
+    + "&name=" + encodeURIComponent(me.name || "")
+    + (media === "audio" ? "&cam=0" : "");
+  window.open(url, "_blank", "noopener");
+}
+
+function _rrCallTeardown() {
+  if (_rrCall.ring) { _rrCall.ring.stop(); _rrCall.ring = null; }
+  if (_rrCall.timer) { clearTimeout(_rrCall.timer); _rrCall.timer = null; }
+  if (_rrCall.osNotif) { try { _rrCall.osNotif.close(); } catch {} _rrCall.osNotif = null; }
+  document.getElementById("rr-call-overlay")?.remove();
+  _rrCall.state = "idle"; _rrCall.callId = null; _rrCall.peer = null; _rrCall.room = null; _rrCall.media = "video";
+}
+
+function _rrCallRenderOverlay(kind, peer, media) {
+  document.getElementById("rr-call-overlay")?.remove();
+  const incoming = kind === "incoming";
+  const label = media === "audio" ? "voice" : "video";
+  const status = incoming ? `Incoming ${label} call…` : `Calling…`;
+  const actions = incoming
+    ? `<button type="button" class="rr-call-btn decline" data-rr-call-decline>Decline</button>
+       <button type="button" class="rr-call-btn accept" data-rr-call-accept>${media === "audio" ? "Answer" : "Join"}</button>`
+    : `<button type="button" class="rr-call-btn decline" data-rr-call-cancel>Cancel</button>`;
+  const el = document.createElement("div");
+  el.id = "rr-call-overlay";
+  el.className = "rr-call-overlay rr-call-" + kind;
+  el.setAttribute("role", "dialog");
+  el.setAttribute("aria-live", "assertive");
+  el.innerHTML = `
+    <div class="rr-call-card">
+      <div class="rr-call-ripple"><div class="rr-call-avatar">${escapeHtml(_rrCallInitials(peer?.name))}</div></div>
+      <div class="rr-call-name">${escapeHtml(peer?.name || "Unknown")}</div>
+      <div class="rr-call-status">${escapeHtml(status)}</div>
+      <div class="rr-call-actions">${actions}</div>
+    </div>`;
+  document.body.appendChild(el);
+}
+
+// Caller: place a call to { kind, id, name }.
+async function rrPlaceCall(peer, media) {
+  if (_rrCall.state !== "idle") { toast("You're already on a call.", "warn"); return; }
+  if (!peer || !peer.id) return;
+  const me = _rrCallMe();
+  if (!me.id) { toast("Calling isn't ready yet — try again in a moment.", "warn"); return; }
+  if (String(peer.id) === String(me.id) && peer.kind === me.kind) { toast("You can't call yourself."); return; }
+  _rrCallAskNotifyPermission(); // this is a user gesture — good moment to ask
+  media = media === "audio" ? "audio" : "video";
+  let room;
+  try {
+    const { data, error } = await sb.rpc("meet_create", { p_title: null });
+    if (error) throw error;
+    room = data?.code;
+    if (!room) throw new Error("no room");
+  } catch (e) {
+    toast("Couldn't start the call — " + (e.message || e), "warn");
+    return;
+  }
+  const callId = "call-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
+  _rrCall.state = "outgoing"; _rrCall.callId = callId; _rrCall.peer = peer; _rrCall.room = room; _rrCall.media = media;
+  _rrCallSend("call-invite", { callId, from: me, to: { kind: peer.kind, id: peer.id }, room, media, ts: Date.now() });
+  _rrCallRenderOverlay("outgoing", peer, media);
+  _rrCall.ring = _rrRingEngine(440); // ringback (lower tone)
+  _rrCall.timer = setTimeout(() => {
+    _rrCallSend("call-cancel", { callId, to: { kind: peer.kind, id: peer.id } });
+    toast("No answer from " + (peer.name || "them"));
+    _rrCallTeardown();
+  }, RR_CALL_TIMEOUT_MS);
+}
+
+// Callee: an invite arrived.
+function _rrCallOnInvite(p) {
+  const me = _rrCallMe();
+  if (!p || !p.to || p.to.kind !== me.kind || String(p.to.id) !== String(me.id)) return; // not for me
+  if (_rrCall.state !== "idle") { _rrCallSend("call-decline", { callId: p.callId, to: p.from, reason: "busy" }); return; }
+  _rrCall.state = "incoming"; _rrCall.callId = p.callId; _rrCall.peer = p.from; _rrCall.room = p.room; _rrCall.media = p.media || "video";
+  _rrCallRenderOverlay("incoming", p.from, _rrCall.media);
+  _rrCall.ring = _rrRingEngine(560); // incoming ringtone (higher tone)
+  _rrCall.osNotif = _rrCallNotify(
+    "Incoming " + (_rrCall.media === "audio" ? "voice" : "video") + " call",
+    (p.from?.name || "Someone") + " is calling you"
+  );
+  _rrCall.timer = setTimeout(() => {
+    toast("Missed call from " + (p.from?.name || "someone"));
+    _rrCallTeardown();
+  }, RR_CALL_TIMEOUT_MS);
+}
+function _rrCallAccept() {
+  if (_rrCall.state !== "incoming") return;
+  const { callId, peer, room, media } = _rrCall;
+  _rrCallSend("call-accept", { callId, from: _rrCallMe(), to: { kind: peer.kind, id: peer.id } });
+  _rrCallOpenRoom(room, media);
+  _rrCallTeardown();
+}
+function _rrCallDecline() {
+  if (_rrCall.state !== "incoming") return;
+  _rrCallSend("call-decline", { callId: _rrCall.callId, to: { kind: _rrCall.peer.kind, id: _rrCall.peer.id }, reason: "declined" });
+  _rrCallTeardown();
+}
+function _rrCallCancel() {
+  if (_rrCall.state !== "outgoing") return;
+  _rrCallSend("call-cancel", { callId: _rrCall.callId, to: { kind: _rrCall.peer.kind, id: _rrCall.peer.id } });
+  _rrCallTeardown();
+}
+// Caller: callee accepted → join the room.
+function _rrCallOnAccept(p) {
+  if (_rrCall.state !== "outgoing" || !p || p.callId !== _rrCall.callId) return;
+  const { room, media } = _rrCall;
+  _rrCallOpenRoom(room, media);
+  _rrCallTeardown();
+}
+// Caller: callee declined / was busy.
+function _rrCallOnDecline(p) {
+  if (_rrCall.state !== "outgoing" || !p || p.callId !== _rrCall.callId) return;
+  const who = _rrCall.peer?.name || "They";
+  toast(p.reason === "busy" ? `${who} are on another call` : `${who} declined the call`);
+  _rrCallTeardown();
+}
+// Callee: caller hung up before we answered.
+function _rrCallOnCancel(p) {
+  if (_rrCall.state !== "incoming" || !p || p.callId !== _rrCall.callId) return;
+  toast("Missed call from " + (_rrCall.peer?.name || "someone"));
+  _rrCallTeardown();
+}
+window.rrPlaceCall = rrPlaceCall;
+// Exposed so a push/service-worker wake (or the driver-app bridge) can inject
+// an incoming-call ring without going through the realtime broadcast.
+window.rrIncomingCall = _rrCallOnInvite;
+
+// Delegated controls for the call overlay + the conversation-header call
+// buttons. Bound once so it survives every thread re-render.
+if (!window.__rrCallWired) {
+  window.__rrCallWired = true;
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("[data-rr-call-accept]"))  { _rrCallAccept();  return; }
+    if (e.target.closest("[data-rr-call-decline]")) { _rrCallDecline(); return; }
+    if (e.target.closest("[data-rr-call-cancel]"))  { _rrCallCancel();  return; }
+    const callBtn = e.target.closest("[data-rr-call]");
+    if (callBtn) {
+      const media = callBtn.getAttribute("data-rr-call") === "audio" ? "audio" : "video";
+      const id = _msgInboxSelectedId;
+      if (!id || id === "__support__") { toast("Open a driver conversation to start a call."); return; }
+      const meta = (_msgInboxList || []).find((t) => String(t.driver_id) === String(id)) || {};
+      rrPlaceCall({ kind: "driver", id, name: meta.name || "Driver" }, media);
+      return;
+    }
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if (_rrCall.state === "incoming") _rrCallDecline();
+    else if (_rrCall.state === "outgoing") _rrCallCancel();
+  });
 }
 
 // Wire on first appearance — RR is ready by the time live.js runs.
