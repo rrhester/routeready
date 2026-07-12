@@ -155,7 +155,21 @@ app serves the bundled `app/`.
 ## 8. How this maps to the roadmap
 
 - **Phase 2 (now):** shell + APNs/FCM alert push → chat & voice-note
-  notifications on a locked phone, deep-linking into the thread. *(Backend piece:
-  add the `push-fanout` edge function to fan out to `device_push_tokens`, per RFC §2.2.)*
+  notifications on a locked phone, deep-linking into the thread. The
+  **`push-fanout` edge function** (in `supabase/functions/push-fanout`) delivers
+  to `device_push_tokens` and is fired alongside `send-driver-push` by migration
+  0474. Deploy it and set the APNs/FCM secrets:
+
+  ```bash
+  supabase functions deploy push-fanout --no-verify-jwt
+  # then set the secrets it reads (all optional; a missing channel is skipped):
+  supabase secrets set APNS_KEY_P8="$(cat AuthKey_XXXX.p8)" \
+    APNS_KEY_ID=XXXXXXXXXX APNS_TEAM_ID=YYYYYYYYYY \
+    APNS_BUNDLE_ID=com.gorouteready.driver APNS_ENV=production
+  supabase secrets set FCM_SERVICE_ACCOUNT="$(cat service-account.json)"
+  ```
+
+  Until the secrets are set, `push-fanout` returns `{ ok:true, skipped:N }` and
+  Web Push keeps delivering — nothing breaks.
 - **Phase 3:** `RRVoip` plugin + PushKit/CallKit → live 1:1 calls ring on lock screen.
 - **Phase 4:** foreground audio service + full-screen intent → background PTT.
