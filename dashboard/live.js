@@ -42048,12 +42048,16 @@ async function rrPlaceCall(peer, media) {
   }, RR_CALL_TIMEOUT_MS);
 }
 
-// Callee: an invite arrived.
+// Callee: an invite arrived. Matches this client, or a "__any__" dispatch
+// invite (a driver can't mint a room, so it rings every dispatcher and the
+// one who answers mints it).
 function _rrCallOnInvite(p) {
   const me = _rrCallMe();
-  if (!p || !p.to || p.to.kind !== me.kind || String(p.to.id) !== String(me.id)) return; // not for me
+  const forMe = p && p.to && p.to.kind === me.kind
+    && (String(p.to.id) === String(me.id) || p.to.id === "__any__");
+  if (!forMe) return;
   if (_rrCall.state !== "idle") { _rrCallSend("call-decline", { callId: p.callId, to: p.from, reason: "busy" }); return; }
-  _rrCall.state = "incoming"; _rrCall.callId = p.callId; _rrCall.peer = p.from; _rrCall.room = p.room; _rrCall.media = p.media || "video";
+  _rrCall.state = "incoming"; _rrCall.callId = p.callId; _rrCall.peer = p.from; _rrCall.room = p.room || null; _rrCall.media = p.media || "video";
   _rrCallRenderOverlay("incoming", p.from, _rrCall.media);
   _rrCall.ring = _rrRingEngine(560); // incoming ringtone (higher tone)
   _rrCall.osNotif = _rrCallNotify(
@@ -42065,10 +42069,21 @@ function _rrCallOnInvite(p) {
     _rrCallTeardown();
   }, RR_CALL_TIMEOUT_MS);
 }
-function _rrCallAccept() {
+async function _rrCallAccept() {
   if (_rrCall.state !== "incoming") return;
-  const { callId, peer, room, media } = _rrCall;
-  _rrCallSend("call-accept", { callId, from: _rrCallMe(), to: { kind: peer.kind, id: peer.id } });
+  const { callId, peer, media } = _rrCall;
+  let room = _rrCall.room;
+  // Room-less invite (the caller — e.g. a driver — can't mint a Meet room):
+  // the answering dispatcher mints it now and hands the code back.
+  if (!room) {
+    try {
+      const { data, error } = await sb.rpc("meet_create", { p_title: null });
+      if (error) throw error;
+      room = data?.code;
+    } catch {}
+    if (!room) { toast("Couldn't start the call — try again.", "warn"); return; }
+  }
+  _rrCallSend("call-accept", { callId, from: _rrCallMe(), to: { kind: peer.kind, id: peer.id }, room });
   _rrCallOpenRoom(room, media);
   _rrCallTeardown();
 }
@@ -42082,11 +42097,14 @@ function _rrCallCancel() {
   _rrCallSend("call-cancel", { callId: _rrCall.callId, to: { kind: _rrCall.peer.kind, id: _rrCall.peer.id } });
   _rrCallTeardown();
 }
-// Caller: callee accepted → join the room.
+// Caller: callee accepted → join the room. The room comes from the accept
+// (the answerer may have minted it for a room-less invite), falling back to
+// the room we minted ourselves.
 function _rrCallOnAccept(p) {
   if (_rrCall.state !== "outgoing" || !p || p.callId !== _rrCall.callId) return;
-  const { room, media } = _rrCall;
-  _rrCallOpenRoom(room, media);
+  const room = p.room || _rrCall.room;
+  if (!room) { _rrCallTeardown(); return; }
+  _rrCallOpenRoom(room, _rrCall.media);
   _rrCallTeardown();
 }
 // Caller: callee declined / was busy.

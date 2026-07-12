@@ -1283,6 +1283,52 @@ body.scan-camming{overflow:hidden}
 }
 .chat-call:active{ background:var(--canvas) }
 .chat-call svg{ flex:0 0 auto }
+/* In-app video-call button (button, not a tel: link) */
+.chat-vcall{ background:none;border:0;border-left:1px solid var(--border);cursor:pointer;margin-left:auto }
+.chat-vcall + .chat-call{ margin-left:0 }
+
+/* ── Direct-call overlay · incoming + outgoing ring cards ────────────── */
+.rr-call-overlay{
+  position:fixed;inset:0;z-index:6000;
+  display:flex;align-items:flex-start;justify-content:center;
+  padding-top:16vh;pointer-events:none;
+}
+.rr-call-overlay .rr-call-card{
+  pointer-events:auto;
+  width:min(340px,calc(100vw - 40px));
+  background:var(--surface);border:1px solid var(--border);border-radius:18px;
+  box-shadow:0 24px 64px -16px rgba(15,23,42,.40),0 8px 24px -8px rgba(15,23,42,.24);
+  padding:28px 22px 22px;text-align:center;
+  animation:rr-call-rise .22s cubic-bezier(.2,.7,.2,1) both;
+}
+@keyframes rr-call-rise{ from{opacity:0;transform:translateY(10px) scale(.97)} to{opacity:1;transform:none} }
+.rr-call-ripple{ position:relative;width:80px;height:80px;margin:0 auto 12px }
+.rr-call-avatar{
+  position:relative;z-index:1;width:80px;height:80px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--accent);color:var(--rr-white);font-size:var(--fs-xxl);font-weight:700;
+}
+.rr-call-incoming .rr-call-ripple::before,
+.rr-call-incoming .rr-call-ripple::after{
+  content:"";position:absolute;inset:0;border-radius:50%;border:2px solid var(--accent);opacity:0;
+  animation:rr-call-ping 1.8s ease-out infinite;
+}
+.rr-call-incoming .rr-call-ripple::after{ animation-delay:.9s }
+@keyframes rr-call-ping{ 0%{transform:scale(1);opacity:.5} 100%{transform:scale(1.9);opacity:0} }
+.rr-call-name{ font-size:var(--fs-lg);font-weight:700;color:var(--text);line-height:1.2 }
+.rr-call-status{ font-size:var(--fs-md);color:var(--text-subtle);margin-top:4px }
+.rr-call-actions{ display:flex;gap:10px;justify-content:center;margin-top:20px }
+.rr-call-btn{
+  flex:1;max-width:130px;padding:12px 14px;font:inherit;font-size:var(--fs-base);font-weight:600;
+  border:0;border-radius:12px;cursor:pointer;color:var(--rr-white);
+}
+.rr-call-btn.accept{ background:var(--green) }
+.rr-call-btn.decline{ background:var(--red) }
+@media (prefers-reduced-motion:reduce){
+  .rr-call-overlay .rr-call-card{ animation:none }
+  .rr-call-incoming .rr-call-ripple::before,
+  .rr-call-incoming .rr-call-ripple::after{ animation:none }
+}
 .chat-tabs ~ .chat-msgs,
 .chat-tabs ~ .chat-channel-list{
   top:52px;
