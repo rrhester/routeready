@@ -5,7 +5,7 @@
 //   RESEND_API_KEY
 //   RESEND_FROM_EMAIL          e.g. "RouteReady <hello@gorouteready.com>"
 //   RESEND_REPLY_TO            (optional)
-import { serviceClient, jsonResponse, badRequest, signMessageAttachment } from "../_shared/supabase.ts";
+import { serviceClient, jsonResponse, badRequest, signMessageAttachment, requireServiceKey } from "../_shared/supabase.ts";
 import { buildIcsRequest } from "../_shared/ics.ts";
 import { encodeBase64 } from "https://deno.land/std@0.208.0/encoding/base64.ts";
 
@@ -79,14 +79,14 @@ function brandedFrom(
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return badRequest("method_not_allowed", 405);
-  // No in-function auth gate. The function only DRAINS queued rows
-  // out of email_messages — it never accepts a recipient or body from
-  // the request payload, so an unauthenticated caller can at worst
-  // cause the queue to drain (which is the intended behavior anyway).
-  // Rows themselves are RLS-gated on insert by the original DSP user.
-  // Deployed with --no-verify-jwt so the post-key-rotation gateway
-  // (which doesn't accept the legacy JWT in the drain cron headers)
-  // doesn't 401 before the function runs.
+  // Server-to-server only. Both callers — the 0007 AFTER-INSERT trigger and
+  // the cron drainer — present the service-role key as a bearer (app.service_role_key
+  // GUC). Require it so an anonymous internet caller can't force-drain the
+  // queue or probe the endpoint. Deployed with --no-verify-jwt (the sb_secret_…
+  // key is not a JWT and would 401 at the gateway); the bearer check happens
+  // in-function via requireServiceKey.
+  const authFail = requireServiceKey(req);
+  if (authFail) return authFail;
 
   const apiKey = Deno.env.get("RESEND_API_KEY");
   const from   = Deno.env.get("RESEND_FROM_EMAIL");
