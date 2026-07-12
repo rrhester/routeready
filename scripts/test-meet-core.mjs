@@ -109,13 +109,15 @@ eq(buildMeetUrl("https://gorouteready.com", "abc-defg-hjk"), "https://gorouterea
 eq(buildMeetUrl("https://gorouteready.com/", "abc-defg-hjk"), "https://gorouteready.com/m/abc-defg-hjk", "trailing slash stripped");
 
 console.log("sendPolicy");
-eq(sendPolicy(2), { maxBitrate: 2_500_000, scaleResolutionDownBy: 1, degradationPreference: "maintain-framerate" }, "1:1 call sends full quality");
+eq(sendPolicy(2), { maxBitrate: 4_000_000, scaleResolutionDownBy: 1, degradationPreference: "maintain-resolution" }, "1:1 call gets the full 1080p ceiling, resolution-first");
 eq(sendPolicy(1), sendPolicy(2), "solo clamps to the 1:1 tier");
-eq(sendPolicy(4).maxBitrate, 1_200_000, "4-way halves the bitrate");
-eq(sendPolicy(4).scaleResolutionDownBy, 1.5, "4-way scales resolution down 1.5×");
-eq(sendPolicy(6).maxBitrate, 800_000, "6-way sends 800kbps per peer");
+eq(sendPolicy(4).maxBitrate, 1_500_000, "4-way steps down to 1.5Mbps");
+eq(sendPolicy(4).scaleResolutionDownBy, 1, "4-way keeps full resolution");
+eq(sendPolicy(6).maxBitrate, 900_000, "6-way sends 900kbps per peer");
+eq(sendPolicy(6).scaleResolutionDownBy, 1.5, "6-way scales resolution down 1.5×");
 eq(sendPolicy(9).scaleResolutionDownBy, 2, "big rooms cap at 2× downscale");
 eq(sendPolicy(9).maxBitrate, 500_000, "big rooms cap at 500kbps per peer");
+eq(sendPolicy(9).degradationPreference, "maintain-framerate", "big rooms keep motion smooth over sharpness");
 eq(sendPolicy(6, true), { maxBitrate: 2_500_000, scaleResolutionDownBy: 1, degradationPreference: "maintain-resolution" }, "screen share never degrades with roster size and prefers resolution");
 
 console.log("qualityLevel");
