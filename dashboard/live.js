@@ -38182,9 +38182,9 @@ async function refreshDriverChatThread(scrollToBottom) {
         const name  = m.attachment_name || "Attachment";
         const sizeKb = m.attachment_size_bytes ? Math.round(m.attachment_size_bytes / 1024) : null;
         attach = isAudio
-          // Voice note — inline player; the signed URL is bound to .src by
-          // the same data-rr-mc-attach resolver (extended to <audio>).
-          ? `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;max-width:260px"><span aria-hidden="true">🎤</span><audio data-rr-mc-attach="${escapeHtml(m.attachment_path)}" controls preload="metadata" style="flex:1;min-width:0;height:38px"></audio></div>`
+          // Voice note — custom player (waveform scrub + speed) over a hidden
+          // native <audio> the resolver binds the signed URL to.
+          ? _rrMcVoicePlayerHtml(m.attachment_path, m.id)
           : isImg
           // width/height HTML attributes (NOT just CSS) give the browser
           // the intrinsic size BEFORE any stylesheet parses — the box
@@ -38538,6 +38538,70 @@ document.addEventListener("click", async (e) => {
   }
 });
 
+// ─── Voice-note player (dispatcher side) ──────────────────────────────────
+// Mirrors the driver app's player: custom play/pause + waveform scrub + time
+// + 1x/1.5x/2x over a hidden native <audio> the resolver binds the signed URL
+// to (data-rr-mc-attach). Bars are seeded from the message id — no per-note
+// audio decode.
+function _rrMcVoicePlayerHtml(path, id) {
+  let h = 2166136261 >>> 0;
+  const s = String(id || path || "");
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  let bars = "";
+  for (let i = 0; i < 32; i++) { h = (Math.imul(h, 1103515245) + 12345) & 0x7fffffff; bars += `<i style="height:${20 + (h % 78)}%"></i>`; }
+  const p = escapeHtml(path);
+  return `
+    <div class="rr-vn" data-rr-vn>
+      <button type="button" class="rr-vn-play" data-rr-vn-play aria-label="Play voice message">
+        <svg class="rr-vn-ic-play" viewBox="0 0 24 24" width="17" height="17" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+        <svg class="rr-vn-ic-pause" viewBox="0 0 24 24" width="17" height="17" fill="currentColor" aria-hidden="true"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
+      </button>
+      <div class="rr-vn-track" data-rr-vn-track aria-hidden="true">
+        <div class="rr-vn-bars base">${bars}</div>
+        <div class="rr-vn-bars fill">${bars}</div>
+      </div>
+      <span class="rr-vn-time" data-rr-vn-time>0:00</span>
+      <button type="button" class="rr-vn-speed" data-rr-vn-speed aria-label="Playback speed">1×</button>
+      <audio data-rr-mc-attach="${p}" preload="metadata" style="display:none"></audio>
+    </div>`;
+}
+
+function _rrMcWireVoicePlayer(audio) {
+  const box = audio.closest && audio.closest("[data-rr-vn]");
+  if (!box || box.dataset.rrVnWired) return;
+  box.dataset.rrVnWired = "1";
+  const playBtn = box.querySelector("[data-rr-vn-play]");
+  const track   = box.querySelector("[data-rr-vn-track]");
+  const timeEl  = box.querySelector("[data-rr-vn-time]");
+  const speedBtn = box.querySelector("[data-rr-vn-speed]");
+  const fmt = (s) => { s = Math.max(0, Math.floor(s || 0)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
+  const showDur = () => { if (timeEl && isFinite(audio.duration)) timeEl.textContent = fmt(audio.duration); };
+  audio.addEventListener("loadedmetadata", showDur);
+  audio.addEventListener("timeupdate", () => {
+    const d = audio.duration;
+    box.style.setProperty("--vn-p", isFinite(d) && d ? (audio.currentTime / d) : 0);
+    if (timeEl && !audio.paused) timeEl.textContent = fmt(audio.currentTime);
+  });
+  audio.addEventListener("play",  () => box.classList.add("playing"));
+  audio.addEventListener("pause", () => { box.classList.remove("playing"); showDur(); });
+  audio.addEventListener("ended", () => { box.classList.remove("playing"); box.style.setProperty("--vn-p", 0); showDur(); });
+  playBtn && playBtn.addEventListener("click", () => {
+    document.querySelectorAll('[data-rr-vn] audio').forEach((a) => { if (a !== audio) a.pause(); });
+    if (audio.paused) audio.play().catch(() => {}); else audio.pause();
+  });
+  track && track.addEventListener("click", (e) => {
+    if (!isFinite(audio.duration) || !audio.duration) return;
+    const r = track.getBoundingClientRect();
+    audio.currentTime = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)) * audio.duration;
+  });
+  const speeds = [1, 1.5, 2]; let si = 0;
+  speedBtn && speedBtn.addEventListener("click", () => {
+    si = (si + 1) % speeds.length; audio.playbackRate = speeds[si];
+    speedBtn.textContent = speeds[si] + "×";
+  });
+  showDur();
+}
+
 async function _rrMcSignAttachments() {
   const els = document.querySelectorAll("[data-rr-mc-attach]:not([data-rr-mc-resolved])");
   for (const el of els) {
@@ -38565,6 +38629,7 @@ async function _rrMcSignAttachments() {
         if (el.complete && el.naturalWidth > 0) onSettled();
       } else if (el.tagName === "AUDIO") {
         el.src = data.signedUrl; // voice note
+        _rrMcWireVoicePlayer(el);
       } else {
         el.href = data.signedUrl;
       }
@@ -39133,9 +39198,9 @@ async function refreshChannelThread(scrollToBottom) {
         const name  = m.attachment_name || "Attachment";
         const sizeKb = m.attachment_size_bytes ? Math.round(m.attachment_size_bytes / 1024) : null;
         attach = isAudio
-          // Voice note — inline player; the signed URL is bound to .src by
-          // the same data-rr-mc-attach resolver (extended to <audio>).
-          ? `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;max-width:260px"><span aria-hidden="true">🎤</span><audio data-rr-mc-attach="${escapeHtml(m.attachment_path)}" controls preload="metadata" style="flex:1;min-width:0;height:38px"></audio></div>`
+          // Voice note — custom player (waveform scrub + speed) over a hidden
+          // native <audio> the resolver binds the signed URL to.
+          ? _rrMcVoicePlayerHtml(m.attachment_path, m.id)
           : isImg
           // Same fixed-box treatment as the direct-chat renderer above
           // — width/height attributes lock the layout box at 240×240
