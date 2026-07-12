@@ -589,6 +589,45 @@ function canAdmitGuests() {
   return !state.roster.some((r) => r.key !== state.peerKey && r.host);
 }
 
+// The "loud" admit alert: a persistent top-of-call banner, a pulsing
+// header chip, a tab-title badge, and a repeating chime — so a host who
+// stepped away can't miss that someone is knocking. Everything keys off
+// canAdmitGuests(), so knocking guests and non-hosts never see it.
+const BASE_TITLE = document.title;
+let waitAlertTimer = null;
+
+function updateWaitAlert(visible, q) {
+  const banner = $("wait-banner");
+  $("btn-waiting").classList.toggle("pulsing", visible);
+  if (!visible) {
+    if (banner) banner.hidden = true;
+    if (waitAlertTimer) { clearInterval(waitAlertTimer); waitAlertTimer = null; }
+    document.title = BASE_TITLE;
+    return;
+  }
+  const n = q.length;
+  if (banner) {
+    $("wait-banner-text").textContent = n === 1
+      ? `${q[0].name || "Someone"} is waiting to join`
+      : `${n} people are waiting to join`;
+    $("wait-banner-admit").textContent = n === 1 ? "Admit" : "Admit all";
+    banner.hidden = false;
+  }
+  document.title = `(${n}) Waiting to join — ${BASE_TITLE}`;
+  // Re-chime every 18s while anyone is still waiting — a one-time blip on
+  // the first knock is easy to miss if the host is heads-down elsewhere.
+  if (!waitAlertTimer) {
+    waitAlertTimer = setInterval(() => {
+      if (state.waiting.length && canAdmitGuests()) chime(true);
+      else { clearInterval(waitAlertTimer); waitAlertTimer = null; }
+    }, 18000);
+  }
+}
+
+function admitAll() {
+  for (const k of state.waiting.slice()) admitGuest(k.key, k.name);
+}
+
 function renderWaitingUI() {
   const btn = $("btn-waiting");
   if (!btn) return;
@@ -596,6 +635,7 @@ function renderWaitingUI() {
   const visible = canAdmitGuests() && q.length > 0;
   btn.style.display = visible ? "" : "none";
   btn.textContent = q.length === 1 ? "1 waiting" : `${q.length} waiting`;
+  updateWaitAlert(visible, q);
   const pop = $("waiting-pop");
   // Auto-open when someone new knocks — the chip alone was missable in
   // the field. Manual toggle still works; the pop closes itself when
@@ -1612,6 +1652,7 @@ function teardown() {
   state.instant = false;
   const rc = $("ready-card");
   if (rc) rc.hidden = true;
+  updateWaitAlert(false, []); // clear banner/chip/title + stop the re-chime
 }
 
 function endLocally(message) {
@@ -2048,6 +2089,8 @@ function wire() {
   $("btn-leave").onclick = leaveMeeting;
   $("btn-wait-leave").onclick = leaveMeeting;
   $("btn-waiting").onclick = () => { const pop = $("waiting-pop"); pop.hidden = !pop.hidden; };
+  $("wait-banner-admit").onclick = admitAll;
+  $("wait-banner-view").onclick = () => { $("waiting-pop").hidden = false; };
   $("btn-record").onclick = toggleRecording;
   $("btn-nettest").onclick = runNetTest;
   $("btn-end").onclick = endForAll;
