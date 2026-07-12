@@ -130,6 +130,19 @@ jobs:
           set -euo pipefail
           psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/audit_coverage_test.sql
 
+      - name: Cross-tenant isolation test (customer-#1 pre-flight)
+        # The core product promise: one tenant cannot read or write another's
+        # data. Stands up TWO tenants and, dropped to the real `authenticated`
+        # role, asserts Tenant A cannot see/insert/update/delete Tenant B's
+        # drivers, I-9 documents, applicants, coachings, or SMS — while still
+        # being able to write its own tenant. Permanent guard against a future
+        # migration re-opening a cross-tenant hole.
+        env:
+          SUPABASE_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: |
+          set -euo pipefail
+          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/cross_tenant_isolation_test.sql
+
       - name: Tear down
         if: always()
         run: supabase stop --no-backup || true
