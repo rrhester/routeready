@@ -134,7 +134,15 @@
 // complete?" without a menu dive. Hidden when nothing is pending (clean home)
 // and on load error (Tasks stays the source of truth). Bumped so installed
 // driver PWAs pick up the new app.js + CSS.
-const SHELL_CACHE = "rr-app-shell-v156";
+// v157 · Chat send fix: a driver's just-sent message no longer disappears
+// until a manual refresh. refreshChat's stub reconciliation built its "already
+// confirmed" set from the pending stubs themselves (so every stub matched
+// itself and was dropped on the next refresh, before the server had the
+// message under read-after-write lag). It now builds that set from the
+// canonical driver messages and carries a pending text stub forward until its
+// body actually appears server-side. Bumped so installed driver PWAs pick up
+// the new app.js.
+const SHELL_CACHE = "rr-app-shell-v157";
 const SHELL_FILES = [
   "./",
   "index.html",
