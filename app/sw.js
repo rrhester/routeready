@@ -107,7 +107,7 @@
 // a big Recording bar with a live timer + one-tap Send/Cancel; typing turns
 // it back into the send arrow. Bumped so installed driver PWAs pick up the
 // new app.js + CSS.
-const SHELL_CACHE = "rr-app-shell-v149";
+const SHELL_CACHE = "rr-app-shell-v150";
 const SHELL_FILES = [
   "./",
   "index.html",
