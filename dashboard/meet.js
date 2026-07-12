@@ -65,7 +65,7 @@ const EMBED = new URLSearchParams(location.search).has("embed");
 // two-party "we can't see each other" report can be localized without dev
 // tools. No effect on behavior; the panel only renders when the flag is on.
 const DEBUG = new URLSearchParams(location.search).has("debug");
-const dbg = { chan: "", status: "", err: "", presence: 0, authed: false };
+const dbg = { chan: "", status: "", err: "", presence: 0, authed: false, bcastRx: 0 };
 function renderDebug() {
   if (!DEBUG) return;
   const el = document.getElementById("rr-debug");
@@ -77,6 +77,7 @@ function renderDebug() {
     `status: ${dbg.status || "-"}`,
     `role:   ${state.isHost ? "host" : "guest"}  authed:${dbg.authed ? "yes" : "no"}`,
     `SEEN:   ${dbg.presence}   peers:${peers.size}   roster:${state.roster.length}`,
+    `bcast-rx: ${dbg.bcastRx}`,
     dbg.err ? `err:    ${dbg.err}` : "",
   ].filter(Boolean).join("\n");
 }
@@ -180,6 +181,15 @@ class SupabaseTransport {
     for (const evt of ["chat", "react", "ended", "admit", "deny"]) {
       ch.on("broadcast", { event: evt }, ({ payload }) => handlers.onEvent(evt, payload));
     }
+    // ?debug=1 broadcast health probe: count pings received FROM OTHER
+    // clients (self:false means our own never echo back). If two devices
+    // both show bcast-rx > 0, broadcast works and only presence is broken;
+    // if it stays 0 on both, the whole Realtime message path is blocked.
+    if (DEBUG) {
+      ch.on("broadcast", { event: "dbgping" }, ({ payload }) => {
+        if (payload && payload.from !== this.key) { dbg.bcastRx++; renderDebug(); }
+      });
+    }
     ch.on("presence", { event: "sync" }, () => {
       const s = ch.presenceState();
       dbg.presence = Object.keys(s || {}).length;
@@ -196,6 +206,11 @@ class SupabaseTransport {
           // our presence so the roster heals without a manual refresh.
           const res = await ch.track(this.lastMeta);
           if (res && res !== "ok") { dbg.err = "track:" + JSON.stringify(res); renderDebug(); }
+          if (DEBUG && !this._pingTimer) {
+            this._pingTimer = setInterval(() => {
+              ch.send({ type: "broadcast", event: "dbgping", payload: { from: this.key } });
+            }, 2500);
+          }
           if (!this.joined) { this.joined = true; resolve(); }
         } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
           if (!this.joined) reject(new Error("realtime_" + status.toLowerCase()));
@@ -206,7 +221,7 @@ class SupabaseTransport {
   track(meta) { this.lastMeta = meta; return this.channel.track(meta); }
   send(event, payload) { return this.channel.send({ type: "broadcast", event, payload }); }
   signal(to, data) { return this.send("signal", { from: this.key, to, data }); }
-  async leave() { try { await this.channel.untrack(); } catch { /* leaving anyway */ } try { await this.sb.removeChannel(this.channel); } catch { /* leaving anyway */ } }
+  async leave() { if (this._pingTimer) { clearInterval(this._pingTimer); this._pingTimer = null; } try { await this.channel.untrack(); } catch { /* leaving anyway */ } try { await this.sb.removeChannel(this.channel); } catch { /* leaving anyway */ } }
 }
 
 // Same-browser-tabs transport for the hermetic test mode. Emulates just
