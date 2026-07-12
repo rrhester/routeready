@@ -102,7 +102,12 @@
 // 0467) — so messages and the unread badge update instantly in-app instead
 // of on the 10–30s poll. Bumped so installed driver PWAs pick up the new
 // app.js.
-const SHELL_CACHE = "rr-app-shell-v148";
+// v149 · Voice messages made obvious: the round composer button now doubles
+// as a mic when the message box is empty (WhatsApp-style) — one tap records,
+// a big Recording bar with a live timer + one-tap Send/Cancel; typing turns
+// it back into the send arrow. Bumped so installed driver PWAs pick up the
+// new app.js + CSS.
+const SHELL_CACHE = "rr-app-shell-v149";
 const SHELL_FILES = [
   "./",
   "index.html",

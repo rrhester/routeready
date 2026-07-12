@@ -5526,9 +5526,6 @@ async function renderChat() {
         <button id="chat-attach" type="button" class="chat-attach" aria-label="Attach photo or document" title="Attach">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
         </button>
-        <button id="chat-mic" type="button" class="chat-attach" aria-label="Record a voice message" title="Voice message">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-        </button>
         <div style="flex:1;display:flex;flex-direction:column;gap:6px;min-width:0">
           <div class="chat-qa-strip" id="chat-qa-strip">
             <button type="button" class="chat-qa-chip" data-qa="Running late">Running late</button>
@@ -5540,8 +5537,9 @@ async function renderChat() {
           <div id="chat-attachment-preview" style="display:none"></div>
           <textarea id="chat-input" rows="1" placeholder="Message dispatch…" maxlength="2000"></textarea>
         </div>
-        <button class="chat-send" type="submit" aria-label="Send">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        <button class="chat-send is-mic" id="chat-send" type="submit" aria-label="Record a voice message">
+          <svg class="ic-send" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          <svg class="ic-mic" viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
         </button>
       </form>
     </div>`;
@@ -5570,6 +5568,8 @@ async function renderChat() {
   ta.addEventListener("input", () => {
     ta.style.height = "auto";
     ta.style.height = Math.min(120, ta.scrollHeight) + "px";
+    // Flip the round button between mic (empty) and send (typing).
+    window._rrSyncMicMode?.();
     // Throttled typing broadcast so dispatch sees the live indicator.
     _drvBroadcastTyping();
     // Debounced draft save.
@@ -5633,118 +5633,138 @@ async function renderChat() {
   // driver-chat-attachments bucket and post it through driver_chat_send with
   // an audio/* MIME — so it inherits threading, Web Push ("Voice message"),
   // realtime delivery and unread badges with zero new backend surface.
-  const micBtn = document.getElementById("chat-mic");
-  if (micBtn) {
-    const canRecord = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
-    if (!canRecord) {
-      micBtn.style.display = "none";
-    } else {
-      let _rec = null, _chunks = [], _stream = null, _t0 = 0, _timer = null;
-      const pickMime = () => {
-        const cands = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/aac", "audio/ogg;codecs=opus"];
-        for (const m of cands) { try { if (MediaRecorder.isTypeSupported(m)) return m; } catch {} }
-        return "";
-      };
-      const teardown = () => {
-        if (_timer) { clearInterval(_timer); _timer = null; }
-        if (_stream) { try { _stream.getTracks().forEach(t => t.stop()); } catch {} _stream = null; }
-        previewEl.style.display = "none"; previewEl.innerHTML = "";
-        micBtn.classList.remove("recording");
-      };
-      const renderBar = () => {
-        previewEl.style.display = "";
-        previewEl.innerHTML = `
-          <div style="display:flex;align-items:center;gap:10px;background:var(--canvas);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:var(--fs-sm)">
-            <span style="width:9px;height:9px;border-radius:50%;background:var(--danger,#e5484d);animation:rrPulse 1s ease-in-out infinite" aria-hidden="true"></span>
-            <span style="font-variant-numeric:tabular-nums;font-weight:600;color:var(--text)" id="rr-voice-timer">0:00</span>
-            <span style="flex:1;color:var(--text-subtle)">Recording…</span>
-            <button type="button" id="rr-voice-cancel" class="chat-attach-x" aria-label="Cancel recording">×</button>
-            <button type="button" id="rr-voice-send" class="chat-send" aria-label="Send voice message" style="width:34px;height:34px">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-            </button>
-          </div>`;
-        _t0 = Date.now();
-        _timer = setInterval(() => {
-          const s = Math.floor((Date.now() - _t0) / 1000);
-          const el = document.getElementById("rr-voice-timer");
-          if (el) el.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-          if (s >= 300) stopAndSend(); // hard cap 5 min
-        }, 250);
-        document.getElementById("rr-voice-cancel").addEventListener("click", () => { _sendOnStop = false; try { _rec && _rec.stop(); } catch { teardown(); } });
-        document.getElementById("rr-voice-send").addEventListener("click", stopAndSend);
-      };
-      let _sendOnStop = false;
-      const stopAndSend = () => {
-        if (!_rec || _rec.state === "inactive") return;
-        _sendOnStop = true;
-        try { _rec.stop(); } catch { teardown(); }
-      };
-      const startRecording = async () => {
-        try {
-          _stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        } catch {
-          toast("Microphone permission is needed to send a voice message", "warn");
-          return;
-        }
-        const mime = pickMime();
-        try { _rec = mime ? new MediaRecorder(_stream, { mimeType: mime }) : new MediaRecorder(_stream); }
-        catch { _rec = new MediaRecorder(_stream); }
+  // The primary round button doubles as a MIC: when the message box is
+  // empty it shows a mic (tap → record a voice message); the moment you type
+  // it turns into the send arrow. This is the WhatsApp pattern — recording a
+  // voice note is the obvious default action, no hunting for an icon.
+  const voiceBtn = document.getElementById("chat-send");
+  const canRecord = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+  let _rec = null, _chunks = [], _stream = null, _t0 = 0, _timer = null, _sendOnStop = false;
+
+  // Flip the button between mic (empty box) and send (has text / attachment).
+  const _syncMicMode = () => {
+    if (!voiceBtn) return;
+    const recording = !!(_rec && _rec.state === "recording");
+    const empty = !((ta.value || "").trim()) && !window._rrChatPending;
+    const mic = canRecord && empty && !recording;
+    voiceBtn.classList.toggle("is-mic", mic);
+    voiceBtn.setAttribute("aria-label", recording ? "Send voice message" : mic ? "Record a voice message" : "Send");
+  };
+  window._rrSyncMicMode = _syncMicMode;
+
+  if (canRecord && voiceBtn) {
+    const pickMime = () => {
+      const cands = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/aac", "audio/ogg;codecs=opus"];
+      for (const m of cands) { try { if (MediaRecorder.isTypeSupported(m)) return m; } catch {} }
+      return "";
+    };
+    const teardown = () => {
+      if (_timer) { clearInterval(_timer); _timer = null; }
+      if (_stream) { try { _stream.getTracks().forEach(t => t.stop()); } catch {} _stream = null; }
+      previewEl.style.display = "none"; previewEl.innerHTML = "";
+      voiceBtn.classList.remove("recording");
+      _syncMicMode();
+    };
+    const renderBar = () => {
+      previewEl.style.display = "";
+      previewEl.innerHTML = `
+        <div style="display:flex;align-items:center;gap:12px;background:var(--canvas);border:1px solid var(--border);border-radius:12px;padding:10px 12px">
+          <span style="width:11px;height:11px;border-radius:50%;background:var(--danger,#e5484d);animation:rrPulse 1s ease-in-out infinite;flex:0 0 auto" aria-hidden="true"></span>
+          <span style="font-variant-numeric:tabular-nums;font-weight:700;font-size:var(--fs-md);color:var(--text)" id="rr-voice-timer">0:00</span>
+          <span style="flex:1;color:var(--text-subtle);font-size:var(--fs-sm)">Recording — tap ✓ to send</span>
+          <button type="button" id="rr-voice-cancel" aria-label="Cancel" style="width:38px;height:38px;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:var(--text-subtle);font-size:20px;line-height:1;cursor:pointer;flex:0 0 auto">×</button>
+          <button type="button" id="rr-voice-send" class="chat-send" aria-label="Send voice message" style="position:static;width:44px;height:44px;flex:0 0 auto">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </button>
+        </div>`;
+      _t0 = Date.now();
+      _timer = setInterval(() => {
+        const s = Math.floor((Date.now() - _t0) / 1000);
+        const el = document.getElementById("rr-voice-timer");
+        if (el) el.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+        if (s >= 300) stopAndSend(); // hard cap 5 min
+      }, 250);
+      document.getElementById("rr-voice-cancel").addEventListener("click", () => { _sendOnStop = false; try { _rec && _rec.stop(); } catch { teardown(); } });
+      document.getElementById("rr-voice-send").addEventListener("click", stopAndSend);
+    };
+    const stopAndSend = () => {
+      if (!_rec || _rec.state === "inactive") return;
+      _sendOnStop = true;
+      try { _rec.stop(); } catch { teardown(); }
+    };
+    const startRecording = async () => {
+      try {
+        _stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch {
+        toast("Allow microphone access to send a voice message", "warn");
+        return;
+      }
+      const mime = pickMime();
+      try { _rec = mime ? new MediaRecorder(_stream, { mimeType: mime }) : new MediaRecorder(_stream); }
+      catch { _rec = new MediaRecorder(_stream); }
+      _chunks = [];
+      _sendOnStop = false;
+      _rec.addEventListener("dataavailable", (e) => { if (e.data && e.data.size) _chunks.push(e.data); });
+      _rec.addEventListener("stop", async () => {
+        const send = _sendOnStop;
+        const type = (_rec && _rec.mimeType) || mime || "audio/webm";
+        const elapsed = Date.now() - _t0;
+        const blob = new Blob(_chunks, { type });
         _chunks = [];
-        _sendOnStop = false;
-        _rec.addEventListener("dataavailable", (e) => { if (e.data && e.data.size) _chunks.push(e.data); });
-        _rec.addEventListener("stop", async () => {
-          const send = _sendOnStop;
-          const type = (_rec && _rec.mimeType) || mime || "audio/webm";
-          const elapsed = Date.now() - _t0;
-          const blob = new Blob(_chunks, { type });
-          _chunks = [];
-          teardown();
-          if (!send) return;
-          if (!blob.size || elapsed < 700) { toast("Too short — hold to record a bit longer", "warn"); return; }
-          await sendVoiceNote(blob, type);
-        });
-        micBtn.classList.add("recording");
-        _haptic("tap");
-        renderBar();
-        _rec.start();
-      };
-      const sendVoiceNote = async (blob, type) => {
-        let dspId = session.dsp_id, driverId = session.driver_id;
-        if (!dspId || !driverId) {
-          const { data: me } = await sb.rpc("driver_me", { p_token: session.token });
-          if (me) {
-            dspId = me.dsp_id || dspId; driverId = me.id || driverId;
-            const cur = readSession(); if (cur) writeSession({ ...cur, dsp_id: dspId, driver_id: driverId });
-          }
+        teardown();
+        if (!send) return;
+        if (!blob.size || elapsed < 700) { toast("Too short — hold a little longer next time", "warn"); return; }
+        await sendVoiceNote(blob, type);
+      });
+      voiceBtn.classList.add("recording");
+      _syncMicMode();
+      _haptic("tap");
+      renderBar();
+      _rec.start();
+    };
+    const sendVoiceNote = async (blob, type) => {
+      let dspId = session.dsp_id, driverId = session.driver_id;
+      if (!dspId || !driverId) {
+        const { data: me } = await sb.rpc("driver_me", { p_token: session.token });
+        if (me) {
+          dspId = me.dsp_id || dspId; driverId = me.id || driverId;
+          const cur = readSession(); if (cur) writeSession({ ...cur, dsp_id: dspId, driver_id: driverId });
         }
-        if (!dspId || !driverId) { toast("Couldn't load profile — sign out and back in", "warn"); return; }
-        const ext = type.includes("mp4") || type.includes("aac") ? "m4a" : type.includes("ogg") ? "ogg" : "webm";
-        const path = `${dspId}/${driverId}/${Date.now()}-voice.${ext}`;
-        toast("Sending voice message…", "info");
-        const { error: upErr } = await sb.storage
-          .from("driver-chat-attachments").upload(path, blob, { contentType: type, upsert: false });
-        if (upErr) { toast(_friendlyError(upErr, "Couldn't send the voice message. Try again."), "warn"); return; }
-        const { error } = await sb.rpc("driver_chat_send", {
-          p_token:                 session.token,
-          p_body:                  null,
-          p_attachment_path:       path,
-          p_attachment_mime:       type,
-          p_attachment_name:       "Voice message",
-          p_attachment_size_bytes: blob.size,
-        });
-        if (error) { _haptic("warn"); toast(_friendlyError(error, "Couldn't send. Try again."), "warn"); return; }
-        _haptic("tap");
-        await refreshChat(false);
-      };
-      micBtn.addEventListener("click", () => { if (_rec && _rec.state === "recording") stopAndSend(); else startRecording(); });
-    }
+      }
+      if (!dspId || !driverId) { toast("Couldn't load profile — sign out and back in", "warn"); return; }
+      const ext = type.includes("mp4") || type.includes("aac") ? "m4a" : type.includes("ogg") ? "ogg" : "webm";
+      const path = `${dspId}/${driverId}/${Date.now()}-voice.${ext}`;
+      toast("Sending voice message…", "info");
+      const { error: upErr } = await sb.storage
+        .from("driver-chat-attachments").upload(path, blob, { contentType: type, upsert: false });
+      if (upErr) { toast(_friendlyError(upErr, "Couldn't send the voice message. Try again."), "warn"); return; }
+      const { error } = await sb.rpc("driver_chat_send", {
+        p_token:                 session.token,
+        p_body:                  null,
+        p_attachment_path:       path,
+        p_attachment_mime:       type,
+        p_attachment_name:       "Voice message",
+        p_attachment_size_bytes: blob.size,
+      });
+      if (error) { _haptic("warn"); toast(_friendlyError(error, "Couldn't send. Try again."), "warn"); return; }
+      _haptic("tap");
+      await refreshChat(false);
+    };
+    // Tap the round button: recording → stop+send; mic-mode → start; else
+    // (there's text) let the form submit normally.
+    voiceBtn.addEventListener("click", (e) => {
+      if (_rec && _rec.state === "recording") { e.preventDefault(); stopAndSend(); return; }
+      if (voiceBtn.classList.contains("is-mic")) { e.preventDefault(); startRecording(); return; }
+    });
   }
+  _syncMicMode();
 
   fileInput.addEventListener("change", () => {
     const f = fileInput.files?.[0];
-    if (!f) { window._rrChatPending = null; previewEl.style.display = "none"; previewEl.innerHTML = ""; return; }
+    if (!f) { window._rrChatPending = null; previewEl.style.display = "none"; previewEl.innerHTML = ""; window._rrSyncMicMode?.(); return; }
     if (f.size > 15 * 1024 * 1024) { toast("File too large (max 15 MB)", "warn"); fileInput.value = ""; return; }
     window._rrChatPending = f;
+    window._rrSyncMicMode?.(); // a staged file means "send", not "mic"
     const isImg = f.type.startsWith("image/");
     const sizeKb = Math.round(f.size / 1024);
     previewEl.style.display = "";
@@ -5763,6 +5783,7 @@ async function renderChat() {
       window._rrChatPending = null;
       previewEl.style.display = "none";
       previewEl.innerHTML = "";
+      window._rrSyncMicMode?.();
     });
   });
 
@@ -5817,6 +5838,7 @@ async function renderChat() {
     ta.value = "";
     ta.style.height = "auto";
     clearDraft(_chatDraftKey);
+    window._rrSyncMicMode?.(); // box is empty again → back to mic
     if (file) {
       window._rrChatPending = null;
       fileInput.value = "";
@@ -6933,9 +6955,10 @@ async function renderChatChannelThread() {
   document.getElementById("chat-attach").addEventListener("click", () => fileInput.click());
   fileInput.addEventListener("change", () => {
     const f = fileInput.files?.[0];
-    if (!f) { window._rrChatPending = null; previewEl.style.display = "none"; previewEl.innerHTML = ""; return; }
+    if (!f) { window._rrChatPending = null; previewEl.style.display = "none"; previewEl.innerHTML = ""; window._rrSyncMicMode?.(); return; }
     if (f.size > 15 * 1024 * 1024) { toast("File too large (max 15 MB)", "warn"); fileInput.value = ""; return; }
     window._rrChatPending = f;
+    window._rrSyncMicMode?.(); // a staged file means "send", not "mic"
     const isImg = f.type.startsWith("image/");
     const sizeKb = Math.round(f.size / 1024);
     previewEl.style.display = "";
@@ -6954,6 +6977,7 @@ async function renderChatChannelThread() {
       window._rrChatPending = null;
       previewEl.style.display = "none";
       previewEl.innerHTML = "";
+      window._rrSyncMicMode?.();
     });
   });
 
