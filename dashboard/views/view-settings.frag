@@ -722,7 +722,7 @@
                   <div class="billing-name">RouteReady Pro</div>
                   <div class="billing-price">$249/mo · billed monthly · next charge May 30</div>
                 </div>
-                <button class="btn" style="background:#fff;color:var(--text);border-color:transparent">Manage subscription</button>
+                <button class="btn">Manage subscription</button>
               </div>
 
               <h4 style="font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin:var(--s-4) 0 8px 0">Recent invoices</h4>
@@ -734,7 +734,7 @@
 
               <h4 style="font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin:var(--s-5) 0 8px 0">Payment method</h4>
               <div style="background:var(--canvas);border-radius:var(--r-md);padding:var(--s-3-5) var(--s-4);display:flex;justify-content:space-between;align-items:center">
-                <div style="display:flex;align-items:center;gap:var(--s-2-5);font-size:var(--fs-md)"><span style="background:#1A1F2E;color:#fff;padding:var(--s-1) 8px;border-radius:var(--r-sm);font-size:var(--fs-xs);font-weight:700">VISA</span>•••• 4242</div>
+                <div style="display:flex;align-items:center;gap:var(--s-2-5);font-size:var(--fs-md)"><span style="background:var(--text);color:var(--rr-white);padding:var(--s-1) 8px;border-radius:var(--r-sm);font-size:var(--fs-xs);font-weight:700">VISA</span>•••• 4242</div>
                 <button class="btn btn-sm">Update</button>
               </div>
             </div>
