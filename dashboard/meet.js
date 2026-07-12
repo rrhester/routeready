@@ -1828,6 +1828,90 @@ function showReadyCard() {
   card.hidden = false;
 }
 
+// ─── add people · email invites (instant meetings) ────────────────────────
+// "Add others" opens a Google-Meet-style dialog: type emails into chips,
+// optional note, Send. The actual mail goes out server-side via the
+// meet_invite RPC (migration 0464) → email_messages → send-email, which
+// only the host/staff of the room may call.
+
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+const inviteEmails = []; // pending chip addresses in the Add-people dialog
+
+function openInviteModal() {
+  inviteEmails.length = 0;
+  $("invite-input").value = "";
+  $("invite-note").value = "";
+  $("invite-err").textContent = "";
+  renderInviteChips();
+  $("invite-modal").hidden = false;
+  $("invite-input").focus();
+}
+
+function closeInviteModal() { $("invite-modal").hidden = true; }
+
+function renderInviteChips() {
+  const field = $("invite-field");
+  const input = $("invite-input");
+  field.querySelectorAll(".inv-chip").forEach((c) => c.remove());
+  inviteEmails.forEach((email, i) => {
+    const chip = document.createElement("span");
+    chip.className = "inv-chip";
+    const label = document.createElement("span");
+    label.textContent = email; // user input — textContent only
+    const x = document.createElement("button");
+    x.type = "button";
+    x.setAttribute("aria-label", "Remove " + email);
+    x.textContent = "×";
+    x.onclick = () => { inviteEmails.splice(i, 1); renderInviteChips(); };
+    chip.append(label, x);
+    field.insertBefore(chip, input);
+  });
+  $("invite-send").disabled = inviteEmails.length === 0;
+}
+
+// Fold a typed value into a chip. Returns false (and shows an error) only
+// when the text is a non-empty, malformed address.
+function addInviteEmail(raw) {
+  const email = String(raw || "").trim().toLowerCase().replace(/[,;]+$/, "");
+  if (!email) return true;
+  if (!EMAIL_RE.test(email)) { $("invite-err").textContent = `"${email}" doesn't look like an email address.`; return false; }
+  if (!inviteEmails.includes(email)) inviteEmails.push(email);
+  $("invite-err").textContent = "";
+  renderInviteChips();
+  return true;
+}
+
+async function sendInvites() {
+  const input = $("invite-input");
+  addInviteEmail(input.value); // fold in whatever's still typed
+  input.value = "";
+  if (!inviteEmails.length) { $("invite-err").textContent = "Add at least one email address."; return; }
+  const emails = inviteEmails.slice();
+  const note = $("invite-note").value.trim();
+  const btn = $("invite-send");
+  btn.disabled = true;
+  try {
+    if (LOCAL_MODE) {
+      await new Promise((r) => setTimeout(r, 120)); // hermetic mode has no backend
+    } else {
+      const sb = await getSb();
+      const { data, error } = await sb.rpc("meet_invite", {
+        p_code: state.code, p_emails: emails, p_message: note || null,
+      });
+      if (error) throw error;
+      if (!data?.ok) throw new Error(data?.reason || "invite_failed");
+    }
+    closeInviteModal();
+    toast(emails.length === 1 ? "Invite sent" : `Invites sent to ${emails.length} people`);
+  } catch (err) {
+    console.error("meet_invite failed", err);
+    $("invite-err").textContent = err?.message === "forbidden"
+      ? "Only the host can invite people to this meeting."
+      : "Couldn't send the invites — try again.";
+    btn.disabled = false;
+  }
+}
+
 async function joinByInput() {
   const code = normalizeMeetCode($("join-code").value);
   if (!code) { $("join-err").textContent = "That doesn't look like a meeting code or link."; return; }
@@ -1929,6 +2013,19 @@ function wire() {
   $("mi-later").onclick = createMeetingForLater;
   $("ready-close").onclick = () => { $("ready-card").hidden = true; };
   $("ready-copy").onclick = copyInvite;
+  $("ready-add").onclick = openInviteModal;
+  $("invite-cancel").onclick = closeInviteModal;
+  $("invite-send").onclick = sendInvites;
+  $("invite-modal").addEventListener("click", (e) => { if (e.target === $("invite-modal")) closeInviteModal(); });
+  $("invite-input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === ",") { e.preventDefault(); if (addInviteEmail(e.target.value)) e.target.value = ""; }
+    else if (e.key === "Backspace" && !e.target.value && inviteEmails.length) { inviteEmails.pop(); renderInviteChips(); }
+    else if (e.key === "Escape") { e.preventDefault(); closeInviteModal(); }
+  });
+  $("invite-input").addEventListener("blur", () => {
+    const v = $("invite-input").value.trim();
+    if (v && addInviteEmail(v)) $("invite-input").value = "";
+  });
   $("later-copy").onclick = copyInvite;
   $("later-done").onclick = () => { $("later-modal").hidden = true; show("home"); };
   $("later-join").onclick = async () => { $("later-modal").hidden = true; await openLobby(); };
