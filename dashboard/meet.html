@@ -227,6 +227,10 @@
     background:#B45309;color:#fff;border-radius:12px;padding:11px 12px 11px 18px;box-shadow:0 12px 34px rgba(0,0,0,.45);
     max-width:calc(100vw - 32px);animation:wbpop .28s ease-out}
   #wait-banner[hidden]{display:none} /* author display:flex would otherwise beat [hidden] */
+
+  /* ?debug=1 connection readout (diagnostic only) */
+  #rr-debug{position:fixed;right:8px;bottom:8px;z-index:100;max-width:70vw;margin:0;background:rgba(0,0,0,.82);color:#4ade80;font:11px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;padding:8px 11px;border-radius:8px;white-space:pre;pointer-events:none;box-shadow:0 6px 20px rgba(0,0,0,.5)}
+  #rr-debug[hidden]{display:none}
   @keyframes wbpop{from{transform:translate(-50%,-14px);opacity:0}to{transform:translate(-50%,0);opacity:1}}
   @media (prefers-reduced-motion:reduce){#wait-banner{animation:none}}
   #wait-banner .wb-dot{width:9px;height:9px;border-radius:50%;background:#fff;flex:0 0 auto;animation:recblink 1.2s ease-in-out infinite}
@@ -555,6 +559,8 @@
       </div>
     </div>
   </div>
+
+  <pre id="rr-debug" hidden></pre>
 
   <div id="toast" role="status" aria-live="polite"></div>
 

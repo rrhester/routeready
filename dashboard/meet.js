@@ -60,6 +60,27 @@ const LOCAL_MODE = new URLSearchParams(location.search).has("local")
 // header buttons relocate into the bottom control bar instead.
 const EMBED = new URLSearchParams(location.search).has("embed");
 
+// ?debug=1 · on-screen connection readout. Diagnostic only — surfaces the
+// Realtime channel, subscribe status, presence count and errors so a
+// two-party "we can't see each other" report can be localized without dev
+// tools. No effect on behavior; the panel only renders when the flag is on.
+const DEBUG = new URLSearchParams(location.search).has("debug");
+const dbg = { chan: "", status: "", err: "", presence: 0, authed: false };
+function renderDebug() {
+  if (!DEBUG) return;
+  const el = document.getElementById("rr-debug");
+  if (!el) return;
+  el.hidden = false;
+  el.textContent = [
+    `code:   ${state.code || "-"}`,
+    `chan:   ${dbg.chan || "-"}`,
+    `status: ${dbg.status || "-"}`,
+    `role:   ${state.isHost ? "host" : "guest"}  authed:${dbg.authed ? "yes" : "no"}`,
+    `SEEN:   ${dbg.presence}   peers:${peers.size}   roster:${state.roster.length}`,
+    dbg.err ? `err:    ${dbg.err}` : "",
+  ].filter(Boolean).join("\n");
+}
+
 const state = {
   code: null,          // canonical "xxx-xxxx-xxx"
   meeting: null,       // meet_lookup/meet_create payload
@@ -138,9 +159,12 @@ class SupabaseTransport {
     this.key = key;
     this.lastMeta = null;
     this.joined = false;
-    this.channel = sb.channel("rr-meet:" + code.replace(/-/g, ""), {
+    this.topic = "rr-meet:" + code.replace(/-/g, "");
+    this.channel = sb.channel(this.topic, {
       config: { broadcast: { self: false }, presence: { key } },
     });
+    dbg.chan = this.topic;
+    renderDebug();
   }
   join(meta, handlers) {
     const ch = this.channel;
@@ -156,13 +180,22 @@ class SupabaseTransport {
     for (const evt of ["chat", "react", "ended", "admit", "deny"]) {
       ch.on("broadcast", { event: evt }, ({ payload }) => handlers.onEvent(evt, payload));
     }
-    ch.on("presence", { event: "sync" }, () => handlers.onPresence(ch.presenceState()));
+    ch.on("presence", { event: "sync" }, () => {
+      const s = ch.presenceState();
+      dbg.presence = Object.keys(s || {}).length;
+      renderDebug();
+      handlers.onPresence(s);
+    });
     return new Promise((resolve, reject) => {
-      ch.subscribe(async (status) => {
+      ch.subscribe(async (status, err) => {
+        dbg.status = status;
+        if (err) dbg.err = String(err.message || err);
+        renderDebug();
         if (status === "SUBSCRIBED") {
           // Fires again after every websocket drop/rejoin — re-announce
           // our presence so the roster heals without a manual refresh.
-          await ch.track(this.lastMeta);
+          const res = await ch.track(this.lastMeta);
+          if (res && res !== "ok") { dbg.err = "track:" + JSON.stringify(res); renderDebug(); }
           if (!this.joined) { this.joined = true; resolve(); }
         } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
           if (!this.joined) reject(new Error("realtime_" + status.toLowerCase()));
@@ -1595,7 +1628,7 @@ async function enterRoom() {
     // Anon guests have no session and ride the public channel.
     try {
       const { data: { session } } = await sb.auth.getSession();
-      if (session?.access_token) sb.realtime.setAuth(session.access_token);
+      if (session?.access_token) { sb.realtime.setAuth(session.access_token); dbg.authed = true; }
     } catch { /* anon guest — nothing to set */ }
     transport = new SupabaseTransport(sb, state.code, state.peerKey);
   }
@@ -1650,6 +1683,7 @@ function startInCall() {
   renderWaitingUI();
   renderGrid();
   if (state.instant) showReadyCard();
+  renderDebug();
 }
 
 function teardown() {
