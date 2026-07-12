@@ -5388,6 +5388,7 @@ async function renderChat() {
       <div id="chat-tabs" class="chat-tabs">
         <button class="chat-tab active" data-rr-chat-tab="dispatch">Dispatch</button>
         <button class="chat-tab" data-rr-chat-tab="channels">Channels</button>
+        <button class="chat-call chat-vcall" type="button" data-rr-drv-call="video" aria-label="Video call dispatch" title="Video call dispatch"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></button>
         ${(() => {
           const s = readSession();
           const p = (s?.dsp_phone || "").trim();
@@ -5723,6 +5724,13 @@ function _drvPresenceWire(session) {
       if (currentRoute() !== "/chat" || _chatTab !== "dispatch") return;
       _drvShowDispatchTyping();
     })
+    // ── Direct-call signaling (RouteReady Messages) ───────────────────
+    // Same shared DSP channel + event vocabulary as the dashboard, so a
+    // dispatcher can ring this driver (and vice-versa) with no new backend.
+    .on("broadcast", { event: "call-invite" },  ({ payload }) => _drvCallOnInvite(payload))
+    .on("broadcast", { event: "call-accept" },  ({ payload }) => _drvCallOnAccept(payload))
+    .on("broadcast", { event: "call-decline" }, ({ payload }) => _drvCallOnDecline(payload))
+    .on("broadcast", { event: "call-cancel" },  ({ payload }) => _drvCallOnCancel(payload))
     .subscribe(async (status) => {
       if (status === "SUBSCRIBED") {
         await channel.track({ kind: "driver", id: driverId, online_at: new Date().toISOString() });
@@ -5759,6 +5767,199 @@ function _drvBroadcastTyping() {
       payload: { from: session.driver_id, from_kind: "driver", ts: now },
     });
   } catch {}
+}
+
+// ─── Direct calling (driver side) ────────────────────────────────────────
+// Mirrors the dashboard call module (dashboard/live.js) over the same shared
+// DSP channel. The driver can't mint a Meet room (meet_create is staff-only),
+// so an outbound call to dispatch is a room-less invite addressed to "any
+// dispatcher"; whichever dispatcher answers mints the room and hands the code
+// back in the accept. Inbound calls from dispatch already carry a room.
+const _drvCall = {
+  state: "idle",   // idle | outgoing | incoming
+  callId: null,
+  peer: null,      // { kind, id, name }
+  room: null,
+  media: "video",
+  ring: null,
+  timer: null,
+  osNotif: null,
+};
+const DRV_CALL_TIMEOUT_MS = 35000;
+
+function _drvCallMe() {
+  const s = readSession() || {};
+  return { kind: "driver", id: s.driver_id, name: (s.name || "Driver").trim() };
+}
+function _drvCallSend(event, payload) {
+  try { _drvPresence.channel?.send({ type: "broadcast", event, payload }); } catch {}
+}
+function _drvCallInitials(name) {
+  return (name || "?").split(/\s+/).map((p) => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?";
+}
+function _drvRingEngine(freq) {
+  let ctx = null, timer = null, stopped = false;
+  const pulse = () => {
+    if (stopped) return;
+    try {
+      ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
+      if (ctx.state === "suspended") ctx.resume().catch(() => {});
+      const t0 = ctx.currentTime;
+      [0, 0.55].forEach((off) => {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.type = "sine"; o.frequency.value = freq;
+        g.gain.setValueAtTime(0.0001, t0 + off);
+        g.gain.exponentialRampToValueAtTime(0.16, t0 + off + 0.04);
+        g.gain.setValueAtTime(0.16, t0 + off + 0.34);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + off + 0.4);
+        o.connect(g).connect(ctx.destination);
+        o.start(t0 + off); o.stop(t0 + off + 0.42);
+      });
+    } catch {}
+  };
+  pulse();
+  timer = setInterval(pulse, 3000);
+  return { stop() { stopped = true; clearInterval(timer); try { ctx && ctx.close(); } catch {} } };
+}
+function _drvCallNotify(title, body) {
+  try {
+    if (!("Notification" in window) || Notification.permission !== "granted") return null;
+    const n = new Notification(title, { body, tag: "rr-call", requireInteraction: true });
+    n.onclick = () => { try { window.focus(); } catch {} n.close(); };
+    return n;
+  } catch { return null; }
+}
+function _drvCallOpenRoom(room, media) {
+  const me = _drvCallMe();
+  // meet.html lives under /dashboard; open the full path (the /m/ short link
+  // is a 302 that can drop the extra call params).
+  const url = "/dashboard/meet.html?m=" + encodeURIComponent(room) + "&call=1"
+    + "&name=" + encodeURIComponent(me.name || "")
+    + (media === "audio" ? "&cam=0" : "");
+  window.open(url, "_blank", "noopener");
+}
+function _drvCallTeardown() {
+  if (_drvCall.ring) { _drvCall.ring.stop(); _drvCall.ring = null; }
+  if (_drvCall.timer) { clearTimeout(_drvCall.timer); _drvCall.timer = null; }
+  if (_drvCall.osNotif) { try { _drvCall.osNotif.close(); } catch {} _drvCall.osNotif = null; }
+  document.getElementById("rr-call-overlay")?.remove();
+  _drvCall.state = "idle"; _drvCall.callId = null; _drvCall.peer = null; _drvCall.room = null; _drvCall.media = "video";
+}
+function _drvCallRenderOverlay(kind, peer, media) {
+  document.getElementById("rr-call-overlay")?.remove();
+  const incoming = kind === "incoming";
+  const label = media === "audio" ? "voice" : "video";
+  const status = incoming ? `Incoming ${label} call…` : `Calling dispatch…`;
+  const actions = incoming
+    ? `<button type="button" class="rr-call-btn decline" data-rr-call-decline>Decline</button>
+       <button type="button" class="rr-call-btn accept" data-rr-call-accept>${media === "audio" ? "Answer" : "Join"}</button>`
+    : `<button type="button" class="rr-call-btn decline" data-rr-call-cancel>Cancel</button>`;
+  const el = document.createElement("div");
+  el.id = "rr-call-overlay";
+  el.className = "rr-call-overlay rr-call-" + kind;
+  el.setAttribute("role", "dialog");
+  el.innerHTML = `
+    <div class="rr-call-card">
+      <div class="rr-call-ripple"><div class="rr-call-avatar">${escapeHtml(_drvCallInitials(peer && peer.name))}</div></div>
+      <div class="rr-call-name">${escapeHtml((peer && peer.name) || "Dispatch")}</div>
+      <div class="rr-call-status">${escapeHtml(status)}</div>
+      <div class="rr-call-actions">${actions}</div>
+    </div>`;
+  document.body.appendChild(el);
+}
+
+// Driver places a call to dispatch (room-less → any dispatcher answers/mints).
+function rrDrvPlaceCall(media) {
+  if (_drvCall.state !== "idle") { toast("You're already on a call.", "warn"); return; }
+  const me = _drvCallMe();
+  if (!me.id) { toast("Calling isn't ready yet — try again in a moment.", "warn"); return; }
+  if (!_drvPresence.channel) { toast("You're offline — reconnect to call.", "warn"); return; }
+  try { if ("Notification" in window && Notification.permission === "default") Notification.requestPermission(); } catch {}
+  media = media === "audio" ? "audio" : "video";
+  const callId = "call-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
+  const to = { kind: "dispatch", id: "__any__" };
+  _drvCall.state = "outgoing"; _drvCall.callId = callId; _drvCall.peer = { kind: "dispatch", id: "__any__", name: "Dispatch" }; _drvCall.room = null; _drvCall.media = media;
+  _drvCallSend("call-invite", { callId, from: me, to, media, ts: Date.now() }); // no room — dispatcher mints
+  _drvCallRenderOverlay("outgoing", _drvCall.peer, media);
+  _drvCall.ring = _drvRingEngine(440);
+  _drvCall.timer = setTimeout(() => {
+    _drvCallSend("call-cancel", { callId, to });
+    toast("No answer from dispatch");
+    _drvCallTeardown();
+  }, DRV_CALL_TIMEOUT_MS);
+}
+
+// Inbound invite from dispatch (carries a room).
+function _drvCallOnInvite(p) {
+  const me = _drvCallMe();
+  if (!p || !p.to || p.to.kind !== "driver" || String(p.to.id) !== String(me.id)) return; // not for me
+  if (_drvCall.state !== "idle") { _drvCallSend("call-decline", { callId: p.callId, to: p.from, reason: "busy" }); return; }
+  _drvCall.state = "incoming"; _drvCall.callId = p.callId; _drvCall.peer = p.from; _drvCall.room = p.room || null; _drvCall.media = p.media || "video";
+  _drvCallRenderOverlay("incoming", p.from, _drvCall.media);
+  _drvCall.ring = _drvRingEngine(560);
+  _drvCall.osNotif = _drvCallNotify(
+    "Incoming " + (_drvCall.media === "audio" ? "voice" : "video") + " call",
+    ((p.from && p.from.name) || "Dispatch") + " is calling you"
+  );
+  _drvCall.timer = setTimeout(() => { toast("Missed call from " + ((p.from && p.from.name) || "dispatch")); _drvCallTeardown(); }, DRV_CALL_TIMEOUT_MS);
+}
+function _drvCallAccept() {
+  if (_drvCall.state !== "incoming") return;
+  const { callId, peer, room, media } = _drvCall;
+  if (!room) { toast("This call is no longer available.", "warn"); _drvCallTeardown(); return; }
+  _drvCallSend("call-accept", { callId, from: _drvCallMe(), to: { kind: peer.kind, id: peer.id }, room });
+  _drvCallOpenRoom(room, media);
+  _drvCallTeardown();
+}
+function _drvCallDecline() {
+  if (_drvCall.state !== "incoming") return;
+  _drvCallSend("call-decline", { callId: _drvCall.callId, to: { kind: _drvCall.peer.kind, id: _drvCall.peer.id }, reason: "declined" });
+  _drvCallTeardown();
+}
+function _drvCallCancel() {
+  if (_drvCall.state !== "outgoing") return;
+  _drvCallSend("call-cancel", { callId: _drvCall.callId, to: { kind: _drvCall.peer.kind, id: _drvCall.peer.id } });
+  _drvCallTeardown();
+}
+// Driver was the caller: a dispatcher answered → join the room they minted,
+// then cancel the ring on every other dispatcher.
+function _drvCallOnAccept(p) {
+  if (_drvCall.state !== "outgoing" || !p || p.callId !== _drvCall.callId) return;
+  const room = p.room || _drvCall.room;
+  if (!room) { _drvCallTeardown(); return; }
+  _drvCallSend("call-cancel", { callId: _drvCall.callId, to: { kind: "dispatch", id: "__any__" } });
+  _drvCallOpenRoom(room, _drvCall.media);
+  _drvCallTeardown();
+}
+function _drvCallOnDecline(p) {
+  if (_drvCall.state !== "outgoing" || !p || p.callId !== _drvCall.callId) return;
+  toast(p.reason === "busy" ? "Dispatch is on another call" : "Dispatch declined the call");
+  _drvCallTeardown();
+}
+function _drvCallOnCancel(p) {
+  if (_drvCall.state !== "incoming" || !p || p.callId !== _drvCall.callId) return;
+  toast("Missed call from " + ((_drvCall.peer && _drvCall.peer.name) || "dispatch"));
+  _drvCallTeardown();
+}
+window.rrDrvPlaceCall = rrDrvPlaceCall;
+window.rrDrvIncomingCall = _drvCallOnInvite;
+
+// Delegated controls for the driver call overlay + the chat "video call"
+// button. Bound once.
+if (!window.__rrDrvCallWired) {
+  window.__rrDrvCallWired = true;
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("[data-rr-call-accept]"))  { _drvCallAccept();  return; }
+    if (e.target.closest("[data-rr-call-decline]")) { _drvCallDecline(); return; }
+    if (e.target.closest("[data-rr-call-cancel]"))  { _drvCallCancel();  return; }
+    const cb = e.target.closest("[data-rr-drv-call]");
+    if (cb) { e.preventDefault(); rrDrvPlaceCall(cb.getAttribute("data-rr-drv-call") === "audio" ? "audio" : "video"); return; }
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if (_drvCall.state === "incoming") _drvCallDecline();
+    else if (_drvCall.state === "outgoing") _drvCallCancel();
+  });
 }
 
 function _drvShowDispatchTyping() {
