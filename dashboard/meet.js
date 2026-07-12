@@ -2140,7 +2140,19 @@ async function resolveCode(code) {
         iceServers = ice.ice_servers;
       }
     } catch { /* STUN-only fallback */ }
-    await openLobby();
+    const q = new URLSearchParams(location.search);
+    if (q.has("call")) {
+      // Direct call (RouteReady Messages): skip the lobby and drop straight
+      // into the room so ring → answer → connected feels instant. Both the
+      // caller and the callee open meet with ?call=1; a voice call passes
+      // cam=0 so we join with the camera off. openLobby({silent}) still wires
+      // media/preview/name so a failed join falls back to a working lobby.
+      if (q.get("cam") === "0") state.cam = false;
+      await openLobby({ silent: true });
+      await enterRoom();
+    } else {
+      await openLobby();
+    }
   } catch (err) {
     console.error("meet_lookup failed", err);
     $("home-err").textContent = "Couldn't reach the meeting service — check your connection and try again.";
