@@ -41953,6 +41953,22 @@ function _rrCallSend(event, payload) {
 function _rrCallInitials(name) {
   return (name || "?").split(/\s+/).map((p) => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?";
 }
+// Record a call event to history (best-effort; no-ops until migration 0471
+// is applied). Direction is relative to this client: outgoing = we placed it.
+function _rrCallLog(callId, direction, peer, media, status) {
+  if (!callId) return;
+  try {
+    sb.rpc("call_log_event", {
+      p_call_id:   callId,
+      p_direction: direction,
+      p_peer_kind: peer?.kind || null,
+      p_peer_id:   peer?.id != null ? String(peer.id) : null,
+      p_peer_name: peer?.name || null,
+      p_media:     media || null,
+      p_status:    status,
+    }).then(undefined, () => {});
+  } catch {}
+}
 
 // Looping WebAudio ring — no audio asset (matches Meet's sound engine).
 // `freq` distinguishes the incoming ringtone from the outgoing ringback.
@@ -42140,6 +42156,7 @@ async function rrPlaceCall(peer, media) {
   }
   const callId = "call-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
   _rrCall.state = "outgoing"; _rrCall.callId = callId; _rrCall.peer = peer; _rrCall.room = room; _rrCall.media = media;
+  _rrCallLog(callId, "outgoing", peer, media, "ringing");
   _rrCallSend("call-invite", { callId, from: me, to: { kind: peer.kind, id: peer.id }, room, media, ts: Date.now() });
   // Wake a CLOSED driver app with a Web Push (the realtime broadcast above
   // only reaches an app that's still connected). Best-effort + non-blocking:
@@ -42157,6 +42174,7 @@ async function rrPlaceCall(peer, media) {
   _rrCall.ring = _rrRingEngine(440); // ringback (lower tone)
   _rrCall.timer = setTimeout(() => {
     _rrCallSend("call-cancel", { callId, to: { kind: peer.kind, id: peer.id } });
+    _rrCallLog(callId, "outgoing", peer, media, "missed");
     toast("No answer from " + (peer.name || "them"));
     _rrCallTeardown();
   }, RR_CALL_TIMEOUT_MS);
@@ -42172,6 +42190,7 @@ function _rrCallOnInvite(p) {
   if (!forMe) return;
   if (_rrCall.state !== "idle") { _rrCallSend("call-decline", { callId: p.callId, to: p.from, reason: "busy" }); return; }
   _rrCall.state = "incoming"; _rrCall.callId = p.callId; _rrCall.peer = p.from; _rrCall.room = p.room || null; _rrCall.media = p.media || "video";
+  _rrCallLog(p.callId, "incoming", p.from, _rrCall.media, "ringing");
   _rrCallRenderOverlay("incoming", p.from, _rrCall.media);
   _rrCall.ring = _rrRingEngine(560); // incoming ringtone (higher tone)
   _rrCall.osNotif = _rrCallNotify(
@@ -42179,6 +42198,7 @@ function _rrCallOnInvite(p) {
     (p.from?.name || "Someone") + " is calling you"
   );
   _rrCall.timer = setTimeout(() => {
+    _rrCallLog(p.callId, "incoming", p.from, _rrCall.media, "missed");
     toast("Missed call from " + (p.from?.name || "someone"));
     _rrCallTeardown();
   }, RR_CALL_TIMEOUT_MS);
@@ -42197,17 +42217,20 @@ async function _rrCallAccept() {
     } catch {}
     if (!room) { toast("Couldn't start the call — try again.", "warn"); return; }
   }
+  _rrCallLog(callId, "incoming", peer, media, "answered");
   _rrCallSend("call-accept", { callId, from: _rrCallMe(), to: { kind: peer.kind, id: peer.id }, room });
   _rrCallOpenRoom(room, media);
   _rrCallTeardown();
 }
 function _rrCallDecline() {
   if (_rrCall.state !== "incoming") return;
+  _rrCallLog(_rrCall.callId, "incoming", _rrCall.peer, _rrCall.media, "declined");
   _rrCallSend("call-decline", { callId: _rrCall.callId, to: { kind: _rrCall.peer.kind, id: _rrCall.peer.id }, reason: "declined" });
   _rrCallTeardown();
 }
 function _rrCallCancel() {
   if (_rrCall.state !== "outgoing") return;
+  _rrCallLog(_rrCall.callId, "outgoing", _rrCall.peer, _rrCall.media, "cancelled");
   _rrCallSend("call-cancel", { callId: _rrCall.callId, to: { kind: _rrCall.peer.kind, id: _rrCall.peer.id } });
   _rrCallTeardown();
 }
@@ -42218,6 +42241,7 @@ function _rrCallOnAccept(p) {
   if (_rrCall.state !== "outgoing" || !p || p.callId !== _rrCall.callId) return;
   const room = p.room || _rrCall.room;
   if (!room) { _rrCallTeardown(); return; }
+  _rrCallLog(_rrCall.callId, "outgoing", _rrCall.peer, _rrCall.media, "answered");
   _rrCallOpenRoom(room, _rrCall.media);
   _rrCallTeardown();
 }
@@ -42225,12 +42249,14 @@ function _rrCallOnAccept(p) {
 function _rrCallOnDecline(p) {
   if (_rrCall.state !== "outgoing" || !p || p.callId !== _rrCall.callId) return;
   const who = _rrCall.peer?.name || "They";
+  _rrCallLog(_rrCall.callId, "outgoing", _rrCall.peer, _rrCall.media, "declined");
   toast(p.reason === "busy" ? `${who} are on another call` : `${who} declined the call`);
   _rrCallTeardown();
 }
 // Callee: caller hung up before we answered.
 function _rrCallOnCancel(p) {
   if (_rrCall.state !== "incoming" || !p || p.callId !== _rrCall.callId) return;
+  _rrCallLog(_rrCall.callId, "incoming", _rrCall.peer, _rrCall.media, "missed");
   toast("Missed call from " + (_rrCall.peer?.name || "someone"));
   _rrCallTeardown();
 }
@@ -42280,6 +42306,69 @@ function _rrToggleTeammateMenu(btn) {
   menu.style.left = Math.round(Math.max(8, Math.min(r.left, window.innerWidth - w - 8))) + "px";
 }
 
+// ── Call history ─────────────────────────────────────────────────────────
+// A popover off the Messages header listing recent + missed calls (from the
+// calls table, migration 0471), with click-to-call-back. Guarded — an empty
+// state covers the window before the migration is applied.
+const _RR_CALL_ICONS = {
+  out: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>',
+  in:  '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="17" y1="7" x2="7" y2="17"/><polyline points="17 17 7 17 7 7"/></svg>',
+};
+async function _rrRenderCallHistory() {
+  const menu = document.getElementById("rr-callhist-menu");
+  if (!menu) return;
+  const list = menu.querySelector(".rr-ch-list");
+  let rows = [];
+  try {
+    const { data, error } = await sb.rpc("call_history", { p_limit: 30 });
+    if (error) throw error;
+    rows = Array.isArray(data) ? data : [];
+  } catch {
+    if (list) list.innerHTML = `<div class="rr-tm-empty">Call history isn't available yet.</div>`;
+    return;
+  }
+  if (!document.getElementById("rr-callhist-menu")) return; // closed while loading
+  if (!rows.length) {
+    list.innerHTML = `<div class="rr-tm-empty">No calls yet.<br>Placed and received calls show up here.</div>`;
+    return;
+  }
+  list.innerHTML = rows.map((c) => {
+    const missed = c.status === "missed";
+    const initials = (c.peer_name || "?").split(/\s+/).map((p) => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?";
+    const dirIcon = c.direction === "outgoing" ? _RR_CALL_ICONS.out : _RR_CALL_ICONS.in;
+    const label = missed ? "Missed"
+      : c.status === "declined" ? "Declined"
+      : c.status === "cancelled" ? "Canceled"
+      : c.direction === "outgoing" ? "Outgoing" : "Incoming";
+    const callable = c.peer_id && c.peer_id !== "__any__" && c.peer_kind;
+    return `<div class="rr-ch-row${missed ? " missed" : ""}"${callable ? ` data-rr-ch-call data-kind="${escapeHtml(c.peer_kind)}" data-id="${escapeHtml(c.peer_id)}" data-name="${escapeHtml(c.peer_name || "")}" data-media="${escapeHtml(c.media || "video")}" role="button" tabindex="0"` : ""}>
+        <span class="rr-ch-dir">${dirIcon}</span>
+        <div class="rr-ch-avatar">${escapeHtml(initials)}</div>
+        <div class="rr-ch-body">
+          <div class="rr-ch-name">${escapeHtml(c.peer_name || "Unknown")}</div>
+          <div class="rr-ch-meta">${escapeHtml(label)} · ${escapeHtml(_fmtMsgRelative(c.started_at))}</div>
+        </div>
+        ${callable ? `<span class="rr-ch-back" aria-hidden="true">${(c.media === "audio" ? _RR_MC_ICONS.phone : _RR_MC_ICONS.video)}</span>` : ""}
+      </div>`;
+  }).join("");
+}
+function _rrToggleCallHistory(btn) {
+  const existing = document.getElementById("rr-callhist-menu");
+  if (existing) { existing.remove(); return; }
+  document.getElementById("rr-teammate-menu")?.remove();
+  const menu = document.createElement("div");
+  menu.id = "rr-callhist-menu";
+  menu.className = "rr-teammate-menu rr-callhist-menu";
+  menu.setAttribute("role", "menu");
+  menu.innerHTML = `<div class="rr-tm-head">Recent calls</div><div class="rr-ch-list rr-tm-list"><div class="rr-tm-empty">Loading…</div></div>`;
+  document.body.appendChild(menu);
+  _rrRenderCallHistory();
+  const r = btn.getBoundingClientRect();
+  const w = 300;
+  menu.style.top = Math.round(r.bottom + 8) + "px";
+  menu.style.left = Math.round(Math.max(8, Math.min(r.left, window.innerWidth - w - 8))) + "px";
+}
+
 // Delegated controls for the call overlay + the conversation-header call
 // buttons. Bound once so it survives every thread re-render.
 if (!window.__rrCallWired) {
@@ -42290,6 +42379,15 @@ if (!window.__rrCallWired) {
     if (e.target.closest("[data-rr-call-cancel]"))  { _rrCallCancel();  return; }
     const teammateBtn = e.target.closest("[data-rr-call-teammate]");
     if (teammateBtn) { e.preventDefault(); _rrToggleTeammateMenu(teammateBtn); return; }
+    const histBtn = e.target.closest("[data-rr-call-history]");
+    if (histBtn) { e.preventDefault(); _rrToggleCallHistory(histBtn); return; }
+    const chBack = e.target.closest("[data-rr-ch-call]");
+    if (chBack) {
+      const media = chBack.getAttribute("data-media") === "audio" ? "audio" : "video";
+      document.getElementById("rr-callhist-menu")?.remove();
+      rrPlaceCall({ kind: chBack.getAttribute("data-kind"), id: chBack.getAttribute("data-id"), name: chBack.getAttribute("data-name") || "Contact" }, media);
+      return;
+    }
     const staffBtn = e.target.closest("[data-rr-call-staff]");
     if (staffBtn) {
       const media = staffBtn.getAttribute("data-rr-call-staff") === "audio" ? "audio" : "video";
@@ -42297,8 +42395,9 @@ if (!window.__rrCallWired) {
       rrPlaceCall({ kind: "dispatch", id: staffBtn.getAttribute("data-id"), name: staffBtn.getAttribute("data-name") || "Teammate" }, media);
       return;
     }
-    // Outside-click closes the teammate menu.
+    // Outside-click closes the teammate + call-history popovers.
     if (!e.target.closest("#rr-teammate-menu")) document.getElementById("rr-teammate-menu")?.remove();
+    if (!e.target.closest("#rr-callhist-menu") && !e.target.closest("[data-rr-call-history]")) document.getElementById("rr-callhist-menu")?.remove();
     const callBtn = e.target.closest("[data-rr-call]");
     if (callBtn) {
       const media = callBtn.getAttribute("data-rr-call") === "audio" ? "audio" : "video";
@@ -42312,8 +42411,19 @@ if (!window.__rrCallWired) {
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
     if (document.getElementById("rr-teammate-menu")) { document.getElementById("rr-teammate-menu").remove(); return; }
+    if (document.getElementById("rr-callhist-menu")) { document.getElementById("rr-callhist-menu").remove(); return; }
     if (_rrCall.state === "incoming") _rrCallDecline();
     else if (_rrCall.state === "outgoing") _rrCallCancel();
+  });
+  // Keyboard activation for a call-history call-back row.
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const row = e.target.closest?.("[data-rr-ch-call]");
+    if (!row) return;
+    e.preventDefault();
+    const media = row.getAttribute("data-media") === "audio" ? "audio" : "video";
+    document.getElementById("rr-callhist-menu")?.remove();
+    rrPlaceCall({ kind: row.getAttribute("data-kind"), id: row.getAttribute("data-id"), name: row.getAttribute("data-name") || "Contact" }, media);
   });
 }
 
