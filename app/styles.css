@@ -1765,6 +1765,13 @@ body.scan-camming{overflow:hidden}
 .chat-send:hover{ background:var(--accent-hover) }
 .chat-send:active{ background:var(--accent-pressed) }
 .chat-send:disabled{ opacity:.45;cursor:not-allowed;box-shadow:none }
+/* The send button doubles as a mic when the message box is empty
+   (WhatsApp-style) so recording a voice message is the obvious action. */
+.chat-send .ic-mic{ display:none }
+.chat-send.is-mic .ic-send{ display:none }
+.chat-send.is-mic .ic-mic{ display:block }
+.chat-send.recording{ background:var(--danger,#e5484d) }
+.chat-send.recording:hover{ background:var(--danger,#e5484d) }
 .chat-msgs .empty-state{margin:auto}
 
 /* ── Availability ─────────────────────────────────────────────── */
