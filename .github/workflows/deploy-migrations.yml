@@ -134,7 +134,7 @@ jobs:
             return 1
           }
           failed=()
-          for fn in send-email send-sms health cal-availability webhook-twilio webhook-cal webhook-apply webhook-email-inbound upload-applicant-video upload-driver-photo driver-document-fetch document-verify document-classify dvic-ai-review desktop-pair ai-proxy box-ingest google-oauth-callback google-calendar-sync google-calendar-pull calendar-feed interview-room finch-oauth-callback; do
+          for fn in send-email send-sms health export-tenant-files cal-availability webhook-twilio webhook-cal webhook-apply webhook-email-inbound upload-applicant-video upload-driver-photo driver-document-fetch document-verify document-classify dvic-ai-review desktop-pair ai-proxy box-ingest google-oauth-callback google-calendar-sync google-calendar-pull calendar-feed interview-room finch-oauth-callback; do
             echo "▶ deploying $fn (no jwt)"
             if ! deploy_with_retry "$fn" --no-verify-jwt; then
               echo "::error::deploy failed for $fn"

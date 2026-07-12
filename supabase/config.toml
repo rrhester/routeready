@@ -128,6 +128,12 @@ verify_jwt = false
 [functions.health]
 verify_jwt = false
 
+# Owner-only document-file export (data portability / DSR). verify_jwt off so
+# the browser CORS preflight succeeds; the function validates the caller's JWT +
+# requires role='owner' and scopes to their dsp_id in-code.
+[functions.export-tenant-files]
+verify_jwt = false
+
 # Cal.com interview-availability editor. Reads/writes the operator's single
 # shared Cal schedule via the server-side CAL_API_KEY. Gateway verify_jwt off
 # so the browser CORS preflight gets a 2xx; the function validates the caller's

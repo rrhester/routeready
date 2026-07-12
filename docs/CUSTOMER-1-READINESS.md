@@ -99,8 +99,12 @@ Owner-role user → **Settings → Workspace → Export your data** → download
 select public.export_my_dsp_data();   -- must be run in an owner's session/JWT context
 ```
 Returns dsp profile, team, drivers, driver-document **metadata**, applicants,
-coachings, shifts, time-off. (Document *files* live in a private bucket and are a
-separate bulk-export follow-up.)
+coachings, shifts, time-off.
+
+For the document **files** themselves, use **Settings → Workspace → Export files
+(links)** (owner only). It downloads a JSON manifest of fresh, 1-hour signed
+download links to every driver-document file, via the `export-tenant-files` edge
+function. (A single ZIP bundle is a reasonable v2.)
 
 ---
 
