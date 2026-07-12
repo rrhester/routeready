@@ -6521,6 +6521,75 @@ async function refreshChat(scrollToBottom) {
   }
 }
 
+// ─── Voice-note player ────────────────────────────────────────────────────
+// A custom audio player (play/pause · waveform scrub · time · 1×/1.5×/2×)
+// wrapped around a hidden native <audio> that does the real playback (the
+// signed URL is bound to its .src by _rrSignChatAttachments). The waveform is
+// a deterministic set of bars seeded from the message id — it reads as a real
+// voice-note waveform and doubles as the seek surface, with no per-note audio
+// decode. Used by both the dispatch thread and channels.
+function voiceNotePlayerHtml(path, id) {
+  let h = 2166136261 >>> 0;
+  const s = String(id || path || "");
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  const N = 32; let bars = "";
+  for (let i = 0; i < N; i++) { h = (Math.imul(h, 1103515245) + 12345) & 0x7fffffff; bars += `<i style="height:${20 + (h % 78)}%"></i>`; }
+  const p = escapeHtml(path);
+  return `
+    <div class="vn" data-rr-vn>
+      <button type="button" class="vn-play" data-rr-vn-play aria-label="Play voice message">
+        <svg class="vn-ic-play" viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+        <svg class="vn-ic-pause" viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
+      </button>
+      <div class="vn-track" data-rr-vn-track aria-hidden="true">
+        <div class="vn-bars base">${bars}</div>
+        <div class="vn-bars fill">${bars}</div>
+      </div>
+      <span class="vn-time" data-rr-vn-time>0:00</span>
+      <button type="button" class="vn-speed" data-rr-vn-speed aria-label="Playback speed">1×</button>
+      <audio data-rr-attach="${p}" preload="metadata" style="display:none"></audio>
+    </div>`;
+}
+
+// Wire one voice-note player. Called from the signed-URL resolver once the
+// hidden <audio> has (or is getting) its src. Idempotent per player.
+function _wireVoiceNotePlayer(audio) {
+  const box = audio.closest && audio.closest("[data-rr-vn]");
+  if (!box || box.dataset.rrVnWired) return;
+  box.dataset.rrVnWired = "1";
+  const playBtn = box.querySelector("[data-rr-vn-play]");
+  const track   = box.querySelector("[data-rr-vn-track]");
+  const timeEl  = box.querySelector("[data-rr-vn-time]");
+  const speedBtn = box.querySelector("[data-rr-vn-speed]");
+  const fmt = (s) => { s = Math.max(0, Math.floor(s || 0)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
+  const showDur = () => { if (timeEl && isFinite(audio.duration)) timeEl.textContent = fmt(audio.duration); };
+  audio.addEventListener("loadedmetadata", showDur);
+  audio.addEventListener("timeupdate", () => {
+    const d = audio.duration;
+    box.style.setProperty("--vn-p", isFinite(d) && d ? (audio.currentTime / d) : 0);
+    if (timeEl && !audio.paused) timeEl.textContent = fmt(audio.currentTime);
+  });
+  audio.addEventListener("play",  () => box.classList.add("playing"));
+  audio.addEventListener("pause", () => { box.classList.remove("playing"); showDur(); });
+  audio.addEventListener("ended", () => { box.classList.remove("playing"); box.style.setProperty("--vn-p", 0); showDur(); });
+  playBtn && playBtn.addEventListener("click", () => {
+    // Only one voice note plays at a time.
+    document.querySelectorAll('[data-rr-vn] audio').forEach((a) => { if (a !== audio) a.pause(); });
+    if (audio.paused) audio.play().catch(() => {}); else audio.pause();
+  });
+  track && track.addEventListener("click", (e) => {
+    if (!isFinite(audio.duration) || !audio.duration) return;
+    const r = track.getBoundingClientRect();
+    audio.currentTime = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)) * audio.duration;
+  });
+  const speeds = [1, 1.5, 2]; let si = 0;
+  speedBtn && speedBtn.addEventListener("click", () => {
+    si = (si + 1) % speeds.length; audio.playbackRate = speeds[si];
+    speedBtn.textContent = speeds[si] + "×";
+  });
+  showDur();
+}
+
 function chatBubbleHtml(m, pos) {
   const mine = m.sender_kind === "driver";
   const t = new Date(m.created_at);
@@ -6561,13 +6630,9 @@ function chatBubbleHtml(m, pos) {
       const extraStyle = isVector ? "object-fit:contain;background:#fff;" : "";
       attachment = `<img data-rr-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" width="240" height="240" loading="eager" decoding="async" style="max-width:240px;border-radius:10px;margin-bottom:6px;cursor:zoom-in;${extraStyle}" onclick="window.open(this.src,'_blank')"/>`;
     } else if (isAudio) {
-      // Voice note — inline player. The signed URL is bound to .src by the
-      // same data-rr-attach resolver used for images (extended to <audio>).
-      attachment = `
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;max-width:260px">
-          <span style="font-size:16px" aria-hidden="true">🎤</span>
-          <audio data-rr-attach="${escapeHtml(m.attachment_path)}" controls preload="metadata" style="flex:1;min-width:0;height:38px"></audio>
-        </div>`;
+      // Voice note — custom player (waveform scrub + speed) over a hidden
+      // native <audio> the resolver binds the signed URL to.
+      attachment = voiceNotePlayerHtml(m.attachment_path, m.id);
     } else {
       attachment = `
         <a data-rr-attach="${escapeHtml(m.attachment_path)}" target="_blank" rel="noopener" style="display:flex;gap:8px;align-items:center;padding:8px 10px;background:var(--canvas);border:1px solid var(--border);border-radius:10px;margin-bottom:6px;text-decoration:none;color:inherit;max-width:240px">
@@ -6703,6 +6768,7 @@ async function _rrSignChatAttachments() {
         el.addEventListener("load",  () => el.setAttribute("data-rr-loaded", "1"), { once: true });
         el.addEventListener("error", () => el.setAttribute("data-rr-loaded", "1"), { once: true });
         el.src = path;
+        if (el.tagName === "AUDIO") _wireVoiceNotePlayer(el);
       } else {
         el.href = path;
       }
@@ -6726,6 +6792,7 @@ async function _rrSignChatAttachments() {
           el.setAttribute("data-rr-loaded", "1");
         }, { once: true });
         el.src = data.signedUrl;
+        if (el.tagName === "AUDIO") _wireVoiceNotePlayer(el);
       } else {
         el.href = data.signedUrl;
       }
@@ -7167,13 +7234,9 @@ function channelBubbleHtml(m, pos) {
       // Fixed 240x240 box (see chatBubbleHtml comment + styles.css).
       attachment = `<img data-rr-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" width="240" height="240" loading="eager" decoding="async" style="max-width:240px;border-radius:10px;margin-bottom:6px;cursor:zoom-in" onclick="window.open(this.src,'_blank')"/>`;
     } else if (isAudio) {
-      // Voice note — inline player. The signed URL is bound to .src by the
-      // same data-rr-attach resolver used for images (extended to <audio>).
-      attachment = `
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;max-width:260px">
-          <span style="font-size:16px" aria-hidden="true">🎤</span>
-          <audio data-rr-attach="${escapeHtml(m.attachment_path)}" controls preload="metadata" style="flex:1;min-width:0;height:38px"></audio>
-        </div>`;
+      // Voice note — custom player (waveform scrub + speed) over a hidden
+      // native <audio> the resolver binds the signed URL to.
+      attachment = voiceNotePlayerHtml(m.attachment_path, m.id);
     } else {
       attachment = `
         <a data-rr-attach="${escapeHtml(m.attachment_path)}" target="_blank" rel="noopener" style="display:flex;gap:8px;align-items:center;padding:8px 10px;background:var(--canvas);border:1px solid var(--border);border-radius:10px;margin-bottom:6px;text-decoration:none;color:inherit;max-width:240px">
