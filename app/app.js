@@ -5512,6 +5512,7 @@ async function renderChat() {
         <button class="chat-tab active" data-rr-chat-tab="dispatch">Dispatch</button>
         <button class="chat-tab" data-rr-chat-tab="channels">Channels</button>
         <button class="chat-call chat-vcall" type="button" data-rr-drv-call="video" aria-label="Video call dispatch" title="Video call dispatch"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></button>
+        <button class="chat-call chat-radio" type="button" data-rr-drv-radio aria-label="Open the dispatch radio" title="Radio"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg></button>
         ${(() => {
           const s = readSession();
           const p = (s?.dsp_phone || "").trim();
@@ -6117,6 +6118,27 @@ function _drvCallNotify(title, body) {
     return n;
   } catch { return null; }
 }
+// Open the DSP push-to-talk radio: fetch the stable per-DSP room code, then
+// drop into meet.html in ?ptt=1 mode (audio-only, mic muted, hold-to-talk).
+async function _drvOpenRadio() {
+  const session = readSession();
+  if (!session?.token) return;
+  // Open the window synchronously (inside the tap) so mobile browsers don't
+  // block the popup while we fetch the code; then point it at the room.
+  const w = window.open("about:blank", "_blank");
+  try {
+    const { data: code, error } = await sb.rpc("driver_meet_radio_code", { p_token: session.token });
+    if (error || !code) { if (w) w.close(); toast("Couldn't open the radio. Try again.", "warn"); return; }
+    const me = _drvCallMe ? _drvCallMe() : { name: "" };
+    const url = "/dashboard/meet.html?m=" + encodeURIComponent(code) + "&ptt=1&cam=0"
+      + "&name=" + encodeURIComponent(me.name || "");
+    if (w) w.location.href = url; else location.href = url;
+  } catch {
+    if (w) w.close();
+    toast("Couldn't open the radio. Try again.", "warn");
+  }
+}
+
 function _drvCallOpenRoom(room, media, replace) {
   const me = _drvCallMe();
   // meet.html lives under /dashboard; open the full path (the /m/ short link
@@ -6284,6 +6306,7 @@ if (!window.__rrDrvCallWired) {
     if (e.target.closest("[data-rr-call-cancel]"))  { _drvCallCancel();  return; }
     const cb = e.target.closest("[data-rr-drv-call]");
     if (cb) { e.preventDefault(); rrDrvPlaceCall(cb.getAttribute("data-rr-drv-call") === "audio" ? "audio" : "video"); return; }
+    if (e.target.closest("[data-rr-drv-radio]")) { e.preventDefault(); _drvOpenRadio(); return; }
   });
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;

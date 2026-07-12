@@ -37868,6 +37868,7 @@ async function refreshDriverChatThread(scrollToBottom) {
             <div class="rr-mc-sub">${_hSub}</div>
           </div>
           <div class="rr-mc-head-actions">
+            <button type="button" class="rr-mc-head-btn" data-rr-radio title="Dispatch radio (push-to-talk)" aria-label="Dispatch radio"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg></button>
             <button type="button" class="rr-mc-head-btn" data-rr-call="audio" title="Voice call" aria-label="Voice call">${_RR_MC_ICONS.phone}</button>
             <button type="button" class="rr-mc-head-btn" data-rr-call="video" title="Video call" aria-label="Video call">${_RR_MC_ICONS.video}</button>
             <button type="button" class="rr-mc-head-btn rr-mc-head-btn-details" data-rr-details-toggle aria-pressed="false" title="Driver details" aria-label="Toggle driver details">${_RR_MC_ICONS.panel}</button>
@@ -42848,6 +42849,21 @@ function _rrCallOnCancel(p) {
   _rrCallTeardown();
 }
 window.rrPlaceCall = rrPlaceCall;
+
+// Open the DSP push-to-talk radio: fetch the stable per-DSP room code, then
+// open meet.html in ?ptt=1 mode (audio-only, mic muted, hold-to-talk). The
+// same room every dispatcher + on-shift driver joins.
+async function _rrOpenRadio() {
+  const w = window.open("about:blank", "_blank");
+  try {
+    const { data: code, error } = await sb.rpc("meet_radio_code");
+    if (error || !code) { if (w) w.close(); toast("Couldn't open the radio."); return; }
+    const nm = window.RR?.user?.name || window.RR?.user?.full_name || "Dispatch";
+    const url = "meet.html?m=" + encodeURIComponent(code) + "&ptt=1&cam=0&name=" + encodeURIComponent(nm);
+    if (w) w.location.href = url; else window.open(url, "_blank");
+  } catch { if (w) w.close(); toast("Couldn't open the radio."); }
+}
+
 // Exposed so a push/service-worker wake (or the driver-app bridge) can inject
 // an incoming-call ring without going through the realtime broadcast.
 window.rrIncomingCall = _rrCallOnInvite;
@@ -42994,6 +43010,7 @@ if (!window.__rrCallWired) {
       rrPlaceCall({ kind: "driver", id, name: meta.name || "Driver" }, media);
       return;
     }
+    if (e.target.closest("[data-rr-radio]")) { _rrOpenRadio(); return; }
   });
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
