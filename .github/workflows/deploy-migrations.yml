@@ -98,7 +98,7 @@ jobs:
             return 1
           }
           failed=()
-          for fn in send-driver-push cal-availability invite-team-member admin-delete-dsp google-oauth-start google-calendar-disconnect google-calendar-events google-drive-create google-drive-status dispatch-optimization-run finch-oauth-start finch-sync workbook-ai notebook-ai flex-capacity; do
+          for fn in send-driver-push send-staff-push cal-availability invite-team-member admin-delete-dsp google-oauth-start google-calendar-disconnect google-calendar-events google-drive-create google-drive-status dispatch-optimization-run finch-oauth-start finch-sync workbook-ai notebook-ai flex-capacity; do
             echo "▶ deploying $fn (auth required)"
             if ! deploy_with_retry "$fn"; then
               echo "::error::deploy failed for $fn"
