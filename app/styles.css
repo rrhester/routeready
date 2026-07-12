@@ -369,6 +369,14 @@ main[data-page-enter] > *{
   transition:transform 160ms var(--ease-out), box-shadow 160ms var(--ease-out);
 }
 .card-strong{box-shadow:var(--shadow-lg), var(--highlight-top-strong)}
+/* Compact stat tiles — a small readout grid (e.g. the attendance
+   record: Points / Callouts / No-shows / Tardies). Canvas-tinted cells
+   with a tabular value + micro label, all on the token scale so the
+   readout reads as one system with the rest of the app. */
+.stat-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-2)}
+.stat-tile{background:var(--canvas);border-radius:var(--r-lg);padding:var(--s-2-5) var(--s-2);text-align:center}
+.stat-tile-value{font-size:var(--fs-lg);font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;line-height:1.2}
+.stat-tile-label{font-size:var(--fs-xs);color:var(--text-subtle);font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin-top:2px}
 /* Legacy empty state — restyled to read as the same treatment as the
    newer .rr-empty pattern (same type, spacing rhythm, centering) so the
    two generations of screens stop looking like different apps. */

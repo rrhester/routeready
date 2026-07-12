@@ -11231,23 +11231,11 @@ async function renderAttendance() {
       ${enabled ? `
       <div class="card">
         <div class="checkin-title" style="margin-bottom:8px">Your record · last ${policy.decay_days} days</div>
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px">
-          <div style="background:var(--canvas);border-radius:10px;padding:10px 8px;text-align:center">
-            <div style="font-size:18px;font-weight:700;color:var(--text)">${standing.points ?? 0}</div>
-            <div style="font-size:10px;color:var(--text-subtle);font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin-top:2px">Points</div>
-          </div>
-          <div style="background:var(--canvas);border-radius:10px;padding:10px 8px;text-align:center">
-            <div style="font-size:18px;font-weight:700;color:var(--text)">${standing.callouts ?? 0}</div>
-            <div style="font-size:10px;color:var(--text-subtle);font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin-top:2px">Callouts</div>
-          </div>
-          <div style="background:var(--canvas);border-radius:10px;padding:10px 8px;text-align:center">
-            <div style="font-size:18px;font-weight:700;color:var(--text)">${standing.noshows ?? 0}</div>
-            <div style="font-size:10px;color:var(--text-subtle);font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin-top:2px">No-shows</div>
-          </div>
-          <div style="background:var(--canvas);border-radius:10px;padding:10px 8px;text-align:center">
-            <div style="font-size:18px;font-weight:700;color:var(--text)">${standing.tardies ?? 0}</div>
-            <div style="font-size:10px;color:var(--text-subtle);font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin-top:2px">Tardies</div>
-          </div>
+        <div class="stat-tiles" style="margin-bottom:var(--s-2-5)">
+          <div class="stat-tile"><div class="stat-tile-value">${standing.points ?? 0}</div><div class="stat-tile-label">Points</div></div>
+          <div class="stat-tile"><div class="stat-tile-value">${standing.callouts ?? 0}</div><div class="stat-tile-label">Callouts</div></div>
+          <div class="stat-tile"><div class="stat-tile-value">${standing.noshows ?? 0}</div><div class="stat-tile-label">No-shows</div></div>
+          <div class="stat-tile"><div class="stat-tile-value">${standing.tardies ?? 0}</div><div class="stat-tile-label">Tardies</div></div>
         </div>
         <div style="font-size:var(--fs-sm);color:var(--text-muted);line-height:1.5">${pointsExplained}</div>
       </div>` : ""}
