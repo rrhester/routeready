@@ -151,7 +151,7 @@ function _setChatTabBadge(n) {
       if (!badge) {
         badge = document.createElement("span");
         badge.className = "rr-tab-badge";
-        badge.style.cssText = "position:absolute;top:-4px;right:-8px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:#dc2626;color:#fff;font-size:10px;font-weight:700;line-height:16px;text-align:center;box-shadow:0 0 0 2px var(--bg, #fff);box-sizing:border-box";
+        badge.style.cssText = "position:absolute;top:-4px;right:-8px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--red);color:var(--rr-white);font-size:10px;font-weight:700;line-height:16px;text-align:center;box-shadow:0 0 0 2px var(--bg,#fff);box-sizing:border-box";
         ic.appendChild(badge);
       }
       badge.textContent = n > 99 ? "99+" : String(n);
@@ -193,7 +193,7 @@ function _paintTasksTabBadge() {
       if (!badge) {
         badge = document.createElement("span");
         badge.className = "rr-tab-badge";
-        badge.style.cssText = "position:absolute;top:-4px;right:-8px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:#dc2626;color:#fff;font-size:10px;font-weight:700;line-height:16px;text-align:center;box-shadow:0 0 0 2px var(--bg, #fff);box-sizing:border-box";
+        badge.style.cssText = "position:absolute;top:-4px;right:-8px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--red);color:var(--rr-white);font-size:10px;font-weight:700;line-height:16px;text-align:center;box-shadow:0 0 0 2px var(--bg,#fff);box-sizing:border-box";
         ic.appendChild(badge);
       }
       badge.textContent = n > 99 ? "99+" : String(n);
@@ -2130,7 +2130,7 @@ function _shiftConfirmStart(token) {
                 <div class="shift-card-line shift-card-sub">${escapeHtml(dateLabel)}${timeLabel ? ` · ${escapeHtml(timeLabel)}` : ""}${sh.route_code ? ` · ${escapeHtml(sh.route_code)}` : ""}</div>
                 <div class="shift-card-line shift-card-meta">Confirm within ${expiresHrs} hour${expiresHrs === 1 ? "" : "s"} or this offer expires.</div>
                 <div class="shift-card-confirm-actions">
-                  <button type="button" class="btn btn-primary btn-sm" data-rr-confirm-accept="${escapeHtml(r.id)}">Accept</button>
+                  <button type="button" class="btn btn-primary btn-sm" data-rr-confirm-accept="${escapeHtml(r.id)}">Accept shift</button>
                   <button type="button" class="btn btn-ghost btn-sm" data-rr-confirm-decline="${escapeHtml(r.id)}">Decline</button>
                 </div>
               </div>
@@ -2276,7 +2276,7 @@ function _coverOfferPaint(slot, offer, token) {
       <div style="margin-top:2px;font-size:var(--fs-sm);color:var(--text-muted)">${escapeHtml(dateLbl)}${time ? " · " + escapeHtml(time) : ""}${offer.station_code ? " · " + escapeHtml(offer.station_code) : ""}</div>
       <div style="margin-top:10px;font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums">Respond within <strong id="rr-cover-offer-timer" style="color:var(--text)">${timer}</strong></div>
       <div style="display:flex;gap:10px;margin-top:14px">
-        <button class="btn btn-primary" style="flex:1" data-rr-cover-accept="${offer.id}">Accept</button>
+        <button class="btn btn-primary" style="flex:1" data-rr-cover-accept="${offer.id}">Accept cover</button>
         <button class="btn btn-ghost"   style="flex:1" data-rr-cover-pass="${offer.id}">Pass</button>
       </div>
     </div>`;
@@ -2426,7 +2426,7 @@ function _swapInboxPaint(slot, reqs, token) {
       </div>
       ${r.message ? `<div style="margin-top:10px;padding:10px 12px;background:var(--canvas);border-radius:8px;font-size:var(--fs-xs);color:var(--text-muted);font-style:italic">"${escapeHtml(r.message)}"</div>` : ""}
       <div style="display:flex;gap:10px;margin-top:14px">
-        <button class="btn btn-primary" style="flex:1" data-rr-swap-accept="${escapeHtml(r.id)}">Accept</button>
+        <button class="btn btn-primary" style="flex:1" data-rr-swap-accept="${escapeHtml(r.id)}">Accept swap</button>
         <button class="btn btn-ghost"   style="flex:1" data-rr-swap-decline="${escapeHtml(r.id)}">Decline</button>
       </div>
     </div>`).join("");
@@ -3128,10 +3128,12 @@ function renderTasksHub() {
   }).catch(rpcFailed).finally(rpcSettled);
 }
 function taskCardHtml(c) {
-  // Optional alert signal next to the title — a red count pill (number)
-  // or a "NEW" pill (boolean). Used to flag a freshly-sent Coaching.
+  // Optional signal next to the title — a count pill (number) or a "NEW"
+  // pill (boolean). Used to flag a freshly-sent Coaching. Brand blue, not
+  // red: this is an informational "new item" cue, not a critical alert —
+  // red stays reserved for destructive / safety / urgent-compliance states.
   const badge = c.badge
-    ? `<span class="task-card-badge" aria-label="New" style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 6px;margin-left:8px;border-radius:9px;background:var(--rr-red-600);color:var(--rr-white);font-size:10px;font-weight:700;letter-spacing:.02em;vertical-align:middle">${(typeof c.badge === "number" && c.badge > 0) ? (c.badge > 99 ? "99+" : c.badge) : "NEW"}</span>`
+    ? `<span class="task-card-badge" aria-label="New" style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 6px;margin-left:8px;border-radius:999px;background:var(--rr-brand-primary);color:var(--rr-white);font-size:10px;font-weight:700;letter-spacing:.02em;vertical-align:middle">${(typeof c.badge === "number" && c.badge > 0) ? (c.badge > 99 ? "99+" : c.badge) : "NEW"}</span>`
     : "";
   return `
     <div class="task-card" data-task-route="${c.route}">
@@ -4781,7 +4783,7 @@ function renderDocumentScanner() {
           </span>
           <input type="checkbox" id="scan-ocr" class="scan-ocr-check" />
         </label>
-        <button id="scan-categorize" class="btn btn-primary btn-block" type="button">Continue</button>
+        <button id="scan-categorize" class="btn btn-primary btn-block" type="button">Continue to details</button>
         <button id="scan-clear" class="btn btn-ghost btn-block" type="button" style="margin-top:8px;color:var(--red)">Start over</button>
       </div>
     </div>`;
@@ -5249,7 +5251,7 @@ async function _scanOpenCamera() {
     <div class="scan-cam-bottom">
       <div class="scan-cam-count" id="scan-cam-count">0 pages</div>
       <button class="scan-cam-shutter" id="scan-cam-shutter" type="button" aria-label="Capture page"></button>
-      <button class="scan-cam-done" id="scan-cam-done" type="button">Done</button>
+      <button class="scan-cam-done" id="scan-cam-done" type="button">Finish scan</button>
     </div>
     <div class="scan-cam-flash" id="scan-cam-flash" aria-hidden="true"></div>`;
   document.body.appendChild(overlay);
@@ -7608,8 +7610,20 @@ async function renderVanDocs(session) {
     if (res.error) throw res.error;
     data = res.data || {};
   } catch (e) {
-    // Stay silent on failure — the section just hides, no broken UI.
-    slot.hidden = true;
+    // Van insurance/registration is safety-relevant, so a silent
+    // disappearance is the wrong failure mode: the driver couldn't
+    // tell "no van assigned" from "couldn't load your documents".
+    // Show a calm, labeled error the driver can retry with a pull.
+    slot.hidden = false;
+    slot.innerHTML = `
+      <div class="van-docs-label">Van documents</div>
+      <div class="van-docs-empty">
+        <div class="van-docs-empty-ic" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        </div>
+        <div class="van-docs-empty-title">Couldn't load van documents</div>
+        <div class="van-docs-empty-sub">${escapeHtml(_friendlyError(e, "Pull down to retry."))}</div>
+      </div>`;
     return;
   }
   slot.hidden = false;
@@ -7954,7 +7968,7 @@ async function renderSettingsProfile() {
         </div>
       </section>
 
-      <button class="btn btn-primary btn-block" id="rr-prof-save" type="button">Save</button>
+      <button class="btn btn-primary btn-block" id="rr-prof-save" type="button">Save profile</button>
     </div>`;
 
   document.getElementById("rr-prof-save").addEventListener("click", async () => {
@@ -8061,7 +8075,7 @@ async function renderSettingsLicense(opts) {
         </div>
       </section>
 
-      <button class="btn btn-primary btn-block" id="rr-dl-save" type="button">Save</button>
+      <button class="btn btn-primary btn-block" id="rr-dl-save" type="button">Save license</button>
     </div>`;
 
   document.getElementById("rr-dl-save").addEventListener("click", async () => {
@@ -8561,7 +8575,7 @@ async function renderFormFill() {
       ${form.description ? `<div class="form-fill-desc">${escapeHtml(form.description)}</div>` : ""}
       <form id="rr-form-fill">
         ${fieldHtml}
-        <button class="btn btn-primary btn-block" type="submit" style="margin-top:18px">Submit</button>
+        <button class="btn btn-primary btn-block" type="submit" style="margin-top:18px">Submit form</button>
       </form>
     </div>`;
 
@@ -9994,7 +10008,7 @@ async function renderCoachingDetail() {
     // Read-only coachings still need an active dismiss tap so the
     // driver clears them and they disappear permanently.
     footHtml = `
-      <button type="button" class="btn btn-primary btn-block" id="rr-coach-ack" style="margin-top:14px">Got it</button>`;
+      <button type="button" class="btn btn-primary btn-block" id="rr-coach-ack" style="margin-top:14px">Mark as read</button>`;
   } else {
     footHtml = `
       ${needsSign ? `
@@ -11702,7 +11716,7 @@ function _i9InjectStyles() {
   st.textContent =
     "@keyframes i9-pulse{0%,100%{opacity:.5}50%{opacity:.85}}" +
     ".i9-skel{background:var(--border);border-radius:8px;animation:i9-pulse 1.3s ease-in-out infinite}" +
-    ".i9-card-check{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#16a34a;flex:0 0 auto}" +
+    ".i9-card-check{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--green);flex:0 0 auto}" +
     ".i9-err-msg{font-size:var(--fs-xs);color:var(--red);margin-top:4px}" +
     "input.i9-err{border-color:var(--red) !important}";
   document.head.appendChild(st);
@@ -11728,7 +11742,7 @@ function _i9RenderCompletion(main, rec, session) {
   main.innerHTML = `
     <div style="padding:36px 20px 24px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:14px">
       <div style="width:64px;height:64px;border-radius:50%;background:var(--rr-green-100);display:flex;align-items:center;justify-content:center">
-        <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#15803d" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        <svg viewBox="0 0 24 24" width="32" height="32" fill="none" style="stroke:var(--green-dark)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
       </div>
       <div>
         <div style="font-size:20px;font-weight:700;color:var(--text)">Form I-9 · Section 1 complete</div>
