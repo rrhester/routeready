@@ -54,6 +54,21 @@
   Pragma: no-cache
   Expires: 0
 
+# Extensionless clean paths for full-page apps served without .html
+# (CF Pages serves /dashboard/meet from meet.html and 30x's the .html
+# form to it). Same trap as the index paths above: not matched by
+# /dashboard/*.html, so without this CF edge-caches the shell and pins
+# the meeting page to a stale ?v= JS token across deploys.
+/dashboard/meet
+  Cache-Control: no-cache, no-store, must-revalidate
+  Pragma: no-cache
+  Expires: 0
+
+/meet
+  Cache-Control: no-cache, no-store, must-revalidate
+  Pragma: no-cache
+  Expires: 0
+
 /app/
   Cache-Control: no-cache, no-store, must-revalidate
   Pragma: no-cache
