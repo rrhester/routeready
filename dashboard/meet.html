@@ -218,6 +218,25 @@
   /* waiting room */
   #btn-waiting{background:#B45309;border-color:#B45309;color:#fff}
   #btn-waiting:hover{background:#92400E}
+  #btn-waiting.pulsing{animation:waitpulse 1.5s ease-in-out infinite}
+  @keyframes waitpulse{0%,100%{box-shadow:0 0 0 0 rgba(245,158,11,.6)}50%{box-shadow:0 0 0 6px rgba(245,158,11,0)}}
+  @media (prefers-reduced-motion:reduce){#btn-waiting.pulsing{animation:none}}
+
+  /* "someone is waiting" banner — the loud, always-visible admit alert */
+  #wait-banner{position:fixed;top:64px;left:50%;transform:translateX(-50%);z-index:58;display:flex;align-items:center;gap:12px;
+    background:#B45309;color:#fff;border-radius:12px;padding:11px 12px 11px 18px;box-shadow:0 12px 34px rgba(0,0,0,.45);
+    max-width:calc(100vw - 32px);animation:wbpop .28s ease-out}
+  #wait-banner[hidden]{display:none} /* author display:flex would otherwise beat [hidden] */
+  @keyframes wbpop{from{transform:translate(-50%,-14px);opacity:0}to{transform:translate(-50%,0);opacity:1}}
+  @media (prefers-reduced-motion:reduce){#wait-banner{animation:none}}
+  #wait-banner .wb-dot{width:9px;height:9px;border-radius:50%;background:#fff;flex:0 0 auto;animation:recblink 1.2s ease-in-out infinite}
+  @media (prefers-reduced-motion:reduce){#wait-banner .wb-dot{animation:none}}
+  #wait-banner .wb-text{font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #wait-banner .wb-admit{flex:0 0 auto;background:var(--green);border:0;color:#fff;border-radius:8px;padding:8px 16px;font-weight:800;font-size:13px}
+  #wait-banner .wb-admit:hover{filter:brightness(.93)}
+  #wait-banner .wb-view{flex:0 0 auto;background:rgba(255,255,255,.16);border:0;color:#fff;border-radius:8px;padding:8px 12px;font-weight:700;font-size:13px}
+  #wait-banner .wb-view:hover{background:rgba(255,255,255,.26)}
+  @media (max-width:600px){#wait-banner .wb-text{max-width:44vw}}
   #waiting-pop{min-width:300px;bottom:auto;top:52px;left:auto;right:14px;transform:none}
   #waiting-pop h4{margin:0 0 8px;font-size:13px;color:var(--room-muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
   .wait-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid var(--room-line)}
@@ -405,6 +424,12 @@
         <span title="Participants"><span id="people-count">1</span> in call</span>
       </div>
     </header>
+    <div id="wait-banner" role="alert" hidden>
+      <span class="wb-dot" aria-hidden="true"></span>
+      <span id="wait-banner-text" class="wb-text">Someone is waiting to join</span>
+      <button id="wait-banner-admit" class="wb-admit" type="button">Admit</button>
+      <button id="wait-banner-view" class="wb-view" type="button">View</button>
+    </div>
     <main class="room-main">
       <div id="grid" style="--cols:1;--rows:1"></div>
       <aside id="chat" aria-label="In-meeting chat">
