@@ -1041,6 +1041,16 @@ function render() {
     }
   }
   renderShell(session);
+  // Subscribe to the per-driver realtime bus app-wide (not just when the
+  // schedule view happens to mount). Drivers have no auth.uid, so
+  // postgres_changes can't reach them (see migration 0426/0467); instead
+  // the server broadcasts a content-free "refresh" ping to
+  // rr-driver-live-<driver_id> whenever a chat/channel message, cover
+  // offer, swap, or confirmation is created for this driver. Mounting it
+  // here means a dispatch message updates the unread badge instantly no
+  // matter which screen the driver is on. Idempotent — no-ops if already
+  // subscribed.
+  if (session?.driver_id) _rrLiveStart(session.driver_id);
   // Re-stamp the Chat tab badge with the latest unread count every
   // time the shell mounts so a newly-arrived dispatch message (e.g.
   // the welcome message from migration 0266) shows up on the icon
@@ -2119,18 +2129,42 @@ function _rrLiveStart(driverId) {
   try {
     _rrLiveChannel = sb
       .channel("rr-driver-live-" + driverId, { config: { broadcast: { self: false } } })
-      .on("broadcast", { event: "refresh" }, () => _rrLiveRefresh())
+      .on("broadcast", { event: "refresh" }, (msg) => _rrLiveRefresh(msg?.payload))
       .subscribe();
   } catch { _rrLiveChannel = null; }
 }
 function _rrLiveStop() {
   if (_rrLiveChannel) { try { sb.removeChannel(_rrLiveChannel); } catch {} _rrLiveChannel = null; }
 }
-function _rrLiveRefresh() {
+function _rrLiveRefresh(payload) {
   const token = (typeof readSession === "function" ? readSession() : null)?.token;
   if (!token) return;
-  // Re-fetch whatever pinned cards are mounted. Each refresher no-ops if
-  // its slot isn't on screen, so calling all of them is safe and cheap.
+  const kind = payload && typeof payload === "object" ? payload.kind : null;
+
+  // Message pings (kind 'chat' | 'channel') — always bump the unread badge
+  // so a newly-arrived dispatch/channel message shows on the Chat tab icon
+  // no matter which screen the driver is on, then re-render whichever chat
+  // view is actually open. Each refresher no-ops when its view isn't
+  // mounted, so calling them is safe and cheap.
+  if (kind === "chat" || kind === "channel" || !kind) {
+    try { refreshChatBadge(); } catch {}
+  }
+  if (kind === "chat" || !kind) {
+    try {
+      if (currentRoute() === "/chat" && _chatTab === "dispatch") refreshChat(false);
+    } catch {}
+  }
+  if (kind === "channel" || !kind) {
+    try {
+      const route = currentRoute();
+      if (route === "/chat/channel") refreshChannelThread(false);
+      else if (route === "/chat/channels") refreshChannelList();
+    } catch {}
+  }
+
+  // Directed action cards (cover offers, swaps, 5th-day confirmations).
+  // Each refresher no-ops if its slot isn't on screen. Kept unconditional
+  // so a ping with an unknown/absent kind still reconciles everything.
   try { _coverOfferRefresh(token); } catch {}
   try { _pickupListRefresh(token); } catch {}
   try { _swapInboxRefresh(token); } catch {}
