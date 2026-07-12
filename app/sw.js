@@ -96,7 +96,13 @@
 // with size, so the app runs flush to the physical bottom and iOS
 // paints the status bar ink from theme-color. Applies on reinstall
 // (Add to Home Screen). Diagnostic probes removed; footer stays.
-const SHELL_CACHE = "rr-app-shell-v146";
+// v147 · Real-time message delivery: the driver app now subscribes to the
+// per-driver realtime bus (rr-driver-live-<id>) app-wide, and the server
+// broadcasts a ping on every dispatch chat / channel message (migration
+// 0467) — so messages and the unread badge update instantly in-app instead
+// of on the 10–30s poll. Bumped so installed driver PWAs pick up the new
+// app.js.
+const SHELL_CACHE = "rr-app-shell-v147";
 const SHELL_FILES = [
   "./",
   "index.html",
