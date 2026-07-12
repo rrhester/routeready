@@ -143,6 +143,15 @@ jobs:
           set -euo pipefail
           psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/cross_tenant_isolation_test.sql
 
+      - name: Tenant data-export tests (0472 · owner-only, tenant-scoped)
+        # Asserts export_my_dsp_data() returns only the caller's tenant data and
+        # that a dispatcher/driver cannot call it (owner-only portability/DSR).
+        env:
+          SUPABASE_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: |
+          set -euo pipefail
+          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/data_export_test.sql
+
       - name: Tear down
         if: always()
         run: supabase stop --no-backup || true
