@@ -1023,6 +1023,36 @@ async function rrMfaDisable(btn) {
 }
 window.rrMfaDisable = rrMfaDisable;
 
+// ─── Set / change password · Settings → Workspace → Password ────────────────
+// Lets a signed-in user set (or change) the password they use for email +
+// password sign-in, straight from the dashboard — no reset email needed.
+// Works for magic-link-only accounts too: updateUser just adds the password.
+async function rrSetPassword(btn) {
+  const p1 = document.getElementById("rr-set-password");
+  const p2 = document.getElementById("rr-set-password-confirm");
+  const status = document.getElementById("rr-set-password-status");
+  const pass = (p1 && p1.value) || "";
+  const conf = (p2 && p2.value) || "";
+  if (status) status.textContent = "";
+  if (pass.length < 8) { toast("Password must be at least 8 characters.", "warn"); return; }
+  if (pass !== conf)   { toast("Passwords don't match.", "warn"); return; }
+  if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
+  try {
+    const { error } = await sb.auth.updateUser({ password: pass });
+    if (error) throw error;
+    if (p1) p1.value = "";
+    if (p2) p2.value = "";
+    if (status) { status.textContent = "Password saved. You can now sign in with your email and password."; status.style.color = "var(--good, #16965c)"; }
+    toast("Password saved.", "success");
+    try { rrTrack("password_set"); } catch (_) {}
+  } catch (e) {
+    toast("Couldn't save password — " + (e?.message || "try again."), "warn");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Save password"; }
+  }
+}
+window.rrSetPassword = rrSetPassword;
+
 // Populate the panel's status once at boot when MFA is on (best-effort; the
 // frag may still be loading, in which case rrMfaRefreshStatus no-ops and the
 // user's first click on Set up still works).
