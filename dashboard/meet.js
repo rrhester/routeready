@@ -71,7 +71,12 @@ function renderDebug() {
   const el = document.getElementById("rr-debug");
   if (!el) return;
   el.hidden = false;
+  const verdict = dbg.bcastRx > 0
+    ? "REALTIME MSGS: WORKING"
+    : (dbg.status === "SUBSCRIBED" ? "REALTIME MSGS: waiting… (rx 0)" : "REALTIME MSGS: —");
   el.textContent = [
+    `>> ${verdict} <<`,
+    "",
     `code:   ${state.code || "-"}`,
     `chan:   ${dbg.chan || "-"}`,
     `status: ${dbg.status || "-"}`,
