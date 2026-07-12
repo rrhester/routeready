@@ -21,5 +21,5 @@ window.RR_CONFIG = Object.freeze({
   // authenticator factor is challenged for a code at login. A user with NO
   // factor is never blocked, so enabling this cannot lock out anyone who
   // hasn't enrolled. See docs/MFA.md for the rollout + recovery steps.
-  MFA_ENABLED: false,
+  MFA_ENABLED: true,
 });
