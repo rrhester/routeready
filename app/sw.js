@@ -142,7 +142,12 @@
 // canonical driver messages and carries a pending text stub forward until its
 // body actually appears server-side. Bumped so installed driver PWAs pick up
 // the new app.js.
-const SHELL_CACHE = "rr-app-shell-v157";
+// v158 · Loading + a11y polish: the Attendance screen replaces its bare
+// spinner with a structured skeleton that mirrors its real layout (status
+// banner + record card with four stat tiles + ladder card), and the swap-
+// request dialog's icon-only close button gains an aria-label/title. Bumped
+// so installed driver PWAs pick up the new app.js.
+const SHELL_CACHE = "rr-app-shell-v158";
 const SHELL_FILES = [
   "./",
   "index.html",

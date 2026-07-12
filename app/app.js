@@ -2473,7 +2473,7 @@ async function openSwapModal(myShiftId, token) {
     <div style="background:var(--surface);width:100%;max-width:480px;max-height:85vh;border-top-left-radius:18px;border-top-right-radius:18px;display:flex;flex-direction:column;overflow:hidden">
       <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
         <div style="font-weight:700;font-size:var(--fs-md)">Offer a swap</div>
-        <button type="button" data-rr-swap-close style="appearance:none;background:transparent;border:0;color:var(--text-subtle);cursor:pointer;padding:6px"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        <button type="button" data-rr-swap-close aria-label="Close" title="Close" style="appearance:none;background:transparent;border:0;color:var(--text-subtle);cursor:pointer;padding:6px"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
       <div id="rr-swap-modal-body" style="flex:1;overflow-y:auto;padding:14px 18px"><div class="loader" style="margin:24px auto"></div></div>
     </div>`;
@@ -11223,7 +11223,29 @@ async function _toListClick(e) {
 // ── Tasks → Attendance: today's status + the policy ────────────────
 async function renderAttendance() {
   const main = document.getElementById("main");
-  main.innerHTML = `<div class="loader"></div>`;
+  // Structured skeleton over a bare spinner: mirrors the real layout —
+  // status banner + record card (title + four stat tiles) + ladder card —
+  // so the page keeps its shape while the overview RPC lands. Reuses the
+  // real .card shell so the skeleton and the loaded screen line up exactly.
+  main.innerHTML = `
+    <div class="avail-page" aria-hidden="true">
+      <span class="skel" style="height:58px;border-radius:var(--r-card);margin-bottom:12px"></span>
+      <div class="card">
+        <span class="skel skel-line-lg" style="width:52%"></span>
+        <div class="stat-tiles" style="margin-top:6px">
+          <span class="skel" style="height:52px;border-radius:var(--r-lg)"></span>
+          <span class="skel" style="height:52px;border-radius:var(--r-lg)"></span>
+          <span class="skel" style="height:52px;border-radius:var(--r-lg)"></span>
+          <span class="skel" style="height:52px;border-radius:var(--r-lg)"></span>
+        </div>
+      </div>
+      <div class="card">
+        <span class="skel skel-line-lg" style="width:44%"></span>
+        <span class="skel skel-line" style="width:82%"></span>
+        <span class="skel skel-line" style="width:74%"></span>
+        <span class="skel skel-line" style="width:78%"></span>
+      </div>
+    </div>`;
   const session = readSession();
   if (!session?.token) { writeSession(null); render(); return; }
 
