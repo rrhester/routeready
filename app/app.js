@@ -7532,7 +7532,26 @@ async function renderUpNext(session) {
     const res = await sb.rpc("driver_my_schedule", { p_token: session.token, p_weeks: 2 });
     data = res.data; error = res.error;
   } catch (e) { error = e; }
-  if (error || !data) { slot.hidden = true; return; }
+  // A genuine load failure shows a calm, labeled, retryable card rather than
+  // silently vanishing — a driver on a flaky signal couldn't otherwise tell
+  // "no upcoming shift" (an intentional hide) from "couldn't load it". Reuses
+  // the shared compact home-section state card (.van-docs-empty). The
+  // no-future-shift / no-data cases below still hide silently — that's a
+  // normal state, not an error, and a placeholder there would just be noise.
+  if (error) {
+    slot.hidden = false;
+    slot.innerHTML = `
+      <div class="up-next-label">Up next</div>
+      <div class="van-docs-empty">
+        <div class="van-docs-empty-ic" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        </div>
+        <div class="van-docs-empty-title">Couldn't load your upcoming shift</div>
+        <div class="van-docs-empty-sub">${escapeHtml(_friendlyError(error, "Pull down to retry."))}</div>
+      </div>`;
+    return;
+  }
+  if (!data) { slot.hidden = true; return; }
 
   const todayIso = fmtIsoDate(new Date());
   const shifts = (Array.isArray(data.shifts) ? data.shifts : [])

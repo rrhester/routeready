@@ -121,7 +121,13 @@
 // v154 · Live "recording audio…" indicator: when either side records a voice
 // note, the other sees "recording audio…" in place of "typing…" (reuses the
 // presence broadcast). Bumped so installed driver PWAs pick up the new app.js.
-const SHELL_CACHE = "rr-app-shell-v154";
+// v155 · Home resilience: the home screen's "Up next" section no longer
+// vanishes silently when its fetch fails on a flaky signal — a genuine load
+// error now renders a calm, labeled, retryable card (shared compact
+// home-section state card) so a driver can tell "no upcoming shift" from
+// "couldn't load it". Intentional hide-when-empty is preserved. Bumped so
+// installed driver PWAs pick up the new app.js.
+const SHELL_CACHE = "rr-app-shell-v155";
 const SHELL_FILES = [
   "./",
   "index.html",
