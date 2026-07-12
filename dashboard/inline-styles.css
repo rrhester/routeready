@@ -7200,10 +7200,12 @@ body.rr-cmdk-open{ overflow:hidden }
   border-radius:3px;background:transparent;
   transition:background var(--t-fast),border-color var(--t-fast);
 }
-.rr-mc-ack-toggle input:checked + .rr-mc-ack-box{
+.rr-mc-ack-toggle input:checked + .rr-mc-ack-box,
+.rr-mc-pri-ack input:checked + .rr-mc-ack-box{
   background:var(--accent);border-color:var(--accent);
 }
-.rr-mc-ack-toggle input:checked + .rr-mc-ack-box::after{
+.rr-mc-ack-toggle input:checked + .rr-mc-ack-box::after,
+.rr-mc-pri-ack input:checked + .rr-mc-ack-box::after{
   content:"";display:block;width:10px;height:10px;
   background-color:var(--rr-white);
   -webkit-mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><polyline points='4 12 10 18 20 6'/></svg>") center/contain no-repeat;
