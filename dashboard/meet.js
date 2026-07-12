@@ -218,8 +218,33 @@ class LocalTransport {
 
 // ─── media ────────────────────────────────────────────────────────────────
 
-const GUM_VIDEO = { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 }, facingMode: "user" };
+// Capture at 1080p when the camera offers it; the sender caps the actual
+// sent resolution per roster size (meet-core sendPolicy), so a 1:1 gets
+// full 1080p while bigger calls downscale. `ideal` (not min/exact) means
+// a 720p webcam still works — it just caps there.
+const GUM_VIDEO = { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 }, facingMode: "user" };
 const GUM_AUDIO = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+
+// Opus tuning applied to every outgoing audio track's SDP. WebRTC's
+// default voice bitrate (~32kbps) sounds thin; 64kbps mono with in-band
+// FEC (packet-loss concealment) and DTX (silence suppression) is the
+// fuller-but-still-cheap sweet spot for interviews.
+const OPUS_BITRATE = 64000;
+function tuneOpusSdp(sdp) {
+  if (!sdp || !/\bopus\b/i.test(sdp)) return sdp;
+  const pt = (sdp.match(/a=rtpmap:(\d+)\s+opus\/48000/i) || [])[1];
+  if (!pt) return sdp;
+  return sdp.replace(new RegExp(`(a=fmtp:${pt} )([^\\r\\n]*)`), (m, head, params) => {
+    const kv = Object.fromEntries(params.split(";").filter(Boolean).map((p) => {
+      const [k, v] = p.split("="); return [k.trim(), v];
+    }));
+    kv.maxaveragebitrate = String(OPUS_BITRATE);
+    kv.stereo = "0";
+    kv.useinbandfec = "1";
+    kv.usedtx = "1";
+    return head + Object.entries(kv).map(([k, v]) => `${k}=${v}`).join(";");
+  });
+}
 
 // Remembered device choices (settings popover). `ideal` not `exact`:
 // an unplugged headset must never block the join.
@@ -367,7 +392,13 @@ function ensurePeer(key) {
   pc.onnegotiationneeded = async () => {
     try {
       p.makingOffer = true;
-      await pc.setLocalDescription();
+      // Explicit create → Opus-tune → setLocalDescription. Perfect
+      // negotiation's glare handling is unchanged (it's about WHO applies
+      // WHICH description WHEN, not implicit vs explicit); we just need
+      // the SDP in hand to raise the audio bitrate before it's applied.
+      const offer = await pc.createOffer();
+      offer.sdp = tuneOpusSdp(offer.sdp);
+      await pc.setLocalDescription(offer);
       // .toJSON(): plain {type, sdp} — live platform objects don't
       // survive BroadcastChannel's structured clone (local transport).
       state.transport.signal(key, { description: pc.localDescription.toJSON() });
@@ -401,6 +432,12 @@ function ensurePeer(key) {
   return p;
 }
 
+// Test-only: the E2E suite reads the applied localDescription to assert
+// the Opus tune landed. Guarded to local mode so it never exists in prod.
+if (LOCAL_MODE) {
+  window.__rrPeerProbe = () => { for (const p of peers.values()) return p.pc; return null; };
+}
+
 // Apply the mesh send policy (meet-core sendPolicy) to one peer's video
 // sender: cap bitrate + downscale as the roster grows so upload stays
 // inside a normal uplink, keep full quality for screen shares, prefer
@@ -408,13 +445,20 @@ function ensurePeer(key) {
 function tunePeerSenders(p) {
   const policy = sendPolicy(Math.max(state.roster.length, peers.size + 1), state.sharing);
   for (const sender of p.pc.getSenders()) {
-    if (!sender.track || sender.track.kind !== "video") continue;
+    if (!sender.track) continue;
     try {
       const params = sender.getParameters();
       if (!params.encodings || !params.encodings.length) params.encodings = [{}];
-      params.encodings[0].maxBitrate = policy.maxBitrate;
-      params.encodings[0].scaleResolutionDownBy = policy.scaleResolutionDownBy;
-      params.degradationPreference = policy.degradationPreference;
+      if (sender.track.kind === "video") {
+        params.encodings[0].maxBitrate = policy.maxBitrate;
+        params.encodings[0].scaleResolutionDownBy = policy.scaleResolutionDownBy;
+        params.degradationPreference = policy.degradationPreference;
+      } else {
+        // Belt-and-suspenders with the SDP fmtp: raise the Opus target
+        // bitrate on the sender too (some browsers honour this more
+        // reliably than maxaveragebitrate).
+        params.encodings[0].maxBitrate = OPUS_BITRATE;
+      }
       sender.setParameters(params).catch(() => { /* pre-negotiation — retried on connect */ });
     } catch { /* pre-negotiation — retried on connect */ }
   }
@@ -443,7 +487,9 @@ async function handleSignal(from, data) {
         await pc.addIceCandidate(p.pending.shift()).catch(() => {});
       }
       if (desc.type === "offer") {
-        await pc.setLocalDescription();
+        const answer = await pc.createAnswer();
+        answer.sdp = tuneOpusSdp(answer.sdp);
+        await pc.setLocalDescription(answer);
         state.transport.signal(from, { description: pc.localDescription.toJSON() });
       }
     } else if (data.candidate) {

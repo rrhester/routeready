@@ -123,16 +123,19 @@ export function initials(name) {
 // outgoing video encoding. A mesh sends one copy of your video to EVERY
 // peer, so upload cost grows linearly with the roster — the only way a
 // 6-person call stays smooth on a normal uplink is to shrink what each
-// copy costs as the room grows. Screen shares are exempt: legibility of
-// shared text beats motion smoothness, and there's only ever one stage.
+// copy costs as the room grows. A 1:1 interview is the opposite case:
+// there's only one copy and plenty of headroom, so it gets the full
+// 1080p ceiling (~4 Mbps) and prefers resolution over frame smoothness
+// so faces stay crisp. Screen shares likewise favour resolution —
+// legibility of shared text beats motion — and there's only one stage.
 export function sendPolicy(participantCount, isScreen = false) {
   if (isScreen) {
     return { maxBitrate: 2_500_000, scaleResolutionDownBy: 1, degradationPreference: "maintain-resolution" };
   }
   const n = Math.max(2, Math.floor(Number(participantCount) || 0));
-  if (n <= 2) return { maxBitrate: 2_500_000, scaleResolutionDownBy: 1, degradationPreference: "maintain-framerate" };
-  if (n <= 4) return { maxBitrate: 1_200_000, scaleResolutionDownBy: 1.5, degradationPreference: "maintain-framerate" };
-  if (n <= 6) return { maxBitrate: 800_000, scaleResolutionDownBy: 2, degradationPreference: "maintain-framerate" };
+  if (n <= 2) return { maxBitrate: 4_000_000, scaleResolutionDownBy: 1, degradationPreference: "maintain-resolution" };
+  if (n <= 4) return { maxBitrate: 1_500_000, scaleResolutionDownBy: 1, degradationPreference: "maintain-framerate" };
+  if (n <= 6) return { maxBitrate: 900_000, scaleResolutionDownBy: 1.5, degradationPreference: "maintain-framerate" };
   return { maxBitrate: 500_000, scaleResolutionDownBy: 2, degradationPreference: "maintain-framerate" };
 }
 
