@@ -317,15 +317,23 @@ self.addEventListener("push", (event) => {
 
   // Bare-minimum showNotification — no icon, no badge, no tag, no
   // renotify. Apple WebKit silently rejects the entire notification if
-  // any option fails validation (SVG icon, etc.), so we keep it to the
-  // two fields every browser supports.
-  const showIt = () => self.registration.showNotification(
-    payload.title || "Dispatch",
-    {
-      body: payload.body || "",
-      data: { url: payload.url || "/app/#/chat" },
-    },
-  ).catch((err) => ackPush({ stage: "showNotification", error: String(err) }));
+  // any option fails validation (SVG icon, etc.), so the BASE options stay
+  // to the two fields every browser supports.
+  const baseData = { url: payload.url || "/app/#/chat", type: payload.type || "message" };
+  const baseOpts = { body: payload.body || "", data: baseData };
+  // Rich options add quick-action buttons (Reply / Mark read) on browsers
+  // that support them (Android, desktop). We TRY rich first and fall back to
+  // baseOpts if the platform rejects it — so iOS, which ignores or rejects
+  // actions, never loses the notification. Never add actions to a call.
+  const richOpts = payload.type === "call"
+    ? baseOpts
+    : { ...baseOpts, actions: [
+        { action: "reply",    title: "Reply" },
+        { action: "markread", title: "Mark read" },
+      ] };
+  const showIt = () => self.registration.showNotification(payload.title || "Dispatch", richOpts)
+    .catch(() => self.registration.showNotification(payload.title || "Dispatch", baseOpts)
+      .catch((err) => ackPush({ stage: "showNotification", error: String(err) })));
 
   // Call pushes double as the closed-app ring. If ANY app window is still
   // alive it's connected to realtime and already rings in-app (card + its
@@ -391,9 +399,33 @@ async function rrMarkDelivered() {
 }
 
 
+// Quick-action: mark the dispatch thread read straight from the notification
+// (Android/desktop action button). Mirrors rrMarkDelivered; also clears the
+// app badge so the count drops without opening the app.
+async function rrMarkRead() {
+  try {
+    const [url, anon, token] = await Promise.all([rrGet("supabaseUrl"), rrGet("anonKey"), rrGet("token")]);
+    if (url && anon && token) {
+      await fetch(url + "/rest/v1/rpc/driver_chat_mark_read", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + anon, "apikey": anon },
+        body:    JSON.stringify({ p_token: token }),
+        keepalive: true,
+      });
+    }
+  } catch {}
+  try { if ("clearAppBadge" in self.navigator) await self.navigator.clearAppBadge(); } catch {}
+}
+
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const url = event.notification.data?.url || "./";
+  // "Mark read" button → mark read + clear badge, do NOT open the app.
+  if (event.action === "markread") {
+    event.waitUntil(rrMarkRead());
+    return;
+  }
+  // "Reply" button or a plain tap → open/focus the app at the thread.
   event.waitUntil(
     self.clients.matchAll({ type: "window" }).then((wins) => {
       const w = wins.find((c) => c.url.includes("/app/"));
