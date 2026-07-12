@@ -4023,6 +4023,97 @@ if (typeof window !== "undefined" && !window.__rrScanOnlineWired) {
 }
 
 
+// ── Offline chat outbox ──────────────────────────────────────────────
+// A driver typing dispatch in a dead zone must not lose the message when
+// the send fails or the app is backgrounded/closed before connectivity
+// returns. Text sends that can't reach the network are persisted to
+// IndexedDB and replayed automatically on the `online` event, on chat
+// reconnect, and on chat mount. The optimistic "queued" stub is
+// reconciled away by refreshChat's canonical-echo strip once the message
+// actually lands. Attachments/voice notes keep the existing tap-to-retry
+// path (their blobs are large and already staged); this covers the
+// common case — a typed message — with durable, hands-off delivery.
+const _CHAT_Q_DB = "rr-chat-outbox";
+const _CHAT_Q_STORE = "msgs";
+function _chatQueueDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(_CHAT_Q_DB, 1);
+    req.onupgradeneeded = () => {
+      if (!req.result.objectStoreNames.contains(_CHAT_Q_STORE)) {
+        req.result.createObjectStore(_CHAT_Q_STORE, { keyPath: "id" });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function _chatQueueAdd(item) {
+  const db = await _chatQueueDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(_CHAT_Q_STORE, "readwrite");
+    tx.objectStore(_CHAT_Q_STORE).put(item);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function _chatQueueAll() {
+  const db = await _chatQueueDb();
+  return new Promise((resolve) => {
+    const tx = db.transaction(_CHAT_Q_STORE, "readonly");
+    const r = tx.objectStore(_CHAT_Q_STORE).getAll();
+    r.onsuccess = () => resolve(r.result || []);
+    r.onerror = () => resolve([]);
+  });
+}
+async function _chatQueueDelete(id) {
+  const db = await _chatQueueDb();
+  return new Promise((resolve) => {
+    const tx = db.transaction(_CHAT_Q_STORE, "readwrite");
+    tx.objectStore(_CHAT_Q_STORE).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => resolve();
+  });
+}
+async function _chatQueueCount() {
+  try { return (await _chatQueueAll()).length; } catch { return 0; }
+}
+
+// Replay every queued message in order. Stops at the first still-failing
+// item (still offline / signed out) so we don't hammer or reorder. Safe
+// to call repeatedly; concurrency-guarded.
+let _chatFlushing = false;
+async function _chatFlushOutbox({ silent } = {}) {
+  if (_chatFlushing) return 0;
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return 0;
+  const token = readSession()?.token;
+  if (!token) return 0;
+  _chatFlushing = true;
+  let sent = 0;
+  try {
+    const items = (await _chatQueueAll()).sort((a, b) => a.createdAt - b.createdAt);
+    for (const it of items) {
+      const { error } = await sb.rpc("driver_chat_send", { p_token: token, p_body: it.body });
+      if (!error) { await _chatQueueDelete(it.id); sent++; }
+      else break; // leave the rest for the next flush
+    }
+  } catch { /* retried next trigger */ }
+  _chatFlushing = false;
+  if (sent) {
+    _haptic("success");
+    if (!silent) toast(`${sent} queued message${sent === 1 ? "" : "s"} sent`, "ok");
+    try { if (currentRoute() === "/chat" && _chatTab === "dispatch") await refreshChat(false); } catch {}
+    try { refreshChatBadge(); } catch {}
+  }
+  return sent;
+}
+
+// Flush the chat outbox when the network returns. Wired once.
+if (typeof window !== "undefined" && !window.__rrChatOutboxWired) {
+  window.__rrChatOutboxWired = true;
+  window.addEventListener("online", () => { _chatFlushOutbox(); });
+}
+
+
 // ── Offline form-submission queue ────────────────────────────────────
 // Drivers fill forms in the same dead zones they scan in. If a submit
 // can't reach the network, the whole submission — scalar answers plus
@@ -5369,6 +5460,7 @@ function _onChatRealtimeStatus(status) {
     _chatDisconnected = false;
     clearInterval(_chatConnPollTimer);
     _showChatConnBanner("Back online", "ok", 1800);
+    _chatFlushOutbox({ silent: true }); // replay anything queued while down
     refreshChat(false); // reconcile anything missed while down
   }
 }
@@ -5768,6 +5860,23 @@ async function renderChat() {
     });
     if (sendBtn) sendBtn.disabled = false;
     if (error) {
+      // Offline + text-only → persist to the durable outbox and keep the
+      // bubble in its "sending" state; _chatFlushOutbox replays it the
+      // instant connectivity returns (even after a reload). Attachments
+      // keep the tap-to-retry path (their staged blob isn't queued).
+      const offline = (typeof navigator !== "undefined" && navigator.onLine === false);
+      if (offline && !file && savedBody) {
+        try {
+          await _chatQueueAdd({ id: stubId, body: savedBody, createdAt: Date.now() });
+          const stub = wrap?.querySelector(`[data-rr-stub="${stubId}"]`);
+          const timeEl = stub?.querySelector(".chat-time");
+          if (timeEl) timeEl.textContent = "queued · sends when you're back online";
+          clearDraft(_chatDraftKey);
+          _haptic("tap");
+          toast("You're offline — message queued, it'll send automatically", "info");
+          return;
+        } catch { /* fall through to the failed-stub path */ }
+      }
       _haptic("warn");
       markStubFailed("send failed · tap to retry");
       ta.value = savedBody;
@@ -5800,6 +5909,7 @@ async function renderChat() {
 
   // First fetch + realtime subscription + presence + safety-net poller.
   _chatLastIds = new Set();
+  _chatFlushOutbox({ silent: true }); // replay any messages queued in a prior offline session
   await refreshChat(true);
   _chatRealtimeWire(session);
   _drvPresenceWire(session);
