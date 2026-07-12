@@ -299,8 +299,8 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   border-radius:var(--r-md);background:var(--surface);color:var(--text);font-size:var(--fs-base);outline:none}
 .rrnb-pop input:focus{border-color:var(--accent)}
 .rrnb-pop-row{display:flex;gap:var(--s-2);align-items:flex-end;margin-top:var(--s-2)}
-.rrnb-pop-btn{height:32px;padding:0 var(--s-3);border:0;border-radius:var(--r-md);background:var(--accent);
-  color:var(--surface);font-weight:600;cursor:pointer;font-size:var(--fs-sm)}
+.rrnb-pop-btn{height:32px;padding:0 var(--s-3);border:0;border-radius:var(--r-md);background:var(--rr-amber-primary);
+  color:var(--rr-white);font-weight:600;cursor:pointer;font-size:var(--fs-sm)}
 .rrnb-pop-btn.ghost{background:transparent;color:var(--text-muted);border:1px solid var(--border)}
 .rrnb-pop-list{max-height:240px;overflow:auto;margin-top:var(--s-2)}
 .rrnb-pop-opt{padding:var(--s-2);border-radius:var(--r-md);cursor:pointer;font-size:var(--fs-base)}
@@ -326,8 +326,8 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
 .rrnb-page.rrnb-dragging{opacity:.45}
 .rrnb-page.rrnb-dragover{box-shadow:inset 0 2px 0 var(--accent)}
 /* AI toolbar button + menu */
-.rrnb-tb-ai{color:var(--heritage,#7719aa)}
-.rrnb-tb-ai:hover{background:var(--heritage-soft,rgba(119,25,170,.08))}
+.rrnb-tb-ai{color:var(--accent)}
+.rrnb-tb-ai:hover{background:var(--accent-soft)}
 .rrnb-aimenu{position:fixed;z-index:85;background:var(--surface);border:1px solid var(--border);
   border-radius:var(--r-lg);box-shadow:var(--shadow-pop);padding:var(--s-1);min-width:230px}
 .rrnb-aimenu[hidden]{display:none}
@@ -347,7 +347,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
 .rrnb-aipanel .bd.busy{color:var(--text-subtle)}
 .rrnb-aipanel button{height:28px;padding:0 var(--s-2-5);border-radius:var(--r-md);border:1px solid var(--border);
   background:var(--surface);color:var(--text-muted);font-size:var(--fs-sm);font-weight:600;cursor:pointer}
-.rrnb-aipanel button.pri{background:var(--accent);color:#fff;border-color:var(--accent)}
+.rrnb-aipanel button.pri{background:var(--rr-amber-primary);color:var(--rr-white);border-color:var(--rr-amber-primary)}
 .rrnb-aipanel button:hover{filter:brightness(.98)}
 .rrnb-spin{width:13px;height:13px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;
   display:inline-block;animation:rrnbspin .6s linear infinite}
@@ -360,7 +360,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   background:var(--amber-soft,rgba(217,119,6,.12));color:var(--amber);font-size:var(--fs-sm);font-weight:600}
 .rrnb-conflict button{height:26px;padding:0 var(--s-2-5);border-radius:var(--r-md);border:1px solid var(--amber);
   background:var(--surface);color:var(--amber);font-size:var(--fs-xs);font-weight:700;cursor:pointer}
-.rrnb-conflict button.pri{background:var(--amber);color:#fff}
+.rrnb-conflict button.pri{background:var(--amber);color:var(--text-inverse)}
 
 /* presence ("Alice is viewing") + metaline action buttons */
 .rrnb-presence{display:inline-flex;align-items:center;gap:5px;color:var(--green)}
@@ -393,7 +393,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
 .rrnb-ink-bar .gap{width:1px;align-self:stretch;background:var(--border);margin:2px 4px}
 .rrnb-ink-bar button.act{height:28px;padding:0 var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);
   background:var(--surface);color:var(--text-muted);font-size:var(--fs-sm);font-weight:600;cursor:pointer}
-.rrnb-ink-bar button.act.pri{background:var(--accent);color:#fff;border-color:var(--accent)}
+.rrnb-ink-bar button.act.pri{background:var(--rr-amber-primary);color:var(--rr-white);border-color:var(--rr-amber-primary)}
 .rrnb-ink canvas{max-width:92vw;max-height:72vh;background:#fff;border-radius:var(--r-md);
   box-shadow:var(--shadow-pop);cursor:crosshair;touch-action:none}
 
@@ -1058,7 +1058,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       '<span class="rrnb-tb-sep"></span>' +
       '<button class="rrnb-tb" data-cmd="quote" title="Quote">“</button>' +
       '<button class="rrnb-tb" data-cmd="code" title="Code block"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"/></svg></button>' +
-      '<button class="rrnb-tb" data-cmd="callout" title="Callout">⚑</button>' +
+      '<button class="rrnb-tb" data-cmd="callout" title="Callout"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 15V4h13l-2 3 2 3H4"/><path d="M4 21v-6"/></svg></button>' +
       '<button class="rrnb-tb" data-cmd="hr" title="Divider">—</button>' +
       '<button class="rrnb-tb" data-cmd="table" title="Insert table"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 4v16M15 4v16"/></svg></button>' +
       '<button class="rrnb-tb" data-cmd="image" title="Insert picture"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.8"/><path d="M21 16l-5-5-6 6-3-3-4 4"/></svg></button>' +
@@ -1066,7 +1066,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       '<span class="rrnb-tb-sep"></span>' +
       '<button class="rrnb-tb" data-cmd="link" title="Link (Ctrl+K)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg></button>' +
       '<button class="rrnb-tb" data-cmd="pagelink" title="Link to a page">[[ ]]</button>' +
-      '<button class="rrnb-tb" data-cmd="smartlink" title="Auto-link objects (drivers, Van 27, Route 341)">⚡</button>' +
+      '<button class="rrnb-tb" data-cmd="smartlink" title="Auto-link objects (drivers, Van 27, Route 341)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"/></svg></button>' +
       '<span class="rrnb-tb-sep"></span>' +
       '<button class="rrnb-tb" data-cmd="dictate" title="Dictate — voice to text" hidden><span class="rrnb-recdot" hidden></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3.5M8.5 21.5h7"/></svg></button>' +
       '<button class="rrnb-tb rrnb-tb-ai" data-cmd="ai" title="AI: summarize, rewrite, extract action items…"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.9L12 15.5 10.1 11 5.5 9l4.6-1.4L12 3z"/><path d="M18 15l.8 2 2 .8-2 .8L18 21l-.8-2-2-.8 2-.8.8-2z"/></svg><span style="margin-left:5px;font-weight:600">AI</span></button>' +

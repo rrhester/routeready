@@ -4,24 +4,21 @@
         <!-- Page header -->
         <div class="page-header">
           <div>
-            <h1 class="page-title" style="display:flex;align-items:center;gap:var(--s-2-5)">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px;stroke-width:2.2;color:var(--accent)"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
-              Build Your Own Tool
-            </h1>
+            <h1 class="page-title">Build Your Own Tool</h1>
             <p class="page-sub">Describe an operational problem · drop the data · save the tool · run it anytime</p>
           </div>
           <div class="page-actions">
             <button class="btn" onclick="document.getElementById('saved-tools-anchor').scrollIntoView({behavior:'smooth'})">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/></svg>
-              My Saved Tools <span style="background:var(--canvas);color:var(--text-muted);font-size:var(--fs-xs);font-weight:600;padding:1px 7px;border-radius:8px;margin-left:4px">5</span>
+              My Saved Tools <span style="background:var(--canvas);color:var(--text-muted);font-size:var(--fs-xs);font-weight:600;padding:1px 7px;border-radius:var(--r-lg);margin-left:var(--s-1)">5</span>
             </button>
           </div>
         </div>
 
         <!-- Compact hero · the long pitch is for first-time visits, not return ones -->
-        <div class="build-hero" style="padding:var(--s-4) 22px">
+        <div class="build-hero" style="padding:var(--s-4) var(--s-5)">
           <div style="position:relative;z-index:1">
-            <h2 class="build-hero-headline" style="font-size:18px;margin:0 0 4px 0">Describe the problem · Drop in the data · Save the tool · Run it anytime</h2>
+            <h2 class="build-hero-headline" style="font-size:var(--fs-lg);margin:0 0 var(--s-1) 0">Describe the problem · Drop in the data · Save the tool · Run it anytime</h2>
             <p class="build-hero-sub" style="font-size:var(--fs-sm);margin:0">Turn operational intent and messy data into reusable tools.</p>
           </div>
           <button class="build-hero-cta" onclick="document.getElementById('build-prompt').focus()">
@@ -122,12 +119,12 @@
             </div>
 
             <!-- Step 4: Generate -->
-            <div class="bb-card" style="display:flex;justify-content:space-between;align-items:center;background:linear-gradient(180deg,var(--canvas),var(--surface))">
+            <div class="bb-card" style="display:flex;justify-content:space-between;align-items:center">
               <div>
                 <div class="bb-step"><span class="bb-step-num">4</span>Generate the tool</div>
                 <p class="bb-section-sub" style="margin:0">RouteReady will design the metrics, rules, dashboards, and actions automatically.</p>
               </div>
-              <button class="btn btn-primary" style="padding:var(--s-3) 22px;font-size:var(--fs-base)" onclick="toast('Tool already generated · see preview on the right →')">
+              <button class="btn btn-primary" onclick="toast('Tool already generated · see preview on the right →')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15 8 22 9 17 14 18 21 12 18 6 21 7 14 2 9 9 8 12 2"/></svg>
                 Generate Tool
               </button>

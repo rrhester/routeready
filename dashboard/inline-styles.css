@@ -2976,14 +2976,13 @@ button.card:focus-visible{
 }
 .rr-firstrun-banner::before{
   content:"";position:absolute;top:0;left:0;right:0;height:3px;
-  background:var(--brand-grad);
+  background:var(--accent);
   border-top-left-radius:var(--r-lg);border-top-right-radius:var(--r-lg);
 }
 .rr-firstrun-banner-icon{
   width:36px;height:36px;border-radius:var(--r-md);
-  background:var(--brand-grad);color:var(--text-inverse);
+  background:var(--accent-soft);color:var(--accent-text);
   display:grid;place-items:center;flex-shrink:0;
-  box-shadow:var(--shadow-sm), var(--highlight-top);
 }
 .rr-firstrun-banner-icon svg{width:18px;height:18px}
 .rr-firstrun-banner-text{min-width:0}
@@ -3024,7 +3023,7 @@ button.card:focus-visible{
 }
 .rr-firstrun-tile:hover{
   background:var(--surface);border-color:var(--rr-ctl-border-hover);
-  box-shadow:0 1px 2px rgba(15,23,42,.07);
+  box-shadow:var(--shadow-xs);
 }
 .rr-firstrun-tile:active{transform:translateY(0)}
 .rr-firstrun-tile-num{
@@ -3043,7 +3042,7 @@ button.card:focus-visible{
 /* Live progress · steps whose data already exists check themselves off
    (_initFirstRunZone runs head-count queries on drivers / vehicles /
    shifts and flips these). */
-.rr-firstrun-tile.done .rr-firstrun-tile-num{background:rgba(34,197,94,.15);color:var(--rr-green-700)}
+.rr-firstrun-tile.done .rr-firstrun-tile-num{background:var(--green-soft);color:var(--rr-green-700)}
 .rr-firstrun-tile.done .rr-firstrun-tile-title{color:var(--text-muted)}
 .rr-firstrun-tile.done .rr-firstrun-tile-sub::after{content:" · Done";color:var(--rr-green-700);font-weight:600}
 
@@ -6009,14 +6008,15 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 .crit-band-color.amber{background:var(--amber)}
 .crit-band-color.red{background:var(--red)}
 
+/* Enterprise pass · flat surface card, not a dark-gradient hero. */
 .billing-card{
-  background:var(--brand-grad-dark);
-  color:var(--rr-white);padding:var(--s-5);border-radius:var(--r-lg);
+  background:var(--surface);border:1px solid var(--border);
+  color:var(--text);padding:var(--s-5);border-radius:var(--r-lg);
   display:grid;grid-template-columns:1fr auto;gap:var(--s-4);align-items:center;margin-bottom:var(--s-4);
 }
-.billing-plan{font-size:var(--fs-xs);font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.6)}
-.billing-name{font-size:var(--fs-20);font-weight:700;letter-spacing:-.01em;margin:4px 0}
-.billing-price{font-size:var(--fs-md);color:rgba(255,255,255,.8)}
+.billing-plan{font-size:var(--fs-xs);font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--accent-text)}
+.billing-name{font-size:var(--fs-20);font-weight:700;letter-spacing:-.01em;margin:4px 0;color:var(--text)}
+.billing-price{font-size:var(--fs-md);color:var(--text-muted)}
 .invoice-row{
   display:grid;grid-template-columns:auto 1fr auto auto auto;gap:var(--s-4);align-items:center;
   padding:var(--s-3) 0;font-size:var(--fs-md);
@@ -8441,6 +8441,10 @@ body.rr-cmdk-open{ overflow:hidden }
 .okami-week-tag.hve{background:var(--amber);color:var(--text-inverse)}
 .okami-week-tag.peak{background:var(--violet);color:var(--text-inverse)}
 .okami-week-tag.cycle{background:var(--accent);color:var(--text-inverse)}
+/* Daily · informational soft-blue tag (blue reads as informational, not a
+   solid fill) — distinguishes the editable-window marker from the solid
+   Cycle tag and drops the inline #fff / accent-fill it used to carry. */
+.okami-week-tag.daily{background:var(--accent-soft);color:var(--accent-text)}
 
 .strategy-pills{display:flex;gap:3px;flex-wrap:wrap}
 .strategy-pill{
@@ -8833,17 +8837,16 @@ body.rr-cmdk-open{ overflow:hidden }
 .cl-card:hover{border-color:var(--border-strong);box-shadow:var(--shadow-sm)}
 
 .cl-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s-2)}
+/* One calm icon treatment for every checklist category (soft-blue
+   tile, accent glyph) — replaces six per-feature gradients (incl. a
+   decorative red) with a single system look. Category classes kept
+   for JS/markup. */
 .cl-card-icon{
   width:36px;height:36px;border-radius:var(--r-md);
-  display:flex;align-items:center;justify-content:center;color:var(--rr-white);
+  display:flex;align-items:center;justify-content:center;
+  background:var(--accent-soft);color:var(--accent-text);
 }
 .cl-card-icon svg{width:18px;height:18px;stroke-width:2}
-.cl-card-icon.opening{background:var(--amber-grad)}
-.cl-card-icon.closing{background:linear-gradient(135deg,var(--rr-slate-900),var(--rr-slate-800))}
-.cl-card-icon.vehicle{background:var(--brand-grad)}
-.cl-card-icon.onboard{background:linear-gradient(135deg,var(--green),var(--green-bright))}
-.cl-card-icon.compliance{background:linear-gradient(135deg,var(--red),var(--red-bright))}
-.cl-card-icon.shift{background:var(--violet-grad)}
 .cl-card-cat{font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-subtle)}
 .cl-card-name{font-size:var(--fs-base);font-weight:600;color:var(--text);margin-top:2px}
 .cl-card-meta{font-size:var(--fs-xs);color:var(--text-muted);line-height:1.5;flex:1}
@@ -9541,34 +9544,38 @@ body.rr-cmdk-open{ overflow:hidden }
 /* ─────────────────────────────────────────────────────────────
    BUILD YOUR OWN TOOL
    ───────────────────────────────────────────────────────────── */
+/* Enterprise pass · the Build intro reads as a calm structured panel
+   (flat surface + hairline), not a consumer dark-gradient hero.
+   Values track the shared card/token system so it belongs with the
+   rest of the app. */
 .build-hero{
-  background:var(--brand-grad-dark);
-  color:var(--text-inverse);border-radius:var(--r-lg);padding:var(--s-8) var(--s-10);
+  background:var(--surface);
+  color:var(--text);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s-5) var(--s-6);
   display:grid;grid-template-columns:1fr auto;gap:var(--s-5);align-items:center;
   margin-bottom:var(--s-5);position:relative;overflow:hidden;
 }
-.build-hero::after{
-  content:'';position:absolute;right:-60px;top:-60px;width:260px;height:260px;
-  background:radial-gradient(circle,rgba(255,255,255,.08) 0%,transparent 70%);pointer-events:none;
-}
 .build-hero-eyebrow{
-  font-size:var(--fs-xs);font-weight:700;letter-spacing:.12em;text-transform:uppercase;
-  color:rgba(255,255,255,.6);margin-bottom:var(--s-2-5);
+  font-size:var(--fs-xs);font-weight:700;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--accent-text);margin-bottom:var(--s-2-5);
   display:inline-flex;align-items:center;gap:var(--s-1);
 }
 .build-hero-eyebrow svg{width:11px;height:11px}
-.build-hero-headline{font-size:30px;font-weight:700;letter-spacing:-.025em;line-height:1.1;margin:0 0 var(--s-2-5) 0;color:var(--text-inverse)}
-.build-hero-sub{font-size:var(--fs-base);line-height:1.6;color:rgba(255,255,255,.78);max-width:560px;margin:0 0 var(--s-3-5) 0}
+.build-hero-headline{font-size:var(--fs-xl);font-weight:600;letter-spacing:-.015em;line-height:1.2;margin:0 0 var(--s-2) 0;color:var(--text)}
+.build-hero-sub{font-size:var(--fs-base);line-height:1.6;color:var(--text-muted);max-width:560px;margin:0 0 var(--s-3-5) 0}
 .build-hero-tagline{
   display:inline-flex;align-items:center;gap:var(--s-2);
-  font-size:var(--fs-sm);font-weight:600;color:var(--amber-bright);letter-spacing:.01em;
+  font-size:var(--fs-sm);font-weight:600;color:var(--amber-dark);letter-spacing:.01em;
 }
+/* Primary CTA · amber, matching .btn-primary (one primary per screen). */
 .build-hero-cta{
-  background:var(--surface);color:var(--text);padding:var(--s-2-5) var(--s-5);border-radius:var(--r-lg);
-  font-size:var(--fs-md);font-weight:700;border:none;cursor:pointer;
+  min-height:36px;background:var(--rr-amber-primary);color:var(--rr-white);padding:var(--s-2) var(--s-4);border-radius:var(--r-md);
+  font-size:var(--fs-md);font-weight:700;border:1px solid var(--rr-amber-primary);cursor:pointer;
   display:inline-flex;align-items:center;gap:var(--s-2);font-family:inherit;
-  position:relative;z-index:1;
+  position:relative;z-index:1;box-shadow:var(--shadow-xs);
+  transition:background var(--t-fast), box-shadow var(--t-fast);
 }
+.build-hero-cta:hover{background:var(--rr-amber-primary-hover);border-color:var(--rr-amber-primary-hover)}
+.build-hero-cta:focus-visible{outline:none;box-shadow:var(--ring-focus)}
 .build-hero-cta:hover{background:var(--canvas)}
 .build-hero-cta svg{width:14px;height:14px;stroke-width:2.5}
 
@@ -9759,16 +9766,17 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 .bb-saved-card:hover{border-color:var(--border-strong);box-shadow:var(--shadow-sm)}
 .bb-saved-head{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s-2-5)}
+/* One calm icon treatment for every tool category (soft-blue tile,
+   accent glyph) — replaces the five per-feature gradients (incl. a
+   decorative red) so the saved-tool grid reads as one system, not a
+   color-per-feature set. Category classes are kept for JS but now
+   share the base look. */
 .bb-saved-icon{
-  width:34px;height:34px;border-radius:var(--r-md);color:var(--rr-white);
+  width:34px;height:34px;border-radius:var(--r-md);color:var(--accent-text);
+  background:var(--accent-soft);
   display:flex;align-items:center;justify-content:center;flex-shrink:0;
 }
 .bb-saved-icon svg{width:15px;height:15px;stroke-width:2}
-.bb-saved-icon.analyzer{background:var(--brand-grad-dark)}
-.bb-saved-icon.tracker{background:var(--violet-grad)}
-.bb-saved-icon.monitor{background:linear-gradient(135deg,var(--green),var(--green-bright))}
-.bb-saved-icon.finder{background:var(--amber-grad)}
-.bb-saved-icon.review{background:linear-gradient(135deg,var(--red),var(--red-bright))}
 .bb-saved-type{
   font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-subtle);
 }
@@ -9990,10 +9998,13 @@ body.rr-cmdk-open{ overflow:hidden }
 .iv-card-body{min-width:0}
 .iv-card-header{display:flex;align-items:center;gap:var(--s-2-5);margin-bottom:var(--s-2)}
 .iv-card-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:var(--fs-md);font-weight:700;color:var(--text-inverse);flex-shrink:0}
-.iv-card-avatar.tier-a{background:var(--green)}
-.iv-card-avatar.tier-b{background:var(--blue-bright)}
-.iv-card-avatar.tier-c{background:var(--amber-bright)}
-.iv-card-avatar.tier-d{background:var(--red-bright)}
+/* Candidate tiers · calm soft tints (dark glyph), not a bright
+   saturated color-per-tier set — and tier-d is neutral, never a
+   decorative red. */
+.iv-card-avatar.tier-a{background:var(--green-soft);color:var(--green-dark)}
+.iv-card-avatar.tier-b{background:var(--accent-soft);color:var(--accent-text)}
+.iv-card-avatar.tier-c{background:var(--amber-soft);color:var(--amber-dark)}
+.iv-card-avatar.tier-d{background:var(--rr-slate-100);color:var(--rr-slate-600)}
 .iv-card-name{font-size:var(--fs-lg);font-weight:600;color:var(--text);letter-spacing:-.01em}
 .iv-card-meta{font-size:var(--fs-xs);color:var(--text-subtle)}
 .iv-card-source{font-size:var(--fs-xs);font-weight:600;padding:2px var(--s-2);border-radius:var(--r-md);margin-left:auto;letter-spacing:.02em}
@@ -10004,7 +10015,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .iv-card-actions{display:flex;gap:var(--s-2);flex-shrink:0}
 .iv-action-btn{
   display:inline-flex;align-items:center;gap:var(--s-1);
-  padding:var(--s-2-5) var(--s-3-5);border-radius:var(--r-lg);border:1px solid var(--border);
+  padding:var(--s-2-5) var(--s-3-5);border-radius:var(--r-md);border:1px solid var(--border);
   background:var(--surface);color:var(--text);
   font:inherit;font-size:var(--fs-md);font-weight:600;cursor:pointer;
   transition:background var(--t-fast),color var(--t-fast),border-color var(--t-fast);
@@ -10020,8 +10031,8 @@ body.rr-cmdk-open{ overflow:hidden }
 
 .iv-done{
   background:var(--green-soft);
-  border:1px solid var(--green-border);border-radius:var(--r-xl);
-  padding:var(--s-8) var(--s-8);text-align:center;
+  border:1px solid var(--green-border);border-radius:var(--r-lg);
+  padding:var(--s-6) var(--s-6);text-align:center;
 }
 .iv-done-icon{
   width:52px;height:52px;border-radius:50%;
@@ -11925,7 +11936,7 @@ body.rr-cmdk-open{ overflow:hidden }
             background:#F3F8FE;border-color:var(--accent);color:var(--accent);
           }
           #view-pipeline .pa-btn-video:focus-visible{
-            outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(37,99,235,.30);
+            outline:none;border-color:var(--accent);box-shadow:var(--ring-focus);
           }
           #view-pipeline .pa-btn-video svg{width:11px;height:11px;flex:0 0 auto}
           #view-pipeline .pa-act-more{
@@ -11941,7 +11952,7 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-pipeline .pa-act-more:focus-visible{
             outline:none;background:rgba(15,23,42,.06);color:var(--text);
-            box-shadow:0 0 0 2px rgba(37,99,235,.30);
+            box-shadow:var(--ring-focus);
           }
           #view-pipeline .pa-act-more svg{width:16px;height:16px;flex:0 0 auto}
           /* Overflow menu rows · Fluent menu-item layout (icon · label / sub). */
@@ -12414,8 +12425,8 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           .pa-disp-btn:focus-visible{outline:none;box-shadow:var(--ring-focus)}
           .pa-disp-btn svg{width:13px;height:13px}
-          .pa-disp-btn.primary{background:var(--text);color:var(--rr-white);border-color:var(--text)}
-          .pa-disp-btn.primary:hover{background:#000}
+          .pa-disp-btn.primary{background:var(--rr-amber-primary);color:var(--rr-white);border-color:var(--rr-amber-primary)}
+          .pa-disp-btn.primary:hover{background:var(--rr-amber-primary-hover);border-color:var(--rr-amber-primary-hover)}
           .pa-disp-btn.ghost{background:transparent;color:var(--text);border-color:var(--border)}
           .pa-disp-btn.ghost:hover{background:var(--canvas);border-color:var(--text-subtle)}
           .pa-disp-btn.danger{background:transparent;color:var(--red);border-color:var(--red-border)}
@@ -13004,7 +13015,7 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Stage badge · Fluent — a compact rectangle chip, one line. */
           #view-pipeline .pa-stage-pill{
             display:inline-flex;align-items:center;gap:6px;
-            padding:4px 10px;border-radius:8px;border:1px solid var(--rr-slate-200);
+            padding:4px 10px;border-radius:var(--r-lg);border:1px solid var(--rr-slate-200);
             background:var(--rr-slate-100);color:var(--rr-slate-600);
             font-size:var(--fs-sm);font-weight:700;letter-spacing:.01em;
             white-space:nowrap;max-width:100%;
@@ -13013,27 +13024,27 @@ body.rr-cmdk-open{ overflow:hidden }
              palette (like the Roster / Requests / Targets signals). */
           #view-pipeline .pa-stage-pill.applied{background:var(--rr-slate-100);border-color:var(--rr-slate-200);color:var(--rr-slate-600)}
           #view-pipeline .pa-stage-pill.applied::before{background:var(--rr-slate-400)}
-          #view-pipeline .pa-stage-pill.screened{background:var(--rr-blue-50);border-color:#BFDBFE;color:var(--rr-blue-700)}
+          #view-pipeline .pa-stage-pill.screened{background:var(--rr-blue-50);border-color:var(--accent-border);color:var(--rr-blue-700)}
           #view-pipeline .pa-stage-pill.screened::before{background:var(--rr-blue-600)}
-          #view-pipeline .pa-stage-pill.booking_pending{background:#FFFBEB;border-color:#FDE68A;color:var(--rr-amber-700)}
+          #view-pipeline .pa-stage-pill.booking_pending{background:var(--amber-soft);border-color:var(--amber-border);color:var(--rr-amber-700)}
           #view-pipeline .pa-stage-pill.booking_pending::before{background:var(--rr-amber-600)}
           #view-pipeline .pa-stage-pill.booking_scheduled{
-            background:#F0FDF4;color:var(--rr-green-700);border-color:#BBF7D0;
+            background:var(--green-soft);color:var(--rr-green-700);border-color:var(--green-border);
           }
           #view-pipeline .pa-stage-pill.booking_scheduled::before{background:var(--rr-green-600)}
-          #view-pipeline .pa-stage-pill.hired{background:#F0FDF4;border-color:#BBF7D0;color:var(--rr-green-700)}
+          #view-pipeline .pa-stage-pill.hired{background:var(--green-soft);border-color:var(--green-border);color:var(--rr-green-700)}
           #view-pipeline .pa-stage-pill.hired::before{background:var(--rr-green-600)}
-          #view-pipeline .pa-card-avatar{width:40px;height:40px;box-shadow:inset 0 1px 0 rgba(255,255,255,.28)}
-          #view-pipeline .pa-card-name{font-size:var(--fs-15);letter-spacing:-.01em}
+          #view-pipeline .pa-card-avatar{width:40px;height:40px}
+          #view-pipeline .pa-card-name{font-size:var(--fs-base);letter-spacing:-.01em}
           #view-pipeline .pa-card-meta{line-height:1.45;color:var(--text-muted)}
           #view-pipeline .pa-card-tag{background:var(--sch-surface-2);border:1px solid var(--border-subtle);border-radius:var(--r-pill)}
           #view-pipeline .pa-card-tag.score{background:var(--surface)}
           #view-pipeline .pa-view-btn{
-            border-radius:var(--r-pill);background:var(--sch-surface-2);padding:8px 13px;
+            border-radius:var(--r-md);background:var(--sch-surface-2);padding:5px var(--s-2-5);
           }
           #view-pipeline .pa-view-btn:hover{background:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-border)}
           #view-pipeline .pa-detail{background:var(--sch-surface);padding:var(--s-5)}
-          #view-pipeline .pa-feature-card{border-radius:8px;box-shadow:0 1px 4px rgba(15,23,42,.04)}
+          #view-pipeline .pa-feature-card{border-radius:var(--r-lg);box-shadow:var(--shadow-xs)}
           @media (max-width:1100px){#view-pipeline .hp-stats-banner{grid-template-columns:repeat(3,minmax(0,1fr))}}
           @media (max-width:760px){
             #view-pipeline .hp-stats-banner{grid-template-columns:repeat(2,minmax(0,1fr));border-radius:8px}
@@ -21773,10 +21784,13 @@ body.rr-cmdk-open{ overflow:hidden }
 
           /* Kind chip — birthday, anniversary, safety, custom */
           #view-recognition .rg-kind{display:inline-flex;align-items:center;gap:4px;font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px var(--s-2);border-radius:var(--r-pill);white-space:nowrap;border:1px solid transparent}
-          #view-recognition .rg-kind.birthday{background:#fff4e5;color:#9a3412;border-color:#fed7aa}
-          #view-recognition .rg-kind.work_anniversary{background:#ecfeff;color:#155e75;border-color:#a5f3fc}
-          #view-recognition .rg-kind.safety_milestone{background:#ecfccb;color:#3f6212;border-color:#bef264}
-          #view-recognition .rg-kind.custom{background:var(--accent-soft);color:var(--accent-text);border-color:transparent}
+          /* Occasion chips map onto the core semantic families (amber /
+             blue / green) + neutral rather than three off-palette hues,
+             so they stay scannable while belonging to the palette. */
+          #view-recognition .rg-kind.birthday{background:var(--amber-soft);color:var(--amber-dark);border-color:var(--amber-border)}
+          #view-recognition .rg-kind.work_anniversary{background:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-border)}
+          #view-recognition .rg-kind.safety_milestone{background:var(--green-soft);color:var(--green-dark);border-color:var(--green-border)}
+          #view-recognition .rg-kind.custom{background:var(--canvas);color:var(--text-subtle);border-color:transparent}
 
           /* "When" pill — Today / Tomorrow / In N days */
           #view-recognition .rg-when{font-size:var(--fs-sm);color:var(--text-muted)}
@@ -23530,7 +23544,7 @@ body.rr-cmdk-open{ overflow:hidden }
             color:var(--text-subtle);
           }
           .docs-template-card .docs-mono-chip .lbl{
-            font-size:8.5px;color:var(--text-subtle);
+            font-size:var(--fs-9);color:var(--text-subtle);
           }
           .docs-doc-tile{
             position:relative;width:40px;height:50px;flex:0 0 auto;border-radius:var(--r-md);
@@ -23546,7 +23560,7 @@ body.rr-cmdk-open{ overflow:hidden }
           .docs-doc-tile svg{width:18px;height:18px}
           /* Document tier — secure (signature) reads green; informational
              (library) stays neutral.  The colour is the trust cue. */
-          .docs-doc-tile.tile-secure{color:var(--green-dark);border-color:rgba(22,163,74,.28);background:linear-gradient(160deg, var(--green-soft) 0%, var(--surface) 100%)}
+          .docs-doc-tile.tile-secure{color:var(--green-dark);border-color:var(--green-border);background:linear-gradient(160deg, var(--green-soft) 0%, var(--surface) 100%)}
           .docs-doc-tile.tile-info{color:var(--text-muted)}
           .docs-template-card.is-info{background:var(--canvas)}
           .docs-tier{display:inline-flex;align-items:center;gap:var(--s-1);font-size:var(--fs-10);font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:var(--r-pill);white-space:nowrap}
@@ -23935,7 +23949,7 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-email .em-action:hover{background:rgba(15,23,42,.04);color:var(--text)}
           #view-email .em-action:focus-visible{
             outline:none;background:rgba(15,23,42,.04);color:var(--text);
-            box-shadow:0 0 0 2px rgba(37,99,235,.30);
+            box-shadow:var(--ring-focus);
           }
           /* Stacked Reply / Reply All / Forward · three compact rows in
              a single tile. Divider matches the first hairline (title
@@ -23960,15 +23974,15 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-email .em-action-stack-btn:hover{background:rgba(15,23,42,.04);color:var(--text)}
           #view-email .em-action-stack-btn:focus-visible{
             outline:none;background:rgba(15,23,42,.04);color:var(--text);
-            box-shadow:0 0 0 2px rgba(37,99,235,.30);
+            box-shadow:var(--ring-focus);
           }
           /* Document AI · same vibe as the Schedule's Smart Fill /
              Unassign tiles: soft purple-to-pink gradient pill, dark
              purple icon + label (not white-on-vibrant). Click still
              triggers the one-shot spin on the sparkle icon. */
           #view-email .em-action.em-action-ai{
-            position:relative;color:var(--rr-blue-800);
-            background:linear-gradient(135deg,#E3F0FA 0%,#FCE7F3 100%);
+            position:relative;color:var(--text-muted);
+            background:transparent;
             box-shadow:none;
           }
           #view-email .em-action.em-action-ai span{color:var(--rr-blue-800);font-weight:600}
@@ -24037,8 +24051,8 @@ body.rr-cmdk-open{ overflow:hidden }
             background:var(--surface);
             border:1px solid var(--sch-line,var(--border));
             border-radius:var(--r-lg);
-            box-shadow:0 1px 4px rgba(15,23,42,.04);
-            padding:18px;
+            box-shadow:var(--shadow-xs);
+            padding:var(--s-4);
             min-height:0;
             overflow-y:auto;
           }
@@ -24046,8 +24060,8 @@ body.rr-cmdk-open{ overflow:hidden }
             background:var(--surface);
             border:1px solid var(--sch-line,var(--border));
             border-radius:var(--r-lg);
-            box-shadow:0 1px 4px rgba(15,23,42,.04);
-            padding:18px;
+            box-shadow:var(--shadow-xs);
+            padding:var(--s-4);
             display:flex;flex-direction:column;
             min-height:0;overflow:hidden;
           }
@@ -24096,7 +24110,9 @@ body.rr-cmdk-open{ overflow:hidden }
             font:inherit;font-size:var(--fs-sm);font-weight:600;cursor:pointer;
           }
           #view-email .em-new-folder-save{
-            background:var(--sch-blue);color:var(--rr-white);border:1px solid var(--sch-blue);
+            /* Primary confirm · amber, matching the app-wide primary CTA
+               (blue is reserved for selection/focus, never a control fill). */
+            background:var(--rr-amber-primary);color:var(--rr-white);border:1px solid var(--rr-amber-primary);
           }
           #view-email .em-new-folder-cancel{
             background:var(--rr-white);color:var(--text);border:1px solid var(--border);
@@ -24128,13 +24144,15 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-email .em-folder.active .em-folder-count{color:var(--sch-blue)}
           /* Pill badge when there are unread/new messages. */
           #view-email .em-folder-count.has-new{
-            background:var(--sch-blue);color:var(--rr-white);
-            border-radius:9px;padding:1px 7px;min-width:18px;
+            /* Unread badge · amber "needs attention" (app-wide unread
+               convention, e.g. .subnav-pill-badge) — not a solid blue fill. */
+            background:var(--amber);color:var(--text-inverse);
+            border-radius:var(--r-pill);padding:1px 7px;min-width:18px;
             font-size:var(--fs-10);line-height:1.4;text-align:center;
             display:inline-block;
           }
           #view-email .em-folder.active .em-folder-count.has-new{
-            background:var(--rr-white);color:var(--sch-blue);
+            background:var(--rr-white);color:var(--amber-dark);
           }
           #view-email .em-folder-delete{
             display:none;background:transparent;border:0;cursor:pointer;
@@ -27560,7 +27578,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-drive-fico{flex:0 0 auto;width:38px;height:38px;border-radius:9px;background:var(--canvas);display:flex;align-items:center;justify-content:center;color:var(--text-subtle)}
 .rr-drive-fico svg{width:20px;height:20px}
 .rr-drive-fico.is-folder{color:var(--text-muted)}
-.rr-drive-fico.t-pdf{color:#b42318}.rr-drive-fico.t-img{color:#0e7490}.rr-drive-fico.t-doc{color:var(--rr-blue-700)}.rr-drive-fico.t-xls{color:var(--rr-green-700)}
+.rr-drive-fico.t-pdf{color:var(--rr-red-700)}.rr-drive-fico.t-img{color:var(--rr-teal-700)}.rr-drive-fico.t-doc{color:var(--rr-blue-700)}.rr-drive-fico.t-xls{color:var(--rr-green-700)}
 .rr-drive-name-txt{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-sm);font-weight:600;color:var(--text)}
 .rr-drive-cell{font-size:var(--fs-xs);color:var(--text-subtle);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rr-drive-row .rr-drive-rowact{display:flex;justify-content:flex-end;color:var(--text-disabled)}
@@ -28039,7 +28057,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-drive-qa.is-on{border-color:var(--accent-border,rgba(37,99,235,.3));color:var(--accent-text);background:var(--accent-soft)}
 .rr-drive-qa-sm{padding:7px 10px;font-size:var(--fs-xs)}
 .rr-drive-qa-danger{color:#b42318}
-.rr-drive-qa-danger:hover{background:var(--red-soft,var(--rr-red-50));border-color:#fecaca;color:#b42318}
+.rr-drive-qa-danger:hover{background:var(--red-soft,var(--rr-red-50));border-color:var(--rr-red-200);color:var(--rr-red-700)}
 
 /* Activity tab — a quiet timeline built from the record's real timestamps. */
 .rr-drive-act{list-style:none;margin:0;padding:16px}
