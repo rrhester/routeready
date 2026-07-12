@@ -162,10 +162,24 @@ if (!session) {
 // RPCs raise 'forbidden'.  The operator sees half-broken panels showing
 // "Forbidden" / "no drivers" / "no forms" with no clue why.  Detect the
 // failure and force a clean re-login instead.
+// Durable, non-sensitive UI preferences that must survive a sign-out /
+// forced relogin. This runs on EVERY SIGNED_OUT (see onAuthStateChange
+// below), so a plain localStorage.clear() here silently reset them — most
+// visibly the Messages favorites (rr_msg_favs), which vanished every time
+// the operator logged out and back in. Carry these across the wipe.
+const _RR_KEEP_ACROSS_RELOGIN = ["rr_msg_favs", "rr_msg_details_open"];
 function _forceRelogin(reason) {
   const next = encodeURIComponent(location.pathname + location.search);
   try { sb.auth.signOut().catch(() => {}); } catch {}
-  try { localStorage.clear(); sessionStorage.clear(); } catch {}
+  try {
+    const keep = {};
+    for (const k of _RR_KEEP_ACROSS_RELOGIN) {
+      const v = localStorage.getItem(k);
+      if (v != null) keep[k] = v;
+    }
+    localStorage.clear(); sessionStorage.clear();
+    for (const k in keep) { try { localStorage.setItem(k, keep[k]); } catch {} }
+  } catch {}
   location.replace(`./login.html?err=${encodeURIComponent(reason || "session_expired")}&next=${next}`);
   throw new Error(`force relogin: ${reason}`);
 }
