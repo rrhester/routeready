@@ -175,6 +175,8 @@ class SupabaseTransport {
   join(meta, handlers) {
     const ch = this.channel;
     this.lastMeta = meta;
+    this.handlers = handlers;
+    this.rosterPeers = new Map(); // key → meta, built from broadcast (not presence)
     ch.on("broadcast", { event: "signal" }, ({ payload }) => {
       if (payload && payload.to === this.key) handlers.onSignal(payload.from, payload.data);
     });
@@ -195,11 +197,27 @@ class SupabaseTransport {
         if (payload && payload.from !== this.key) { dbg.bcastRx++; renderDebug(); }
       });
     }
-    ch.on("presence", { event: "sync" }, () => {
-      const s = ch.presenceState();
-      dbg.presence = Object.keys(s || {}).length;
-      renderDebug();
-      handlers.onPresence(s);
+    // Roster over BROADCAST, not Presence. Supabase Presence silently
+    // delivers nothing on this project (confirmed live: SUBSCRIBED, authed,
+    // but presenceState stays empty even for self — a Realtime-authorization
+    // quirk of the new publishable keys), so two participants never saw each
+    // other. Broadcast works, so mirror LocalTransport's hello/state/bye
+    // handshake instead: announce on join, answer a peer's hello with our
+    // current meta, drop on bye. Same {key: [meta]} shape handlePresence
+    // already consumes.
+    ch.on("broadcast", { event: "peer" }, ({ payload }) => {
+      if (!payload || payload.from === this.key) return;
+      if (payload.kind === "hello") {
+        this.rosterPeers.set(payload.from, payload.meta);
+        this._sendPeer("state"); // so the newcomer learns about us
+        this._emitRoster();
+      } else if (payload.kind === "state") {
+        this.rosterPeers.set(payload.from, payload.meta);
+        this._emitRoster();
+      } else if (payload.kind === "bye") {
+        this.rosterPeers.delete(payload.from);
+        this._emitRoster();
+      }
     });
     return new Promise((resolve, reject) => {
       ch.subscribe(async (status, err) => {
@@ -207,10 +225,12 @@ class SupabaseTransport {
         if (err) dbg.err = String(err.message || err);
         renderDebug();
         if (status === "SUBSCRIBED") {
-          // Fires again after every websocket drop/rejoin — re-announce
-          // our presence so the roster heals without a manual refresh.
-          const res = await ch.track(this.lastMeta);
-          if (res && res !== "ok") { dbg.err = "track:" + JSON.stringify(res); renderDebug(); }
+          // Announce ourselves. Re-sent on every (re)subscribe so the roster
+          // heals after a socket drop; a delayed second hello covers the rare
+          // both-subscribe-at-once race where the first hello is missed.
+          this._sendPeer("hello");
+          setTimeout(() => { if (!this._left) this._sendPeer("hello"); }, 800);
+          this._emitRoster();
           if (DEBUG && !this._pingTimer) {
             this._pingTimer = setInterval(() => {
               ch.send({ type: "broadcast", event: "dbgping", payload: { from: this.key } });
@@ -223,10 +243,25 @@ class SupabaseTransport {
       });
     });
   }
-  track(meta) { this.lastMeta = meta; return this.channel.track(meta); }
+  _sendPeer(kind) {
+    return this.channel.send({ type: "broadcast", event: "peer", payload: { kind, from: this.key, meta: this.lastMeta } });
+  }
+  _emitRoster() {
+    const map = { [this.key]: [this.lastMeta] };
+    for (const [k, m] of this.rosterPeers) map[k] = [m];
+    dbg.presence = Object.keys(map).length;
+    renderDebug();
+    if (this.handlers) this.handlers.onPresence(map);
+  }
+  track(meta) { this.lastMeta = meta; this._sendPeer("state"); this._emitRoster(); return Promise.resolve(); }
   send(event, payload) { return this.channel.send({ type: "broadcast", event, payload }); }
   signal(to, data) { return this.send("signal", { from: this.key, to, data }); }
-  async leave() { if (this._pingTimer) { clearInterval(this._pingTimer); this._pingTimer = null; } try { await this.channel.untrack(); } catch { /* leaving anyway */ } try { await this.sb.removeChannel(this.channel); } catch { /* leaving anyway */ } }
+  async leave() {
+    this._left = true;
+    if (this._pingTimer) { clearInterval(this._pingTimer); this._pingTimer = null; }
+    try { await this._sendPeer("bye"); } catch { /* leaving anyway */ }
+    try { await this.sb.removeChannel(this.channel); } catch { /* leaving anyway */ }
+  }
 }
 
 // Same-browser-tabs transport for the hermetic test mode. Emulates just
