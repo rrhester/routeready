@@ -65,6 +65,13 @@ const EMBED = new URLSearchParams(location.search).has("embed");
 // two-party "we can't see each other" report can be localized without dev
 // tools. No effect on behavior; the panel only renders when the flag is on.
 const DEBUG = new URLSearchParams(location.search).has("debug");
+
+// ?ptt=1 · Push-to-talk "dispatch radio" mode. Same mesh room, but: audio
+// only (no camera), the mic joins MUTED, and a big hold-to-talk button keys
+// the mic on press & hold (releasing re-mutes). Purpose-built for a small
+// crew (2–6) on an always-on channel — everything else in this file is
+// untouched, so normal video calls are unaffected. See docs.
+const PTT = new URLSearchParams(location.search).has("ptt");
 const dbg = { chan: "", status: "", err: "", presence: 0, authed: false, bcastRx: 0 };
 function renderDebug() {
   if (!DEBUG) return;
@@ -95,8 +102,10 @@ const state = {
   name: "",
   peerKey: (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2)),
   joinedAt: 0,
-  mic: true,
-  cam: true,
+  // Radio mode joins listening (mic muted) with no camera; a normal call
+  // joins mic+cam on as before.
+  mic: !PTT,
+  cam: !PTT,
   sharing: false,
   localStream: null,   // what we SEND (camera/mic; video swapped during share)
   camTrack: null,
@@ -368,7 +377,10 @@ function gumAudio() {
 // Tiered acquisition: cam+mic → mic only → cam only → nothing. Joining
 // with zero devices is legal (recvonly listener), same as Zoom.
 async function acquireMedia() {
-  const tries = [
+  // Radio mode is audio-only — never open the camera.
+  const tries = PTT
+    ? [ { video: false, audio: gumAudio() } ]
+    : [
     { video: gumVideo(), audio: gumAudio() },
     { video: false, audio: gumAudio() },
     { video: gumVideo(), audio: false },
@@ -1315,6 +1327,70 @@ function publishMeta() {
 
 function show(screen) {
   document.body.dataset.screen = screen;
+  if (screen === "room" && PTT) mountPttUI();
+}
+
+// ─── Push-to-talk radio UI ─────────────────────────────────────────────────
+// Injected only in ?ptt=1 rooms (meet.html is untouched). A big hold-to-talk
+// button keys the mic on press & hold; releasing re-mutes. The rest of the
+// mesh (peers, TURN, roster, audio) is exactly a normal Meet room.
+function pttSetTalk(on) {
+  if (!state.micTrack) { if (on) toast("No microphone detected"); return; }
+  state.mic = !!on;
+  state.micTrack.enabled = !!on;
+  try { publishMeta(); } catch (_) {}
+  try { if (typeof syncControls === "function") syncControls(); } catch (_) {}
+  const btn = document.getElementById("rr-ptt-btn");
+  const st  = document.getElementById("rr-ptt-status");
+  if (btn) btn.classList.toggle("live", !!on);
+  if (st)  st.textContent = on ? "You're live — talking" : "Listening — hold to talk";
+}
+
+function mountPttUI() {
+  if (document.getElementById("rr-ptt-bar")) return; // once
+  document.body.classList.add("rr-ptt-mode");
+
+  const style = document.createElement("style");
+  style.textContent = `
+    body.rr-ptt-mode #btn-cam, body.rr-ptt-mode #btn-share,
+    body.rr-ptt-mode #btn-mic { display:none !important; }
+    #rr-ptt-bar{ position:fixed; left:0; right:0; bottom:0; z-index:60;
+      display:flex; flex-direction:column; align-items:center; gap:10px;
+      padding:16px 16px calc(20px + env(safe-area-inset-bottom));
+      background:linear-gradient(to top, rgba(0,0,0,.85), rgba(0,0,0,0)); }
+    #rr-ptt-status{ color:#fff; font-weight:600; font-size:15px; text-shadow:0 1px 2px rgba(0,0,0,.6) }
+    #rr-ptt-btn{ width:118px; height:118px; border-radius:50%; border:0; cursor:pointer;
+      background:#2f6bff; color:#fff; font-weight:800; font-size:15px; letter-spacing:.02em;
+      box-shadow:0 8px 30px rgba(0,0,0,.45); touch-action:none; user-select:none;
+      display:flex; align-items:center; justify-content:center; text-align:center;
+      transition:transform .08s ease, background .12s ease; }
+    #rr-ptt-btn:active{ transform:scale(.96) }
+    #rr-ptt-btn.live{ background:#e5484d; box-shadow:0 0 0 10px rgba(229,72,77,.25), 0 8px 30px rgba(0,0,0,.45) }
+  `;
+  document.head.appendChild(style);
+
+  const bar = document.createElement("div");
+  bar.id = "rr-ptt-bar";
+  bar.innerHTML = `
+    <div id="rr-ptt-status">Listening — hold to talk</div>
+    <button id="rr-ptt-btn" type="button" aria-label="Hold to talk">HOLD<br>TO TALK</button>`;
+  document.body.appendChild(bar);
+
+  const btn = document.getElementById("rr-ptt-btn");
+  const down = (e) => { e.preventDefault(); try { btn.setPointerCapture(e.pointerId); } catch (_) {} pttSetTalk(true); };
+  const up   = (e) => { if (e) e.preventDefault(); pttSetTalk(false); };
+  btn.addEventListener("pointerdown", down);
+  btn.addEventListener("pointerup", up);
+  btn.addEventListener("pointercancel", up);
+  btn.addEventListener("lostpointercapture", up);
+  // Hold the SPACE bar to talk (desk dispatcher).
+  document.addEventListener("keydown", (e) => {
+    if (e.code === "Space" && !e.repeat && document.body.classList.contains("rr-ptt-mode")
+        && document.body.dataset.screen === "room") { e.preventDefault(); pttSetTalk(true); }
+  });
+  document.addEventListener("keyup", (e) => {
+    if (e.code === "Space" && document.body.classList.contains("rr-ptt-mode")) { e.preventDefault(); pttSetTalk(false); }
+  });
 }
 
 function toast(msg) {
@@ -2151,12 +2227,13 @@ async function resolveCode(code) {
       }
     } catch { /* not configured / guest — DB list stands */ }
     const q = new URLSearchParams(location.search);
-    if (q.has("call")) {
-      // Direct call (RouteReady Messages): skip the lobby and drop straight
-      // into the room so ring → answer → connected feels instant. Both the
+    if (q.has("call") || PTT) {
+      // Direct call (RouteReady Messages) OR the push-to-talk radio: skip the
+      // lobby and drop straight into the room so it connects on open. Both the
       // caller and the callee open meet with ?call=1; a voice call passes
-      // cam=0 so we join with the camera off. openLobby({silent}) still wires
-      // media/preview/name so a failed join falls back to a working lobby.
+      // cam=0 so we join with the camera off. Radio (?ptt=1) joins audio-only
+      // and muted. openLobby({silent}) still wires media/preview/name so a
+      // failed join falls back to a working lobby.
       if (q.get("cam") === "0") state.cam = false;
       await openLobby({ silent: true });
       await enterRoom();
