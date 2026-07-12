@@ -107,7 +107,16 @@
 // a big Recording bar with a live timer + one-tap Send/Cancel; typing turns
 // it back into the send arrow. Bumped so installed driver PWAs pick up the
 // new app.js + CSS.
-const SHELL_CACHE = "rr-app-shell-v152";
+// v152 · State-treatment consistency: the Team screen and the three chat
+// surfaces (messages, channels, channel thread) drop their bespoke empty/
+// error markup for the shared errorStateHtml + .rr-empty pattern, so every
+// "couldn't load" state carries the same alert icon + friendly-error text as
+// the rest of the app. Bumped so installed driver PWAs pick up the new
+// app.js + CSS.
+// v153 · Live "recording audio…" indicator: when either side records a voice
+// note, the other sees "recording audio…" in place of "typing…" (reuses the
+// presence broadcast). Bumped so installed driver PWAs pick up the new app.js.
+const SHELL_CACHE = "rr-app-shell-v153";
 const SHELL_FILES = [
   "./",
   "index.html",

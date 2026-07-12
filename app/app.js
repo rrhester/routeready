@@ -6377,7 +6377,7 @@ async function refreshChat(scrollToBottom) {
     if (/unauthorized|revoked|inactive/.test(error.message || "")) {
       writeSession(null); render(); return;
     }
-    wrap.innerHTML = `<div class="empty-state" style="color:var(--text-muted)">Couldn't load messages. Pull down to retry.</div>`;
+    wrap.innerHTML = errorStateHtml("Couldn't load messages", error);
     return;
   }
   const messages = data?.messages || [];
@@ -6891,7 +6891,7 @@ async function refreshChannelList() {
     if (/unauthorized|revoked|inactive/.test(error.message || "")) {
       writeSession(null); render(); return;
     }
-    list.innerHTML = `<div class="empty-state" style="color:var(--text-muted)">Couldn't load channels. Pull down to retry.</div>`;
+    list.innerHTML = errorStateHtml("Couldn't load channels", error);
     return;
   }
   const channels = data?.channels || [];
@@ -7163,7 +7163,7 @@ async function refreshChannelThread(scrollToBottom) {
       writeSession(null); render(); return;
     }
     if (wrap) {
-      wrap.innerHTML = `<div class="empty-state" style="color:var(--text-muted)">Couldn't load channel. Pull down to retry.</div>`;
+      wrap.innerHTML = errorStateHtml("Couldn't load channel", error);
     }
     return;
   }
@@ -7276,7 +7276,7 @@ async function renderTeam() {
   // Skeleton roster — hints at the row layout (avatar circle + two
   // lines of text + action chip) so the real list swaps in without
   // a jump. Delayed 140ms so a fast roster never flashes a shimmer.
-  const _hadContent = !!main.querySelector(".team-list, .team-empty");
+  const _hadContent = !!main.querySelector(".team-list, .rr-empty");
   const _skelTimer = _hadContent ? null : setTimeout(() => {
     if (currentRoute() !== "/team") return;
     let _skel = `<div class="team-search" style="opacity:.5;pointer-events:none">
@@ -7305,7 +7305,7 @@ async function renderTeam() {
   _clearSkel();
 
   if (error) {
-    main.innerHTML = `<div class="team-empty"><div class="team-empty-title">Couldn't load the team</div><div class="team-empty-sub">${escapeHtml(_friendlyError(error, "Pull down to retry."))}</div></div>`;
+    main.innerHTML = errorStateHtml("Couldn't load the team", error);
     return;
   }
 
@@ -7323,9 +7323,12 @@ async function renderTeam() {
   } catch (_) { /* initials fallback */ }
   if (list.length === 0) {
     main.innerHTML = `
-      <div class="team-empty">
-        <div class="team-empty-title">No teammates yet</div>
-        <div class="team-empty-sub">When dispatch adds other drivers to your DSP, they'll show up here so you can reach them.</div>
+      <div class="rr-empty">
+        <div class="rr-empty-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </div>
+        <div class="rr-empty-title">No teammates yet</div>
+        <div class="rr-empty-sub">When dispatch adds other drivers to your DSP, they'll show up here so you can reach them.</div>
       </div>`;
     return;
   }

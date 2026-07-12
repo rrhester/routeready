@@ -2193,9 +2193,6 @@ body.scan-camming{overflow:hidden}
 .team-call:active{ background:rgba(22,163,74,.20) }
 .team-call-disabled{background:transparent;color:var(--text-subtle);font-weight:600}
 .team-row-noPhone{color:var(--text-muted)}
-.team-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:80px var(--s-4);text-align:center}
-.team-empty-title{font-size:var(--fs-md);font-weight:600;color:var(--text)}
-.team-empty-sub{font-size:var(--fs-sm);color:var(--text-subtle);max-width:280px;line-height:1.45}
 
 /* ── Time off · /settings/time-off (renderTimeOff in app.js) ─────── */
 /* Driver-side form + history list. Status pills mirror the colours
