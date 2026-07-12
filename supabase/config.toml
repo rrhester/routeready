@@ -122,6 +122,15 @@ verify_jwt = false
 [functions.ai-proxy]
 verify_jwt = false
 
+# Cal.com interview-availability editor. Reads/writes the operator's single
+# shared Cal schedule via the server-side CAL_API_KEY. Gateway verify_jwt off
+# so the browser CORS preflight gets a 2xx; the function validates the caller's
+# JWT and requires a STAFF app_user (dispatcher/ops/owner) in-code. Was
+# previously un-gated — any user (or anonymous caller) could rewrite the
+# global interview availability.
+[functions.cal-availability]
+verify_jwt = false
+
 # Authenticated applicant intake for sync boxes (uploads via the box's DSP
 # session — no apply-secret/short-code on the box). verify_jwt off; the
 # function validates the JWT + resolves the DSP server-side.

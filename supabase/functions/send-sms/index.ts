@@ -13,7 +13,19 @@
 // POST body (optional): { applicant_id?: uuid, limit?: int }
 //   - no body: drain up to 50 oldest queued for any tenant
 //   - applicant_id: drain only that applicant's queue (used after RPC)
-import { serviceClient, jsonResponse, badRequest, isWithinQuietHours, signMessageAttachment } from "../_shared/supabase.ts";
+import { serviceClient, jsonResponse, badRequest, isWithinQuietHours, signMessageAttachment, requireServiceKey } from "../_shared/supabase.ts";
+
+// Standard TCPA opt-out keywords. A recipient is opted out when an inbound
+// message body, once trimmed / lower-cased / stripped of trailing
+// punctuation, EQUALS one of these — not merely contains "stop" (which used
+// to suppress legitimate texts like "the bus stop" or "please stop by").
+const STOP_KEYWORDS = new Set([
+  "stop", "stopall", "stop all", "unsubscribe", "cancel", "end", "quit", "optout", "opt out",
+]);
+function isStopKeyword(body: string | null | undefined): boolean {
+  const norm = String(body ?? "").trim().toLowerCase().replace(/[.!\s]+$/, "");
+  return STOP_KEYWORDS.has(norm);
+}
 
 const TWILIO_BASE = "https://api.twilio.com/2010-04-01";
 
@@ -29,14 +41,14 @@ interface QueuedRow {
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return badRequest("method_not_allowed", 405);
-  // No in-function auth gate. The function only DRAINS queued rows
-  // out of sms_messages — it never accepts a recipient or body from
-  // the request payload, so an unauthenticated caller can at worst
-  // cause the queue to drain (which is the intended behavior anyway).
-  // Rows themselves are RLS-gated on insert by the original DSP user.
-  // Deployed with --no-verify-jwt so the post-key-rotation gateway
-  // (which doesn't accept the legacy JWT in the drain cron headers)
-  // doesn't 401 before the function runs.
+  // Server-to-server only. Both callers — the 0007 AFTER-INSERT trigger and
+  // the cron drainer — present the service-role key as a bearer (app.service_role_key
+  // GUC). Require it so an anonymous internet caller can't force-drain the
+  // queue (bypassing scheduling) or probe the endpoint. Deployed with
+  // --no-verify-jwt (the sb_secret_… key is not a JWT and would 401 at the
+  // gateway); the bearer check happens in-function via requireServiceKey.
+  const authFail = requireServiceKey(req);
+  if (authFail) return authFail;
 
   const sid   = Deno.env.get("TWILIO_ACCOUNT_SID");
   const token = Deno.env.get("TWILIO_AUTH_TOKEN");
@@ -80,16 +92,19 @@ Deno.serve(async (req) => {
       continue; // leave row queued; will be retried after quiet hours
     }
 
-    // Check opt-out: any prior inbound row whose body looks like a STOP
-    // keyword for this phone number disables future sends.
-    const { data: optOut } = await supa.from("sms_messages")
-      .select("id")
+    // Check opt-out: any prior inbound row whose body IS a STOP keyword
+    // (exact match after normalization) for this phone number disables
+    // future sends. Pull recent inbound rows and evaluate in-app so a
+    // message merely containing the substring "stop" no longer suppresses.
+    const { data: inbound } = await supa.from("sms_messages")
+      .select("body")
       .eq("dsp_id", row.dsp_id)
       .eq("direction", "inbound")
-      .ilike("body", "%stop%")
       .or(`to_phone.eq.${row.to_phone},from_phone.eq.${row.to_phone}`)
-      .limit(1);
-    if (optOut && optOut.length > 0) {
+      .order("created_at", { ascending: false })
+      .limit(200);
+    const optedOut = (inbound ?? []).some((m) => isStopKeyword((m as { body?: string }).body));
+    if (optedOut) {
       await supa.from("sms_messages").update({
         status: "failed", error_code: "opted_out",
         error_message: "Recipient previously sent STOP",

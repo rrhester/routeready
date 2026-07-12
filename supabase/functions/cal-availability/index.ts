@@ -10,6 +10,8 @@
 //   CAL_USERNAME         Cal username, e.g. "Routeready"  (defaults to that)
 //   CAL_INTERVIEW_SLUG   slug of the event type to manage (defaults to "interview")
 
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+
 const CAL_API_BASE = "https://api.cal.com/v2";
 const CAL_API_VERSION = "2024-06-14";
 
@@ -18,6 +20,40 @@ const CORS = {
   "access-control-allow-headers": "content-type, authorization, apikey, x-client-info",
   "access-control-allow-methods": "GET, POST, OPTIONS",
 };
+
+// This function reads + rewrites the operator's single shared Cal.com
+// interview availability via the server-side CAL_API_KEY. It was previously
+// unauthenticated — anyone on the internet could GET the schedule or POST to
+// overwrite everyone's interview availability. Gate it to authenticated STAFF
+// (dispatcher/ops/owner); a role='driver' app_user or an anonymous caller is
+// rejected. Gateway verify_jwt is off (see config.toml) so the browser CORS
+// preflight returns 2xx; the JWT + role check happens here.
+const STAFF_ROLES = new Set(["dispatcher", "ops", "owner"]);
+async function requireStaff(req: Request): Promise<Response | null> {
+  const token = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "").trim();
+  if (!token) return cors({ error: "unauthorized" }, 401);
+  try {
+    const anon = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!);
+    const { data: u, error } = await anon.auth.getUser(token);
+    if (error || !u?.user) return cors({ error: "unauthorized" }, 401);
+    const svc = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      { auth: { persistSession: false, autoRefreshToken: false } },
+    );
+    const { data: au } = await svc
+      .from("app_users")
+      .select("role, active")
+      .eq("id", u.user.id)
+      .maybeSingle();
+    if (!au || au.active !== true || !STAFF_ROLES.has(au.role)) {
+      return cors({ error: "forbidden" }, 403);
+    }
+    return null;
+  } catch {
+    return cors({ error: "unauthorized" }, 401);
+  }
+}
 
 // Cal v2 represents schedule days as English weekday names ("Monday",
 // "Tuesday", …). The dashboard's editor uses 0–6 (Sun–Sat). Translate
@@ -73,6 +109,10 @@ async function callCal(path: string, init: RequestInit = {}) {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
+
+  // Staff-only: reject anonymous callers and non-staff (e.g. role='driver').
+  const gate = await requireStaff(req);
+  if (gate) return gate;
 
   const username = Deno.env.get("CAL_USERNAME") || "Routeready";
   const interviewSlug = Deno.env.get("CAL_INTERVIEW_SLUG") || "interview";
