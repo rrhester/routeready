@@ -42039,6 +42039,18 @@ async function rrPlaceCall(peer, media) {
   const callId = "call-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
   _rrCall.state = "outgoing"; _rrCall.callId = callId; _rrCall.peer = peer; _rrCall.room = room; _rrCall.media = media;
   _rrCallSend("call-invite", { callId, from: me, to: { kind: peer.kind, id: peer.id }, room, media, ts: Date.now() });
+  // Wake a CLOSED driver app with a Web Push (the realtime broadcast above
+  // only reaches an app that's still connected). Best-effort + non-blocking:
+  // an open app rings from the broadcast and the SW suppresses the dup, a
+  // closed app rings from this push and auto-answers on tap. Only drivers
+  // have push today; staff push is a later PR.
+  if (peer.kind === "driver") {
+    try {
+      sb.functions.invoke("send-driver-push", {
+        body: { driver_id: peer.id, call: { callId, room, caller_name: me.name, media } },
+      }).then(undefined, () => {});
+    } catch {}
+  }
   _rrCallRenderOverlay("outgoing", peer, media);
   _rrCall.ring = _rrRingEngine(440); // ringback (lower tone)
   _rrCall.timer = setTimeout(() => {
