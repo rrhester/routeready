@@ -142,6 +142,22 @@
                 </div>
               </div>
 
+              <!-- PASSWORD · set/change the email+password login. Available to
+                   every signed-in user (calls sb.auth.updateUser — no email
+                   round-trip needed). -->
+              <div class="form-row" style="flex-wrap:wrap">
+                <div>
+                  <div class="form-label">Password</div>
+                  <div class="form-help">Set or change the password for signing in with your email. Once it's set you can use "Sign in with a password instead" on the login screen — no magic-link email required.</div>
+                  <div id="rr-set-password-status" class="u-xs-subtle" style="margin-top:6px"></div>
+                </div>
+                <div style="display:flex;gap:var(--s-2);align-items:center;flex-wrap:wrap">
+                  <input class="form-input" id="rr-set-password" type="password" autocomplete="new-password" minlength="8" placeholder="New password" style="max-width:180px"/>
+                  <input class="form-input" id="rr-set-password-confirm" type="password" autocomplete="new-password" minlength="8" placeholder="Confirm" style="max-width:160px"/>
+                  <button class="btn btn-sm btn-primary" type="button" id="rr-set-password-save" onclick="rrSetPassword(this)">Save password</button>
+                </div>
+              </div>
+
               <!-- TWO-FACTOR · shown only when RR_CONFIG.MFA_ENABLED -->
               <div class="form-row rr-mfa-only" style="flex-wrap:wrap">
                 <div>
