@@ -6,6 +6,17 @@ migration/parsed.json
 node_modules/
 package-lock.json
 
+# Capacitor native build artifacts (the ios/ & android/ projects themselves
+# may be committed; these generated outputs should not be)
+ios/App/Pods/
+ios/App/build/
+ios/DerivedData/
+android/.gradle/
+android/build/
+android/app/build/
+android/app/google-services.json
+ios/App/App/GoogleService-Info.plist
+
 # Python solver-service runtime artifacts
 solver-service/**/__pycache__/
 solver-service/.venv/

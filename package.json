@@ -20,9 +20,24 @@
     "test:template": "node scripts/test-ops-command-center.mjs",
     "test:scanner": "node scripts/test-scanner-pdf.mjs",
     "build": "node scripts/bust-cache.mjs",
-    "prepare": "git config core.hooksPath .githooks"
+    "prepare": "git config core.hooksPath .githooks",
+    "cap:sync": "cap sync",
+    "cap:copy": "cap copy",
+    "cap:ios": "cap open ios",
+    "cap:android": "cap open android"
   },
   "devDependencies": {
-    "acorn": "^8.12.1"
+    "acorn": "^8.12.1",
+    "@capacitor/cli": "^6.1.2"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.1.2",
+    "@capacitor/app": "^6.0.1",
+    "@capacitor/core": "^6.1.2",
+    "@capacitor/haptics": "^6.0.1",
+    "@capacitor/ios": "^6.1.2",
+    "@capacitor/push-notifications": "^6.0.2",
+    "@capacitor/splash-screen": "^6.0.2",
+    "@capacitor/status-bar": "^6.0.1"
   }
 }

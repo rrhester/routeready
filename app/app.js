@@ -279,6 +279,35 @@ async function ensurePushSubscription(session, { interactive = false } = {}) {
   if (_pushAttempted) return;
   _pushAttempted = true;
 
+  // Native shell (Capacitor): use APNs/FCM via the native bridge instead of
+  // Web Push, and register the device token against device_push_tokens. This
+  // is the path that can wake a CLOSED / locked phone on iOS (Web Push can't).
+  if (window.RRNative && window.RRNative.isNative()) {
+    const took = await window.RRNative.registerPush({
+      onToken: async (kind, token) => {
+        if (!token) return;
+        const { error } = await sb.rpc("driver_device_push_register", {
+          p_token:        session.token,
+          p_platform:     window.RRNative.platform(),
+          p_kind:         kind,
+          p_device_token: token,
+          p_app_version:  (window.RR_BUILD || null),
+        });
+        if (error) console.warn("driver_device_push_register failed:", error.message);
+      },
+      onOpen: (data) => {
+        // Deep-link the notification tap. Voice notes / chat land in the
+        // dispatch thread; schedule cards carry an explicit url.
+        try {
+          const url = (data && (data.url || data.link_url)) || "/app/#/chat";
+          if (/^https?:\/\//i.test(url)) location.href = url;
+          else navigate(url.replace(/^\/app\/?#?/, "/") || "/chat");
+        } catch (_) {}
+      },
+    });
+    if (took) return; // native path handled registration — skip Web Push
+  }
+
   let reg;
   try { reg = await navigator.serviceWorker.ready; } catch { return; }
 
