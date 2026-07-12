@@ -4,6 +4,10 @@
            live.js has stamped body[data-rr-role="owner"] at boot. */
         .rr-owner-only { display: none; }
         body[data-rr-role="owner"] .rr-owner-only { display: flex; }
+        /* Two-factor panel: shown only when RR_CONFIG.MFA_ENABLED
+           (body[data-rr-mfa="on"], stamped in live.js). */
+        .rr-mfa-only { display: none; }
+        body[data-rr-mfa="on"] .rr-mfa-only { display: flex; }
       </style>
       <div class="page">
         <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s-3)">
@@ -135,6 +139,20 @@
                 <div style="display:flex;gap:var(--s-2);align-items:center">
                   <button class="btn btn-sm" type="button" onclick="rrExportMyData(this)">Export data (JSON)</button>
                 </div>
+              </div>
+
+              <!-- TWO-FACTOR · shown only when RR_CONFIG.MFA_ENABLED -->
+              <div class="form-row rr-mfa-only" style="flex-wrap:wrap">
+                <div>
+                  <div class="form-label">Two-factor authentication</div>
+                  <div class="form-help">Require a rotating code from your authenticator app when you sign in. Strongly recommended for accounts with HR data.</div>
+                  <div id="rr-mfa-status" class="u-xs-subtle" style="margin-top:6px"></div>
+                </div>
+                <div style="display:flex;gap:var(--s-2);align-items:center">
+                  <button class="btn btn-sm btn-primary" type="button" id="rr-mfa-setup-btn" onclick="rrMfaSetup(this)">Set up</button>
+                  <button class="btn btn-sm" type="button" id="rr-mfa-off-btn" style="display:none" onclick="rrMfaDisable(this)">Turn off</button>
+                </div>
+                <div id="rr-mfa-enroll" style="display:none;flex-basis:100%;margin-top:12px"></div>
               </div>
             </div>
 
