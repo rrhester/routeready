@@ -36285,6 +36285,187 @@ function _rrMcFlashBubble(el) {
 // trailing whitespace or length.
 function _normStubBody(s) { return String(s ?? "").trim().slice(0, 200); }
 
+// ─── Enterprise comms workspace · shared chrome ──────────────────────────
+// Thin-line icon set (1.8 stroke) for the conversation header + driver
+// details panel, matching the icon weight used elsewhere in RouteReady.
+const _RR_MC_ICONS = {
+  phone:  '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>',
+  video:  '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>',
+  panel:  '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="14" y1="4" x2="14" y2="20"/></svg>',
+  msg:    '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+  back:   '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>',
+  chevron:'<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>',
+  cal:    '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+  chart:  '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>',
+  user:   '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+};
+const _rrStarSvg = (on) => `<svg viewBox="0 0 24 24" width="15" height="15" fill="${on ? "currentColor" : "none"}" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`;
+
+// Favorite conversations — persisted locally (no backend contract change).
+// Favorited drivers pin to the top of the Recent list and carry a star in
+// the conversation header.
+function _rrMsgFavs() {
+  try { return new Set(JSON.parse(localStorage.getItem("rr_msg_favs") || "[]")); }
+  catch { return new Set(); }
+}
+function _rrToggleMsgFav(id) {
+  const s = _rrMsgFavs();
+  if (s.has(id)) s.delete(id); else s.add(id);
+  try { localStorage.setItem("rr_msg_favs", JSON.stringify([...s])); } catch {}
+  return s.has(id);
+}
+
+// Driver-details panel open/closed preference (remembered across sessions).
+function _msgDetailsPref() {
+  try { return localStorage.getItem("rr_msg_details_open") !== "0"; } catch { return true; }
+}
+function _setMsgDetailsOpen(open) {
+  const shell = document.querySelector(".msg-shell");
+  const panel = document.getElementById("rr-msg-details");
+  if (!shell) return;
+  const has = !!(panel && panel.dataset.rrDriverId);
+  const on = !!open && has;
+  shell.classList.toggle("details-open", on);
+  if (panel) panel.setAttribute("aria-hidden", on ? "false" : "true");
+  document.querySelectorAll("[data-rr-details-toggle]").forEach((b) => b.setAttribute("aria-pressed", on ? "true" : "false"));
+  try { if (has) localStorage.setItem("rr_msg_details_open", open ? "1" : "0"); } catch {}
+}
+// Small-screen single-pane helper — flips the shell into "a conversation
+// is open" mode so CSS can hide the list and reveal a back control.
+function _setMsgConvOpen(open) {
+  document.querySelector(".msg-shell")?.classList.toggle("conv-open", !!open);
+}
+function _msgBackToList() {
+  _setMsgConvOpen(false);
+  _setMsgDetailsOpen(false);
+}
+
+// Delegated wiring for the conversation header + details panel controls.
+// Bound once (guard on document) so it survives every thread re-render.
+if (!window.__rrMsgChromeWired) {
+  window.__rrMsgChromeWired = true;
+  document.addEventListener("click", (e) => {
+    const dt = e.target.closest("[data-rr-details-toggle]");
+    if (dt) {
+      const shell = document.querySelector(".msg-shell");
+      _setMsgDetailsOpen(!(shell && shell.classList.contains("details-open")));
+      return;
+    }
+    if (e.target.closest("[data-rr-details-close]")) { _setMsgDetailsOpen(false); return; }
+    if (e.target.closest("[data-rr-msg-back]"))      { _msgBackToList(); return; }
+    if (e.target.closest("[data-rr-start-meeting]"))  { window.open("meet.html", "_blank", "noopener"); return; }
+    const fav = e.target.closest("[data-rr-fav]");
+    if (fav) {
+      const id = fav.getAttribute("data-rr-fav");
+      const on = _rrToggleMsgFav(id);
+      fav.classList.toggle("on", on);
+      fav.setAttribute("aria-pressed", on ? "true" : "false");
+      fav.title = on ? "Remove from favorites" : "Add to favorites";
+      fav.innerHTML = _rrStarSvg(on);
+      if (typeof refreshDriverChatList === "function") refreshDriverChatList(false);
+      return;
+    }
+    const focusMsg = e.target.closest("[data-rr-focus-composer]");
+    if (focusMsg) { document.getElementById("rr-mc-input")?.focus(); return; }
+  });
+  // Escape closes the details panel when the operator is inside Messages.
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    const shell = document.querySelector(".msg-shell.details-open");
+    if (shell && document.getElementById("view-messages")?.classList.contains("active")) {
+      _setMsgDetailsOpen(false);
+    }
+  });
+}
+
+// ─── Composer priority dropdown ──────────────────────────────────────────
+// Replaces the three always-visible Normal/High/Urgent buttons with one
+// compact dropdown (Chime/Outlook register). Default is Normal; an elevated
+// visual treatment appears only once High or Urgent is chosen. Urgent asks
+// for confirmation at send time (see the composer submit handler).
+function _setDispatchPriority(p) {
+  _dispatchPriority = p || "normal";
+  const dd = document.getElementById("rr-mc-pri-dd");
+  if (!dd) return;
+  dd.setAttribute("data-pri", _dispatchPriority);
+  const lbl = dd.querySelector(".rr-mc-pri-label");
+  if (lbl) lbl.textContent = _dispatchPriority.charAt(0).toUpperCase() + _dispatchPriority.slice(1);
+  dd.querySelectorAll("[data-rr-pri]").forEach((b) =>
+    b.setAttribute("aria-checked", b.getAttribute("data-rr-pri") === _dispatchPriority ? "true" : "false"));
+}
+function _closePriorityMenu(dd) {
+  const menu = dd && dd.querySelector(".rr-mc-pri-menu");
+  const trig = dd && dd.querySelector(".rr-mc-pri-trigger");
+  if (menu) menu.hidden = true;
+  if (trig) trig.setAttribute("aria-expanded", "false");
+  dd?.classList.remove("open");
+}
+function _wirePriorityDropdown() {
+  const dd = document.getElementById("rr-mc-pri-dd");
+  if (!dd || dd.dataset.rrWired) return;
+  dd.dataset.rrWired = "1";
+  const trig = dd.querySelector(".rr-mc-pri-trigger");
+  const menu = dd.querySelector(".rr-mc-pri-menu");
+  trig?.addEventListener("click", (e) => {
+    e.preventDefault();
+    const open = menu.hidden;
+    // Close any other open menus first.
+    document.querySelectorAll(".rr-mc-pri-dd.open").forEach((o) => { if (o !== dd) _closePriorityMenu(o); });
+    menu.hidden = !open;
+    trig.setAttribute("aria-expanded", open ? "true" : "false");
+    dd.classList.toggle("open", open);
+    if (open) menu.querySelector(`[data-rr-pri="${_dispatchPriority}"]`)?.focus();
+  });
+  menu?.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-rr-pri]");
+    if (!b) return;
+    _setDispatchPriority(b.getAttribute("data-rr-pri"));
+    _closePriorityMenu(dd);
+    trig?.focus();
+  });
+  menu?.addEventListener("keydown", (e) => {
+    const items = Array.from(menu.querySelectorAll("[data-rr-pri]"));
+    const idx = items.indexOf(document.activeElement);
+    if (e.key === "ArrowDown") { e.preventDefault(); items[Math.min(items.length - 1, idx + 1)]?.focus(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); items[Math.max(0, idx - 1)]?.focus(); }
+    else if (e.key === "Escape") { e.preventDefault(); _closePriorityMenu(dd); trig?.focus(); }
+  });
+  // Outside-click closes the menu.
+  if (!window.__rrPriMenuOutside) {
+    window.__rrPriMenuOutside = true;
+    document.addEventListener("click", (e) => {
+      if (e.target.closest(".rr-mc-pri-dd")) return;
+      document.querySelectorAll(".rr-mc-pri-dd.open").forEach(_closePriorityMenu);
+    });
+  }
+}
+function _priorityDropdownHtml() {
+  const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+  const item = (p, desc) => `<button type="button" role="menuitemradio" data-rr-pri="${p}" aria-checked="${_dispatchPriority === p ? "true" : "false"}">
+        <span class="rr-mc-pri-dot pri-${p}"></span>
+        <span class="rr-mc-pri-item-text"><span class="rr-mc-pri-item-name">${cap(p)}</span><span class="rr-mc-pri-item-desc">${desc}</span></span>
+        <span class="rr-mc-pri-check">${_RR_MC_ICONS.chevron.replace('polyline points="6 9 12 15 18 9"', 'polyline points="20 6 9 17 4 12"')}</span>
+      </button>`;
+  return `<div class="rr-mc-pri-dd" id="rr-mc-pri-dd" data-pri="${_dispatchPriority}">
+      <button type="button" class="rr-mc-pri-trigger" aria-haspopup="true" aria-expanded="false" title="Message priority" aria-label="Message priority">
+        <span class="rr-mc-pri-dot"></span>
+        <span class="rr-mc-pri-label">${cap(_dispatchPriority)}</span>
+        <span class="rr-mc-pri-caret">${_RR_MC_ICONS.chevron}</span>
+      </button>
+      <div class="rr-mc-pri-menu" role="menu" hidden>
+        <div class="rr-mc-pri-menu-head">Priority</div>
+        ${item("normal", "Standard delivery")}
+        ${item("high", "Flagged amber for the driver")}
+        ${item("urgent", "Confirm + immediate notification")}
+        <label class="rr-mc-pri-ack">
+          <input type="checkbox" id="rr-mc-req-ack" ${_dispatchRequiresAck ? "checked" : ""}>
+          <span class="rr-mc-ack-box" aria-hidden="true"></span>
+          <span class="rr-mc-pri-ack-label">Require acknowledgement</span>
+        </label>
+      </div>
+    </div>`;
+}
+
 // Reflect the active tab id onto the strip buttons (active class + aria),
 // without triggering a data load.
 function _msgSyncTabStrip(tab) {
@@ -36485,6 +36666,8 @@ async function refreshDriverChatList(autoSelect) {
     if (a.last_at) return -1;
     return (a.name || "").localeCompare(b.name || "");
   });
+  // Favorites (persisted locally) float into their own pinned section.
+  const _favSet = _rrMsgFavs();
   const fmtRelative = (iso) => {
     if (!iso) return "—";
     const d = new Date(iso);
@@ -36515,19 +36698,27 @@ async function refreshDriverChatList(autoSelect) {
       <div><div class="msg-item-time">${escapeHtml(supLastAt ? fmtRelative(supLastAt) : "")}</div>${supUnread > 0 ? `<div class="msg-item-unread">${supUnread}</div>` : ""}</div>
     </div>`;
 
-  list.innerHTML = supportRow + _msgInboxList.map((t) => {
+  const rowHtml = (t) => {
     const initials = (t.name || "").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase() || "?";
     const lastBody = t.last_message?.body
       ? (t.last_message.sender_kind === "dispatch" ? "You: " : "") + t.last_message.body
       : "Tap to start the conversation";
     const lastBodyTrunc = lastBody.length > 60 ? lastBody.slice(0, 57) + "…" : lastBody;
     const isActive = _msgInboxSelectedId === t.driver_id;
+    const favStar = _favSet.has(t.driver_id) ? `<span class="msg-item-fav" title="Favorite">${_rrStarSvg(true)}</span>` : "";
     return `<div class="msg-item ${isActive ? "active" : ""}" data-rr-thread="${t.driver_id}" data-rr-driver-id="${t.driver_id}">
       <div class="msg-item-avatar"><div class="avatar-sm">${escapeHtml(initials)}</div><span class="msg-item-presence"></span></div>
-      <div><div class="msg-item-name">${escapeHtml(t.name)}${t.station_code ? ` <span class="msg-item-station">· ${escapeHtml(t.station_code)}</span>` : ""}</div><div class="msg-item-preview">${escapeHtml(lastBodyTrunc)}</div></div>
+      <div><div class="msg-item-name">${escapeHtml(t.name)}${favStar}${t.station_code ? ` <span class="msg-item-station">· ${escapeHtml(t.station_code)}</span>` : ""}</div><div class="msg-item-preview">${escapeHtml(lastBodyTrunc)}</div></div>
       <div><div class="msg-item-time">${escapeHtml(fmtRelative(t.last_at))}</div>${t.unread > 0 ? `<div class="msg-item-unread">${t.unread}</div>` : ""}</div>
     </div>`;
-  }).join("");
+  };
+  const favList = _msgInboxList.filter((t) => _favSet.has(t.driver_id));
+  const restList = _msgInboxList.filter((t) => !_favSet.has(t.driver_id));
+  const sectionLabel = (txt) => `<div class="msg-list-section">${txt}</div>`;
+  let listBody = "";
+  if (favList.length) listBody += sectionLabel("Favorites") + favList.map(rowHtml).join("");
+  if (restList.length) listBody += (favList.length ? sectionLabel("Recent") : "") + restList.map(rowHtml).join("");
+  list.innerHTML = supportRow + listBody;
   // Paint the green dot after the rows mount.  Presence state may have
   // already populated by the time the list first renders.
   _presencePaintList();
@@ -36560,53 +36751,91 @@ async function refreshDriverChatList(autoSelect) {
   }
 }
 
-// ─── Operational context header (driver chat) ───────────────────────────
-// A pinned strip under the chat head showing the driver's identity + today /
-// tomorrow shift + 30-day attendance, all from existing RouteReady records
-// (drivers list for identity, the shifts table for schedule + attendance).
-// Rendered into the rr-mc shell on open; values filled async by
-// _loadMcContextSchedule so a slow shifts query never blocks the thread.
-function _mcContextHtml(driverId, drv) {
+// ─── Driver details panel (collapsible right rail) ───────────────────────
+// Workforce context — identity, schedule (today / tomorrow), 30-day
+// attendance, activity — moved out of the conversation workspace into a
+// collapsible right-side panel (Chime register). All values come from the
+// same existing RouteReady records (drivers list + shifts table); the
+// schedule / attendance numbers are filled async by _loadMcContextSchedule
+// so a slow query never blocks the thread. Bordered sections use native
+// <details> for accessible, keyboard-friendly collapse.
+function _renderDriverDetails(driverId, drv) {
+  const panel = document.getElementById("rr-msg-details");
+  if (!panel) return;
   const meta = (_msgInboxList || []).find((t) => String(t.driver_id) === String(driverId)) || {};
   const name = (drv && drv.name) || meta.name || "";
   const initials = (name || "").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?";
   const station = meta.station_code ? escapeHtml(meta.station_code) : "";
-  const status = meta.status ? meta.status.charAt(0).toUpperCase() + meta.status.slice(1) : "";
-  const metaLine = [station, status].filter(Boolean).join(" • ") || "Driver";
-  const isActive = String(meta.status || "").toLowerCase() === "active";
-  const cal = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`;
-  const chart = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>`;
-  return `<div class="rr-mc-context" id="rr-mc-context">
-      <div class="rr-mc-ctx-id">
-        <div class="rr-mc-ctx-avatar${isActive ? " online" : ""}"><div class="avatar-sm">${escapeHtml(initials)}</div><span class="rr-mc-ctx-dot"></span></div>
-        <div class="rr-mc-ctx-idtext">
-          <div class="rr-mc-ctx-name">${escapeHtml(name)}</div>
-          <div class="rr-mc-ctx-meta">${metaLine}</div>
-          <span class="rr-mc-ctx-badge" id="rr-mc-ctx-badge"></span>
+  const status = meta.status ? meta.status.charAt(0).toUpperCase() + meta.status.slice(1) : "Driver";
+  const roleLine = [station, status].filter(Boolean).join(" · ") || "Driver";
+  const isFav = _rrMsgFavs().has(driverId);
+  panel.dataset.rrDriverId = driverId;
+  panel.innerHTML = `
+    <div class="dd-scroll">
+      <div class="dd-topbar">
+        <div class="dd-topbar-title">Driver details</div>
+        <button type="button" class="dd-close" data-rr-details-close aria-label="Close details">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="dd-id">
+        <div class="dd-avatar avatar-sm" data-rr-dd-avatar="${escapeHtml(driverId)}">${escapeHtml(initials)}<span class="dd-avatar-dot"></span></div>
+        <div class="dd-id-name">${escapeHtml(name)}<button type="button" class="rr-mc-fav${isFav ? " on" : ""}" data-rr-fav="${escapeHtml(driverId)}" aria-label="Favorite" aria-pressed="${isFav ? "true" : "false"}" title="${isFav ? "Remove from favorites" : "Add to favorites"}">${_rrStarSvg(isFav)}</button></div>
+        <div class="dd-id-role">${roleLine}</div>
+        <div class="dd-id-actions">
+          <button type="button" class="dd-act" data-rr-focus-composer title="Message">${_RR_MC_ICONS.msg}<span>Message</span></button>
+          <button type="button" class="dd-act" data-rr-start-meeting title="Call">${_RR_MC_ICONS.phone}<span>Call</span></button>
+          <button type="button" class="dd-act" data-rr-start-meeting title="Video">${_RR_MC_ICONS.video}<span>Video</span></button>
         </div>
       </div>
-      <div class="rr-mc-ctx-cards">
-        <div class="rr-mc-ctx-card">
-          <div class="rr-mc-ctx-card-label">${cal}Today</div>
-          <div class="rr-mc-ctx-card-value" id="rr-mc-ctx-today-v">—</div>
-          <div class="rr-mc-ctx-card-sub" id="rr-mc-ctx-today-s"></div>
+
+      <details class="dd-section" open>
+        <summary class="dd-sec-head">${_RR_MC_ICONS.cal}<span>Schedule</span>${_RR_MC_ICONS.chevron}</summary>
+        <div class="dd-sec-body">
+          <div class="dd-row"><span class="dd-row-k">Today</span><span class="dd-row-v" id="rr-dd-today-v">—</span></div>
+          <div class="dd-row dd-row-sub"><span></span><span class="dd-row-sub-v" id="rr-dd-today-s"></span></div>
+          <div class="dd-row"><span class="dd-row-k">Tomorrow</span><span class="dd-row-v" id="rr-dd-tom-v">—</span></div>
+          <div class="dd-row dd-row-sub"><span></span><span class="dd-row-sub-v" id="rr-dd-tom-s"></span></div>
+          <div class="dd-row"><span class="dd-row-k">Shift status</span><span class="dd-badge" id="rr-dd-shift">—</span></div>
+          <button type="button" class="dd-link" onclick="if(window.goto)goto('schedule')">View full schedule ${_RR_MC_ICONS.chevron.replace('polyline points="6 9 12 15 18 9"','polyline points="9 18 15 12 9 6"')}</button>
         </div>
-        <div class="rr-mc-ctx-card">
-          <div class="rr-mc-ctx-card-label">${cal}Tomorrow</div>
-          <div class="rr-mc-ctx-card-value" id="rr-mc-ctx-tom-v">—</div>
-          <div class="rr-mc-ctx-card-sub" id="rr-mc-ctx-tom-s"></div>
+      </details>
+
+      <details class="dd-section" open>
+        <summary class="dd-sec-head">${_RR_MC_ICONS.chart}<span>Attendance</span><span class="dd-sec-note">Last 30 days</span>${_RR_MC_ICONS.chevron}</summary>
+        <div class="dd-sec-body">
+          <div class="dd-att-top">
+            <div class="dd-att-pct" id="rr-dd-att-v">—</div>
+            <div class="dd-att-label" id="rr-dd-att-q"></div>
+          </div>
+          <div class="dd-att-grid">
+            <div class="dd-att-cell"><div class="dd-att-n" id="rr-dd-abs">—</div><div class="dd-att-k">Absences</div></div>
+            <div class="dd-att-cell"><div class="dd-att-n" id="rr-dd-late">—</div><div class="dd-att-k">Call-offs</div></div>
+          </div>
+          <button type="button" class="dd-link" onclick="if(window.goto)goto('drivers')">View attendance history ${_RR_MC_ICONS.chevron.replace('polyline points="6 9 12 15 18 9"','polyline points="9 18 15 12 9 6"')}</button>
         </div>
-        <div class="rr-mc-ctx-card">
-          <div class="rr-mc-ctx-card-label">${chart}Attendance</div>
-          <div class="rr-mc-ctx-card-value"><span id="rr-mc-ctx-att-v">—</span><span class="rr-mc-ctx-att-q" id="rr-mc-ctx-att-q"></span></div>
-          <div class="rr-mc-ctx-card-sub">Last 30 days</div>
+      </details>
+
+      <details class="dd-section" open>
+        <summary class="dd-sec-head">${_RR_MC_ICONS.user}<span>Activity</span>${_RR_MC_ICONS.chevron}</summary>
+        <div class="dd-sec-body">
+          <div class="rr-mc-head-stats" id="rr-mc-head-stats" data-rr-driver-id="${escapeHtml(driverId)}">
+            <!-- App status + Last active chips painted by _paintMsgHeadStats -->
+          </div>
+          <button type="button" class="dd-link" onclick="if(window.goto)goto('drivers')">Open full profile ${_RR_MC_ICONS.chevron.replace('polyline points="6 9 12 15 18 9"','polyline points="9 18 15 12 9 6"')}</button>
         </div>
-      </div>
+      </details>
     </div>`;
+  _paintMsgHeadStats(driverId);
+  _presencePaintList();
+  // Mirror online state onto the panel avatar dot.
+  const av = panel.querySelector("[data-rr-dd-avatar]");
+  if (av) av.classList.toggle("online", !!(_presence?.online?.has?.(driverId)));
 }
 async function _loadMcContextSchedule(driverId) {
   const dspId = window.RR && window.RR.dsp && window.RR.dsp.id;
-  if (!dspId || !document.getElementById("rr-mc-context")) return;
+  const panel = document.getElementById("rr-msg-details");
+  if (!dspId || !panel || panel.dataset.rrDriverId !== driverId) return;
   const fmtDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const todayStr = fmtDate(today);
@@ -36618,23 +36847,23 @@ async function _loadMcContextSchedule(driverId) {
     .gte("date", fromStr).lte("date", tomStr)
     .order("date");
   // Bail if the operator moved to a different conversation while we waited.
-  if (error || _msgInboxSelectedId !== driverId || !document.getElementById("rr-mc-context")) return;
+  if (error || _msgInboxSelectedId !== driverId || panel.dataset.rrDriverId !== driverId) return;
   const rows = data || [];
   const fmtTime = (iso) => iso ? new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
   const cap = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : "";
-  const setCard = (vId, sId, shift) => {
+  const setRow = (vId, sId, shift) => {
     const v = document.getElementById(vId), s = document.getElementById(sId);
     if (!v) return;
     if (!shift) { v.textContent = "No shift"; if (s) s.textContent = "Off"; return; }
     v.textContent = shift.route_code ? `Route ${shift.route_code}` : (cap(shift.status) || "Scheduled");
-    if (s) s.textContent = shift.starts_at ? `${fmtTime(shift.starts_at)} Start` : "";
+    if (s) s.textContent = shift.starts_at ? `Starts ${fmtTime(shift.starts_at)}` : "";
   };
   const todayShift = rows.find((r) => r.date === todayStr);
-  setCard("rr-mc-ctx-today-v", "rr-mc-ctx-today-s", todayShift);
-  setCard("rr-mc-ctx-tom-v", "rr-mc-ctx-tom-s", rows.find((r) => r.date === tomStr));
+  setRow("rr-dd-today-v", "rr-dd-today-s", todayShift);
+  setRow("rr-dd-tom-v", "rr-dd-tom-s", rows.find((r) => r.date === tomStr));
 
-  // Status badge — green "Scheduled today" when there's a live shift today.
-  const badge = document.getElementById("rr-mc-ctx-badge");
+  // Shift-status badge — green "Scheduled today" when there's a live shift.
+  const badge = document.getElementById("rr-dd-shift");
   if (badge) {
     const scheduledToday = !!todayShift && todayShift.status !== "no_show" && todayShift.status !== "called_off";
     badge.textContent = scheduledToday ? "Scheduled today" : "Off today";
@@ -36644,19 +36873,26 @@ async function _loadMcContextSchedule(driverId) {
   // Attendance: of the driver's resolved (past) shifts in the window, the
   // share that weren't a no-show or call-off; the qualifier accents 95%+.
   const past = rows.filter((r) => r.date < todayStr);
-  const att = document.getElementById("rr-mc-ctx-att-v");
-  const attQ = document.getElementById("rr-mc-ctx-att-q");
+  const att = document.getElementById("rr-dd-att-v");
+  const attQ = document.getElementById("rr-dd-att-q");
+  const absEl = document.getElementById("rr-dd-abs");
+  const lateEl = document.getElementById("rr-dd-late");
+  const noShows = past.filter((r) => r.status === "no_show").length;
+  const callOffs = past.filter((r) => r.status === "called_off").length;
+  if (absEl) absEl.textContent = String(noShows);
+  if (lateEl) lateEl.textContent = String(callOffs);
   if (att) {
     if (past.length === 0) {
       att.textContent = "—";
-      if (attQ) { attQ.textContent = ""; attQ.classList.remove("good"); }
+      if (attQ) { attQ.textContent = "No history yet"; attQ.className = "dd-att-label"; }
     } else {
-      const missed = past.filter((r) => r.status === "no_show" || r.status === "called_off").length;
+      const missed = noShows + callOffs;
       const pct = Math.round(((past.length - missed) / past.length) * 100);
       att.textContent = pct + "%";
       if (attQ) {
-        attQ.textContent = pct >= 95 ? "Excellent" : pct >= 85 ? "Good" : "Low";
-        attQ.classList.toggle("good", pct >= 95);
+        const tone = pct >= 95 ? "good" : pct >= 85 ? "ok" : "low";
+        attQ.textContent = pct >= 95 ? "Excellent" : pct >= 85 ? "Good" : "Needs attention";
+        attQ.className = "dd-att-label " + tone;
       }
     }
   }
@@ -36677,6 +36913,12 @@ async function openDriverChatThread(driverId, focus) {
   // Don't force-scroll to bottom when we're going to focus a specific
   // message — the focus scroll below handles positioning.
   await refreshDriverChatThread(!_mcFocusMsgId);
+  // Populate the collapsible driver-details panel and restore the
+  // operator's last-remembered open/closed preference.
+  const drvMeta = (_msgInboxList || []).find((t) => String(t.driver_id) === String(driverId)) || {};
+  _renderDriverDetails(driverId, drvMeta);
+  _setMsgConvOpen(true);
+  _setMsgDetailsOpen(_msgDetailsPref());
   _loadMcContextSchedule(driverId);
   if (_msgInboxThreadTimer) clearInterval(_msgInboxThreadTimer);
   // Realtime (postgres_changes on driver_messages) is the primary
@@ -36698,6 +36940,13 @@ async function openDriverChatThread(driverId, focus) {
 let _supScrollSig = "";
 async function openSupportThread() {
   _msgInboxSelectedId = "__support__";
+  // Support + channel threads have no driver-details context — close the
+  // panel and clear its bound driver so a later toggle can't reopen stale
+  // content.
+  const _dp = document.getElementById("rr-msg-details");
+  if (_dp) { delete _dp.dataset.rrDriverId; _dp.innerHTML = ""; }
+  _setMsgDetailsOpen(false);
+  _setMsgConvOpen(true);
   document.querySelectorAll("#rr-msg-driver-list [data-rr-thread]").forEach((el) => el.classList.remove("active"));
   document.querySelector("#rr-msg-driver-list [data-rr-support-thread]")?.classList.add("active");
   _supScrollSig = "";
@@ -37109,22 +37358,29 @@ async function refreshDriverChatThread(scrollToBottom) {
   if (isFirstPaint) {
     conv.dataset.rrDriverId = driverId;
     conv.dataset.rrSupport = "";
+    const _hInitials = escapeHtml((drv.name || "?").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase());
+    const _hMeta = (_msgInboxList || []).find((t) => String(t.driver_id) === String(driverId)) || {};
+    const _hStation = _hMeta.station_code ? escapeHtml(_hMeta.station_code) : "";
+    const _hFav = _rrMsgFavs().has(driverId);
+    const _hSub = [_hStation, "Available"].filter(Boolean).join(" · ");
     conv.innerHTML = `
       <div class="rr-mc-shell">
         <div class="rr-mc-head" data-rr-driver-id="${escapeHtml(driverId)}">
-          <div class="avatar-sm" style="position:relative">
-            ${escapeHtml((drv.name || "?").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase())}
+          <button type="button" class="rr-mc-head-back" data-rr-msg-back aria-label="Back to conversations">${_RR_MC_ICONS.back}</button>
+          <div class="rr-mc-head-avatar avatar-sm">
+            ${_hInitials}
             <span class="rr-mc-head-presence"></span>
           </div>
-          <div style="flex:1;min-width:0">
-            <div class="rr-mc-name">${escapeHtml(drv.name || "")}</div>
-            <div class="rr-mc-sub">Driver chat</div>
+          <div class="rr-mc-head-id">
+            <div class="rr-mc-name">${escapeHtml(drv.name || "")}<button type="button" class="rr-mc-fav${_hFav ? " on" : ""}" data-rr-fav="${escapeHtml(driverId)}" aria-label="Favorite" aria-pressed="${_hFav ? "true" : "false"}" title="${_hFav ? "Remove from favorites" : "Add to favorites"}">${_rrStarSvg(_hFav)}</button></div>
+            <div class="rr-mc-sub">${_hSub}</div>
           </div>
-          <div class="rr-mc-head-stats" id="rr-mc-head-stats" data-rr-driver-id="${escapeHtml(driverId)}">
-            <!-- App status + Last active chips painted by _paintMsgHeadStats -->
+          <div class="rr-mc-head-actions">
+            <button type="button" class="rr-mc-head-btn" data-rr-start-meeting title="Start voice meeting" aria-label="Start voice meeting">${_RR_MC_ICONS.phone}</button>
+            <button type="button" class="rr-mc-head-btn" data-rr-start-meeting title="Start video meeting" aria-label="Start video meeting">${_RR_MC_ICONS.video}</button>
+            <button type="button" class="rr-mc-head-btn rr-mc-head-btn-details" data-rr-details-toggle aria-pressed="false" title="Driver details" aria-label="Toggle driver details">${_RR_MC_ICONS.panel}</button>
           </div>
         </div>
-        ${_mcContextHtml(driverId, drv)}
         <div class="rr-mc-thread" id="rr-mc-thread" data-rr-anchor="1" role="region" aria-label="Conversation messages">
           <div class="rr-msg-skeleton">
             <div class="rr-msg-skeleton-row"><div class="rr-msg-skeleton-bubble" style="width:62%"></div></div>
@@ -37145,32 +37401,14 @@ async function refreshDriverChatThread(scrollToBottom) {
           </button>
           <div id="rr-mc-attach-preview" class="rr-mc-attach-preview" style="display:none"></div>
           <textarea id="rr-mc-input" class="rr-mc-input" rows="1" placeholder="Message ${escapeHtml(drv.name || "driver")}…" maxlength="2000"></textarea>
-          <div class="rr-mc-options" id="rr-mc-options">
-            <div class="rr-mc-pri" role="radiogroup" aria-label="Message priority">
-              <button type="button" role="radio" aria-checked="${_dispatchPriority === "normal" ? "true" : "false"}" class="rr-mc-pri-btn ${_dispatchPriority === "normal" ? "on" : ""}" data-rr-pri="normal">Normal</button>
-              <button type="button" role="radio" aria-checked="${_dispatchPriority === "high" ? "true" : "false"}" class="rr-mc-pri-btn ${_dispatchPriority === "high"   ? "on" : ""}" data-rr-pri="high">High</button>
-              <button type="button" role="radio" aria-checked="${_dispatchPriority === "urgent" ? "true" : "false"}" class="rr-mc-pri-btn urgent ${_dispatchPriority === "urgent" ? "on" : ""}" data-rr-pri="urgent">Urgent</button>
-            </div>
-            <label class="rr-mc-ack-toggle" title="Require acknowledgement">
-              <input type="checkbox" id="rr-mc-req-ack" ${_dispatchRequiresAck ? "checked" : ""}>
-              <span class="rr-mc-ack-box" aria-hidden="true"></span>
-            </label>
-          </div>
+          ${_priorityDropdownHtml()}
           <button class="rr-mc-send" type="submit" aria-label="Send"></button>
         </form>
       </div>`;
     const ta = document.getElementById("rr-mc-input");
-    // Priority radio + ack checkbox for the next outbound message.
-    document.getElementById("rr-mc-options")?.addEventListener("click", (e) => {
-      const b = e.target.closest("[data-rr-pri]");
-      if (!b) return;
-      _dispatchPriority = b.getAttribute("data-rr-pri") || "normal";
-      document.querySelectorAll("#rr-mc-options .rr-mc-pri-btn").forEach((el) => {
-        const on = el.getAttribute("data-rr-pri") === _dispatchPriority;
-        el.classList.toggle("on", on);
-        el.setAttribute("aria-checked", on ? "true" : "false");
-      });
-    });
+    // Compact priority dropdown + require-acknowledgement toggle for the
+    // next outbound message.
+    _wirePriorityDropdown();
     document.getElementById("rr-mc-req-ack")?.addEventListener("change", (e) => {
       _dispatchRequiresAck = !!e.target.checked;
     });
@@ -37217,6 +37455,18 @@ async function refreshDriverChatThread(scrollToBottom) {
       const body = (ta.value || "").trim();
       const file = window._rrMcPending;
       if (!body && !file) return;
+      // Urgent messages get a confirmation before they leave — they fire an
+      // immediate high-priority notification on the driver's device. Runs
+      // BEFORE the optimistic stub so a cancel leaves the draft untouched.
+      if (_dispatchPriority === "urgent") {
+        const ok = await _rrConfirmDialog({
+          title: "Send as Urgent?",
+          body: "The driver receives an immediate, high-priority notification. Use this only for time-critical dispatch.",
+          confirmLabel: "Send urgent",
+          danger: true,
+        });
+        if (!ok) return;
+      }
       const send = e.target.querySelector(".rr-mc-send");
       send.disabled = true;
 
@@ -37351,13 +37601,8 @@ async function refreshDriverChatThread(scrollToBottom) {
       }
       // Reset priority/ack to defaults so the operator doesn't keep
       // accidentally sending urgent / requires-ack messages after one.
-      _dispatchPriority = "normal";
       _dispatchRequiresAck = false;
-      document.querySelectorAll("#rr-mc-options .rr-mc-pri-btn").forEach((el) => {
-        const on = el.getAttribute("data-rr-pri") === "normal";
-        el.classList.toggle("on", on);
-        el.setAttribute("aria-checked", on ? "true" : "false");
-      });
+      _setDispatchPriority("normal");
       const ackBox = document.getElementById("rr-mc-req-ack");
       if (ackBox) ackBox.checked = false;
       // Don't force a scroll on the refresh — the operator was already
@@ -37949,6 +38194,12 @@ window.msgListTab = function (btn) {
   _msgInboxSelectedId  = null;
   _msgChannelSelectedId = null;
   _hrActiveMemberId    = null;
+  // Switching tabs clears any open conversation — reset the details panel
+  // and the small-screen single-pane state too.
+  const _dp = document.getElementById("rr-msg-details");
+  if (_dp) { delete _dp.dataset.rrDriverId; _dp.innerHTML = ""; }
+  _setMsgDetailsOpen(false);
+  _setMsgConvOpen(false);
   const conv = document.getElementById("rr-msg-conv");
   if (conv) {
     conv.innerHTML = `<div style="margin:auto;text-align:center;color:var(--text-subtle);font-size:var(--fs-md);padding:40px">${
@@ -38156,6 +38407,11 @@ async function _createHrSpace() {
 async function openChannelThread(channelId) {
   _msgChannelSelectedId = channelId;
   _ccThreadLimit = 200; // fresh thread — reset the page size
+  // Channels have no per-driver details context — close + clear the panel.
+  const _dp = document.getElementById("rr-msg-details");
+  if (_dp) { delete _dp.dataset.rrDriverId; _dp.innerHTML = ""; }
+  _setMsgDetailsOpen(false);
+  _setMsgConvOpen(true);
   document.querySelectorAll("#rr-msg-driver-list [data-rr-channel]").forEach((el) => {
     el.classList.toggle("active", el.dataset.rrChannel === channelId);
   });
@@ -41521,12 +41777,17 @@ function _presencePaintThreadHead(driverId) {
   if (!isOpen) return;
   const sub = head.querySelector(".rr-mc-sub");
   if (sub) {
+    const meta = (_msgInboxList || []).find((t) => String(t.driver_id) === String(driverId)) || {};
+    const station = meta.station_code ? escapeHtml(meta.station_code) : "";
     if (_presence.online.has(driverId)) {
-      sub.innerHTML = `<span class="rr-mc-online-pip"></span> Online`;
+      sub.innerHTML = [station, `<span class="rr-mc-online-pip"></span>Available`].filter(Boolean).join(" · ");
     } else {
-      sub.textContent = "Driver chat";
+      sub.innerHTML = [station, "Offline"].filter(Boolean).join(" · ");
     }
   }
+  // Keep the details-panel avatar dot in sync with presence.
+  const av = document.querySelector(`#rr-msg-details [data-rr-dd-avatar="${(window.CSS && CSS.escape) ? CSS.escape(driverId) : driverId}"]`);
+  if (av) av.classList.toggle("online", _presence.online.has(driverId));
 }
 
 function _presenceShowTyping(driverId) {
