@@ -236,9 +236,29 @@
   #ready-card .rc-sub{margin:6px 0 12px;color:var(--room-muted);font-size:13px;line-height:1.45}
   #ready-card .rc-linkrow{background:var(--room-tile);border-color:var(--room-line)}
   #ready-card .rc-link{color:var(--room-text)}
-  #ready-card .rc-joined{margin-top:12px;font-size:12px;color:var(--room-muted)}
+  #ready-card .rc-add{display:flex;align-items:center;gap:9px;margin:12px 0 0;padding:11px 16px;border:0;border-radius:22px;background:var(--accent);color:#fff;font-weight:700;font-size:14px}
+  #ready-card .rc-add:hover{background:var(--accent-d)}
+  #ready-card .rc-add svg{width:18px;height:18px}
   body.embed #ready-card{display:none}
   @media (max-width:760px){#ready-card{left:8px;bottom:88px}}
+
+  /* "Add people" invite dialog (dark, overlays the room) */
+  #invite-modal .modal-card{background:var(--room-panel);color:var(--room-text);border:1px solid var(--room-line)}
+  #invite-modal h3{margin:0 0 4px}
+  #invite-modal .inv-sub{margin:0 0 14px;color:var(--room-muted);font-size:13.5px}
+  .inv-field{display:flex;flex-wrap:wrap;gap:6px;align-items:center;background:var(--room-tile);border:1px solid var(--room-line);border-radius:9px;padding:8px}
+  .inv-field:focus-within{outline:2px solid rgba(37,99,235,.5)}
+  .inv-chip{display:inline-flex;align-items:center;gap:6px;background:var(--accent);color:#fff;border-radius:16px;padding:4px 6px 4px 11px;font-size:13px;font-weight:600;max-width:100%}
+  .inv-chip span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .inv-chip button{background:none;border:0;color:#fff;font-size:15px;line-height:1;padding:0 2px;cursor:pointer;opacity:.85}
+  .inv-chip button:hover{opacity:1}
+  #invite-input{flex:1;min-width:140px;background:none;border:0;color:var(--room-text);font:inherit;font-size:14px;padding:5px 4px}
+  #invite-input:focus{outline:none}
+  #invite-note{width:100%;margin-top:10px;background:var(--room-tile);border:1px solid var(--room-line);color:var(--room-text);border-radius:9px;padding:10px 12px;font:inherit;font-size:14px;resize:vertical;min-height:44px}
+  #invite-note:focus{outline:2px solid rgba(37,99,235,.5)}
+  #invite-err{color:#F87171;font-size:13px;min-height:18px;margin-top:8px}
+  #invite-modal .modal-actions .btn-secondary{background:transparent;color:var(--room-text);border-color:var(--room-line)}
+  #invite-modal .btn-primary[disabled]{opacity:.55}
   .waiting-wrap{flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:24px;text-align:center}
   .waiting-wrap .big{font-size:20px;font-weight:800;margin-top:16px}
   .waiting-wrap .sub{color:var(--muted);font-size:15px}
@@ -453,7 +473,11 @@
 
     <div id="ready-card" hidden>
       <div class="rc-head">Your meeting's ready<button id="ready-close" type="button" aria-label="Dismiss">×</button></div>
-      <p class="rc-sub">Share this link with people you want in the meeting.</p>
+      <button id="ready-add" class="rc-add" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+        Add others
+      </button>
+      <p class="rc-sub">Or share this link with people you want in the meeting.</p>
       <div class="rc-linkrow"><span id="ready-link" class="rc-link"></span><button id="ready-copy" class="rc-copy" type="button">Copy</button></div>
     </div>
   </section>
@@ -486,6 +510,23 @@
       <div class="modal-actions">
         <button id="later-done" class="btn-secondary" type="button">Done</button>
         <button id="later-join" class="btn-primary" type="button">Join now</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- add people · email an invite to join the meeting now -->
+  <div id="invite-modal" class="modal-back" hidden>
+    <div class="modal-card">
+      <h3>Add people</h3>
+      <p class="inv-sub">Email an invite to join this meeting now.</p>
+      <div class="inv-field" id="invite-field">
+        <input id="invite-input" type="text" inputmode="email" autocomplete="off" spellcheck="false" placeholder="Enter an email and press Enter" aria-label="Email address">
+      </div>
+      <textarea id="invite-note" maxlength="500" placeholder="Add a message (optional)" aria-label="Optional message"></textarea>
+      <div id="invite-err" aria-live="polite"></div>
+      <div class="modal-actions">
+        <button id="invite-cancel" class="btn-secondary" type="button">Cancel</button>
+        <button id="invite-send" class="btn-primary" type="button">Send invite</button>
       </div>
     </div>
   </div>
