@@ -27454,7 +27454,7 @@ async function _ivcalToggleTask(id) {
   if (error) { toast("Couldn't update task", "warn"); }
 }
 
-function _ivcalEventBlock(ev, type, lay) {
+function _ivcalEventBlock(ev, type, lay, conflict) {
   if (!_ivcalFilterOk(ev, type)) return "";
   const s = new Date(ev.starts_at);
   const e = ev.ends_at ? new Date(ev.ends_at) : new Date(s.getTime()+30*60000);
@@ -27480,6 +27480,10 @@ function _ivcalEventBlock(ev, type, lay) {
     return `<div class="oc-ev oc-ev-task${done ? " is-done" : ""}${sel ? " sel" : ""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" tabindex="0" role="button" aria-label="${escapeHtml(time + " · " + label + (done ? " · done" : ""))}" style="top:${top}px;height:${h}px${_ivcalLayStyle(lay)};border-left-color:${tColor};background:${tColor}14;color:${tColor}" title="${escapeHtml(time + " · " + label + (done ? " · done" : ""))}">${tInner}${tRz}</div>`;
   }
   let icons = "";
+  // Conflict · a small red warning glyph that stays visible even on the
+  // shortest chips (where the full "Conflict" label can't fit), so the state
+  // never rests on the rail color alone.
+  if (conflict) icons += `<span class="oc-ev-cfico" title="Conflicts with another interview" aria-hidden="true"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>`;
   // The camera glyph is its own hit target: clicking it opens the video
   // interview workspace (the rest of the chip opens the reading pane/editor).
   if (ev.meeting_url) icons += `<span class="ei-cam-hit" data-ivcal-room="1" title="Open video interview" role="button" tabindex="-1">${_IVCAL_CAM_SVG}</span>`;
@@ -27511,6 +27515,11 @@ function _ivcalEventBlock(ev, type, lay) {
   const _ivwInit = _ivw ? String(_ivw).trim().split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase() : "";
   const chip = _stWord ? `<span class="oc-ev-badge ${_stClass}">${_stWord}</span>` : "";
   const metaLine = `<div class="oc-ev-meta">${escapeHtml(kindWord)}${_ivwInit ? ` · <span class="oc-ev-ivw" title="${escapeHtml("Interviewer: " + _ivw)}">${escapeHtml(_ivwInit)}</span>` : ""}</div>`;
+  // Conflict affordance · explicit "Conflict" label + warning glyph, so the
+  // state never rests on color alone (a11y). Rail + pale-red fill come from
+  // the .is-conflict CSS class added on the wrapper below.
+  const _warnSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+  const conflictTag = conflict ? `<div class="oc-ev-conflict">${_warnSvg}Conflict</div>` : "";
   // Height-adaptive layout: 1 line < 32px · time+name < 56px · +status chip
   // < 78px · full card (type + interviewer + chip) beyond. Every tier keeps
   // truncation, the icons cluster and the resize handle.
@@ -27524,6 +27533,7 @@ function _ivcalEventBlock(ev, type, lay) {
   } else {
     inner = `<div class="et"><span class="oc-ev-t">${escapeHtml(time)}</span><span class="oc-ev-dur">${escapeHtml(durTxt)}</span>${ico}</div><div class="en">${escapeHtml(label)}</div>${metaLine}<div class="oc-ev-foot">${chip}</div>`;
   }
+  if (h >= 32 && conflictTag) inner += conflictTag;
   const rz = kindAttr === "booking" ? `<div class="oc-rz" data-oc-resize></div>` : "";
   // A per-event color (right-click → recolor) wins over the custom-calendar
   // color, which in turn overrides the status-based category palette.
@@ -27534,8 +27544,8 @@ function _ivcalEventBlock(ev, type, lay) {
   const hue = _ivcalHue(ev, type);
   const isPend = type !== "session" && (ev.rsvp || "accepted") === "pending"
     && ev.status !== "no_show" && ev.status !== "cancelled";
-  const hover = time + " · " + durTxt + " · " + label + (_stWord ? " · " + _stWord : "") + (_ivw ? " · with " + _ivw : "");
-  return `<div class="oc-ev cat-${cat}${rsvp==="declined"?" declined":""}${isPend?" is-pending":""}${sel?" sel":""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" tabindex="0" role="button" aria-label="${escapeHtml(hover)}" style="top:${top}px;height:${h}px${_ivcalLayStyle(lay)};--ev-hue:${hue}" title="${escapeHtml(hover)}">${inner}${rz}</div>`;
+  const hover = time + " · " + durTxt + " · " + label + (_stWord ? " · " + _stWord : "") + (_ivw ? " · with " + _ivw : "") + (conflict ? " · Conflict — overlaps another interview" : "");
+  return `<div class="oc-ev cat-${cat}${conflict ? " is-conflict" : ""}${rsvp==="declined"?" declined":""}${isPend?" is-pending":""}${sel?" sel":""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" tabindex="0" role="button" aria-label="${escapeHtml(hover)}" style="top:${top}px;height:${h}px${_ivcalLayStyle(lay)};--ev-hue:${hue}" title="${escapeHtml(hover)}">${inner}${rz}</div>`;
 }
 
 // Side-by-side column layout: when timed events overlap, split the column so
@@ -27757,7 +27767,7 @@ function _ivcalTimeGrid(ndays) {
         if (en > st) slots += `<div class="oc-bk-slot" style="top:${Math.round(st - top)}px;height:${Math.max(6, Math.round(en - st - 2))}px"></div>`;
       }
       const cap = (w.capacity && w.capacity > 1) ? ` · up to ${w.capacity}` : "";
-      shade += `<div class="oc-avail" style="top:${top}px;height:${bot-top}px" title="Bookable · ${_slotMin}-min slots${cap}"><span class="oc-bk-tag">${_bookIco}</span>${slots}</div>`;
+      shade += `<div class="oc-avail" style="top:${top}px;height:${bot-top}px" title="Bookable · ${_slotMin}-min slots${cap}"><span class="oc-bk-tag">${_bookIco}<span class="oc-bk-txt">Bookable</span></span>${slots}</div>`;
     }
     let lines = "";
     for (let h=_IVCAL_H0; h<_IVCAL_H1; h++) {
@@ -27772,22 +27782,33 @@ function _ivcalTimeGrid(ndays) {
     for (const s of _ivcalDayItems(d, _ivcalCache.sessions, "starts_at")) {
       if (!_ivcalFilterOk(s, "session") || _ivcalIsAllDay(s)) continue;
       const sp = _ivcalMinSpan(s.starts_at, s.ends_at);
-      timed.push({ _sm: sp.sm, _em: sp.em, render: (lay) => _ivcalEventBlock(s, "session", lay) });
+      timed.push({ _sm: sp.sm, _em: sp.em, _ce: true, render: (lay, cf) => _ivcalEventBlock(s, "session", lay, cf) });
     }
     for (const b of _ivcalDayItems(d, _ivcalCache.bookings, "starts_at")) {
       if (!_ivcalFilterOk(b, "booking") || _ivcalIsAllDay(b)) continue;
       const sp = _ivcalMinSpan(b.starts_at, b.ends_at);
-      timed.push({ _sm: sp.sm, _em: sp.em, render: (lay) => _ivcalEventBlock(b, "booking", lay) });
+      timed.push({ _sm: sp.sm, _em: sp.em, _ce: !(b.metadata && b.metadata.is_task), render: (lay, cf) => _ivcalEventBlock(b, "booking", lay, cf) });
     }
     if (_ivcalGoogleVisible()) {
       for (const ge of _ivcalDayItems(d, (_ivcalCache.googleEvents || []), "sortAt")) {
         if (ge.allDay) continue;   // all-day Google chips live in the top lane now
         const sp = _ivcalMinSpan(ge.start, ge.end);
-        timed.push({ _sm: sp.sm, _em: sp.em, render: (lay) => _ivcalGoogleBlock(ge, -1, lay) });
+        timed.push({ _sm: sp.sm, _em: sp.em, _ce: false, render: (lay, cf) => _ivcalGoogleBlock(ge, -1, lay, cf) });
       }
     }
     _ivcalLayoutDay(timed);
-    for (const it of timed) evs += it.render(it._lw < 100 ? { lx: it._lx, lw: it._lw } : null);
+    // Conflict detection (display-only, no writes): two schedulable events —
+    // interviews or group sessions — whose times genuinely overlap are
+    // double-booked. Google busy time and to-do chips are excluded (_ce=false)
+    // so external calendars / tasks don't raise false conflicts.
+    for (let i = 0; i < timed.length; i++) {
+      if (!timed[i]._ce) continue;
+      for (let j = 0; j < timed.length; j++) {
+        if (i === j || !timed[j]._ce) continue;
+        if (timed[i]._sm < timed[j]._em && timed[j]._sm < timed[i]._em) { timed[i]._conflict = true; break; }
+      }
+    }
+    for (const it of timed) evs += it.render(it._lw < 100 ? { lx: it._lx, lw: it._lw } : null, !!it._conflict);
     // Working-hours shading: dim the off-hours (before start / after end).
     let workShade = "";
     if (_ivWork.on) {
