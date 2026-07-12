@@ -70,40 +70,67 @@ Deno.serve(async (req) => {
   // thread; schedule events (offers / swaps / confirmations / publish) carry
   // an explicit link_url so the tap opens the card the driver needs.
   let linkUrl = "/app/#/chat";
+  let unread = 1;
+  let notifType = "message";
 
-  if (messageId) {
-    const { data: msg } = await supa
-      .from("driver_messages")
-      .select("body, link_url")
-      .eq("id", messageId)
-      .single();
-    if (msg?.body) {
-      const txt = String(msg.body);
-      bodyText = txt.length > 80 ? txt.slice(0, 80) + "…" : txt;
+  // ── Direct-call push ──────────────────────────────────────────────
+  // POST { driver_id, call: { callId, room, caller_name, media } } rings a
+  // driver whose app is CLOSED (a live realtime broadcast can't wake it).
+  // Tapping deep-links into the app with ?rrcall= params; on boot the app
+  // auto-accepts (broadcasts call-accept) and opens the Meet room, so the
+  // waiting caller connects. No DB message lookup for this path.
+  const callInfo = parsed?.call as
+    { callId?: string; room?: string; caller_name?: string; media?: string } | undefined;
+
+  if (callInfo && callInfo.room) {
+    const media = callInfo.media === "audio" ? "audio" : "video";
+    title = `Incoming ${media === "audio" ? "voice" : "video"} call`;
+    bodyText = `${callInfo.caller_name || "Dispatch"} is calling you`;
+    notifType = "call";
+    const qp = new URLSearchParams({
+      rrcall: "1",
+      callid: callInfo.callId || "",
+      room:   callInfo.room,
+      from:   callInfo.caller_name || "Dispatch",
+      media,
+    });
+    linkUrl = "/app/?" + qp.toString();
+  } else {
+    if (messageId) {
+      const { data: msg } = await supa
+        .from("driver_messages")
+        .select("body, link_url")
+        .eq("id", messageId)
+        .single();
+      if (msg?.body) {
+        const txt = String(msg.body);
+        bodyText = txt.length > 80 ? txt.slice(0, 80) + "…" : txt;
+      }
+      if (msg?.link_url) linkUrl = String(msg.link_url);
     }
-    if (msg?.link_url) linkUrl = String(msg.link_url);
-  }
 
-  const { data: conv } = await supa
-    .from("driver_conversations")
-    .select("driver_last_read_at")
-    .eq("driver_id", driverId)
-    .maybeSingle();
-  let unreadQuery = supa.from("driver_messages")
-    .select("id", { count: "exact", head: true })
-    .eq("driver_id", driverId)
-    .eq("sender_kind", "dispatch");
-  if (conv?.driver_last_read_at) {
-    unreadQuery = unreadQuery.gt("created_at", conv.driver_last_read_at);
+    const { data: conv } = await supa
+      .from("driver_conversations")
+      .select("driver_last_read_at")
+      .eq("driver_id", driverId)
+      .maybeSingle();
+    let unreadQuery = supa.from("driver_messages")
+      .select("id", { count: "exact", head: true })
+      .eq("driver_id", driverId)
+      .eq("sender_kind", "dispatch");
+    if (conv?.driver_last_read_at) {
+      unreadQuery = unreadQuery.gt("created_at", conv.driver_last_read_at);
+    }
+    const { count: unreadCount } = await unreadQuery;
+    unread = unreadCount ?? 1;
   }
-  const { count: unreadCount } = await unreadQuery;
-  const unread = unreadCount ?? 1;
 
   const payload = JSON.stringify({
     title,
     body: bodyText,
     unread,
     url: linkUrl,
+    type: notifType,
   });
 
   let sent = 0, failed = 0, removed = 0;

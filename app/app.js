@@ -5734,6 +5734,8 @@ function _drvPresenceWire(session) {
     .subscribe(async (status) => {
       if (status === "SUBSCRIBED") {
         await channel.track({ kind: "driver", id: driverId, online_at: new Date().toISOString() });
+        // If this load came from a call push, answer now that we can signal.
+        _drvConsumePendingCall();
       }
     });
   _drvPresence.channel = channel;
@@ -5829,14 +5831,44 @@ function _drvCallNotify(title, body) {
     return n;
   } catch { return null; }
 }
-function _drvCallOpenRoom(room, media) {
+function _drvCallOpenRoom(room, media, replace) {
   const me = _drvCallMe();
   // meet.html lives under /dashboard; open the full path (the /m/ short link
   // is a 302 that can drop the extra call params).
   const url = "/dashboard/meet.html?m=" + encodeURIComponent(room) + "&call=1"
     + "&name=" + encodeURIComponent(me.name || "")
     + (media === "audio" ? "&cam=0" : "");
+  // `replace` navigates the current window (used when answering from a push
+  // cold-boot — a notification tap has no synchronous gesture for a popup).
+  if (replace) { try { location.href = url; return; } catch {} }
   window.open(url, "_blank", "noopener");
+}
+
+// A closed app rung via Web Push deep-links to /app/?rrcall=1&…; parsed once
+// at load and consumed after the realtime channel subscribes so we can tell
+// the waiting caller we're joining, then drop into the room.
+const _drvPendingCall = (() => {
+  try {
+    const q = new URLSearchParams(location.search);
+    if (q.get("rrcall") !== "1" || !q.get("room")) return null;
+    return {
+      callId: q.get("callid") || "",
+      room:   q.get("room"),
+      from:   q.get("from") || "Dispatch",
+      media:  q.get("media") === "audio" ? "audio" : "video",
+    };
+  } catch { return null; }
+})();
+let _drvPendingCallDone = false;
+function _drvConsumePendingCall() {
+  if (!_drvPendingCall || _drvPendingCallDone) return;
+  _drvPendingCallDone = true;
+  const pc = _drvPendingCall;
+  // Strip the params so a manual refresh doesn't re-answer.
+  try { history.replaceState(null, "", location.pathname + location.hash); } catch {}
+  // Tell the waiting caller we're joining (matched by callId on their end).
+  _drvCallSend("call-accept", { callId: pc.callId, from: _drvCallMe(), to: { kind: "dispatch", id: "__any__" }, room: pc.room });
+  _drvCallOpenRoom(pc.room, pc.media, true);
 }
 function _drvCallTeardown() {
   if (_drvCall.ring) { _drvCall.ring.stop(); _drvCall.ring = null; }
@@ -5943,6 +5975,7 @@ function _drvCallOnCancel(p) {
 }
 window.rrDrvPlaceCall = rrDrvPlaceCall;
 window.rrDrvIncomingCall = _drvCallOnInvite;
+window.rrDrvConsumePendingCall = _drvConsumePendingCall;
 
 // Delegated controls for the driver call overlay + the chat "video call"
 // button. Bound once.

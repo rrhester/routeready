@@ -278,7 +278,7 @@ self.addEventListener("push", (event) => {
   // renotify. Apple WebKit silently rejects the entire notification if
   // any option fails validation (SVG icon, etc.), so we keep it to the
   // two fields every browser supports.
-  const notify = self.registration.showNotification(
+  const showIt = () => self.registration.showNotification(
     payload.title || "Dispatch",
     {
       body: payload.body || "",
@@ -286,8 +286,19 @@ self.addEventListener("push", (event) => {
     },
   ).catch((err) => ackPush({ stage: "showNotification", error: String(err) }));
 
-  const tasks = [notify, ackPush({ stage: "received", parseError, hasData: !!event.data })];
-  if ("setAppBadge" in self.navigator) {
+  // Call pushes double as the closed-app ring. If ANY app window is still
+  // alive it's connected to realtime and already rings in-app (card + its
+  // own notification), so suppress this one to avoid a double-ring — only a
+  // fully-closed app (no window client) needs the push. Messages always show.
+  const notify = payload.type === "call"
+    ? self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((wins) => {
+        const appAlive = wins.some((c) => (c.url || "").includes("/app/"));
+        return appAlive ? undefined : showIt();
+      }).catch(() => showIt())
+    : showIt();
+
+  const tasks = [notify, ackPush({ stage: "received", parseError, hasData: !!event.data, type: payload.type || "message" })];
+  if ("setAppBadge" in self.navigator && payload.type !== "call") {
     const n = Number(payload.unread) > 0 ? Number(payload.unread) : 1;
     tasks.push(self.navigator.setAppBadge(n).catch(() => {}));
   }
