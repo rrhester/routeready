@@ -1,4 +1,10 @@
 
+      <style>
+        /* Owner-only Settings controls. Hidden by default; revealed only when
+           live.js has stamped body[data-rr-role="owner"] at boot. */
+        .rr-owner-only { display: none; }
+        body[data-rr-role="owner"] .rr-owner-only { display: flex; }
+      </style>
       <div class="page">
         <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s-3)">
           <div>
@@ -117,6 +123,17 @@
                 <div style="display:flex;gap:var(--s-2);align-items:center;flex-wrap:wrap">
                   <button class="btn btn-sm" id="rr-set-weather-backfill" type="button">Backfill 1 year</button>
                   <span id="rr-set-weather-backfill-status" class="u-xs-subtle"></span>
+                </div>
+              </div>
+
+              <!-- DATA EXPORT · owner only (also enforced by the RPC) -->
+              <div class="form-row rr-owner-only">
+                <div>
+                  <div class="form-label">Export your data</div>
+                  <div class="form-help">Download your DSP's core records — drivers, documents, applicants, coaching, schedule and time-off — as a single JSON file. Your data is yours; take it anytime.</div>
+                </div>
+                <div style="display:flex;gap:var(--s-2);align-items:center">
+                  <button class="btn btn-sm" type="button" onclick="rrExportMyData(this)">Export data (JSON)</button>
                 </div>
               </div>
             </div>

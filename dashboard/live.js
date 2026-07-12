@@ -207,6 +207,10 @@ if (!profile) {
   throw new Error("no app_users row");
 }
 window.RR.user = profile;
+// Expose the caller's role on <body> so CSS can gate owner-only controls
+// (e.g. the Settings → Export your data row) regardless of async frag load
+// order: `.rr-owner-only { display:none }` + `body[data-rr-role="owner"] …`.
+try { document.body.dataset.rrRole = profile.role || ""; } catch (_) {}
 
 // ─── Idle session timeout ────────────────────────────────────────────────
 // HR / termination / PII data on a shared dispatcher machine must not stay
@@ -735,6 +739,38 @@ function toast(msg, kind) {
   if (typeof window.toast === "function") return window.toast(msg, kind);
   console.log("[toast]", kind ?? "", msg);
 }
+
+// Settings → Export your data. Owner-only (also enforced server-side by the
+// export_my_dsp_data RPC). Pulls the tenant's core HR/ops data as one JSON
+// bundle and downloads it — data portability / the floor of a DSR workflow.
+async function rrExportMyData(btn) {
+  if (window.RR?.user?.role !== "owner") {
+    toast("Only the owner can export tenant data.", "warn");
+    return;
+  }
+  const label = btn ? btn.textContent : "";
+  if (btn) { btn.disabled = true; btn.textContent = "Exporting…"; }
+  try {
+    const { data, error } = await sb.rpc("export_my_dsp_data");
+    if (error) throw error;
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const slug = (window.RR?.user?.dsp_id || "dsp").slice(0, 8);
+    const stamp = new Date().toISOString().slice(0, 10);
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `routeready-export-${slug}-${stamp}.json`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+    toast("Your data export downloaded.", "success");
+  } catch (e) {
+    if (typeof _isAuthError === "function" && _isAuthError(e)) { _forceRelogin("session_expired"); return; }
+    toast("Export failed — " + (e?.message || "please try again."), "warn");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = label; }
+  }
+}
+window.rrExportMyData = rrExportMyData;
 
 // Actionable toast — a blocking warning the operator can resolve in one
 // click (see mock-wiring.js toastAction). Falls back to a plain confirm()
