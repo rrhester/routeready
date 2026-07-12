@@ -1,5 +1,10 @@
 -- ───────────────────────────────────────────────────────────────────────
--- 0434 · Attendee free/busy for the composer's "Find a time"
+-- 0463 · Attendee free/busy for the composer's "Find a time"
+--
+-- (Re-issued at the current tip — this was originally authored as 0434, a
+-- number already consumed by 0434_team_task_activity, so in-order manual
+-- applies skipped it and the function never landed. Renumbered here so it
+-- surfaces as pending. Still `create or replace`, so re-running is a no-op.)
 --
 -- calendar_busy(emails, from, to) returns the busy intervals of the given
 -- attendees inside a window so the event composer can flag conflicts and

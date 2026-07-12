@@ -26352,8 +26352,9 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
       #rr-ivcal-new .rr-ne-days label{gap:4px;font-size:12px}
       #rr-ivcal-new .rr-ne-pop-f{display:flex;align-items:center;gap:8px;padding:10px 14px;border-top:1px solid var(--border-subtle,rgba(15,23,42,.06));flex:0 0 auto;background:var(--surface)}
       /* ── Google-style compact quick-create skin (operator). .is-gcard is the
-         default open state; "More options" switches to .is-restored (the full
-         Outlook-style composer with the ribbon + every field). ── */
+         default open state; the window-control expand/maximize switches to
+         .is-restored / .is-max (the full Outlook-style composer with the
+         ribbon + every field). ── */
       #rr-ivcal-new .rr-ne-card.is-gcard{position:fixed;left:50%;top:12%;transform:translateX(-50%);width:min(468px,94vw);height:auto;max-height:84vh;border-radius:16px;box-shadow:0 24px 70px rgba(15,23,42,.28);border:1px solid rgba(15,23,42,.08);overflow:hidden;background:#fff;display:flex;flex-direction:column}
       #rr-ivcal-new .rr-ne-card.is-gcard .rr-ne-titlebar{height:42px;background:transparent;border-bottom:0;cursor:default;padding:6px 6px 0 0;justify-content:flex-end}
       #rr-ivcal-new .rr-ne-card.is-gcard .rr-ne-tt{display:none}
@@ -26368,8 +26369,6 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
       #rr-ivcal-new .rr-ne-card.is-gcard #rr-ne-body{min-height:84px !important;font-family:inherit !important;font-size:13px !important;line-height:1.5 !important}
       #rr-ivcal-new .rr-ne-gfoot{display:flex;align-items:center;gap:12px;padding:12px 18px 16px;border-top:1px solid rgba(15,23,42,.06);flex:0 0 auto}
       #rr-ivcal-new .rr-ne-card.is-restored .rr-ne-gfoot,#rr-ivcal-new .rr-ne-card.is-max .rr-ne-gfoot,#rr-ivcal-new .rr-ne-card.is-min .rr-ne-gfoot,#rr-ivcal-new .rr-ne-card.is-float .rr-ne-gfoot{display:none}
-      #rr-ivcal-new .rr-ne-more{border:0;background:transparent;color:#2563EB;font-weight:600;font-size:13px;cursor:pointer;padding:8px 8px;border-radius:8px}
-      #rr-ivcal-new .rr-ne-more:hover{background:#EFF6FF}
       #rr-ivcal-new .rr-ne-gsave{margin-left:auto;border:0;background:#2563EB;color:#fff;font-weight:600;font-size:14px;cursor:pointer;padding:9px 24px;border-radius:10px}
       #rr-ivcal-new .rr-ne-gsave:hover{background:#1D4ED8}
       /* Google-style type tabs + icon rows */
@@ -26480,7 +26479,6 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
         <div id="rr-ne-history" style="display:none"></div>
       </div>
       <div class="rr-ne-gfoot">
-        <button type="button" class="rr-ne-more" data-ne-more>More options</button>
         <button type="button" class="rr-ne-gsave" data-ne-gsave>Save</button>
       </div>
       <input type="file" id="rr-ne-file" multiple style="display:none">
@@ -26521,10 +26519,9 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
   document.body.appendChild(m);
   const card = document.getElementById("rr-ne-card");
   // Google quick-create footer: "Save" proxies the ribbon's save action so all
-  // the existing create/invite wiring runs unchanged; "More options" expands the
-  // compact card into the full Outlook-style composer (ribbon + every field).
+  // the existing create/invite wiring runs unchanged. (The full Outlook-style
+  // composer is still reachable via the titlebar expand/maximize control.)
   m.querySelector("[data-ne-gsave]")?.addEventListener("click", () => m.querySelector('[data-ne-act="save"]')?.click());
-  m.querySelector("[data-ne-more]")?.addEventListener("click", () => { card.classList.remove("is-gcard"); card.classList.add("is-restored"); });
   // "Add video conferencing" row proxies the ribbon's Schedule Meeting action.
   m.querySelector("[data-ne-vproxy]")?.addEventListener("click", () => m.querySelector('[data-ne-act="meeting"]')?.click());
   // "Repeat" row opens the recurrence popover (works for events AND tasks — a
@@ -26643,7 +26640,7 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
       rows = data || [];
     } catch (e) {
       const msg = String((e && e.message) || e);
-      _ftBox.innerHTML = `<div class="rr-ne-anone">${/calendar_busy/.test(msg) ? "Find-a-time needs the latest database migration (0434)." : "Couldn't check calendars: " + escapeHtml(msg)}</div>`;
+      _ftBox.innerHTML = `<div class="rr-ne-anone">${/calendar_busy/.test(msg) ? "Find-a-time needs the latest database migration (0463)." : "Couldn't check calendars: " + escapeHtml(msg)}</div>`;
       return;
     }
     const busy = rows.map(r => ({ start: new Date(r.starts_at).getTime(), end: new Date(r.ends_at).getTime() }));
@@ -26728,7 +26725,7 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
       // Clickable so the interviewer can join straight from the editor. For a
       // saved interview this opens the embedded in-app room (with notes); the
       // same link is dropped into the invite email (_rrInviteEmail joinUrl).
-      st.innerHTML = `🎥 <a href="${escapeHtml(roomUrl)}" data-ne-join="1" style="color:var(--green);font-weight:600;text-decoration:none;cursor:pointer">Join video meeting</a> <span style="color:var(--text-subtle)">· this link is included in the invite email</span>`;
+      st.innerHTML = `<svg viewBox="0 0 24 24" width="15" height="15" fill="var(--green)" aria-hidden="true" style="vertical-align:-2px;margin-right:2px"><rect x="1.5" y="5.5" width="14" height="13" rx="3" ry="3"/><path d="M22.5 7.2 16 11.4v1.2l6.5 4.2z"/></svg><a href="${escapeHtml(roomUrl)}" data-ne-join="1" style="color:var(--green);font-weight:600;text-decoration:none;cursor:pointer">Join video meeting</a> <span style="color:var(--text-subtle)">· this link is included in the invite email</span>`;
       const joinA = st.querySelector("[data-ne-join]");
       if (joinA) joinA.onclick = (e) => {
         e.preventDefault();
