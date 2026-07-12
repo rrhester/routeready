@@ -22,6 +22,21 @@ Both call the same `meet_create` RPC; the only difference is whether the
 host joins immediately. Rooms minted for interviews (`interview-room`
 edge function) are unaffected.
 
+## Per-DSP branding
+
+Invites carry the operator's own brand, not "RouteReady" (migration 0466):
+
+- **Email From** — already the DSP's name + address (send-email
+  `brandedFrom`), e.g. `Ozarks Last Mile <ozarks-last-mile@gorouteready.com>`.
+- **Email subject/body** — lead with the DSP name (`meet_invite` reads
+  `dsps.name`): "Ozarks Last Mile — you're invited to a video meeting".
+- **Meeting title** — a new room defaults to "<DSP> meeting", so the
+  guest's lobby/room header shows the operator's brand (`meet_create`).
+
+All three fall back to the host's name, then "RouteReady", only if a DSP
+has no name set. Branding follows `dsps.name` (gear icon → Workspace
+settings), so renaming the DSP re-brands new invites automatically.
+
 ## TURN relay (reliability on hostile networks)
 
 STUN-only connects fine on typical home, office, and mobile networks, but
