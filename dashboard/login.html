@@ -17,18 +17,24 @@
   .card{width:100%;max-width:380px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:32px;box-shadow:0 1px 2px rgba(15,23,42,.05)}
   .brand-mark{width:36px;height:36px;border-radius:8px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;margin-bottom:16px}
   h1{margin:0 0 8px;font-size:20px;font-weight:600;letter-spacing:-.01em}
-  p{margin:0 0 24px;color:var(--muted);font-size:14px;line-height:1.5}
+  p.lede{margin:0 0 24px;color:var(--muted);font-size:14px;line-height:1.5}
   label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px;letter-spacing:.04em;text-transform:uppercase}
+  .field{margin-bottom:14px}
   input{width:100%;background:#fff;border:1px solid var(--border-strong);border-radius:6px;color:var(--text);padding:10px 12px;font:inherit;font-size:14px}
   input::placeholder{color:#94A3B8}
   input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(37,99,235,.15)}
-  button{width:100%;margin-top:18px;background:var(--accent);color:#fff;border:0;border-radius:6px;padding:11px 14px;font:inherit;font-size:14px;font-weight:600;cursor:pointer;transition:background .12s ease}
-  button:hover{background:var(--accent-hover)}
-  button[disabled]{opacity:.6;cursor:not-allowed}
+  button.primary{width:100%;margin-top:4px;background:var(--accent);color:#fff;border:0;border-radius:6px;padding:11px 14px;font:inherit;font-size:14px;font-weight:600;cursor:pointer;transition:background .12s ease}
+  button.primary:hover{background:var(--accent-hover)}
+  button.primary[disabled]{opacity:.6;cursor:not-allowed}
   .msg{margin-top:14px;font-size:13px;line-height:1.5}
   .msg.ok{color:#15803D}
   .msg.err{color:#B91C1C}
+  .row-between{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .link{background:none;border:0;padding:0;margin:0;color:var(--accent);font:inherit;font-size:13px;font-weight:600;cursor:pointer;text-decoration:none}
+  .link:hover{text-decoration:underline}
+  .alt{margin-top:16px;font-size:13px;color:var(--muted);text-align:center;line-height:1.6}
   .footer{margin-top:24px;font-size:12px;color:var(--muted);text-align:center}
+  [hidden]{display:none !important}
 </style>
 </head>
 <body>
@@ -36,13 +42,71 @@
   <div class="card">
     <div class="brand-mark" aria-hidden="true">R</div>
     <h1>RouteReady</h1>
-    <p>Enter your work email and we'll send you a magic-link to sign in. Only addresses on allowed domains can sign in.</p>
-    <form id="f">
-      <label for="email">Email</label>
-      <input id="email" name="email" type="email" required autocomplete="email" placeholder="you@gorouteready.com" />
-      <button type="submit" id="submit">Send magic link</button>
-      <div id="msg" class="msg"></div>
+    <p class="lede" id="lede">Enter your work email and we'll send you a magic-link to sign in. Only addresses on allowed domains can sign in.</p>
+
+    <!-- Magic link (default — unchanged flow) -->
+    <form id="form-magic">
+      <div class="field">
+        <label for="ml-email">Email</label>
+        <input id="ml-email" name="email" type="email" required autocomplete="email" placeholder="you@gorouteready.com" />
+      </div>
+      <button type="submit" class="primary">Send magic link</button>
     </form>
+
+    <!-- Sign in with password (for accounts that have set one) -->
+    <form id="form-password" hidden autocomplete="on">
+      <div class="field">
+        <label for="pw-email">Email</label>
+        <input id="pw-email" name="email" type="email" required autocomplete="email" placeholder="you@gorouteready.com" />
+      </div>
+      <div class="field">
+        <div class="row-between" style="margin-bottom:6px">
+          <label for="pw-password" style="margin:0">Password</label>
+          <button type="button" class="link" data-go="reset-req" tabindex="-1">Forgot password?</button>
+        </div>
+        <input id="pw-password" name="password" type="password" required autocomplete="current-password" placeholder="••••••••" />
+      </div>
+      <button type="submit" class="primary">Sign in</button>
+    </form>
+
+    <!-- Request a password set/reset link -->
+    <form id="form-reset-req" hidden>
+      <div class="field">
+        <label for="rr-email">Email</label>
+        <input id="rr-email" name="email" type="email" required autocomplete="email" placeholder="you@gorouteready.com" />
+      </div>
+      <button type="submit" class="primary">Send reset link</button>
+    </form>
+
+    <!-- Set a new password (after clicking the emailed link) -->
+    <form id="form-reset-set" hidden autocomplete="on">
+      <div class="field">
+        <label for="rs-password">New password</label>
+        <input id="rs-password" name="password" type="password" required autocomplete="new-password" minlength="8" placeholder="At least 8 characters" />
+      </div>
+      <div class="field">
+        <label for="rs-confirm">Confirm new password</label>
+        <input id="rs-confirm" name="confirm" type="password" required autocomplete="new-password" minlength="8" placeholder="Re-enter password" />
+      </div>
+      <button type="submit" class="primary">Update password</button>
+    </form>
+
+    <div id="msg" class="msg"></div>
+
+    <!-- Mode switches -->
+    <div class="alt" id="alt-links">
+      <div data-alt="magic">
+        <button type="button" class="link" data-go="password">Sign in with a password instead</button>
+      </div>
+      <div data-alt="password" hidden>
+        <button type="button" class="link" data-go="magic">Email me a magic link instead</button>
+      </div>
+      <div data-alt="reset-req" hidden>
+        <button type="button" class="link" data-go="password">Back to sign in</button>
+      </div>
+      <div data-alt="reset-set" hidden></div>
+    </div>
+
     <div class="footer">© RouteReady · <a href="/" style="color:var(--muted)">Back to home</a></div>
   </div>
 </div>
@@ -55,9 +119,15 @@
     auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
   });
 
-  const params = new URLSearchParams(location.search);
-  const next   = params.get("next") || "./index.html";
+  const params  = new URLSearchParams(location.search);
+  const next    = params.get("next") || "./index.html";
   const errCode = params.get("err");
+  const baseDir = location.origin + location.pathname.replace(/[^/]+$/, "");
+  const indexUrl = baseDir + "index.html";
+  const loginUrl = location.origin + location.pathname; // this page, for recovery redirects
+
+  const msg = document.getElementById("msg");
+  const setMsg = (text, kind) => { msg.className = "msg" + (kind ? " " + kind : ""); msg.textContent = text || ""; };
 
   // Desktop "Connect from browser" pairing: the installed app calls this
   // (after redeeming a routeready:// code) to sign THIS window in. It reuses
@@ -72,57 +142,140 @@
     } catch (e) { console.warn("[rr-pair] threw", e); return false; }
   };
 
-  const msg = document.getElementById("msg");
-  if (errCode === "no_profile") {
-    msg.className = "msg err";
-    msg.textContent = "Your account isn't linked to a tenant yet. Contact your administrator.";
-  } else if (errCode === "session_expired") {
-    msg.className = "msg err";
-    msg.textContent = "Your session expired. Sign in again to continue.";
-  } else if (errCode === "idle_timeout") {
-    msg.className = "msg err";
-    msg.textContent = "You were signed out after a period of inactivity. Sign in again to continue.";
-  } else if (errCode === "dsp_unresolved") {
-    msg.className = "msg err";
-    msg.textContent = "We couldn't load your workspace. Sign in again — if it keeps happening, contact support.";
-  } else if (errCode === "profile_load_failed") {
-    msg.className = "msg err";
-    msg.textContent = "We couldn't load your profile. Sign in again — if it keeps happening, contact support.";
+  // ── Mode machine ────────────────────────────────────────────────────────
+  const forms = {
+    "magic":     document.getElementById("form-magic"),
+    "password":  document.getElementById("form-password"),
+    "reset-req": document.getElementById("form-reset-req"),
+    "reset-set": document.getElementById("form-reset-set"),
+  };
+  const alts = document.querySelectorAll("#alt-links [data-alt]");
+  const ledeEl = document.getElementById("lede");
+  const LEDE = {
+    "magic":     "Enter your work email and we'll send you a magic-link to sign in. Only addresses on allowed domains can sign in.",
+    "password":  "Sign in with your email and password.",
+    "reset-req": "Enter your email and we'll send you a link to set or reset your password.",
+    "reset-set": "Choose a new password for your account.",
+  };
+  let prevMode = "magic";
+  function setMode(next, keepMsg) {
+    for (const [k, f] of Object.entries(forms)) f.hidden = (k !== next);
+    alts.forEach((el) => { el.hidden = (el.getAttribute("data-alt") !== next); });
+    ledeEl.textContent = LEDE[next] || LEDE.magic;
+    if (!keepMsg) setMsg("");
+    // Carry the typed email between modes for convenience.
+    const prevEmail = forms[prevMode]?.querySelector('input[type=email]')?.value;
+    if (prevEmail) { const t = forms[next].querySelector('input[type=email]'); if (t) t.value = prevEmail; }
+    prevMode = next;
+    forms[next].querySelector("input")?.focus();
   }
 
-  // If already signed in, bounce to next.
-  const { data: { session } } = await sb.auth.getSession();
-  if (session) location.replace(next);
-
-  document.getElementById("f").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const email = document.getElementById("email").value.trim().toLowerCase();
-    const btn   = document.getElementById("submit");
-    if (!email || !email.includes("@")) {
-      msg.className = "msg err";
-      msg.textContent = "Enter a valid email.";
-      return;
-    }
-    // Domain allowlisting is now enforced server-side by the
-    // on_auth_user_created trigger so dashboard-initiated invites
-    // (which carry invite_dsp_id metadata) can land any email here
-    // without tripping a page-level gate.
-    btn.disabled = true;
-    msg.className = "msg";
-    msg.textContent = "Sending…";
-    const { error } = await sb.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: location.origin + location.pathname.replace(/[^/]+$/, "") + "index.html" },
-    });
-    if (error) {
-      btn.disabled = false;
-      msg.className = "msg err";
-      msg.textContent = error.message;
-    } else {
-      msg.className = "msg ok";
-      msg.textContent = "Check your inbox for the sign-in link.";
-    }
+  document.querySelectorAll("[data-go]").forEach((btn) => {
+    btn.addEventListener("click", () => setMode(btn.getAttribute("data-go")));
   });
+
+  // ── Friendly error mapping ───────────────────────────────────────────────
+  function humanize(err) {
+    const m = ((err && err.message) || "").toLowerCase();
+    if (m.includes("database error saving new user"))
+      return "This email isn't authorized to sign in yet. Ask an administrator to invite you, or use an approved work email.";
+    if (m.includes("invalid login credentials"))
+      return "Incorrect email or password. If you haven't set a password yet, use “Forgot password?” or a magic link.";
+    if (m.includes("email not confirmed"))
+      return "Please confirm your email first — check your inbox for the confirmation link.";
+    if (m.includes("password should be") || m.includes("password is too"))
+      return "That password is too short — use at least 8 characters.";
+    if (m.includes("for security purposes") || m.includes("rate limit"))
+      return "Too many attempts. Wait a minute and try again.";
+    return (err && err.message) || "Something went wrong. Please try again.";
+  }
+
+  const emailValid = (e) => !!e && /.+@.+\..+/.test(e);
+  function busy(form, on, label) {
+    const btn = form.querySelector("button.primary");
+    if (!btn) return;
+    if (on) { btn.dataset.label = btn.textContent; btn.disabled = true; btn.textContent = label || "Working…"; }
+    else { btn.disabled = false; if (btn.dataset.label) btn.textContent = btn.dataset.label; }
+  }
+
+  // ── Magic link (unchanged behaviour) ─────────────────────────────────────
+  forms.magic.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = document.getElementById("ml-email").value.trim().toLowerCase();
+    if (!emailValid(email)) return setMsg("Enter a valid email.", "err");
+    busy(forms.magic, true, "Sending…"); setMsg("");
+    const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: indexUrl } });
+    busy(forms.magic, false);
+    if (error) return setMsg(humanize(error), "err");
+    setMsg("Check your inbox for the sign-in link.", "ok");
+  });
+
+  // ── Sign in with password ────────────────────────────────────────────────
+  forms.password.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = document.getElementById("pw-email").value.trim().toLowerCase();
+    const password = document.getElementById("pw-password").value;
+    if (!emailValid(email)) return setMsg("Enter a valid email.", "err");
+    if (!password) return setMsg("Enter your password.", "err");
+    busy(forms.password, true, "Signing in…"); setMsg("");
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) { busy(forms.password, false); return setMsg(humanize(error), "err"); }
+    location.replace(next);
+  });
+
+  // ── Request a set/reset-password link ────────────────────────────────────
+  forms["reset-req"].addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = document.getElementById("rr-email").value.trim().toLowerCase();
+    if (!emailValid(email)) return setMsg("Enter a valid email.", "err");
+    busy(forms["reset-req"], true, "Sending…"); setMsg("");
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: loginUrl });
+    busy(forms["reset-req"], false);
+    if (error) return setMsg(humanize(error), "err");
+    setMode("password", true);
+    setMsg("If that email has an account, a link to set your password is on its way.", "ok");
+  });
+
+  // ── Set new password (recovery) ──────────────────────────────────────────
+  forms["reset-set"].addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const password = document.getElementById("rs-password").value;
+    const confirm  = document.getElementById("rs-confirm").value;
+    if (password.length < 8) return setMsg("Password must be at least 8 characters.", "err");
+    if (password !== confirm) return setMsg("Passwords don't match.", "err");
+    busy(forms["reset-set"], true, "Updating…"); setMsg("");
+    const { error } = await sb.auth.updateUser({ password });
+    if (error) { busy(forms["reset-set"], false); return setMsg(humanize(error), "err"); }
+    setMsg("Password updated. Signing you in…", "ok");
+    location.replace(next);
+  });
+
+  // ── Recovery / already-signed-in bootstrap ───────────────────────────────
+  // A set/reset-password link returns here with a recovery token. Supabase
+  // establishes a temporary session and fires PASSWORD_RECOVERY — show the
+  // "set new password" form and DON'T bounce to `next`.
+  let recovering = /type=recovery/.test(location.hash) || errCode === "recovery";
+  sb.auth.onAuthStateChange((event) => {
+    if (event === "PASSWORD_RECOVERY") { recovering = true; setMode("reset-set"); }
+  });
+
+  // Surface redirect reasons from the app.
+  const REASONS = {
+    no_profile:         "Your account isn't linked to a tenant yet. Contact your administrator.",
+    session_expired:    "Your session expired. Sign in again to continue.",
+    idle_timeout:       "You were signed out after a period of inactivity. Sign in again to continue.",
+    dsp_unresolved:     "We couldn't load your workspace. Sign in again — if it keeps happening, contact support.",
+    profile_load_failed:"We couldn't load your profile. Sign in again — if it keeps happening, contact support.",
+  };
+  if (errCode && REASONS[errCode]) setMsg(REASONS[errCode], "err");
+
+  // If already signed in (and not mid-recovery), bounce to next.
+  const { data: { session } } = await sb.auth.getSession();
+  if (recovering) {
+    setMode("reset-set");
+  } else if (session) {
+    location.replace(next);
+  }
 </script>
 </body>
 </html>
