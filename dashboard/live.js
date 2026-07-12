@@ -37637,6 +37637,100 @@ function _rrWireComposerAttach({ ta, fileInput, previewEl, attachBtn, setPending
   return { clear };
 }
 
+// Wire the composer mic → record a voice note and send it via
+// dispatch_chat_send with an audio/* attachment. Reuses the message
+// pipeline wholesale (push, realtime, threading), so there is no new
+// backend surface. getTargets() supplies { dspId, driverId } at send time.
+function _rrWireComposerMic({ micBtn, previewEl, getTargets }) {
+  if (!micBtn) return;
+  const canRecord = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+  if (!canRecord) { micBtn.style.display = "none"; return; }
+
+  let rec = null, chunks = [], stream = null, t0 = 0, timer = null, sendOnStop = false;
+  const pickMime = () => {
+    const cands = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/aac", "audio/ogg;codecs=opus"];
+    for (const m of cands) { try { if (MediaRecorder.isTypeSupported(m)) return m; } catch {} }
+    return "";
+  };
+  const teardown = () => {
+    if (timer) { clearInterval(timer); timer = null; }
+    if (stream) { try { stream.getTracks().forEach((t) => t.stop()); } catch {} stream = null; }
+    previewEl.style.display = "none"; previewEl.innerHTML = "";
+    micBtn.classList.remove("recording");
+  };
+  const stopAndSend = () => {
+    if (!rec || rec.state === "inactive") return;
+    sendOnStop = true;
+    try { rec.stop(); } catch { teardown(); }
+  };
+  const renderBar = () => {
+    previewEl.style.display = "";
+    previewEl.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:6px 8px;font-size:var(--fs-sm)">
+        <span style="width:9px;height:9px;border-radius:50%;background:var(--danger,#e5484d);animation:rrPulse 1s ease-in-out infinite" aria-hidden="true"></span>
+        <span style="font-variant-numeric:tabular-nums;font-weight:600;color:var(--text)" data-rr-vt>0:00</span>
+        <span style="flex:1;color:var(--text-subtle)">Recording…</span>
+        <button type="button" data-rr-vcancel aria-label="Cancel" style="background:none;border:0;color:var(--text-subtle);cursor:pointer;font-size:var(--fs-lg);line-height:1;padding:2px">×</button>
+        <button type="button" data-rr-vsend class="rr-mc-send" aria-label="Send voice message" style="width:30px;height:30px"></button>
+      </div>`;
+    t0 = Date.now();
+    timer = setInterval(() => {
+      const s = Math.floor((Date.now() - t0) / 1000);
+      const el = previewEl.querySelector("[data-rr-vt]");
+      if (el) el.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+      if (s >= 300) stopAndSend(); // hard cap 5 min
+    }, 250);
+    previewEl.querySelector("[data-rr-vcancel]").addEventListener("click", () => { sendOnStop = false; try { rec && rec.stop(); } catch { teardown(); } });
+    previewEl.querySelector("[data-rr-vsend]").addEventListener("click", stopAndSend);
+  };
+  const sendVoiceNote = async (blob, type) => {
+    const { dspId, driverId } = getTargets() || {};
+    if (!dspId || !driverId) { toast("Pick a driver first", "warn"); return; }
+    const ext = type.includes("mp4") || type.includes("aac") ? "m4a" : type.includes("ogg") ? "ogg" : "webm";
+    const path = `${dspId}/${driverId}/${Date.now()}-voice.${ext}`;
+    toast("Sending voice message…", "info");
+    const { error: upErr } = await sb.storage
+      .from("driver-chat-attachments").upload(path, blob, { contentType: type, upsert: false });
+    if (upErr) { toast("Upload failed: " + upErr.message, "warn"); return; }
+    const { error } = await sb.rpc("dispatch_chat_send", {
+      p_driver_id:             driverId,
+      p_body:                  null,
+      p_attachment_path:       path,
+      p_attachment_mime:       type,
+      p_attachment_name:       "Voice message",
+      p_attachment_size_bytes: blob.size,
+      p_priority:              (typeof _dispatchPriority !== "undefined" ? _dispatchPriority : "normal"),
+      p_requires_ack:          false,
+    });
+    if (error) { toast("Couldn't send: " + error.message, "warn"); return; }
+    if (typeof refreshDriverChatThread === "function") { try { await refreshDriverChatThread(true); } catch {} }
+  };
+  const start = async () => {
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch { toast("Microphone permission is needed to record a voice message", "warn"); return; }
+    const mime = pickMime();
+    try { rec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream); }
+    catch { rec = new MediaRecorder(stream); }
+    chunks = []; sendOnStop = false;
+    rec.addEventListener("dataavailable", (e) => { if (e.data && e.data.size) chunks.push(e.data); });
+    rec.addEventListener("stop", async () => {
+      const send = sendOnStop;
+      const type = (rec && rec.mimeType) || mime || "audio/webm";
+      const elapsed = Date.now() - t0;
+      const blob = new Blob(chunks, { type });
+      chunks = [];
+      teardown();
+      if (!send) return;
+      if (!blob.size || elapsed < 700) { toast("Too short — hold to record a bit longer", "warn"); return; }
+      await sendVoiceNote(blob, type);
+    });
+    micBtn.classList.add("recording");
+    renderBar();
+    rec.start();
+  };
+  micBtn.addEventListener("click", () => { if (rec && rec.state === "recording") stopAndSend(); else start(); });
+}
+
 async function refreshDriverChatThread(scrollToBottom) {
   const conv = document.getElementById("rr-msg-conv");
   if (!conv) return;
@@ -37716,6 +37810,9 @@ async function refreshDriverChatThread(scrollToBottom) {
           <button type="button" id="rr-mc-attach" class="rr-mc-attach" title="Attach photo or document" aria-label="Attach photo or document">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
           </button>
+          <button type="button" id="rr-mc-mic" class="rr-mc-attach" title="Record a voice message" aria-label="Record a voice message">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+          </button>
           <div id="rr-mc-attach-preview" class="rr-mc-attach-preview" style="display:none"></div>
           <textarea id="rr-mc-input" class="rr-mc-input" rows="1" placeholder="Message ${escapeHtml(drv.name || "driver")}…" maxlength="2000"></textarea>
           ${_priorityDropdownHtml()}
@@ -37765,6 +37862,17 @@ async function refreshDriverChatThread(scrollToBottom) {
       ta, fileInput, previewEl,
       attachBtn: document.getElementById("rr-mc-attach"),
       setPending: (f) => { window._rrMcPending = f; },
+    });
+
+    // ── Voice notes (dispatch → driver) ─────────────────────────────────
+    // Tap the mic to record; on send we upload to driver-chat-attachments and
+    // post via dispatch_chat_send with an audio/* MIME. The driver's push then
+    // reads "🎤 Sent you a voice message" (send-driver-push), the notification
+    // deep-links into the thread, and the bubble renders an inline player.
+    _rrWireComposerMic({
+      micBtn: document.getElementById("rr-mc-mic"),
+      previewEl,
+      getTargets: () => ({ dspId: window.RR?.dsp?.id, driverId: _msgInboxSelectedId }),
     });
 
     document.getElementById("rr-mc-form").addEventListener("submit", async (e) => {
@@ -38037,9 +38145,14 @@ async function refreshDriverChatThread(scrollToBottom) {
       let attach = "";
       if (m.attachment_path) {
         const isImg = (m.attachment_mime || "").startsWith("image/");
+        const isAudio = (m.attachment_mime || "").startsWith("audio/");
         const name  = m.attachment_name || "Attachment";
         const sizeKb = m.attachment_size_bytes ? Math.round(m.attachment_size_bytes / 1024) : null;
-        attach = isImg
+        attach = isAudio
+          // Voice note — inline player; the signed URL is bound to .src by
+          // the same data-rr-mc-attach resolver (extended to <audio>).
+          ? `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;max-width:260px"><span aria-hidden="true">🎤</span><audio data-rr-mc-attach="${escapeHtml(m.attachment_path)}" controls preload="metadata" style="flex:1;min-width:0;height:38px"></audio></div>`
+          : isImg
           // width/height HTML attributes (NOT just CSS) give the browser
           // the intrinsic size BEFORE any stylesheet parses — the box
           // is 240×240 from the first style-resolution tick.  Combined
@@ -38417,6 +38530,8 @@ async function _rrMcSignAttachments() {
         // If the browser already has it cached, .complete is true on
         // the next tick — synthesize the loaded mark immediately.
         if (el.complete && el.naturalWidth > 0) onSettled();
+      } else if (el.tagName === "AUDIO") {
+        el.src = data.signedUrl; // voice note
       } else {
         el.href = data.signedUrl;
       }
@@ -38981,9 +39096,14 @@ async function refreshChannelThread(scrollToBottom) {
       let attach = "";
       if (m.attachment_path) {
         const isImg = (m.attachment_mime || "").startsWith("image/");
+        const isAudio = (m.attachment_mime || "").startsWith("audio/");
         const name  = m.attachment_name || "Attachment";
         const sizeKb = m.attachment_size_bytes ? Math.round(m.attachment_size_bytes / 1024) : null;
-        attach = isImg
+        attach = isAudio
+          // Voice note — inline player; the signed URL is bound to .src by
+          // the same data-rr-mc-attach resolver (extended to <audio>).
+          ? `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;max-width:260px"><span aria-hidden="true">🎤</span><audio data-rr-mc-attach="${escapeHtml(m.attachment_path)}" controls preload="metadata" style="flex:1;min-width:0;height:38px"></audio></div>`
+          : isImg
           // Same fixed-box treatment as the direct-chat renderer above
           // — width/height attributes lock the layout box at 240×240
           // BEFORE any image data lands, so the bubble cannot grow on

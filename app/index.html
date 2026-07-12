@@ -54,6 +54,9 @@
        Tokens: --rr-*. Primitives: .rrx-* (see rr-system.css). -->
   <link rel="stylesheet" href="rr-system.css?v=b2ebeec00db5">
   <script src="../dashboard/config.js"></script>
+  <!-- Native capability bridge (Capacitor). Inert no-op in the plain PWA;
+       defines window.RRNative before app.js runs. See docs/CAPACITOR-SETUP.md. -->
+  <script src="comms-native.js?v=b2ebeec00db5"></script>
 </head>
 <body>
   <div id="app">

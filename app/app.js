@@ -279,6 +279,35 @@ async function ensurePushSubscription(session, { interactive = false } = {}) {
   if (_pushAttempted) return;
   _pushAttempted = true;
 
+  // Native shell (Capacitor): use APNs/FCM via the native bridge instead of
+  // Web Push, and register the device token against device_push_tokens. This
+  // is the path that can wake a CLOSED / locked phone on iOS (Web Push can't).
+  if (window.RRNative && window.RRNative.isNative()) {
+    const took = await window.RRNative.registerPush({
+      onToken: async (kind, token) => {
+        if (!token) return;
+        const { error } = await sb.rpc("driver_device_push_register", {
+          p_token:        session.token,
+          p_platform:     window.RRNative.platform(),
+          p_kind:         kind,
+          p_device_token: token,
+          p_app_version:  (window.RR_BUILD || null),
+        });
+        if (error) console.warn("driver_device_push_register failed:", error.message);
+      },
+      onOpen: (data) => {
+        // Deep-link the notification tap. Voice notes / chat land in the
+        // dispatch thread; schedule cards carry an explicit url.
+        try {
+          const url = (data && (data.url || data.link_url)) || "/app/#/chat";
+          if (/^https?:\/\//i.test(url)) location.href = url;
+          else navigate(url.replace(/^\/app\/?#?/, "/") || "/chat");
+        } catch (_) {}
+      },
+    });
+    if (took) return; // native path handled registration — skip Web Push
+  }
+
   let reg;
   try { reg = await navigator.serviceWorker.ready; } catch { return; }
 
@@ -4023,6 +4052,97 @@ if (typeof window !== "undefined" && !window.__rrScanOnlineWired) {
 }
 
 
+// ── Offline chat outbox ──────────────────────────────────────────────
+// A driver typing dispatch in a dead zone must not lose the message when
+// the send fails or the app is backgrounded/closed before connectivity
+// returns. Text sends that can't reach the network are persisted to
+// IndexedDB and replayed automatically on the `online` event, on chat
+// reconnect, and on chat mount. The optimistic "queued" stub is
+// reconciled away by refreshChat's canonical-echo strip once the message
+// actually lands. Attachments/voice notes keep the existing tap-to-retry
+// path (their blobs are large and already staged); this covers the
+// common case — a typed message — with durable, hands-off delivery.
+const _CHAT_Q_DB = "rr-chat-outbox";
+const _CHAT_Q_STORE = "msgs";
+function _chatQueueDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(_CHAT_Q_DB, 1);
+    req.onupgradeneeded = () => {
+      if (!req.result.objectStoreNames.contains(_CHAT_Q_STORE)) {
+        req.result.createObjectStore(_CHAT_Q_STORE, { keyPath: "id" });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function _chatQueueAdd(item) {
+  const db = await _chatQueueDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(_CHAT_Q_STORE, "readwrite");
+    tx.objectStore(_CHAT_Q_STORE).put(item);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function _chatQueueAll() {
+  const db = await _chatQueueDb();
+  return new Promise((resolve) => {
+    const tx = db.transaction(_CHAT_Q_STORE, "readonly");
+    const r = tx.objectStore(_CHAT_Q_STORE).getAll();
+    r.onsuccess = () => resolve(r.result || []);
+    r.onerror = () => resolve([]);
+  });
+}
+async function _chatQueueDelete(id) {
+  const db = await _chatQueueDb();
+  return new Promise((resolve) => {
+    const tx = db.transaction(_CHAT_Q_STORE, "readwrite");
+    tx.objectStore(_CHAT_Q_STORE).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => resolve();
+  });
+}
+async function _chatQueueCount() {
+  try { return (await _chatQueueAll()).length; } catch { return 0; }
+}
+
+// Replay every queued message in order. Stops at the first still-failing
+// item (still offline / signed out) so we don't hammer or reorder. Safe
+// to call repeatedly; concurrency-guarded.
+let _chatFlushing = false;
+async function _chatFlushOutbox({ silent } = {}) {
+  if (_chatFlushing) return 0;
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return 0;
+  const token = readSession()?.token;
+  if (!token) return 0;
+  _chatFlushing = true;
+  let sent = 0;
+  try {
+    const items = (await _chatQueueAll()).sort((a, b) => a.createdAt - b.createdAt);
+    for (const it of items) {
+      const { error } = await sb.rpc("driver_chat_send", { p_token: token, p_body: it.body });
+      if (!error) { await _chatQueueDelete(it.id); sent++; }
+      else break; // leave the rest for the next flush
+    }
+  } catch { /* retried next trigger */ }
+  _chatFlushing = false;
+  if (sent) {
+    _haptic("success");
+    if (!silent) toast(`${sent} queued message${sent === 1 ? "" : "s"} sent`, "ok");
+    try { if (currentRoute() === "/chat" && _chatTab === "dispatch") await refreshChat(false); } catch {}
+    try { refreshChatBadge(); } catch {}
+  }
+  return sent;
+}
+
+// Flush the chat outbox when the network returns. Wired once.
+if (typeof window !== "undefined" && !window.__rrChatOutboxWired) {
+  window.__rrChatOutboxWired = true;
+  window.addEventListener("online", () => { _chatFlushOutbox(); });
+}
+
+
 // ── Offline form-submission queue ────────────────────────────────────
 // Drivers fill forms in the same dead zones they scan in. If a submit
 // can't reach the network, the whole submission — scalar answers plus
@@ -5369,6 +5489,7 @@ function _onChatRealtimeStatus(status) {
     _chatDisconnected = false;
     clearInterval(_chatConnPollTimer);
     _showChatConnBanner("Back online", "ok", 1800);
+    _chatFlushOutbox({ silent: true }); // replay anything queued while down
     refreshChat(false); // reconcile anything missed while down
   }
 }
@@ -5404,6 +5525,9 @@ async function renderChat() {
         <input id="chat-file" type="file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" hidden>
         <button id="chat-attach" type="button" class="chat-attach" aria-label="Attach photo or document" title="Attach">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+        </button>
+        <button id="chat-mic" type="button" class="chat-attach" aria-label="Record a voice message" title="Voice message">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
         </button>
         <div style="flex:1;display:flex;flex-direction:column;gap:6px;min-width:0">
           <div class="chat-qa-strip" id="chat-qa-strip">
@@ -5502,6 +5626,120 @@ async function renderChat() {
   const fileInput = document.getElementById("chat-file");
   const previewEl = document.getElementById("chat-attachment-preview");
   document.getElementById("chat-attach").addEventListener("click", () => fileInput.click());
+
+  // ── Voice notes ──────────────────────────────────────────────────────
+  // Tap the mic to record; a recording bar (timer + send + cancel) replaces
+  // the quick-action strip while live. On send we upload the clip to the same
+  // driver-chat-attachments bucket and post it through driver_chat_send with
+  // an audio/* MIME — so it inherits threading, Web Push ("Voice message"),
+  // realtime delivery and unread badges with zero new backend surface.
+  const micBtn = document.getElementById("chat-mic");
+  if (micBtn) {
+    const canRecord = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+    if (!canRecord) {
+      micBtn.style.display = "none";
+    } else {
+      let _rec = null, _chunks = [], _stream = null, _t0 = 0, _timer = null;
+      const pickMime = () => {
+        const cands = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/aac", "audio/ogg;codecs=opus"];
+        for (const m of cands) { try { if (MediaRecorder.isTypeSupported(m)) return m; } catch {} }
+        return "";
+      };
+      const teardown = () => {
+        if (_timer) { clearInterval(_timer); _timer = null; }
+        if (_stream) { try { _stream.getTracks().forEach(t => t.stop()); } catch {} _stream = null; }
+        previewEl.style.display = "none"; previewEl.innerHTML = "";
+        micBtn.classList.remove("recording");
+      };
+      const renderBar = () => {
+        previewEl.style.display = "";
+        previewEl.innerHTML = `
+          <div style="display:flex;align-items:center;gap:10px;background:var(--canvas);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:var(--fs-sm)">
+            <span style="width:9px;height:9px;border-radius:50%;background:var(--danger,#e5484d);animation:rrPulse 1s ease-in-out infinite" aria-hidden="true"></span>
+            <span style="font-variant-numeric:tabular-nums;font-weight:600;color:var(--text)" id="rr-voice-timer">0:00</span>
+            <span style="flex:1;color:var(--text-subtle)">Recording…</span>
+            <button type="button" id="rr-voice-cancel" class="chat-attach-x" aria-label="Cancel recording">×</button>
+            <button type="button" id="rr-voice-send" class="chat-send" aria-label="Send voice message" style="width:34px;height:34px">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
+          </div>`;
+        _t0 = Date.now();
+        _timer = setInterval(() => {
+          const s = Math.floor((Date.now() - _t0) / 1000);
+          const el = document.getElementById("rr-voice-timer");
+          if (el) el.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+          if (s >= 300) stopAndSend(); // hard cap 5 min
+        }, 250);
+        document.getElementById("rr-voice-cancel").addEventListener("click", () => { _sendOnStop = false; try { _rec && _rec.stop(); } catch { teardown(); } });
+        document.getElementById("rr-voice-send").addEventListener("click", stopAndSend);
+      };
+      let _sendOnStop = false;
+      const stopAndSend = () => {
+        if (!_rec || _rec.state === "inactive") return;
+        _sendOnStop = true;
+        try { _rec.stop(); } catch { teardown(); }
+      };
+      const startRecording = async () => {
+        try {
+          _stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch {
+          toast("Microphone permission is needed to send a voice message", "warn");
+          return;
+        }
+        const mime = pickMime();
+        try { _rec = mime ? new MediaRecorder(_stream, { mimeType: mime }) : new MediaRecorder(_stream); }
+        catch { _rec = new MediaRecorder(_stream); }
+        _chunks = [];
+        _sendOnStop = false;
+        _rec.addEventListener("dataavailable", (e) => { if (e.data && e.data.size) _chunks.push(e.data); });
+        _rec.addEventListener("stop", async () => {
+          const send = _sendOnStop;
+          const type = (_rec && _rec.mimeType) || mime || "audio/webm";
+          const elapsed = Date.now() - _t0;
+          const blob = new Blob(_chunks, { type });
+          _chunks = [];
+          teardown();
+          if (!send) return;
+          if (!blob.size || elapsed < 700) { toast("Too short — hold to record a bit longer", "warn"); return; }
+          await sendVoiceNote(blob, type);
+        });
+        micBtn.classList.add("recording");
+        _haptic("tap");
+        renderBar();
+        _rec.start();
+      };
+      const sendVoiceNote = async (blob, type) => {
+        let dspId = session.dsp_id, driverId = session.driver_id;
+        if (!dspId || !driverId) {
+          const { data: me } = await sb.rpc("driver_me", { p_token: session.token });
+          if (me) {
+            dspId = me.dsp_id || dspId; driverId = me.id || driverId;
+            const cur = readSession(); if (cur) writeSession({ ...cur, dsp_id: dspId, driver_id: driverId });
+          }
+        }
+        if (!dspId || !driverId) { toast("Couldn't load profile — sign out and back in", "warn"); return; }
+        const ext = type.includes("mp4") || type.includes("aac") ? "m4a" : type.includes("ogg") ? "ogg" : "webm";
+        const path = `${dspId}/${driverId}/${Date.now()}-voice.${ext}`;
+        toast("Sending voice message…", "info");
+        const { error: upErr } = await sb.storage
+          .from("driver-chat-attachments").upload(path, blob, { contentType: type, upsert: false });
+        if (upErr) { toast(_friendlyError(upErr, "Couldn't send the voice message. Try again."), "warn"); return; }
+        const { error } = await sb.rpc("driver_chat_send", {
+          p_token:                 session.token,
+          p_body:                  null,
+          p_attachment_path:       path,
+          p_attachment_mime:       type,
+          p_attachment_name:       "Voice message",
+          p_attachment_size_bytes: blob.size,
+        });
+        if (error) { _haptic("warn"); toast(_friendlyError(error, "Couldn't send. Try again."), "warn"); return; }
+        _haptic("tap");
+        await refreshChat(false);
+      };
+      micBtn.addEventListener("click", () => { if (_rec && _rec.state === "recording") stopAndSend(); else startRecording(); });
+    }
+  }
+
   fileInput.addEventListener("change", () => {
     const f = fileInput.files?.[0];
     if (!f) { window._rrChatPending = null; previewEl.style.display = "none"; previewEl.innerHTML = ""; return; }
@@ -5651,6 +5889,23 @@ async function renderChat() {
     });
     if (sendBtn) sendBtn.disabled = false;
     if (error) {
+      // Offline + text-only → persist to the durable outbox and keep the
+      // bubble in its "sending" state; _chatFlushOutbox replays it the
+      // instant connectivity returns (even after a reload). Attachments
+      // keep the tap-to-retry path (their staged blob isn't queued).
+      const offline = (typeof navigator !== "undefined" && navigator.onLine === false);
+      if (offline && !file && savedBody) {
+        try {
+          await _chatQueueAdd({ id: stubId, body: savedBody, createdAt: Date.now() });
+          const stub = wrap?.querySelector(`[data-rr-stub="${stubId}"]`);
+          const timeEl = stub?.querySelector(".chat-time");
+          if (timeEl) timeEl.textContent = "queued · sends when you're back online";
+          clearDraft(_chatDraftKey);
+          _haptic("tap");
+          toast("You're offline — message queued, it'll send automatically", "info");
+          return;
+        } catch { /* fall through to the failed-stub path */ }
+      }
       _haptic("warn");
       markStubFailed("send failed · tap to retry");
       ta.value = savedBody;
@@ -5683,6 +5938,7 @@ async function renderChat() {
 
   // First fetch + realtime subscription + presence + safety-net poller.
   _chatLastIds = new Set();
+  _chatFlushOutbox({ silent: true }); // replay any messages queued in a prior offline session
   await refreshChat(true);
   _chatRealtimeWire(session);
   _drvPresenceWire(session);
@@ -6259,6 +6515,7 @@ function chatBubbleHtml(m, pos) {
   let attachment = "";
   if (m.attachment_path) {
     const isImg = (m.attachment_mime || "").startsWith("image/");
+    const isAudio = (m.attachment_mime || "").startsWith("audio/");
     const name  = m.attachment_name || "Attachment";
     const sizeKb = m.attachment_size_bytes ? Math.round(m.attachment_size_bytes / 1024) : null;
     if (isImg) {
@@ -6279,6 +6536,14 @@ function chatBubbleHtml(m, pos) {
       const isVector = (m.attachment_mime || "").includes("svg");
       const extraStyle = isVector ? "object-fit:contain;background:#fff;" : "";
       attachment = `<img data-rr-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" width="240" height="240" loading="eager" decoding="async" style="max-width:240px;border-radius:10px;margin-bottom:6px;cursor:zoom-in;${extraStyle}" onclick="window.open(this.src,'_blank')"/>`;
+    } else if (isAudio) {
+      // Voice note — inline player. The signed URL is bound to .src by the
+      // same data-rr-attach resolver used for images (extended to <audio>).
+      attachment = `
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;max-width:260px">
+          <span style="font-size:16px" aria-hidden="true">🎤</span>
+          <audio data-rr-attach="${escapeHtml(m.attachment_path)}" controls preload="metadata" style="flex:1;min-width:0;height:38px"></audio>
+        </div>`;
     } else {
       attachment = `
         <a data-rr-attach="${escapeHtml(m.attachment_path)}" target="_blank" rel="noopener" style="display:flex;gap:8px;align-items:center;padding:8px 10px;background:var(--canvas);border:1px solid var(--border);border-radius:10px;margin-bottom:6px;text-decoration:none;color:inherit;max-width:240px">
@@ -6410,7 +6675,7 @@ async function _rrSignChatAttachments() {
     // "<uuid>/<file>" and never start with "/" or "http".
     const isDirect = /^https?:\/\//i.test(path) || path.startsWith("/");
     if (isDirect) {
-      if (el.tagName === "IMG") {
+      if (el.tagName === "IMG" || el.tagName === "AUDIO") {
         el.addEventListener("load",  () => el.setAttribute("data-rr-loaded", "1"), { once: true });
         el.addEventListener("error", () => el.setAttribute("data-rr-loaded", "1"), { once: true });
         el.src = path;
@@ -6424,11 +6689,12 @@ async function _rrSignChatAttachments() {
         .from("driver-chat-attachments")
         .createSignedUrl(path, 60 * 60 * 8); // 8h
       if (error || !data?.signedUrl) continue;
-      if (el.tagName === "IMG") {
+      if (el.tagName === "IMG" || el.tagName === "AUDIO") {
         // Bind load BEFORE assigning src so the loaded flag flips even
         // for cached images (cached <img>s can fire load synchronously
         // on src assignment, before any externally-attached listener).
         // Once loaded, we drop the shimmer / placeholder background.
+        // <audio> uses the same path so voice notes get their signed src.
         el.addEventListener("load", () => {
           el.setAttribute("data-rr-loaded", "1");
         }, { once: true });
@@ -6868,11 +7134,20 @@ function channelBubbleHtml(m, pos) {
   let attachment = "";
   if (m.attachment_path) {
     const isImg = (m.attachment_mime || "").startsWith("image/");
+    const isAudio = (m.attachment_mime || "").startsWith("audio/");
     const name  = m.attachment_name || "Attachment";
     const sizeKb = m.attachment_size_bytes ? Math.round(m.attachment_size_bytes / 1024) : null;
     if (isImg) {
       // Fixed 240x240 box (see chatBubbleHtml comment + styles.css).
       attachment = `<img data-rr-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" width="240" height="240" loading="eager" decoding="async" style="max-width:240px;border-radius:10px;margin-bottom:6px;cursor:zoom-in" onclick="window.open(this.src,'_blank')"/>`;
+    } else if (isAudio) {
+      // Voice note — inline player. The signed URL is bound to .src by the
+      // same data-rr-attach resolver used for images (extended to <audio>).
+      attachment = `
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;max-width:260px">
+          <span style="font-size:16px" aria-hidden="true">🎤</span>
+          <audio data-rr-attach="${escapeHtml(m.attachment_path)}" controls preload="metadata" style="flex:1;min-width:0;height:38px"></audio>
+        </div>`;
     } else {
       attachment = `
         <a data-rr-attach="${escapeHtml(m.attachment_path)}" target="_blank" rel="noopener" style="display:flex;gap:8px;align-items:center;padding:8px 10px;background:var(--canvas);border:1px solid var(--border);border-radius:10px;margin-bottom:6px;text-decoration:none;color:inherit;max-width:240px">

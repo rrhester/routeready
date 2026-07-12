@@ -7134,6 +7134,11 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-mc-composer .rr-mc-attach:hover, .rr-cc-composer .rr-mc-attach:hover{
   background:var(--surface-hover) !important;color:var(--text) !important;
 }
+.rr-mc-composer .rr-mc-attach.recording, .rr-cc-composer .rr-mc-attach.recording{
+  color:var(--danger,#e5484d) !important;
+  background:color-mix(in srgb, var(--danger,#e5484d) 14%, transparent) !important;
+}
+@keyframes rrPulse{ 0%,100%{opacity:1} 50%{opacity:.35} }
 .rr-mc-composer .rr-mc-attach-preview, .rr-cc-composer .rr-mc-attach-preview{
   flex:0 0 auto;
 }

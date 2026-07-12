@@ -1529,6 +1529,7 @@ body.scan-camming{overflow:hidden}
 }
 .chat-attach:hover{ color:var(--text);background:var(--canvas) }
 .chat-attach:active{transform:scale(.95);background:var(--canvas)}
+.chat-attach.recording{ color:var(--danger,#e5484d);background:color-mix(in srgb, var(--danger,#e5484d) 12%, transparent) }
 .chat-bubble{
   /* Tight max on phones (78%), generous on tablets/landscape so a
      short message doesn't wrap unnecessarily.  Mobile chat apps
