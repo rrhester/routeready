@@ -7084,31 +7084,28 @@ body.rr-cmdk-open{ overflow:hidden }
   padding:var(--s-4) var(--s-5) !important;
 }
 
-/* Head right-side stats: render as a plain inline text line
-   instead of boxed chips ("Connected · Last active 3d ago"). */
-.rr-mc-head-stats{
-  display:flex !important;align-items:center !important;
-  gap:6px !important;flex-shrink:0 !important;margin-left:auto !important;
+/* App status / Last active stats now live inside the driver-details
+   Activity section (painted by _paintMsgHeadStats).  Render them as a
+   plain inline text line ("Connected · Last active 3d ago").  Scoped to
+   .msg-details so the higher specificity wins over the base chip styles
+   without needing !important. */
+.msg-details .rr-mc-head-stats{
+  display:flex;align-items:center;flex-wrap:wrap;
+  gap:6px;margin:0 0 4px;
   font-size:var(--fs-sm);color:var(--text-subtle);
 }
-.rr-mc-head-stats .rr-mc-stat{
-  background:transparent !important;border:0 !important;padding:0 !important;
-  color:var(--text-subtle);
+.msg-details .rr-mc-head-stats .rr-mc-stat{
+  background:transparent;border:0;padding:0;color:var(--text-subtle);
 }
-.rr-mc-head-stats .rr-mc-stat-icon{display:none !important}
-.rr-mc-head-stats .rr-mc-stat-label{display:none !important}
-.rr-mc-head-stats .rr-mc-stat-value{
-  font-size:var(--fs-sm) !important;font-weight:500 !important;
-  color:var(--text-subtle) !important;margin:0 !important;
+.msg-details .rr-mc-head-stats .rr-mc-stat-icon{display:none}
+.msg-details .rr-mc-head-stats .rr-mc-stat-label{display:none}
+.msg-details .rr-mc-head-stats .rr-mc-stat-value{
+  font-size:var(--fs-sm);font-weight:500;color:var(--text-subtle);margin:0;
 }
-.rr-mc-head-stats .rr-mc-stat + .rr-mc-stat::before{
+.msg-details .rr-mc-head-stats .rr-mc-stat + .rr-mc-stat::before{
   content:"·";margin:0 6px;color:var(--text-subtle);
 }
-.rr-mc-head-stats .rr-mc-stat-more{
-  width:28px;height:28px;background:transparent !important;border:0 !important;
-  color:var(--text-subtle);
-}
-.rr-mc-head-stats .rr-mc-stat-more:hover{background:var(--surface-hover) !important;color:var(--text)}
+.msg-details .rr-mc-head-stats .rr-mc-stat-more{display:none}
 
 /* Compose area · everything sits on ONE inline row per the operator
    mockup: paperclip · input · Normal/High/Urgent pills · ack box ·
@@ -7243,11 +7240,11 @@ body.rr-cmdk-open{ overflow:hidden }
    ═══════════════════════════════════════════════════════════════════ */
 .msg-shell{
   position:relative;
-  grid-template-columns:300px minmax(0,1fr) 0 !important;
+  grid-template-columns:300px minmax(0,1fr) 0;
   transition:grid-template-columns .2s ease;
 }
 .msg-shell.details-open{
-  grid-template-columns:300px minmax(0,1fr) 340px !important;
+  grid-template-columns:300px minmax(0,1fr) 340px;
 }
 .msg-details{
   min-width:0;overflow:hidden;
@@ -7280,23 +7277,23 @@ body.rr-cmdk-open{ overflow:hidden }
 
 /* ── Nav panel · segmented filter (was the tab underline strip) ──────── */
 .msg-list-tabs{
-  display:flex !important;gap:3px !important;
-  margin:0 var(--s-4) var(--s-2) !important;padding:3px !important;
-  border:0 !important;border-bottom:0 !important;
+  display:flex;gap:3px;
+  margin:0 var(--s-4) var(--s-2);padding:3px;
+  border:0;border-bottom:0;
   background:var(--surface-hover);border-radius:var(--r-md);
 }
 .msg-list-tab{
-  flex:1;padding:5px 8px !important;font-size:var(--fs-xs) !important;font-weight:600 !important;
-  color:var(--text-subtle) !important;background:transparent !important;
-  border:0 !important;border-radius:var(--r-sm) !important;margin:0 !important;cursor:pointer;
+  flex:1;padding:5px 8px;font-size:var(--fs-xs);font-weight:600;
+  color:var(--text-subtle);background:transparent;
+  border:0;border-radius:var(--r-sm);margin:0;cursor:pointer;
   transition:background var(--t-fast),color var(--t-fast),box-shadow var(--t-fast);
 }
-.msg-list-tab:hover{ color:var(--text) !important; }
+.msg-list-tab:hover{ color:var(--text); }
 .msg-list-tab.active{
-  color:var(--accent-text) !important;background:var(--surface) !important;
-  box-shadow:var(--shadow-xs) !important;border-bottom-color:transparent !important;
+  color:var(--accent-text);background:var(--surface);
+  box-shadow:var(--shadow-xs);border-bottom-color:transparent;
 }
-.msg-list-tab:focus-visible{ box-shadow:var(--ring-focus) !important; }
+.msg-list-tab:focus-visible{ box-shadow:var(--ring-focus); }
 
 /* ── Nav panel · section labels + favorite star ─────────────────────── */
 .msg-list-section{
@@ -7307,7 +7304,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .msg-item-fav svg{ width:12px;height:12px; }
 
 /* ── Conversation header · compact identity + action row ────────────── */
-.rr-mc-head{ min-height:64px !important;gap:var(--s-3) !important; }
+.rr-mc-head{ min-height:64px;gap:var(--s-3); }
 .rr-mc-head-avatar{
   position:relative;flex:0 0 auto;width:38px;height:38px;font-size:var(--fs-sm);
 }
@@ -7341,7 +7338,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-mc-head-back:hover{ background:var(--surface-hover);color:var(--text); }
 
 /* ── Transcript · centered, controlled max text width ───────────────── */
-.rr-mc-bubble, .rr-cc-bubble{ max-width:min(640px,80%) !important; }
+.rr-mc-bubble, .rr-cc-bubble{ max-width:min(640px,80%); }
 
 /* ── Composer · compact priority dropdown ───────────────────────────── */
 .rr-mc-pri-dd{ position:relative;flex:0 0 auto; }
@@ -7474,12 +7471,10 @@ body.rr-cmdk-open{ overflow:hidden }
 .dd-att-n{ font-size:var(--fs-lg);font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;line-height:1.1; }
 .dd-att-k{ font-size:var(--fs-10);color:var(--text-subtle);text-transform:uppercase;letter-spacing:.04em;font-weight:600;margin-top:2px; }
 /* App-status chips reused inside the Activity section. */
-.msg-details .rr-mc-head-stats{ margin:0 0 4px !important;flex-wrap:wrap;gap:8px !important; }
-.msg-details .rr-mc-stat-more{ display:none !important; }
 
 /* ── Responsive · medium widths (≤1200px): details becomes an overlay ── */
 @media (max-width:1200px){
-  .msg-shell.details-open{ grid-template-columns:300px minmax(0,1fr) 0 !important; }
+  .msg-shell.details-open{ grid-template-columns:300px minmax(0,1fr) 0; }
   .msg-details{
     position:absolute;top:0;right:0;bottom:0;width:340px;max-width:86%;
     transform:translateX(100%);transition:transform .2s ease;
@@ -7490,7 +7485,7 @@ body.rr-cmdk-open{ overflow:hidden }
 /* ── Responsive · small widths (≤760px): one primary pane at a time ──── */
 @media (max-width:760px){
   .msg-shell,
-  .msg-shell.details-open{ grid-template-columns:1fr !important; }
+  .msg-shell.details-open{ grid-template-columns:1fr; }
   .msg-shell .msg-conv{ display:none; }
   .msg-shell.conv-open .msg-list{ display:none; }
   .msg-shell.conv-open .msg-conv{ display:block; }
