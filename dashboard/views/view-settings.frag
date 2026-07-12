@@ -136,8 +136,9 @@
                   <div class="form-label">Export your data</div>
                   <div class="form-help">Download your DSP's core records — drivers, documents, applicants, coaching, schedule and time-off — as a single JSON file. Your data is yours; take it anytime.</div>
                 </div>
-                <div style="display:flex;gap:var(--s-2);align-items:center">
+                <div style="display:flex;gap:var(--s-2);align-items:center;flex-wrap:wrap">
                   <button class="btn btn-sm" type="button" onclick="rrExportMyData(this)">Export data (JSON)</button>
+                  <button class="btn btn-sm" type="button" onclick="rrExportMyFiles(this)">Export files (links)</button>
                 </div>
               </div>
 

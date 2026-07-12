@@ -848,6 +848,40 @@ async function rrExportMyData(btn) {
 }
 window.rrExportMyData = rrExportMyData;
 
+// Settings → Export document files. Owner-only (also enforced by the
+// export-tenant-files edge function). Downloads a JSON manifest of fresh,
+// 1-hour signed download links for every driver-document FILE in the tenant —
+// the bytes the metadata export can't include.
+async function rrExportMyFiles(btn) {
+  if (window.RR?.user?.role !== "owner") {
+    toast("Only the owner can export files.", "warn");
+    return;
+  }
+  const label = btn ? btn.textContent : "";
+  if (btn) { btn.disabled = true; btn.textContent = "Preparing…"; }
+  try {
+    const { data, error } = await sb.functions.invoke("export-tenant-files");
+    if (error) throw error;
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const slug = (window.RR?.user?.dsp_id || "dsp").slice(0, 8);
+    const stamp = new Date().toISOString().slice(0, 10);
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `routeready-files-${slug}-${stamp}.json`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+    const n = (data && typeof data.count === "number") ? data.count : 0;
+    toast(`File manifest downloaded — ${n} link${n === 1 ? "" : "s"}, valid 1 hour.`, "success");
+  } catch (e) {
+    if (typeof _isAuthError === "function" && _isAuthError(e)) { _forceRelogin("session_expired"); return; }
+    toast("File export failed — " + (e?.message || "please try again."), "warn");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = label; }
+  }
+}
+window.rrExportMyFiles = rrExportMyFiles;
+
 // ─── Two-factor (TOTP) enrollment · Settings → Two-factor ───────────────────
 // Only wired when RR_CONFIG.MFA_ENABLED (the panel is CSS-hidden otherwise).
 // Supabase returns the QR as an SVG in enroll().data.totp.qr_code, so no QR
