@@ -122,6 +122,12 @@ verify_jwt = false
 [functions.ai-proxy]
 verify_jwt = false
 
+# Public health probe for an external uptime monitor. verify_jwt off so a
+# monitor can hit it with no credentials; it returns only up/down + latency,
+# never tenant data.
+[functions.health]
+verify_jwt = false
+
 # Cal.com interview-availability editor. Reads/writes the operator's single
 # shared Cal schedule via the server-side CAL_API_KEY. Gateway verify_jwt off
 # so the browser CORS preflight gets a 2xx; the function validates the caller's

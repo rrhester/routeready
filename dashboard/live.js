@@ -208,6 +208,41 @@ if (!profile) {
 }
 window.RR.user = profile;
 
+// ─── Idle session timeout ────────────────────────────────────────────────
+// HR / termination / PII data on a shared dispatcher machine must not stay
+// logged in indefinitely. After a stretch of no real interaction we force a
+// clean re-login (signOut + storage clear via _forceRelogin). The deadline is
+// pushed forward by genuine activity, throttled so we aren't re-arming the
+// timer on every mousemove. Configurable via RR_CONFIG.IDLE_TIMEOUT_MINUTES;
+// 0 or unset disables it. The auto-refreshed access token keeps the session
+// valid server-side regardless — this is purely an inactivity guard.
+(function armIdleTimeout() {
+  const minutes = Number((window.RR_CONFIG && window.RR_CONFIG.IDLE_TIMEOUT_MINUTES) || 30);
+  if (!(minutes > 0)) return;
+  const LIMIT = minutes * 60 * 1000;
+  let deadline = Date.now() + LIMIT;
+  let timer = null;
+  let lastBump = 0;
+  function tick() {
+    // A bump may have pushed the deadline out after this tick was queued;
+    // reschedule rather than expiring early.
+    if (Date.now() < deadline) { schedule(); return; }
+    _forceRelogin("idle_timeout");
+  }
+  function schedule() {
+    clearTimeout(timer);
+    timer = setTimeout(tick, Math.max(1000, deadline - Date.now()));
+  }
+  function bump() {
+    const now = Date.now();
+    deadline = now + LIMIT;
+    if (now - lastBump > 5000) { lastBump = now; schedule(); } // re-arm at most every 5s
+  }
+  ["mousedown", "keydown", "scroll", "touchstart", "click", "mousemove", "visibilitychange"]
+    .forEach((ev) => window.addEventListener(ev, bump, { passive: true }));
+  schedule();
+})();
+
 // Apply per-user sidebar hiding. Owners always see everything (so
 // they can manage the team and won't accidentally lock themselves
 // out). For other roles, hide top-level nav items not in their
