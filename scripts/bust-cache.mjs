@@ -84,4 +84,22 @@ for (const rel of FILES) {
     console.log(`[bust-cache] ${rel} · ${localCount} ref(s) → ?v=${token}`);
   }
 }
+// The driver service worker versions its precached app shell by the
+// SHELL_CACHE *name* (rr-app-shell-…), NOT by ?v= — it serves the shell with
+// ignoreSearch, so a ?v= bump alone never refreshes an installed PWA. Stamp
+// the SW cache name with the same deploy token so every build that runs
+// bust-cache also invalidates the precached shell. (A CI ratchet,
+// scripts/check-cache-bump.mjs, separately guarantees the *committed* SW is
+// bumped for hosts that don't run this build step.)
+const swAbs = path.join(ROOT, "app/sw.js");
+if (fs.existsSync(swAbs)) {
+  const before = fs.readFileSync(swAbs, "utf8");
+  const after = before.replace(/(rr-app-shell-)[A-Za-z0-9._-]+/g, `$1${token}`);
+  if (before !== after) {
+    fs.writeFileSync(swAbs, after);
+    touched++;
+    console.log(`[bust-cache] app/sw.js · SHELL_CACHE → rr-app-shell-${token}`);
+  }
+}
+
 console.log(`[bust-cache] done · ${touched} file(s) · ${replacements} ref(s) · token=${token}`);

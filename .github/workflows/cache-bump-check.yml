@@ -1,0 +1,32 @@
+name: cache-bump-check
+
+# Fails a PR that changes a service-worker-precached shell asset (app.js,
+# comms-native.js, styles.css, rr-system.css, form-validation.js) without
+# bumping SHELL_CACHE in app/sw.js. Installed PWAs serve the shell from
+# precache with ignoreSearch, so only a SHELL_CACHE bump refreshes them —
+# this makes "ship an invisible app change" impossible to merge.
+on:
+  pull_request:
+    paths:
+      - "app/app.js"
+      - "app/comms-native.js"
+      - "app/styles.css"
+      - "app/rr-system.css"
+      - "app/form-validation.js"
+      - "app/sw.js"
+      - "scripts/check-cache-bump.mjs"
+      - ".github/workflows/cache-bump-check.yml"
+
+jobs:
+  cache-bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: node scripts/check-cache-bump.mjs
+        env:
+          CACHE_CHECK_BASE: origin/${{ github.event.pull_request.base.ref }}
