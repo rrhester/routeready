@@ -37711,6 +37711,8 @@ function _rrWireComposerMic({ micBtn, previewEl, getTargets }) {
       const s = Math.floor((Date.now() - t0) / 1000);
       const el = previewEl.querySelector("[data-rr-vt]");
       if (el) el.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+      // Driver sees "Dispatch is recording audio…" (throttled to ~1.5s).
+      try { const t = getTargets && getTargets(); if (t && t.driverId) _presenceBroadcastTyping(t.driverId, "recording"); } catch {}
       if (s >= 300) stopAndSend(); // hard cap 5 min
     }, 250);
     previewEl.querySelector("[data-rr-vcancel]").addEventListener("click", () => { sendOnStop = false; try { rec && rec.stop(); } catch { teardown(); } });
@@ -42326,10 +42328,11 @@ function _presencePaintThreadHead(driverId) {
   if (av) av.classList.toggle("online", _presence.online.has(driverId));
 }
 
-function _presenceShowTyping(driverId) {
-  // Show "X is typing…" inside the open thread's composer area.  Pulled
-  // out as a function so the same indicator works whether the typing
-  // event arrived before or after the thread opened.
+function _presenceShowTyping(driverId, activity) {
+  // Show "X is typing…" — or "recording audio…" while the driver records a
+  // voice note — inside the open thread's composer area. Pulled out as a
+  // function so the same indicator works whether the event arrived before or
+  // after the thread opened.
   const head = document.querySelector(".rr-mc-head[data-rr-driver-id]");
   if (!head || head.getAttribute("data-rr-driver-id") !== driverId) return;
   let pill = document.getElementById("rr-mc-typing");
@@ -42344,6 +42347,8 @@ function _presenceShowTyping(driverId) {
       <span class="rr-mc-typing-label">typing…</span>`;
     composer.parentNode.insertBefore(pill, composer);
   }
+  const label = pill.querySelector(".rr-mc-typing-label");
+  if (label) label.textContent = activity === "recording" ? "recording audio…" : "typing…";
   pill.classList.add("show");
   // Clear 4s after the last typing event.
   clearTimeout(_presence.typingByDriver.get(driverId));
@@ -42384,7 +42389,7 @@ function _presenceWire() {
     .on("broadcast", { event: "typing" }, ({ payload }) => {
       if (!payload || payload.from_kind !== "driver") return;
       // Only act on typing events from a driver in our DSP.
-      _presenceShowTyping(payload.from);
+      _presenceShowTyping(payload.from, payload.activity);
     })
     // ── Direct-call signaling (RouteReady Messages) ───────────────────
     // The same shared DSP channel carries the call handshake so anyone on
@@ -42421,7 +42426,7 @@ function _presenceWire() {
 
 // Broadcast a typing event from the dispatcher.  Throttled so we send
 // at most one event every 1500ms during a typing burst.
-function _presenceBroadcastTyping(toDriverId) {
+function _presenceBroadcastTyping(toDriverId, activity) {
   if (!_presence.channel) return;
   const now = Date.now();
   if (now - _presence.lastBroadcast < 1500) return;
@@ -42430,7 +42435,7 @@ function _presenceBroadcastTyping(toDriverId) {
     _presence.channel.send({
       type: "broadcast",
       event: "typing",
-      payload: { from: window.RR?.user?.id, from_kind: "dispatch", to: toDriverId, ts: now },
+      payload: { from: window.RR?.user?.id, from_kind: "dispatch", to: toDriverId, ts: now, activity: activity || "typing" },
     });
   } catch {}
 }

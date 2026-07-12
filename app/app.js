@@ -5684,6 +5684,7 @@ async function renderChat() {
         const s = Math.floor((Date.now() - _t0) / 1000);
         const el = document.getElementById("rr-voice-timer");
         if (el) el.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+        _drvBroadcastTyping("recording"); // dispatch sees "recording audio…" (throttled to ~1.5s)
         if (s >= 300) stopAndSend(); // hard cap 5 min
       }, 250);
       document.getElementById("rr-voice-cancel").addEventListener("click", () => { _sendOnStop = false; try { _rec && _rec.stop(); } catch { teardown(); } });
@@ -6002,7 +6003,7 @@ function _drvPresenceWire(session) {
       if (!payload || payload.from_kind !== "dispatch") return;
       // Only show when the driver is actually viewing the dispatch chat.
       if (currentRoute() !== "/chat" || _chatTab !== "dispatch") return;
-      _drvShowDispatchTyping();
+      _drvShowDispatchTyping(payload.activity);
     })
     // ── Direct-call signaling (RouteReady Messages) ───────────────────
     // Same shared DSP channel + event vocabulary as the dashboard, so a
@@ -6035,7 +6036,7 @@ function _drvPresenceWire(session) {
   });
 }
 
-function _drvBroadcastTyping() {
+function _drvBroadcastTyping(activity) {
   if (!_drvPresence.channel) return;
   const now = Date.now();
   if (now - _drvPresence.lastBroadcast < 1500) return;
@@ -6046,7 +6047,7 @@ function _drvBroadcastTyping() {
     _drvPresence.channel.send({
       type: "broadcast",
       event: "typing",
-      payload: { from: session.driver_id, from_kind: "driver", ts: now },
+      payload: { from: session.driver_id, from_kind: "driver", ts: now, activity: activity || "typing" },
     });
   } catch {}
 }
@@ -6286,8 +6287,9 @@ if (!window.__rrDrvCallWired) {
   });
 }
 
-function _drvShowDispatchTyping() {
-  // Insert / refresh a small typing pill just above the composer.
+function _drvShowDispatchTyping(activity) {
+  // Insert / refresh a small activity pill just above the composer:
+  // "typing…" or, while dispatch records a voice note, "recording audio…".
   const wrap = document.getElementById("chat-msgs");
   const composer = document.getElementById("chat-form");
   if (!wrap || !composer) return;
@@ -6298,9 +6300,11 @@ function _drvShowDispatchTyping() {
     pill.className = "chat-typing";
     pill.innerHTML = `
       <span class="chat-typing-dots"><span></span><span></span><span></span></span>
-      <span>Dispatch is typing…</span>`;
+      <span data-rr-typing-label>Dispatch is typing…</span>`;
     composer.parentNode.insertBefore(pill, composer);
   }
+  const label = pill.querySelector("[data-rr-typing-label]");
+  if (label) label.textContent = activity === "recording" ? "Dispatch is recording audio…" : "Dispatch is typing…";
   pill.classList.add("show");
   clearTimeout(_drvPresence.typingTimer);
   _drvPresence.typingTimer = setTimeout(() => {
