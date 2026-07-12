@@ -189,7 +189,8 @@
 //   2026-07-12.1 · Visual-consistency pass toward the Schedule design system. Retires the consumer-style divergences that stood out against the enterprise chrome: dark-gradient heroes flatten to hairline surface panels (Build intro, Billing card, dashboard first-run banner); per-feature gradient icon tiles (incl. decorative red) collapse to one soft-blue/accent treatment (Build saved-tools, Checklists categories); blue/black/green control fills become the amber primary or soft-blue selection the system reserves (OKAMI "Daily" tag, Email save + unread badge, Pipeline disposition, Notebooks popover/AI/ink primaries); off-palette color families map onto the semantic amber/blue/green tokens (Recognition occasions, Pipeline stage pills + interview tiers); emoji-as-icons become monochrome SVGs (OKAMI ⚡ HVE, Notebooks callout/smartlink); and scattered hardcoded hex/px radii/shadows/focus-rings tokenize (Email, Drive, Documents). Presentation-only — no JS selectors, DOM, or Schedule chrome touched (visual-regression baselines unchanged). inline-styles.css + view-build/okami/settings/notebooks frags.
 //   2026-07-12.2 · Left-rail cleanup. Recognition removed from the sidebar; Meet + Download relocated from the rail into the app-launcher waffle (Download mirrors #rr-hdr-install's installable state there). New sidebar drag-to-reorder: the operator can click-drag the top-level nav icons and the order persists in localStorage (rr-nav-order-v1). index.html only.
 //   2026-07-12.3 · Onboarding Calendar · enterprise maturity redesign. Flatter, calmer, Outlook-structured finish over the interview calendar: white grid surfaces + restrained neutral grid tokens; the Schedule-interview primary moves from Amazon orange to RouteReady blue (and the stray orange on the availability nudge / calendar dialog / New-event Save goes blue too) so the page has one clearest action; segmented spreadsheet-cell availability blocks become ONE continuous, extremely subtle blue-gray bookable band (tint #F2F6FD, quiet left edge, a "Bookable" label, and the hour grid lines preserved through it); oversized 22px day-date numbers drop to a restrained 15px with today marked by a thin blue top accent instead of a filled circle; the current-time indicator is a crisp 1px red line (dot + compact time label); event cards keep a consistent hierarchy with a 3px semantic left status rail, no drop shadow, and a calm border-darken hover; and genuine time-overlaps between interviews/sessions are now detected and explicitly flagged (red rail + pale-red fill + a warning glyph + a "Conflict" label + accessible name — never color alone). Left panel widens slightly to 256px on a white surface with a 28px mini-calendar. Presentation + display-only conflict detection; no business logic, API, routing, or state changes. inline-styles.css + live.js.
-const SW_DEPLOY_NONCE = "2026-07-12.3";
+//   2026-07-12.4 · Add a Web Push handler (staff): rings a CLOSED dashboard for a driver's direct call, tap deep-links to the call auto-answer.
+const SW_DEPLOY_NONCE = "2026-07-12.4";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without
@@ -222,4 +223,46 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("message", (event) => {
   const data = event.data || {};
   if (data.type === "rr:skip-waiting") self.skipWaiting();
+});
+
+// ── Web Push (staff) ─────────────────────────────────────────────────────
+// Rings a dispatcher whose dashboard is CLOSED for a driver's direct call
+// (send-staff-push encrypts the payload per RFC 8291). Tapping deep-links to
+// /dashboard/?rrcall=1&… where live.js auto-answers (mints a room, accepts,
+// opens it). Mirrors the driver SW push handler.
+self.addEventListener("push", (event) => {
+  let payload = { title: "RouteReady", body: "", url: "/dashboard/", type: "message" };
+  if (event.data) {
+    try {
+      const incoming = event.data.json();
+      if (incoming && typeof incoming === "object") payload = { ...payload, ...incoming };
+    } catch {
+      try { payload.body = event.data.text() || payload.body; } catch {}
+    }
+  }
+  const show = () => self.registration.showNotification(
+    payload.title || "RouteReady",
+    { body: payload.body || "", data: { url: payload.url || "/dashboard/" } },
+  ).catch(() => {});
+  // A call push doubles as the closed-dashboard ring — if any dashboard
+  // window is still alive it already rings in-app, so suppress the dup.
+  const notify = payload.type === "call"
+    ? self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((wins) => {
+        const alive = wins.some((c) => (c.url || "").includes("/dashboard/"));
+        return alive ? undefined : show();
+      }).catch(() => show())
+    : show();
+  event.waitUntil(notify);
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = event.notification.data?.url || "/dashboard/";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window" }).then((wins) => {
+      const w = wins.find((c) => (c.url || "").includes("/dashboard/"));
+      if (w) { w.focus(); if (url) w.navigate(url).catch(() => {}); return; }
+      return self.clients.openWindow(url);
+    }),
+  );
 });
