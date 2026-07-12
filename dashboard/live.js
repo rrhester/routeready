@@ -41889,6 +41889,10 @@ function _presenceWire() {
           name: (window.RR?.user?.full_name || window.RR?.user?.email || "Teammate").trim(),
           online_at: new Date().toISOString(),
         });
+        // If this load came from a call push, answer now that we can signal.
+        _rrConsumePendingCall();
+        // Register for staff Web Push so a closed dashboard still rings.
+        _ensureStaffPush();
       }
     });
 
@@ -41988,16 +41992,99 @@ function _rrCallNotify(title, body) {
 }
 function _rrCallAskNotifyPermission() {
   try {
-    if ("Notification" in window && Notification.permission === "default") Notification.requestPermission();
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission().then((perm) => { if (perm === "granted") _ensureStaffPush(); }, () => {});
+    }
   } catch {}
 }
 
-function _rrCallOpenRoom(room, media) {
+function _rrCallOpenRoom(room, media, replace) {
   const me = _rrCallMe();
   const url = "meet.html?m=" + encodeURIComponent(room) + "&call=1"
     + "&name=" + encodeURIComponent(me.name || "")
     + (media === "audio" ? "&cam=0" : "");
+  // `replace` navigates this window (used when answering from a push
+  // cold-boot — no synchronous gesture for a popup). location resolves
+  // "meet.html" against /dashboard/.
+  if (replace) { try { location.href = url; return; } catch {} }
   window.open(url, "_blank", "noopener");
+}
+
+// base64url → Uint8Array (VAPID application server key).
+function _rrUrlB64ToU8(base64) {
+  const pad = "=".repeat((4 - (base64.length % 4)) % 4);
+  const b64 = (base64 + pad).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(b64);
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+
+// Register this dashboard for Web Push so a driver's call rings it even when
+// it's fully CLOSED. Guarded end-to-end: if the staff push table/RPC isn't
+// deployed yet, every failure is swallowed and calling is unaffected.
+let _rrStaffPushDone = false;
+async function _ensureStaffPush() {
+  try {
+    if (!("PushManager" in window) || !("serviceWorker" in navigator) || !("Notification" in window)) return;
+    if (Notification.permission !== "granted") return;
+    if (_rrStaffPushDone) return;
+    _rrStaffPushDone = true;
+    const reg = await navigator.serviceWorker.ready.catch(() => null);
+    if (!reg) return;
+    let sub = await reg.pushManager.getSubscription().catch(() => null);
+    if (!sub) {
+      const { data: vapidKey } = await sb.rpc("driver_push_vapid_key"); // same VAPID keypair
+      if (!vapidKey) return; // server not configured — skip silently
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: _rrUrlB64ToU8(vapidKey),
+      }).catch(() => null);
+      if (!sub) return;
+    }
+    const json = sub.toJSON();
+    await sb.rpc("staff_push_register", {
+      p_endpoint:   sub.endpoint,
+      p_p256dh:     json.keys?.p256dh,
+      p_auth:       json.keys?.auth,
+      p_user_agent: navigator.userAgent || null,
+    }).then(undefined, () => {}); // RPC may not exist until the migration runs
+  } catch {}
+}
+
+// A closed dashboard rung via Web Push deep-links to /dashboard/?rrcall=1&…
+// (no room — a driver can't mint one). Parsed at load; consumed once the
+// presence channel subscribes: the dispatcher mints the room, tells the
+// waiting driver, and drops into it.
+const _rrPendingCall = (() => {
+  try {
+    const q = new URLSearchParams(location.search);
+    if (q.get("rrcall") !== "1") return null;
+    return {
+      callId: q.get("callid") || "",
+      from:   q.get("from") || "Driver",
+      media:  q.get("media") === "audio" ? "audio" : "video",
+      room:   q.get("room") || null,
+    };
+  } catch { return null; }
+})();
+let _rrPendingCallDone = false;
+async function _rrConsumePendingCall() {
+  if (!_rrPendingCall || _rrPendingCallDone) return;
+  _rrPendingCallDone = true;
+  const pc = _rrPendingCall;
+  try { history.replaceState(null, "", location.pathname + location.hash); } catch {}
+  let room = pc.room;
+  if (!room) {
+    try {
+      const { data, error } = await sb.rpc("meet_create", { p_title: null });
+      if (error) throw error;
+      room = data?.code;
+    } catch {}
+    if (!room) { toast("Couldn't answer the call — try again.", "warn"); return; }
+  }
+  _rrCallSend("call-accept", { callId: pc.callId, from: _rrCallMe(), to: { kind: "driver", id: "__any__" }, room });
+  _rrCallOpenRoom(room, pc.media, true);
 }
 
 function _rrCallTeardown() {
@@ -42151,6 +42238,8 @@ window.rrPlaceCall = rrPlaceCall;
 // Exposed so a push/service-worker wake (or the driver-app bridge) can inject
 // an incoming-call ring without going through the realtime broadcast.
 window.rrIncomingCall = _rrCallOnInvite;
+// Exposed so a call-push cold-boot can answer once realtime is ready.
+window.rrConsumePendingCall = _rrConsumePendingCall;
 
 // ── Call a teammate ──────────────────────────────────────────────────────
 // A popover off the Messages header listing dispatchers who are online right

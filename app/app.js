@@ -5912,6 +5912,17 @@ function rrDrvPlaceCall(media) {
   const to = { kind: "dispatch", id: "__any__" };
   _drvCall.state = "outgoing"; _drvCall.callId = callId; _drvCall.peer = { kind: "dispatch", id: "__any__", name: "Dispatch" }; _drvCall.room = null; _drvCall.media = media;
   _drvCallSend("call-invite", { callId, from: me, to, media, ts: Date.now() }); // no room — dispatcher mints
+  // Wake a CLOSED dispatcher dashboard with a Web Push (the broadcast above
+  // only reaches open dashboards). Best-effort + guarded — no-ops until the
+  // staff-push migration + send-staff-push function are deployed.
+  try {
+    const s = readSession();
+    if (s?.dsp_id) {
+      sb.functions.invoke("send-staff-push", {
+        body: { dsp_id: s.dsp_id, call: { callId, caller_name: me.name, media } },
+      }).then(undefined, () => {});
+    }
+  } catch {}
   _drvCallRenderOverlay("outgoing", _drvCall.peer, media);
   _drvCall.ring = _drvRingEngine(440);
   _drvCall.timer = setTimeout(() => {
