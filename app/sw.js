@@ -127,7 +127,14 @@
 // home-section state card) so a driver can tell "no upcoming shift" from
 // "couldn't load it". Intentional hide-when-empty is preserved. Bumped so
 // installed driver PWAs pick up the new app.js.
-const SHELL_CACHE = "rr-app-shell-v155";
+// v156 · Home command center: an "Action needed" promo card surfaces the
+// count of pending required tasks (open checklists + unacknowledged coaching —
+// the same items the Tasks tab badge tracks, so the numbers agree) with a
+// specific breakdown and a tap through to /tasks. Answers "what must I
+// complete?" without a menu dive. Hidden when nothing is pending (clean home)
+// and on load error (Tasks stays the source of truth). Bumped so installed
+// driver PWAs pick up the new app.js + CSS.
+const SHELL_CACHE = "rr-app-shell-v156";
 const SHELL_FILES = [
   "./",
   "index.html",

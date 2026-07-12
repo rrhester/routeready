@@ -2847,6 +2847,9 @@ body.is-home main > .home-hero{
   z-index:2;
 }
 .home-content > * + *{ margin-top:12px }
+/* The "Action needed" promo reuses a .task-card; its default bottom
+   margin would double up with .home-content's own child spacing. */
+#rr-actionneeded-slot .task-card{ margin-bottom:0 }
 
 /* ── Primary "Opens at" / check-in card — Outlook calendar tile
    Solid Fluent communicationBlue tile (no gradient, no radial

@@ -7482,6 +7482,7 @@ function renderProfileHub() {
         </div>
       </div>
       <div id="rr-missed-slot" hidden></div>
+      <div id="rr-actionneeded-slot" hidden></div>
       <section class="up-next" id="rr-upnext-slot" hidden></section>
       <section class="van-docs" id="rr-vandocs-slot" hidden></section>
     </div>`;
@@ -7501,6 +7502,7 @@ function renderProfileHub() {
 
   // Independent loaders so the page is responsive while data streams in.
   renderCheckinCard(session);
+  renderActionNeeded(session);
   renderUpNext(session);
   renderVanDocs(session);
 
@@ -7510,6 +7512,7 @@ function renderProfileHub() {
   setRefresh(() => {
     const s = readSession();
     renderCheckinCard(s);
+    renderActionNeeded(s);
     renderUpNext(s);
     renderVanDocs(s);
   });
@@ -7517,6 +7520,48 @@ function renderProfileHub() {
   main.querySelectorAll("[data-task-route]").forEach((el) => {
     el.addEventListener("click", () => navigate(el.dataset.taskRoute));
   });
+}
+
+// ── ACTION NEEDED · pending required tasks, promoted to the home ─────
+// Command-center surface answering "what must I complete?" without a
+// menu dive. Counts the same actionable items the Tasks tab badge
+// tracks — open checklists (status !== "completed") + unacknowledged
+// coaching — so the home count and the Tasks tab badge always agree.
+// Renders a single tappable task card (→ /tasks) only when something is
+// pending; hides silently when the list is clear (a clean home) and on
+// load error (the Tasks tab remains the source of truth, so a failed
+// promo-fetch must never leave a broken card on the home screen).
+async function renderActionNeeded(session) {
+  const slot = document.getElementById("rr-actionneeded-slot");
+  if (!slot || !session?.token) return;
+  let coaching = 0, checklists = 0;
+  try {
+    const [cRes, kRes] = await Promise.all([
+      sb.rpc("driver_list_coachings",  { p_token: session.token }),
+      sb.rpc("driver_list_checklists", { p_token: session.token }),
+    ]);
+    if (cRes.error || kRes.error) { slot.hidden = true; slot.innerHTML = ""; return; }
+    coaching   = Array.isArray(cRes.data) ? cRes.data.length : 0;
+    checklists = Array.isArray(kRes.data) ? kRes.data.filter((c) => c.status !== "completed").length : 0;
+  } catch { slot.hidden = true; slot.innerHTML = ""; return; }
+
+  const total = coaching + checklists;
+  if (total === 0) { slot.hidden = true; slot.innerHTML = ""; return; }
+
+  // Specific breakdown so the driver knows what's waiting before they tap.
+  const parts = [];
+  if (checklists) parts.push(`${checklists} checklist${checklists === 1 ? "" : "s"}`);
+  if (coaching)   parts.push(`${coaching} coaching note${coaching === 1 ? "" : "s"}`);
+
+  slot.hidden = false;
+  slot.innerHTML = taskCardHtml({
+    route: "/tasks",
+    title: `${total} task${total === 1 ? "" : "s"} to complete`,
+    sub:   parts.join(" · "),
+    icon:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="m9 14 2 2 4-4"/></svg>',
+  });
+  slot.querySelectorAll("[data-task-route]").forEach((el) =>
+    el.addEventListener("click", () => navigate(el.dataset.taskRoute)));
 }
 
 // ── UP NEXT · next upcoming shift after today ──────────────────────
