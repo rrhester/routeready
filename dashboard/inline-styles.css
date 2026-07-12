@@ -7139,6 +7139,29 @@ body.rr-cmdk-open{ overflow:hidden }
   background:color-mix(in srgb, var(--danger,#e5484d) 14%, transparent) !important;
 }
 @keyframes rrPulse{ 0%,100%{opacity:1} 50%{opacity:.35} }
+
+/* ── Voice-note player (dispatcher) ─────────────────────────────────────── */
+.rr-vn{ display:flex;align-items:center;gap:9px;max-width:300px;margin-bottom:6px;
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:6px 11px 6px 7px }
+.rr-mc-bubble.dispatch .rr-vn{ background:rgba(255,255,255,.16);border-color:transparent }
+.rr-vn-play{ flex:0 0 auto;width:34px;height:34px;border-radius:50%;border:0;cursor:pointer;
+  background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center }
+.rr-mc-bubble.dispatch .rr-vn-play{ background:#fff;color:var(--accent) }
+.rr-vn-play:active{ transform:scale(.94) }
+.rr-vn-play .rr-vn-ic-pause{ display:none }
+.rr-vn.playing .rr-vn-ic-play{ display:none }
+.rr-vn.playing .rr-vn-ic-pause{ display:block }
+.rr-vn-track{ position:relative;flex:1;min-width:40px;height:26px;cursor:pointer }
+.rr-vn-bars{ position:absolute;inset:0;display:flex;align-items:center;gap:2px;pointer-events:none }
+.rr-vn-bars i{ display:block;flex:1;min-width:2px;border-radius:2px;background:var(--text-subtle) }
+.rr-vn-bars.fill{ clip-path:inset(0 calc(100% * (1 - var(--vn-p,0))) 0 0) }
+.rr-vn-bars.fill i{ background:var(--accent) }
+.rr-mc-bubble.dispatch .rr-vn-bars i{ background:rgba(255,255,255,.4) }
+.rr-mc-bubble.dispatch .rr-vn-bars.fill i{ background:#fff }
+.rr-vn-time{ flex:0 0 auto;min-width:30px;text-align:right;font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums }
+.rr-mc-bubble.dispatch .rr-vn-time{ color:rgba(255,255,255,.85) }
+.rr-vn-speed{ flex:0 0 auto;border:0;background:none;cursor:pointer;font-size:var(--fs-xs);font-weight:700;color:var(--text-subtle);padding:2px 3px }
+.rr-mc-bubble.dispatch .rr-vn-speed{ color:rgba(255,255,255,.9) }
 .rr-mc-composer .rr-mc-attach-preview, .rr-cc-composer .rr-mc-attach-preview{
   flex:0 0 auto;
 }
