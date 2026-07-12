@@ -5,6 +5,23 @@ short links `/m/<code>`). Calls are peer-to-peer WebRTC; signaling rides
 Supabase Realtime; rooms live in the `meetings` table (migrations 0457-0459).
 This doc covers the pieces an operator can configure.
 
+## Starting a meeting
+
+Signed-in staff get a **New meeting** menu on `meet.html` with two options
+(guests only ever see the "join by code" box):
+
+- **Start an instant meeting** — mints a room and drops the host straight
+  into the live call, skipping the pre-join lobby. An in-room "Your
+  meeting's ready" card surfaces the invite link so the host can add
+  others with one click. This is the Google-Meet-style instant flow.
+- **Create a meeting for later** — mints a room and shows its shareable
+  link *without* joining, so the host can send it out and start the call
+  whenever. "Join now" on that card drops into the normal lobby preview.
+
+Both call the same `meet_create` RPC; the only difference is whether the
+host joins immediately. Rooms minted for interviews (`interview-room`
+edge function) are unaffected.
+
 ## TURN relay (reliability on hostile networks)
 
 STUN-only connects fine on typical home, office, and mobile networks, but
