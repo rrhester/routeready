@@ -324,6 +324,9 @@ self.addEventListener("push", (event) => {
     : showIt();
 
   const tasks = [notify, ackPush({ stage: "received", parseError, hasData: !!event.data, type: payload.type || "message" })];
+  // A received message push == "delivered to device" — stamp the delivery
+  // marker so the dispatcher sees Delivered ✓✓ before the driver opens it.
+  if (payload.type !== "call") tasks.push(rrMarkDelivered());
   if ("setAppBadge" in self.navigator && payload.type !== "call") {
     const n = Number(payload.unread) > 0 ? Number(payload.unread) : 1;
     tasks.push(self.navigator.setAppBadge(n).catch(() => {}));
@@ -347,6 +350,26 @@ async function ackPush(info) {
         "apikey":        anon,
       },
       body:    JSON.stringify({ ack: true, info, ts: new Date().toISOString() }),
+      keepalive: true,
+    });
+  } catch {}
+}
+
+// Delivery receipt: tell the backend this device received the message, so the
+// dispatcher sees "Delivered" even while the app is closed. Best-effort;
+// failures are silent (Web Push + polling still cover the message itself).
+async function rrMarkDelivered() {
+  try {
+    const [url, anon, token] = await Promise.all([rrGet("supabaseUrl"), rrGet("anonKey"), rrGet("token")]);
+    if (!url || !anon || !token) return;
+    await fetch(url + "/rest/v1/rpc/driver_chat_mark_delivered", {
+      method:  "POST",
+      headers: {
+        "Content-Type":  "application/json",
+        "Authorization": "Bearer " + anon,
+        "apikey":        anon,
+      },
+      body:    JSON.stringify({ p_token: token }),
       keepalive: true,
     });
   } catch {}

@@ -7020,6 +7020,9 @@ body.rr-cmdk-open{ overflow:hidden }
   opacity:.85;
   line-height:1.2;
 }
+/* Read is the "seen" state — accent (blue), like iMessage/WhatsApp.
+   Delivered / Sent stay muted grey. */
+.rr-mc-read-receipt.read{ color:var(--accent);opacity:1 }
 
 .msg-item-unread{
   background:var(--accent);color:var(--rr-white);border-radius:var(--r-lg);font-size:var(--fs-9);font-weight:700;
