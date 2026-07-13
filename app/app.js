@@ -2830,7 +2830,10 @@ async function _renderTasksHub(session, main) {
   ]);
   if (currentRoute() !== "/tasks") return;
 
-  const errCount = [profRes, coachRes, formRes, clkRes, envRes].filter((r) => r.error).length;
+  // Count EVERY task source — a failed assignments or I-9 fetch must
+  // surface as a load error, never as a false "Nothing to do".
+  const taskSources = [profRes, wtRes, coachRes, formRes, clkRes, envRes, i9Res];
+  const errCount = taskSources.filter((r) => r.error).length;
   const chev = '<span class="rchev"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>';
 
   // ── Collect the inventory ──
@@ -2922,7 +2925,7 @@ async function _renderTasksHub(session, main) {
       ${_reqRowHtml({ state: "cur", title: "Scan a document", meta: "Snap photos with your phone → PDF you can send", route: "/tasks/scan" })}
     </div>
     ${!hasAny && errCount === 0 ? `<div class="rr2-divnote rr2-divnote-roomy">Nothing to do right now — you're all set.</div>` : ""}
-    ${!hasAny && errCount > 0 ? errorStateHtml("Couldn't load your tasks", [profRes, coachRes, formRes, clkRes, envRes].find((r) => r.error)?.error) : ""}`;
+    ${!hasAny && errCount > 0 ? errorStateHtml("Couldn't load your tasks", taskSources.find((r) => r.error)?.error) : ""}`;
 
   main.querySelectorAll("[data-task-route]").forEach((el) => {
     if (el.dataset.rrBound) return;
