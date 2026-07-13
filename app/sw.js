@@ -268,7 +268,7 @@
 // every foreground (iOS kills the realtime socket while backgrounded), so
 // incoming calls reach the driver on any page after reopening — not only
 // on the Messages page. Ring reuses one gesture-unlocked AudioContext.
-const SHELL_CACHE = "rr-app-shell-v183";
+const SHELL_CACHE = "rr-app-shell-v184";
 const SHELL_FILES = [
   "./",
   "index.html",

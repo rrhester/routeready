@@ -6614,7 +6614,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   box-shadow:var(--shadow-md,0 6px 20px rgba(0,0,0,.18));
 }
 .rr-cc-react-pop button{
-  width:30px;height:30px;font-size:17px;line-height:1;background:transparent;border:0;
+  width:30px;height:30px;font-size:var(--fs-lg);line-height:1;background:transparent;border:0;
   border-radius:8px;cursor:pointer;transition:background var(--t-fast),transform var(--t-fast);
 }
 .rr-cc-react-pop button:hover{background:var(--canvas);transform:scale(1.18)}
@@ -6652,11 +6652,11 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 .rr-cc-bubble,.rr-mc-bubble{position:relative}
 .rr-cc-bubble:hover .rr-msg-bookmark,.rr-mc-bubble:hover .rr-msg-bookmark{opacity:.6}
 .rr-msg-bookmark:hover{opacity:1;color:var(--accent-text,var(--accent));background:var(--surface)}
-.rr-msg-bookmark.saved{opacity:1;color:var(--amber,#d97706)}
+.rr-msg-bookmark.saved{opacity:1;color:var(--amber)}
 .rr-cc-bubble.dispatch .rr-msg-bookmark{color:rgba(255,255,255,.7)}
-.rr-cc-bubble.dispatch .rr-msg-bookmark.saved{color:#fde68a}
+.rr-cc-bubble.dispatch .rr-msg-bookmark.saved{color:var(--amber)}
 /* Per-operator channel mute — header toggle + list-row marker. */
-.rr-cc-mute-btn.muted{color:var(--amber,#d97706);border-color:var(--amber,#d97706)}
+.rr-cc-mute-btn.muted{color:var(--amber);border-color:var(--amber)}
 .rr-cc-muted-chip{display:inline-flex;align-items:center;margin-left:5px;color:var(--text-subtle);vertical-align:-1px}
 
 /* Saved-messages + scheduled-messages panels. */
@@ -6676,13 +6676,13 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   flex:0 0 auto;background:transparent;border:1px solid var(--border);border-radius:var(--r-pill);
   color:var(--text-muted);cursor:pointer;font-family:inherit;
 }
-.rr-saved-remove{width:24px;height:24px;font-size:16px;line-height:1}
+.rr-saved-remove{width:24px;height:24px;font-size:var(--fs-lg);line-height:1}
 .rr-sched-cancel{padding:3px 10px;font-size:var(--fs-xs);font-weight:600}
 .rr-saved-remove:hover,.rr-sched-cancel:hover{border-color:var(--red);color:var(--red)}
 .rr-sched-status{font-size:var(--fs-9,10.5px);font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:1px 6px;border-radius:var(--r-pill);margin-left:4px}
-.rr-sched-sent{background:var(--good-soft,rgba(22,163,74,.12));color:var(--good,#16965c)}
+.rr-sched-sent{background:var(--green-soft);color:var(--green)}
 .rr-sched-canceled{background:var(--canvas);color:var(--text-subtle)}
-.rr-sched-failed{background:var(--red-soft,rgba(220,38,38,.1));color:var(--red)}
+.rr-sched-failed{background:var(--red-soft);color:var(--red)}
 .rr-sched-seg{display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-sm);cursor:pointer}
 
 /* Edited / deleted markers. */
