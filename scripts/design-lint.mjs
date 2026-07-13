@@ -15,15 +15,18 @@
 //   node scripts/design-lint.mjs --update   # rewrite the baseline (after a
 //                                            # deliberate reduction)
 //
-// Scope: the shipped stylesheets. Inline style="" in frags/JS is a separate
-// axis we can add later; this targets the biggest, most measurable surface.
+// Scope: the shipped stylesheets AND the driver render layer (app/app.js),
+// which composes UI from template strings. `app.js` was previously an
+// ungoverned surface — hundreds of raw hex and inline style="" blocks grew
+// there invisibly to CI. It's now scanned with a JS-aware pass that also
+// counts a new axis: inline style="" attributes (fewer = more on-system).
 // ─────────────────────────────────────────────────────────────────────────
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const FILES = [
+const CSS_FILES = [
   "dashboard/inline-styles.css",
   "dashboard/schedule-rrx.css",
   "dashboard/onboarding-rrx.css",
@@ -31,12 +34,16 @@ const FILES = [
   "app/styles.css",
   "app/rr-system.css",
 ];
+// JS render layer — scanned for the same raw values plus inline style="".
+const JS_FILES = [
+  "app/app.js",
+];
 const BASELINE = path.join(ROOT, "scripts/design-baseline.json");
 
 // A raw hex usage = a #hex NOT on a custom-property definition line
 // (`--token: #hex;`). That leaves hex sitting in real property values —
 // exactly what should be a var(--token) instead.
-function scan(css) {
+function scanCss(css) {
   let rawHex = 0, important = 0, rawFontSize = 0;
   for (const line of css.split("\n")) {
     const isTokenDef = /^\s*--[a-z0-9-]+\s*:/.test(line);
@@ -49,15 +56,38 @@ function scan(css) {
       if (!/var\(/.test(m[1])) rawFontSize += 1;
     }
   }
-  return { rawHex, important, rawFontSize };
+  return { rawHex, important, rawFontSize, inlineStyle: 0 };
 }
 
-const totals = { rawHex: 0, important: 0, rawFontSize: 0 };
+// JS render layer. Same raw-value axes, plus inline style="" attributes.
+// Inline font-sizes usually terminate at the closing quote, not a `;`, so
+// the font-size regex stops at ; " or ' — otherwise it'd miss most of them.
+function scanJs(js) {
+  let rawHex = 0, important = 0, rawFontSize = 0, inlineStyle = 0;
+  for (const line of js.split("\n")) {
+    rawHex += (line.match(/#[0-9a-fA-F]{3,8}\b/g) || []).length;
+    important += (line.match(/!important/g) || []).length;
+    inlineStyle += (line.match(/style="/g) || []).length;
+    for (const m of line.matchAll(/font-size\s*:\s*([^;"']+)[;"']/g)) {
+      if (!/var\(/.test(m[1])) rawFontSize += 1;
+    }
+  }
+  return { rawHex, important, rawFontSize, inlineStyle };
+}
+
+const totals = { rawHex: 0, important: 0, rawFontSize: 0, inlineStyle: 0 };
 const perFile = {};
-for (const rel of FILES) {
+for (const rel of CSS_FILES) {
   const p = path.join(ROOT, rel);
   if (!fs.existsSync(p)) continue;
-  const c = scan(fs.readFileSync(p, "utf8"));
+  const c = scanCss(fs.readFileSync(p, "utf8"));
+  perFile[rel] = c;
+  for (const k of Object.keys(totals)) totals[k] += c[k];
+}
+for (const rel of JS_FILES) {
+  const p = path.join(ROOT, rel);
+  if (!fs.existsSync(p)) continue;
+  const c = scanJs(fs.readFileSync(p, "utf8"));
   perFile[rel] = c;
   for (const k of Object.keys(totals)) totals[k] += c[k];
 }
@@ -76,7 +106,7 @@ if (!fs.existsSync(BASELINE)) {
 const base = JSON.parse(fs.readFileSync(BASELINE, "utf8"));
 
 let failed = false;
-const label = { rawHex: "raw hex colors", important: "!important", rawFontSize: "literal font-sizes" };
+const label = { rawHex: "raw hex colors", important: "!important", rawFontSize: "literal font-sizes", inlineStyle: 'inline style="" attrs' };
 for (const k of Object.keys(totals)) {
   const now = totals[k], was = base[k] ?? 0;
   if (now > was) {
