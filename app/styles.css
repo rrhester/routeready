@@ -933,28 +933,8 @@ body.scan-camming{overflow:hidden}
   display:flex;flex-direction:column;align-items:center;
   text-align:center;padding:8px 0 22px;
 }
-.profile-avatar{
-  width:96px;height:96px;border-radius:50%;
-  background:var(--accent);color:var(--rr-white);
-  display:inline-flex;align-items:center;justify-content:center;
-  font-size:38px;font-weight:700;letter-spacing:-.02em;
-  box-shadow:var(--shadow-lg);
-  background-position:center;background-size:cover;
-  border:3px solid var(--surface);
-}
-.profile-avatar-btn{
-  position:relative;display:inline-block;border:0;background:none;padding:0;cursor:pointer;
-  margin-bottom:12px;
-}
-.profile-avatar-btn:active{transform:scale(.97)}
-.profile-avatar-edit{
-  position:absolute;right:-2px;bottom:-2px;
-  width:30px;height:30px;border-radius:50%;
-  background:var(--surface);color:var(--accent);
-  border:2px solid var(--surface);
-  display:inline-flex;align-items:center;justify-content:center;
-  box-shadow:var(--shadow-sm);
-}
+
+
 .profile-name{font-size:var(--fs-lg);font-weight:700;letter-spacing:-.01em}
 .profile-meta{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:4px}
 
@@ -2582,23 +2562,7 @@ main[data-page-enter][data-nav-dir="back"] > *{
   font-size:var(--fs-sm);color:var(--text-muted);font-weight:400;
 }
 .rr-hero-meta b{ color:var(--text);font-weight:600;font-variant-numeric:tabular-nums }
-.rr-hero-cta{
-  margin-top:4px;width:100%;min-height:54px;
-  font-size:var(--fs-lg);font-weight:600;letter-spacing:0;
-  background:var(--accent);color:var(--rr-white);
-  border:1px solid var(--accent);border-radius:var(--r-md);
-  box-shadow:var(--shadow-sm);
-  display:flex;align-items:center;justify-content:center;gap:8px;
-  transition:background var(--t-fast), border-color var(--t-fast);
-}
-.rr-hero-cta:hover{ background:var(--accent-hover);border-color:var(--accent-hover) }
-.rr-hero-cta:active{ background:var(--accent-pressed);border-color:var(--accent-pressed) }
-.rr-hero-cta.muted{
-  background:transparent;color:var(--text-muted);
-  border-color:var(--border-strong);text-shadow:none;
-  box-shadow:none;
-}
-.rr-hero-cta.muted:hover{ background:var(--surface-hover);color:var(--text) }
+
 
 /* ── Inline confirmation (non-blocking) ───────────────────────
    For low-stakes destructive actions inside a list. Shows a
@@ -2775,15 +2739,7 @@ main[data-page-enter][data-nav-dir="back"] > *{
 /* The page-bg / surface vars below are scoped to body.is-home so
    other routes stay on their own tokens. Fluent neutralBackground-2
    for the workspace; the hero supplies the brand color. */
-body.is-home{
-  background:var(--rr-gray-50);
-}
-body.is-home .app-head{ display:none }
-body.is-home main{
-  top:0;
-  padding:0 18px 16px;
-  background:transparent;
-}
+
 
 /* ── Hero — Fluent communicationBlue brand band ───────────────
    Solid M365 brand-blue surface (the same var(--rr-blue-600) → var(--rr-blue-700)
@@ -2791,144 +2747,34 @@ body.is-home main{
    grain. Bottom corners are gently rounded at 16px — Fluent's
    --r-2xl — instead of the iOS-y 32px. Elevation comes from a
    measured Fluent depth-8 shadow, not a colored bloom. */
-body.is-home main > .home-hero{
-  width:calc(100% + 36px);
-  max-width:none;
-  margin:0 -18px 0;
-}
-.home-hero{
-  position:relative;
-  color:var(--rr-white);
-  padding:calc(14px + env(safe-area-inset-top, 0px)) 18px 18px;
-  background:var(--chrome-grad);
-  border-radius:0;
-  box-shadow:var(--shadow-lg);
-  text-align:left;
-  display:flex;flex-direction:column;align-items:stretch;gap:12px;
-  isolation:isolate;
-  overflow:hidden;
-}
+
+
 /* Subtle Mica grain — fine fractal noise mixed via overlay,
    ~6% opacity. Matches Windows 11 / Office surfaces; gives the
    solid brand-blue a hint of texture without competing with
    content. No "route-line" decoration — that was iOS-styled. */
-.home-hero::before{
-  content:"";
-  position:absolute;inset:0;
-  pointer-events:none;
-  opacity:.06;
-  mix-blend-mode:overlay;
-  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
-  background-size:240px 240px;
-  border-radius:inherit;
-  z-index:0;
-}
-.home-hero > *{ position:relative;z-index:1 }
-.home-hero-bar{
-  width:100%;
-  display:flex;align-items:center;justify-content:space-between;
-  margin-bottom:0;
-}
+
+
 /* Identity row — avatar beside the greeting/name/role, left-aligned.
    Replaces the tall centered avatar hero so the operational cards
    reach the fold. */
-.home-hero-id{ display:flex; align-items:center; gap:12px }
-.home-hero-idtext{ min-width:0; display:flex; flex-direction:column }
-.home-hero-brand{
-  display:inline-flex;align-items:center;gap:8px;
-  font-size:14px;font-weight:600;letter-spacing:0;
-  color:rgba(255,255,255,.96);
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-}
-.home-hero-brand-mark{
-  width:22px;height:22px;border-radius:4px;
-  background:rgba(255,255,255,.16);
-  display:inline-flex;align-items:center;justify-content:center;
-  flex-shrink:0;color:var(--rr-white);
-}
-.home-hero-gear{
-  width:36px;height:36px;border-radius:var(--r-md);
-  position:relative;
-  display:inline-flex;align-items:center;justify-content:center;
-  color:var(--rr-white);
-  background:rgba(255,255,255,.12);
-  border:1px solid rgba(255,255,255,.16);
-  flex-shrink:0;
-  transition:background 140ms var(--ease-out);
-}
-.home-hero-gear:hover{ background:rgba(255,255,255,.20) }
-.home-hero-gear:active{ background:rgba(255,255,255,.26) }
-.home-hero .profile-avatar-btn{ margin:0; flex:0 0 auto }
-.home-hero .profile-avatar{
-  width:46px;height:46px;
-  border:2px solid rgba(255,255,255,.85);
-  box-shadow:0 2px 6px rgba(0,0,0,.22);
-}
-.home-hero .profile-avatar-edit{
-  width:19px;height:19px;
-  background:var(--rr-white);color:var(--accent);
-  border:1.5px solid var(--rr-white);
-  box-shadow:var(--shadow-sm);
-}
-.home-hero-greeting{
-  font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
-  color:rgba(255,255,255,.88);
-  margin-bottom:1px;
-}
-.home-hero-name{
-  font-size:20px;font-weight:600;letter-spacing:-.014em;
-  color:var(--rr-white);line-height:1.15;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-}
-.home-hero-meta{
-  margin-top:2px;
-  font-size:12px;font-weight:400;
-  color:rgba(255,255,255,.9);
-  letter-spacing:0;
-}
-.home-hero-foot{
-  display:flex;align-items:center;justify-content:flex-start;gap:8px;flex-wrap:wrap;
-  margin-top:0;
-}
+
+
 /* Outlook/Teams Mobile-style chips — solid translucent overlay
    on the brand surface, no blur/glass — Fluent surfaces are
    honest, not iOS-frosted. */
-.home-hero-today{
-  display:inline-flex;align-items:center;justify-content:center;
-  min-height:24px;padding:4px 10px;border-radius:var(--r-md);
-  background:rgba(255,255,255,.16);
-  border:1px solid rgba(255,255,255,.18);
-  font-size:11.5px;font-weight:600;letter-spacing:.02em;
-  color:var(--rr-white);
-}
-.home-hero-status{
-  display:inline-flex;align-items:center;gap:6px;
-  padding:4px 10px 4px 8px;border-radius:var(--r-md);
-  background:rgba(255,255,255,.16);
-  border:1px solid rgba(255,255,255,.18);
-  font-size:var(--fs-xs);font-weight:600;letter-spacing:.06em;
-  color:var(--rr-white);
-}
-.home-hero-status[hidden]{ display:none }
+
+
 /* Microsoft Teams "Available" green dot — communicationGreen,
    solid color, no glow.  Matches the dashboard's Live pill. */
-.home-hero-status-dot{
-  width:8px;height:8px;border-radius:50%;
-  background:var(--green-bright);
-  box-shadow:0 0 0 2px var(--green-soft);
-}
+
 
 /* ── Content area below the hero ──────────────────────────────
    Sits over the Fluent neutral canvas, a small gap below the
    compact command band (the operational cards lead the fold now
    rather than overlapping a tall centered hero). */
-.home-content{
-  position:relative;
-  padding:0 0 24px;
-  margin-top:12px;
-  z-index:2;
-}
-.home-content > * + *{ margin-top:12px }
+
+
 /* The "Action needed" promo reuses a .task-card; its default bottom
    margin would double up with .home-content's own child spacing. */
 #rr-actionneeded-slot .task-card{ margin-bottom:0 }
@@ -2938,131 +2784,23 @@ body.is-home main > .home-hero{
    blooms), Fluent --r-xl corners, depth-8 shadow.  This is the
    driver's most-tapped surface, so we keep the brand-blue solid
    identity prominent. */
-.opens-card{
-  position:relative;
-  width:100%;
-  display:block;
-  text-align:left;
-  color:var(--rr-white);
-  background:linear-gradient(180deg, var(--rr-blue-600) 0%, var(--rr-blue-700) 100%);
-  border:1px solid rgba(255,255,255,.10);
-  border-radius:var(--r-xl);
-  padding:16px 18px;
-  box-shadow:var(--shadow-lg);
-  transition:transform 140ms var(--ease-spring), box-shadow 160ms var(--ease-out);
-  isolation:isolate;
-  overflow:hidden;
-}
-.opens-card:active{ transform:translateY(1px) scale(.995) }
-.opens-card:disabled{ cursor:default }
-.opens-card-row{
-  display:flex;align-items:center;gap:13px;
-}
-.opens-card-icon{
-  width:34px;height:34px;border-radius:var(--r-md);
-  display:inline-flex;align-items:center;justify-content:center;
-  background:rgba(255,255,255,.16);
-  border:1px solid rgba(255,255,255,.20);
-  color:var(--rr-white);flex-shrink:0;
-}
-.opens-card-icon > svg{ width:18px;height:18px }
-.opens-card-body{ flex:1;min-width:0 }
-.opens-card-title{
-  font-size:22px;font-weight:600;letter-spacing:-.014em;
-  line-height:1.15;
-}
-.opens-card-meta{
-  margin-top:3px;
-  font-size:12.5px;font-weight:400;
-  opacity:.86;letter-spacing:0;
-}
+
+
 /* Variants for when the driver is already checked in or completed.
    Use the Fluent communicationGreen/Red families so semantic
    states stay inside the brand. */
-.opens-card.opens-card-ok{
-  color:var(--green-dark);
-  background:rgba(22,163,74,.08);
-  border:1px solid rgba(22,163,74,.24);
-  box-shadow:var(--shadow-md);
-}
-.opens-card.opens-card-ok .opens-card-icon{
-  background:rgba(22,163,74,.14);
-  border-color:rgba(22,163,74,.28);
-  color:var(--green-dark);
-}
-.opens-card.opens-card-muted{
-  color:var(--text);
-  background:var(--rr-white);
-  border:1px solid var(--border);
-  box-shadow:var(--shadow-md);
-}
-.opens-card.opens-card-muted .opens-card-title{ color:var(--text) }
-.opens-card.opens-card-muted .opens-card-meta{ color:var(--text-subtle);opacity:1 }
-.opens-card.opens-card-muted .opens-card-icon{
-  background:var(--accent-soft);color:var(--accent);border-color:var(--accent-border);
-}
+
+
 /* Check-in window closed · neutral white card with a true amber
    accent (the global --amber token is mapped to indigo here, which
    read as purple against the blue brand header — hardcoding the
    warmer Microsoft "Action needed" amber keeps the warning
    readable without colliding with the header). */
-.opens-card.opens-card-warn{
-  color:var(--rr-gray-900);
-  background:var(--rr-white);
-  border:1px solid rgba(180,83,9,.22);
-  border-left:3px solid var(--rr-amber-700);
-  box-shadow:var(--shadow-md);
-}
-.opens-card.opens-card-warn .opens-card-title{color:var(--rr-gray-900)}
-.opens-card.opens-card-warn .opens-card-meta{color:var(--rr-gray-500);opacity:1}
-.opens-card.opens-card-warn .opens-card-icon{
-  background:rgba(180,83,9,.10);
-  color:var(--rr-amber-800);
-  border-color:rgba(180,83,9,.24);
-}
-.opens-card-cta{
-  margin-top:12px;width:100%;
-  min-height:48px;padding:12px 16px;
-  border-radius:var(--r-md);border:1px solid var(--rr-white);
-  background:var(--rr-white);color:var(--accent);
-  font-size:15px;font-weight:600;letter-spacing:0;
-  display:inline-flex;align-items:center;justify-content:center;gap:8px;
-  box-shadow:var(--shadow-sm);
-  transition:background 140ms var(--ease-out);
-}
-.opens-card-cta:hover{ background:var(--rr-gray-100) }
+
+
 /* "Starts in 45m" countdown · sits on the right of the .opens-card-row.
    Right-aligned, divider rule on the left, Fluent type. */
-.opens-card-countdown{
-  flex-shrink:0;
-  margin-left:auto;
-  padding-left:12px;
-  text-align:right;
-  align-self:center;
-  border-left:1px solid rgba(255,255,255,.20);
-}
-.opens-card-countdown-label{
-  font-size:10px;font-weight:600;
-  letter-spacing:.08em;text-transform:uppercase;
-  opacity:.86;
-  line-height:1;
-}
-.opens-card-countdown-value{
-  margin-top:5px;
-  font-size:22px;font-weight:600;
-  font-variant-numeric:tabular-nums;
-  letter-spacing:-.014em;
-  line-height:1;
-  color:#9FD89F;                    /* Fluent communicationGreen tint-40 */
-}
-.opens-card.opens-card-muted .opens-card-countdown{ border-left-color:var(--border) }
-.opens-card.opens-card-muted .opens-card-countdown-value{ color:var(--green) }
-.opens-card.opens-card-warn  .opens-card-countdown{ border-left-color:rgba(180,83,9,.30) }
-.opens-card.opens-card-warn  .opens-card-countdown-value{ color:var(--rr-amber-800) }
-.opens-card-cta:active{ background:#EBEBEB }
-.opens-card-cta.opens-card-cta-danger{
-  background:var(--rr-white);color:var(--red-dark);border-color:rgba(220,38,38,.30);
-}
+
 
 /* ── Proactive check-in location hint ──────────────────────────
    Sits just under the primary check-in card. A quiet, tappable
@@ -3092,60 +2830,16 @@ body.is-home main > .home-hero{
 @keyframes checkin-loc-spin{ to{ transform:rotate(360deg) } }
 
 /* ── Report missed day · Fluent depth-2 list row ───────────── */
-.missed-day-card{
-  display:flex;align-items:center;gap:14px;
-  background:var(--rr-white);
-  border:1px solid var(--border);
-  border-radius:var(--r-lg);
-  padding:12px 14px 12px 13px;
-  box-shadow:var(--shadow-sm);
-  width:100%;
-  text-align:left;
-  transition:background 120ms var(--ease-out);
-}
-.missed-day-card:hover{ background:var(--surface-hover) }
-.missed-day-card:active{ background:var(--surface-pressed) }
-.missed-day-card[hidden]{ display:none }
-.missed-day-icon{
-  width:36px;height:36px;border-radius:var(--r-md);
-  background:var(--accent-soft);
-  color:var(--accent);
-  display:inline-flex;align-items:center;justify-content:center;
-  flex-shrink:0;
-  border:1px solid var(--accent-border);
-}
-.missed-day-icon > svg{ width:18px;height:18px }
-.missed-day-body{ flex:1;min-width:0 }
-.missed-day-title{
-  font-size:14.5px;font-weight:600;color:var(--text);letter-spacing:0;
-}
-.missed-day-sub{
-  margin-top:2px;
-  font-size:12.5px;color:var(--text-subtle);line-height:1.4;
-}
-.missed-day-chev{ color:var(--text-disabled);flex-shrink:0 }
+
 
 /* ── "UP NEXT" section · Fluent surface card ──────────────── */
-.up-next{ margin-top:20px }
-.up-next-label{
-  font-size:11px;font-weight:600;
-  letter-spacing:.06em;text-transform:uppercase;
-  color:var(--text-subtle);
-  margin:0 4px 10px;
-}
+
+
 /* "Up next" on the home screen renders through the shared .shift-card
    primitive (see shiftCardHtml) so it's byte-identical to the Schedule
    list cards — one shift reads the same everywhere. The old bespoke
    .up-next-card family was retired when they were unified. */
-.up-next-empty{
-  background:var(--rr-white);
-  border:1px solid var(--border);
-  border-radius:var(--r-xl);
-  padding:18px;
-  font-size:13px;color:var(--text-subtle);
-  text-align:center;
-  box-shadow:var(--shadow-sm);
-}
+
 
 /* ── Van documents · Fluent list card ─────────────────────── */
 .van-docs{ margin-top:20px }
@@ -3643,3 +3337,15 @@ main.has-rr2-cta{padding-bottom:104px}
 .rr2-divnote-roomy{padding:24px 0}
 .rr2-ack-notice{margin:10px 12px 4px;border-radius:var(--r-lg)}
 .rr2-ack-when{font-size:var(--fs-xs);color:var(--text-subtle)}
+/* Standalone Messages-Inbox tab row: .chat-tabs is absolutely
+   positioned for the chat shell; in the Inbox it flows normally at the
+   top of #main and bleeds to the screen edges. */
+.rr2-inbox-tabs{
+  position:static;height:52px;
+  margin:-14px -16px 10px;
+  width:auto;max-width:none;
+}
+.rr2-mava.ch{background:linear-gradient(135deg,var(--rr-blue-600),var(--rr-blue-800))}
+.rr2-mwho.ann{font-weight:600}
+.rr2-mprev.ann{color:var(--text);font-weight:500;margin-top:0}
+.rr2-mtop:has(> .rr2-mwhen:only-child){justify-content:flex-end}

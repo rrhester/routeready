@@ -227,7 +227,7 @@ async function clearBadgeOnFocus() {
   // — clearing here was the old behavior, but it hid the welcome
   // message badge from a fresh-activation driver who never opened
   // Chat. Mark-read still fires when the chat screen itself renders.
-  if (currentRoute() === "/chat") {
+  if (currentRoute() === "/chat/dispatch") {
     setAppBadge(0);
     _setChatTabBadge(0);
     const session = readSession();
@@ -970,13 +970,6 @@ function linkifyEscaped(escaped, onAccent) {
 function initialsOf(name) {
   return (name || "").split(/\s+/).map((p) => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?";
 }
-function homeGreeting(date = new Date()) {
-  const h = date.getHours();
-  if (h < 5) return "Good evening";
-  if (h < 12) return "Good morning";
-  if (h < 17) return "Good afternoon";
-  return "Good evening";
-}
 function homeTodayLabel(date = new Date()) {
   return date.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
 }
@@ -1007,8 +1000,9 @@ const routes = {
   "/settings/availability": { render: renderAvailability,    tab: "/more", back: "/more", title: "Availability" },
   "/settings/attendance":   { render: renderAttendance,      tab: "/more", back: "/more", title: "Attendance" },
   "/settings/time-off":     { render: renderTimeOff,         tab: "/more", back: "/more", title: "Time off" },
-  "/chat":              { render: renderChat,            tab: "/chat" },
-  "/chat/channels":     { render: renderChatChannelsList, tab: "/chat" },
+  "/chat":              { render: renderMessagesInbox,   tab: "/chat" },
+  "/chat/dispatch":     { render: renderChat,            tab: "/chat", back: "/chat" },
+  "/chat/channels":     { render: renderChatChannelsList, tab: "/chat", back: "/chat" },
   "/chat/channel":      { render: renderChatChannelThread, tab: "/chat", back: "/chat/channels" },
   "/team":              { render: renderTeam,            tab: "/more", back: "/more", title: "Team" },
   "/profile":           { render: renderProfileHub,      tab: "/profile" },
@@ -2138,7 +2132,7 @@ function _rrLiveRefresh(payload) {
   }
   if (kind === "chat" || !kind) {
     try {
-      if (currentRoute() === "/chat" && _chatTab === "dispatch") refreshChat(false);
+      if (currentRoute() === "/chat/dispatch" && _chatTab === "dispatch") refreshChat(false);
     } catch {}
   }
   if (kind === "channel" || !kind) {
@@ -3948,7 +3942,7 @@ async function _chatFlushOutbox({ silent } = {}) {
   if (sent) {
     _haptic("success");
     if (!silent) toast(`${sent} queued message${sent === 1 ? "" : "s"} sent`, "ok");
-    try { if (currentRoute() === "/chat" && _chatTab === "dispatch") await refreshChat(false); } catch {}
+    try { if (currentRoute() === "/chat/dispatch" && _chatTab === "dispatch") await refreshChat(false); } catch {}
     try { refreshChatBadge(); } catch {}
   }
   return sent;
@@ -4222,7 +4216,7 @@ async function _scanSendToDispatch(typeLabel) {
     await queueIt("Saved — will send to dispatch when you're back online"); return;
   }
   const res = await _scanUploadAndSend(blob, filename);
-  if (res.ok) { _haptic("success"); toast("Sent to dispatch", "ok"); _scanPages = []; navigate("/chat"); return; }
+  if (res.ok) { _haptic("success"); toast("Sent to dispatch", "ok"); _scanPages = []; navigate("/chat/dispatch"); return; }
   if (res.retriable) { await queueIt("Couldn't reach dispatch — saved, will retry when you're back online"); return; }
   toast(res.reason === "no-session" ? "Sign in again to send" : "Profile incomplete — sign out and back in", "warn");
 }
@@ -5325,7 +5319,7 @@ function _onChatRealtimeStatus(status) {
     _showChatConnBanner("Reconnecting…", "warn");
     clearInterval(_chatConnPollTimer);
     _chatConnPollTimer = setInterval(() => {
-      if (currentRoute() === "/chat" && _chatTab === "dispatch") refreshChat(false);
+      if (currentRoute() === "/chat/dispatch" && _chatTab === "dispatch") refreshChat(false);
     }, 8000);
   } else if (status === "SUBSCRIBED" && _chatDisconnected) {
     _chatDisconnected = false;
@@ -5334,6 +5328,158 @@ function _onChatRealtimeStatus(status) {
     _chatFlushOutbox({ silent: true }); // replay anything queued while down
     refreshChat(false); // reconcile anything missed while down
   }
+}
+
+// ── Messages · Inbox (redesign, approved mockup) ─────────────────────
+// The default Messages view: everything requiring action pinned on top
+// (unacknowledged ack-required notices, each with its own Acknowledge
+// button), then conversations (Dispatch thread + channels), then recent
+// announcements with their acknowledgement state. The Dispatch thread
+// itself lives at /chat/dispatch; Channels are unchanged.
+async function renderMessagesInbox() {
+  _chatTab = "inbox";
+  _chatChannelId = null;
+  setHeader("Messages", "");
+  setRefresh(() => renderMessagesInbox());
+  const session = readSession();
+  if (!session?.token) { writeSession(null); render(); return; }
+  const main = document.getElementById("main");
+  main.innerHTML = `
+    <div class="chat-tabs rr2-inbox-tabs">
+      <button class="chat-tab active" data-rr-chat-tab="inbox">Inbox</button>
+      <button class="chat-tab" data-rr-chat-tab="dispatch">Dispatch</button>
+      <button class="chat-tab" data-rr-chat-tab="channels">Channels</button>
+    </div>
+    <div id="rr2-inbox">${taskSkeletonHtml(2)}</div>`;
+  document.querySelectorAll("[data-rr-chat-tab]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const next = btn.getAttribute("data-rr-chat-tab");
+      if (next === "inbox") return;
+      navigate(next === "channels" ? "/chat/channels" : "/chat/dispatch");
+    });
+  });
+
+  const quiet = (p) => p.then((r) => r, (e) => ({ data: null, error: e }));
+  const [chatRes, chanRes] = await Promise.all([
+    quiet(sb.rpc("driver_chat_list", { p_token: session.token, p_limit: 200 })),
+    quiet(sb.rpc("driver_channels_list", { p_token: session.token })),
+  ]);
+  if (currentRoute() !== "/chat") return;
+  const host = document.getElementById("rr2-inbox");
+  if (!host) return;
+  if (chatRes.error && /unauthorized|revoked|inactive/.test(chatRes.error.message || "")) {
+    writeSession(null); render(); return;
+  }
+  if (chatRes.error && chanRes.error) {
+    host.innerHTML = errorStateHtml("Couldn't load your messages", chatRes.error);
+    return;
+  }
+
+  const messages = chatRes.data?.messages || [];
+  const channels = chanRes.data?.channels || [];
+  const fromDispatch = messages.filter((m) => m.sender_kind !== "driver");
+  const pendingAcks = fromDispatch.filter((m) => m.requires_ack && !m.acked_at);
+  // Announcements = ack-required notices (resolved ones show their state)
+  // plus anything dispatch marked urgent/high. Newest first, capped.
+  const announcements = fromDispatch
+    .filter((m) => (m.requires_ack && m.acked_at) || m.priority === "urgent" || m.priority === "high")
+    .filter((m) => !pendingAcks.includes(m))
+    .slice(-6).reverse();
+  const lastMsg = messages[messages.length - 1] || null;
+  const unreadDispatch = messages.some((m) => m.is_unread);
+
+  const rel = (iso) => {
+    if (!iso) return "";
+    const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+    if (m < 1) return "now";
+    if (m < 60) return `${m}m`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h`;
+    const d = Math.floor(h / 24);
+    if (d < 7) return `${d}d`;
+    return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  };
+  const preview = (s, n = 90) => {
+    const t = String(s || "").replace(/\s+/g, " ").trim();
+    return escapeHtml(t.length > n ? t.slice(0, n - 1) + "…" : t);
+  };
+  const chev = '<span class="rchev"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg></span>';
+
+  const ackBlock = (m) => `
+    <div class="rr2-notice danger">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <div class="rr2-flex1">
+        <div class="nt">${m.priority === "urgent" ? "Urgent notice" : "Notice from dispatch"}</div>
+        <div class="nb">${preview(m.body, 200)}</div>
+        <div class="na"><button class="btn btn-sm btn-primary" type="button" data-rr-ack="${escapeHtml(m.id)}">Acknowledge</button><span class="rr2-ack-when">Dispatch · ${_t12(m.created_at)}</span></div>
+      </div>
+    </div>`;
+
+  const dispatchRow = `
+    <button class="rr2-row${unreadDispatch ? " unread" : ""}" type="button" data-task-route="/chat/dispatch">
+      <span class="rr2-mava hq">${escapeHtml(initialsOf(session?.dsp_name || "HQ"))}</span>
+      <span class="rbody">
+        <span class="rr2-mtop"><span class="rr2-mwho">Dispatch</span><span class="rr2-mwhen">${rel(lastMsg?.created_at)}</span></span>
+        <span class="rr2-mprev">${lastMsg ? `${lastMsg.sender_kind === "driver" ? "You: " : ""}${preview(lastMsg.body || (lastMsg.attachment_url ? "Attachment" : ""))}` : "Start a conversation with dispatch."}</span>
+      </span>
+      ${unreadDispatch ? '<span class="rr2-udot"></span>' : chev}
+    </button>`;
+
+  const channelRows = channels.map((c) => {
+    const last = c.last_message
+      ? `${c.last_sender ? escapeHtml(c.last_sender) + ": " : ""}${preview(c.last_message, 80)}`
+      : `${c.member_count || 0} member${c.member_count === 1 ? "" : "s"}`;
+    return `
+    <button class="rr2-row${c.unread > 0 ? " unread" : ""}" type="button" data-task-route="/chat/channel?id=${encodeURIComponent(c.id)}">
+      <span class="rr2-mava ch">${escapeHtml(initialsOf(c.name || "Ch"))}</span>
+      <span class="rbody">
+        <span class="rr2-mtop"><span class="rr2-mwho">#${escapeHtml(c.name || "channel")}</span><span class="rr2-mwhen">${rel(c.last_message_at)}</span></span>
+        <span class="rr2-mprev">${last}</span>
+      </span>
+      ${c.unread > 0 ? `<span class="rr2-pill blue">${c.unread > 99 ? "99+" : c.unread} new</span>` : chev}
+    </button>`;
+  }).join("");
+
+  const annRows = announcements.map((m) => `
+    <button class="rr2-row" type="button" data-task-route="/chat/dispatch">
+      <span class="ric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg></span>
+      <span class="rbody">
+        <span class="rr2-mtop"><span class="rr2-mwhen">${rel(m.created_at)}</span></span>
+        <span class="rr2-mprev ann">${preview(m.body, 110)}</span>
+      </span>
+      <span class="rend">${m.requires_ack && m.acked_at
+        ? '<span class="rr2-pill green">Ack’d</span>'
+        : m.priority === "urgent" ? '<span class="rr2-pill red">Urgent</span>' : '<span class="rr2-pill">Notice</span>'}</span>
+    </button>`).join("");
+
+  host.innerHTML = `
+    ${pendingAcks.length ? `<div class="rr2-sec is-red">Needs acknowledgement<span class="n">${pendingAcks.length}</span></div>${pendingAcks.slice().reverse().map(ackBlock).join("")}` : ""}
+    <div class="rr2-sec">Conversations</div>
+    <div class="rr2-panel">${dispatchRow}${channelRows}</div>
+    ${annRows ? `<div class="rr2-sec">Announcements</div><div class="rr2-panel">${annRows}</div>` : ""}
+    <div class="rr2-divnote">Call or video-call dispatch from the Dispatch tab</div>`;
+
+  host.querySelectorAll("[data-task-route]").forEach((el) => {
+    el.addEventListener("click", () => navigate(el.dataset.taskRoute));
+  });
+  // Acknowledge straight from the Inbox — same RPC as in-thread; the
+  // whole view repaints so the item moves into Announcements as Ack'd.
+  host.querySelectorAll("[data-rr-ack]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      btn.disabled = true; btn.textContent = "Acknowledging…";
+      if (navigator.vibrate) { try { navigator.vibrate(8); } catch {} }
+      const cur = readSession();
+      const { error } = await sb.rpc("driver_ack_message", { p_token: cur?.token, p_message_id: btn.getAttribute("data-rr-ack") });
+      if (error) {
+        toast(_friendlyError(error, "Couldn't acknowledge. Try again."), "warn");
+        btn.disabled = false; btn.textContent = "Acknowledge";
+        return;
+      }
+      toast("Acknowledged ✓", "ok");
+      refreshChatBadge();
+      if (currentRoute() === "/chat") renderMessagesInbox();
+    });
+  });
 }
 
 async function renderChat() {
@@ -5349,6 +5495,7 @@ async function renderChat() {
     <div id="chat-shell">
       <div id="chat-conn-banner" class="chat-conn-banner" hidden></div>
       <div id="chat-tabs" class="chat-tabs">
+        <button class="chat-tab" data-rr-chat-tab="inbox">Inbox</button>
         <button class="chat-tab active" data-rr-chat-tab="dispatch">Dispatch</button>
         <button class="chat-tab" data-rr-chat-tab="channels">Channels</button>
         <button class="chat-call chat-vcall" type="button" data-rr-drv-call="video" aria-label="Video call dispatch" title="Video call dispatch"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></button>
@@ -5798,7 +5945,7 @@ async function renderChat() {
       const next = btn.getAttribute("data-rr-chat-tab");
       if (next === _chatTab) return;
       if (_chatPollTimer) { clearInterval(_chatPollTimer); _chatPollTimer = null; }
-      navigate(next === "channels" ? "/chat/channels" : "/chat");
+      navigate(next === "channels" ? "/chat/channels" : next === "inbox" ? "/chat" : "/chat/dispatch");
     });
   });
 
@@ -5817,7 +5964,7 @@ async function renderChat() {
   if (_chatPollTimer) clearInterval(_chatPollTimer);
   _chatPollTimer = setInterval(() => {
     if (document.hidden) return;
-    if (currentRoute() !== "/chat") { clearInterval(_chatPollTimer); _chatPollTimer = null; return; }
+    if (currentRoute() !== "/chat/dispatch") { clearInterval(_chatPollTimer); _chatPollTimer = null; return; }
     if (_chatTab !== "dispatch") { clearInterval(_chatPollTimer); _chatPollTimer = null; return; }
     refreshChat(false);
   }, 30000);
@@ -5850,7 +5997,7 @@ function _drvPresenceWire(session) {
     .on("broadcast", { event: "typing" }, ({ payload }) => {
       if (!payload || payload.from_kind !== "dispatch") return;
       // Only show when the driver is actually viewing the dispatch chat.
-      if (currentRoute() !== "/chat" || _chatTab !== "dispatch") return;
+      if (currentRoute() !== "/chat/dispatch" || _chatTab !== "dispatch") return;
       _drvShowDispatchTyping(payload.activity);
     })
     // ── Direct-call signaling (RouteReady Messages) ───────────────────
@@ -6269,7 +6416,7 @@ function _chatRealtimeWire(session) {
   const fire = () => {
     clearTimeout(_chatRealtimeDebounce);
     _chatRealtimeDebounce = setTimeout(() => {
-      if (currentRoute() !== "/chat" || _chatTab !== "dispatch") return;
+      if (currentRoute() !== "/chat/dispatch" || _chatTab !== "dispatch") return;
       refreshChat(false);
     }, 200);
   };
@@ -6817,6 +6964,7 @@ async function renderChatChannelsList() {
   main.innerHTML = `
     <div id="chat-shell">
       <div id="chat-tabs" class="chat-tabs">
+        <button class="chat-tab" data-rr-chat-tab="inbox">Inbox</button>
         <button class="chat-tab" data-rr-chat-tab="dispatch">Dispatch</button>
         <button class="chat-tab active" data-rr-chat-tab="channels">Channels</button>
       </div>
@@ -6830,7 +6978,7 @@ async function renderChatChannelsList() {
       const next = btn.getAttribute("data-rr-chat-tab");
       if (next === _chatTab) return;
       if (_chatChannelPollTimer) { clearInterval(_chatChannelPollTimer); _chatChannelPollTimer = null; }
-      navigate(next === "channels" ? "/chat/channels" : "/chat");
+      navigate(next === "channels" ? "/chat/channels" : next === "inbox" ? "/chat" : "/chat/dispatch");
     });
   });
 
@@ -7651,7 +7799,7 @@ async function _renderToday(session, main) {
       <div class="rr2-flex1">
         <div class="nt">No van assigned yet</div>
         <div class="nb">You'll see it here the moment dispatch assigns one. You can still check in.</div>
-        <div class="na"><button class="btn btn-sm" data-task-route="/chat">Message dispatch</button></div>
+        <div class="na"><button class="btn btn-sm" data-task-route="/chat/dispatch">Message dispatch</button></div>
       </div>
     </div>` : "";
 
@@ -7745,7 +7893,7 @@ async function _renderToday(session, main) {
           <span class="rbody"><span class="rtitle">Messages</span></span>
           <span class="rend"><span class="rchev"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span></span>
         </button>
-        <button class="rr2-row" type="button" data-task-route="/chat" data-rr2-issue>
+        <button class="rr2-row" type="button" data-task-route="/chat/dispatch" data-rr2-issue>
           <span class="ric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg></span>
           <span class="rbody"><span class="rtitle">Report an issue</span><span class="rmeta">Van defect, delay or incident — goes to dispatch</span></span>
           <span class="rend"><span class="rchev"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span></span>
@@ -10645,10 +10793,8 @@ function _stopCheckinCountdown() {
 function _startCheckinCountdown(targetMs) {
   _stopCheckinCountdown();
   const tick = () => {
-    // Redesign: the countdown lives inline in the sticky action bar's
-    // note (#rr2-count). The legacy #rr-checkin-countdown target is kept
-    // for one release in case a cached shell is still on screen.
-    const el = document.getElementById("rr2-count") || document.getElementById("rr-checkin-countdown");
+    // The countdown lives inline in the sticky action bar's note.
+    const el = document.getElementById("rr2-count");
     if (!el) { _stopCheckinCountdown(); return; }
     const txt = _countdownText(targetMs);
     if (!txt) {
@@ -10659,8 +10805,7 @@ function _startCheckinCountdown(targetMs) {
       _todayRepaint();
       return;
     }
-    const valueEl = el.querySelector?.(".opens-card-countdown-value");
-    (valueEl || el).textContent = txt;
+    el.textContent = txt;
   };
   tick();
   _checkinCountdownTimer = setInterval(tick, 30 * 1000);
@@ -10746,7 +10891,7 @@ async function doCheckin(session) {
   // Tap target is on the hero CTA in /profile or on the check-in card
   // on /profile — both share the same id wired in their respective
   // renderers.
-  const btn = document.getElementById("rr-checkin-btn") || document.getElementById("rr-hero-cta");
+  const btn = document.getElementById("rr-checkin-btn");
   if (!btn) return;
   if (!("geolocation" in navigator)) { toast("This device can't share location", "warn"); _haptic("warn"); return; }
   btn.disabled = true;

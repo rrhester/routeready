@@ -260,7 +260,11 @@
 // consequence-grouped Tasks, pinned ack strip in Messages, offline
 // strip + visible sync queues, More hub (Team + Settings contents).
 // Check-in/out, forms, checklists and chat RPC flows are UNCHANGED.
-const SHELL_CACHE = "rr-app-shell-v181";
+// v182 · Messages Inbox (approved mockup): /chat now lands on the Inbox
+// (pending acknowledgements, conversations, announcements); the Dispatch
+// thread moved to /chat/dispatch. Obsolete pre-redesign CSS/JS removed
+// (home hero, opens-card, missed-day card, hero CTA, date-block).
+const SHELL_CACHE = "rr-app-shell-v182";
 const SHELL_FILES = [
   "./",
   "index.html",
