@@ -275,6 +275,9 @@
 .rrnb-editor a:hover{border-bottom-color:var(--accent)}
 .rrnb-editor a.rrnb-pagelink,.rrnb-editor a.rrnb-objlink{background:var(--accent-soft);
   border-radius:var(--r-sm);padding:0 4px;border-bottom:0;font-weight:500}
+/* web links (auto-detected URLs + Ctrl/⌘-K links): read as clickable */
+.rrnb-editor a.rrnb-weblink{cursor:pointer;border-bottom:1px solid var(--accent-border)}
+.rrnb-editor a.rrnb-weblink:hover{border-bottom-color:var(--accent);text-decoration:underline;text-underline-offset:2px}
 /* ── TipTap (opt-in) editor surface ─────────────────────────────────── */
 .rrnb-editor.rrnb-tt{padding:0}
 .rrnb-tt .ProseMirror{outline:none;min-height:44vh;font-size:var(--fs-lg);line-height:1.6;color:var(--text)}
@@ -1787,6 +1790,13 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       }
       return; // inline (base64) chips download natively
     }
+    // Plain web link (http/mailto/tel) — contenteditable swallows navigation,
+    // so open it ourselves. Excludes the app's page/record/file chips.
+    var wl = e.target.closest("a[href]");
+    if (wl && e.type === "click" && !wl.matches(".rrnb-pagelink,.rrnb-objlink,.rrnb-file")) {
+      var wh = wl.getAttribute("href") || "";
+      if (/^(https?:|mailto:|tel:)/i.test(wh)) { e.preventDefault(); window.open(wh, "_blank", "noopener"); return; }
+    }
     var pl = e.target.closest("a.rrnb-pagelink");
     if (pl && (e.ctrlKey || e.metaKey || e.type === "click")) { var pid = pl.getAttribute("data-page-id"); if (pid) { e.preventDefault(); openPage(pid); } return; }
     var ol = e.target.closest("a.rrnb-objlink");
@@ -1974,6 +1984,11 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
         var f = items[i].getAsFile(); if (f) { e.preventDefault(); insertImageFile(f); return; }
       }
     }
+    // Let the browser drop the text in first, then linkify any pasted URL so a
+    // pasted "https://…" becomes clickable right away (not after a typing pause).
+    var txt = e.clipboardData && e.clipboardData.getData && e.clipboardData.getData("text/plain");
+    WEB_URL_RE.lastIndex = 0;
+    if (txt && WEB_URL_RE.test(txt)) setTimeout(function () { linkifyUrls(false); }, 0);
   }
   function onEditorDrop(e) {
     var ed = $id("rrnb-editor"); if (ed) ed.classList.remove("rrnb-drop");
@@ -2931,7 +2946,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       var u = $id("rrnb-lk-url").value.trim(); var txt = $id("rrnb-lk-text").value.trim() || u;
       if (!u) return; if (!/^[a-z]+:/i.test(u)) u = "https://" + u;
       $id("rrnb-editor").focus(); restoreSelection(range);
-      insertHTMLAtCursor('<a href="' + esc(u) + '" target="_blank" rel="noopener">' + esc(txt) + '</a>&nbsp;');
+      insertHTMLAtCursor('<a class="rrnb-weblink" href="' + esc(u) + '" target="_blank" rel="noopener noreferrer">' + esc(txt) + '</a>&nbsp;');
       hidePop(); scheduleSave();
     });
   }
@@ -3239,8 +3254,47 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     });
   }
   function smartLink(manual) { linkifyEditor(false, manual); }
-  // Auto-link ~1.4s after a pause in typing.
-  var autoLinkify = debounce(function () { if (S.pageId) linkifyEditor(true, false); }, 1400);
+
+  // ── web URLs → clickable links ────────────────────────────────────────
+  // Turn bare "https://…" / "www.…" text into real anchors (OneNote-style),
+  // skipping text already inside a link / code block (snapshotTextNodes does
+  // the skipping). caretAware leaves the URL you're mid-typing alone until the
+  // caret moves past it; paste calls it with caretAware=false so a pasted URL
+  // links immediately.
+  var WEB_URL_RE = /(?:https?:\/\/|www\.)[^\s<>]+[^\s<>.,;:!?'"”’)\]}]/gi;
+  function makeWebLink(url) {
+    var href = /^https?:\/\//i.test(url) ? url : "https://" + url;
+    var a = document.createElement("a");
+    a.className = "rrnb-weblink"; a.href = href; a.target = "_blank"; a.rel = "noopener noreferrer";
+    a.title = href + " — click to open";
+    a.textContent = url; return a;
+  }
+  function linkifyUrls(caretAware) {
+    var ed = $id("rrnb-editor"); if (!ed) return 0;
+    var caretAbs = caretOffsetIn(ed);
+    var nodes = snapshotTextNodes(ed);
+    var replaced = 0;
+    nodes.forEach(function (rec) {
+      var text = rec.text; if (!text || text.length < 5 || text.indexOf(".") < 0) return;
+      var out = document.createDocumentFragment(); var last = 0, m, hit = false; WEB_URL_RE.lastIndex = 0;
+      while ((m = WEB_URL_RE.exec(text))) {
+        var absEnd = rec.start + m.index + m[0].length;
+        if (caretAware && caretAbs >= 0 && absEnd >= caretAbs) break;  // don't touch the URL still under the caret
+        out.appendChild(document.createTextNode(text.slice(last, m.index)));
+        out.appendChild(makeWebLink(m[0])); last = m.index + m[0].length; replaced++; hit = true;
+      }
+      if (hit) { out.appendChild(document.createTextNode(text.slice(last))); rec.node.parentNode.replaceChild(out, rec.node); }
+    });
+    if (replaced) {
+      // wrapping preserves total text length, so the absolute caret offset still maps back
+      if (caretAbs >= 0) { try { ed.focus({ preventScroll: true }); } catch (e2) { ed.focus(); } setCaretAt(ed, caretAbs); }
+      scheduleSave();
+    }
+    return replaced;
+  }
+
+  // Auto-link ~1.4s after a pause in typing (URLs first, then entity chips).
+  var autoLinkify = debounce(function () { if (S.pageId) { linkifyUrls(true); linkifyEditor(true, false); } }, 1400);
 
   // ══════════════════════════════════════════════════════════════════
   //  SEARCH
