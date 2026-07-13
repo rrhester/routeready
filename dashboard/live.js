@@ -8594,6 +8594,10 @@ window.obSub = function (which) {
   // Calendar view tiles live permanently on the strip — keep their active
   // highlight in sync (cleared whenever we're not on the Calendar view).
   if (typeof _ivcalSyncStripView === "function") _ivcalSyncStripView(which === "calendar");
+  // Arriving at the Calendar replays its one-time arrive fade: clear the
+  // in-place tag so the unhide animation runs; the follow-up silent data
+  // refresh re-tags itself and stays invisible (see _ivcalLastPaintSig).
+  if (which === "calendar") document.getElementById("rr-ivcal-body")?.classList.remove("rr-oc-inplace");
   if (which === "overview") {
     // Clear any pills left behind by the Funnel sub-tab so the strip
     // collapses instead of showing stale funnel metrics.
@@ -25657,6 +25661,17 @@ let _ivcalRenderPending = false, _ivcalRenderedThisFrame = false;
 // One-shot: the next render re-runs the auto-scroll instead of restoring the
 // previous scrollTop. Set when real data replaces the first-paint stub shell.
 let _ivcalForceAutoScroll = false;
+// Signature of the last painted period (view + anchor day). The .oc-cal /
+// .oc-ev CSS arrive-animations (fade/slide) are keyed to DOM insertion, so
+// without a guard they replay on EVERY innerHTML swap — including the silent
+// data refreshes (focus refresh, 30s tick, Google overlay landing, realtime
+// pokes) and the stub-shell → real-data swap on first open. That whole-grid
+// fade replaying seconds after the calendar settled is the "glitch" the
+// operator sees on open / on returning. When a render repaints the SAME
+// period in place we tag the host `rr-oc-inplace`, which the CSS uses to
+// suppress the animations; real navigation (view or period change, tab
+// arrival) clears the tag so the intended one-time fade stays.
+let _ivcalLastPaintSig = null;
 function _ivcalRender() {
   if (_ivcalRenderedThisFrame) {
     if (!_ivcalRenderPending) {
@@ -25674,6 +25689,7 @@ function _ivcalRenderNow() {
   if (!host || !_ivcalCache) return;
   _rrHiddenLabelSet = _rrHiddenLabelColors();
   _ivcalCloseMenus();
+  const _hadOc = !!host.querySelector(".oc"); // grid already on screen → this is a repaint
   const _prevScroll = document.getElementById("rr-ivcal-scroll") ? document.getElementById("rr-ivcal-scroll").scrollTop : null;
   const seg = (v, t) => `<button class="${_ivcalView===v?"on":""}" data-ivcal-view="${v}">${t}</button>`;
   const flt = (k, label, cat) => `<label><input type="checkbox" data-ivcal-filter="${k}"${_ivcalFilters[k]?" checked":""}><span class="dot" style="background:${_IVCAL_CAT_COLOR[cat]}"></span>${label}</label>`;
@@ -25723,6 +25739,13 @@ function _ivcalRenderNow() {
       </div>
       ${pane}
     </div>`;
+
+  // Arrive-animation gate (see _ivcalLastPaintSig): a repaint of the same
+  // view + period over an existing grid is an in-place refresh — suppress the
+  // fade/slide so silent refreshes stay silent. Navigation clears the tag.
+  const _paintSig = `${_ivcalView}|${_ivcalISODate(_ivcalAnchor)}`;
+  host.classList.toggle("rr-oc-inplace", _hadOc && _paintSig === _ivcalLastPaintSig);
+  _ivcalLastPaintSig = _paintSig;
 
   // Operator: host the Create pill in the page header, to the LEFT of the
   // Work Week / Availability view controls, instead of the calendar sidebar.
