@@ -1992,6 +1992,27 @@ body.scan-camming{overflow:hidden}
 .doc-tag-neutral{color:var(--text-subtle);background:var(--canvas)}
 .docs-empty{padding:64px 24px;color:var(--text-subtle);text-align:center}
 .docs-empty strong{display:block;color:var(--text);margin-bottom:4px}
+/* Document-sign screen. The signature canvas + its pointer handlers stay
+   inline (behavior-critical: touch-action / DPR sizing); these classes
+   carry the surrounding presentational chrome only. */
+.docsign-page{padding:14px 16px 96px;display:flex;flex-direction:column;gap:14px}
+.docsign-title{font-size:var(--fs-lg);font-weight:700;color:var(--text)}
+.docsign-desc{margin-top:4px;color:var(--text-muted);font-size:var(--fs-sm)}
+.docsign-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-card);padding:14px 16px}
+.docsign-card-col{display:flex;flex-direction:column;gap:12px}
+.docsign-pdf{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-card);padding:14px 16px;color:var(--text);text-decoration:none;font-weight:600}
+.docsign-pdf-title{flex:1}
+.docsign-eyebrow{font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)}
+.docsign-consent{display:flex;align-items:flex-start;gap:10px;cursor:pointer}
+.docsign-consent input{margin-top:3px;width:18px;height:18px;accent-color:var(--accent);flex:0 0 auto}
+.docsign-consent span{font-size:var(--fs-sm);line-height:1.5;color:var(--text)}
+.docsign-field{display:flex;flex-direction:column;gap:4px}
+.docsign-field-cap{font-size:var(--fs-xs);color:var(--text-muted)}
+.docsign-siglabel{font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px}
+.docsign-actions{display:flex;gap:8px;justify-content:space-between;align-items:center}
+.docsign-status{padding:32px 20px;text-align:center}
+.docsign-status-title{font-size:var(--fs-lg);font-weight:700;color:var(--text);margin-bottom:6px}
+.docsign-status-sub{margin-top:14px;color:var(--text-subtle);font-size:var(--fs-sm)}
 
 /* ── Coaching feed (driver-side) ────────────────────────────── */
 .coaching-feed{display:flex;flex-direction:column;gap:12px}
