@@ -787,9 +787,20 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     setTimeout(outboxFlush, 400); // replay edits queued while offline / in a closed tab
     // RouteReady Meet hand-off — if notes are waiting in the inbox, import them
     // into the "Meeting Notes" notebook and open the page. Guarded so a second
-    // loadView() during the async import doesn't double-create.
+    // loadView() during the async import doesn't double-create. When signed in
+    // we must wait for the workspace (window.RR.dsp) to load first, otherwise
+    // sbClient() is null, the import lands in a throwaway LOCAL store, and the
+    // note never shows in the Supabase notebook. Retry briefly until ready.
     if (!S.meetImporting && readMeetInbox().length) {
+      if (meetSignedIn() && !(window.RR && window.RR.dsp && window.RR.dsp.id)) {
+        if (!S._meetWaiting && (S._meetWait = (S._meetWait || 0) + 1) < 60) {
+          S._meetWaiting = true;
+          setTimeout(function () { S._meetWaiting = false; loadView(opts); }, 150);
+        }
+        return; // come back once the workspace is ready
+      }
       S.meetImporting = true;
+      S.be = null; chooseBackend(); // re-derive the backend now that dsp is ready
       return importMeetInbox().then(function (dest) {
         S.meetImporting = false;
         return S.be.listNotebooks().then(function (list) {
@@ -3181,6 +3192,18 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   var MEET_INBOX_KEY = "rr-notebook-inbox";
   var MEET_PAGEMAP_KEY = "rr-notebook-meet-pages";
   var MEET_NB_NAME = "Meeting Notes";
+  // A Supabase session is persisted under a "sb-<ref>-auth-token" key. If one
+  // exists we're signed in and must import into the Supabase notebook (wait for
+  // window.RR.dsp); with no session, the local store is the right target.
+  function meetSignedIn() {
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (/^sb-.*-auth-token$/.test(k) && localStorage.getItem(k)) return true;
+      }
+    } catch (e) {}
+    return false;
+  }
   function readMeetInbox() { try { return JSON.parse(localStorage.getItem(MEET_INBOX_KEY) || "[]"); } catch (e) { return []; } }
   function clearMeetInbox() { try { localStorage.removeItem(MEET_INBOX_KEY); } catch (e) {} }
   function meetPageMap() { try { return JSON.parse(localStorage.getItem(MEET_PAGEMAP_KEY) || "{}"); } catch (e) { return {}; } }
