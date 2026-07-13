@@ -31911,6 +31911,18 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 #view-onboarding-ops[data-obsub="calendar"] .oc-bar-utils .oc-btn:hover{
   background:var(--rr-ctl-hover) !important; border-color:var(--rr-ctl-border-hover) !important;
 }
+/* Today button · "on today" active state, mirroring the Schedule page's
+   #rr-sched-week-today.is-on-today (blue text + blue outline) so it reads as
+   a live status when the current view already includes today. The button
+   already carries a 1px border, so recoloring it blue is the outline — no
+   extra shadow needed. Two selectors cover the toolbar docked in the ribbon
+   (.oc-bar-nav) and living inside #rr-ivcal (undocked); the important flags
+   are required only because those base rules set color/border the same way. */
+#view-onboarding-ops[data-obsub="calendar"] .oc-bar-nav .oc-btn[data-ivcal-nav="0"].is-on-today,
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-btn[data-ivcal-nav="0"].is-on-today{
+  color:var(--rr-blue-700) !important;
+  border-color:var(--rr-blue-600) !important;
+}
 #view-onboarding-ops[data-obsub="calendar"] .oc-bar-nav .oc-btn:active,
 #view-onboarding-ops[data-obsub="calendar"] .oc-bar-utils .oc-btn:active{
   background:rgba(15,23,42,.08) !important;
