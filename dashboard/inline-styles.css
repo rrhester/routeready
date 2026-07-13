@@ -7160,6 +7160,33 @@ body.rr-cmdk-open{ overflow:hidden }
 #rr-radio-hail .rr-rh-x{ flex:0 0 auto; border:0; background:none; color:var(--rr-white); cursor:pointer;
   font-size:var(--fs-lg); line-height:1; opacity:.85; padding:2px 4px; }
 
+/* ── Dispatch radio (embedded in the dashboard — no popup, no separate tab) ─ */
+#rr-radio-overlay{
+  position:fixed; inset:0; z-index:10000; display:flex; align-items:flex-end; justify-content:flex-end;
+  padding:16px; background:rgba(0,0,0,.28);
+}
+#rr-radio-overlay .rr-ro-card{
+  width:380px; max-width:calc(100vw - 32px); height:520px; max-height:calc(100vh - 32px);
+  display:flex; flex-direction:column; overflow:hidden;
+  background:var(--surface); border:1px solid var(--border); border-radius:16px;
+  box-shadow:0 24px 60px rgba(0,0,0,.45);
+}
+#rr-radio-overlay .rr-ro-head{
+  display:flex; align-items:center; gap:10px; padding:12px 14px;
+  background:var(--red); color:var(--rr-white); flex:0 0 auto;
+}
+#rr-radio-overlay .rr-ro-live{ display:flex; align-items:center; gap:8px; font-weight:700; font-size:var(--fs-sm); }
+#rr-radio-overlay .rr-ro-dot{ width:9px; height:9px; border-radius:50%; background:var(--rr-white);
+  animation:rrPulse 1s ease-in-out infinite; }
+#rr-radio-overlay .rr-ro-x{ margin-left:auto; border:0; background:none; color:var(--rr-white); cursor:pointer;
+  font-size:var(--fs-lg); line-height:1; opacity:.9; padding:2px 6px; }
+#rr-radio-overlay .rr-ro-x:hover{ opacity:1; }
+#rr-radio-overlay .rr-ro-frame{ flex:1 1 auto; width:100%; border:0; display:block; }
+@media (max-width:640px){
+  #rr-radio-overlay{ align-items:center; justify-content:center; }
+  #rr-radio-overlay .rr-ro-card{ width:100%; height:calc(100vh - 32px); }
+}
+
 /* ── Voice-note player (dispatcher) ─────────────────────────────────────── */
 .rr-vn{ display:flex;align-items:center;gap:9px;max-width:300px;margin-bottom:6px;
   background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:6px 11px 6px 7px }
