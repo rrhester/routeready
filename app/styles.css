@@ -510,11 +510,15 @@ select.field{
 .login-screen .brand-sub{font-size:var(--fs-md);color:var(--text-subtle);font-weight:400}
 .login-screen .form{margin-top:auto;padding-bottom:48px}
 .login-screen .field{font-size:18px;letter-spacing:.18em;text-align:center;text-transform:uppercase}
-.login-screen .help{
+/* Shared form error / helper text. Used by the login/activation screens
+   and the Settings › Sign-in PIN page — kept global (not scoped to
+   .login-screen) so the PIN page's error box + helper render styled
+   rather than as bare body text. */
+.help{
   text-align:center;font-size:var(--fs-sm);color:var(--text-subtle);
   margin-top:14px;line-height:1.5;
 }
-.login-screen .err{
+.err{
   background:var(--red-soft);color:var(--red-dark);
   font-size:var(--fs-md);padding:var(--s-2-5) var(--s-3-5);border-radius:var(--r-md);
   text-align:center;margin-bottom:12px;
@@ -556,41 +560,6 @@ select.field{
 .shift-card .date-day{font-size:25px;font-weight:700;line-height:1;letter-spacing:-.03em;margin-top:2px;color:var(--text);font-variant-numeric:tabular-nums}
 .shift-card.is-today .date-day{color:var(--accent)}
 .shift-card .date-month{font-size:10px;color:var(--text-subtle);margin-top:2px;text-transform:uppercase;letter-spacing:.08em;font-weight:600}
-.shift-card .meta-time-row{
-  display:flex;align-items:baseline;justify-content:flex-start;
-  gap:var(--s-3);flex-wrap:wrap;
-}
-.shift-card .meta-time{
-  display:grid;
-  grid-template-columns:max-content 1fr;
-  align-items:baseline;
-  gap:0 7px;
-  font-size:var(--fs-lg);font-weight:700;color:var(--text);
-  font-variant-numeric:tabular-nums;letter-spacing:-.012em;
-  line-height:1.2;
-}
-.shift-card .meta-time-lbl{
-  font-size:10px;font-weight:700;color:var(--text-subtle);
-  text-transform:uppercase;letter-spacing:.06em;
-  align-self:baseline;
-}
-.shift-card .meta-time-val{font-weight:600;color:var(--text)}
-.shift-card .meta-wave-line{
-  margin-top:2px;
-  display:grid;
-  grid-template-columns:max-content 1fr;
-  align-items:baseline;gap:0 6px;
-  font-size:var(--fs-sm);font-weight:500;color:var(--text-muted);
-  font-variant-numeric:tabular-nums;
-}
-.shift-card .meta-wave-line .meta-time-val{font-weight:600;color:var(--text)}
-/* Legacy wave tag kept for any other surface still using it. */
-.shift-card .meta-wave-tag{
-  font-size:11px;font-weight:600;color:var(--text-muted);
-  background:var(--canvas);padding:2px 8px;border-radius:var(--r-md);
-  white-space:nowrap;font-variant-numeric:tabular-nums;letter-spacing:.01em;
-}
-.shift-card .meta-station{font-size:var(--fs-sm);color:var(--text-muted);margin-top:2px;font-weight:600}
 /* Weather chip · one row, slightly muted, sits just below station /
    vehicle. Hidden until forecast data arrives (NWS only goes 7 days,
    so further-out shifts simply skip the chip). */
@@ -604,14 +573,6 @@ select.field{
 .shift-weather-icon{ font-size:15px;line-height:1 }
 .shift-weather-temp{ font-weight:700;color:var(--text);font-variant-numeric:tabular-nums }
 .shift-weather-text{ color:var(--text-subtle) }
-.shift-card .meta-tags{display:flex;gap:var(--s-1);margin-top:6px;flex-wrap:wrap}
-.shift-card .tag{
-  font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
-  padding:2px 6px;border-radius:999px;background:var(--canvas);
-  border:1px solid var(--border);color:var(--text-muted);
-}
-.shift-card .tag-status-confirmed{background:var(--green-soft);border-color:rgba(22,163,74,.22);color:var(--green-dark)}
-.shift-card .chev{color:var(--text-subtle)}
 
 /* ── Unified ShiftCard meta contract · labeled values ───────────────
    One layout language shared by the driver app's shift cards and the
@@ -1066,19 +1027,17 @@ body.scan-camming{overflow:hidden}
   border-radius:0 0 2px 2px;
 }
 
-/* ── Tab lens · retired ───────────────────────────────────────
-   The iOS-style "liquid-glass" sliding lens has been replaced
-   by the Fluent .tab.active::before top-accent rule above.
-   The JS in app.js still mounts a .tab-lens element on first
-   render; we keep the selector so it stays hidden rather than
-   layouting a stray invisible block. */
-.tab-lens, .tab-lens-inner{ display:none !important }
-.tab .badge{
-  position:absolute;top:6px;right:50%;transform:translateX(18px);
-  background:var(--red);color:var(--rr-white);
-  font-size:10px;font-weight:700;
-  padding:1px 5px;border-radius:999px;
-  min-width:14px;text-align:center;
+/* Unread / pending count badge on a bottom-tab icon (chat unread,
+   tasks pending). Painted by _setChatTabBadge / _paintTasksTabBadge.
+   Accent, never red — a count is informational, not urgent/destructive. */
+.tab-ic{ position:relative }
+.rr-tab-badge{
+  position:absolute;top:-4px;right:-8px;
+  min-width:16px;height:16px;padding:0 4px;
+  border-radius:8px;box-sizing:border-box;
+  background:var(--accent);color:var(--rr-white);
+  font-size:var(--fs-xs);font-weight:700;line-height:16px;
+  text-align:center;box-shadow:0 0 0 2px var(--bg);
 }
 
 /* ── Loader ─────────────────────────────────────────────────── */
@@ -2160,7 +2119,7 @@ body.scan-camming{overflow:hidden}
 .wt-card.wt-done{opacity:.6}
 .wt-card-main{flex:1;min-width:0}
 .wt-card-title{font-size:var(--fs-md);font-weight:600;color:var(--text);line-height:1.3}
-.wt-card-title.overdue{color:var(--red)}
+.wt-card-title.overdue{color:var(--amber-dark)}
 .wt-card-title.done{color:var(--text-subtle)}
 .wt-card-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:3px;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
 .wt-status{display:inline-flex;align-items:center;font-size:10px;font-weight:600;background:var(--canvas);color:var(--text-muted);border:1px solid var(--border);border-radius:999px;padding:1px 7px}
