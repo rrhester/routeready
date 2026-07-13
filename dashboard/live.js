@@ -42739,9 +42739,9 @@ function _rrCallOpenRoom(room, media, replace) {
   // cold-boot — no synchronous gesture for a popup). location resolves
   // "meet.html" against /dashboard/.
   if (replace) { try { location.href = url; return; } catch {} }
-  // FaceTime-style window sizes: voice calls get a small card, video
-  // calls a compact stage — both resizable, unlike a full meeting window.
-  rrOpenMeetWindow(url, media === "audio" ? { w: 460, h: 640 } : { w: 1020, h: 700 });
+  // Desktop calls open the traditional meeting-sized window (the
+  // FaceTime treatment is phone-only, operator request 2026-07-13).
+  rrOpenMeetWindow(url);
 }
 
 // base64url → Uint8Array (VAPID application server key).

@@ -72,14 +72,20 @@ const DEBUG = new URLSearchParams(location.search).has("debug");
 // crew (2–6) on an always-on channel — everything else in this file is
 // untouched, so normal video calls are unaffected. See docs.
 const PTT = new URLSearchParams(location.search).has("ptt");
-// ?call=1 · direct 1:1 call from RouteReady Messages (rrPlaceCall). While
-// exactly two people are in the room (and nobody is screen-sharing), the
-// room renders FaceTime-style: the other person fills the window, my own
-// camera rides along as a small draggable picture-in-picture tile, and the
-// header/controls float over the video and fade out while idle. A third
-// participant or a screen share falls back to the normal meeting layout.
-// The radio (?ptt=1) and embedded (?embed=1) surfaces never get this.
+// ?call=1 · direct 1:1 call from RouteReady Messages (rrPlaceCall). ON A
+// PHONE-SIZED VIEWPORT ONLY (operator request 2026-07-13 — desktop keeps
+// the traditional meeting view): while exactly two people are in the room
+// and nobody is screen-sharing, the room renders FaceTime-style — the
+// other person fills the window, my own camera rides along as a small
+// draggable picture-in-picture tile (tap it to trade places with the
+// stage), and the header floats over the video and fades out while idle.
+// A third participant or a screen share falls back to the normal meeting
+// layout. mqCallPhone is the SAME 760px breakpoint the call-mode CSS in
+// meet.html is scoped to — keep them in lockstep or layout and style
+// disagree. The radio (?ptt=1) and embedded (?embed=1) surfaces never
+// get any of this.
 const CALL = new URLSearchParams(location.search).has("call") && !PTT;
+const mqCallPhone = matchMedia("(max-width: 760px)");
 // ?dtok=<driver session token> · the driver PWA embeds Meet as an anonymous
 // guest (drivers aren't Supabase-authenticated), so it passes its opaque
 // session token here. It's used ONLY to mint the driver a TURN relay via the
@@ -1491,12 +1497,13 @@ function renderGrid() {
       ? state.activeSpeaker
       : (roster.find((r) => r.key !== state.peerKey) || roster[0]).key;
   }
-  // FaceTime layout (?call=1, exactly two in the room, nobody sharing):
-  // one tile owns the whole window, the other rides in the pip — normally
-  // them big / me small, flipped while state.ftSwapped (tap the pip to
-  // trade places, tap again to trade back). Pin/speaker semantics only
-  // resume with a third participant or a screen share.
-  const ft = CALL && !sharer && roster.length === 2;
+  // FaceTime layout (?call=1 on a phone-sized viewport, exactly two in
+  // the room, nobody sharing): one tile owns the whole window, the other
+  // rides in the pip — normally them big / me small, flipped while
+  // state.ftSwapped (tap the pip to trade places, tap again to trade
+  // back). Desktop call windows keep the traditional meeting layout.
+  // Pin/speaker semantics resume with a third participant or a share.
+  const ft = CALL && mqCallPhone.matches && !sharer && roster.length === 2;
   let pipKey = null;
   if (ft) {
     const remoteKey = (roster.find((r) => r.key !== state.peerKey) || roster[0]).key;
@@ -1655,6 +1662,7 @@ function chromeWake() {
   document.body.classList.remove("chrome-hidden");
   clearTimeout(_chromeTimer);
   _chromeTimer = setTimeout(() => {
+    if (!mqCallPhone.matches) return; // desktop chrome never fades
     if (document.body.dataset.screen !== "room") return;
     if (state.chatOpen) return;
     if (document.querySelector(".pop:not([hidden])")) return;
@@ -2527,6 +2535,14 @@ async function boot() {
     document.body.classList.add("call");
     wirePipDrag();
     wireCallChrome();
+    // Crossing the phone breakpoint (resize / rotate) re-evaluates the
+    // FaceTime layout and un-fades the chrome for the traditional view.
+    try {
+      mqCallPhone.addEventListener("change", () => {
+        document.body.classList.remove("chrome-hidden");
+        renderGrid();
+      });
+    } catch { /* older engines: layout settles on next render */ }
   }
   if (EMBED) {
     document.body.classList.add("embed");
