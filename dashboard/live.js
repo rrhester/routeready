@@ -24504,12 +24504,13 @@ const _IVCAL_H0 = 0, _IVCAL_H1 = 24; // full 24h, scrollable
 // bigger rows make a 30-min block visually larger. Persisted per browser.
 let _IVCAL_RH = (() => {
   const v = parseInt((typeof localStorage !== "undefined" && localStorage.getItem("rr_ivcal_rh")) || "", 10);
-  // Default 46px/hr (enterprise pass 2026-07-11 · denser rows fit the
-  // working day without scroll; zoom still adjusts 36–160).
-  return (v >= 36 && v <= 160) ? v : 46;
+  // Default 158px/hr (2026-07-13 · spacious rows: a 30-min block shows time +
+  // title + status badge without crowding, matching the operator's preferred
+  // starting view). Zoom still adjusts 36–240.
+  return (v >= 36 && v <= 240) ? v : 158;
 })();
 function _ivcalSetZoom(delta) {
-  const next = Math.max(36, Math.min(160, _IVCAL_RH + delta));
+  const next = Math.max(36, Math.min(240, _IVCAL_RH + delta));
   if (next === _IVCAL_RH) return;
   _IVCAL_RH = next;
   try { localStorage.setItem("rr_ivcal_rh", String(next)); } catch (_) {}
