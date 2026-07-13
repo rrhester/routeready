@@ -2014,6 +2014,19 @@ body.scan-camming{overflow:hidden}
 .docsign-status-title{font-size:var(--fs-lg);font-weight:700;color:var(--text);margin-bottom:6px}
 .docsign-status-sub{margin-top:14px;color:var(--text-subtle);font-size:var(--fs-sm)}
 
+/* Form I-9 — moved out of the runtime _i9InjectStyles injection. The
+   error-border rule no longer needs a specificity override: input.i9-err
+   out-specifies .field on its own. .i9-fld is the labeled field wrapper;
+   inputs use the shared .field control. Signature canvas + submit stay
+   inline (behavior-critical). */
+@keyframes i9-pulse{0%,100%{opacity:.5}50%{opacity:.85}}
+.i9-skel{background:var(--border);border-radius:var(--r-sm);animation:i9-pulse 1.3s ease-in-out infinite}
+.i9-card-check{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--green);flex:0 0 auto}
+.i9-err-msg{font-size:var(--fs-xs);color:var(--red);margin-top:4px}
+input.i9-err{border-color:var(--red)}
+.i9-fld{display:flex;flex-direction:column;gap:4px;min-width:0}
+.i9-fld-lbl{font-size:var(--fs-xs);color:var(--text-muted)}
+
 /* ── Coaching feed (driver-side) ────────────────────────────── */
 .coaching-feed{display:flex;flex-direction:column;gap:12px}
 .coaching-row{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-card);padding:14px 16px;cursor:pointer;display:flex;flex-direction:column;gap:var(--s-2);box-shadow:var(--shadow-card)}

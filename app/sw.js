@@ -245,7 +245,14 @@
 // .docsign-* classes. The signature <canvas> + its pointer/DPR/touch-action
 // handlers and the submit logic are UNCHANGED (behavior-critical, untested by
 // CI). Bumped so installed driver PWAs pick up the new app.js + CSS.
-const SHELL_CACHE = "rr-app-shell-v178";
+// v179 · Form I-9 polish (Pass 2c): every I-9 input adopts the shared .field
+// control (fixes ~40px hand-rolled inputs → 48px + focus ring), the citizenship
+// and work-auth-doc radio sets gain role="radiogroup", and the runtime
+// _i9InjectStyles injection (incl. an !important) moves into styles.css as .i9-*
+// classes (dropping the !important). The signature <canvas> + submit path are
+// UNCHANGED (behavior-critical, no CI). Bumped so installed driver PWAs pick up
+// the new app.js + CSS.
+const SHELL_CACHE = "rr-app-shell-v179";
 const SHELL_FILES = [
   "./",
   "index.html",

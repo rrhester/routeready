@@ -8426,7 +8426,6 @@ function _obSetupRealtime(driverId) {
 async function renderOnboarding(opts) {
   const silent = !!(opts && opts.silent);
   const main = document.getElementById("main");
-  if (typeof _i9InjectStyles === "function") _i9InjectStyles();   // shares the .i9-skel pulse
   if (!silent) { main.innerHTML = _obSkeleton(); _obLastSig = null; }
   const session = readSession();
   if (!session?.token) { writeSession(null); render(); return; }
@@ -12045,29 +12044,15 @@ function _i9MountSignaturePad(canvasId, clearId, hintId) {
 }
 
 const _i9Fld = (id, label, opts = {}) => `
-  <label style="display:flex;flex-direction:column;gap:4px;${opts.flex ? `flex:${opts.flex};` : ""}min-width:0">
-    <span style="font-size:var(--fs-xs);color:var(--text-muted)">${escapeHtml(label)}${opts.req ? ' <span style="color:var(--red)">*</span>' : ""}</span>
-    <input type="${opts.type || "text"}" id="${id}" ${opts.attrs || ""} value="${escapeHtml(opts.value || "")}"
-      style="padding:10px 12px;border:1px solid var(--border);border-radius:8px;font:inherit;background:var(--canvas)">
+  <label class="i9-fld"${opts.flex ? ` style="flex:${opts.flex}"` : ""}>
+    <span class="i9-fld-lbl">${escapeHtml(label)}${opts.req ? ' <span style="color:var(--red)">*</span>' : ""}</span>
+    <input type="${opts.type || "text"}" id="${id}" class="field" ${opts.attrs || ""} value="${escapeHtml(opts.value || "")}">
   </label>`;
 
 // Small inline check icon for completed sections.
 const _I9_CHECK_SVG = `<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
 
 // One-time inline styles: skeleton pulse, section check chip, field error.
-function _i9InjectStyles() {
-  if (document.getElementById("i9-inline-styles")) return;
-  const st = document.createElement("style");
-  st.id = "i9-inline-styles";
-  st.textContent =
-    "@keyframes i9-pulse{0%,100%{opacity:.5}50%{opacity:.85}}" +
-    ".i9-skel{background:var(--border);border-radius:8px;animation:i9-pulse 1.3s ease-in-out infinite}" +
-    ".i9-card-check{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--green);flex:0 0 auto}" +
-    ".i9-err-msg{font-size:var(--fs-xs);color:var(--red);margin-top:4px}" +
-    "input.i9-err{border-color:var(--red) !important}";
-  document.head.appendChild(st);
-}
-
 function _i9SkeletonHtml() {
   const card = (lines) => `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:12px"><div class="i9-skel" style="height:11px;width:38%"></div>${Array.from({ length: lines }).map(() => `<div class="i9-skel" style="height:38px;width:100%"></div>`).join("")}</div>`;
   return `<div style="display:flex;flex-direction:column;gap:16px">
@@ -12121,7 +12106,6 @@ const _I9_SECTIONS = [
 
 async function renderI9Section1() {
   const main = document.getElementById("main");
-  _i9InjectStyles();
   main.innerHTML = _i9SkeletonHtml();
   const session = readSession();
   if (!session?.token) { writeSession(null); render(); return; }
@@ -12208,11 +12192,13 @@ async function renderI9Section1() {
       ${cardOpen("status")}
         ${head("status", "Citizenship / immigration status", true)}
         <div style="font-size:var(--fs-xs);color:var(--text-subtle)">Select the one option that applies to you.</div>
+        <div role="radiogroup" aria-label="Citizenship or immigration status">
         ${_I9_CITIZEN_OPTIONS.map((o, i) => `
           <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:8px 0;border-bottom:${i < 3 ? "1px solid var(--border)" : "none"}">
             <input type="radio" name="i9-cs" value="${o.v}" ${cs === o.v ? "checked" : ""} style="margin-top:2px;width:18px;height:18px;accent-color:var(--accent);flex:0 0 auto">
             <span style="font-size:var(--fs-sm);line-height:1.45;color:var(--text)">${i + 1}. ${escapeHtml(o.label)}</span>
           </label>`).join("")}
+        </div>
 
         <div id="i9-lpr-box" style="display:${cs === "lpr" ? "block" : "none"};margin-top:6px">
           ${_i9Fld("i9-lpr-num", "USCIS / Alien Registration Number (A-Number)", { req: true, attrs: 'placeholder="A-000000000"', value: v("lpr_uscis_number") })}
@@ -12221,9 +12207,11 @@ async function renderI9Section1() {
         <div id="i9-auth-box" style="display:${cs === "authorized" ? "flex" : "none"};margin-top:6px;flex-direction:column;gap:10px">
           ${_i9Fld("i9-auth-exp", "Work authorization expires on (enter N/A if it doesn't)", { attrs: 'placeholder="MM/DD/YYYY or N/A"', value: v("auth_expires") })}
           <div style="font-size:var(--fs-xs);color:var(--text-muted)">Provide one of the following document numbers:</div>
+          <div role="radiogroup" aria-label="Work authorization document type" style="display:flex;flex-direction:column;gap:10px">
           <label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--text);cursor:pointer"><input type="radio" name="i9-authkind" value="uscis" ${(s1.auth_doc_kind || "uscis") === "uscis" ? "checked" : ""} style="accent-color:var(--accent)"> USCIS / A-Number</label>
           <label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--text);cursor:pointer"><input type="radio" name="i9-authkind" value="i94" ${s1.auth_doc_kind === "i94" ? "checked" : ""} style="accent-color:var(--accent)"> Form I-94 Admission Number</label>
           <label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--text);cursor:pointer"><input type="radio" name="i9-authkind" value="passport" ${s1.auth_doc_kind === "passport" ? "checked" : ""} style="accent-color:var(--accent)"> Foreign passport number</label>
+          </div>
           ${_i9Fld("i9-auth-num", "Document number", { req: true, value: v("auth_doc_number") })}
           <div id="i9-auth-country-box" style="display:${s1.auth_doc_kind === "passport" ? "block" : "none"}">
             ${_i9Fld("i9-auth-country", "Country of issuance", { req: true, value: v("auth_passport_country") })}
