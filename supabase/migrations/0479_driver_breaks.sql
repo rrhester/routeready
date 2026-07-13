@@ -87,6 +87,12 @@ begin
   if v_chk.break_ended_at is not null then
     raise exception 'break_already_ended';
   end if;
+  -- Attendance data is frozen once the shift is over — a completed
+  -- shift's open break is closed by driver_checkout below, never by a
+  -- late client call (Codex review on #3847).
+  if v_chk.checked_out_at is not null then
+    raise exception 'already_checked_out';
+  end if;
 
   update public.driver_checkins
      set break_ended_at = now()
@@ -96,6 +102,51 @@ begin
 end;
 $$;
 grant execute on function public.driver_break_end(text) to anon, authenticated;
+
+-- ── driver_checkout · auto-close an open break ──────────────────────
+-- Body = 0066 plus one rule: checking out while on break stamps
+-- break_ended_at with the same moment. Without this, a driver who
+-- taps Check out mid-break strands break_started_at with no end and
+-- no in-app way to fix it (Codex review on #3847).
+create or replace function public.driver_checkout(
+  p_token    text,
+  p_lat      numeric default null,
+  p_lng      numeric default null
+)
+returns jsonb
+language plpgsql security definer set search_path = ''
+as $$
+declare
+  v_drv  public.drivers;
+  v_chk  public.driver_checkins;
+  v_today date := current_date;
+begin
+  v_drv := private.driver_validate_token(p_token);
+  select c.* into v_chk from public.driver_checkins c
+    join public.shifts s on s.id = c.shift_id
+   where c.driver_id = v_drv.id and s.date = v_today
+     and c.checked_in_at is not null
+   order by c.checked_in_at desc nulls last limit 1;
+  if v_chk.id is null then
+    raise exception 'not_checked_in' using errcode = 'P0001';
+  end if;
+  if v_chk.checked_out_at is not null then
+    return jsonb_build_object('already_checked_out', true,
+      'checked_out_at', to_jsonb(v_chk.checked_out_at));
+  end if;
+  update public.driver_checkins
+     set checked_out_at = now(), checkout_lat = p_lat, checkout_lng = p_lng,
+         break_ended_at = coalesce(break_ended_at,
+           case when break_started_at is not null then now() end)
+   where id = v_chk.id
+   returning * into v_chk;
+  return jsonb_build_object(
+    'already_checked_out', false,
+    'checked_out_at',       to_jsonb(v_chk.checked_out_at)
+  );
+end;
+$$;
+grant execute on function public.driver_checkout(text, numeric, numeric) to anon, authenticated;
 
 -- ── driver_checkin_status · breaks + restored wave fields ───────────
 -- Body = 0477 (geofence geometry, window close) + 0103's wave lookup

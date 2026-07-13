@@ -8063,7 +8063,8 @@ async function _renderToday(session, main) {
     el.addEventListener("click", () => navigate(el.dataset.taskRoute));
   });
   document.getElementById("rr-checkin-btn")?.addEventListener("click", () => doCheckin(session));
-  document.getElementById("rr-checkout-btn")?.addEventListener("click", () => doCheckout(session));
+  document.getElementById("rr-checkout-btn")?.addEventListener("click", () =>
+    doCheckout(session, { onBreak: !!(chk?.break_started_at && !chk?.break_ended_at) }));
   document.getElementById("rr-undo-checkout")?.addEventListener("click", () => doUndoCheckout(session));
   document.getElementById("rr-missed-btn")?.addEventListener("click", () => doMissedDay(session));
   document.getElementById("rr2-break-start")?.addEventListener("click", () => doBreak(session, "start"));
@@ -11024,10 +11025,12 @@ async function doCheckin(session) {
   }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
 }
 
-async function doCheckout(session) {
+async function doCheckout(session, { onBreak = false } = {}) {
   const ok = await confirmSheet({
     title: "Check out?",
-    message: "This ends your shift in RouteReady. You can undo within a few minutes.",
+    message: onBreak
+      ? "This ends your break and your shift in RouteReady. You can undo within a few minutes."
+      : "This ends your shift in RouteReady. You can undo within a few minutes.",
     confirmText: "Check out",
   });
   if (!ok) return;
