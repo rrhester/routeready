@@ -217,7 +217,8 @@
 //   2026-07-13.25 · Workbook Macros hardened — macro code now runs inside a Web Worker sandbox with no DOM, no session token, and network APIs (fetch/XHR/WebSocket/…) deleted, so a macro physically can't exfiltrate data outside the org; the worker's only channel is a brokered postMessage bridge to the curated `workbook` API, and runaway loops are killed by worker.terminate() on a 10s timeout. The main module no longer evals anything. Cost: `workbook` calls are now async (`await`). Example + API reference updated. workbook.js.
 //   2026-07-13.26 · Macros promoted to the workbook toolbar — a labeled "Macros" button now sits on the main toolbar (next to People) instead of being buried in Tools ▸ Macros…, so it's one click. Same openMacrosPanel; Tools menu entry kept too. workbook.js + inline-styles.css.
 //   2026-07-13.27 · Messages saved-bookmark polish (operator feedback): the per-message Save-for-later button no longer sits on top of the bubble text — it floats as a bordered chip just above the bubble's top-left edge (clear of the top-right edit/delete cluster) and lifts in on hover so it reads clearly as a button; a saved message keeps the chip visible in amber. inline-styles.css.
-const SW_DEPLOY_NONCE = "2026-07-13.27";
+//   2026-07-13.28 · Workbook Macros can read live org data — new READ-ONLY, async macro API: await workbook.getDrivers()/getVehicles()/getSchedule({from,to})/getTimeOff()/getDsp() and a generic workbook.orgData(table,{eq,limit}). Runs on the main thread via the user's RLS-scoped Supabase session (this DSP only; server refuses other orgs), brokered into the sandbox — the worker still has no network, so data can't be exfiltrated. No DB writes (macro writes stay in the sheet). Macro timeout raised 10s→30s (worker thread, UI stays responsive). workbook.js.
+const SW_DEPLOY_NONCE = "2026-07-13.28";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without

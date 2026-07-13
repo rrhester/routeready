@@ -13522,6 +13522,9 @@ var workbook = {
   getActiveSheetName: mk('getActiveSheetName'), getSheetNames: mk('getSheetNames'),
   getActiveCell: mk('getActiveCell'), getSelection: mk('getSelection'), sheetInfo: mk('sheetInfo'),
   sheet: mk('sheet'), log: mk('log'), toast: mk('toast'), alert: mk('alert'),
+  // org data (read-only) — this DSP only, no writes
+  getDrivers: mk('getDrivers'), getVehicles: mk('getVehicles'), getSchedule: mk('getSchedule'),
+  getTimeOff: mk('getTimeOff'), getDsp: mk('getDsp'), orgData: mk('orgData'),
 };
 var consoleShim = { log: mk('log'), info: mk('log'), warn: mk('log'), error: mk('log'), table: mk('log') };
 function safe(v) { if (v === undefined) return undefined; try { return JSON.parse(JSON.stringify(v)); } catch (e) { return String(v); } }
@@ -13543,12 +13546,71 @@ self.onmessage = function (e) {
 // Main-thread macro runner. Spins up the sandbox worker, brokers each API call
 // to the curated `workbook` API (buildMacroApi), and enforces a wall-clock
 // timeout + call cap. Returns a Promise resolving to the macro's return value.
+// ── Org data (READ-ONLY) exposed to macros ──────────────────────────────────
+// These run on the MAIN thread through the user's RLS-scoped Supabase session,
+// so a macro can only ever read THIS DSP's data (the server refuses another
+// org's rows regardless of the query), and the worker still has no network so
+// nothing read here can be sent out. Read-only by design — no writes to the
+// operational database; macro writes stay scoped to the sheet.
+function macroSb_() { const s = _sb(); if (!s) throw new Error("Not signed in — org data is unavailable."); return s; }
+function macroDsp_() { const d = _dsp(); if (!d || !d.id) throw new Error("No DSP context is loaded."); return d; }
+function macroRows_(res) { if (res.error) throw new Error(res.error.message || String(res.error)); return res.data || []; }
+function macroIso_(d) { const x = new Date(d); return isNaN(x) ? null : x.toISOString().slice(0, 10); }
+const MACRO_ROW_CAP = 5000;
+
+async function macroGetDrivers_(opts) {
+  opts = opts || {};
+  let q = macroSb_().from("drivers").select("*").eq("dsp_id", macroDsp_().id);
+  if (opts.status) q = Array.isArray(opts.status) ? q.in("status", opts.status) : q.eq("status", String(opts.status));
+  return macroRows_(await q.order("full_name").limit(Math.min(Number(opts.limit) || MACRO_ROW_CAP, MACRO_ROW_CAP)));
+}
+async function macroGetVehicles_() {
+  return macroRows_(await macroSb_().from("vehicles").select("*").eq("dsp_id", macroDsp_().id).is("archived_at", null).order("name").limit(MACRO_ROW_CAP));
+}
+async function macroGetSchedule_(opts) {
+  opts = opts || {};
+  const today = new Date();
+  const from = opts.from ? macroIso_(opts.from) : macroIso_(today);
+  const toDef = new Date(today); toDef.setDate(toDef.getDate() + 13);
+  const to = opts.to ? macroIso_(opts.to) : macroIso_(toDef);
+  let q = macroSb_().from("shifts").select("*").eq("dsp_id", macroDsp_().id);
+  if (from) q = q.gte("date", from);
+  if (to) q = q.lte("date", to);
+  return macroRows_(await q.order("date").order("route_code").limit(Math.min(Number(opts.limit) || MACRO_ROW_CAP, 10000)));
+}
+async function macroGetTimeOff_() {
+  return macroRows_(await macroSb_().from("time_off_requests").select("*").eq("dsp_id", macroDsp_().id).order("start_date").limit(MACRO_ROW_CAP));
+}
+function macroGetDsp_() {
+  const d = macroDsp_();
+  return { id: d.id, name: d.name, short_code: d.short_code, timezone: d.timezone, metadata: d.metadata || {} };
+}
+// Generic read for "and more": any table the user's RLS lets them see. Scoped
+// to the DSP by default (pass {scope:false} for a table without dsp_id). Still
+// read-only and still exfiltration-proof (worker has no network).
+async function macroOrgData_(table, opts) {
+  opts = opts || {};
+  if (!table || typeof table !== "string") throw new Error("orgData(table, opts): a table name is required.");
+  let q = macroSb_().from(table).select(typeof opts.select === "string" ? opts.select : "*");
+  if (opts.scope !== false) q = q.eq("dsp_id", macroDsp_().id);
+  if (opts.eq && typeof opts.eq === "object") for (const k of Object.keys(opts.eq)) q = q.eq(k, opts.eq[k]);
+  if (opts.order) q = q.order(String(opts.order), { ascending: opts.ascending !== false });
+  return macroRows_(await q.limit(Math.min(Number(opts.limit) || 2000, MACRO_ROW_CAP)));
+}
+
 function runMacroSandboxed(code, g, logFn) {
   return new Promise(function (resolve, reject) {
     if (typeof Worker === "undefined") { reject(new Error("Macros need a browser that supports Web Workers.")); return; }
     const api = buildMacroApi(g, logFn);
     const dispatch = (method, args) => {
       switch (method) {
+        // ── org data (read-only, async) ──
+        case "getDrivers": return macroGetDrivers_(args[0]);
+        case "getVehicles": return macroGetVehicles_();
+        case "getSchedule": return macroGetSchedule_(args[0]);
+        case "getTimeOff": return macroGetTimeOff_();
+        case "getDsp": return macroGetDsp_();
+        case "orgData": return macroOrgData_(args[0], args[1]);
         case "getValue": return api.getValue(args[0]);
         case "getNumber": return api.getNumber(args[0]);
         case "getFormula": return api.getFormula(args[0]);
@@ -13578,15 +13640,23 @@ function runMacroSandboxed(code, g, logFn) {
     const worker = new Worker(url);
     let calls = 0, done = false;
     const finish = (fn2) => { if (done) return; done = true; try { worker.terminate(); } catch (e) {} URL.revokeObjectURL(url); clearTimeout(timer); fn2(); };
-    const timer = setTimeout(() => finish(() => reject(new Error("Macro timed out after 10s (possible infinite loop) — stopped."))), 10000);
+    // 30s wall-clock: org-data calls are real round-trips, and a runaway loop
+    // only burns a background thread (the UI stays responsive), so this is a
+    // reclaim backstop, not a UI guard.
+    const timer = setTimeout(() => finish(() => reject(new Error("Macro timed out after 30s — stopped."))), 30000);
     worker.onmessage = (e) => {
       const m = e.data;
       if (m && m.__call) {
+        if (done) return;
         if (++calls > 100000) { finish(() => reject(new Error("Macro made too many API calls — stopped."))); return; }
-        let result = undefined, error = null;
-        try { result = dispatch(m.method, m.args || []); } catch (err) { error = err && err.message ? err.message : String(err); }
-        try { worker.postMessage({ __resp: true, id: m.id, result: error ? undefined : result, error }); }
-        catch (_) { worker.postMessage({ __resp: true, id: m.id, error: "Return value from " + m.method + " isn't serializable." }); }
+        // dispatch may return a value OR a promise (org-data reads) — await both.
+        Promise.resolve().then(() => dispatch(m.method, m.args || []))
+          .then((result) => {
+            if (done) return;
+            try { worker.postMessage({ __resp: true, id: m.id, result }); }
+            catch (_) { worker.postMessage({ __resp: true, id: m.id, error: "The result of " + m.method + " can't be passed back (not serializable)." }); }
+          })
+          .catch((err) => { if (!done) worker.postMessage({ __resp: true, id: m.id, error: err && err.message ? err.message : String(err) }); });
         return;
       }
       if (m && m.__done) finish(() => m.error ? reject(new Error(m.error)) : resolve(m.hasResult ? m.result : undefined));
@@ -13626,7 +13696,9 @@ function openMacrosPanel(g) {
               workbook.getRange("A2:C9").getValues() / .setValue(v) / .setValues([[…]]) / .clear()<br>
               workbook.setValues("A2", [[1,2],[3,4]]) · clear("A1:C9")<br>
               workbook.getSelection() · getActiveCell() · getActiveSheetName() · getSheetNames()<br>
-              workbook.log(…) · toast(msg[, "success"|"warn"|"info"])
+              workbook.log(…) · toast(msg[, "success"|"warn"|"info"])<br>
+              <b>Live org data (read-only):</b> await workbook.getDrivers() · getVehicles() · getSchedule({from,to}) · getTimeOff() · getDsp()<br>
+              workbook.orgData("table", {eq:{col:val}, limit}) — any of your org's data
             </div>
           </details>
           <div class="wb-field-label" style="margin-top:10px">Output</div>
