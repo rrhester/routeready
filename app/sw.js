@@ -252,7 +252,7 @@
 // classes (dropping the !important). The signature <canvas> + submit path are
 // UNCHANGED (behavior-critical, no CI). Bumped so installed driver PWAs pick up
 // the new app.js + CSS.
-const SHELL_CACHE = "rr-app-shell-v179";
+const SHELL_CACHE = "rr-app-shell-v180";
 const SHELL_FILES = [
   "./",
   "index.html",
