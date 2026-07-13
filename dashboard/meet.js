@@ -140,6 +140,9 @@ const state = {
   left: false,
   // zoom-quality pass
   view: "gallery",     // "gallery" | "speaker"
+  hideSelf: false,     // View menu · drop my own tile from the grid
+  hideNonVideo: false, // View menu · drop camera-off tiles (audio-only)
+  hideTimers: false,   // View menu · hide the call-duration timer
   pipCorner: "br",     // FaceTime pip corner (?call=1): tl | tr | bl | br
   ftSwapped: false,    // FaceTime swap (?call=1): true = I hold the stage, they ride in the pip
   pinnedKey: null,
@@ -1511,6 +1514,23 @@ function renderGrid() {
     pipKey   = state.ftSwapped ? remoteKey : state.peerKey;
   }
   grid.classList.toggle("ft", ft);
+
+  // View-menu visibility filters (desktop meeting only — never in the
+  // FaceTime pip layout, which needs both tiles). "Hide self view" drops my
+  // own tile; "Hide non-video participants" drops camera-off tiles. The
+  // stage tile is always kept (an audio-only active speaker still shows),
+  // and we never blank the grid.
+  const camOnFor = (e) => e.key === state.peerKey
+    ? (state.sharing || (state.cam && !!state.camTrack))
+    : (e.cam || e.screen);
+  let visible = roster;
+  if (!ft && state.hideSelf && roster.length > 1)
+    visible = visible.filter((r) => r.key !== state.peerKey || r.key === stageKey);
+  if (!ft && state.hideNonVideo)
+    visible = visible.filter((r) => r.key === stageKey || camOnFor(r));
+  if (!visible.length) visible = roster;
+  const visKeys = new Set(visible.map((r) => r.key));
+
   if (CALL) {
     // The window is a call, not a meeting: title it after the far end,
     // like FaceTime (falls back to the room title while they connect).
@@ -1523,14 +1543,14 @@ function renderGrid() {
   grid.classList.toggle("has-stage", !!stageKey);
 
   for (const [key, tile] of tiles) {
-    if (!nowKeys.has(key)) { tile.remove(); tiles.delete(key); }
+    if (!visKeys.has(key)) { tile.remove(); tiles.delete(key); }
   }
 
-  const { cols, rows } = gridDims(stageKey ? Math.max(1, roster.length - 1) : roster.length);
+  const { cols, rows } = gridDims(stageKey ? Math.max(1, visible.length - 1) : visible.length);
   grid.style.setProperty("--cols", cols);
   grid.style.setProperty("--rows", rows);
 
-  for (const entry of roster) {
+  for (const entry of visible) {
     const tile = tileFor(entry);
     const me = entry.key === state.peerKey;
     const video = tile.querySelector("video");
@@ -1571,10 +1591,10 @@ function renderGrid() {
 
   // Keep DOM order = roster order (stage tile first) so CSS lays out
   // deterministically on every client.
-  const stagedEntry = roster.find((r) => r.key === stageKey);
+  const stagedEntry = visible.find((r) => r.key === stageKey);
   const ordered = stagedEntry
-    ? [stagedEntry, ...roster.filter((r) => r.key !== stageKey)]
-    : roster;
+    ? [stagedEntry, ...visible.filter((r) => r.key !== stageKey)]
+    : visible;
   for (const entry of ordered) {
     const tile = tiles.get(entry.key);
     if (tile) grid.appendChild(tile);
@@ -1582,8 +1602,6 @@ function renderGrid() {
 
   $("people-count").textContent = String(roster.length);
   $("embed-count").textContent = String(roster.length);
-  const viewBtn = $("btn-view");
-  if (viewBtn) viewBtn.classList.toggle("on", state.view === "speaker");
   const recOn = roster.some((r) => r.rec);
   const pill = $("rec-pill");
   if (pill) pill.style.display = recOn ? "" : "none";
@@ -1658,12 +1676,14 @@ function wirePipDrag() {
 // on, so the WCO drag region in the header keeps working while invisible;
 // by the time you aim for a button, the move has already woken the chrome).
 let _chromeTimer = 0;
+let _overChrome = false; // pointer is resting on the header / control bar
 function chromeWake() {
   document.body.classList.remove("chrome-hidden");
   clearTimeout(_chromeTimer);
   _chromeTimer = setTimeout(() => {
-    if (!mqCallPhone.matches) return; // desktop chrome never fades
     if (document.body.dataset.screen !== "room") return;
+    if (EMBED) return;               // embedded room: the dashboard owns chrome
+    if (_overChrome) return;         // don't fade out from under the cursor
     if (state.chatOpen) return;
     if (document.querySelector(".pop:not([hidden])")) return;
     const wb = $("wait-banner");
@@ -1674,7 +1694,73 @@ function chromeWake() {
 function wireCallChrome() {
   ["pointermove", "pointerdown", "keydown", "touchstart"].forEach((ev) =>
     document.addEventListener(ev, chromeWake, { passive: true }));
+  // Keep chrome up while the pointer hovers it (a still cursor fires no
+  // pointermove, so without this the bar could fade with the mouse on it).
+  document.querySelectorAll(".room-head, .room-ctrls").forEach((el) => {
+    el.addEventListener("mouseenter", () => { _overChrome = true; chromeWake(); });
+    el.addEventListener("mouseleave", () => { _overChrome = false; chromeWake(); });
+  });
   chromeWake();
+}
+
+// ─── ui · View dropdown (layout + visibility) ─────────────────────────────
+
+// Mark the active layout + toggles and keep the Fullscreen label in sync.
+function syncViewMenu() {
+  document.querySelectorAll("#view-menu .vm-item").forEach((el) => {
+    let on = false;
+    if (el.dataset.view) on = state.view === el.dataset.view;
+    else if (el.dataset.toggle) on = !!state[el.dataset.toggle];
+    else if (el.dataset.action === "fullscreen") on = !!document.fullscreenElement;
+    el.classList.toggle("on", on);
+  });
+  const fsl = $("vm-fs-label");
+  if (fsl) fsl.textContent = document.fullscreenElement ? "Exit fullscreen" : "Fullscreen";
+}
+
+// Anchor the (position:fixed) menu to the View button — drops below it in the
+// header, flips above when the button sits low (embed mode moves it into the
+// control bar), and clamps to the viewport.
+function positionViewMenu() {
+  const menu = $("view-menu"), btn = $("btn-view");
+  if (!menu || !btn) return;
+  const r = btn.getBoundingClientRect();
+  const prevVis = menu.style.visibility, wasHidden = menu.hidden;
+  menu.style.visibility = "hidden";
+  menu.hidden = false;
+  const mh = menu.offsetHeight, mw = menu.offsetWidth;
+  menu.hidden = wasHidden;
+  menu.style.visibility = prevVis;
+  const openUp = r.bottom + 8 + mh > window.innerHeight - 8;
+  let top = openUp ? r.top - 8 - mh : r.bottom + 8;
+  let left = r.left;
+  if (left + mw > window.innerWidth - 8) left = window.innerWidth - 8 - mw;
+  menu.style.top = Math.max(8, top) + "px";
+  menu.style.left = Math.max(8, left) + "px";
+}
+
+function toggleViewMenu(force) {
+  const menu = $("view-menu"), btn = $("btn-view");
+  if (!menu) return;
+  const open = force === undefined ? menu.hidden : force;
+  if (open) { positionViewMenu(); syncViewMenu(); menu.hidden = false; }
+  else menu.hidden = true;
+  if (btn) btn.setAttribute("aria-expanded", open ? "true" : "false");
+}
+
+function toggleFullscreen() {
+  try {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else (document.documentElement.requestFullscreen || (() => {})).call(document.documentElement);
+  } catch (_) { /* fullscreen blocked (permissions policy / iframe) */ }
+}
+
+// Open the operator's Notebook (dashboard SPA, #notebooks deep-link) in a new
+// tab so a host can take/keep notes alongside the meeting. Host-only — guests
+// never see the button (it stays display:none until startInCall unhides it).
+function openNotebook() {
+  try { window.open("/dashboard/index.html#notebooks", "_blank", "noopener"); }
+  catch (_) { location.href = "/dashboard/index.html#notebooks"; }
 }
 
 // ─── ui · controls ────────────────────────────────────────────────────────
@@ -1971,6 +2057,7 @@ function startInCall() {
   }, 1000);
   $("btn-end").style.display = state.isHost ? "" : "none";
   $("btn-record").style.display = state.isHost ? "" : "none";
+  $("btn-notes").style.display = state.isHost ? "" : "none";
   getAudioCtx();      // resume within the Join-click gesture
   sound("selfJoin");  // a soft "you're in" cue, like Google Meet
   monitorLocalMic();
@@ -2483,11 +2570,30 @@ function wire() {
   $("btn-home").onclick = () => { location.href = location.pathname + (LOCAL_MODE ? "?local=1" : ""); };
   if (!("getDisplayMedia" in (navigator.mediaDevices || {}))) $("btn-share").style.display = "none";
 
-  // zoom-quality pass
-  $("btn-view").onclick = () => {
-    state.view = state.view === "gallery" ? "speaker" : "gallery";
-    renderGrid();
-  };
+  // zoom-quality pass · View dropdown (layout + visibility options)
+  $("btn-view").onclick = () => toggleViewMenu();
+  $("view-menu").addEventListener("click", (e) => {
+    const item = e.target.closest(".vm-item");
+    if (!item) return;
+    if (item.dataset.view) {
+      state.view = item.dataset.view;
+      state.pinnedKey = null;        // an explicit layout choice clears a manual pin
+      renderGrid();
+      toggleViewMenu(false);
+    } else if (item.dataset.toggle) {
+      state[item.dataset.toggle] = !state[item.dataset.toggle];
+      if (item.dataset.toggle === "hideTimers")
+        document.body.classList.toggle("hide-timers", state.hideTimers);
+      else renderGrid();
+      syncViewMenu();                // toggles stay open so several can flip at once
+    } else if (item.dataset.action === "fullscreen") {
+      toggleFullscreen();
+      toggleViewMenu(false);
+    }
+  });
+  document.addEventListener("fullscreenchange", syncViewMenu);
+  // Notes → open the operator's Notebook (host-only; guests have no dashboard)
+  $("btn-notes").onclick = openNotebook;
   $("btn-settings").onclick = () => toggleSettingsPop();
   $("btn-react").onclick = () => toggleReactPop();
   $("btn-hand").onclick = toggleHand;
@@ -2508,6 +2614,7 @@ function wire() {
     // Popovers dismiss on outside click.
     if (!e.target.closest("#settings-pop") && !e.target.closest("#btn-settings")) $("settings-pop").hidden = true;
     if (!e.target.closest("#react-pop") && !e.target.closest("#btn-react")) $("react-pop").hidden = true;
+    if (!e.target.closest("#view-menu") && !e.target.closest("#btn-view")) toggleViewMenu(false);
     if (!e.target.closest("#new-menu") && !e.target.closest("#btn-new")) toggleNewMenu(false);
   });
   document.addEventListener("keydown", (e) => {
@@ -2519,7 +2626,7 @@ function wire() {
     else if (k === "v") { toggleCam(); }
     else if (k === "c") { toggleChat(); }
     else if (k === "h") { toggleHand(); }
-    else if (k === "escape") { toggleReactPop(false); $("settings-pop").hidden = true; }
+    else if (k === "escape") { toggleReactPop(false); $("settings-pop").hidden = true; toggleViewMenu(false); }
   });
   // Network changed (wifi → hotspot, VPN toggled): restart ICE on every
   // link instead of waiting for the failure timeout.
@@ -2534,7 +2641,6 @@ async function boot() {
   if (CALL && !EMBED) {
     document.body.classList.add("call");
     wirePipDrag();
-    wireCallChrome();
     // Crossing the phone breakpoint (resize / rotate) re-evaluates the
     // FaceTime layout and un-fades the chrome for the traditional view.
     try {
@@ -2546,12 +2652,17 @@ async function boot() {
   }
   if (EMBED) {
     document.body.classList.add("embed");
-    // The header is hidden in embed mode — its buttons (speaker view,
+    // The header is hidden in embed mode — its controls (View menu,
     // waiting-room queue) move into the control bar so hosts can still
-    // admit applicants from the embedded interview room.
+    // pick a layout / admit applicants from the embedded interview room.
     const bar = document.querySelector(".room-ctrls");
-    bar.insertBefore($("btn-view"), $("btn-end"));
+    bar.insertBefore($("view-wrap"), $("btn-end"));
     bar.insertBefore($("btn-waiting"), $("btn-end"));
+  } else {
+    // Auto-hide the header + control bar after a few idle seconds on desktop
+    // meetings (phone-call mode keeps its own header-only fade). Guests and
+    // hosts both get it; embedded rooms opt out (the dashboard owns chrome).
+    wireCallChrome();
   }
   if (LOCAL_MODE) {
     $("new-wrap").style.display = "";
