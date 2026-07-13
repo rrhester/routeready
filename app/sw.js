@@ -264,7 +264,11 @@
 // (pending acknowledgements, conversations, announcements); the Dispatch
 // thread moved to /chat/dispatch. Obsolete pre-redesign CSS/JS removed
 // (home hero, opens-card, missed-day card, hero CTA, date-block).
-const SHELL_CACHE = "rr-app-shell-v182";
+// v183 · Call reopen fix: the driver's presence/call channel is rebuilt on
+// every foreground (iOS kills the realtime socket while backgrounded), so
+// incoming calls reach the driver on any page after reopening — not only
+// on the Messages page. Ring reuses one gesture-unlocked AudioContext.
+const SHELL_CACHE = "rr-app-shell-v183";
 const SHELL_FILES = [
   "./",
   "index.html",
