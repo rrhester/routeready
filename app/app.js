@@ -2861,6 +2861,7 @@ function renderTasksHub() {
   // about to be replaced by real content.
   main.innerHTML = `
     <div id="rr-tasks-skel">${taskSkeletonHtml(2)}</div>
+    <div class="tasks-grouphd" id="rr-tasks-needs" hidden>Needs action</div>
     <div id="rr-tasks-onboarding-slot"></div>
     <div id="rr-tasks-assignments-slot"></div>
     ${baseCards.map(taskCardHtml).join("")}
@@ -2904,11 +2905,19 @@ function renderTasksHub() {
       (el) => !el.closest("#rr-tasks-tools-slot") && !el.closest("#rr-tasks-skel")
     );
   };
+  // Show the "Needs action" group header only once there's real content
+  // above the Tools section — an empty page shouldn't carry a lone
+  // heading, and it mustn't sit above the "Nothing to do" empty state.
+  const syncNeeds = () => {
+    const hd = document.getElementById("rr-tasks-needs");
+    if (hd) hd.hidden = !slotHasContent();
+  };
   const revealTasks = () => {
     if (_tasksRevealed) return;
     _tasksRevealed = true;
     if (currentRoute() !== "/tasks") return;
     document.getElementById("rr-tasks-skel")?.remove();
+    syncNeeds();
     maybeShowEmpty();
   };
   // The empty-vs-error decision is separate from the skeleton reveal and
@@ -2926,7 +2935,7 @@ function renderTasksHub() {
     else empty.style.display = "";
   };
   // Call after a slot is populated to drop the skeleton immediately.
-  const onContent = () => { if (!_tasksRevealed && slotHasContent()) revealTasks(); };
+  const onContent = () => { syncNeeds(); if (!_tasksRevealed && slotHasContent()) revealTasks(); };
   const rpcSettled = () => {
     _tasksPending--;
     if (_tasksPending <= 0) { revealTasks(); maybeShowEmpty(); }
