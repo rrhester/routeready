@@ -26127,7 +26127,17 @@ function _ivcalInstallScrollLock() {
     }
   }, true);                                            // capture: catch scroll on any element
 }
-function _ivcalFitHeight() {
+// Last height this fit applied to the grid. The delayed post-paint passes
+// (130ms / 480ms) clamp against it so they can only SHRINK to absorb late
+// overflow — never grow. A stray pass that reads a transiently-shorter `top`
+// (the ribbon/day-header re-docking is still settling right after a re-render)
+// used to compute a taller grid and visibly expand it, then the next pass
+// snapped it back — the "glitch" on open / on returning to the Calendar.
+let _ivcalFitBaseH = 0;
+function _ivcalFitHeight(opts) {
+  // `opts.settle` marks the delayed post-paint passes; anything else (the
+  // synchronous + rAF passes of a fresh render, or a resize) may size freely.
+  const settlePass = !!(opts && opts.settle === true);
   _ivcalInstallScrollLock();
   const sc = document.getElementById("rr-ivcal-scroll");
   if (!sc) return;
@@ -26152,7 +26162,12 @@ function _ivcalFitHeight() {
   const parent = _ivcalScrollParent(sc);
   const bottom = wrapBottom || (parent ? parent.getBoundingClientRect().bottom : window.innerHeight);
   const avail = Math.min(window.innerHeight, bottom) - top - 8; // small bottom gap
-  sc.style.height = Math.max(320, avail) + "px";
+  let target = Math.max(320, avail);
+  // On a settle pass, never exceed the height the fresh render already
+  // committed — only the overflow-trim loop below may reduce it further. This
+  // kills the visible grow-then-shrink wobble without weakening the header pin.
+  if (settlePass && _ivcalFitBaseH) target = Math.min(target, _ivcalFitBaseH);
+  sc.style.height = target + "px";
   // Bound the left panel to the same viewport area so its My Calendars list
   // scrolls inside the panel (the mini-calendars stay pinned) instead of
   // growing the panel and letting the whole page scroll the calendar away.
@@ -26171,10 +26186,12 @@ function _ivcalFitHeight() {
     sc.style.height = Math.max(320, cur - overflow) + "px";
   }
   _rrResetCalAncestorsScroll(sc);                     // clamp back to the pinned position
+  _ivcalFitBaseH = parseFloat(sc.style.height) || target; // baseline for settle-pass clamping
   if (!_ivcalFitInstalled) {
     _ivcalFitInstalled = true;
     let raf = null;
-    window.addEventListener("resize", () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(_ivcalFitHeight); });
+    // A resize is a fresh sizing context — recompute freely (not a settle pass).
+    window.addEventListener("resize", () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => _ivcalFitHeight()); });
   }
 }
 // Run the fit now plus on the next frame and a couple of short delays, so it
@@ -26182,10 +26199,12 @@ function _ivcalFitHeight() {
 // that would otherwise leave the page a few px scrollable and drift the header.
 let _ivcalFitT1 = 0, _ivcalFitT2 = 0;
 function _ivcalFitHeightSoon() {
-  _ivcalFitHeight();
-  requestAnimationFrame(_ivcalFitHeight);
-  clearTimeout(_ivcalFitT1); _ivcalFitT1 = setTimeout(_ivcalFitHeight, 130);
-  clearTimeout(_ivcalFitT2); _ivcalFitT2 = setTimeout(_ivcalFitHeight, 480);
+  _ivcalFitHeight();                                       // synchronous baseline (pre-paint)
+  requestAnimationFrame(() => _ivcalFitHeight());          // still pre-paint — may grow to correct
+  // The delayed passes run AFTER the browser has painted; mark them so they can
+  // only shrink to absorb late overflow, never grow (which would flash).
+  clearTimeout(_ivcalFitT1); _ivcalFitT1 = setTimeout(() => _ivcalFitHeight({ settle: true }), 130);
+  clearTimeout(_ivcalFitT2); _ivcalFitT2 = setTimeout(() => _ivcalFitHeight({ settle: true }), 480);
 }
 
 // Scroll the day/week grid so the current time sits near the top third.
