@@ -1073,9 +1073,25 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     var pin = p.is_pinned ? " pinned" : "";
     return '<div class="rrnb-page' + on + lvl + pin + '" data-page="' + p.id + '" draggable="true">' +
       '<div class="body"><div class="ttl">' + esc(p.title || "Untitled Page") + '</div>' +
-      '<div class="sub">' + esc(relTime(p.updated_at)) + (p.tags && p.tags.length ? '  ·  ' + p.tags.map(esc).join(", ") : "") + '</div></div>' +
+      '<div class="sub">' + pageRowSub(p) + '</div></div>' +
       '<span class="pin" title="Pinned">★</span>' +
       '<button class="rrnb-iconbtn kebab" data-menu="page" data-id="' + p.id + '" title="Page options">⋯</button></div>';
+  }
+  function pageRowSub(p) {
+    return esc(relTime(p.updated_at)) + (p.tags && p.tags.length ? '  ·  ' + p.tags.map(esc).join(", ") : "");
+  }
+  // Patch just one page's row in place (title + meta) instead of rebuilding the
+  // whole list. Returns false when the row isn't in the current view so the
+  // caller can fall back to a full render. This is what keeps autosave from
+  // re-rendering the entire page list on every keystroke-batch.
+  function patchPageRow(pid) {
+    if (S.mode !== "notebook") return true;            // list isn't showing pages — nothing to patch
+    var host = $id("rrnb-pagelist"); if (!host) return true;
+    var row = host.querySelector('.rrnb-page[data-page="' + pid + '"]'); if (!row) return false;
+    var p = pageById(pid); if (!p) return false;
+    var ttl = row.querySelector(".ttl"); if (ttl && ttl.textContent !== (p.title || "Untitled Page")) ttl.textContent = p.title || "Untitled Page";
+    var sub = row.querySelector(".sub"); if (sub) sub.innerHTML = pageRowSub(p);
+    return true;
   }
 
   function renderRecycle(host) {
@@ -1836,9 +1852,12 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       hideConflict();
       outboxRemove(pid);
       setSaveState("saved");
-      // reflect the new title in the list
-      if (S.tree) { var pg = S.tree.pages.filter(function (x) { return x.id === pid; })[0]; if (pg) { pg.title = data.title; pg.updated_at = S.savedAt; } }
-      renderPageList();
+      // reflect the new title in the list — patch just this row, not the whole
+      // list, so a content save never rebuilds the page-list DOM (title/tags/
+      // position of other rows are unchanged by a save). Fall back to a full
+      // render only if the row isn't currently mounted.
+      if (S.tree) { var pg = S.tree.pages.filter(function (x) { return x.id === pid; })[0]; if (pg) { pg.title = data.title; pg.updated_at = S.savedAt; if (data.tags) pg.tags = data.tags; } }
+      if (!patchPageRow(pid)) renderPageList();
       persistLinks(pid);
     }).catch(function (e) {
       S.saving = false;
