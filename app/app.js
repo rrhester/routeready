@@ -1307,8 +1307,14 @@ if (typeof window !== "undefined") {
   const refreshOnFocus = () => {
     const s = readSession();
     if (s?.token) refreshDriverProfile(s, { force: true });
+    // Rebuild the call channel on every foreground — iOS kills the realtime
+    // socket while the PWA is backgrounded, and without this the driver
+    // stops receiving call invites until they open Messages. Safe to call
+    // even when the socket survived (Android / desktop): it just re-subscribes.
+    try { _drvPresenceRewire(); } catch (_) {}
   };
   window.addEventListener("focus", refreshOnFocus);
+  window.addEventListener("pageshow", refreshOnFocus);
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) refreshOnFocus();
   });
@@ -6054,6 +6060,27 @@ function _drvPresenceStop() {
   if (_drvPresence.typingTimer) { clearTimeout(_drvPresence.typingTimer); _drvPresence.typingTimer = null; }
 }
 
+// Force the presence/call channel to reconnect. This is the crux of the
+// "calls only ring on the Messages page after reopening" bug: on iOS the
+// realtime WebSocket is torn down whenever the home-screen PWA is
+// backgrounded. When the driver reopens the app the socket is dead, but
+// the _drvPresence.channel object survives — and _drvPresenceWire()
+// early-returns on an existing channel, so it never rebuilds. Incoming
+// call invites (broadcast on that channel) therefore go nowhere. Opening
+// Messages was the only thing that recovered it, because renderChat →
+// _chatRealtimeWire unconditionally tears down + recreates its own channel,
+// which reconnects the shared socket. This does the same for the call
+// channel, on foreground, so calls reach the driver on ANY page after a
+// reopen — no need to visit Messages first.
+function _drvPresenceRewire() {
+  const s = readSession();
+  if (!s?.token || !s.dsp_id || !s.driver_id) return;
+  // Don't disturb live call signaling (an invite/answer in flight).
+  if (_drvCall.state !== "idle") return;
+  if (_drvPresence.channel) { try { sb.removeChannel(_drvPresence.channel); } catch {} _drvPresence.channel = null; }
+  _drvPresenceWire(s);
+}
+
 function _drvBroadcastTyping(activity) {
   if (!_drvPresence.channel) return;
   const now = Date.now();
@@ -6098,13 +6125,42 @@ function _drvCallSend(event, payload) {
 function _drvCallInitials(name) {
   return (name || "?").split(/\s+/).map((p) => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?";
 }
+// A single Web-Audio context, unlocked on the first user gesture (see
+// _unlockAudioOnGesture below) and kept alive for the session. iOS only
+// lets audio play from a context that was resumed inside a user gesture;
+// an incoming call arrives asynchronously (no gesture), so the ring engine
+// must reuse this already-unlocked context rather than mint a fresh one —
+// a brand-new context created off-gesture stays permanently suspended and
+// silent. This is why the ring previously only played once the driver had
+// already tapped something (e.g. opening the Messages tab, or answering an
+// earlier call): before that first gesture, no unlocked context existed.
+let _rrAudioCtx = null;
+function _rrGetAudioCtx() {
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    if (!_rrAudioCtx || _rrAudioCtx.state === "closed") _rrAudioCtx = new AC();
+    if (_rrAudioCtx.state === "suspended") _rrAudioCtx.resume().catch(() => {});
+    return _rrAudioCtx;
+  } catch { return null; }
+}
 function _drvRingEngine(freq) {
-  let ctx = null, timer = null, stopped = false;
+  let timer = null, stopped = false;
+  // Oscillators scheduled by this ring, tracked so stop() can silence them.
+  // The context is shared and kept alive (see _rrGetAudioCtx), so — unlike
+  // the old close-the-context teardown — clearing the interval alone would
+  // leave the in-flight beep playing, and any tones queued while the
+  // context was suspended could replay when audio later resumes.
+  const live = new Set();
   const pulse = () => {
     if (stopped) return;
     try {
-      ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
-      if (ctx.state === "suspended") ctx.resume().catch(() => {});
+      const ctx = _rrGetAudioCtx();
+      // Only schedule against a running clock. While the context is
+      // suspended (cold iOS PWA / just backgrounded) currentTime is frozen,
+      // so scheduling here just queues stale tones that fire on resume; skip
+      // and let the next pulse ring once a gesture/foreground unlocks audio.
+      if (!ctx || ctx.state !== "running") return;
       const t0 = ctx.currentTime;
       [0, 0.55].forEach((off) => {
         const o = ctx.createOscillator(), g = ctx.createGain();
@@ -6115,12 +6171,24 @@ function _drvRingEngine(freq) {
         g.gain.exponentialRampToValueAtTime(0.0001, t0 + off + 0.4);
         o.connect(g).connect(ctx.destination);
         o.start(t0 + off); o.stop(t0 + off + 0.42);
+        live.add(o);
+        o.onended = () => { live.delete(o); try { o.disconnect(); g.disconnect(); } catch {} };
       });
     } catch {}
   };
   pulse();
   timer = setInterval(pulse, 3000);
-  return { stop() { stopped = true; clearInterval(timer); try { ctx && ctx.close(); } catch {} } };
+  // Do NOT close the shared context on stop — it stays alive (and unlocked)
+  // for the next ring / chime. Instead stop + disconnect this ring's own
+  // oscillators so nothing lingers or replays in the shared context.
+  return {
+    stop() {
+      stopped = true;
+      clearInterval(timer);
+      live.forEach((o) => { try { o.stop(); } catch {} try { o.disconnect(); } catch {} });
+      live.clear();
+    },
+  };
 }
 function _drvCallNotify(title, body) {
   try {
@@ -13425,26 +13493,23 @@ function _playCelebrationChime() {
   } catch (_) {}
 }
 
-// Audio gesture-unlock helper — first user gesture anywhere primes
-// the audio context for subsequent _playCelebrationChime() calls.
-let _audioUnlocked = false;
+// Audio gesture-unlock helper — every user gesture (re)primes the shared
+// audio context (_rrGetAudioCtx) so the incoming-call ring and the
+// celebration chime can play even though the call / celebration itself
+// arrives asynchronously, with no gesture of its own. Not `once`: iOS
+// re-suspends the context whenever the PWA backgrounds, so we must
+// re-resume it on the next gesture rather than assume a one-time unlock
+// holds for the app's lifetime.
 function _unlockAudioOnGesture() {
-  if (_audioUnlocked) return;
-  _audioUnlocked = true;
-  try {
-    const AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC) return;
-    const ctx = new AC();
-    if (ctx.state === "suspended") {
-      ctx.resume().then(() => { try { ctx.close(); } catch (_) {} }).catch(() => {});
-    } else {
-      try { ctx.close(); } catch (_) {}
-    }
-  } catch (_) {}
+  try { _rrGetAudioCtx(); } catch (_) {}
 }
 ["touchstart", "click", "pointerdown"].forEach((evt) => {
-  document.addEventListener(evt, _unlockAudioOnGesture, { once: true, passive: true, capture: true });
+  document.addEventListener(evt, _unlockAudioOnGesture, { passive: true, capture: true });
 });
+// Also re-prime when the app returns to the foreground — an incoming call
+// can land right as the driver reopens the PWA, before they've tapped
+// anything, and iOS will have suspended the context while backgrounded.
+document.addEventListener("visibilitychange", () => { if (!document.hidden) { try { _rrGetAudioCtx(); } catch (_) {} } });
 
 // Version tag removed — the celebration flow is verified working in
 // production.  Cache-buster on app.js?v=NNN still tells us which
