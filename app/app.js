@@ -1088,6 +1088,14 @@ function render() {
   // matter which screen the driver is on. Idempotent — no-ops if already
   // subscribed.
   if (session?.driver_id) _rrLiveStart(session.driver_id);
+  // Wire the DSP presence + direct-call channel app-wide, not just when
+  // the Chat view mounts. This channel is what receives incoming call
+  // invites, enables outgoing calls (rrDrvPlaceCall checks
+  // _drvPresence.channel), and consumes a call that deep-linked in from a
+  // Web Push. Previously it was only wired inside renderChat(), so after a
+  // close/reopen the video/voice call feature was dead until the driver
+  // happened to visit Messages. Idempotent — no-ops if already subscribed.
+  _drvPresenceWire(session);
   // Re-stamp the Chat tab badge with the latest unread count every
   // time the shell mounts so a newly-arrived dispatch message (e.g.
   // the welcome message from migration 0266) shows up on the icon
