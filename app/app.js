@@ -5926,6 +5926,7 @@ const _drvPresence = {
   channel: null,
   lastBroadcast: 0,
   typingTimer: null,
+  visWired: false,
 };
 
 function _drvPresenceWire(session) {
@@ -5961,17 +5962,40 @@ function _drvPresenceWire(session) {
 
   // Untrack on visibility loss so dispatchers stop seeing them as
   // online when the app is backgrounded for more than ~2s.  Re-track
-  // when they come back.
-  document.addEventListener("visibilitychange", () => {
-    if (!_drvPresence.channel) return;
-    if (document.hidden) {
-      try { _drvPresence.channel.untrack(); } catch {}
-    } else {
-      try {
-        _drvPresence.channel.track({ kind: "driver", id: driverId, online_at: new Date().toISOString() });
-      } catch {}
-    }
-  });
+  // when they come back.  Bound once (not per-wire) and reads the live
+  // session for the driver id, so it stays correct after a sign-out /
+  // sign-in re-wires the channel as a different driver.
+  if (!_drvPresence.visWired) {
+    _drvPresence.visWired = true;
+    document.addEventListener("visibilitychange", () => {
+      if (!_drvPresence.channel) return;
+      if (document.hidden) {
+        try { _drvPresence.channel.untrack(); } catch {}
+      } else {
+        try {
+          const id = readSession()?.driver_id;
+          if (id) _drvPresence.channel.track({ kind: "driver", id, online_at: new Date().toISOString() });
+        } catch {}
+      }
+    });
+  }
+}
+
+// Tear down the presence/call channel so a stale subscription can't
+// outlive the session. Without this, signing out leaves the channel
+// bound to the old DSP: _drvPresenceWire() early-returns on the still-
+// present channel, so a subsequent sign-in as a different driver/DSP
+// would broadcast calls to the old DSP and never receive incoming
+// calls for the new one. Called from the sign-out path alongside
+// _rrLiveStop().
+function _drvPresenceStop() {
+  if (_drvPresence.channel) {
+    try { _drvPresence.channel.untrack(); } catch {}
+    try { sb.removeChannel(_drvPresence.channel); } catch {}
+    _drvPresence.channel = null;
+  }
+  _drvPresence.lastBroadcast = 0;
+  if (_drvPresence.typingTimer) { clearTimeout(_drvPresence.typingTimer); _drvPresence.typingTimer = null; }
 }
 
 function _drvBroadcastTyping(activity) {
@@ -8016,6 +8040,7 @@ function renderSettings() {
     if (!ok) return;
     const s = readSession();
     _rrLiveStop();
+    _drvPresenceStop();
     await teardownPushSubscription(s);
     if (s?.token) { try { await sb.rpc("driver_signout", { p_token: s.token }); } catch {} }
     writeSession(null);
