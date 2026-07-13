@@ -2238,11 +2238,9 @@ body.scan-camming{overflow:hidden}
 .to-row-range{font-size:var(--fs-md);font-weight:600;color:var(--text)}
 .to-row-reason{margin-top:6px;font-size:var(--fs-sm);color:var(--text-muted);line-height:1.4}
 .to-row-note{margin-top:8px;font-size:var(--fs-sm);color:var(--text);background:var(--canvas);border-radius:var(--r-md);padding:8px 12px;line-height:1.4}
-.to-pill{font-size:var(--fs-xs);font-weight:700;padding:3px 9px;border-radius:999px;letter-spacing:.02em}
-.to-pill-pending  { background:var(--amber-soft);   color:var(--amber-dark) }
-.to-pill-approved { background:var(--green-soft);   color:var(--green-dark) }
-.to-pill-denied   { background:var(--red-soft);     color:var(--red-dark) }
-.to-pill-cancelled{ background:var(--canvas);       color:var(--text-subtle) }
+/* Time-off decision + leave-type badges use the shared .status-pill family
+   (see the status-pill block above) so a Pending / Approved / Denied here
+   reads identically to the same status everywhere else in the app. */
 .to-cancel{appearance:none;margin-top:10px;background:transparent;border:0;color:var(--red);font:inherit;font-size:var(--fs-sm);font-weight:600;cursor:pointer;padding:0}
 
 /* ── Offline indicator ─────────────────────────────────────── */

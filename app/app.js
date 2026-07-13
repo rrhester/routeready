@@ -11213,10 +11213,10 @@ function _toRowHtml(r) {
   const range = r.start_date === r.end_date
     ? lbl(r.start_date)
     : `${lbl(r.start_date)} – ${lbl(r.end_date)}`;
-  const pill = `<span class="to-pill to-pill-${r.status}">${escapeHtml(r.status[0].toUpperCase() + r.status.slice(1))}</span>`;
+  const pill = `<span class="status-pill status-pill-${r.status}">${escapeHtml(r.status[0].toUpperCase() + r.status.slice(1))}</span>`;
   const kindPill = r.is_pto
-    ? `<span class="to-pill" style="background:rgba(13,148,136,.12);color:var(--rr-teal-700);margin-left:6px">PTO</span>`
-    : `<span class="to-pill" style="background:var(--canvas);color:var(--text-muted);margin-left:6px">Unpaid</span>`;
+    ? `<span class="status-pill" style="background:rgba(13,148,136,.12);color:var(--rr-teal-700);margin-left:6px">PTO</span>`
+    : `<span class="status-pill" style="background:var(--canvas);color:var(--text-muted);margin-left:6px">Unpaid</span>`;
   const note = r.decision_notes
     ? `<div class="to-row-note"><strong>Dispatch:</strong> ${escapeHtml(r.decision_notes)}</div>`
     : "";
