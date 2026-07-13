@@ -42,10 +42,10 @@
   <div class="card">
     <div class="brand-mark" aria-hidden="true">R</div>
     <h1>RouteReady</h1>
-    <p class="lede" id="lede">Enter your work email and we'll send you a magic-link to sign in. Only addresses on allowed domains can sign in.</p>
+    <p class="lede" id="lede">Sign in with your email and password.</p>
 
-    <!-- Magic link (default — unchanged flow) -->
-    <form id="form-magic">
+    <!-- Magic link (alternative flow) -->
+    <form id="form-magic" hidden>
       <div class="field">
         <label for="ml-email">Email</label>
         <input id="ml-email" name="email" type="email" required autocomplete="email" placeholder="you@gorouteready.com" />
@@ -53,8 +53,8 @@
       <button type="submit" class="primary">Send magic link</button>
     </form>
 
-    <!-- Sign in with password (for accounts that have set one) -->
-    <form id="form-password" hidden autocomplete="on">
+    <!-- Sign in with password (default) -->
+    <form id="form-password" autocomplete="on">
       <div class="field">
         <label for="pw-email">Email</label>
         <input id="pw-email" name="email" type="email" required autocomplete="email" placeholder="you@gorouteready.com" />
@@ -95,10 +95,10 @@
 
     <!-- Mode switches -->
     <div class="alt" id="alt-links">
-      <div data-alt="magic">
+      <div data-alt="magic" hidden>
         <button type="button" class="link" data-go="password">Sign in with a password instead</button>
       </div>
-      <div data-alt="password" hidden>
+      <div data-alt="password">
         <button type="button" class="link" data-go="magic">Email me a magic link instead</button>
       </div>
       <div data-alt="reset-req" hidden>
@@ -157,7 +157,7 @@
     "reset-req": "Enter your email and we'll send you a link to set or reset your password.",
     "reset-set": "Choose a new password for your account.",
   };
-  let prevMode = "magic";
+  let prevMode = "password";
   function setMode(next, keepMsg) {
     for (const [k, f] of Object.entries(forms)) f.hidden = (k !== next);
     alts.forEach((el) => { el.hidden = (el.getAttribute("data-alt") !== next); });
