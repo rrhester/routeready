@@ -216,7 +216,8 @@
 //   2026-07-13.24 · Notebook TipTap editor (opt-in, default OFF) — a flag-gated ProseMirror-based rich editor on a separate render path; classic editor untouched and stays default. live.js lazy-loads TipTap from CDN and exposes window.RRTipTap; the notebook mounts it when a DSP sets metadata.notebook_editor='tiptap' (or localStorage rrnb-editor=tiptap), else classic. Falls back to classic if the CDN can't load. live.js + view-notebooks.frag.
 //   2026-07-13.25 · Workbook Macros hardened — macro code now runs inside a Web Worker sandbox with no DOM, no session token, and network APIs (fetch/XHR/WebSocket/…) deleted, so a macro physically can't exfiltrate data outside the org; the worker's only channel is a brokered postMessage bridge to the curated `workbook` API, and runaway loops are killed by worker.terminate() on a 10s timeout. The main module no longer evals anything. Cost: `workbook` calls are now async (`await`). Example + API reference updated. workbook.js.
 //   2026-07-13.26 · Macros promoted to the workbook toolbar — a labeled "Macros" button now sits on the main toolbar (next to People) instead of being buried in Tools ▸ Macros…, so it's one click. Same openMacrosPanel; Tools menu entry kept too. workbook.js + inline-styles.css.
-const SW_DEPLOY_NONCE = "2026-07-13.26";
+//   2026-07-13.27 · Messages saved-bookmark polish (operator feedback): the per-message Save-for-later button no longer sits on top of the bubble text — it floats as a bordered chip just above the bubble's top-left edge (clear of the top-right edit/delete cluster) and lifts in on hover so it reads clearly as a button; a saved message keeps the chip visible in amber. inline-styles.css.
+const SW_DEPLOY_NONCE = "2026-07-13.27";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without
