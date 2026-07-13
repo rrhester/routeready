@@ -11786,10 +11786,10 @@ async function renderDocumentSign() {
 
   if (!["sent","viewed"].includes(env.status)) {
     main.innerHTML = `
-      <div style="padding:32px 20px;text-align:center">
-        <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text);margin-bottom:6px">${escapeHtml(tpl.title || "Document")}</div>
+      <div class="docsign-status">
+        <div class="docsign-status-title">${escapeHtml(tpl.title || "Document")}</div>
         <div><span class="doc-tag ${_DOCS_STATUS_CLASS[env.status] || "doc-tag-neutral"}">${escapeHtml(_docLabel({ status: env.status, kind: tpl.kind }))}</span></div>
-        <div style="margin-top:14px;color:var(--text-subtle);font-size:var(--fs-sm)">No further action needed.</div>
+        <div class="docsign-status-sub">No further action needed.</div>
       </div>`;
     return;
   }
@@ -11806,64 +11806,64 @@ async function renderDocumentSign() {
   const isDriverField = (f) => !f.signer_role || f.signer_role === "driver";
   const fillFields = (env.fields_snapshot || []).filter((f) => f && isDriverField(f) && (f.kind === "text" || f.kind === "checkbox"));
   const fillSection = fillFields.length ? `
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:12px">
-        <div style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)">Complete these fields</div>
+      <div class="docsign-card docsign-card-col">
+        <div class="docsign-eyebrow">Complete these fields</div>
         ${fillFields.map((f) => f.kind === "checkbox"
-          ? `<label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer"><input type="checkbox" data-rr-fld="${escapeHtml(f.id)}" style="margin-top:2px;width:18px;height:18px;accent-color:var(--accent);flex:0 0 auto"><span style="font-size:var(--fs-sm);line-height:1.5;color:var(--text)">${escapeHtml(f.label || "Checkbox")}</span></label>`
-          : `<label style="display:flex;flex-direction:column;gap:4px"><span style="font-size:var(--fs-xs);color:var(--text-muted)">${escapeHtml(f.label || "Text field")}</span><input type="text" data-rr-fld="${escapeHtml(f.id)}" style="padding:10px 12px;border:1px solid var(--border);border-radius:8px;font:inherit;background:var(--canvas)"></label>`
+          ? `<label class="docsign-consent"><input type="checkbox" data-rr-fld="${escapeHtml(f.id)}"><span>${escapeHtml(f.label || "Checkbox")}</span></label>`
+          : `<label class="docsign-field"><span class="docsign-field-cap">${escapeHtml(f.label || "Text field")}</span><input type="text" class="field" data-rr-fld="${escapeHtml(f.id)}"></label>`
         ).join("")}
       </div>` : "";
 
   main.innerHTML = `
-    <div style="padding:14px 16px 96px 16px;display:flex;flex-direction:column;gap:14px">
+    <div class="docsign-page">
       <div>
-        <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">${escapeHtml(tpl.title || "Document")}</div>
-        ${tpl.description ? `<div style="margin-top:4px;color:var(--text-muted);font-size:var(--fs-sm)">${escapeHtml(tpl.description)}</div>` : ""}
+        <div class="docsign-title">${escapeHtml(tpl.title || "Document")}</div>
+        ${tpl.description ? `<div class="docsign-desc">${escapeHtml(tpl.description)}</div>` : ""}
       </div>
 
-      <a href="${url}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;color:var(--text);text-decoration:none;font-weight:600">
+      <a href="${url}" target="_blank" rel="noopener" class="docsign-pdf">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="var(--accent)" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-        <span style="flex:1">View document (PDF)</span>
+        <span class="docsign-pdf-title">View document (PDF)</span>
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--text-subtle)" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
       </a>
 
       ${fillSection}
 
       ${isInfo ? `
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:12px">
-        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
-          <input type="checkbox" id="rr-doc-consent" style="margin-top:3px;width:18px;height:18px;accent-color:var(--accent);flex:0 0 auto">
-          <span style="font-size:var(--fs-sm);line-height:1.5;color:var(--text)">I confirm I have reviewed this document. This acknowledgment is recorded with my name and a timestamp.</span>
+      <div class="docsign-card docsign-card-col">
+        <label class="docsign-consent">
+          <input type="checkbox" id="rr-doc-consent">
+          <span>I confirm I have reviewed this document. This acknowledgment is recorded with my name and a timestamp.</span>
         </label>
-        <label style="display:flex;flex-direction:column;gap:4px">
-          <span style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)">Your name</span>
-          <input type="text" id="rr-sig-typed" autocomplete="name" value="${escapeHtml(env.recipient_name || "")}" style="padding:10px 12px;border:1px solid var(--border);border-radius:8px;font:inherit;background:var(--canvas)">
+        <label class="docsign-field">
+          <span class="docsign-field-cap">Your name</span>
+          <input type="text" class="field" id="rr-sig-typed" autocomplete="name" value="${escapeHtml(env.recipient_name || "")}">
         </label>
       </div>
-      <div style="display:flex"><button type="button" id="rr-doc-submit" class="btn btn-primary" style="flex:1">I've reviewed this — acknowledge</button></div>
+      <button type="button" id="rr-doc-submit" class="btn btn-primary btn-block">I've reviewed this — acknowledge</button>
       ` : `
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px">
-        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
-          <input type="checkbox" id="rr-doc-consent" style="margin-top:3px;width:18px;height:18px;accent-color:var(--accent);flex:0 0 auto">
-          <span style="font-size:var(--fs-sm);line-height:1.5;color:var(--text)">${escapeHtml(_ESIGN_CONSENT_TEXT)}</span>
+      <div class="docsign-card">
+        <label class="docsign-consent">
+          <input type="checkbox" id="rr-doc-consent">
+          <span>${escapeHtml(_ESIGN_CONSENT_TEXT)}</span>
         </label>
       </div>
 
       <div>
-        <div style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px">Your signature</div>
+        <div class="docsign-siglabel">Your signature</div>
         <div style="position:relative;background:var(--rr-white);border:1px solid var(--border);border-radius:12px;overflow:hidden">
           <canvas id="rr-sig-canvas" style="display:block;width:100%;height:200px;background:var(--rr-white);touch-action:none;cursor:crosshair"></canvas>
           <button type="button" id="rr-sig-clear" style="position:absolute;top:8px;right:8px;background:var(--rr-slate-100);border:1px solid var(--rr-slate-300);border-radius:999px;padding:4px 10px;font:inherit;font-size:11px;font-weight:600;color:var(--rr-slate-600);cursor:pointer">Clear</button>
           <div id="rr-sig-hint" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:var(--rr-slate-400);font-size:var(--fs-xs);pointer-events:none">Draw your signature with your finger or mouse</div>
         </div>
-        <label style="display:flex;flex-direction:column;gap:4px;margin-top:10px">
-          <span style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)">Or type your full name</span>
-          <input type="text" id="rr-sig-typed" placeholder="Your full legal name" autocomplete="name" style="padding:10px 12px;border:1px solid var(--border);border-radius:8px;font:inherit;background:var(--canvas)">
+        <label class="docsign-field" style="margin-top:10px">
+          <span class="docsign-field-cap">Or type your full name</span>
+          <input type="text" class="field" id="rr-sig-typed" placeholder="Your full legal name" autocomplete="name">
         </label>
       </div>
 
-      <div style="display:flex;gap:8px;justify-content:space-between;align-items:center">
-        <button type="button" id="rr-doc-decline" class="btn" style="background:transparent;color:var(--red);border:1px solid var(--border)">Decline</button>
+      <div class="docsign-actions">
+        <button type="button" id="rr-doc-decline" class="btn btn-danger">Decline</button>
         <button type="button" id="rr-doc-submit" class="btn btn-primary" style="flex:1">Sign &amp; submit</button>
       </div>`}
     </div>`;

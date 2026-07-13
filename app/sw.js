@@ -239,7 +239,13 @@
 // voided / expired reading neutral gray instead of red (terminal states, not
 // destructive). Same layout. Bumped so installed driver PWAs pick up the new
 // app.js + CSS.
-const SHELL_CACHE = "rr-app-shell-v177";
+// v178 · Document-sign de-inlined (Pass 2b): the sign screen's presentational
+// chrome (page, title, PDF link, fill fields, consent cards, name inputs →
+// .field, Decline → .btn-danger) moves off ~34 inline style="" blocks onto
+// .docsign-* classes. The signature <canvas> + its pointer/DPR/touch-action
+// handlers and the submit logic are UNCHANGED (behavior-critical, untested by
+// CI). Bumped so installed driver PWAs pick up the new app.js + CSS.
+const SHELL_CACHE = "rr-app-shell-v178";
 const SHELL_FILES = [
   "./",
   "index.html",
