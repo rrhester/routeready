@@ -25649,9 +25649,17 @@ function _ivcalRenderNow() {
   // Toolbar in two clusters so _ivcalDockBar (below) can lift them into the
   // command ribbon: navigation (panel · Today · ‹ › · date range) and
   // utilities (zoom · search · settings). Undocked they render as one bar.
+  // Mirror the Schedule page's Today button: mark it "on today" (blue active
+  // state) whenever the current view already includes today, so it reads as a
+  // status the same way _syncNavButtons does over there.
+  const _ivcalOnToday = (() => {
+    const t = new Date(); t.setHours(0, 0, 0, 0);
+    const vr = _ivcalViewRange();
+    return t >= vr.start && t <= vr.end;
+  })();
   const _barNav = `<div class="oc-bar-group oc-bar-nav">
           <button class="oc-btn oc-ico oc-side-toggle${_ivcalSideOpen ? " on" : ""}" data-ivcal-side title="${_ivcalSideOpen ? "Hide calendar panel" : "Show calendar panel"}" aria-label="Toggle calendar panel" aria-pressed="${_ivcalSideOpen ? "true" : "false"}">${_panelSvg}</button>
-          <button class="oc-btn" data-ivcal-nav="0" title="Today (T)">Today</button>
+          <button class="oc-btn${_ivcalOnToday ? " is-on-today" : ""}" data-ivcal-nav="0" title="Today (T)"${_ivcalOnToday ? ' aria-current="date"' : ""}>Today</button>
           <button class="oc-btn oc-ico" data-ivcal-nav="-1" title="Previous" aria-label="Previous ${_ivcalView === "day" ? "day" : "period"}">${_chevL}</button>
           <button class="oc-btn oc-ico" data-ivcal-nav="1" title="Next" aria-label="Next ${_ivcalView === "day" ? "day" : "period"}">${_chevR}</button>
           <span class="oc-period">${escapeHtml(_ivcalPeriodLabel())}</span>
