@@ -207,6 +207,51 @@
   body.embed #waiting-pop{top:auto;bottom:78px;right:12px;left:auto;transform:none}
   @media (max-width:900px){body.embed .ctrl-info{display:none}}
 
+  /* call mode (?call=1) · FaceTime treatment, PHONE ONLY (operator
+     request 2026-07-13: desktop keeps the traditional meeting view).
+     Every rule lives inside the same 760px breakpoint renderGrid's
+     mqCallPhone uses, so the JS layout and the CSS always agree — a
+     desktop call window is 100% the normal meeting UI unless it's
+     resized down to phone width.
+     On a phone: the header floats OVER the video (gradient scrim) and
+     fades while idle — body.chrome-hidden only drops opacity, never
+     pointer-events, so the desktop app's drag region keeps working and
+     any touch/move wakes the chrome before a tap lands. #grid.ft is set
+     by renderGrid only while exactly two people are in the room with no
+     screen share: one tile fills the window, the other rides in the
+     draggable corner pip (tap it to trade places, tap again to trade
+     back). Header keeps only name / REC / timer; the bar keeps
+     mic / camera / chat / settings (how a phone flips front/back
+     cameras) / Leave — share, record, reactions, invite link and
+     End-for-all are meeting-isms and disappear. The bottom control bar
+     itself stays the standard docked meeting bar everywhere. */
+  @media (max-width:760px){
+    body.call .room-wrap{position:relative}
+    body.call[data-screen="room"] .room-head{position:absolute;left:0;top:0;right:0;z-index:9;border-bottom:0;
+      background:linear-gradient(180deg,rgba(11,13,18,.8),rgba(11,13,18,0));transition:opacity .28s}
+    body.call.chrome-hidden .room-head{opacity:0}
+    #grid.ft{display:block;position:relative;padding:0}
+    #grid.ft .tile.stage{position:absolute;inset:0;height:auto;border-radius:0}
+    #grid.ft .tile.stage .pin-btn{display:none}
+    #grid.ft .tile.stage .avatar span{width:104px;height:104px;font-size:36px}
+    #grid.ft .tile.pip{position:absolute;z-index:8;width:clamp(110px,26vw,180px);aspect-ratio:3/4;border-radius:12px;
+      box-shadow:0 12px 32px rgba(0,0,0,.55);cursor:grab;touch-action:none;
+      transition:left .18s ease,top .18s ease,right .18s ease,bottom .18s ease}
+    #grid.ft .tile.pip.dragging{cursor:grabbing;transition:none}
+    /* Corner parks: top corners clear the header scrim. */
+    #grid.ft .tile.pip.pip-br{right:16px;bottom:16px;left:auto;top:auto}
+    #grid.ft .tile.pip.pip-bl{left:16px;bottom:16px;right:auto;top:auto}
+    #grid.ft .tile.pip.pip-tr{right:16px;top:64px;left:auto;bottom:auto}
+    #grid.ft .tile.pip.pip-tl{left:16px;top:64px;right:auto;bottom:auto}
+    #grid.ft .tile.pip .plate,#grid.ft .tile.pip .qbars,#grid.ft .tile.pip .pin-btn,#grid.ft .tile.pip .tile-status{display:none}
+    #grid.ft .tile.pip .avatar span{width:44px;height:44px;font-size:16px}
+    body.call .code-chip,body.call #btn-view,
+    body.call .rh-right .dot,body.call .rh-right span[title="Participants"]{display:none}
+    body.call #btn-share,body.call #btn-record,body.call #btn-react,
+    body.call #btn-invite,body.call #btn-end{display:none}
+  }
+  @media (prefers-reduced-motion:reduce){body.call .room-head,#grid.ft .tile.pip{transition:none}}
+
   /* recording */
   #rec-pill{display:flex;align-items:center;gap:6px;color:#F87171;font-weight:800;font-size:12.5px;letter-spacing:.05em}
   .rec-dot{width:8px;height:8px;border-radius:50%;background:#DC2626;animation:recblink 1.4s ease-in-out infinite}

@@ -24461,10 +24461,28 @@ const CAL_TZS = [
   "Etc/UTC",
 ];
 
+// Landing on the Onboarding page re-asserts obSub("calendar") four times
+// (0 / rAF / 60ms / 280ms) to beat a late sub-view default that would drop the
+// operator on Funnel. Each obSub("calendar") runs the CHEAP show/hide that wins
+// that race — but it also called loadCalendarTab, whose fetch + full innerHTML
+// rebuild is expensive, so the calendar tore itself down and rebuilt 4× over
+// ~300ms every time the page was opened or returned to: the visible glitch.
+// Coalesce that burst — load the data / render once, and let the remaining
+// re-asserts do only their (cheap) sub-view show/hide.
+let _calTabLoadT = 0, _calTabLoading = false;
 async function loadCalendarTab() {
-  // The availability editor now lives in the Calendar "Rules" → Interview
-  // availability popover (loaded lazily on open), not inline on this tab.
-  await Promise.all([loadCalBookingsList(), loadIvCalendar()]);
+  const now = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+  if (_calTabLoading) return;                           // a load from this burst is still in flight
+  if (_ivcalCache && now - _calTabLoadT < 500) return;  // just loaded this entry → don't rebuild
+  _calTabLoading = true;
+  _calTabLoadT = now;
+  try {
+    // The availability editor now lives in the Calendar "Rules" → Interview
+    // availability popover (loaded lazily on open), not inline on this tab.
+    await Promise.all([loadCalBookingsList(), loadIvCalendar()]);
+  } finally {
+    _calTabLoading = false;
+  }
 }
 
 // ── Native interview calendar · Day / Week / Month ────────────────────────
@@ -24486,12 +24504,13 @@ const _IVCAL_H0 = 0, _IVCAL_H1 = 24; // full 24h, scrollable
 // bigger rows make a 30-min block visually larger. Persisted per browser.
 let _IVCAL_RH = (() => {
   const v = parseInt((typeof localStorage !== "undefined" && localStorage.getItem("rr_ivcal_rh")) || "", 10);
-  // Default 46px/hr (enterprise pass 2026-07-11 · denser rows fit the
-  // working day without scroll; zoom still adjusts 36–160).
-  return (v >= 36 && v <= 160) ? v : 46;
+  // Default 158px/hr (2026-07-13 · spacious rows: a 30-min block shows time +
+  // title + status badge without crowding, matching the operator's preferred
+  // starting view). Zoom still adjusts 36–240.
+  return (v >= 36 && v <= 240) ? v : 158;
 })();
 function _ivcalSetZoom(delta) {
-  const next = Math.max(36, Math.min(160, _IVCAL_RH + delta));
+  const next = Math.max(36, Math.min(240, _IVCAL_RH + delta));
   if (next === _IVCAL_RH) return;
   _IVCAL_RH = next;
   try { localStorage.setItem("rr_ivcal_rh", String(next)); } catch (_) {}
@@ -25649,9 +25668,17 @@ function _ivcalRenderNow() {
   // Toolbar in two clusters so _ivcalDockBar (below) can lift them into the
   // command ribbon: navigation (panel · Today · ‹ › · date range) and
   // utilities (zoom · search · settings). Undocked they render as one bar.
+  // Mirror the Schedule page's Today button: mark it "on today" (blue active
+  // state) whenever the current view already includes today, so it reads as a
+  // status the same way _syncNavButtons does over there.
+  const _ivcalOnToday = (() => {
+    const t = new Date(); t.setHours(0, 0, 0, 0);
+    const vr = _ivcalViewRange();
+    return t >= vr.start && t <= vr.end;
+  })();
   const _barNav = `<div class="oc-bar-group oc-bar-nav">
           <button class="oc-btn oc-ico oc-side-toggle${_ivcalSideOpen ? " on" : ""}" data-ivcal-side title="${_ivcalSideOpen ? "Hide calendar panel" : "Show calendar panel"}" aria-label="Toggle calendar panel" aria-pressed="${_ivcalSideOpen ? "true" : "false"}">${_panelSvg}</button>
-          <button class="oc-btn" data-ivcal-nav="0" title="Today (T)">Today</button>
+          <button class="oc-btn${_ivcalOnToday ? " is-on-today" : ""}" data-ivcal-nav="0" title="Today (T)"${_ivcalOnToday ? ' aria-current="date"' : ""}>Today</button>
           <button class="oc-btn oc-ico" data-ivcal-nav="-1" title="Previous" aria-label="Previous ${_ivcalView === "day" ? "day" : "period"}">${_chevL}</button>
           <button class="oc-btn oc-ico" data-ivcal-nav="1" title="Next" aria-label="Next ${_ivcalView === "day" ? "day" : "period"}">${_chevR}</button>
           <span class="oc-period">${escapeHtml(_ivcalPeriodLabel())}</span>
@@ -26119,7 +26146,17 @@ function _ivcalInstallScrollLock() {
     }
   }, true);                                            // capture: catch scroll on any element
 }
-function _ivcalFitHeight() {
+// Last height this fit applied to the grid. The delayed post-paint passes
+// (130ms / 480ms) clamp against it so they can only SHRINK to absorb late
+// overflow — never grow. A stray pass that reads a transiently-shorter `top`
+// (the ribbon/day-header re-docking is still settling right after a re-render)
+// used to compute a taller grid and visibly expand it, then the next pass
+// snapped it back — the "glitch" on open / on returning to the Calendar.
+let _ivcalFitBaseH = 0;
+function _ivcalFitHeight(opts) {
+  // `opts.settle` marks the delayed post-paint passes; anything else (the
+  // synchronous + rAF passes of a fresh render, or a resize) may size freely.
+  const settlePass = !!(opts && opts.settle === true);
   _ivcalInstallScrollLock();
   const sc = document.getElementById("rr-ivcal-scroll");
   if (!sc) return;
@@ -26144,7 +26181,12 @@ function _ivcalFitHeight() {
   const parent = _ivcalScrollParent(sc);
   const bottom = wrapBottom || (parent ? parent.getBoundingClientRect().bottom : window.innerHeight);
   const avail = Math.min(window.innerHeight, bottom) - top - 8; // small bottom gap
-  sc.style.height = Math.max(320, avail) + "px";
+  let target = Math.max(320, avail);
+  // On a settle pass, never exceed the height the fresh render already
+  // committed — only the overflow-trim loop below may reduce it further. This
+  // kills the visible grow-then-shrink wobble without weakening the header pin.
+  if (settlePass && _ivcalFitBaseH) target = Math.min(target, _ivcalFitBaseH);
+  sc.style.height = target + "px";
   // Bound the left panel to the same viewport area so its My Calendars list
   // scrolls inside the panel (the mini-calendars stay pinned) instead of
   // growing the panel and letting the whole page scroll the calendar away.
@@ -26163,10 +26205,12 @@ function _ivcalFitHeight() {
     sc.style.height = Math.max(320, cur - overflow) + "px";
   }
   _rrResetCalAncestorsScroll(sc);                     // clamp back to the pinned position
+  _ivcalFitBaseH = parseFloat(sc.style.height) || target; // baseline for settle-pass clamping
   if (!_ivcalFitInstalled) {
     _ivcalFitInstalled = true;
     let raf = null;
-    window.addEventListener("resize", () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(_ivcalFitHeight); });
+    // A resize is a fresh sizing context — recompute freely (not a settle pass).
+    window.addEventListener("resize", () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => _ivcalFitHeight()); });
   }
 }
 // Run the fit now plus on the next frame and a couple of short delays, so it
@@ -26174,10 +26218,12 @@ function _ivcalFitHeight() {
 // that would otherwise leave the page a few px scrollable and drift the header.
 let _ivcalFitT1 = 0, _ivcalFitT2 = 0;
 function _ivcalFitHeightSoon() {
-  _ivcalFitHeight();
-  requestAnimationFrame(_ivcalFitHeight);
-  clearTimeout(_ivcalFitT1); _ivcalFitT1 = setTimeout(_ivcalFitHeight, 130);
-  clearTimeout(_ivcalFitT2); _ivcalFitT2 = setTimeout(_ivcalFitHeight, 480);
+  _ivcalFitHeight();                                       // synchronous baseline (pre-paint)
+  requestAnimationFrame(() => _ivcalFitHeight());          // still pre-paint — may grow to correct
+  // The delayed passes run AFTER the browser has painted; mark them so they can
+  // only shrink to absorb late overflow, never grow (which would flash).
+  clearTimeout(_ivcalFitT1); _ivcalFitT1 = setTimeout(() => _ivcalFitHeight({ settle: true }), 130);
+  clearTimeout(_ivcalFitT2); _ivcalFitT2 = setTimeout(() => _ivcalFitHeight({ settle: true }), 480);
 }
 
 // Scroll the day/week grid so the current time sits near the top third.
@@ -36696,18 +36742,64 @@ const _RR_MC_ICONS = {
 };
 const _rrStarSvg = (on) => `<svg viewBox="0 0 24 24" width="15" height="15" fill="${on ? "currentColor" : "none"}" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`;
 
-// Favorite conversations — persisted locally (no backend contract change).
-// Favorited drivers pin to the top of the Recent list and carry a star in
-// the conversation header.
+// Favorite conversations. The database (msg_favorites, via
+// dispatch_chat_set_favorite / the is_favorite flag on dispatch_chat_threads)
+// is the source of truth so stars survive a sign-out, a browser data wipe, a
+// private window, or a move to another device. localStorage is kept only as an
+// instant-paint cache that reconciles against server truth on every inbox
+// fetch (see _rrReconcileFavs). Favorited drivers pin to the top of the Recent
+// list and carry a star in the conversation header.
 function _rrMsgFavs() {
-  try { return new Set(JSON.parse(localStorage.getItem("rr_msg_favs") || "[]")); }
+  try { return new Set((JSON.parse(localStorage.getItem("rr_msg_favs") || "[]")).map(String)); }
   catch { return new Set(); }
 }
+function _rrWriteMsgFavs(set) {
+  try { localStorage.setItem("rr_msg_favs", JSON.stringify([...set])); } catch {}
+}
+// Flip the local cache immediately (optimistic) and return the new state.
 function _rrToggleMsgFav(id) {
   const s = _rrMsgFavs();
+  id = String(id);
   if (s.has(id)) s.delete(id); else s.add(id);
-  try { localStorage.setItem("rr_msg_favs", JSON.stringify([...s])); } catch {}
+  _rrWriteMsgFavs(s);
   return s.has(id);
+}
+// driver_ids with an in-flight DB write — reconciliation leaves these alone
+// so a poll that lands mid-toggle can't clobber the optimistic state.
+const _rrFavPending = new Set();
+// Persist a star to the server. Resolves true on success, false on failure
+// so the caller can roll the optimistic UI back.
+async function _rrPushFav(id, on) {
+  try {
+    const { error } = await sb.rpc("dispatch_chat_set_favorite", { p_driver_id: id, p_on: !!on });
+    return !error;
+  } catch { return false; }
+}
+// Reconcile the localStorage cache against the is_favorite flags returned by
+// dispatch_chat_threads. Union semantics, non-destructive:
+//   • server star not cached locally  → add it (recovers a fav after a wipe /
+//     from another device).
+//   • cached star not yet on the server → push it up (migrates pre-existing
+//     localStorage favorites, and re-syncs anything set while offline).
+// A star is only ever removed by an explicit user un-star (which deletes on
+// both sides), never by reconciliation — that keeps a transient empty server
+// read from silently wiping the operator's favorites.
+function _rrReconcileFavs(threads) {
+  if (!Array.isArray(threads)) return;
+  const local = _rrMsgFavs();
+  let changed = false;
+  for (const t of threads) {
+    if (!t || t.driver_id == null) continue;
+    const id = String(t.driver_id);
+    if (_rrFavPending.has(id)) continue;
+    if (t.is_favorite && !local.has(id)) { local.add(id); changed = true; }
+    else if (!t.is_favorite && local.has(id)) {
+      // Local-only star — migrate / re-sync it to the server.
+      _rrFavPending.add(id);
+      _rrPushFav(id, true).finally(() => _rrFavPending.delete(id));
+    }
+  }
+  if (changed) _rrWriteMsgFavs(local);
 }
 
 // Driver-details panel open/closed preference (remembered across sessions).
@@ -36752,11 +36844,21 @@ if (!window.__rrMsgChromeWired) {
     const fav = e.target.closest("[data-rr-fav]");
     if (fav) {
       const id = fav.getAttribute("data-rr-fav");
-      const on = _rrToggleMsgFav(id);
+      const on = _rrToggleMsgFav(id);          // optimistic local flip
       fav.classList.toggle("on", on);
       fav.setAttribute("aria-pressed", on ? "true" : "false");
       fav.title = on ? "Remove from favorites" : "Add to favorites";
       fav.innerHTML = _rrStarSvg(on);
+      // Persist to the server (source of truth). Roll the optimistic flip
+      // back if the write fails so the UI never lies about what's saved.
+      _rrFavPending.add(String(id));
+      _rrPushFav(id, on).then((ok) => {
+        _rrFavPending.delete(String(id));
+        if (!ok) {
+          _rrToggleMsgFav(id);                 // revert the cache
+          if (typeof refreshDriverChatList === "function") refreshDriverChatList(false);
+        }
+      });
       if (typeof refreshDriverChatList === "function") refreshDriverChatList(false);
       return;
     }
@@ -37050,6 +37152,11 @@ async function refreshDriverChatList(autoSelect) {
   // Drivers still in onboarding don't belong in the general Messages
   // inbox — they're reachable from the Orientation dashboard's inline
   // chat instead, and roll into this inbox once they're activated.
+  // Reconcile favorites against server truth (is_favorite) before we build
+  // the list, so a star saved on another device / recovered after a local
+  // wipe shows up, and any local-only star gets migrated up. Runs on the raw
+  // result so favorites for filtered-out drivers aren't disturbed.
+  _rrReconcileFavs(data);
   _msgInboxList = (data || []).filter(t => t && t.status !== "onboarding");
   // (No early return on an empty driver list — the pinned RouteReady
   // Support row is still rendered below, so the inbox is never empty.)
@@ -37855,7 +37962,13 @@ async function refreshDriverChatThread(scrollToBottom) {
     const _hMeta = (_msgInboxList || []).find((t) => String(t.driver_id) === String(driverId)) || {};
     const _hStation = _hMeta.station_code ? escapeHtml(_hMeta.station_code) : "";
     const _hFav = _rrMsgFavs().has(driverId);
-    const _hSub = [_hStation, "Available"].filter(Boolean).join(" · ");
+    // Presence-aware sub-line; _presencePaintThreadHead refines it once the
+    // presence snapshot lands.  Default to the last-active hint so the head
+    // never flashes a stale "Available".
+    const _hLastRel = _fmtMsgRelative(_hMeta.last_at);
+    const _hSub = _presence.online.has(driverId)
+      ? [_hStation, `<span class="rr-mc-online-pip"></span>Available`].filter(Boolean).join(" · ")
+      : [_hStation, "Offline", _hLastRel ? `Last active ${escapeHtml(_hLastRel)}` : ""].filter(Boolean).join(" · ");
     conv.innerHTML = `
       <div class="rr-mc-shell">
         <div class="rr-mc-head" data-rr-driver-id="${escapeHtml(driverId)}">
@@ -37903,6 +38016,15 @@ async function refreshDriverChatThread(scrollToBottom) {
         </form>
       </div>`;
     const ta = document.getElementById("rr-mc-input");
+    // Send stays disabled until there's text or a pending attachment —
+    // clearer affordance than silently no-op'ing an empty submit.
+    const _mcSendBtn = document.querySelector("#rr-mc-form .rr-mc-send");
+    const _mcSyncSend = () => {
+      if (!_mcSendBtn) return;
+      _mcSendBtn.disabled = !((ta.value || "").trim() || window._rrMcPending);
+    };
+    _mcSyncSend();
+    window._rrMcSyncSend = _mcSyncSend;
     // Compact priority dropdown + require-acknowledgement toggle for the
     // next outbound message.
     _wirePriorityDropdown();
@@ -37910,6 +38032,7 @@ async function refreshDriverChatThread(scrollToBottom) {
       _dispatchRequiresAck = !!e.target.checked;
     });
     ta.addEventListener("input", () => {
+      _mcSyncSend();
       ta.style.height = "auto"; ta.style.height = Math.min(160, ta.scrollHeight) + "px";
       // Keep the caret visible inside the textarea — once the draft
       // exceeds max-height, the textarea internally scrolls.  We pin
@@ -37944,7 +38067,7 @@ async function refreshDriverChatThread(scrollToBottom) {
     const attachCtl = _rrWireComposerAttach({
       ta, fileInput, previewEl,
       attachBtn: document.getElementById("rr-mc-attach"),
-      setPending: (f) => { window._rrMcPending = f; },
+      setPending: (f) => { window._rrMcPending = f; if (typeof _mcSyncSend === "function") _mcSyncSend(); },
     });
 
     // ── Voice notes (dispatch → driver) ─────────────────────────────────
@@ -38018,6 +38141,7 @@ async function refreshDriverChatThread(scrollToBottom) {
       threadEl.dataset.rrAnchor = "1";
       const savedBody = body;
       ta.value = ""; ta.style.height = "auto";
+      if (typeof _mcSyncSend === "function") _mcSyncSend();
       // Direct scrollTop write — the cheap path.  The thread's bottom
       // edge sits just above the composer (grid layout), so scrollHeight
       // lands the just-inserted stub flush above the composer.
@@ -38262,7 +38386,7 @@ async function refreshDriverChatThread(scrollToBottom) {
           // browser's scroll-anchor algorithm to "preserve" (which is
           // what was yanking the operator UP to a fixed image position).
           ? `<img data-rr-mc-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" width="240" height="240" loading="eager" decoding="async" style="max-width:240px;border-radius:var(--r-lg);margin-bottom:6px;cursor:zoom-in" onclick="window.open(this.src,'_blank')"/>`
-          : `<a data-rr-mc-attach="${escapeHtml(m.attachment_path)}" target="_blank" rel="noopener" style="display:flex;gap:var(--s-2);align-items:center;padding:6px var(--s-2-5);background:rgba(255,255,255,.15);border-radius:8px;margin-bottom:6px;text-decoration:none;color:inherit;max-width:240px"><span>📎</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:var(--fs-sm)">${escapeHtml(name)}</span>${sizeKb != null ? `<span style="font-size:var(--fs-xs);opacity:.8">${sizeKb} KB</span>` : ""}</a>`;
+          : _rrMcAttachCard(m);
       }
       const isDeleted = !!m.deleted_at;
       const isMine    = m.sender_kind === "dispatch";
@@ -38297,7 +38421,10 @@ async function refreshDriverChatThread(scrollToBottom) {
             : `<div class="rr-mc-ack pending">Awaiting acknowledgement</div>`)
         : "";
       const likeBtn = isDeleted ? "" : `<button type="button" class="rr-mc-like" data-rr-mc-like="${escapeHtml(m.id)}" aria-label="Like" title="Like"><span class="rr-mc-like-icon" aria-hidden="true">👍</span><span class="rr-mc-like-n"></span></button>`;
-      html += `<div class="rr-mc-bubble ${m.sender_kind}${deletedClass}${priCls}" data-group-pos="${pos}" data-rr-mc-msg="${escapeHtml(m.id)}">
+      // Attachment-only messages drop the bubble chrome so the card /
+      // thumbnail reads as a standalone surface (enterprise register).
+      const attachOnly = (m.attachment_path && !m.body && !isDeleted) ? " attach-only" : "";
+      html += `<div class="rr-mc-bubble ${m.sender_kind}${deletedClass}${priCls}${attachOnly}" data-group-pos="${pos}" data-rr-mc-msg="${escapeHtml(m.id)}">
         ${actions}
         ${priTag}${attach}${m.is_auto ? '<span class="rr-mc-auto" title="Automated message">Auto</span>' : ''}${bodyHtml}${ackChip}
         <div class="rr-mc-time">${escapeHtml(time)}${editedTag}</div>
@@ -38672,6 +38799,67 @@ function _rrMcWireVoicePlayer(audio) {
     speedBtn.textContent = speeds[si] + "×";
   });
   showDur();
+}
+
+// ── File-type + size helpers for attachment cards ──────────────────────
+// Maps a filename / MIME to a compact badge label, a human file-type
+// description, and a colour class (kind-pdf / kind-doc / …).
+function _rrMcFileKind(name, mime) {
+  const ext = (String(name || "").match(/\.([a-z0-9]+)$/i)?.[1] || "").toLowerCase();
+  const m = (mime || "").toLowerCase();
+  if (m.startsWith("image/"))                                             return { badge: "IMG",              label: "Image",           cls: "img" };
+  if (ext === "pdf" || m === "application/pdf")                           return { badge: "PDF",              label: "PDF document",    cls: "pdf" };
+  if (["doc", "docx"].includes(ext) || m.includes("word"))               return { badge: "DOC",              label: "Word document",   cls: "doc" };
+  if (["xls", "xlsx"].includes(ext) || m.includes("sheet") || m.includes("excel")) return { badge: "XLS",     label: "Spreadsheet",     cls: "xls" };
+  if (ext === "csv" || m.includes("csv"))                                return { badge: "CSV",              label: "CSV spreadsheet", cls: "xls" };
+  if (["ppt", "pptx"].includes(ext) || m.includes("presentation"))       return { badge: "PPT",              label: "Presentation",    cls: "ppt" };
+  if (["zip", "rar", "7z", "gz"].includes(ext))                          return { badge: "ZIP",              label: "Archive",         cls: "zip" };
+  if (["txt", "rtf", "md"].includes(ext) || m.startsWith("text/"))       return { badge: "TXT",              label: "Text file",       cls: "txt" };
+  return { badge: ext ? ext.slice(0, 4).toUpperCase() : "FILE",          label: "File",            cls: "gen" };
+}
+function _rrFmtBytes(b) {
+  if (b == null || isNaN(b)) return "";
+  if (b < 1024) return b + " B";
+  if (b < 1048576) return Math.round(b / 1024) + " KB";
+  return (b / 1048576).toFixed(b < 10485760 ? 1 : 0) + " MB";
+}
+// ── Compact attachment card (direct + channel chat) ────────────────────
+// A horizontal card: file-type badge · filename · size + type meta ·
+// persistent Preview / Download / More actions.  Every action anchor
+// carries data-rr-mc-attach so _rrMcSignAttachments binds the private-
+// bucket signed URL after paint.  Used for non-image, non-audio files;
+// images keep their inline thumbnail.
+const _RR_DOC_ICON = {
+  eye:  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>`,
+  down: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
+  dots: `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg>`,
+};
+function _rrMcAttachCard(m) {
+  const path = escapeHtml(m.attachment_path);
+  const name = m.attachment_name || "Attachment";
+  const nameEsc = escapeHtml(name);
+  const kind = _rrMcFileKind(name, m.attachment_mime);
+  const meta = [_rrFmtBytes(m.attachment_size_bytes), kind.label].filter(Boolean).join(" · ");
+  return `<div class="rr-mc-doc kind-${kind.cls}">
+      <a class="rr-mc-doc-open" data-rr-mc-attach="${path}" target="_blank" rel="noopener" aria-label="Preview ${nameEsc}">
+        <span class="rr-mc-doc-badge" aria-hidden="true">${kind.badge}</span>
+        <span class="rr-mc-doc-text">
+          <span class="rr-mc-doc-name" title="${nameEsc}">${nameEsc}</span>
+          <span class="rr-mc-doc-meta">${escapeHtml(meta)}</span>
+        </span>
+      </a>
+      <div class="rr-mc-doc-actions">
+        <a class="rr-mc-doc-act" data-rr-mc-attach="${path}" target="_blank" rel="noopener" aria-label="Preview" title="Preview">${_RR_DOC_ICON.eye}</a>
+        <a class="rr-mc-doc-act" data-rr-mc-attach="${path}" download="${nameEsc}" target="_blank" rel="noopener" aria-label="Download" title="Download">${_RR_DOC_ICON.down}</a>
+        <details class="rr-mc-doc-more">
+          <summary class="rr-mc-doc-act" aria-label="More actions" title="More">${_RR_DOC_ICON.dots}</summary>
+          <div class="rr-mc-doc-menu" role="menu">
+            <button type="button" role="menuitem" onclick="(function(el){var a=el.closest('.rr-mc-doc').querySelector('.rr-mc-doc-open');if(a&&a.href)window.open(a.href,'_blank','noopener');el.closest('.rr-mc-doc-more').removeAttribute('open');})(this)">Open in new tab</button>
+            <button type="button" role="menuitem" onclick="(function(el){var a=el.closest('.rr-mc-doc').querySelector('.rr-mc-doc-open');if(a&&a.href&&navigator.clipboard){navigator.clipboard.writeText(a.href).then(function(){window.toast&&toast('Link copied','success')});}el.closest('.rr-mc-doc-more').removeAttribute('open');})(this)">Copy link</button>
+          </div>
+        </details>
+      </div>
+    </div>`;
 }
 
 async function _rrMcSignAttachments() {
@@ -39280,14 +39468,15 @@ async function refreshChannelThread(scrollToBottom) {
           // image load and the scroll-anchor algorithm has nothing to
           // walk up to preserve.
           ? `<img data-rr-mc-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" width="240" height="240" loading="eager" decoding="async" style="max-width:240px;border-radius:8px;margin-bottom:6px;cursor:zoom-in" onclick="window.open(this.src,'_blank')"/>`
-          : `<a data-rr-mc-attach="${escapeHtml(m.attachment_path)}" target="_blank" rel="noopener" style="display:flex;gap:var(--s-2);align-items:center;padding:6px var(--s-2-5);background:rgba(255,255,255,.15);border-radius:8px;margin-bottom:6px;text-decoration:none;color:inherit;max-width:240px"><span>📎</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:var(--fs-sm)">${escapeHtml(name)}</span>${sizeKb != null ? `<span style="font-size:var(--fs-xs);opacity:.8">${sizeKb} KB</span>` : ""}</a>`;
+          : _rrMcAttachCard(m);
       }
       const senderLabel = m.sender_kind === "dispatch"
         ? (m.sender_name ? `Dispatch · ${m.sender_name}` : "Dispatch")
         : (m.sender_name || "Driver");
       const bodyHtml = m.body ? `<div>${linkifyEscaped(escapeHtml(m.body).replace(/\n/g, "<br>"))}</div>` : "";
       const showSender = (pos === "first" || pos === "single");
-      return `<div class="rr-cc-bubble ${m.sender_kind}" data-group-pos="${pos}">
+      const ccAttachOnly = (m.attachment_path && !m.body) ? " attach-only" : "";
+      return `<div class="rr-cc-bubble ${m.sender_kind}${ccAttachOnly}" data-group-pos="${pos}">
         ${showSender ? `<div class="rr-cc-sender">${escapeHtml(senderLabel)}</div>` : ""}
         ${attach}
         ${bodyHtml}
@@ -42390,7 +42579,10 @@ function _presencePaintThreadHead(driverId) {
     if (_presence.online.has(driverId)) {
       sub.innerHTML = [station, `<span class="rr-mc-online-pip"></span>Available`].filter(Boolean).join(" · ");
     } else {
-      sub.innerHTML = [station, "Offline"].filter(Boolean).join(" · ");
+      // Offline → surface a last-active hint from the most recent thread
+      // activity, mirroring the reference ("DCA1 · Offline · Last active 5h ago").
+      const lastRel = _fmtMsgRelative(meta.last_at);
+      sub.innerHTML = [station, "Offline", lastRel ? `Last active ${escapeHtml(lastRel)}` : ""].filter(Boolean).join(" · ");
     }
   }
   // Keep the details-panel avatar dot in sync with presence.
@@ -42615,11 +42807,15 @@ function _rrCallAskNotifyPermission() {
 // the features string, which would make window.open return null and hide
 // popup-blocking from us. If the popup is refused we fall back to the old
 // new-tab behavior rather than dropping the meeting on the floor.
-function rrOpenMeetWindow(url) {
+function rrOpenMeetWindow(url, opts) {
   const sw = window.screen?.availWidth  || 1280;
   const sh = window.screen?.availHeight || 800;
-  const w  = Math.min(1180, Math.max(640, sw - 120));
-  const h  = Math.min(760,  Math.max(480, sh - 120));
+  // Callers can ask for a FaceTime-style compact window (1:1 calls);
+  // meetings default to the full meeting-sized one.
+  const prefW = (opts && opts.w) || 1180;
+  const prefH = (opts && opts.h) || 760;
+  const w  = Math.min(prefW, Math.max(360, sw - 120));
+  const h  = Math.min(prefH, Math.max(420, sh - 120));
   const left = Math.round((window.screenLeft ?? 0) + Math.max(0, (sw - w) / 2));
   const top  = Math.round((window.screenTop  ?? 0) + Math.max(0, (sh - h) / 2));
   let win = null;
@@ -42642,6 +42838,8 @@ function _rrCallOpenRoom(room, media, replace) {
   // cold-boot — no synchronous gesture for a popup). location resolves
   // "meet.html" against /dashboard/.
   if (replace) { try { location.href = url; return; } catch {} }
+  // Desktop calls open the traditional meeting-sized window (the
+  // FaceTime treatment is phone-only, operator request 2026-07-13).
   rrOpenMeetWindow(url);
 }
 

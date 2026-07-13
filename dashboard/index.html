@@ -589,14 +589,10 @@
            Every icon shares: rx=3.5 outer corner, identical light
            direction, fills pinned (no currentColor) so they hold
            tone across inactive/hover/active states. ═══════════════ -->
-      <!-- Dashboard (Today's Plan command center) · the app's landing view.
-           Previously it had NO sidebar entry, so once an operator left it there
-           was no way back except a full reload. This item makes the command
-           center a first-class, always-reachable destination. -->
-      <button class="nav-item active" data-view="dashboard" data-c="dashboard" title="Dashboard" onclick="goto('dashboard')">
-        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg></span>
-        Dashboard
-      </button>
+      <!-- Dashboard (Today's Plan command center) has no dedicated sidebar
+           entry — it's the landing view and is reachable via the brand mark
+           above (and from the Schedule view). Operator asked to drop the
+           redundant Dashboard nav item (2026-07-13). -->
       <button class="nav-item" data-view="schedule" data-c="schedule" title="Schedule" onclick="goto('schedule');if(window.rrSchedToggle)window.rrSchedToggle()">
         <!-- Schedule (CORE) · deep-navy frame, recessed inner panel
              for the calendar paper, cool-blue header bar with a 1px

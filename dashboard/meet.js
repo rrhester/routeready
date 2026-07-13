@@ -72,6 +72,20 @@ const DEBUG = new URLSearchParams(location.search).has("debug");
 // crew (2–6) on an always-on channel — everything else in this file is
 // untouched, so normal video calls are unaffected. See docs.
 const PTT = new URLSearchParams(location.search).has("ptt");
+// ?call=1 · direct 1:1 call from RouteReady Messages (rrPlaceCall). ON A
+// PHONE-SIZED VIEWPORT ONLY (operator request 2026-07-13 — desktop keeps
+// the traditional meeting view): while exactly two people are in the room
+// and nobody is screen-sharing, the room renders FaceTime-style — the
+// other person fills the window, my own camera rides along as a small
+// draggable picture-in-picture tile (tap it to trade places with the
+// stage), and the header floats over the video and fades out while idle.
+// A third participant or a screen share falls back to the normal meeting
+// layout. mqCallPhone is the SAME 760px breakpoint the call-mode CSS in
+// meet.html is scoped to — keep them in lockstep or layout and style
+// disagree. The radio (?ptt=1) and embedded (?embed=1) surfaces never
+// get any of this.
+const CALL = new URLSearchParams(location.search).has("call") && !PTT;
+const mqCallPhone = matchMedia("(max-width: 760px)");
 // ?dtok=<driver session token> · the driver PWA embeds Meet as an anonymous
 // guest (drivers aren't Supabase-authenticated), so it passes its opaque
 // session token here. It's used ONLY to mint the driver a TURN relay via the
@@ -126,6 +140,8 @@ const state = {
   left: false,
   // zoom-quality pass
   view: "gallery",     // "gallery" | "speaker"
+  pipCorner: "br",     // FaceTime pip corner (?call=1): tl | tr | bl | br
+  ftSwapped: false,    // FaceTime swap (?call=1): true = I hold the stage, they ride in the pip
   pinnedKey: null,
   hand: false,
   activeSpeaker: null,
@@ -1448,6 +1464,9 @@ function tileFor(entry) {
 }
 
 function togglePin(key) {
+  // No pinning while the FaceTime 1:1 layout owns the stage — a double-tap
+  // on the pip is two swaps (back where you started), not a pin.
+  if ($("grid").classList.contains("ft")) return;
   state.pinnedKey = state.pinnedKey === key ? null : key;
   renderGrid();
 }
@@ -1478,6 +1497,29 @@ function renderGrid() {
       ? state.activeSpeaker
       : (roster.find((r) => r.key !== state.peerKey) || roster[0]).key;
   }
+  // FaceTime layout (?call=1 on a phone-sized viewport, exactly two in
+  // the room, nobody sharing): one tile owns the whole window, the other
+  // rides in the pip — normally them big / me small, flipped while
+  // state.ftSwapped (tap the pip to trade places, tap again to trade
+  // back). Desktop call windows keep the traditional meeting layout.
+  // Pin/speaker semantics resume with a third participant or a share.
+  const ft = CALL && mqCallPhone.matches && !sharer && roster.length === 2;
+  let pipKey = null;
+  if (ft) {
+    const remoteKey = (roster.find((r) => r.key !== state.peerKey) || roster[0]).key;
+    stageKey = state.ftSwapped ? state.peerKey : remoteKey;
+    pipKey   = state.ftSwapped ? remoteKey : state.peerKey;
+  }
+  grid.classList.toggle("ft", ft);
+  if (CALL) {
+    // The window is a call, not a meeting: title it after the far end,
+    // like FaceTime (falls back to the room title while they connect).
+    const remote = roster.find((r) => r.key !== state.peerKey);
+    const peerName = remote?.name || "";
+    const extra = roster.length > 2 ? " +" + (roster.length - 2) : "";
+    $("room-title").textContent = peerName ? peerName + extra : ($("room-title").textContent || "RouteReady call");
+    if (peerName) document.title = peerName + extra + " · RouteReady Call";
+  }
   grid.classList.toggle("has-stage", !!stageKey);
 
   for (const [key, tile] of tiles) {
@@ -1505,6 +1547,10 @@ function renderGrid() {
     const camOn = me ? (state.sharing || (state.cam && !!state.camTrack)) : (entry.cam || entry.screen);
     tile.classList.toggle("cam-off", !camOn);
     tile.classList.toggle("is-me", me);
+    const isPip = ft && entry.key === pipKey;
+    tile.classList.toggle("pip", isPip);
+    if (isPip) applyPipCorner(tile);
+    else tile.classList.remove("pip-tl", "pip-tr", "pip-bl", "pip-br");
     tile.classList.toggle("stage", stageKey === entry.key);
     // Screen content letterboxes (never crop shared text); camera stages crop-fill.
     tile.classList.toggle("stage-screen", !!sharer && stageKey === entry.key);
@@ -1543,6 +1589,92 @@ function renderGrid() {
   if (pill) pill.style.display = recOn ? "" : "none";
   const embedRec = $("embed-rec");
   if (embedRec) embedRec.style.display = recOn ? "" : "none";
+}
+
+// ─── ui · FaceTime call chrome (?call=1) ──────────────────────────────────
+
+// The pip parks in one of four corners; renderGrid re-applies the class on
+// every render so the choice survives tile reuse and roster churn.
+function applyPipCorner(tile) {
+  tile.classList.remove("pip-tl", "pip-tr", "pip-bl", "pip-br");
+  tile.classList.add("pip-" + (state.pipCorner || "br"));
+}
+
+// Drag the pip anywhere while the pointer is down, then snap it to the
+// nearest corner on release; a TAP (no real movement) swaps the pip with
+// the stage and back — both FaceTime behaviors. Delegated on #grid so it
+// survives tile recreation; buttons inside the pip are hidden in call mode
+// so pointerdown on it is always a drag-or-tap.
+const PIP_TAP_SLOP = 8; // px of movement that still counts as a tap
+function wirePipDrag() {
+  const grid = $("grid");
+  let drag = null;
+  grid.addEventListener("pointerdown", (e) => {
+    const tile = e.target.closest(".tile.pip");
+    if (!tile || e.button) return;
+    const r = tile.getBoundingClientRect();
+    const g = grid.getBoundingClientRect();
+    drag = { tile, g, w: r.width, h: r.height, dx: e.clientX - r.left, dy: e.clientY - r.top,
+             x0: e.clientX, y0: e.clientY, moved: false };
+    try { tile.setPointerCapture(e.pointerId); } catch { /* older engines */ }
+  });
+  grid.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    if (!drag.moved) {
+      if (Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < PIP_TAP_SLOP) return;
+      drag.moved = true;
+      drag.tile.classList.add("dragging");
+    }
+    const x = Math.min(Math.max(e.clientX - drag.g.left - drag.dx, 6), drag.g.width - drag.w - 6);
+    const y = Math.min(Math.max(e.clientY - drag.g.top - drag.dy, 6), drag.g.height - drag.h - 6);
+    drag.tile.style.left = x + "px"; drag.tile.style.top = y + "px";
+    drag.tile.style.right = "auto"; drag.tile.style.bottom = "auto";
+  });
+  const end = () => {
+    if (!drag) return;
+    const t = drag.tile;
+    if (!drag.moved) {
+      // Tap → trade places with the stage (and back on the next tap).
+      drag = null;
+      state.ftSwapped = !state.ftSwapped;
+      renderGrid();
+      return;
+    }
+    const cx = (parseFloat(t.style.left) || 0) + drag.w / 2;
+    const cy = (parseFloat(t.style.top) || 0) + drag.h / 2;
+    state.pipCorner = (cy < drag.g.height / 2 ? "t" : "b") + (cx < drag.g.width / 2 ? "l" : "r");
+    t.style.left = t.style.top = t.style.right = t.style.bottom = "";
+    t.classList.remove("dragging");
+    applyPipCorner(t);
+    drag = null;
+  };
+  grid.addEventListener("pointerup", end);
+  grid.addEventListener("pointercancel", end);
+}
+
+// Header + control pill fade out after a few idle seconds and wake on any
+// pointer/key activity — FaceTime-style. Never hides while chat, a popover
+// or the admit banner is open, and only fades opacity (pointer-events stay
+// on, so the WCO drag region in the header keeps working while invisible;
+// by the time you aim for a button, the move has already woken the chrome).
+let _chromeTimer = 0;
+function chromeWake() {
+  document.body.classList.remove("chrome-hidden");
+  clearTimeout(_chromeTimer);
+  _chromeTimer = setTimeout(() => {
+    if (!mqCallPhone.matches) return; // desktop chrome never fades
+    if (document.body.dataset.screen !== "room") return;
+    if (state.chatOpen) return;
+    if (document.querySelector(".pop:not([hidden])")) return;
+    const wb = $("wait-banner");
+    if (wb && !wb.hidden) return;
+    document.body.classList.add("chrome-hidden");
+  }, 3200);
+}
+function wireCallChrome() {
+  ["pointermove", "pointerdown", "keydown", "touchstart"].forEach((ev) =>
+    document.addEventListener(ev, chromeWake, { passive: true }));
+  chromeWake();
 }
 
 // ─── ui · controls ────────────────────────────────────────────────────────
@@ -2399,6 +2531,19 @@ function wire() {
 async function boot() {
   wire();
   state.sinkId = devicePrefs().spk || "";
+  if (CALL && !EMBED) {
+    document.body.classList.add("call");
+    wirePipDrag();
+    wireCallChrome();
+    // Crossing the phone breakpoint (resize / rotate) re-evaluates the
+    // FaceTime layout and un-fades the chrome for the traditional view.
+    try {
+      mqCallPhone.addEventListener("change", () => {
+        document.body.classList.remove("chrome-hidden");
+        renderGrid();
+      });
+    } catch { /* older engines: layout settles on next render */ }
+  }
   if (EMBED) {
     document.body.classList.add("embed");
     // The header is hidden in embed mode — its buttons (speaker view,
