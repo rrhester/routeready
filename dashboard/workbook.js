@@ -13348,7 +13348,7 @@ function openGoalSeekDialog(g) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 const MACRO_STORE_PREFIX = "rr-wb-macros:";
-let macroRunConfirmed = false;
+let macroConfirmedCode = null; // last code the user explicitly approved to run
 
 function macroStoreKey() { return MACRO_STORE_PREFIX + ((WB.wb && WB.wb.id) || "local"); }
 function loadMacros() {
@@ -13588,9 +13588,17 @@ function macroGetDsp_() {
 // Generic read for "and more": any table the user's RLS lets them see. Scoped
 // to the DSP by default (pass {scope:false} for a table without dsp_id). Still
 // read-only and still exfiltration-proof (worker has no network).
+// Allowlist for the generic reader — pasted/untrusted code can only reach these
+// known-safe, DSP-scoped operational tables, never an arbitrary table name.
+const MACRO_ORGDATA_TABLES = new Set([
+  "drivers", "vehicles", "vehicle_driver_assignments", "shifts", "time_off_requests",
+]);
 async function macroOrgData_(table, opts) {
   opts = opts || {};
   if (!table || typeof table !== "string") throw new Error("orgData(table, opts): a table name is required.");
+  if (!MACRO_ORGDATA_TABLES.has(table)) {
+    throw new Error('orgData: "' + table + '" is not an allowed table. Allowed: ' + Array.from(MACRO_ORGDATA_TABLES).join(", ") + ". (Ask an admin to add more.)");
+  }
   let q = macroSb_().from(table).select(typeof opts.select === "string" ? opts.select : "*");
   if (opts.scope !== false) q = q.eq("dsp_id", macroDsp_().id);
   if (opts.eq && typeof opts.eq === "object") for (const k of Object.keys(opts.eq)) q = q.eq(k, opts.eq[k]);
@@ -13766,9 +13774,17 @@ function openMacrosPanel(g) {
     macros = macros.filter((x) => x.id !== currentId); saveMacros(macros); newMacro(); flashStatus("Deleted", true);
   });
   $("#wb-macro-run").addEventListener("click", async () => {
-    if (!macroRunConfirmed) {
-      if (!window.confirm("This runs the code in the editor. It's sandboxed — no internet access, and it can only touch this workbook — but only run scripts you understand.\n\nRun this macro?")) return;
-      macroRunConfirmed = true;
+    // Re-confirm whenever the code is new or edited — so every pasted snippet
+    // (e.g. code from an AI or the web) gets an explicit "run this?" gate.
+    const codeNow = codeEl.value;
+    if (codeNow !== macroConfirmedCode) {
+      if (!window.confirm(
+        "You're about to RUN this code.\n\n" +
+        "It's sandboxed — it CANNOT reach the internet, send your data anywhere, or touch other organizations. " +
+        "But it CAN read your data and change THIS sheet, so only run code you understand. " +
+        "If it came from an AI or the web, read it first.\n\nRun it?"
+      )) return;
+      macroConfirmedCode = codeNow;
     }
     const runBtn = $("#wb-macro-run");
     outEl.textContent = ""; appendOut("▶ Running…");
