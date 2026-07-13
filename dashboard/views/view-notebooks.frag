@@ -38,9 +38,56 @@
   overflow:hidden;background:var(--canvas)}
 .rrnb-shell{height:100%;display:grid;
   grid-template-columns:248px 300px 1fr;min-height:0;min-width:0}
+.rrnb-shell.ctx-on{grid-template-columns:248px 300px 1fr minmax(280px,320px)}
 .rrnb-pane{min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden;
   border-right:1px solid var(--border);background:var(--surface)}
 .rrnb-pane--canvas{border-right:0;background:var(--canvas)}
+
+/* ── Pane 4: context rail (linked records · outline · backlinks · props) ── */
+.rrnb-pane--ctx{border-right:0;border-left:1px solid var(--border);background:var(--surface);display:none}
+.rrnb-shell.ctx-on .rrnb-pane--ctx{display:flex}
+.rrnb-ctxhead{display:flex;align-items:center;gap:var(--s-2);height:46px;flex:0 0 auto;
+  padding:0 var(--s-3);border-bottom:1px solid var(--border)}
+.rrnb-ctxtitle{flex:1;font-size:var(--fs-sm);font-weight:600;letter-spacing:.02em;
+  text-transform:uppercase;color:var(--text-subtle)}
+.rrnb-ctxbody{flex:1;overflow:auto;min-height:0}
+.rrnb-ctxsec{padding:var(--s-3);border-bottom:1px solid var(--border)}
+.rrnb-ctxsec:empty{display:none}
+.rrnb-ctxsec h4{margin:0 0 var(--s-2);font-size:var(--fs-xs);font-weight:700;letter-spacing:.05em;
+  text-transform:uppercase;color:var(--text-subtle);display:flex;align-items:center;gap:6px}
+.rrnb-ctxsec h4 .cnt{margin-left:auto;background:var(--surface-secondary,var(--surface-hover));
+  border:1px solid var(--border);border-radius:var(--r-pill);padding:0 6px;font-size:10px;font-weight:700;color:var(--text-muted)}
+.rrnb-crec{display:flex;align-items:center;gap:var(--s-2);padding:var(--s-1);border-radius:var(--r-md);cursor:pointer}
+.rrnb-crec:hover{background:var(--surface-hover)}
+.rrnb-crec .av{width:26px;height:26px;border-radius:6px;flex:0 0 auto;display:flex;align-items:center;
+  justify-content:center;color:#fff;font-size:11px;font-weight:700}
+.rrnb-crec .av svg{width:15px;height:15px}
+.rrnb-crec .cc{min-width:0;flex:1}
+.rrnb-crec .rn{font-size:var(--fs-sm);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rrnb-crec .rt{font-size:var(--fs-xs);color:var(--text-subtle);text-transform:capitalize}
+.rrnb-crec .go{color:var(--text-subtle);flex:0 0 auto;opacity:0;display:flex}
+.rrnb-crec .go svg{width:14px;height:14px}
+.rrnb-crec:hover .go{opacity:1}
+.rrnb-ctxlink{display:flex;align-items:center;gap:6px;font-size:var(--fs-sm);color:var(--accent);
+  cursor:pointer;padding:var(--s-2) var(--s-1) var(--s-1)}
+.rrnb-ctxlink svg{width:14px;height:14px}
+.rrnb-ol{list-style:none;margin:0;padding:0}
+.rrnb-ol li{font-size:var(--fs-sm);color:var(--text-muted);padding:3px 0 3px 10px;
+  border-left:2px solid transparent;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rrnb-ol li:hover{color:var(--text);border-left-color:var(--border-strong,var(--border))}
+.rrnb-ol li.l3{padding-left:22px;font-size:var(--fs-xs);color:var(--text-subtle)}
+.rrnb-prop{display:flex;justify-content:space-between;gap:10px;padding:3px 0;font-size:var(--fs-sm)}
+.rrnb-prop .pl{color:var(--text-subtle)}
+.rrnb-prop .pv{color:var(--text);font-weight:500;text-align:right;white-space:nowrap}
+.rrnb-ctxempty{padding:var(--s-4);color:var(--text-subtle);font-size:var(--fs-sm);line-height:1.5}
+.rrnb-metabtn.on{color:var(--accent);background:var(--accent-soft)}
+@media (max-width:1280px){
+  .rrnb-shell.ctx-on{grid-template-columns:248px 300px 1fr}
+  .rrnb-pane--ctx{position:absolute;top:0;bottom:0;right:0;z-index:60;width:min(340px,88vw);
+    transform:translateX(105%);transition:transform .18s ease;box-shadow:var(--shadow-pop);display:flex}
+  .rrnb-shell.ctx-on .rrnb-pane--ctx{transform:translateX(0)}
+  @media (prefers-reduced-motion:reduce){.rrnb-pane--ctx{transition:none}}
+}
 
 /* ── column headers ──────────────────────────────────────────────── */
 .rrnb-colhd{display:flex;align-items:center;gap:var(--s-2);height:46px;flex:0 0 auto;
@@ -488,6 +535,23 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M4 4h11l5 5v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M14 4v6h6"/></svg>
         <div>Select a page, or press <b>Alt+N</b> to create one.</div>
       </div>
+    </div>
+  </div>
+
+  <!-- ── Pane 4: context rail (linked records · outline · backlinks · props) ── -->
+  <div class="rrnb-pane rrnb-pane--ctx" id="rrnb-ctxpane">
+    <div class="rrnb-ctxhead">
+      <span class="rrnb-ctxtitle">Context</span>
+      <button class="rrnb-iconbtn" type="button" data-ctx-toggle title="Hide context panel">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+      </button>
+    </div>
+    <div class="rrnb-ctxbody" id="rrnb-ctxbody">
+      <div class="rrnb-ctxsec" id="rrnb-ctx-records"></div>
+      <div class="rrnb-ctxsec" id="rrnb-ctx-outline"></div>
+      <div class="rrnb-ctxsec" id="rrnb-ctx-backlinks"></div>
+      <div class="rrnb-ctxsec" id="rrnb-ctx-props"></div>
+      <div class="rrnb-ctxempty" id="rrnb-ctx-empty">Open a page to see its linked RouteReady records, outline, backlinks and properties.</div>
     </div>
   </div>
 </div>
@@ -1035,6 +1099,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     var wrap = $id("rrnb-canvas-wrap"); if (!wrap) return;
     wrap.innerHTML = '<div class="rrnb-blank"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 4h11l5 5v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M14 4v6h6"/></svg><div>Select a page, or press <b>Alt+N</b> to create one.</div></div>';
     S.pageId = null; S.page = null;
+    resetContextRail();
     leavePresence();
   }
 
@@ -1106,11 +1171,12 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
           '<span id="rrnb-author">' + esc(p.author || "") + '</span>' +
           '<span class="rrnb-presence" id="rrnb-presence" hidden><span class="pdot"></span><span id="rrnb-presence-txt"></span></span>' +
           '<button class="rrnb-metabtn" id="rrnb-history-btn" type="button" title="Page version history">' +
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 8v4l3 2"/></svg>History</button></div>' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 8v4l3 2"/></svg>History</button>' +
+          '<button class="rrnb-metabtn" id="rrnb-ctx-toggle" type="button" title="Toggle the context panel (linked records, outline, backlinks)">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg>Context</button></div>' +
         TOOLBAR_HTML +
         '<div class="rrnb-editor" id="rrnb-editor" contenteditable="true" spellcheck="true" data-ph="Type anywhere. Everything autosaves.">' + (p.content_html || "") + '</div>' +
         '<div class="rrnb-tagbar" id="rrnb-tagbar"></div>' +
-        '<div class="rrnb-backlinks" id="rrnb-backlinks"></div>' +
       '</div>';
     var ed = $id("rrnb-editor"), title = $id("rrnb-title");
     autoGrow(title);
@@ -1126,11 +1192,12 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     title.addEventListener("keydown", stopTypingLeak);
     title.addEventListener("keyup", stopTypingLeak);
     title.addEventListener("keypress", stopTypingLeak);
-    ed.addEventListener("input", function () { scheduleSave(); autoLinkify(); positionImgResize(); });
+    ed.addEventListener("input", function () { scheduleSave(); autoLinkify(); positionImgResize(); scheduleCtxRefresh(); });
     ed.addEventListener("keydown", onEditorKey);
     ed.addEventListener("click", onEditorClick);
     ed.addEventListener("contextmenu", onEditorCtx);
     var hb = $id("rrnb-history-btn"); if (hb) hb.addEventListener("click", openHistory);
+    var ctb = $id("rrnb-ctx-toggle"); if (ctb) ctb.addEventListener("click", function () { ctxToggle(); });
     var dictBtn = $id("rrnb-toolbar") && $id("rrnb-toolbar").querySelector('[data-cmd="dictate"]');
     if (dictBtn && (window.SpeechRecognition || window.webkitSpeechRecognition)) dictBtn.hidden = false;
     ed.addEventListener("keyup", refreshToolbarState);
@@ -1144,7 +1211,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     if (S.readOnly || p.my_role === "viewer") applyReadOnly();
     hydrateMedia(ed);
     renderTags(p.tags || []);
-    renderBacklinks(id_of(p));
+    renderContextRail(p);
     refreshSaveLabel();
   }
   function id_of(p) { return p.id || S.pageId; }
@@ -1898,13 +1965,131 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
 
   // ── backlinks ────────────────────────────────────────────────────
   function renderBacklinks(pid) {
-    var host = $id("rrnb-backlinks"); if (!host) return;
+    var host = $id("rrnb-ctx-backlinks"); if (!host) return;
     S.be.backlinks(pid).then(function (rows) {
       if (!rows || !rows.length) { host.innerHTML = ""; return; }
-      host.innerHTML = '<h4>Linked from</h4>' + rows.map(function (r) {
-        return '<a class="rrnb-backlink" data-goto-page="' + r.page_id + '" data-goto-nb="' + r.notebook_id + '">← ' + esc(r.title) + '</a>';
+      host.innerHTML = '<h4>Backlinks<span class="cnt">' + rows.length + '</span></h4>' + rows.map(function (r) {
+        return '<div class="rrnb-crec" data-goto-page="' + esc(r.page_id) + '" data-goto-nb="' + esc(r.notebook_id) + '">' +
+          '<span class="av" style="background:var(--text-subtle)"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg></span>' +
+          '<div class="cc"><div class="rn">' + esc(r.title) + '</div><div class="rt">Linked from</div></div></div>';
       }).join("");
     }).catch(function () {});
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  //  CONTEXT RAIL (Pane 4) — surfaces the depth the backend already has:
+  //  linked RouteReady records, page outline, backlinks, and properties.
+  //  Records/outline are read from the live editor DOM; backlinks come
+  //  from notebook_page_backlinks; properties from the loaded page.
+  // ══════════════════════════════════════════════════════════════════
+  function ctxPref() { try { return localStorage.getItem("rrnb-ctx-open") !== "0"; } catch (e) { return true; } }
+  function ctxToggle(force) {
+    var sh = $id("rrnb-shell"); if (!sh) return;
+    var on = (force == null) ? !sh.classList.contains("ctx-on") : !!force;
+    sh.classList.toggle("ctx-on", on);
+    try { localStorage.setItem("rrnb-ctx-open", on ? "1" : "0"); } catch (e) {}
+    var b = $id("rrnb-ctx-toggle"); if (b) b.classList.toggle("on", on);
+  }
+  var _ctxBound = false;
+  function ensureCtxInit() {
+    if (_ctxBound) return; _ctxBound = true;
+    var sh = $id("rrnb-shell"); if (sh) sh.classList.toggle("ctx-on", ctxPref());
+    var pane = $id("rrnb-ctxpane"); if (pane) pane.addEventListener("click", onCtxClick);
+  }
+  var CTX_COLORS = { driver: "#2563eb", vehicle: "#7c3aed", route: "#475569", station: "#0891b2",
+    incident: "#dc2626", shift: "#16a34a", applicant: "#d97706" };
+  function recInitials(name) {
+    var w = String(name || "").trim().split(/\s+/).filter(Boolean);
+    if (!w.length) return "•";
+    return (w[0][0] + (w.length > 1 ? w[w.length - 1][0] : "")).toUpperCase();
+  }
+  function resetContextRail() {
+    ensureCtxInit();
+    ["rrnb-ctx-records", "rrnb-ctx-outline", "rrnb-ctx-backlinks", "rrnb-ctx-props"].forEach(function (id) {
+      var el = $id(id); if (el) el.innerHTML = "";
+    });
+    var em = $id("rrnb-ctx-empty"); if (em) em.hidden = false;
+  }
+  function fillCtxRecords() {
+    var host = $id("rrnb-ctx-records"); if (!host) return;
+    var ed = $id("rrnb-editor");
+    var recs = [], seen = {};
+    var nb = (S.tree && S.tree.notebook) || {};
+    if (nb.subject_type && nb.subject_id) {
+      seen[nb.subject_type + ":" + nb.subject_id] = 1;
+      recs.push({ type: nb.subject_type, id: nb.subject_id, name: nb.name || nb.subject_type, subject: true });
+    }
+    if (ed) ed.querySelectorAll("a.rrnb-objlink[data-obj-type]").forEach(function (a) {
+      var t = a.getAttribute("data-obj-type"), i = a.getAttribute("data-obj-id");
+      if (!t || !i) return;
+      var k = t + ":" + i; if (seen[k]) return; seen[k] = 1;
+      recs.push({ type: t, id: i, name: a.getAttribute("data-obj-name") || a.textContent || "record" });
+    });
+    if (!recs.length) {
+      host.innerHTML = '<h4>Linked records</h4>' +
+        '<div class="rrnb-ctxlink" data-ctx-add>' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>Link a driver, van or route…</div>';
+      return;
+    }
+    host.innerHTML = '<h4>Linked records<span class="cnt">' + recs.length + '</span></h4>' + recs.map(function (r) {
+      var col = CTX_COLORS[r.type] || "var(--accent)";
+      return '<div class="rrnb-crec" data-ctx-rec data-rt="' + esc(r.type) + '" data-ri="' + esc(r.id) + '" data-rn="' + esc(r.name) + '">' +
+        '<span class="av" style="background:' + col + '">' + esc(recInitials(r.name)) + '</span>' +
+        '<div class="cc"><div class="rn">' + esc(r.name) + '</div><div class="rt">' + esc(r.type) + (r.subject ? ' · this notebook' : '') + '</div></div>' +
+        '<span class="go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M9 7h8v8"/></svg></span></div>';
+    }).join("") +
+      '<div class="rrnb-ctxlink" data-ctx-add><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>Link a record…</div>';
+  }
+  function fillCtxOutline() {
+    var host = $id("rrnb-ctx-outline"); if (!host) return;
+    var ed = $id("rrnb-editor"); var heads = [];
+    if (ed) ed.querySelectorAll("h1,h2,h3").forEach(function (h, ix) {
+      var t = (h.textContent || "").trim(); if (!t) return;
+      if (!h.id) h.id = "rrnb-h-" + ix;
+      heads.push({ id: h.id, lvl: h.tagName.toLowerCase(), t: t });
+    });
+    if (!heads.length) { host.innerHTML = ""; return; }
+    host.innerHTML = '<h4>On this page</h4><ul class="rrnb-ol">' + heads.map(function (h) {
+      return '<li class="' + (h.lvl === "h3" ? "l3" : "") + '" data-ctx-head="' + esc(h.id) + '">' + esc(h.t) + '</li>';
+    }).join("") + '</ul>';
+  }
+  function fillCtxProps(p) {
+    var host = $id("rrnb-ctx-props"); if (!host) return;
+    var sec = ((S.tree && S.tree.sections) || []).filter(function (s) { return s.id === p.section_id; })[0] || {};
+    var rows = [];
+    if (p.author) rows.push(["Author", esc(p.author)]);
+    if (p.updated_at) rows.push(["Edited", esc(relTime(p.updated_at))]);
+    if (p.created_at) rows.push(["Created", esc(new Date(p.created_at).toLocaleDateString())]);
+    if (sec.name) rows.push(["Section", esc(sec.name)]);
+    if (p.level) rows.push(["Depth", p.level === 1 ? "Subpage" : "Sub-subpage"]);
+    if (!rows.length) { host.innerHTML = ""; return; }
+    host.innerHTML = '<h4>Properties</h4>' + rows.map(function (r) {
+      return '<div class="rrnb-prop"><span class="pl">' + r[0] + '</span><span class="pv">' + r[1] + '</span></div>';
+    }).join("");
+  }
+  function renderContextRail(p, localOnly) {
+    ensureCtxInit();
+    if (!p) { resetContextRail(); return; }
+    var em = $id("rrnb-ctx-empty"); if (em) em.hidden = true;
+    fillCtxRecords();
+    fillCtxOutline();
+    if (!localOnly) { renderBacklinks(id_of(p)); fillCtxProps(p); }
+  }
+  var scheduleCtxRefresh = debounce(function () { if (S.page) renderContextRail(S.page, true); }, 500);
+  function onCtxClick(e) {
+    var t = e.target;
+    if (t.closest("[data-ctx-toggle]")) { ctxToggle(false); return; }
+    var rec = t.closest("[data-ctx-rec]");
+    if (rec) { openObjectRef(rec.getAttribute("data-rt"), rec.getAttribute("data-ri"), rec.getAttribute("data-rn")); return; }
+    var gp = t.closest("[data-goto-page]");
+    if (gp) {
+      var nb = gp.getAttribute("data-goto-nb"), pg = gp.getAttribute("data-goto-page");
+      if (nb && nb !== S.nbId) { S.activeSection = null; selectNotebook(nb, pg); } else { openPage(pg); }
+      return;
+    }
+    var h = t.closest("[data-ctx-head]");
+    if (h) { var el = document.getElementById(h.getAttribute("data-ctx-head")); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
+    if (t.closest("[data-ctx-add]")) { try { smartLink(true); } catch (_) {} return; }
   }
 
   // ══════════════════════════════════════════════════════════════════
