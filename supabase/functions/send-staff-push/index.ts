@@ -42,6 +42,12 @@ Deno.serve(async (req) => {
   if (!dspId) return badRequest("dsp_id_required");
   if (!call && !radio) return badRequest("call_or_radio_required");
 
+  // Dispatch radio kill-switch (operator request 2026-07-13): the radio is
+  // hidden in both apps, but driver clients on stale cached builds can still
+  // invoke us with a radio hail — drop those server-side so no dispatcher
+  // gets a push for a feature that's turned off. Remove when radio returns.
+  if (radio) return jsonResponse({ sent: 0, total: 0, skipped: "radio_disabled" });
+
   const supa = serviceClient();
   const { data: subs, error: subsErr } = await supa
     .from("staff_push_subscriptions")

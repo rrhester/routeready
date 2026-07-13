@@ -224,7 +224,10 @@
 // overdue-assignment title goes red→amber; the retired tab-lens JS/CSS and
 // dead .shift-card .meta-*/.tag CSS are deleted; "4-digit PIN" copy → "4–6".
 // Bumped so installed driver PWAs pick up the new app.js + CSS.
-const SHELL_CACHE = "rr-app-shell-v174";
+// v175 · Dispatch radio hidden (operator request): the chat-tab radio button
+// is gone and _drvOpenRadio is a no-op behind RR_RADIO_ENABLED=false until
+// the radio is ready. Bumped so installed driver PWAs pick up the new app.js.
+const SHELL_CACHE = "rr-app-shell-v175";
 const SHELL_FILES = [
   "./",
   "index.html",

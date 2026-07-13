@@ -5422,7 +5422,7 @@ async function renderChat() {
         <button class="chat-tab active" data-rr-chat-tab="dispatch">Dispatch</button>
         <button class="chat-tab" data-rr-chat-tab="channels">Channels</button>
         <button class="chat-call chat-vcall" type="button" data-rr-drv-call="video" aria-label="Video call dispatch" title="Video call dispatch"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></button>
-        <button class="chat-call chat-radio" type="button" data-rr-drv-radio aria-label="Open the dispatch radio" title="Radio"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg></button>
+        ${RR_RADIO_ENABLED ? `<button class="chat-call chat-radio" type="button" data-rr-drv-radio aria-label="Open the dispatch radio" title="Radio"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg></button>` : ""}
         ${(() => {
           const s = readSession();
           const p = (s?.dsp_phone || "").trim();
@@ -6030,7 +6030,12 @@ function _drvCallNotify(title, body) {
 }
 // Open the DSP push-to-talk radio: fetch the stable per-DSP room code, then
 // drop into meet.html in ?ptt=1 mode (audio-only, mic muted, hold-to-talk).
+// Dispatch radio kill-switch (operator request 2026-07-13): the radio is
+// hidden everywhere until it's ready. Flip to true to bring back the chat-tab
+// radio button + hail flow — all plumbing below stays intact.
+const RR_RADIO_ENABLED = false;
 async function _drvOpenRadio() {
+  if (!RR_RADIO_ENABLED) return;
   const session = readSession();
   if (!session?.token) return;
   if (document.getElementById("rr-drv-radio")) return; // already open

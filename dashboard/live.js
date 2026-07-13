@@ -37868,7 +37868,7 @@ async function refreshDriverChatThread(scrollToBottom) {
             <div class="rr-mc-sub">${_hSub}</div>
           </div>
           <div class="rr-mc-head-actions">
-            <button type="button" class="rr-mc-head-btn" data-rr-radio title="Dispatch radio (push-to-talk)" aria-label="Dispatch radio"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg></button>
+            ${window.RR_RADIO_ENABLED ? `<button type="button" class="rr-mc-head-btn" data-rr-radio title="Dispatch radio (push-to-talk)" aria-label="Dispatch radio"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg></button>` : ""}
             <button type="button" class="rr-mc-head-btn" data-rr-call="audio" title="Voice call" aria-label="Voice call">${_RR_MC_ICONS.phone}</button>
             <button type="button" class="rr-mc-head-btn" data-rr-call="video" title="Video call" aria-label="Video call">${_RR_MC_ICONS.video}</button>
             <button type="button" class="rr-mc-head-btn rr-mc-head-btn-details" data-rr-details-toggle aria-pressed="false" title="Driver details" aria-label="Toggle driver details">${_RR_MC_ICONS.panel}</button>
@@ -42856,7 +42856,15 @@ window.rrPlaceCall = rrPlaceCall;
 // Open the DSP push-to-talk radio: fetch the stable per-DSP room code, then
 // open meet.html in ?ptt=1 mode (audio-only, mic muted, hold-to-talk). The
 // same room every dispatcher + on-shift driver joins.
+// Dispatch radio kill-switch (operator request 2026-07-13): the radio is
+// hidden everywhere until it's ready — no thread-header 📻 button, no hail
+// banner (even from stale driver clients still broadcasting), no ?rrradio
+// deep-link surface. window-scoped so the thread-header template (rendered
+// ~5k lines up) can read it without ordering concerns. Flip to true to bring
+// the whole flow back — all plumbing stays intact.
+window.RR_RADIO_ENABLED = false;
 async function _rrOpenRadio() {
+  if (!window.RR_RADIO_ENABLED) return;
   // Already open → clear the hail and draw the eye to the existing panel
   // instead of silently returning.
   const existing = document.getElementById("rr-radio-overlay");
@@ -42924,6 +42932,7 @@ function _rrRadioHailClear() {
   document.getElementById("rr-radio-hail")?.remove();
 }
 function _rrRadioHail(p) {
+  if (!window.RR_RADIO_ENABLED) return; // radio hidden — ignore hails (incl. stale driver clients)
   const name = (p && p.from && (p.from.name || p.from.full_name)) || "A driver";
   let el = document.getElementById("rr-radio-hail");
   if (!el) {
