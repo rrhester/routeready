@@ -3289,6 +3289,18 @@ body.is-home main > .home-hero{
 .clk-ro-val{font-size:15px;color:var(--text,var(--rr-gray-900));overflow-wrap:anywhere}
 .clk-sig-img{max-width:220px;max-height:80px;border:1px solid var(--border,var(--rr-gray-200));border-radius:8px;background:var(--rr-white)}
 
+/* Checklist fill progress meter — a calm "N of M complete" bar at the top
+   of the form so a driver on a long vehicle inspection can see how far
+   they've got. Display-only; the accent fill turns green once every item
+   is answered. */
+.clk-progress{margin:0 0 16px}
+.clk-progress-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.clk-progress-label{font-size:var(--fs-sm);font-weight:600;color:var(--text-subtle);font-variant-numeric:tabular-nums}
+.clk-progress-track{height:6px;border-radius:999px;background:var(--canvas,var(--rr-gray-200));overflow:hidden}
+.clk-progress-fill{height:100%;border-radius:999px;background:var(--accent);transition:width 220ms var(--ease-out)}
+.clk-progress.is-complete .clk-progress-fill{background:var(--green)}
+.clk-progress.is-complete .clk-progress-label{color:var(--green-dark)}
+
 /* Checklists tab hub — section headers between To do / Completed groups */
 .clk-hub-h{font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle,var(--rr-gray-500));margin:18px 2px 10px}
 .clk-hub-h:first-child{margin-top:4px}

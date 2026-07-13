@@ -200,7 +200,12 @@
 // check-in button stays enabled; the server still recomputes the geofence.
 // Needs migration 0477 (station coords in driver_checkin_status). Bumped so
 // installed driver PWAs pick up the new app.js + CSS.
-const SHELL_CACHE = "rr-app-shell-v170";
+// v171 · Checklist progress meter: the checklist fill screen gains a calm
+// "N of M complete" bar at the top that updates live as the driver answers
+// items (fill turns green at 100%) — so a long vehicle inspection shows how
+// far they've got. Display-only; never gates submit. Bumped so installed
+// driver PWAs pick up the new app.js + CSS.
+const SHELL_CACHE = "rr-app-shell-v171";
 const SHELL_FILES = [
   "./",
   "index.html",
