@@ -73,6 +73,70 @@ var STYLE = {
   HEADER_FG: '#ffffff',
 };
 
+// Cell-note documentation for Master headers (ease-of-use: what each column means).
+var COLUMN_NOTES = {
+  'Status': 'Pipeline stage. Suggested values: ' + VOCAB.STATUS.join(', ') + '.',
+  'Priority': 'Outreach priority. High / Medium / Low.',
+  'Score': 'Applicant fit score, 0-100 (higher = stronger).',
+  'VideoScore': 'AI video-screen score, 0-100.',
+  'Attendance': 'Orientation attendance: Pending / Attended / No-Show.',
+  'VideoStatus': 'Video screen state: ' + VOCAB.VIDEO_STATUS.join(', ') + '.',
+  'Contacted': 'Timestamp of first outbound contact (blank = not yet contacted).',
+  'Ingested': 'When the applicant first landed in the pipeline.',
+  'Booking Time': 'Scheduled interview/orientation slot.',
+  'Source': 'Where the applicant came from (Indeed, referral, etc.).',
+};
+
+// #6 — logical grouping for the Settings keys, shown in a new "Category" column.
+var SETTINGS_CATEGORY = {
+  Messaging: ['HiredMessage', 'MessageWindowStart', 'MessageWindowEnd', 'SevenAM',
+    'SevenAMTime', 'SevenAMRecipients', 'IndeedStatus', 'IndeedHeadline', 'IndeedBody',
+    'IndeedEmail'],
+  Scheduling: ['CalComURL', 'CalComEventTypeId', 'CalComUsername', 'CalComScheduleId',
+    'OrientationDate', 'InterviewDays', 'InterviewTime', 'MessageWindowStart',
+    'MessageWindowEnd'],
+  Targets: ['HeadcountTarget', 'WeeklyHiringGoal', 'CycleNumber', 'DriverPreferences',
+    'DSPPreferences'],
+  Throttle: ['ThrottleMode', 'RouteReadyLogic', 'ThrottleReasoning', 'RiskLevel',
+    'RiskReason', 'LastDecisionSummary', 'LastDecisionTime'],
+  Video: ['VideoScreeningEnabled', 'VideoMaxSeconds', 'VideoLinkExpiryHours',
+    'VideoPrompt1', 'VideoPrompt2', 'VideoPrompt3', 'VideoAutoAdvanceScore',
+    'VideoDriveFolderID', 'VideoRecordPageURL'],
+  Referral: ['ReferralProgramOn', 'ReferralOutreachDay', 'ReferralBonusAmount',
+    'ReferralBonusPayableDay'],
+  Org: ['DSPName', 'DSPEmail', 'PrimaryPhone', 'BackupContactName', 'BackupContactEmail'],
+  Secrets: SECRET_KEYS,
+  Auth: ['DashboardPasswordHash', 'DashboardPasswordSalt'],
+  Storage: ['R2Endpoint', 'R2PublicUrl', 'R2BucketName', 'CoachingAttachmentsFolderID'],
+};
+
+// ===========================================================================
+//  CUSTOM MENU — run everything from the sheet, no Apps Script editor.
+// ===========================================================================
+function onOpen() {
+  var ui = SpreadsheetApp.getUi();
+  ui.createMenu('RouteReady Tools')
+    .addItem('Run full setup (safe)', 'setupRouteReadySheet')
+    .addSeparator()
+    .addItem('Rebuild Dashboard', 'menuRebuildDashboard_')
+    .addItem('Refresh styling & colors', 'menuRestyle_')
+    .addItem('Add column descriptions', 'menuAddNotes_')
+    .addItem('Organize Settings (add categories)', 'menuOrganizeSettings_')
+    .addSeparator()
+    .addSubMenu(ui.createMenu('Reader-sensitive (check first)')
+      .addItem('Fix "Phone Numer" header typo', 'fixHeaderTypo')
+      .addItem('Standardize toggles → TRUE/FALSE', 'standardizeToggles')
+      .addItem('Canonicalize phone numbers (E.164)', 'canonicalizePhones')
+      .addItem('Redact secret cells (after code swap)', 'redactSecretCells'))
+    .addToUi();
+}
+
+// Menu wrappers (menu items call named functions with no args).
+function menuRebuildDashboard_() { buildDashboard_(SpreadsheetApp.getActive()); }
+function menuRestyle_() { styleAllTabs_(SpreadsheetApp.getActive()); }
+function menuAddNotes_() { addColumnNotes_(SpreadsheetApp.getActive()); }
+function menuOrganizeSettings_() { organizeSettings_(SpreadsheetApp.getActive()); }
+
 // ===========================================================================
 //  SAFE RUNNER — additive only. Cannot break your existing automation.
 // ===========================================================================
@@ -82,7 +146,9 @@ function setupRouteReadySheet() {
   addValidationDropdowns_(ss);    // #2 (warn-only, allowInvalid)
   buildDashboard_(ss);            // #3 (new tab)
   styleAllTabs_(ss);              // #4 (freeze + banding + header + rules)
-  SpreadsheetApp.getUi && _toast_(ss,
+  addColumnNotes_(ss);            // docs: cell-note column descriptions
+  organizeSettings_(ss);          // organization: Category column on Settings
+  _toast_(ss,
     'Setup complete. Now read the SECURITY notes and run the reader-sensitive ' +
     'functions (redactSecretCells / fixHeaderTypo / standardizeToggles) manually.');
 }
@@ -344,6 +410,101 @@ function standardizeToggles() {
     s.getRange(row, 2).setValue(val);
     Logger.log('Set ' + key + ' = ' + val);
   });
+}
+
+// ===========================================================================
+//  DOCS — column descriptions as cell notes (additive, safe)
+// ===========================================================================
+function addColumnNotes_(ss) {
+  ss = ss || SpreadsheetApp.getActive();
+  var m = ss.getSheetByName(TAB.MASTER);
+  if (!m) return;
+  var headers = m.getRange(1, 1, 1, m.getLastColumn()).getValues()[0];
+  for (var c = 0; c < headers.length; c++) {
+    var key = String(headers[c]).trim();
+    // tolerate the pre-fix typo so notes land even before fixHeaderTypo()
+    if (key === 'Phone Numer') key = 'Phone Number';
+    if (COLUMN_NOTES[key]) m.getRange(1, c + 1).setNote(COLUMN_NOTES[key]);
+  }
+}
+
+// ===========================================================================
+//  ORGANIZATION — add a Category column to Settings (additive, safe)
+// ===========================================================================
+/**
+ * Adds/refreshes a "Category" column to the RIGHT of the existing Settings
+ * columns (so it never shifts A=key / B=value that the automation reads).
+ */
+function organizeSettings_(ss) {
+  ss = ss || SpreadsheetApp.getActive();
+  var s = ss.getSheetByName(TAB.SETTINGS);
+  if (!s) return;
+
+  // Reverse lookup: key -> category.
+  var catOf = {};
+  Object.keys(SETTINGS_CATEGORY).forEach(function (cat) {
+    SETTINGS_CATEGORY[cat].forEach(function (k) { if (!catOf[k]) catOf[k] = cat; });
+  });
+
+  var lastRow = s.getLastRow();
+  var col = 3; // C — leave A/B untouched
+  s.getRange(1, col).setValue('Category')
+    .setFontWeight('bold').setFontColor(STYLE.HEADER_FG).setBackground(STYLE.HEADER_BG);
+
+  var keys = s.getRange(2, 1, Math.max(lastRow - 1, 0), 1).getValues();
+  var out = [];
+  for (var i = 0; i < keys.length; i++) {
+    var k = String(keys[i][0]).trim();
+    out.push([k && catOf[k] ? catOf[k] : (k ? 'Other' : '')]);
+  }
+  if (out.length) s.getRange(2, col, out.length, 1).setValues(out);
+  s.setColumnWidth(col, 120);
+}
+
+// ===========================================================================
+//  #4b  PHONE CANONICALIZATION (READER-SENSITIVE — opt in)
+// ===========================================================================
+/**
+ * Rewrites US phone numbers in Ingest, Master, and Waitlist to E.164
+ * (+1XXXXXXXXXX) so they sort and dedupe cleanly. READER-SENSITIVE: if your
+ * automation matches raw phone strings, update it first. Non-10/11-digit
+ * values are left untouched.
+ */
+function canonicalizePhones() {
+  var ss = SpreadsheetApp.getActive();
+  var targets = [
+    { tab: TAB.INGEST, header: 'Phone Number' },
+    { tab: TAB.MASTER, header: 'Phone Number' }, // also matches "Phone Numer"
+    { tab: TAB.WAITLIST, header: 'Phone' },
+  ];
+  targets.forEach(function (t) {
+    var sh = ss.getSheetByName(t.tab);
+    if (!sh || sh.getLastRow() < 2) return;
+    var headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+    var col = -1;
+    for (var c = 0; c < headers.length; c++) {
+      var h = String(headers[c]).trim();
+      if (h === t.header || h === 'Phone Numer' || h === 'Phone') { col = c + 1; break; }
+    }
+    if (col < 0) return;
+    var n = sh.getLastRow() - 1;
+    var rng = sh.getRange(2, col, n, 1);
+    rng.setNumberFormat('@'); // plain text, so a leading "+" isn't read as a formula
+    var vals = rng.getValues();
+    for (var i = 0; i < vals.length; i++) {
+      var e164 = _toE164_(vals[i][0]);
+      if (e164) vals[i][0] = e164;
+    }
+    rng.setValues(vals);
+  });
+}
+
+function _toE164_(raw) {
+  if (raw === '' || raw === null) return null;
+  var digits = String(raw).replace(/[^\d]/g, '');
+  if (digits.length === 10) return "+1" + digits;
+  if (digits.length === 11 && digits.charAt(0) === '1') return "+" + digits;
+  return null; // leave anything unexpected alone
 }
 
 // ===========================================================================
