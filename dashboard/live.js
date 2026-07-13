@@ -8726,12 +8726,14 @@ function _ivToggleRules(force) {
   // own resize handler that would otherwise reset this popover to the narrow
   // right:16/720 default.
   if (next) {
-    // Anchor the panel UNDER its "Availability" launcher, left-aligned to the
-    // button — the way Google floats its create / appointment popover next to
-    // the control that opened it — instead of a centered full-width dialog.
-    // Clamp so the card stays fully on screen on narrow viewports.
+    // Anchor the panel UNDER the control that opened it — the way Google floats
+    // its create / appointment popover next to the launching control — instead
+    // of a centered full-width dialog. The old ribbon "Availability" launcher is
+    // gone (its items moved into the gear settings popover), so anchor to the
+    // gear button the editor now opens from; fall back to the toolbar's left
+    // edge if neither is present. Clamp so the card stays fully on screen.
     const fitIv = () => {
-      const tog = document.getElementById("rr-iv-rules-toggle");
+      const tog = document.getElementById("rr-iv-rules-toggle") || document.querySelector("[data-ivcal-settings]");
       // Clamp against the right utility rail's edge, not the raw viewport —
       // the rail is opaque and paints above this popover, so anything laid
       // out underneath it (Save availability, + Add time, the Active
@@ -8745,7 +8747,11 @@ function _ivToggleRules(force) {
         left = Math.round(r.left);
       }
       if (left + width > edge - 16) left = edge - 16 - width;
-      if (left < 16) left = 16;
+      // Never let the card slide under the opaque left nav rail (it paints on
+      // top, clipping the day-name column) — clamp to just past its right edge.
+      const railEl = document.querySelector(".sidebar");
+      const leftMin = railEl ? Math.round(railEl.getBoundingClientRect().right + 8) : 16;
+      if (left < leftMin) left = leftMin;
       pop.style.setProperty("right", "auto", "important");
       pop.style.setProperty("left", left + "px", "important");
       pop.style.setProperty("top", top + "px", "important");
