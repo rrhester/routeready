@@ -13420,6 +13420,29 @@ function buildMacroApi(g, logFn) {
     if (changes.length) setCells(g, changes);
     return changes.length;
   };
+  // Merge a whitelisted format patch onto a range (preserves existing values).
+  const FMT_KEYS = { bg: 1, fg: 1, bold: 1, italic: 1, underline: 1, strike: 1, align: 1, valign: 1, wrap: 1 };
+  const sanitizeFmt = (patch) => {
+    if (!patch || typeof patch !== "object") throw new Error("format expects an object, e.g. {bg:'#F4CCCC', bold:true}.");
+    const out = {};
+    for (const k of Object.keys(patch)) if (FMT_KEYS[k]) out[k] = patch[k];
+    return out;
+  };
+  const formatRect = (rect, patch) => {
+    ensureEdit();
+    const s = sheet(), fp = sanitizeFmt(patch), changes = [];
+    for (let r = rect.r0; r <= rect.r1; r++)
+      for (let c = rect.c0; c <= rect.c1; c++) {
+        const cur = s.cells.get(cellKey(r, c));
+        const base = cur ? cloneCell(cur) : { value: null, formula: null, type: null, format: {} };
+        const fmt = { ...base.format };
+        for (const k of Object.keys(fp)) { const v = fp[k]; if (v === null || v === false || v === "") delete fmt[k]; else fmt[k] = v; }
+        if (!cur && !Object.keys(fmt).length) continue;
+        changes.push({ r, c, cell: { ...base, format: fmt } });
+      }
+    if (changes.length) setCells(g, changes);
+    return changes.length;
+  };
 
   function makeRange(a1) {
     const rect = rangeRect(a1);
@@ -13435,6 +13458,8 @@ function buildMacroApi(g, logFn) {
         return this;
       },
       setFormula(f) { const s = String(f); const fv = s[0] === "=" ? s : "=" + s; writeRect(rect, () => fv); return this; },
+      setBackground(color) { formatRect(rect, { bg: color }); return this; },
+      setFormat(fmt) { formatRect(rect, fmt); return this; },
       clear() { writeRect(rect, () => ""); return this; },
     };
   }
@@ -13472,6 +13497,7 @@ function buildMacroApi(g, logFn) {
         (i, j) => { const row = vals[i]; return Array.isArray(row) ? (row[j] == null ? "" : row[j]) : (j === 0 ? row : ""); });
     },
     clear(a1) { writeRect(rangeRect(a1), () => ""); return this; },
+    setFormat(a1, fmt) { formatRect(rangeRect(a1), fmt); return this; },
     // ── output ──
     log() { logFn(Array.prototype.map.call(arguments, macroFmt).join(" ")); },
     toast(msg, kind) { _toast(String(msg), kind === "warn" || kind === "success" || kind === "info" ? kind : "info"); },
@@ -13518,6 +13544,8 @@ function makeRange(a1) {
     setValue: function (v) { return call('range.setValue', [a1, v]); },
     setValues: function (vals) { return call('range.setValues', [a1, vals]); },
     setFormula: function (f) { return call('range.setFormula', [a1, f]); },
+    setBackground: function (color) { return call('range.setBackground', [a1, color]); },
+    setFormat: function (fmt) { return call('range.setFormat', [a1, fmt]); },
     clear: function () { return call('range.clear', [a1]); },
   };
 }
@@ -13525,6 +13553,7 @@ var workbook = {
   getValue: mk('getValue'), getNumber: mk('getNumber'), getFormula: mk('getFormula'),
   getValues: mk('getValues'), getRange: makeRange,
   setValue: mk('setValue'), setFormula: mk('setFormula'), setValues: mk('setValues'), clear: mk('clear'),
+  setFormat: mk('setFormat'),
   getActiveSheetName: mk('getActiveSheetName'), getSheetNames: mk('getSheetNames'),
   getActiveCell: mk('getActiveCell'), getSelection: mk('getSelection'), sheetInfo: mk('sheetInfo'),
   sheet: mk('sheet'), log: mk('log'), toast: mk('toast'), alert: mk('alert'),
@@ -13689,7 +13718,10 @@ function runMacroSandboxed(code, g, logFn) {
         case "range.setValue": api.getRange(args[0]).setValue(args[1]); return true;
         case "range.setValues": api.getRange(args[0]).setValues(args[1]); return true;
         case "range.setFormula": api.getRange(args[0]).setFormula(args[1]); return true;
+        case "range.setBackground": api.getRange(args[0]).setBackground(args[1]); return true;
+        case "range.setFormat": api.getRange(args[0]).setFormat(args[1]); return true;
         case "range.clear": api.getRange(args[0]).clear(); return true;
+        case "setFormat": api.setFormat(args[0], args[1]); return true;
         case "log": logFn(Array.prototype.map.call(args, macroFmt).join(" ")); return true;
         case "toast": api.toast(args[0], args[1]); return true;
         case "alert": api.alert(args[0]); return true;
@@ -13754,6 +13786,7 @@ function openMacrosPanel(g) {
               workbook.getValue("A1") · getNumber("A1") · getFormula("A1")<br>
               workbook.setValue("A1", v) · setFormula("A1", "=SUM(B1:B9)")<br>
               workbook.getRange("A2:C9").getValues() / .setValue(v) / .setValues([[…]]) / .clear()<br>
+              workbook.setFormat("A1:G1", {bg:"#F4CCCC", bold:true}) · getRange(…).setBackground("#D9EAD3")<br>
               workbook.setValues("A2", [[1,2],[3,4]]) · clear("A1:C9")<br>
               workbook.getSelection() · getActiveCell() · getActiveSheetName() · getSheetNames()<br>
               workbook.log(…) · toast(msg[, "success"|"warn"|"info"])<br>
