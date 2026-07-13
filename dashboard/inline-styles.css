@@ -7354,11 +7354,13 @@ body.rr-cmdk-open{ overflow:hidden }
    text when a caption is present.
    ═══════════════════════════════════════════════════════════════════ */
 /* Attachment-only bubbles shed their fill/border/padding so the card or
-   image thumbnail is the surface — no balloon around a document. */
-.rr-mc-bubble.attach-only, .rr-cc-bubble.attach-only{
-  background:transparent !important;background-image:none !important;
-  border-color:transparent !important;box-shadow:none !important;
-  padding:0 !important;max-width:min(420px,86%);
+   image thumbnail is the surface — no balloon around a document.  The
+   thread-scoped prefix lifts specificity above .rr-mc-bubble.dispatch /
+   .driver so no override flag is needed. */
+.rr-mc-thread .rr-mc-bubble.attach-only, .rr-cc-thread .rr-cc-bubble.attach-only{
+  background:transparent;background-image:none;
+  border-color:transparent;box-shadow:none;
+  padding:0;max-width:min(420px,86%);
 }
 .rr-mc-bubble.attach-only .rr-mc-time,
 .rr-cc-bubble.attach-only .rr-cc-time{ padding:0 2px; }
@@ -7382,16 +7384,16 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-mc-doc-badge{
   flex:0 0 auto;width:38px;height:38px;border-radius:var(--r-md);
   display:inline-flex;align-items:center;justify-content:center;
-  font-size:9px;font-weight:800;letter-spacing:.04em;
+  font-size:var(--fs-9);font-weight:800;letter-spacing:.04em;
   color:var(--rr-white);background:var(--text-subtle);
 }
-.rr-mc-doc.kind-pdf .rr-mc-doc-badge{ background:#DC2626; }
-.rr-mc-doc.kind-doc .rr-mc-doc-badge{ background:#2563EB; }
-.rr-mc-doc.kind-xls .rr-mc-doc-badge{ background:#16A34A; }
-.rr-mc-doc.kind-ppt .rr-mc-doc-badge{ background:#EA580C; }
-.rr-mc-doc.kind-zip .rr-mc-doc-badge{ background:#7C3AED; }
-.rr-mc-doc.kind-txt .rr-mc-doc-badge{ background:#4B5563; }
-.rr-mc-doc.kind-img .rr-mc-doc-badge{ background:#0891B2; }
+.rr-mc-doc.kind-pdf .rr-mc-doc-badge{ background:var(--red); }
+.rr-mc-doc.kind-doc .rr-mc-doc-badge{ background:var(--accent); }
+.rr-mc-doc.kind-xls .rr-mc-doc-badge{ background:var(--green); }
+.rr-mc-doc.kind-ppt .rr-mc-doc-badge{ background:var(--rr-amber-primary); }
+.rr-mc-doc.kind-zip .rr-mc-doc-badge{ background:var(--teal); }
+.rr-mc-doc.kind-txt .rr-mc-doc-badge{ background:var(--text-muted); }
+.rr-mc-doc.kind-img .rr-mc-doc-badge{ background:var(--cyan); }
 .rr-mc-doc-text{ display:flex;flex-direction:column;min-width:0;gap:1px; }
 .rr-mc-doc-name{
   font-size:var(--fs-sm);font-weight:600;color:var(--text);line-height:1.3;
