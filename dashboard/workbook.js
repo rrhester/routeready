@@ -13332,16 +13332,22 @@ function openGoalSeekDialog(g) {
 //     session token, or this module's state. The main module itself contains
 //     no eval/new Function, so the formula engine's no-eval invariant holds
 //     here; the only code-gen is inside the isolated worker.
-//   • The worker's network APIs (fetch / XHR / WebSocket / importScripts /
-//     nested Worker / indexedDB / caches) are deleted before the macro runs,
-//     so a macro physically CANNOT make a network request — nothing can be
-//     exfiltrated outside the org. Cross-tenant reads are separately blocked
-//     by Supabase RLS. The worker's ONLY channel is postMessage to the main
-//     thread, which brokers exactly the curated `workbook` API below.
+//   • The worker's own network APIs (fetch / XHR / WebSocket / importScripts /
+//     nested Worker / indexedDB / caches) are deleted, so the worker can't make
+//     a request directly; its ONLY channel is postMessage to the main thread,
+//     which brokers the curated `workbook` API below.
+//   • INTERNET ACCESS IS ENABLED (owner decision, 2026-07-13): the API exposes
+//     workbook.fetchJson()/fetchText()/http(), brokered on the main thread. This
+//     DELIBERATELY drops the no-exfiltration guarantee — a macro CAN send data
+//     to any URL. Untrusted/pasted code must therefore be treated as capable of
+//     leaking data; the per-run confirmation is the main safeguard, and its text
+//     MUST keep warning about internet access. (credentials are omitted on
+//     brokered fetches, so the app's own cookies/session are never sent out;
+//     org-data reads are still Supabase-RLS-scoped to this DSP.)
 //   • Because it's a worker, runaway/infinite-loop macros are killed by
 //     worker.terminate() on a wall-clock timeout — a real interrupt.
-//   • Macros NEVER auto-run: explicit "Run" only, behind a one-time per-session
-//     trust confirmation. Saved macros live in localStorage (per-browser).
+//   • Macros NEVER auto-run: explicit "Run" only, re-confirmed whenever the code
+//     changes. Saved macros live in localStorage (per-browser).
 //
 //  Cost of isolation: every `workbook` call crosses the thread boundary, so
 //  the worker-side API is ASYNC — macros use `await workbook.getValue(...)`.
@@ -13525,6 +13531,8 @@ var workbook = {
   // org data (read-only) — this DSP only, no writes
   getDrivers: mk('getDrivers'), getVehicles: mk('getVehicles'), getSchedule: mk('getSchedule'),
   getTimeOff: mk('getTimeOff'), getDsp: mk('getDsp'), orgData: mk('orgData'),
+  // internet (owner-enabled) — any http(s) URL
+  fetchJson: mk('fetchJson'), fetchText: mk('fetchText'), http: mk('http'),
 };
 var consoleShim = { log: mk('log'), info: mk('log'), warn: mk('log'), error: mk('log'), table: mk('log') };
 function safe(v) { if (v === undefined) return undefined; try { return JSON.parse(JSON.stringify(v)); } catch (e) { return String(v); } }
@@ -13549,10 +13557,50 @@ self.onmessage = function (e) {
 // ── Org data (READ-ONLY) exposed to macros ──────────────────────────────────
 // These run on the MAIN thread through the user's RLS-scoped Supabase session,
 // so a macro can only ever read THIS DSP's data (the server refuses another
-// org's rows regardless of the query), and the worker still has no network so
-// nothing read here can be sent out. Read-only by design — no writes to the
-// operational database; macro writes stay scoped to the sheet.
+// org's rows regardless of the query). Read-only by design — no writes to the
+// operational database; macro writes stay scoped to the sheet. NOTE: internet
+// access is enabled (see SECURITY POSTURE), so data read here CAN be sent out by
+// untrusted code — the per-run confirmation is the safeguard.
 function macroSb_() { const s = _sb(); if (!s) throw new Error("Not signed in — org data is unavailable."); return s; }
+
+// ── Internet access (owner-enabled) — brokered on the main thread ────────────
+// Deliberately open: macros may fetch ANY http(s) URL. credentials are omitted
+// so the app's own cookies/session never travel to third parties. Response is
+// size- and time-capped. CORS still applies (the browser blocks cross-origin
+// reads the target doesn't permit); a server-side proxy is the follow-up for
+// non-CORS APIs.
+const MACRO_FETCH_MAX_BYTES = 5 * 1024 * 1024;
+async function macroHttp_(url, opts) {
+  opts = opts || {};
+  if (!url || typeof url !== "string") throw new Error("fetch: a URL string is required.");
+  if (!/^https?:\/\//i.test(url)) throw new Error("fetch: only http(s) URLs are allowed.");
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 20000);
+  let res;
+  try {
+    res = await fetch(url, {
+      method: opts.method ? String(opts.method).toUpperCase() : "GET",
+      headers: (opts.headers && typeof opts.headers === "object") ? opts.headers : undefined,
+      body: opts.body != null ? (typeof opts.body === "string" ? opts.body : JSON.stringify(opts.body)) : undefined,
+      credentials: "omit",
+      redirect: "follow",
+      signal: ctrl.signal,
+    });
+  } catch (e) {
+    clearTimeout(timer);
+    throw new Error("fetch failed: " + ((e && e.message) || e) + " (the site may block cross-origin requests)");
+  }
+  clearTimeout(timer);
+  const buf = await res.arrayBuffer();
+  if (buf.byteLength > MACRO_FETCH_MAX_BYTES) throw new Error("fetch: response too large (>5MB).");
+  const body = new TextDecoder().decode(buf);
+  return { status: res.status, ok: res.ok, url: res.url, body: body };
+}
+async function macroFetchText_(url, opts) { return (await macroHttp_(url, opts)).body; }
+async function macroFetchJson_(url, opts) {
+  const r = await macroHttp_(url, opts);
+  try { return JSON.parse(r.body); } catch (_) { throw new Error("fetchJson: the response wasn't valid JSON."); }
+}
 function macroDsp_() { const d = _dsp(); if (!d || !d.id) throw new Error("No DSP context is loaded."); return d; }
 function macroRows_(res) { if (res.error) throw new Error(res.error.message || String(res.error)); return res.data || []; }
 function macroIso_(d) { const x = new Date(d); return isNaN(x) ? null : x.toISOString().slice(0, 10); }
@@ -13619,6 +13667,10 @@ function runMacroSandboxed(code, g, logFn) {
         case "getTimeOff": return macroGetTimeOff_();
         case "getDsp": return macroGetDsp_();
         case "orgData": return macroOrgData_(args[0], args[1]);
+        // ── internet (owner-enabled) ──
+        case "http": return macroHttp_(args[0], args[1]);
+        case "fetchText": return macroFetchText_(args[0], args[1]);
+        case "fetchJson": return macroFetchJson_(args[0], args[1]);
         case "getValue": return api.getValue(args[0]);
         case "getNumber": return api.getNumber(args[0]);
         case "getFormula": return api.getFormula(args[0]);
@@ -13706,7 +13758,8 @@ function openMacrosPanel(g) {
               workbook.getSelection() · getActiveCell() · getActiveSheetName() · getSheetNames()<br>
               workbook.log(…) · toast(msg[, "success"|"warn"|"info"])<br>
               <b>Live org data (read-only):</b> await workbook.getDrivers() · getVehicles() · getSchedule({from,to}) · getTimeOff() · getDsp()<br>
-              workbook.orgData("table", {eq:{col:val}, limit}) — any of your org's data
+              workbook.orgData("table", {eq:{col:val}, limit}) — allowlisted org tables<br>
+              <b>Internet:</b> await workbook.fetchJson(url) · fetchText(url) · http(url,{method,headers,body}) — any URL (⚠ code you run can send data out)
             </div>
           </details>
           <div class="wb-field-label" style="margin-top:10px">Output</div>
@@ -13780,9 +13833,9 @@ function openMacrosPanel(g) {
     if (codeNow !== macroConfirmedCode) {
       if (!window.confirm(
         "You're about to RUN this code.\n\n" +
-        "It's sandboxed — it CANNOT reach the internet, send your data anywhere, or touch other organizations. " +
-        "But it CAN read your data and change THIS sheet, so only run code you understand. " +
-        "If it came from an AI or the web, read it first.\n\nRun it?"
+        "⚠ This macro can read your data, change THIS sheet, AND access the internet — which means code you don't trust could SEND YOUR DATA to an outside server. " +
+        "It still can't reach another organization's data. " +
+        "Only run code from a source you trust; if it came from an AI or the web, read it first.\n\nRun it?"
       )) return;
       macroConfirmedCode = codeNow;
     }
