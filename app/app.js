@@ -10463,7 +10463,7 @@ async function renderCheckinCard(session) {
         <div class="opens-card-row">
           <div class="opens-card-icon">${checkIcon}</div>
           <div class="opens-card-body">
-            <div class="opens-card-title">Check in</div>
+            <div class="opens-card-title">Check in for shift</div>
             <div class="opens-card-meta">${detailMeta}</div>
           </div>
           ${countdownHtml}
