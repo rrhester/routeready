@@ -1,0 +1,23 @@
+{
+  "transit_250": {
+    "name": "Van 214",
+    "year": 2022, "make": "Ford", "model": "Transit 250", "trim_level": "Medium Roof",
+    "vin": "1FTBR1C8XNKA12345",
+    "engine": "3.5L EcoBoost V6", "drive": "RWD", "wheelbase": "148", "roof": "medium",
+    "features": { "heated_mirror": true, "power_mirror": true, "blis": false }
+  },
+  "promaster_2500": {
+    "name": "Van 88",
+    "year": 2021, "make": "Ram", "model": "ProMaster 2500", "trim_level": "High Roof",
+    "vin": "3C6TRVDG7ME500001",
+    "engine": "3.6L V6", "drive": "FWD", "wheelbase": "159", "roof": "high",
+    "features": { "heated_mirror": false, "power_mirror": true }
+  },
+  "sprinter_2500": {
+    "name": "Van 33",
+    "year": 2020, "make": "Mercedes-Benz", "model": "Sprinter 2500", "trim_level": "Standard Roof",
+    "vin": "WD4PF1CD1LP200002",
+    "engine": "2.0L I4 Turbo", "drive": "RWD", "wheelbase": "144", "roof": "standard",
+    "features": { "heated_mirror": true, "power_mirror": true, "blis": true }
+  }
+}
