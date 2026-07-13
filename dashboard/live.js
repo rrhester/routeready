@@ -89604,7 +89604,20 @@ document.addEventListener("keydown", (e) => {
   }
   function route(tries) {
     const v = hashView();
-    if (v && typeof window.goto === "function") { try { window.goto(v); } catch (_) {} return; }
+    if (v && typeof window.goto === "function") {
+      try { window.goto(v); } catch (_) {}
+      // The Notebooks view loads its engine (RRNotebooks) lazily, so goto() may
+      // run before loadView() exists. Ping until it's ready and load once — this
+      // is what triggers the Meet notes import (loadView guards double-runs).
+      if (v === "notebooks") {
+        let t = 40;
+        (function ping() {
+          if (window.RRNotebooks && typeof window.RRNotebooks.loadView === "function") { try { window.RRNotebooks.loadView(); } catch (_) {} return; }
+          if (t-- > 0) setTimeout(ping, 120);
+        })();
+      }
+      return;
+    }
     if (tries > 0) setTimeout(() => route(tries - 1), 120);
   }
   if (document.readyState === "loading")
