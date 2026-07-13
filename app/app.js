@@ -1437,7 +1437,7 @@ function renderLogin(errorMsg) {
           <label class="field-label">Activation code</label>
           <input class="field" id="rr-code-input" autocomplete="one-time-code" inputmode="latin" autocapitalize="characters" maxlength="10" placeholder="ABCD1234" required value="${escapeHtml(_loginState.codeInput || "")}" />
           <div style="margin-top:18px">
-            <button class="btn btn-primary btn-block" type="submit" ${_loginState.busy ? "disabled" : ""}>${_loginState.busy ? "Checking…" : "Continue"}</button>
+            <button class="btn btn-primary btn-block" type="submit" ${_loginState.busy ? "disabled" : ""}>${_loginState.busy ? "Looking up…" : "Look up my invite"}</button>
           </div>
           <div style="text-align:center;margin-top:14px">
             <button type="button" class="btn" id="rr-code-back" style="background:transparent;border:0;color:var(--text-subtle);font-size:var(--fs-sm)">Back</button>
@@ -1544,7 +1544,7 @@ function renderLogin(errorMsg) {
           <input class="field" id="rr-activate-pin2" type="password" inputmode="numeric" autocomplete="new-password" pattern="[0-9]*" maxlength="6" placeholder="••••" style="letter-spacing:.5em;text-align:center" value="${escapeHtml(_loginState.pinConfirm || "")}" />
 
           <div style="margin-top:20px">
-            <button class="btn btn-primary btn-block" type="submit" ${_loginState.busy ? "disabled" : ""}>${_loginState.busy ? "Activating…" : "Activate"}</button>
+            <button class="btn btn-primary btn-block" type="submit" ${_loginState.busy ? "disabled" : ""}>${_loginState.busy ? "Setting up…" : "Set up my account"}</button>
           </div>
           <div class="help" style="margin-top:14px;line-height:1.5">Phone or other details wrong? You can edit them in Settings once you're signed in.</div>
         </form>
@@ -1601,7 +1601,7 @@ function renderLogin(errorMsg) {
         </div>
         <form class="form" id="rr-signin-form">
           ${_loginState.errorMsg ? `<div class="err">${escapeHtml(_loginState.errorMsg)}</div>` : ""}
-          ${_loginState.infoMsg ? `<div style="background:rgba(37,99,235,.08);color:var(--accent);font-size:var(--fs-md);padding:var(--s-2-5) var(--s-3-5);border-radius:8px;text-align:center;margin-bottom:12px;line-height:1.45">${escapeHtml(_loginState.infoMsg)}</div>` : ""}
+          ${_loginState.infoMsg ? `<div style="background:var(--accent-soft);color:var(--accent);font-size:var(--fs-md);padding:var(--s-2-5) var(--s-3-5);border-radius:8px;text-align:center;margin-bottom:12px;line-height:1.45">${escapeHtml(_loginState.infoMsg)}</div>` : ""}
           <label class="field-label">Mobile number</label>
           <input class="field" id="rr-signin-phone" type="tel" inputmode="tel" autocomplete="tel" autocapitalize="off" maxlength="20" placeholder="(555) 123-4567" style="letter-spacing:0;text-align:left;text-transform:none" value="${escapeHtml(_formatPhone(_loginState.phoneInput || ""))}" />
 
