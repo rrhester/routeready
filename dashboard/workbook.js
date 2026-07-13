@@ -7496,6 +7496,9 @@ function sheetToolbarHtml(block, ro) {
     <div class="wb-tgrp">
       <button type="button" class="btn btn-ghost btn-sm wb-tb wb-tb-fill" data-wb-tb="fill-people" title="Choose driver fields and load the roster into this sheet" ${ro ? "disabled" : ""}><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>People</button>
     </div>
+    <div class="wb-tgrp">
+      <button type="button" class="btn btn-ghost btn-sm wb-tb wb-tb-macros" data-wb-tb="macros" title="Macros — write a script to automate this sheet"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="8 7 3 12 8 17"/><polyline points="16 7 21 12 16 17"/></svg>Macros</button>
+    </div>
     <div class="wb-tgrp">${btn("autosum", "AutoSum — insert =SUM(…) for the selection", `<span class="wb-tb-txt wb-tb-sigma">Σ</span>`)}
       <span class="popover-anchor">
         <button type="button" class="btn btn-ghost btn-sm wb-tb wb-tb-fnbtn" data-wb-tb="fn-menu" title="Functions — browse and insert (${FUNCTION_META.length})" aria-label="Insert function" aria-haspopup="menu" ${ro ? "disabled" : ""}><span class="wb-tb-txt wb-tb-fx"><em>f</em>x</span><span class="wb-tb-caret">▾</span></button>
@@ -17911,6 +17914,7 @@ function bindGridEvents(g) {
       case "fs-plus": adjustFontSize(g, 1); break;
       case "find": openFindPanel(g, false); break;
       case "fill-people": openPeoplePicker(g); return;
+      case "macros": openMacrosPanel(g); return;
       case "panel-toggle": WB.panelOpen = !WB.panelOpen; syncPanelVisibility(); if (WB.panelOpen) renderPanel(); break;
       case "validation": openValidationDialog(g); break;
       case "condfmt": openCondFormatDialog(g); break;
