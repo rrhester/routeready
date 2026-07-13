@@ -152,7 +152,13 @@
 // check-in, today's shift, pre-shift tasks — not a profile page). Route
 // (/profile) and badges are unchanged. First step of the reviewed redesign.
 // Bumped so installed driver PWAs pick up the new app.js.
-const SHELL_CACHE = "rr-app-shell-v160";
+// v161 · Home command band: the tall, centered, avatar-first hero is
+// replaced by a slim left-aligned operational band (DSP + gear row · avatar
+// beside greeting/name/role · today + on-duty chips), so the check-in card
+// and pre-shift tasks lead the fold. Same elements and #rr-home-meta /
+// #rr-home-status hooks; the -48px content overlap becomes a clean seam.
+// Bumped so installed driver PWAs pick up the new app.js + CSS.
+const SHELL_CACHE = "rr-app-shell-v161";
 const SHELL_FILES = [
   "./",
   "index.html",

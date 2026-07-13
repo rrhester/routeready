@@ -2722,12 +2722,12 @@ body.is-home main > .home-hero{
 .home-hero{
   position:relative;
   color:var(--rr-white);
-  padding:calc(14px + env(safe-area-inset-top, 0px)) 22px 64px;
+  padding:calc(14px + env(safe-area-inset-top, 0px)) 18px 18px;
   background:var(--chrome-grad);
   border-radius:0;
   box-shadow:var(--shadow-lg);
-  text-align:center;
-  display:flex;flex-direction:column;align-items:center;
+  text-align:left;
+  display:flex;flex-direction:column;align-items:stretch;gap:12px;
   isolation:isolate;
   overflow:hidden;
 }
@@ -2750,8 +2750,13 @@ body.is-home main > .home-hero{
 .home-hero-bar{
   width:100%;
   display:flex;align-items:center;justify-content:space-between;
-  margin-bottom:12px;
+  margin-bottom:0;
 }
+/* Identity row — avatar beside the greeting/name/role, left-aligned.
+   Replaces the tall centered avatar hero so the operational cards
+   reach the fold. */
+.home-hero-id{ display:flex; align-items:center; gap:12px }
+.home-hero-idtext{ min-width:0; display:flex; flex-direction:column }
 .home-hero-brand{
   display:inline-flex;align-items:center;gap:8px;
   font-size:14px;font-weight:600;letter-spacing:0;
@@ -2776,37 +2781,37 @@ body.is-home main > .home-hero{
 }
 .home-hero-gear:hover{ background:rgba(255,255,255,.20) }
 .home-hero-gear:active{ background:rgba(255,255,255,.26) }
-.home-hero .profile-avatar-btn{ margin:2px 0 12px }
+.home-hero .profile-avatar-btn{ margin:0; flex:0 0 auto }
 .home-hero .profile-avatar{
-  width:88px;height:88px;
-  border:3px solid var(--rr-white);
-  box-shadow:0 6.4px 14.4px rgba(0,0,0,.18),
-             0 1.6px 3.6px rgba(0,0,0,.14);
+  width:46px;height:46px;
+  border:2px solid rgba(255,255,255,.85);
+  box-shadow:0 2px 6px rgba(0,0,0,.22);
 }
 .home-hero .profile-avatar-edit{
-  width:28px;height:28px;
+  width:19px;height:19px;
   background:var(--rr-white);color:var(--accent);
-  border:2px solid var(--rr-white);
+  border:1.5px solid var(--rr-white);
   box-shadow:var(--shadow-sm);
 }
 .home-hero-greeting{
-  font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
-  color:rgba(255,255,255,.92);
-  margin-bottom:4px;
+  font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+  color:rgba(255,255,255,.88);
+  margin-bottom:1px;
 }
 .home-hero-name{
-  font-size:24px;font-weight:600;letter-spacing:-.014em;
-  color:var(--rr-white);line-height:1.12;
+  font-size:20px;font-weight:600;letter-spacing:-.014em;
+  color:var(--rr-white);line-height:1.15;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
 .home-hero-meta{
-  margin-top:4px;
-  font-size:13px;font-weight:400;
-  color:rgba(255,255,255,.93);
+  margin-top:2px;
+  font-size:12px;font-weight:400;
+  color:rgba(255,255,255,.9);
   letter-spacing:0;
 }
 .home-hero-foot{
-  display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;
-  margin-top:13px;
+  display:flex;align-items:center;justify-content:flex-start;gap:8px;flex-wrap:wrap;
+  margin-top:0;
 }
 /* Outlook/Teams Mobile-style chips — solid translucent overlay
    on the brand surface, no blur/glass — Fluent surfaces are
@@ -2837,13 +2842,13 @@ body.is-home main > .home-hero{
 }
 
 /* ── Content area below the hero ──────────────────────────────
-   Sits over the Fluent neutral canvas.  The "Opens at" card
-   overlaps upward into the hero by ~48px so the brand color and
-   the primary action thread visually at the seam. */
+   Sits over the Fluent neutral canvas, a small gap below the
+   compact command band (the operational cards lead the fold now
+   rather than overlapping a tall centered hero). */
 .home-content{
   position:relative;
   padding:0 0 24px;
-  margin-top:-48px;
+  margin-top:12px;
   z-index:2;
 }
 .home-content > * + *{ margin-top:12px }
