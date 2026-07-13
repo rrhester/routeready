@@ -6142,9 +6142,12 @@ async function _drvOpenRadio() {
     } catch {}
     // Mount the radio inline (embedded, chromeless PTT). Popups break out of
     // the installed PWA into Safari and get blocked after the await — an
-    // iframe keeps the radio inside the app and always opens.
+    // iframe keeps the radio inside the app and always opens. dtok lets the
+    // embedded Meet mint the driver a TURN relay (otherwise cellular = no
+    // connection).
     const url = "/dashboard/meet.html?m=" + encodeURIComponent(code) + "&ptt=1&cam=0&embed=1"
-      + "&name=" + encodeURIComponent(me.name || "");
+      + "&name=" + encodeURIComponent(me.name || "")
+      + "&dtok=" + encodeURIComponent(session.token);
     _drvMountRadio(url);
   } catch {
     toast("Couldn't open the radio. Try again.", "warn");
@@ -6182,10 +6185,13 @@ function _drvMountRadio(url) {
 function _drvCallOpenRoom(room, media, replace) {
   const me = _drvCallMe();
   // meet.html lives under /dashboard; open the full path (the /m/ short link
-  // is a 302 that can drop the extra call params).
+  // is a 302 that can drop the extra call params). dtok lets Meet mint the
+  // driver a TURN relay so the call connects on cellular / carrier-NAT.
+  const tok = readSession()?.token || "";
   const url = "/dashboard/meet.html?m=" + encodeURIComponent(room) + "&call=1"
     + "&name=" + encodeURIComponent(me.name || "")
-    + (media === "audio" ? "&cam=0" : "");
+    + (media === "audio" ? "&cam=0" : "")
+    + (tok ? "&dtok=" + encodeURIComponent(tok) : "");
   // `replace` navigates the current window (used when answering from a push
   // cold-boot — a notification tap has no synchronous gesture for a popup).
   if (replace) { try { location.href = url; return; } catch {} }

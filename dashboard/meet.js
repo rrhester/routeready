@@ -72,6 +72,12 @@ const DEBUG = new URLSearchParams(location.search).has("debug");
 // crew (2–6) on an always-on channel — everything else in this file is
 // untouched, so normal video calls are unaffected. See docs.
 const PTT = new URLSearchParams(location.search).has("ptt");
+// ?dtok=<driver session token> · the driver PWA embeds Meet as an anonymous
+// guest (drivers aren't Supabase-authenticated), so it passes its opaque
+// session token here. It's used ONLY to mint the driver a TURN relay via the
+// anon-callable meet-turn-driver function — without it a driver on cellular
+// can't punch a direct path and the call never connects. Never logged / shown.
+const DTOK = new URLSearchParams(location.search).get("dtok") || "";
 const dbg = { chan: "", status: "", err: "", presence: 0, authed: false, bcastRx: 0 };
 function renderDebug() {
   if (!DEBUG) return;
@@ -2216,16 +2222,21 @@ async function resolveCode(code) {
         iceServers = ice.ice_servers;
       }
     } catch { /* STUN-only fallback */ }
-    // Add fresh Cloudflare TURN credentials (short-lived, minted per join by
-    // the meet-turn-credentials edge function) on TOP of the DB list. Strictly
-    // additive: if the Cloudflare secrets aren't set, the call fails, or the
-    // user is an anon guest (JWT-gated), we keep STUN + the default relay.
+    // Add fresh Cloudflare TURN credentials (short-lived, minted per join) on
+    // TOP of the DB list. Strictly additive: if the Cloudflare secrets aren't
+    // set or the mint fails, we keep STUN + the default relay. A driver (anon
+    // guest carrying ?dtok) mints via the token-gated meet-turn-driver
+    // function; authenticated staff use the JWT-gated meet-turn-credentials.
+    // Without this, a driver on cellular / carrier-NAT gets STUN-only and the
+    // call never connects (black tiles, "can't join the radio").
     try {
-      const { data: cf } = await sb.functions.invoke("meet-turn-credentials", { body: { code } });
+      const { data: cf } = DTOK
+        ? await sb.functions.invoke("meet-turn-driver", { body: { token: DTOK } })
+        : await sb.functions.invoke("meet-turn-credentials", { body: { code } });
       if (cf?.ok && Array.isArray(cf.ice_servers) && cf.ice_servers.length) {
         iceServers = [...(iceServers || DEFAULT_ICE), ...cf.ice_servers];
       }
-    } catch { /* not configured / guest — DB list stands */ }
+    } catch { /* not configured / bad token — DB list stands */ }
     const q = new URLSearchParams(location.search);
     if (q.has("call") || PTT) {
       // Direct call (RouteReady Messages) OR the push-to-talk radio: skip the
