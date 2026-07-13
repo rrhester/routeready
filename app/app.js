@@ -7874,20 +7874,41 @@ async function _renderToday(session, main) {
     const waveOpen = Number.isFinite(waveMs) && Date.now() < waveMs;
     const waveGate = openItems.find((it) => it.stage === "wave") || null;
     const stage = (waveOpen || waveGate) ? 2 : 3;
+    const _onBreakPill = chk.break_started_at && !chk.break_ended_at;
     cardHtml = scCard({
-      pill: `<span class="rr2-pill green"><span class="pdot"></span>On duty</span>`,
+      pill: _onBreakPill
+        ? `<span class="rr2-pill blue"><span class="pdot"></span>On break</span>`
+        : `<span class="rr2-pill green"><span class="pdot"></span>On duty</span>`,
       time: timeRange,
       sub: [`Checked in <b>${_t12(chk.checked_in_at)}</b>`, metaBits].filter(Boolean).join(" · "),
       stage,
       blocked: !!(waveGate && waveGate.overdue),
     });
     const checkoutGates = openItems.filter((it) => it.stage === "checkout" && it.required);
+    const hasBreaks = chk && "break_started_at" in chk;
+    const onBreak = hasBreaks && chk.break_started_at && !chk.break_ended_at;
+    const breakRow = !hasBreaks ? "" : chk.break_ended_at ? `
+        <div class="rr2-row static done">
+          <span class="ric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg></span>
+          <span class="rbody"><span class="rtitle">Break taken</span><span class="rmeta">${_t12(chk.break_started_at)} – ${_t12(chk.break_ended_at)}</span></span>
+          <span class="rend"><span class="rr2-pill green">Done</span></span>
+        </div>` : onBreak ? `
+        <div class="rr2-row static">
+          <span class="ric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg></span>
+          <span class="rbody"><span class="rtitle">On break</span><span class="rmeta">Since <b>${_t12(chk.break_started_at)}</b></span></span>
+          <span class="rend"><span class="rr2-pill blue"><span class="pdot"></span>On break</span><button class="btn btn-sm" id="rr2-break-end">End</button></span>
+        </div>` : `
+        <div class="rr2-row static">
+          <span class="ric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg></span>
+          <span class="rbody"><span class="rtitle">Break</span><span class="rmeta">Not taken yet</span></span>
+          <span class="rend"><button class="btn btn-sm" id="rr2-break-start">Start break</button></span>
+        </div>`;
     bodyHtml = `
       ${missingVanHtml}
       ${syncHtml}
       ${nextSection}
       <div class="rr2-sec">During your shift</div>
-      <div class="rr2-panel">
+      <div class="rr2-panel">${breakRow}
         <button class="rr2-row" type="button" data-task-route="/chat">
           <span class="ric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
           <span class="rbody"><span class="rtitle">Messages</span></span>
@@ -7977,6 +7998,8 @@ async function _renderToday(session, main) {
   document.getElementById("rr-checkout-btn")?.addEventListener("click", () => doCheckout(session));
   document.getElementById("rr-undo-checkout")?.addEventListener("click", () => doUndoCheckout(session));
   document.getElementById("rr-missed-btn")?.addEventListener("click", () => doMissedDay(session));
+  document.getElementById("rr2-break-start")?.addEventListener("click", () => doBreak(session, "start"));
+  document.getElementById("rr2-break-end")?.addEventListener("click", () => doBreak(session, "end"));
   document.getElementById("rr2-sync-now")?.addEventListener("click", () => {
     _formFlushQueue({ silent: false });
     _clkFlushOutbox();
@@ -10981,6 +11004,34 @@ async function doUndoCheckout(session) {
     return;
   }
   toast("Check-out undone", "ok");
+  _todayRepaint();
+}
+
+// One break per shift (migration 0479). Confirmed because there's no
+// undo in v1 — a stray tap would permanently stamp the break.
+async function doBreak(session, which) {
+  const starting = which === "start";
+  const ok = await confirmSheet({
+    title: starting ? "Start your break?" : "End your break?",
+    message: starting
+      ? "Your break time is recorded on today's shift. There's one break per shift."
+      : "You'll be back on duty.",
+    confirmText: starting ? "Start break" : "End break",
+  });
+  if (!ok) return;
+  _haptic("tap");
+  const { error } = await sb.rpc(starting ? "driver_break_start" : "driver_break_end", { p_token: session.token });
+  if (error) {
+    const msg = error.message || "";
+    if      (msg.includes("break_already_started")) toast("Break already started", "warn");
+    else if (msg.includes("break_already_ended"))   toast("Break already ended", "warn");
+    else if (msg.includes("no_break_to_end"))       toast("No break in progress", "warn");
+    else if (msg.includes("not_checked_in"))        toast("Check in first", "warn");
+    else toast(_friendlyError(error, "Couldn't update your break. Try again."), "warn");
+    return;
+  }
+  _haptic("strong");
+  toast(starting ? "Break started" : "Back on duty ✓", "ok");
   _todayRepaint();
 }
 
