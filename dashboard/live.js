@@ -37868,7 +37868,7 @@ async function refreshDriverChatThread(scrollToBottom) {
             <div class="rr-mc-sub">${_hSub}</div>
           </div>
           <div class="rr-mc-head-actions">
-            <button type="button" class="rr-mc-head-btn" data-rr-radio title="Dispatch radio (push-to-talk)" aria-label="Dispatch radio"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg></button>
+            ${window.RR_RADIO_ENABLED ? `<button type="button" class="rr-mc-head-btn" data-rr-radio title="Dispatch radio (push-to-talk)" aria-label="Dispatch radio"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg></button>` : ""}
             <button type="button" class="rr-mc-head-btn" data-rr-call="audio" title="Voice call" aria-label="Voice call">${_RR_MC_ICONS.phone}</button>
             <button type="button" class="rr-mc-head-btn" data-rr-call="video" title="Video call" aria-label="Video call">${_RR_MC_ICONS.video}</button>
             <button type="button" class="rr-mc-head-btn rr-mc-head-btn-details" data-rr-details-toggle aria-pressed="false" title="Driver details" aria-label="Toggle driver details">${_RR_MC_ICONS.panel}</button>
@@ -42856,21 +42856,33 @@ window.rrPlaceCall = rrPlaceCall;
 // Open the DSP push-to-talk radio: fetch the stable per-DSP room code, then
 // open meet.html in ?ptt=1 mode (audio-only, mic muted, hold-to-talk). The
 // same room every dispatcher + on-shift driver joins.
+// Dispatch radio kill-switch (operator request 2026-07-13): the radio is
+// hidden everywhere until it's ready — no thread-header 📻 button, no hail
+// banner (even from stale driver clients still broadcasting), no ?rrradio
+// deep-link surface. window-scoped so the thread-header template (rendered
+// ~5k lines up) can read it without ordering concerns. Flip to true to bring
+// the whole flow back — all plumbing stays intact.
+window.RR_RADIO_ENABLED = false;
 async function _rrOpenRadio() {
-  // Already open → just make sure the hail banner clears and bail.
-  if (document.getElementById("rr-radio-overlay")) { _rrRadioHailClear(); return; }
-  // Fetch the deterministic per-DSP room code, THEN mount the radio inline.
-  // (Previously this opened meet.html in a popup — which browsers silently
-  // block, so "Join radio" appeared to do nothing. Embedding it in the
-  // dashboard removes the popup entirely and the clunky separate tab.)
-  let code, error;
-  try { ({ data: code, error } = await sb.rpc("meet_radio_code")); }
-  catch (e) { error = e; }
-  if (error || !code) { toast("Couldn't open the radio."); return; }
+  if (!window.RR_RADIO_ENABLED) return;
+  // Already open → clear the hail and draw the eye to the existing panel
+  // instead of silently returning.
+  const existing = document.getElementById("rr-radio-overlay");
+  if (existing) {
+    _rrRadioHailClear();
+    existing.classList.remove("rr-ro-flash");
+    void existing.offsetWidth; // restart the animation
+    existing.classList.add("rr-ro-flash");
+    return;
+  }
   _rrRadioHailClear();
+  // Mount the panel IMMEDIATELY with a connecting state so the click always
+  // visibly does something. The old flow awaited the room-code RPC first,
+  // which had two silent-death modes: a wedged auth session makes every
+  // sb.rpc await forever (supabase-js serializes token refresh behind a
+  // navigator.locks origin lock), and the kind-less failure toast() was
+  // suppressed entirely (default kind "success" is muted by design).
   const nm = window.RR?.user?.name || window.RR?.user?.full_name || "Dispatch";
-  const url = "meet.html?m=" + encodeURIComponent(code)
-    + "&ptt=1&cam=0&embed=1&name=" + encodeURIComponent(nm);
   const ov = document.createElement("div");
   ov.id = "rr-radio-overlay";
   ov.innerHTML = `
@@ -42879,13 +42891,34 @@ async function _rrOpenRadio() {
         <span class="rr-ro-live"><span class="rr-ro-dot" aria-hidden="true"></span>Dispatch radio</span>
         <button type="button" class="rr-ro-x" aria-label="Close radio">×</button>
       </div>
-      <iframe class="rr-ro-frame" allow="microphone; autoplay" title="Dispatch radio"></iframe>`;
+      <div class="rr-ro-status">Connecting to the radio…</div>
+      <iframe class="rr-ro-frame" allow="microphone; autoplay" title="Dispatch radio" hidden></iframe>`;
   document.body.appendChild(ov);
-  // Set src after insertion so the iframe loads once, in the DOM.
-  ov.querySelector(".rr-ro-frame").src = url;
   const close = () => ov.remove();
   ov.querySelector(".rr-ro-x").addEventListener("click", close);
   ov.addEventListener("click", (e) => { if (e.target === ov) close(); });
+  let code, error;
+  try {
+    ({ data: code, error } = await Promise.race([
+      sb.rpc("meet_radio_code"),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("radio_timeout")), 10000)),
+    ]));
+  } catch (e) { error = e; }
+  // Operator closed the panel while we were connecting — nothing to do.
+  if (!document.getElementById("rr-radio-overlay")) return;
+  if (error || !code) {
+    close();
+    const timedOut = /radio_timeout/.test(String(error?.message || error));
+    toast(timedOut
+      ? "Couldn't reach the radio — check your connection and try again."
+      : "Couldn't open the radio.", "warn");
+    return;
+  }
+  const frame = ov.querySelector(".rr-ro-frame");
+  frame.src = "meet.html?m=" + encodeURIComponent(code)
+    + "&ptt=1&cam=0&embed=1&name=" + encodeURIComponent(nm);
+  frame.hidden = false;
+  ov.querySelector(".rr-ro-status")?.remove();
 }
 
 // A driver hailed the radio: show a loud, unmissable banner with a one-click
@@ -42899,6 +42932,7 @@ function _rrRadioHailClear() {
   document.getElementById("rr-radio-hail")?.remove();
 }
 function _rrRadioHail(p) {
+  if (!window.RR_RADIO_ENABLED) return; // radio hidden — ignore hails (incl. stale driver clients)
   const name = (p && p.from && (p.from.name || p.from.full_name)) || "A driver";
   let el = document.getElementById("rr-radio-hail");
   if (!el) {
@@ -42915,11 +42949,28 @@ function _rrRadioHail(p) {
     try { _rrRadioHailState.ring = _rrRingEngine(520); } catch {}
   }
   const t = el.querySelector(".rr-rh-text");
-  if (t) t.innerHTML = `<strong>${escapeHtml(name)}</strong> is on the radio`;
+  // The 📻 glyph doubles as a visible build marker: if an operator's banner
+  // shows it, their client is on the post-fix bundle (support can tell a
+  // stale installed app from a real bug at a glance).
+  if (t) t.innerHTML = `📻 <strong>${escapeHtml(name)}</strong> is on the radio`;
   clearTimeout(_rrRadioHailState.timer);
   _rrRadioHailState.timer = setTimeout(_rrRadioHailClear, 20000);
 }
 window.rrRadioHail = _rrRadioHail; // so a push-wake can surface it too
+
+// A closed dashboard woken by a radio-hail Web Push deep-links to
+// /dashboard/?rrradio=1[&from=Name]. Surface the same one-click Join banner
+// once the app boots — without this the notification tap landed on a
+// dashboard that showed nothing. (Banner, not auto-join: opening the radio
+// needs a user gesture for the mic prompt anyway.)
+try {
+  const q = new URLSearchParams(location.search);
+  if (q.get("rrradio") === "1") {
+    const from = q.get("from") || "";
+    try { history.replaceState(null, "", location.pathname + location.hash); } catch {}
+    setTimeout(() => { try { _rrRadioHail({ from: { name: from } }); } catch {} }, 1200);
+  }
+} catch {}
 
 // Exposed so a push/service-worker wake (or the driver-app bridge) can inject
 // an incoming-call ring without going through the realtime broadcast.
