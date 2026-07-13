@@ -8989,6 +8989,7 @@ document.addEventListener("click", (e) => {
   if (pop && !pop.hidden
       && !e.target.closest("#rr-iv-rules-popover")
       && !e.target.closest("#rr-iv-rules-toggle")
+      && !e.target.closest("#rr-ivcal-setmenu")
       && !e.target.closest("#rr-ob-rules-chooser")) {
     _ivToggleRules(false);
   }
@@ -28994,14 +28995,94 @@ function _ivcalSearchIndex() {
 }
 // Personal calendar-settings popover: week start, clock, working hours.
 // Device-local (localStorage); applies on change with a re-render.
+// Persist a new calendar timezone chosen in the gear settings popover. The
+// "CDT" grid label is driven by the interview-availability config's timezone,
+// which is a full-config save (an empty window set would wipe the operator's
+// weekly hours). So we mirror exactly what the availability editor's Save does:
+// reload the active schedule (or legacy single config), then re-save it verbatim
+// with only the timezone changed. Works whether the named-schedules migration
+// (0400) is applied or not, falling back to the legacy RPCs if they're missing.
+async function _ivcalSaveTimezone(tz) {
+  const mapWins = (arr) => (arr || []).map(w => ({
+    weekday: w.weekday, start_min: w.start_min, end_min: w.end_min,
+    capacity: Math.max(1, w.capacity || 1),
+  }));
+  const _missingFn = (err) => err && /does not exist|could not find|schema cache|pgrst202|not find the function/i.test(JSON.stringify(err));
+  const saveLegacy = async () => {
+    const a = await sb.rpc("interview_availability_get");
+    if (a.error) throw a.error;
+    const av = a.data || {}, cfg = av.config || {};
+    const { error } = await sb.rpc("interview_availability_set", {
+      p_timezone: tz,
+      p_slot_minutes: cfg.slot_minutes || 30,
+      p_buffer_minutes: cfg.buffer_minutes || 0,
+      p_min_lead_hours: cfg.min_lead_hours ?? 12,
+      p_window_days: cfg.window_days ?? 21,
+      p_location: cfg.location ?? null,
+      p_windows: mapWins(av.windows),
+    });
+    if (error) throw error;
+  };
+  const scheds = (_ivcalCache && _ivcalCache.schedules) || [];
+  const active = scheds.find(s => s.is_active) || scheds[0] || null;
+  if (!active) { await saveLegacy(); return true; }
+  const g = await sb.rpc("interview_schedule_get", { p_id: active.id });
+  if (g.error) { if (_missingFn(g.error)) { await saveLegacy(); return true; } throw g.error; }
+  const sc = (g.data && g.data.schedule) || {};
+  const { error } = await sb.rpc("interview_schedule_save", {
+    p_id: active.id,
+    p_name: sc.name || "Interview",
+    p_make_active: sc.is_active !== false,
+    p_timezone: tz,
+    p_slot_minutes: sc.slot_minutes || 30,
+    p_buffer_minutes: sc.buffer_minutes || 0,
+    p_min_lead_hours: sc.min_lead_hours ?? 12,
+    p_window_days: sc.window_days ?? 21,
+    p_location: sc.location ?? null,
+    p_windows: mapWins(g.data && g.data.windows),
+  });
+  if (error) { if (_missingFn(error)) { await saveLegacy(); return true; } throw error; }
+  return true;
+}
+
+// Calendar settings popover (the toolbar gear) · one home for everything the
+// calendar's own controls used to scatter: the display prefs that live here
+// already (week start, clock, working-hour shading — device-local) PLUS the
+// timezone and the items that used to hide behind the ribbon "Availability"
+// dropdown (interview reminders, Holidays & date overrides, booking pages).
+// Consolidated here 2026-07 so operators find the timezone where they expect it.
 function _ivcalSettingsMenu(btn) {
   _ivcalCloseMenus();
   document.getElementById("rr-ivcal-setmenu")?.remove();
   const hhmm = (min) => `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+  const holIco = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="15" x2="16" y2="15"/></svg>`;
+  const pageIco = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>`;
+  const eyeIco = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>`;
+  const addIco = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
+  const bellIco = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>`;
+  const gearIco = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
+  const curTz = (_ivcalCache && _ivcalCache.tz) || "America/Chicago";
+  const tzList = ["America/New_York","America/Chicago","America/Denver","America/Los_Angeles","America/Phoenix","America/Anchorage","Pacific/Honolulu"];
+  if (!tzList.includes(curTz)) tzList.unshift(curTz);   // keep an out-of-list zone visible & selected
+  const tzOpts = tzList.map(z => `<option value="${z}"${z===curTz?" selected":""}>${z.replace(/^(America|Pacific)\//,"").replace(/_/g," ")}</option>`).join("");
+  const scheds = (_ivcalCache && _ivcalCache.schedules) || [];
+  const bpRows = scheds.length
+    ? scheds.map(s =>
+        `<div class="oc-set-link oc-set-bp" data-set-bp="${escapeHtml(s.id)}" role="menuitem" tabindex="0" title="Edit “${escapeHtml(s.name)}”">` +
+          `<span class="oc-set-link-ico">${pageIco}</span>` +
+          `<span class="oc-set-link-lbl">${escapeHtml(s.name)}</span>` +
+          `${s.is_active ? `<span class="oc-set-bp-active" title="Active booking schedule">active</span>` : ""}` +
+          `<button type="button" class="oc-set-bp-eye" data-set-bp-preview="${escapeHtml(s.id)}" title="Preview what applicants see" aria-label="Preview booking page">${eyeIco}</button>` +
+        `</div>`).join("")
+    : `<div class="oc-set-bp-empty">No booking pages yet.</div>`;
   const menu = document.createElement("div");
   menu.id = "rr-ivcal-setmenu";
   menu.className = "oc-menu oc-setmenu";
   menu.innerHTML = `
+    <div class="oc-set-sec">
+      <div class="oc-set-h">Timezone</div>
+      <select class="oc-set-tz" data-set-tz aria-label="Calendar timezone">${tzOpts}</select>
+    </div>
     <div class="oc-set-sec">
       <div class="oc-set-h">Week starts on</div>
       <div class="oc-set-seg" data-set-weekstart>
@@ -29021,10 +29102,41 @@ function _ivcalSettingsMenu(btn) {
       <div class="oc-set-work${_ivWork.on ? "" : " off"}" data-set-workrow>
         <input type="time" data-set-wstart value="${hhmm(_ivWork.start)}"> <span>to</span> <input type="time" data-set-wend value="${hhmm(_ivWork.end)}">
       </div>
+    </div>
+    <div class="oc-set-sec" data-set-remsec hidden></div>
+    <div class="oc-set-sec">
+      <div class="oc-set-h">Availability &amp; booking</div>
+      <button type="button" class="oc-set-link" data-set-overrides role="menuitem">
+        <span class="oc-set-link-ico">${holIco}</span><span class="oc-set-link-lbl">Holidays &amp; date overrides</span>
+      </button>
+      <div class="oc-set-subh">Booking pages</div>
+      ${bpRows}
+      <button type="button" class="oc-set-link oc-set-add" data-set-bp-new role="menuitem">
+        <span class="oc-set-link-ico">${addIco}</span><span class="oc-set-link-lbl">New booking page</span>
+      </button>
     </div>`;
   document.body.appendChild(menu);
+  menu.style.maxHeight = Math.max(240, window.innerHeight - 24) + "px";
+  menu.style.overflowY = "auto";
   _ivcalPlaceMenu(menu, btn);
+  const closeMenu = () => { menu.remove(); document.removeEventListener("mousedown", off); };
   const rerender = () => { _ivSavePrefs(); _ivcalRender(); };
+
+  // Timezone — persist server-side, optimistically update the grid label first.
+  menu.querySelector("[data-set-tz]").addEventListener("change", (e) => {
+    const tz = e.target.value;
+    const prev = _ivcalCache ? _ivcalCache.tz : tz;
+    if (_ivcalCache) _ivcalCache.tz = tz;
+    _ivcalRender();
+    _ivcalSaveTimezone(tz)
+      .then(() => toast("Calendar timezone updated", "success"))
+      .catch((err) => {
+        if (_ivcalCache) _ivcalCache.tz = prev;
+        _ivcalRender();
+        toast("Couldn't change timezone: " + (err.message || err), "warn");
+      });
+  });
+
   menu.querySelector("[data-set-weekstart]").addEventListener("click", (e) => {
     const b = e.target.closest("[data-ws]"); if (!b) return;
     _ivWeekStartMon = b.getAttribute("data-ws") === "mon";
@@ -29048,7 +29160,70 @@ function _ivcalSettingsMenu(btn) {
   };
   menu.querySelector("[data-set-wstart]").addEventListener("change", readWork);
   menu.querySelector("[data-set-wend]").addEventListener("change", readWork);
-  const off = (ev) => { if (!menu.contains(ev.target) && !ev.target.closest("[data-ivcal-settings]")) { menu.remove(); document.removeEventListener("mousedown", off); } };
+
+  // Reminders section — only shown once the interview_reminders_* RPCs exist
+  // (migration 0406). State can be unknown on first open, so paint from what we
+  // know and repaint after a lazy load.
+  const paintReminders = () => {
+    const rem = menu.querySelector("[data-set-remsec]");
+    if (!rem) return;
+    if (!_ivcalRemindersAvail) { rem.hidden = true; rem.innerHTML = ""; return; }
+    rem.hidden = false;
+    const on = !!_ivcalRemindersEnabled;
+    rem.innerHTML =
+      `<div class="oc-set-h">Reminders</div>` +
+      `<button type="button" class="oc-set-link oc-set-toggle" data-set-reminders role="menuitemcheckbox" aria-checked="${on ? "true" : "false"}" title="Automatically text & email candidates 24 hours and 1 hour before their interview">` +
+        `<span class="oc-set-link-ico">${bellIco}</span>` +
+        `<span class="oc-set-link-lbl">Interview reminders</span>` +
+        `<span class="oc-set-switch${on ? " on" : ""}" aria-hidden="true"><span class="oc-set-knob"></span></span>` +
+      `</button>` +
+      `<button type="button" class="oc-set-link oc-set-sub" data-set-reminders-edit role="menuitem">` +
+        `<span class="oc-set-link-ico">${gearIco}</span><span class="oc-set-link-lbl">Customize reminders…</span></button>`;
+    rem.querySelector("[data-set-reminders]").addEventListener("click", () => {
+      const next = !_ivcalRemindersEnabled;
+      _ivcalRemindersEnabled = next;   // optimistic
+      paintReminders();
+      sb.rpc("interview_reminders_set", { p_enabled: next }).then(({ error }) => {
+        if (error) { _ivcalRemindersEnabled = !next; paintReminders(); toast("Couldn't update reminders: " + (error.message || error), "warn"); }
+        else { toast(next ? "Interview reminders on" : "Interview reminders off", "success"); }
+      });
+    });
+    rem.querySelector("[data-set-reminders-edit]").addEventListener("click", () => {
+      closeMenu(); if (typeof _rrOpenReminderSettings === "function") _rrOpenReminderSettings();
+    });
+  };
+  paintReminders();
+  if (_ivcalRemindersEnabled === null && typeof _rrLoadRemindersState === "function") {
+    _rrLoadRemindersState(false).then(() => {
+      if (!document.getElementById("rr-ivcal-setmenu")) return;
+      paintReminders();
+      _ivcalPlaceMenu(menu, document.querySelector("[data-ivcal-settings]") || btn);
+    });
+  }
+
+  // Holidays & date overrides · booking pages — reuse the same handlers the old
+  // Availability dropdown wired. Open the editor / dialog after this click has
+  // fully settled so the document-level outside-close doesn't immediately shut it.
+  menu.querySelector("[data-set-overrides]").addEventListener("click", () => {
+    closeMenu(); if (typeof _rrOpenDateOverrides === "function") _rrOpenDateOverrides();
+  });
+  menu.querySelector("[data-set-bp-new]").addEventListener("click", () => {
+    closeMenu(); _ivCurSchedId = "__new";
+    setTimeout(() => { if (typeof _ivToggleRules === "function") _ivToggleRules(true); }, 0);
+  });
+  menu.querySelectorAll("[data-set-bp]").forEach(row => {
+    row.addEventListener("click", (e) => {
+      const eye = e.target.closest("[data-set-bp-preview]");
+      const id = row.getAttribute("data-set-bp");
+      const name = row.querySelector(".oc-set-link-lbl")?.textContent || "";
+      closeMenu();
+      if (eye) { if (typeof _ivcalBookingPreview === "function") _ivcalBookingPreview(id, name); return; }
+      _ivCurSchedId = id;
+      setTimeout(() => { if (typeof _ivToggleRules === "function") _ivToggleRules(true); }, 0);
+    });
+  });
+
+  const off = (ev) => { if (!menu.contains(ev.target) && !ev.target.closest("[data-ivcal-settings]")) { closeMenu(); } };
   setTimeout(() => document.addEventListener("mousedown", off), 0);
 }
 
