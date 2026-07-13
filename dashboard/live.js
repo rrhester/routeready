@@ -89284,3 +89284,28 @@ document.addEventListener("click", (e) => {
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && document.getElementById("rr-qt-pop")) { e.stopPropagation(); _rrQtClose(); }
 }, true);
+
+// ─── deep-link: /dashboard/#<view> opens that view on load ─────────────────
+// RouteReady Meet's "Notes" button links here (#notebooks) so a host can jump
+// straight from a meeting into the Notebook system. Kept tiny + defensive:
+// only routes to a hash that matches a real #view-… node (so an OAuth
+// #access_token hash or a bare "#" is ignored), retries briefly until goto()
+// and the view node exist, and also honors a later hashchange.
+(function () {
+  function hashView() {
+    const h = (location.hash || "").replace(/^#/, "").split("?")[0].trim();
+    return h && document.getElementById("view-" + h) ? h : null;
+  }
+  function route(tries) {
+    const v = hashView();
+    if (v && typeof window.goto === "function") { try { window.goto(v); } catch (_) {} return; }
+    if (tries > 0) setTimeout(() => route(tries - 1), 120);
+  }
+  if (document.readyState === "loading")
+    document.addEventListener("DOMContentLoaded", () => route(40));
+  else route(40);
+  window.addEventListener("hashchange", () => {
+    const v = hashView();
+    if (v && typeof window.goto === "function") { try { window.goto(v); } catch (_) {} }
+  });
+})();

@@ -193,6 +193,47 @@
   .rh-btn.on{background:var(--accent);border-color:var(--accent);color:#fff}
   .rh-btn svg{width:14px;height:14px}
 
+  /* brand lockup · top-left of the room, like Zoom Workplace's wordmark */
+  .rh-brand{display:flex;align-items:center;gap:8px;flex:0 0 auto;margin-right:2px}
+  .rh-logo{width:27px;height:27px;border-radius:7px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex:0 0 auto}
+  .rh-brandname{font-weight:800;font-size:14px;line-height:1.05;white-space:nowrap}
+  .rh-brandname small{display:block;font-weight:600;font-size:10px;letter-spacing:.02em;color:var(--room-muted)}
+  @media (max-width:760px){.rh-brandname{display:none}}
+
+  /* header icon button (Notes → Notebook) */
+  .rh-icon{width:34px;height:34px;border-radius:8px;border:1px solid var(--room-line);background:var(--room-panel);color:var(--room-muted);display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+  .rh-icon:hover{color:var(--room-text)}
+  .rh-icon svg{width:17px;height:17px}
+
+  /* View dropdown (layout + visibility options) */
+  .rh-viewwrap{position:relative;display:flex}
+  .rh-caret{width:13px !important;height:13px !important;margin-left:1px}
+  .view-menu{position:fixed;top:52px;left:auto;bottom:auto;transform:none;min-width:238px;padding:6px}
+  .vm-sec{display:flex;flex-direction:column}
+  .vm-div{height:1px;background:var(--room-line);margin:5px 4px}
+  .vm-item{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:none;border:0;border-radius:8px;padding:8px 10px;color:var(--room-text);font-size:14px;font-weight:500}
+  .vm-item:hover{background:var(--room-tile)}
+  .vm-check{width:15px;flex:0 0 auto;color:#34D399;font-weight:800;font-size:13px;visibility:hidden}
+  .vm-item.on .vm-check{visibility:visible}
+  .vm-item.on{font-weight:700}
+
+  /* hide-meeting-timers toggle */
+  body.hide-timers #room-timer,body.hide-timers #embed-timer{display:none}
+
+  /* auto-hide chrome (desktop/tablet meetings) · header + control bar fade
+     after a few idle seconds and wake on any pointer/key activity, Zoom /
+     FaceTime style. Opacity only — pointer-events stay on so the WCO drag
+     region and buttons keep working; any move re-shows the chrome before a
+     click lands. Phone-call mode keeps its own header-only fade (further
+     down, inside the 760px block); this deliberately starts at 761px so the
+     phone control bar stays docked as the operator asked. */
+  @media (min-width:761px){
+    .room-head,.room-ctrls{transition:opacity .3s ease}
+    body[data-screen="room"]:not(.embed).chrome-hidden .room-head,
+    body[data-screen="room"]:not(.embed).chrome-hidden .room-ctrls{opacity:0}
+  }
+  @media (min-width:761px) and (prefers-reduced-motion:reduce){.room-head,.room-ctrls{transition:none}}
+
   /* embed mode · chromeless room for the dashboard's interview panel.
      The host page owns the title/invite/end chrome, so the inner header
      disappears and its info/buttons live in the control bar instead. */
@@ -487,18 +528,44 @@
   <!-- room -->
   <section data-screen="room" class="room-wrap">
     <header class="room-head">
+      <div class="rh-brand" title="RouteReady Meet">
+        <span class="rh-logo">R</span>
+        <span class="rh-brandname">RouteReady<small>Meet</small></span>
+      </div>
       <div class="rh-title" id="room-title">RouteReady meeting</div>
       <button class="code-chip" id="room-code" type="button" title="Copy invite link"></button>
       <button class="rh-btn" id="btn-waiting" type="button" style="display:none" title="Guests waiting to join"></button>
-      <button class="rh-btn" id="btn-view" type="button" title="Toggle speaker view">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="12" rx="2"/><rect x="3" y="18" width="5" height="3" rx="1"/><rect x="10" y="18" width="5" height="3" rx="1"/><rect x="17" y="18" width="4" height="3" rx="1"/></svg>
-        Speaker view
-      </button>
+      <div class="rh-viewwrap" id="view-wrap">
+        <button class="rh-btn" id="btn-view" type="button" aria-haspopup="true" aria-expanded="false" title="Change the layout">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="12" rx="2"/><rect x="3" y="18" width="5" height="3" rx="1"/><rect x="10" y="18" width="5" height="3" rx="1"/><rect x="17" y="18" width="4" height="3" rx="1"/></svg>
+          View
+          <svg class="rh-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div id="view-menu" class="pop view-menu" role="menu" hidden>
+          <div class="vm-sec">
+            <button class="vm-item" type="button" role="menuitemradio" data-view="speaker"><span class="vm-check" aria-hidden="true">✓</span>Speaker</button>
+            <button class="vm-item" type="button" role="menuitemradio" data-view="gallery"><span class="vm-check" aria-hidden="true">✓</span>Gallery</button>
+          </div>
+          <div class="vm-div"></div>
+          <div class="vm-sec">
+            <button class="vm-item" type="button" role="menuitemcheckbox" data-toggle="hideSelf"><span class="vm-check" aria-hidden="true">✓</span>Hide self view</button>
+            <button class="vm-item" type="button" role="menuitemcheckbox" data-toggle="hideNonVideo"><span class="vm-check" aria-hidden="true">✓</span>Hide non-video participants</button>
+            <button class="vm-item" type="button" role="menuitemcheckbox" data-toggle="hideTimers"><span class="vm-check" aria-hidden="true">✓</span>Hide meeting timers</button>
+          </div>
+          <div class="vm-div"></div>
+          <div class="vm-sec">
+            <button class="vm-item" type="button" role="menuitem" data-action="fullscreen"><span class="vm-check" aria-hidden="true">✓</span><span id="vm-fs-label">Fullscreen</span></button>
+          </div>
+        </div>
+      </div>
       <div class="rh-right">
         <span id="rec-pill" style="display:none"><span class="rec-dot"></span>REC</span>
         <span id="room-timer">0:00</span>
         <span class="dot" aria-hidden="true"></span>
         <span title="Participants"><span id="people-count">1</span> in call</span>
+        <button class="rh-icon" id="btn-notes" type="button" style="display:none" title="Open meeting notes in your Notebook" aria-label="Meeting notes">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4a2 2 0 0 1 2-2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><polyline points="15 2 15 7 20 7"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="13" y2="16"/></svg>
+        </button>
       </div>
     </header>
     <div id="wait-banner" role="alert" hidden>
