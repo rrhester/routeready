@@ -42857,14 +42857,35 @@ window.rrPlaceCall = rrPlaceCall;
 // open meet.html in ?ptt=1 mode (audio-only, mic muted, hold-to-talk). The
 // same room every dispatcher + on-shift driver joins.
 async function _rrOpenRadio() {
-  const w = window.open("about:blank", "_blank");
-  try {
-    const { data: code, error } = await sb.rpc("meet_radio_code");
-    if (error || !code) { if (w) w.close(); toast("Couldn't open the radio."); return; }
-    const nm = window.RR?.user?.name || window.RR?.user?.full_name || "Dispatch";
-    const url = "meet.html?m=" + encodeURIComponent(code) + "&ptt=1&cam=0&name=" + encodeURIComponent(nm);
-    if (w) w.location.href = url; else window.open(url, "_blank");
-  } catch { if (w) w.close(); toast("Couldn't open the radio."); }
+  // Already open → just make sure the hail banner clears and bail.
+  if (document.getElementById("rr-radio-overlay")) { _rrRadioHailClear(); return; }
+  // Fetch the deterministic per-DSP room code, THEN mount the radio inline.
+  // (Previously this opened meet.html in a popup — which browsers silently
+  // block, so "Join radio" appeared to do nothing. Embedding it in the
+  // dashboard removes the popup entirely and the clunky separate tab.)
+  let code, error;
+  try { ({ data: code, error } = await sb.rpc("meet_radio_code")); }
+  catch (e) { error = e; }
+  if (error || !code) { toast("Couldn't open the radio."); return; }
+  _rrRadioHailClear();
+  const nm = window.RR?.user?.name || window.RR?.user?.full_name || "Dispatch";
+  const url = "meet.html?m=" + encodeURIComponent(code)
+    + "&ptt=1&cam=0&embed=1&name=" + encodeURIComponent(nm);
+  const ov = document.createElement("div");
+  ov.id = "rr-radio-overlay";
+  ov.innerHTML = `
+    <div class="rr-ro-card">
+      <div class="rr-ro-head">
+        <span class="rr-ro-live"><span class="rr-ro-dot" aria-hidden="true"></span>Dispatch radio</span>
+        <button type="button" class="rr-ro-x" aria-label="Close radio">×</button>
+      </div>
+      <iframe class="rr-ro-frame" allow="microphone; autoplay" title="Dispatch radio"></iframe>`;
+  document.body.appendChild(ov);
+  // Set src after insertion so the iframe loads once, in the DOM.
+  ov.querySelector(".rr-ro-frame").src = url;
+  const close = () => ov.remove();
+  ov.querySelector(".rr-ro-x").addEventListener("click", close);
+  ov.addEventListener("click", (e) => { if (e.target === ov) close(); });
 }
 
 // A driver hailed the radio: show a loud, unmissable banner with a one-click

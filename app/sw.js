@@ -174,7 +174,12 @@
 // "Account" (Profile / License / PIN) and "Work" (Availability / Time off /
 // Attendance) instead of one undifferentiated run. Bumped so installed driver
 // PWAs pick up the new app.js + CSS.
-const SHELL_CACHE = "rr-app-shell-v165";
+// v166 · Dispatch radio opens IN-APP: tapping the radio (or a hail) now mounts
+// meet.html?ptt=1&embed=1 in a full-screen iframe instead of window.open — the
+// popup broke out of the installed PWA into Safari and got blocked after the
+// code fetch, so the radio appeared to do nothing. Bumped so installed driver
+// PWAs pick up the new app.js.
+const SHELL_CACHE = "rr-app-shell-v166";
 const SHELL_FILES = [
   "./",
   "index.html",

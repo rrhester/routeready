@@ -6123,12 +6123,10 @@ function _drvCallNotify(title, body) {
 async function _drvOpenRadio() {
   const session = readSession();
   if (!session?.token) return;
-  // Open the window synchronously (inside the tap) so mobile browsers don't
-  // block the popup while we fetch the code; then point it at the room.
-  const w = window.open("about:blank", "_blank");
+  if (document.getElementById("rr-drv-radio")) return; // already open
   try {
     const { data: code, error } = await sb.rpc("driver_meet_radio_code", { p_token: session.token });
-    if (error || !code) { if (w) w.close(); toast("Couldn't open the radio. Try again.", "warn"); return; }
+    if (error || !code) { toast("Couldn't open the radio. Try again.", "warn"); return; }
     const me = _drvCallMe ? _drvCallMe() : { name: "" };
     // Summon dispatch: a radio channel is silent unless someone's listening,
     // so broadcast a "hail" to every open dashboard (loud banner + one-click
@@ -6142,13 +6140,43 @@ async function _drvOpenRadio() {
         }).then(undefined, () => {});
       }
     } catch {}
-    const url = "/dashboard/meet.html?m=" + encodeURIComponent(code) + "&ptt=1&cam=0"
+    // Mount the radio inline (embedded, chromeless PTT). Popups break out of
+    // the installed PWA into Safari and get blocked after the await — an
+    // iframe keeps the radio inside the app and always opens.
+    const url = "/dashboard/meet.html?m=" + encodeURIComponent(code) + "&ptt=1&cam=0&embed=1"
       + "&name=" + encodeURIComponent(me.name || "");
-    if (w) w.location.href = url; else location.href = url;
+    _drvMountRadio(url);
   } catch {
-    if (w) w.close();
     toast("Couldn't open the radio. Try again.", "warn");
   }
+}
+
+// Full-screen, in-app dispatch radio (hold-to-talk). No popup, no tab.
+function _drvMountRadio(url) {
+  const ov = document.createElement("div");
+  ov.id = "rr-drv-radio";
+  ov.innerHTML = `
+    <style>
+      #rr-drv-radio{ position:fixed; inset:0; z-index:1200; display:flex; flex-direction:column;
+        background:#111318; }
+      #rr-drv-radio .rr-dr-head{ flex:0 0 auto; display:flex; align-items:center; gap:10px;
+        padding:calc(env(safe-area-inset-top) + 10px) 14px 10px; background:#DC2626; color:#fff; }
+      #rr-drv-radio .rr-dr-live{ display:flex; align-items:center; gap:8px; font-weight:700; font-size:15px; }
+      #rr-drv-radio .rr-dr-dot{ width:9px; height:9px; border-radius:50%; background:#fff;
+        animation:rrDrRadioPulse 1s ease-in-out infinite; }
+      #rr-drv-radio .rr-dr-x{ margin-left:auto; border:0; background:rgba(255,255,255,.18); color:#fff;
+        width:34px; height:34px; border-radius:50%; font-size:20px; line-height:1; cursor:pointer; }
+      #rr-drv-radio .rr-dr-frame{ flex:1 1 auto; width:100%; border:0; display:block; }
+      @keyframes rrDrRadioPulse{ 0%,100%{opacity:1} 50%{opacity:.35} }
+    </style>
+    <div class="rr-dr-head">
+      <span class="rr-dr-live"><span class="rr-dr-dot" aria-hidden="true"></span>Dispatch radio</span>
+      <button type="button" class="rr-dr-x" aria-label="Close radio">×</button>
+    </div>
+    <iframe class="rr-dr-frame" allow="microphone; autoplay" title="Dispatch radio"></iframe>`;
+  document.body.appendChild(ov);
+  ov.querySelector(".rr-dr-frame").src = url;
+  ov.querySelector(".rr-dr-x").addEventListener("click", () => ov.remove());
 }
 
 function _drvCallOpenRoom(room, media, replace) {
