@@ -158,10 +158,14 @@
 // and pre-shift tasks lead the fold. Same elements and #rr-home-meta /
 // #rr-home-status hooks; the -48px content overlap becomes a clean seam.
 // Bumped so installed driver PWAs pick up the new app.js + CSS.
-// v162 · Radio hails dispatch: opening the push-to-talk radio now alerts
+// v162 · Check-in CTA specificity: the primary home check-in action reads
+// "Check in for shift" (was "Check in"), matching the reviewed redesign so a
+// driver knows exactly what tapping it commits to. Bumped so installed driver
+// PWAs pick up the new app.js.
+// v163 · Radio hails dispatch: opening the push-to-talk radio now alerts
 // every open dashboard (banner + ring + one-click Join) and Web-Pushes a
 // closed one. Bumped so installed driver PWAs pick up the new app.js.
-const SHELL_CACHE = "rr-app-shell-v162";
+const SHELL_CACHE = "rr-app-shell-v163";
 const SHELL_FILES = [
   "./",
   "index.html",
