@@ -7151,19 +7151,30 @@ body.rr-cmdk-open{ overflow:hidden }
   padding:10px 12px 10px 16px; border-radius:var(--r-pill,999px);
   box-shadow:0 10px 30px rgba(0,0,0,.35); font-size:var(--fs-sm); font-weight:600;
   max-width:calc(100vw - 24px);
+  /* The desktop app paints a draggable title-bar strip across the top ~37px
+     (body::before, -webkit-app-region:drag). This banner lands inside it, so
+     without an explicit no-drag its button clicks are swallowed as a window
+     drag ("can't hit Join radio"). Carve the whole banner out of the drag
+     region so its buttons are clickable in the desktop app. */
+  -webkit-app-region:no-drag; app-region:no-drag;
 }
 #rr-radio-hail .rr-rh-dot{ width:10px; height:10px; border-radius:50%; flex:0 0 auto;
   background:var(--rr-white); animation:rrPulse 1s ease-in-out infinite; }
 #rr-radio-hail .rr-rh-text{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 #rr-radio-hail .rr-rh-join{ flex:0 0 auto; border:0; cursor:pointer; font-weight:700; font-size:var(--fs-xs);
-  background:var(--rr-white); color:var(--red); padding:6px 12px; border-radius:var(--r-pill,999px); }
+  background:var(--rr-white); color:var(--red); padding:6px 12px; border-radius:var(--r-pill,999px);
+  -webkit-app-region:no-drag; app-region:no-drag; }
 #rr-radio-hail .rr-rh-x{ flex:0 0 auto; border:0; background:none; color:var(--rr-white); cursor:pointer;
-  font-size:var(--fs-lg); line-height:1; opacity:.85; padding:2px 4px; }
+  font-size:var(--fs-lg); line-height:1; opacity:.85; padding:2px 4px;
+  -webkit-app-region:no-drag; app-region:no-drag; }
 
 /* ── Dispatch radio (embedded in the dashboard — no popup, no separate tab) ─ */
 #rr-radio-overlay{
   position:fixed; inset:0; z-index:10000; display:flex; align-items:flex-end; justify-content:flex-end;
   padding:16px; background:rgba(0,0,0,.28);
+  /* Full-screen, so its top overlaps the desktop title-bar drag strip —
+     carve it out so the panel + its close button stay clickable. */
+  -webkit-app-region:no-drag; app-region:no-drag;
 }
 #rr-radio-overlay .rr-ro-card{
   width:380px; max-width:calc(100vw - 32px); height:520px; max-height:calc(100vh - 32px);
