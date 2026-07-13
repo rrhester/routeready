@@ -3010,6 +3010,33 @@ body.is-home main > .home-hero{
   background:var(--rr-white);color:var(--red-dark);border-color:rgba(220,38,38,.30);
 }
 
+/* ── Proactive check-in location hint ──────────────────────────
+   Sits just under the primary check-in card. A quiet, tappable
+   "Check my location" that resolves to an at-station / too-far /
+   location-off verdict. Amber (never red) for "too far" — the driver
+   isn't blocked, it's a heads-up; green confirms they're in range. */
+.checkin-loc{ margin:8px 2px 0;font-size:var(--fs-sm);line-height:1.35 }
+.checkin-loc-row{ display:flex;align-items:center;gap:7px;color:var(--text-subtle) }
+.checkin-loc-row > svg{ flex-shrink:0 }
+.checkin-loc-btn{
+  display:inline-flex;align-items:center;gap:7px;
+  min-height:32px;padding:5px 4px;
+  background:none;border:none;cursor:pointer;
+  color:var(--accent);font-size:var(--fs-sm);font-weight:600;letter-spacing:0;
+}
+.checkin-loc-btn:active{ opacity:.6 }
+.checkin-loc.is-ok  .checkin-loc-row{ color:var(--green-dark);font-weight:600 }
+.checkin-loc.is-far .checkin-loc-row{ color:var(--rr-amber-800);font-weight:600 }
+.checkin-loc.is-off .checkin-loc-row{ color:var(--rr-amber-800) }
+.checkin-loc.is-far .checkin-loc-btn,
+.checkin-loc.is-off .checkin-loc-btn{ color:var(--text-subtle) }
+.checkin-loc-spin{
+  width:14px;height:14px;flex-shrink:0;border-radius:50%;
+  border:2px solid var(--border);border-top-color:var(--accent);
+  animation:checkin-loc-spin .7s linear infinite;
+}
+@keyframes checkin-loc-spin{ to{ transform:rotate(360deg) } }
+
 /* ── Report missed day · Fluent depth-2 list row ───────────── */
 .missed-day-card{
   display:flex;align-items:center;gap:14px;

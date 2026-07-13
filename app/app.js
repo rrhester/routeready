@@ -10530,6 +10530,15 @@ async function renderCheckinCard(session) {
   }
 
   if (windowOpen) {
+    // Proactive location awareness: a driver can confirm they're close
+    // enough to the station BEFORE committing the check-in, instead of
+    // only learning they're out of range from the server's rejection.
+    // On-tap (not on-load) so the home screen never fires a permission
+    // prompt on every visit. The check-in button stays enabled regardless
+    // — GPS can be flaky and the server is the authority on the geofence.
+    const canLocate = Number.isFinite(Number(shift.station_latitude))
+      && Number.isFinite(Number(shift.station_longitude))
+      && "geolocation" in navigator;
     slot.innerHTML = `
       <button class="opens-card" id="rr-checkin-btn" type="button">
         <div class="opens-card-row">
@@ -10540,8 +10549,10 @@ async function renderCheckinCard(session) {
           </div>
           ${countdownHtml}
         </div>
-      </button>`;
+      </button>
+      ${canLocate ? `<div class="checkin-loc" id="rr-checkin-loc">${_checkinLocIdleHtml()}</div>` : ""}`;
     document.getElementById("rr-checkin-btn").addEventListener("click", () => doCheckin(session));
+    if (canLocate) _wireCheckinLocation(shift);
   } else if (windowClosed) {
     slot.innerHTML = `
       <div class="opens-card opens-card-warn" aria-disabled="true">
@@ -10568,6 +10579,72 @@ async function renderCheckinCard(session) {
   }
   if (initialCountdown) _startCheckinCountdown(startsAtMs);
   showMissed(true);
+}
+
+// ── Proactive check-in location awareness ───────────────────────────
+// Lets a driver confirm they're within the station geofence before they
+// commit the check-in. Purely a hint: the check-in button stays enabled
+// and driver_checkin recomputes the distance server-side (it's the
+// authority). Requested on-tap so the home screen never triggers a
+// location permission prompt on every visit.
+function _haversineM(lat1, lng1, lat2, lng2) {
+  const R = 6371000; // Earth radius, metres.
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
+}
+function _fmtDistance(m) {
+  if (!Number.isFinite(m)) return "";
+  if (m < 950) return `${Math.max(10, Math.round(m / 10) * 10)} m`;
+  return `${(m / 1000).toFixed(1)} km`;
+}
+const _LOC_PIN   = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>';
+const _LOC_CHECK = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+const _LOC_WARN  = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+function _checkinLocIdleHtml() {
+  return `<button class="checkin-loc-btn" id="rr-checkin-loc-btn" type="button">${_LOC_PIN}<span>Check my location</span></button>`;
+}
+function _wireCheckinLocation(shift) {
+  const wrap = document.getElementById("rr-checkin-loc");
+  if (!wrap) return;
+  const stnLat = Number(shift.station_latitude);
+  const stnLng = Number(shift.station_longitude);
+  const radiusRaw = Number(shift.geofence_radius_meters);
+  const radius = Number.isFinite(radiusRaw) ? radiusRaw : 150;
+  const set = (cls, html) => {
+    wrap.className = cls ? `checkin-loc ${cls}` : "checkin-loc";
+    wrap.innerHTML = html;
+    const b = wrap.querySelector("#rr-checkin-loc-btn");
+    if (b) b.addEventListener("click", run);
+  };
+  const row = (icon, text) => `<span class="checkin-loc-row">${icon}<span>${text}</span></span>`;
+  const retry = (label) => `<button class="checkin-loc-btn" id="rr-checkin-loc-btn" type="button">${_LOC_PIN}<span>${label}</span></button>`;
+  function run() {
+    set("is-checking", `<span class="checkin-loc-row"><span class="checkin-loc-spin" aria-hidden="true"></span><span>Checking your location…</span></span>`);
+    navigator.geolocation.getCurrentPosition((pos) => {
+      const { latitude, longitude, accuracy } = pos.coords;
+      const dist = _haversineM(latitude, longitude, stnLat, stnLng);
+      // Give the driver the benefit of GPS slop (capped) so a noisy fix
+      // at the station doesn't read as "too far".
+      const within = dist <= radius + Math.min(Math.max(accuracy || 0, 0), 60);
+      if (within) {
+        set("is-ok", row(_LOC_CHECK, "You're at the station"));
+      } else {
+        set("is-far", row(_LOC_WARN, `About ${_fmtDistance(dist)} away — you may be too far to check in yet.`) + retry("Check again"));
+      }
+    }, (err) => {
+      if (err && err.code === err.PERMISSION_DENIED) {
+        set("is-off", row(_LOC_WARN, "Location is off. Turn it on to confirm you're at the station.") + retry("Try again"));
+      } else {
+        set("", row(_LOC_WARN, "Couldn't get your location. Move outside and try again.") + retry("Try again"));
+      }
+    }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 });
+  }
+  const b0 = wrap.querySelector("#rr-checkin-loc-btn");
+  if (b0) b0.addEventListener("click", run);
 }
 
 async function doCheckin(session) {
