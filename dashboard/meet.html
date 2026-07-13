@@ -341,6 +341,34 @@
     .room-ctrls{gap:8px}
     .ctrl{width:48px;height:48px}
   }
+
+  /* Desktop app (window-controls-overlay): the meeting opens as a
+     frameless popup window — the browser only paints the min/max/close
+     cluster into the title-bar area, so the page must supply its own
+     drag region or the window can't be moved (same lesson as the
+     dashboard's title-bar band and the radio hail banner). The room
+     header doubles as the title bar: the bar drags the window, its
+     buttons opt back out so clicks still land, and its padding clears
+     the overlay controls on both Windows (right) and macOS (left).
+     Screens without that header (boot/home/lobby) get a thin fixed
+     drag strip across the top instead. Embedded surfaces (?embed=1 —
+     the dashboard's radio iframe) are excluded: they live inside the
+     dashboard window, which owns its own drag band, and a strip here
+     would sit over the radio card's close button. */
+  @media (display-mode: window-controls-overlay){
+    .room-head{
+      -webkit-app-region:drag; app-region:drag;
+      min-height:env(titlebar-area-height, 33px);
+      padding-left:max(16px, calc(env(titlebar-area-x, 0px) + 12px));
+      padding-right:max(16px, calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 12px));
+    }
+    .room-head button{-webkit-app-region:no-drag; app-region:no-drag}
+    body:not([data-screen="room"]):not(.embed)::before{
+      content:""; position:fixed; top:0; left:0; right:0; z-index:80;
+      height:env(titlebar-area-height, 33px);
+      -webkit-app-region:drag; app-region:drag;
+    }
+  }
 </style>
 </head>
 <body data-screen="boot">
