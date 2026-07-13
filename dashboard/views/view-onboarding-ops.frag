@@ -473,35 +473,14 @@
                     </div>
                   </div>
                 </div>
-                <!-- Rules caption + dialog-launcher · one fixed-height footer
-                     row so the browser vertically centers the caption AND the
-                     launcher on the same line (caption centered, launcher
-                     pinned bottom-right by the hairline) — same arrangement as
-                     Schedule's "Go To" + launcher. -->
-                <div class="rr-cal-rules-foot" aria-hidden="false">
-                  <span class="rr-cal-rules-cap" aria-hidden="true">Availability</span>
-                  <!-- Availability = a dropdown MENU (Weekly hours & sessions,
-                       Holidays & date overrides, Booking pages). The individual
-                       actions moved here off the calendar sidebar so everything
-                       availability-related lives under this one control. The menu
-                       body (#rr-iv-avail-menu) is populated by _rrBuildAvailMenu()
-                       on open so the Booking-pages list stays current; open/close
-                       is document-delegated in live.js like the Work Week menu. -->
-                  <button type="button" class="rr-cal-rules-launch" id="rr-iv-rules-toggle" aria-haspopup="menu" aria-expanded="false" aria-controls="rr-iv-avail-menu" title="Availability — weekly hours, group sessions, date overrides, and booking pages">
-                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" rx="1"/><line x1="8" y1="8" x2="13.5" y2="13.5"/><polyline points="13.5 10 13.5 13.5 10 13.5"/></svg>
-                    <!-- Explicit label so the split-caret segment can sit AFTER it
-                         (the old CSS ::after "Availability" would otherwise render
-                         past the caret). The ::after is suppressed in CSS. -->
-                    <span class="rr-cal-rl-label">Availability</span>
-                    <!-- Split chevron segment · matches the Work Week trigger +
-                         the Schedule split buttons. Visual only — clicking it (or
-                         anywhere on the button) opens the menu. -->
-                    <span class="rr-cal-split-caret" aria-hidden="true">
-                      <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 4 6 8 10 4"/></svg>
-                    </span>
-                  </button>
-                  <div class="rr-cal-viewdd-menu rr-iv-avail-menu" id="rr-iv-avail-menu" role="menu" aria-label="Availability" hidden></div>
-                </div>
+                <!-- The ribbon "Availability" dropdown (interview reminders,
+                     Holidays & date overrides, booking pages) was consolidated
+                     into the calendar's gear settings popover (2026-07) so the
+                     timezone and these controls live in one expected place —
+                     see _ivcalSettingsMenu in live.js. The booking-page editor
+                     popover (#rr-iv-rules-popover, above) is still opened from
+                     there; the old #rr-iv-rules-toggle / #rr-iv-avail-menu
+                     launcher was removed. -->
                 </div><!-- /.rr-cal-viewgroup -->
               </div>
             </div><!-- /group: calendar-controls -->
