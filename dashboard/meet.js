@@ -72,6 +72,14 @@ const DEBUG = new URLSearchParams(location.search).has("debug");
 // crew (2–6) on an always-on channel — everything else in this file is
 // untouched, so normal video calls are unaffected. See docs.
 const PTT = new URLSearchParams(location.search).has("ptt");
+// ?call=1 · direct 1:1 call from RouteReady Messages (rrPlaceCall). While
+// exactly two people are in the room (and nobody is screen-sharing), the
+// room renders FaceTime-style: the other person fills the window, my own
+// camera rides along as a small draggable picture-in-picture tile, and the
+// header/controls float over the video and fade out while idle. A third
+// participant or a screen share falls back to the normal meeting layout.
+// The radio (?ptt=1) and embedded (?embed=1) surfaces never get this.
+const CALL = new URLSearchParams(location.search).has("call") && !PTT;
 // ?dtok=<driver session token> · the driver PWA embeds Meet as an anonymous
 // guest (drivers aren't Supabase-authenticated), so it passes its opaque
 // session token here. It's used ONLY to mint the driver a TURN relay via the
@@ -126,6 +134,7 @@ const state = {
   left: false,
   // zoom-quality pass
   view: "gallery",     // "gallery" | "speaker"
+  pipCorner: "br",     // FaceTime pip corner (?call=1): tl | tr | bl | br
   pinnedKey: null,
   hand: false,
   activeSpeaker: null,
@@ -1478,6 +1487,21 @@ function renderGrid() {
       ? state.activeSpeaker
       : (roster.find((r) => r.key !== state.peerKey) || roster[0]).key;
   }
+  // FaceTime layout (?call=1, exactly two in the room, nobody sharing):
+  // the other person owns the whole window and my tile becomes the pip —
+  // pin/speaker semantics only resume with a third participant or a share.
+  const ft = CALL && !sharer && roster.length === 2;
+  if (ft) stageKey = (roster.find((r) => r.key !== state.peerKey) || roster[0]).key;
+  grid.classList.toggle("ft", ft);
+  if (CALL) {
+    // The window is a call, not a meeting: title it after the far end,
+    // like FaceTime (falls back to the room title while they connect).
+    const remote = roster.find((r) => r.key !== state.peerKey);
+    const peerName = remote?.name || "";
+    const extra = roster.length > 2 ? " +" + (roster.length - 2) : "";
+    $("room-title").textContent = peerName ? peerName + extra : ($("room-title").textContent || "RouteReady call");
+    if (peerName) document.title = peerName + extra + " · RouteReady Call";
+  }
   grid.classList.toggle("has-stage", !!stageKey);
 
   for (const [key, tile] of tiles) {
@@ -1505,6 +1529,9 @@ function renderGrid() {
     const camOn = me ? (state.sharing || (state.cam && !!state.camTrack)) : (entry.cam || entry.screen);
     tile.classList.toggle("cam-off", !camOn);
     tile.classList.toggle("is-me", me);
+    tile.classList.toggle("pip", ft && me);
+    if (ft && me) applyPipCorner(tile);
+    else tile.classList.remove("pip-tl", "pip-tr", "pip-bl", "pip-br");
     tile.classList.toggle("stage", stageKey === entry.key);
     // Screen content letterboxes (never crop shared text); camera stages crop-fill.
     tile.classList.toggle("stage-screen", !!sharer && stageKey === entry.key);
@@ -1543,6 +1570,77 @@ function renderGrid() {
   if (pill) pill.style.display = recOn ? "" : "none";
   const embedRec = $("embed-rec");
   if (embedRec) embedRec.style.display = recOn ? "" : "none";
+}
+
+// ─── ui · FaceTime call chrome (?call=1) ──────────────────────────────────
+
+// The pip parks in one of four corners; renderGrid re-applies the class on
+// every render so the choice survives tile reuse and roster churn.
+function applyPipCorner(tile) {
+  tile.classList.remove("pip-tl", "pip-tr", "pip-bl", "pip-br");
+  tile.classList.add("pip-" + (state.pipCorner || "br"));
+}
+
+// Drag the pip anywhere while the pointer is down, then snap it to the
+// nearest corner on release (FaceTime behavior). Delegated on #grid so it
+// survives tile recreation; buttons inside the pip are hidden in call mode
+// so pointerdown on it is always a drag.
+function wirePipDrag() {
+  const grid = $("grid");
+  let drag = null;
+  grid.addEventListener("pointerdown", (e) => {
+    const tile = e.target.closest(".tile.pip");
+    if (!tile || e.button) return;
+    const r = tile.getBoundingClientRect();
+    const g = grid.getBoundingClientRect();
+    drag = { tile, g, w: r.width, h: r.height, dx: e.clientX - r.left, dy: e.clientY - r.top };
+    tile.classList.add("dragging");
+    try { tile.setPointerCapture(e.pointerId); } catch { /* older engines */ }
+  });
+  grid.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    const x = Math.min(Math.max(e.clientX - drag.g.left - drag.dx, 6), drag.g.width - drag.w - 6);
+    const y = Math.min(Math.max(e.clientY - drag.g.top - drag.dy, 6), drag.g.height - drag.h - 6);
+    drag.tile.style.left = x + "px"; drag.tile.style.top = y + "px";
+    drag.tile.style.right = "auto"; drag.tile.style.bottom = "auto";
+  });
+  const end = () => {
+    if (!drag) return;
+    const t = drag.tile;
+    const cx = (parseFloat(t.style.left) || 0) + drag.w / 2;
+    const cy = (parseFloat(t.style.top) || 0) + drag.h / 2;
+    state.pipCorner = (cy < drag.g.height / 2 ? "t" : "b") + (cx < drag.g.width / 2 ? "l" : "r");
+    t.style.left = t.style.top = t.style.right = t.style.bottom = "";
+    t.classList.remove("dragging");
+    applyPipCorner(t);
+    drag = null;
+  };
+  grid.addEventListener("pointerup", end);
+  grid.addEventListener("pointercancel", end);
+}
+
+// Header + control pill fade out after a few idle seconds and wake on any
+// pointer/key activity — FaceTime-style. Never hides while chat, a popover
+// or the admit banner is open, and only fades opacity (pointer-events stay
+// on, so the WCO drag region in the header keeps working while invisible;
+// by the time you aim for a button, the move has already woken the chrome).
+let _chromeTimer = 0;
+function chromeWake() {
+  document.body.classList.remove("chrome-hidden");
+  clearTimeout(_chromeTimer);
+  _chromeTimer = setTimeout(() => {
+    if (document.body.dataset.screen !== "room") return;
+    if (state.chatOpen) return;
+    if (document.querySelector(".pop:not([hidden])")) return;
+    const wb = $("wait-banner");
+    if (wb && !wb.hidden) return;
+    document.body.classList.add("chrome-hidden");
+  }, 3200);
+}
+function wireCallChrome() {
+  ["pointermove", "pointerdown", "keydown", "touchstart"].forEach((ev) =>
+    document.addEventListener(ev, chromeWake, { passive: true }));
+  chromeWake();
 }
 
 // ─── ui · controls ────────────────────────────────────────────────────────
@@ -2399,6 +2497,11 @@ function wire() {
 async function boot() {
   wire();
   state.sinkId = devicePrefs().spk || "";
+  if (CALL && !EMBED) {
+    document.body.classList.add("call");
+    wirePipDrag();
+    wireCallChrome();
+  }
   if (EMBED) {
     document.body.classList.add("embed");
     // The header is hidden in embed mode — its buttons (speaker view,
