@@ -227,7 +227,8 @@
 //   2026-07-13.35 · Notebook — push the calm restyle closer to OneNote: the editor toolbar is now a SINGLE clean row of icons across the top (no more two-row wrap; scrolls sideways like an Office ribbon; compact icon sizing so most fit), per operator "I like Microsoft's icons across the top". Section rows show a small color SQUARE beside the name instead of a left bar; "Add section" / "Add page" move to the TOP of their panes. Scoped CSS + markup only, no behaviour change. view-notebooks.frag.
 //   2026-07-13.36 · Macros can format cells — new API: workbook.setFormat("A1:G1", {bg,bold,italic,align,…}) and getRange(…).setBackground(color)/.setFormat({…}). Whitelisted format keys merged onto the range's existing cells via setCells (undoable). Enables macros to highlight rows (e.g. understaffed days red). workbook.js.
 //   2026-07-13.37 · Notebook — bump the notebook fragment cache-bust (view-notebooks.frag ?v=radiohail01 → radiohail02) so the recent Notebook UI changes (single-row toolbar, calm restyle) are guaranteed to fetch fresh past HTTP/edge caches, not just the SW cache. index.html.
-const SW_DEPLOY_NONCE = "2026-07-13.37";
+//   2026-07-13.38 · Notebook — the editor toolbar now spans the FULL width of the editor pane (Office/OneNote ribbon), pulled out of the centered 720px page column and stuck to the top as a full-width bar; the page (title/date/content) stays centered below it. Canvas becomes a flex column so the toolbar stretches while the doc centers. Frag cache-bust radiohail02→radiohail03. view-notebooks.frag + index.html.
+const SW_DEPLOY_NONCE = "2026-07-13.38";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without

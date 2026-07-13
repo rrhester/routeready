@@ -589,8 +589,11 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   justify-content:flex-start;padding:8px 10px;font-weight:500}
 #view-notebooks .rrnb-newpage:hover{background:rgba(15,23,42,.04);color:var(--accent)}
 
-/* editor — content on white, more air, a lighter title + soft date line */
-#view-notebooks .rrnb-doc{max-width:720px;padding:var(--s-6) var(--s-6) 40vh}
+/* editor — content on white, more air, a lighter title + soft date line.
+   The canvas becomes a column so the toolbar can stretch full-width on top
+   while the page column stays centered below it. */
+#view-notebooks .rrnb-canvas-wrap{flex-direction:column;justify-content:flex-start;align-items:stretch}
+#view-notebooks .rrnb-doc{align-self:center;width:100%;max-width:720px;padding:var(--s-6) var(--s-6) 40vh}
 #view-notebooks .rrnb-breadcrumb{color:#8A93A2}
 #view-notebooks .rrnb-title{font-size:30px;font-weight:600;letter-spacing:-.02em;color:#2A3340;line-height:1.15}
 #view-notebooks .rrnb-pdate{font-size:12.5px;color:#AEB6C2;margin:2px 0 4px}
@@ -600,11 +603,13 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
 #view-notebooks .rrnb-editor h2{margin-top:var(--s-5)}
 #view-notebooks .rrnb-editor h3{margin-top:var(--s-5)}
 
-/* toolbar — lighter, and a SINGLE clean row across the top (Office/OneNote
-   style): never wraps to two rows; scrolls sideways if it's wider than the
-   editor. A thin, unobtrusive scrollbar. */
-#view-notebooks .rrnb-toolbar{background:transparent;border:0;border-bottom:1px solid #ECEEF1;
-  border-radius:0;box-shadow:none;padding:2px 0 6px;margin-bottom:var(--s-3);
+/* toolbar — a full-width ribbon across the whole editor pane (Office/OneNote
+   style), sitting above the centered page column and sticking to the top as
+   you scroll. A single clean row of icons; scrolls sideways only if the
+   window is truly narrow. */
+#view-notebooks .rrnb-toolbar{background:#FFFFFF;border:0;border-bottom:1px solid #ECEEF1;
+  border-radius:0;box-shadow:none;padding:7px 22px;margin:0;
+  position:sticky;top:0;z-index:12;
   flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;scrollbar-color:#D1D5DB transparent}
 #view-notebooks .rrnb-toolbar > *{flex:0 0 auto}
 #view-notebooks .rrnb-toolbar::-webkit-scrollbar{height:6px}
@@ -1398,6 +1403,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     var nb = (S.notebooks.filter(function (n) { return n.id === S.nbId; })[0]) || {};
     var sec = ((S.tree && S.tree.sections) || []).filter(function (s) { return s.id === p.section_id; })[0] || {};
     wrap.innerHTML =
+      TOOLBAR_HTML +
       '<div class="rrnb-doc">' +
         '<div class="rrnb-breadcrumb"><span class="rrnb-cr-nb">' + esc(nb.name || "Notebook") + '</span> <span class="sep">›</span> <span class="rrnb-cr-sec">' + esc(sec.name || "Section") + '</span> <span class="sep">›</span> <span class="rrnb-cr-pg">' + esc(p.title || "Page") + '</span></div>' +
         '<input class="rrnb-title" id="rrnb-title" placeholder="Untitled Page" value="' + esc(p.title || "") + '" />' +
@@ -1409,7 +1415,6 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 8v4l3 2"/></svg>History</button>' +
           '<button class="rrnb-metabtn" id="rrnb-ctx-toggle" type="button" title="Toggle the context panel (linked records, outline, backlinks)">' +
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg>Context</button></div>' +
-        TOOLBAR_HTML +
         '<div class="rrnb-editor" id="rrnb-editor" contenteditable="true" spellcheck="true" data-ph="Type anywhere. Everything autosaves.">' + (p.content_html || "") + '</div>' +
         '<div class="rrnb-tagbar" id="rrnb-tagbar"></div>' +
       '</div>';
@@ -1507,6 +1512,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     var sec = ((S.tree && S.tree.sections) || []).filter(function (s) { return s.id === p.section_id; })[0] || {};
     var ro = S.readOnly || p.my_role === "viewer";
     wrap.innerHTML =
+      (ro ? '' : TT_TOOLBAR_HTML) +
       '<div class="rrnb-doc">' +
         '<div class="rrnb-breadcrumb"><span class="rrnb-cr-nb">' + esc(nb.name || "Notebook") + '</span> <span class="sep">›</span> <span class="rrnb-cr-sec">' + esc(sec.name || "Section") + '</span> <span class="sep">›</span> <span class="rrnb-cr-pg">' + esc(p.title || "Page") + '</span></div>' +
         '<input class="rrnb-title" id="rrnb-title" placeholder="Untitled Page" value="' + esc(p.title || "") + '" />' +
@@ -1519,7 +1525,6 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 8v4l3 2"/></svg>History</button>' +
           '<button class="rrnb-metabtn" id="rrnb-ctx-toggle" type="button" title="Toggle the context panel">' +
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg>Context</button></div>' +
-        (ro ? '' : TT_TOOLBAR_HTML) +
         '<div class="rrnb-editor rrnb-tt" id="rrnb-editor"><div class="rrnb-tt-loading">Loading the rich editor…</div></div>' +
         '<div class="rrnb-tagbar" id="rrnb-tagbar"></div>' +
       '</div>';
