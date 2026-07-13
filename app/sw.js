@@ -252,7 +252,13 @@
 // classes (dropping the !important). The signature <canvas> + submit path are
 // UNCHANGED (behavior-critical, no CI). Bumped so installed driver PWAs pick up
 // the new app.js + CSS.
-const SHELL_CACHE = "rr-app-shell-v179";
+// v180 · Driver App redesign (approved 2026-07 mockups): light header,
+// Today/Schedule/Tasks/Messages/More tab bar, Today as the calm shift
+// state machine (status card + lifecycle rail + one sticky action),
+// consequence-grouped Tasks, pinned ack strip in Messages, offline
+// strip + visible sync queues, More hub (Team + Settings contents).
+// Check-in/out, forms, checklists and chat RPC flows are UNCHANGED.
+const SHELL_CACHE = "rr-app-shell-v180";
 const SHELL_FILES = [
   "./",
   "index.html",

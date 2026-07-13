@@ -1,8 +1,8 @@
 # RouteReady Driver App — visual redesign proposal (Phase 1)
 
-**Status: MOCKUPS ONLY — awaiting explicit approval. No production code, styles,
-routes, components, or behavior have been changed.** Everything in
-`design/driver-app-redesign/` is an isolated artifact; nothing imports it.
+**Status: APPROVED 2026-07-13 (calm Revision-1 treatment) — implemented in
+Phase 2 on this branch.** This folder remains the design record; nothing in
+the app imports it.
 
 - Mockup gallery: `design/driver-app-redesign/index.html`
 - Proposed screens (static HTML): `design/driver-app-redesign/screens/`
