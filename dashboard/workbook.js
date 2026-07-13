@@ -13356,8 +13356,8 @@ function loadMacros() {
   catch (_) { return []; }
 }
 function saveMacros(list) {
-  try { localStorage.setItem(macroStoreKey(), JSON.stringify(list.slice(0, 200))); }
-  catch (_) { _toast("Couldn't save macros — browser storage may be full.", "warn"); }
+  try { localStorage.setItem(macroStoreKey(), JSON.stringify(list.slice(0, 200))); return true; }
+  catch (_) { return false; }
 }
 function newMacroId() { return "m" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 function macroFmt(v) {
@@ -13707,6 +13707,7 @@ function openMacrosPanel(g) {
       </div>
       <div class="rr-modal-foot">
         <button class="rr-modal-btn is-danger" type="button" id="wb-macro-del" style="margin-right:auto">Delete</button>
+        <span id="wb-macro-status" role="status" aria-live="polite" style="align-self:center;font-size:12px;font-weight:600;margin-right:10px;opacity:0"></span>
         <button class="rr-modal-btn" type="button" data-wb-close>Close</button>
         <button class="rr-modal-btn" type="button" id="wb-macro-save">Save</button>
         <button class="rr-modal-btn primary" type="button" id="wb-macro-run">▶ Run</button>
@@ -13718,6 +13719,19 @@ function openMacrosPanel(g) {
   const nameEl = $("#wb-macro-name"), codeEl = $("#wb-macro-code"), outEl = $("#wb-macro-out"), listEl = $("#wb-macro-list");
   const close = () => wrap.remove();
   const appendOut = (line) => { outEl.textContent += (outEl.textContent ? "\n" : "") + line; outEl.scrollTop = outEl.scrollHeight; };
+  // Unmistakable in-panel confirmation (doesn't rely on the app's toast, which
+  // isn't always wired in the workbook window).
+  let statusTimer = null;
+  const flashStatus = (msg, ok) => {
+    const el = $("#wb-macro-status");
+    if (!el) return;
+    el.textContent = msg;
+    el.style.color = ok ? "var(--success,#15803d)" : "var(--danger,#b91c1c)";
+    el.style.transition = "none";
+    el.style.opacity = "1";
+    clearTimeout(statusTimer);
+    statusTimer = setTimeout(() => { el.style.transition = "opacity .6s"; el.style.opacity = "0"; }, 2400);
+  };
 
   function renderList() {
     if (!macros.length) { listEl.innerHTML = '<p style="font-size:12px;color:var(--text-subtle);margin:2px 0">No saved macros yet.</p>'; return; }
@@ -13738,13 +13752,18 @@ function openMacrosPanel(g) {
   $("#wb-macro-save").addEventListener("click", () => {
     const name = (nameEl.value || "").trim() || "Untitled macro";
     const code = codeEl.value;
+    const isNew = !currentId;
     if (currentId) { const m = macros.find((x) => x.id === currentId); if (m) { m.name = name; m.code = code; m.updatedAt = Date.now(); } }
     else { const m = { id: newMacroId(), name, code, updatedAt: Date.now() }; macros.unshift(m); currentId = m.id; }
-    saveMacros(macros); renderList(); _toast("Macro saved", "success");
+    const ok = saveMacros(macros);
+    renderList();
+    nameEl.value = name;
+    flashStatus(ok ? (isNew ? "Saved ✓" : "Saved ✓ (updated)") : "Couldn't save — browser storage is blocked", ok);
+    if (ok) _toast("Macro saved", "success"); // extra confirmation where the toast IS wired
   });
   $("#wb-macro-del").addEventListener("click", () => {
     if (!currentId) { newMacro(); return; }
-    macros = macros.filter((x) => x.id !== currentId); saveMacros(macros); newMacro(); _toast("Macro deleted", "info");
+    macros = macros.filter((x) => x.id !== currentId); saveMacros(macros); newMacro(); flashStatus("Deleted", true);
   });
   $("#wb-macro-run").addEventListener("click", async () => {
     if (!macroRunConfirmed) {
