@@ -13315,6 +13315,295 @@ function openGoalSeekDialog(g) {
   setTimeout(() => wrap.querySelector(setDefault ? "#wb-gs-to" : "#wb-gs-set")?.focus(), 0);
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+//  MACROS — a user-scripting console (Tools ▸ Macros…)
+//
+//  Lets an operator write a small JS script that reads and writes the active
+//  sheet through a curated `workbook` API (Apps-Script-flavoured), then runs
+//  it on demand. All writes go through setCells() so they're undoable, trigger
+//  recalculation, re-render, and queue persistence — exactly like typing.
+//
+//  SECURITY POSTURE (read before changing):
+//   • Macros execute via `new Function` — the ONE place in this module that
+//     does, deliberately breaking the formula engine's no-eval invariant. That
+//     invariant protects *shared formulas*; a macro is code the operator writes
+//     for their own workbook and runs explicitly.
+//   • Macros NEVER auto-run. They run only on an explicit "Run" click, behind a
+//     one-time per-session trust confirmation.
+//   • Saved macros live in localStorage (per-browser, per-user) — a macro can't
+//     silently travel to a teammate's session and execute there.
+//   • Dangerous globals (window/document/fetch/eval/timers/storage/…) are
+//     shadowed to `undefined` inside the macro scope. This is a guard rail, not
+//     a jail (determined code can still reach globals via constructors). True
+//     isolation (Web Worker) is the intended hardening follow-up.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const MACRO_STORE_PREFIX = "rr-wb-macros:";
+let macroRunConfirmed = false;
+
+function macroStoreKey() { return MACRO_STORE_PREFIX + ((WB.wb && WB.wb.id) || "local"); }
+function loadMacros() {
+  try { const arr = JSON.parse(localStorage.getItem(macroStoreKey()) || "[]"); return Array.isArray(arr) ? arr : []; }
+  catch (_) { return []; }
+}
+function saveMacros(list) {
+  try { localStorage.setItem(macroStoreKey(), JSON.stringify(list.slice(0, 200))); }
+  catch (_) { _toast("Couldn't save macros — browser storage may be full.", "warn"); }
+}
+function newMacroId() { return "m" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+function macroFmt(v) {
+  if (typeof v === "string") return v;
+  if (v === undefined) return "undefined";
+  if (v === null) return "null";
+  try { return JSON.stringify(v); } catch (_) { return String(v); }
+}
+
+const MACRO_EXAMPLE = [
+  "// Your first macro. Edit freely, then click Run.",
+  "// The `workbook` object reads & writes the active sheet.",
+  "workbook.toast('Hello from your first macro!');",
+  "workbook.log('Active sheet: ' + workbook.getActiveSheetName());",
+  "",
+  "// Uncomment to stamp a checkmark into whatever you've selected:",
+  "// workbook.getRange(workbook.getSelection()).setValue('✓');",
+  "",
+  "// Example — number the rows A2:A11:",
+  "// for (let i = 0; i < 10; i++) workbook.setValue('A' + (i + 2), i + 1);",
+].join("\n");
+
+// Build the curated API object bound to one grid. Everything a macro can touch
+// lives here — nothing else is reachable through `workbook`.
+function buildMacroApi(g, logFn) {
+  const sheet = () => g.sheet;
+  const ensureEdit = () => { if (!WB.canEdit) throw new Error("This workbook is read-only — macros can't change it."); };
+  const cellRC = (a1) => {
+    const rc = parseCellRef(a1);
+    if (!rc) throw new Error('"' + a1 + '" is not a valid cell reference (e.g. "B2").');
+    return rc;
+  };
+  const rangeRect = (a1) => {
+    const parts = String(a1).trim().split(":");
+    if (parts.length === 1) { const a = cellRC(parts[0]); return { r0: a.row, c0: a.col, r1: a.row, c1: a.col }; }
+    const a = cellRC(parts[0]), b = cellRC(parts[1]);
+    return { r0: Math.min(a.row, b.row), c0: Math.min(a.col, b.col), r1: Math.max(a.row, b.row), c1: Math.max(a.col, b.col) };
+  };
+  const readRect = (rect) => {
+    const out = [];
+    for (let r = rect.r0; r <= rect.r1; r++) {
+      const row = [];
+      for (let c = rect.c0; c <= rect.c1; c++) row.push(displayValue(sheet(), r, c));
+      out.push(row);
+    }
+    return out;
+  };
+  const writeRect = (rect, valueFn) => {
+    ensureEdit();
+    const s = sheet(), changes = [];
+    for (let r = rect.r0; r <= rect.r1; r++)
+      for (let c = rect.c0; c <= rect.c1; c++)
+        changes.push({ r, c, cell: cellFromInput(valueFn(r - rect.r0, c - rect.c0, r, c), s.cells.get(cellKey(r, c))) });
+    if (changes.length) setCells(g, changes);
+    return changes.length;
+  };
+
+  function makeRange(a1) {
+    const rect = rangeRect(a1);
+    return {
+      a1: String(a1),
+      get numRows() { return rect.r1 - rect.r0 + 1; },
+      get numCols() { return rect.c1 - rect.c0 + 1; },
+      getValues() { return readRect(rect); },
+      setValue(v) { writeRect(rect, () => v); return this; },
+      setValues(vals) {
+        if (!Array.isArray(vals)) throw new Error("setValues expects a 2D array, e.g. [[1,2],[3,4]].");
+        writeRect(rect, (i, j) => { const row = vals[i]; return Array.isArray(row) ? (row[j] == null ? "" : row[j]) : (j === 0 ? row : ""); });
+        return this;
+      },
+      setFormula(f) { const s = String(f); const fv = s[0] === "=" ? s : "=" + s; writeRect(rect, () => fv); return this; },
+      clear() { writeRect(rect, () => ""); return this; },
+    };
+  }
+
+  return {
+    // ── info ──
+    getActiveSheetName() { return sheet().name; },
+    getSheetNames() { return (WB.sheetsByBlock.get(g.blockId) || []).slice().sort((a, b) => a.position - b.position).map((s) => s.name); },
+    sheetInfo() { const s = sheet(); return { name: s.name, rows: s.rowCount, cols: s.colCount }; },
+    getActiveCell() { return cellRef(g.active.r, g.active.c); },
+    getSelection() { const q = selRect(g); return cellRef(q.r0, q.c0) + ":" + cellRef(q.r1, q.c1); },
+    // Guard against cross-sheet writes silently hitting the wrong tab.
+    sheet(name) {
+      if (name != null && name !== sheet().name) {
+        const exists = (WB.sheetsByBlock.get(g.blockId) || []).some((s) => s.name === name);
+        throw new Error(exists
+          ? 'Macros run on the active sheet ("' + sheet().name + '"). Switch to the "' + name + '" tab first, then run.'
+          : 'No sheet named "' + name + '" in this block.');
+      }
+      return this;
+    },
+    // ── read ──
+    getValue(a1) { const rc = cellRC(a1); return displayValue(sheet(), rc.row, rc.col); },
+    getNumber(a1) { const rc = cellRC(a1); const s = displayValue(sheet(), rc.row, rc.col); const n = Number(String(s).replace(/[$,%\s]/g, "")); return String(s).trim() !== "" && isFinite(n) ? n : null; },
+    getFormula(a1) { const rc = cellRC(a1); const c = sheet().cells.get(cellKey(rc.row, rc.col)); return c && c.formula ? c.formula : ""; },
+    getRange(a1) { return makeRange(a1); },
+    getValues(a1) { return readRect(rangeRect(a1)); },
+    // ── write ──
+    setValue(a1, v) { const rc = cellRC(a1); writeRect({ r0: rc.row, c0: rc.col, r1: rc.row, c1: rc.col }, () => v); return this; },
+    setFormula(a1, f) { const s = String(f); const fv = s[0] === "=" ? s : "=" + s; const rc = cellRC(a1); writeRect({ r0: rc.row, c0: rc.col, r1: rc.row, c1: rc.col }, () => fv); return this; },
+    setValues(anchorA1, vals) {
+      if (!Array.isArray(vals) || !vals.length) throw new Error("setValues expects a non-empty 2D array.");
+      const a = cellRC(anchorA1), rows = vals.length, cols = Math.max.apply(null, vals.map((r) => Array.isArray(r) ? r.length : 1));
+      return writeRect({ r0: a.row, c0: a.col, r1: a.row + rows - 1, c1: a.col + cols - 1 },
+        (i, j) => { const row = vals[i]; return Array.isArray(row) ? (row[j] == null ? "" : row[j]) : (j === 0 ? row : ""); });
+    },
+    clear(a1) { writeRect(rangeRect(a1), () => ""); return this; },
+    // ── output ──
+    log() { logFn(Array.prototype.map.call(arguments, macroFmt).join(" ")); },
+    toast(msg, kind) { _toast(String(msg), kind === "warn" || kind === "success" || kind === "info" ? kind : "info"); },
+    alert(msg) { logFn(String(msg)); _toast(String(msg), "info"); },
+  };
+}
+
+// The macro engine. Executes `code` with the curated API in scope and dangerous
+// globals shadowed away. Deliberately the only `new Function` in this module.
+function runMacro(code, g, logFn) {
+  const api = buildMacroApi(g, logFn);
+  const consoleShim = {
+    log() { logFn(Array.prototype.map.call(arguments, macroFmt).join(" ")); },
+    info() { logFn(Array.prototype.map.call(arguments, macroFmt).join(" ")); },
+    warn() { logFn("⚠ " + Array.prototype.map.call(arguments, macroFmt).join(" ")); },
+    error() { logFn("✖ " + Array.prototype.map.call(arguments, macroFmt).join(" ")); },
+    table(v) { logFn(macroFmt(v)); },
+  };
+  const SHADOW = [
+    "window", "document", "globalThis", "self", "top", "parent", "frames", "opener",
+    "fetch", "XMLHttpRequest", "WebSocket", "EventSource", "navigator", "location", "history",
+    "localStorage", "sessionStorage", "indexedDB", "caches", "crypto",
+    // NB: "eval"/"arguments" can't be parameter names in strict mode; the
+    // strict-mode body already blocks direct eval from leaking caller scope.
+    "Function", "importScripts", "postMessage", "open", "close", "alert", "confirm", "prompt",
+    "setTimeout", "setInterval", "setImmediate", "requestAnimationFrame", "queueMicrotask",
+    "Worker", "SharedWorker", "ServiceWorker", "Notification", "WB", "GRIDS",
+  ];
+  const argNames = ["workbook", "ss", "console"].concat(SHADOW);
+  const argVals = [api, api, consoleShim].concat(SHADOW.map(() => undefined));
+  // eslint-disable-next-line no-new-func -- this IS the macro engine; see SECURITY POSTURE above.
+  const fn = new Function(argNames.join(","), '"use strict";\n' + String(code) + "\n//# sourceURL=rr-macro.js");
+  return fn.apply(Object.freeze({}), argVals); // `this` is a frozen empty object, not the global
+}
+
+function openMacrosPanel(g) {
+  document.getElementById("wb-macros-modal")?.remove();
+  let macros = loadMacros();
+  let currentId = null;
+
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-macros-modal";
+  wrap.innerHTML = `
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Macros" style="width:min(860px,94vw)">
+      <div class="rr-modal-head"><div class="rr-modal-head-content"><p class="rr-modal-title">Macros</p><p class="rr-modal-sub">Write a script that reads and writes the active sheet. It runs only when you click Run.</p></div><button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button></div>
+      <div class="rr-modal-body" style="display:flex;gap:14px;min-height:440px">
+        <div style="width:180px;flex:0 0 auto;border-right:1px solid var(--border);padding-right:12px;display:flex;flex-direction:column;min-height:0">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <span class="wb-field-label" style="margin:0">Saved</span>
+            <button class="rr-modal-btn" type="button" id="wb-macro-new" style="padding:2px 9px">+ New</button>
+          </div>
+          <div id="wb-macro-list" style="flex:1;overflow:auto;min-height:0;display:flex;flex-direction:column;gap:4px"></div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;min-width:0">
+          <label class="wb-field"><span class="wb-field-label">Name</span><input class="wb-input" id="wb-macro-name" placeholder="Untitled macro" autocomplete="off" spellcheck="false"></label>
+          <textarea id="wb-macro-code" spellcheck="false" wrap="off" style="margin-top:10px;flex:1;min-height:190px;width:100%;box-sizing:border-box;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px;line-height:1.5;padding:10px;border:1px solid var(--border);border-radius:var(--r-md,8px);background:var(--surface);color:var(--text);resize:vertical;white-space:pre;overflow:auto"></textarea>
+          <details style="margin-top:8px"><summary style="cursor:pointer;font-size:12px;color:var(--text-subtle)">API reference</summary>
+            <div style="font-size:12px;color:var(--text-subtle);line-height:1.7;margin-top:6px;font-family:ui-monospace,Menlo,Consolas,monospace">
+              workbook.getValue("A1") · getNumber("A1") · getFormula("A1")<br>
+              workbook.setValue("A1", v) · setFormula("A1", "=SUM(B1:B9)")<br>
+              workbook.getRange("A2:C9").getValues() / .setValue(v) / .setValues([[…]]) / .clear()<br>
+              workbook.setValues("A2", [[1,2],[3,4]]) · clear("A1:C9")<br>
+              workbook.getSelection() · getActiveCell() · getActiveSheetName() · getSheetNames()<br>
+              workbook.log(…) · toast(msg[, "success"|"warn"|"info"])
+            </div>
+          </details>
+          <div class="wb-field-label" style="margin-top:10px">Output</div>
+          <pre id="wb-macro-out" style="margin:4px 0 0;height:110px;overflow:auto;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r-md,8px);background:var(--surface-hover,var(--surface));color:var(--text);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;line-height:1.5;white-space:pre-wrap"></pre>
+        </div>
+      </div>
+      <div class="rr-modal-foot">
+        <button class="rr-modal-btn is-danger" type="button" id="wb-macro-del" style="margin-right:auto">Delete</button>
+        <button class="rr-modal-btn" type="button" data-wb-close>Close</button>
+        <button class="rr-modal-btn" type="button" id="wb-macro-save">Save</button>
+        <button class="rr-modal-btn primary" type="button" id="wb-macro-run">▶ Run</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+
+  const $ = (sel) => wrap.querySelector(sel);
+  const nameEl = $("#wb-macro-name"), codeEl = $("#wb-macro-code"), outEl = $("#wb-macro-out"), listEl = $("#wb-macro-list");
+  const close = () => wrap.remove();
+  const appendOut = (line) => { outEl.textContent += (outEl.textContent ? "\n" : "") + line; outEl.scrollTop = outEl.scrollHeight; };
+
+  function renderList() {
+    if (!macros.length) { listEl.innerHTML = '<p style="font-size:12px;color:var(--text-subtle);margin:2px 0">No saved macros yet.</p>'; return; }
+    listEl.innerHTML = macros.map((m) =>
+      '<button type="button" class="rr-modal-btn" data-macro="' + esc(m.id) + '" style="justify-content:flex-start;text-align:left;width:100%;' +
+      (m.id === currentId ? "border-color:var(--accent,var(--text));font-weight:600" : "") + '">' + esc(m.name || "Untitled") + "</button>").join("");
+    listEl.querySelectorAll("[data-macro]").forEach((b) => b.addEventListener("click", () => selectMacro(b.getAttribute("data-macro"))));
+  }
+  function selectMacro(id) {
+    const m = macros.find((x) => x.id === id);
+    if (!m) return;
+    currentId = id; nameEl.value = m.name || ""; codeEl.value = m.code || ""; outEl.textContent = "";
+    renderList();
+  }
+  function newMacro() { currentId = null; nameEl.value = ""; codeEl.value = MACRO_EXAMPLE; outEl.textContent = ""; renderList(); nameEl.focus(); }
+
+  $("#wb-macro-new").addEventListener("click", newMacro);
+  $("#wb-macro-save").addEventListener("click", () => {
+    const name = (nameEl.value || "").trim() || "Untitled macro";
+    const code = codeEl.value;
+    if (currentId) { const m = macros.find((x) => x.id === currentId); if (m) { m.name = name; m.code = code; m.updatedAt = Date.now(); } }
+    else { const m = { id: newMacroId(), name, code, updatedAt: Date.now() }; macros.unshift(m); currentId = m.id; }
+    saveMacros(macros); renderList(); _toast("Macro saved", "success");
+  });
+  $("#wb-macro-del").addEventListener("click", () => {
+    if (!currentId) { newMacro(); return; }
+    macros = macros.filter((x) => x.id !== currentId); saveMacros(macros); newMacro(); _toast("Macro deleted", "info");
+  });
+  $("#wb-macro-run").addEventListener("click", () => {
+    if (!macroRunConfirmed) {
+      if (!window.confirm("Macros run code you write, with access to this workbook's data.\nOnly run scripts you trust.\n\nRun this macro?")) return;
+      macroRunConfirmed = true;
+    }
+    outEl.textContent = ""; appendOut("▶ Running…");
+    const t0 = Date.now();
+    try {
+      const result = runMacro(codeEl.value, g, appendOut);
+      if (result !== undefined) appendOut("⇒ " + macroFmt(result));
+      appendOut("✓ Done in " + (Date.now() - t0) + " ms");
+    } catch (e) {
+      appendOut("✖ " + (e && e.message ? e.message : String(e)));
+      _toast("Macro error: " + (e && e.message ? e.message : e), "warn");
+    }
+  });
+  wrap.addEventListener("click", (e) => { if (e.target === wrap || e.target.closest("[data-wb-close]")) close(); });
+  wrap.addEventListener("keydown", (e) => {
+    e.stopPropagation();
+    if (e.key === "Escape") { close(); return; }
+    // Ctrl/Cmd+Enter runs; Tab inside the editor inserts two spaces.
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); $("#wb-macro-run").click(); return; }
+    if (e.key === "Tab" && e.target === codeEl) {
+      e.preventDefault();
+      const s = codeEl.selectionStart, en = codeEl.selectionEnd;
+      codeEl.value = codeEl.value.slice(0, s) + "  " + codeEl.value.slice(en);
+      codeEl.selectionStart = codeEl.selectionEnd = s + 2;
+    }
+  });
+
+  renderList();
+  if (macros.length) selectMacro(macros[0].id); else newMacro();
+  setTimeout(() => nameEl.focus(), 0);
+}
+
 function splitTextToColumns(g) {
   if (!WB.canEdit) return;
   const sheet = g.sheet;
@@ -18631,6 +18920,8 @@ function wbMenuItems(menu, g) {
       { label: "Named ranges…", act: "data:names", disabled: !g },
       { label: "Data validation…", act: "data:validation", disabled: !ed || !g },
       { label: "Function browser…", act: "ins:fnbrowse", disabled: !g },
+      sep,
+      { label: "Macros…", act: "tools:macros", disabled: !g },
     ];
     case "Help": return [
       { label: "Keyboard shortcuts", act: "help:shortcuts" },
@@ -18649,6 +18940,7 @@ function wbMenuAction(act, g) {
   const rect = g ? selRect(g) : null;
   const need = () => { if (!g) _toast("Open a spreadsheet block first", "info"); return !!g; };
   switch (`${ns}:${verb}`) {
+    case "tools:macros": if (need()) openMacrosPanel(g); return;
     case "file:new": createBlankWorkbookNow(); return;
     case "file:copy": duplicateWorkbook(); return;
     case "file:import": if (need()) importCsvInto(g); return;

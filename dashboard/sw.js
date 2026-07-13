@@ -209,7 +209,8 @@
 //   2026-07-13.17 · Onboarding Overview fix — reserve the fixed 52px utility rail on #obsub-overview so the redesigned table's Actions column and the toolbar's Add-applicant button no longer run under the rail / off the window edge and get clipped. Mirrors the #obsub-pipeline + Schedule .tcp-body reservation. onboarding-rrx.css.
 //   2026-07-13.18 · Notebook contextual right rail — a 4th pane surfacing linked RouteReady records, page outline, backlinks and properties for the open note (collapsible; off-canvas drawer ≤1280px). Additive; no editor/autosave/realtime change. view-notebooks.frag.
 //   2026-07-13.19 · Notebook perf — autosave now patches only the edited page's list row instead of rebuilding the whole page-list DOM on every keystroke-batch (patchPageRow); falls back to a full render only when the row isn't mounted. Removes the per-save O(n) re-render. view-notebooks.frag.
-const SW_DEPLOY_NONCE = "2026-07-13.19";
+//   2026-07-13.20 · Workbook Macros — a user-scripting console (Tools ▸ Macros…). Write a small JS script that reads/writes the active sheet through a curated `workbook` API (getValue/setValue/getRange/setValues/setFormula/log/toast), then run it on demand. Writes go through setCells (undoable + recalc + persist). Macros never auto-run (explicit Run + one-time trust confirm), save per-browser in localStorage, and run with dangerous globals shadowed. Additive; no engine/data-flow change. workbook.js.
+const SW_DEPLOY_NONCE = "2026-07-13.20";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without
