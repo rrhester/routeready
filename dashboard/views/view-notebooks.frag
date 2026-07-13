@@ -608,14 +608,17 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
    you scroll. A single clean row of icons; scrolls sideways only if the
    window is truly narrow. */
 #view-notebooks .rrnb-toolbar{background:#FFFFFF;border:0;border-bottom:1px solid #ECEEF1;
-  border-radius:0;box-shadow:none;padding:19px 22px;margin:0;
+  border-radius:0;box-shadow:none;padding:19px 16px;margin:0;
   position:sticky;top:0;z-index:12;
   flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;scrollbar-color:#D1D5DB transparent}
 #view-notebooks .rrnb-toolbar > *{flex:0 0 auto}
+/* Chrome drops a flex scroll container's padding-right, so the last control
+   (AI) clips against the edge. A real flex spacer restores the trailing gap. */
+#view-notebooks .rrnb-toolbar::after{content:"";flex:0 0 16px;align-self:stretch}
 #view-notebooks .rrnb-toolbar::-webkit-scrollbar{height:6px}
 #view-notebooks .rrnb-toolbar::-webkit-scrollbar-thumb{background:#D9DDE3;border-radius:3px}
 #view-notebooks .rrnb-toolbar::-webkit-scrollbar-track{background:transparent}
-#view-notebooks .rrnb-tb{color:#5A6472;min-width:30px;height:34px;padding:0 5px}
+#view-notebooks .rrnb-tb{color:#5A6472;min-width:28px;height:34px;padding:0 4px}
 #view-notebooks .rrnb-tb:hover{background:rgba(15,23,42,.04);color:#1B2430}
 #view-notebooks .rrnb-tb svg{width:17px;height:17px}
 #view-notebooks .rrnb-tb-sel{height:34px;font-size:12.5px;padding:0 8px}
