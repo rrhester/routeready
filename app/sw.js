@@ -158,7 +158,11 @@
 // and pre-shift tasks lead the fold. Same elements and #rr-home-meta /
 // #rr-home-status hooks; the -48px content overlap becomes a clean seam.
 // Bumped so installed driver PWAs pick up the new app.js + CSS.
-const SHELL_CACHE = "rr-app-shell-v161";
+// v162 · Check-in CTA specificity: the primary home check-in action reads
+// "Check in for shift" (was "Check in"), matching the reviewed redesign so a
+// driver knows exactly what tapping it commits to. Bumped so installed driver
+// PWAs pick up the new app.js.
+const SHELL_CACHE = "rr-app-shell-v162";
 const SHELL_FILES = [
   "./",
   "index.html",
