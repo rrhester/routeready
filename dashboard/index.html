@@ -336,7 +336,8 @@
           </button>
           <!-- Meet · RouteReady's first-party video meetings (dashboard/
                meet.html). Moved here from the left rail (2026-07-12). Opens
-               in its own tab so a live call survives dashboard navigation. -->
+               in its own meeting window (Chime-style, 2026-07-13) so a live
+               call survives dashboard navigation. -->
           <button type="button" class="rr-al-item" role="menuitem" data-al-act="meet">
             <span class="rr-al-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></span>
             <span class="rr-al-lbl">Meet</span>
@@ -461,7 +462,7 @@
             try {
               if (act === 'indeed') { if (window.openPdfUploadPicker) window.openPdfUploadPicker(); }
               else if (act === 'adpsync') { if (window.openAdpSync) window.openAdpSync(); }
-              else if (act === 'meet') { window.open('meet.html', '_blank', 'noopener'); }
+              else if (act === 'meet') { if (window.rrOpenMeetWindow) window.rrOpenMeetWindow('meet.html'); else window.open('meet.html', '_blank', 'noopener'); }
               else if (act === 'download') { var _dl = document.getElementById('rr-hdr-install'); if (_dl) _dl.click(); }
               else if (act === 'drive') { if (window.openDrive) window.openDrive(); else if (window.goto) window.goto('drive'); }
               else if (act === 'reports') { if (window.openReportsScreen) window.openReportsScreen(); else if (window.toast) window.toast('Reports are coming soon'); }

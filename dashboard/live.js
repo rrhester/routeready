@@ -27103,7 +27103,7 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
       if (joinA) joinA.onclick = (e) => {
         e.preventDefault();
         if (isEdit && ev0 && ev0.meeting_url) { closeEditor(); _ivcalOpenRoom(ev0); }
-        else window.open(roomUrl, "_blank", "noreferrer"); // unsaved event: no notes yet
+        else rrOpenMeetWindow(roomUrl); // unsaved event: no notes yet
       };
     } else {
       st.textContent = "No video link · press Schedule Meeting to add one";
@@ -28530,11 +28530,12 @@ function _ivcalWirePane(host) {
 function _ivcalOpenRoom(ev) {
   // The embedded interview room was removed by request. Clicking "Join"
   // (or the camera icon on a calendar event) now opens the meeting link
-  // directly in a new browser tab instead of popping up the in-dashboard
-  // call view (notes / scorecard / candidate-journey + embedded meet.html).
+  // in a dedicated meeting window (Chime-style) instead of popping up the
+  // in-dashboard call view (notes / scorecard / candidate-journey +
+  // embedded meet.html).
   const url = _ivcalHttps(ev && ev.meeting_url);
   if (!url) { toast("No video link for this interview yet", "warn"); return; }
-  window.open(url, "_blank", "noopener");
+  rrOpenMeetWindow(url);
 }
 async function _ivcalOpenApplicant(id) {
   if (!id) return;
@@ -36747,7 +36748,7 @@ if (!window.__rrMsgChromeWired) {
     }
     if (e.target.closest("[data-rr-details-close]")) { _setMsgDetailsOpen(false); return; }
     if (e.target.closest("[data-rr-msg-back]"))      { _msgBackToList(); return; }
-    if (e.target.closest("[data-rr-start-meeting]"))  { window.open("meet.html", "_blank", "noopener"); return; }
+    if (e.target.closest("[data-rr-start-meeting]"))  { rrOpenMeetWindow("meet.html"); return; }
     const fav = e.target.closest("[data-rr-fav]");
     if (fav) {
       const id = fav.getAttribute("data-rr-fav");
@@ -42605,6 +42606,33 @@ function _rrCallAskNotifyPermission() {
   } catch {}
 }
 
+// Open Meet the way Chime's desktop client opened meetings: a dedicated,
+// meeting-sized window over the dashboard instead of a full browser tab,
+// so Messages stays live behind the call (2026-07-13). Call this
+// synchronously from a user gesture where possible — browsers silently
+// block gesture-less popups (see _rrOpenRadio). meet.html never reads
+// window.opener, so we sever it by hand rather than passing "noopener" in
+// the features string, which would make window.open return null and hide
+// popup-blocking from us. If the popup is refused we fall back to the old
+// new-tab behavior rather than dropping the meeting on the floor.
+function rrOpenMeetWindow(url) {
+  const sw = window.screen?.availWidth  || 1280;
+  const sh = window.screen?.availHeight || 800;
+  const w  = Math.min(1180, Math.max(640, sw - 120));
+  const h  = Math.min(760,  Math.max(480, sh - 120));
+  const left = Math.round((window.screenLeft ?? 0) + Math.max(0, (sw - w) / 2));
+  const top  = Math.round((window.screenTop  ?? 0) + Math.max(0, (sh - h) / 2));
+  let win = null;
+  try { win = window.open(url, "_blank", `popup=yes,width=${w},height=${h},left=${left},top=${top}`); } catch {}
+  if (win) {
+    try { win.opener = null; } catch {}
+    try { win.focus(); } catch {}
+    return win;
+  }
+  try { return window.open(url, "_blank", "noopener"); } catch { return null; }
+}
+window.rrOpenMeetWindow = rrOpenMeetWindow;
+
 function _rrCallOpenRoom(room, media, replace) {
   const me = _rrCallMe();
   const url = "meet.html?m=" + encodeURIComponent(room) + "&call=1"
@@ -42614,7 +42642,7 @@ function _rrCallOpenRoom(room, media, replace) {
   // cold-boot — no synchronous gesture for a popup). location resolves
   // "meet.html" against /dashboard/.
   if (replace) { try { location.href = url; return; } catch {} }
-  window.open(url, "_blank", "noopener");
+  rrOpenMeetWindow(url);
 }
 
 // base64url → Uint8Array (VAPID application server key).
