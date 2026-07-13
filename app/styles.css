@@ -3337,6 +3337,7 @@ main.has-rr2-cta{padding-bottom:104px}
 .rr2-divnote-roomy{padding:24px 0}
 .rr2-ack-notice{margin:10px 12px 4px;border-radius:var(--r-lg)}
 .rr2-ack-when{font-size:var(--fs-xs);color:var(--text-subtle)}
+<<<<<<< HEAD
 /* Standalone Messages-Inbox tab row: .chat-tabs is absolutely
    positioned for the chat shell; in the Inbox it flows normally at the
    top of #main and bleeds to the screen edges. */
@@ -3349,3 +3350,5 @@ main.has-rr2-cta{padding-bottom:104px}
 .rr2-mwho.ann{font-weight:600}
 .rr2-mprev.ann{color:var(--text);font-weight:500;margin-top:0}
 .rr2-mtop:has(> .rr2-mwhen:only-child){justify-content:flex-end}
+=======
+>>>>>>> origin/main

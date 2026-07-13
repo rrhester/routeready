@@ -25395,11 +25395,24 @@ async function loadIvCalendar() {
   const host = document.getElementById("rr-ivcal-body");
   if (!host) return;
   _ivcalEnsureLive();
-  // Only show the loading placeholder on the very first paint. On refreshes
+  // On the very first paint, render the full-size calendar SHELL immediately
+  // (toolbar, sidebar, day headers, hour grid — all at final dimensions) from
+  // an empty stub cache, instead of a small "Loading calendar…" box that the
+  // real render then shoved aside: the whole page reflowed when the grid
+  // popped in, which read as a glitch on every first open. With the shell up,
+  // the fetched data fills into a stable frame (Outlook-style). On refreshes
   // (after add/move/delete) we fetch silently and swap in the new render in a
-  // single paint, so the calendar doesn't blink out to a spinner and back.
+  // single paint, so the calendar doesn't blink out and back.
   const firstLoad = !_ivcalCache || !host.querySelector(".oc");
-  if (firstLoad) host.innerHTML = `<div class="rr-loading">Loading calendar…</div>`;
+  if (firstLoad && !_ivcalCache) {
+    _ivcalCache = {
+      tz: (window.RR && window.RR.dsp && window.RR.dsp.timezone) || "America/Chicago",
+      slot: 30, buffer: 0, windows: [], overrides: [], sessions: [], bookings: [],
+      calendars: [], awaiting: [], schedules: [], gcal: null, googleEvents: [],
+      stub: true, // replaced wholesale by the real fetch below
+    };
+    _ivcalRenderNow();
+  }
   try {
     const [a, s, b, c, g, w, sch, ovr] = await Promise.all([
       sb.rpc("interview_availability_get"),
@@ -25467,6 +25480,11 @@ async function loadIvCalendar() {
       bookings = b2.data || [];
     }
     const av = a.data || {};
+    // If the shell render above is what's on screen, the grid auto-scrolled
+    // with no availability windows (anchored to "now"). The real windows may
+    // anchor elsewhere — let the upcoming render re-run the auto-scroll
+    // instead of pinning the stub's position.
+    _ivcalForceAutoScroll = !!(_ivcalCache && _ivcalCache.stub);
     _ivcalCache = {
       tz: (av.config && av.config.timezone) || "America/Chicago",
       slot: (av.config && av.config.slot_minutes) || 30,
@@ -25636,6 +25654,9 @@ function _ivcalDayItems(day, arr, key) {
 // right after keep working); any further calls in the same frame
 // collapse into one trailing render on the next animation frame.
 let _ivcalRenderPending = false, _ivcalRenderedThisFrame = false;
+// One-shot: the next render re-runs the auto-scroll instead of restoring the
+// previous scrollTop. Set when real data replaces the first-paint stub shell.
+let _ivcalForceAutoScroll = false;
 function _ivcalRender() {
   if (_ivcalRenderedThisFrame) {
     if (!_ivcalRenderPending) {
@@ -26048,7 +26069,8 @@ function _ivcalRenderNow() {
   if (_ivcalSelected) _ivcalWirePane(host);
   _ivcalFitHeightSoon();
   const sc = document.getElementById("rr-ivcal-scroll");
-  if (sc) { if (_prevScroll != null) sc.scrollTop = _prevScroll; else if (_ivcalView !== "month" && _ivcalView !== "year") _ivcalAutoScroll(); else sc.scrollTop = 0; }
+  const _autoScroll = _ivcalForceAutoScroll; _ivcalForceAutoScroll = false;
+  if (sc) { if (_prevScroll != null && !_autoScroll) sc.scrollTop = _prevScroll; else if (_ivcalView !== "month" && _ivcalView !== "year") _ivcalAutoScroll(); else sc.scrollTop = 0; }
   _ivcalInstallKeys();
   _ivcalSyncStripView();
   _ivcalEnsureGoogle();
@@ -67821,6 +67843,16 @@ window.goto = function (view) {
   setTimeout(() => {
     const activeView = document.getElementById("view-" + view);
     if (!activeView) return;
+
+    // Onboarding is exempt: its entry sub-view (Calendar) is asserted by
+    // goto()'s own onboarding-ops branch, and the only [data-pipesub] tabs
+    // inside this view belong to the embedded legacy #view-pipeline subnav —
+    // whose first tab is Funnel. Auto-clicking that here yanked the
+    // just-shown Calendar out for a beat on EVERY entry (a funnel/blank
+    // flash until the calendar re-assert won the race) — the "calendar
+    // glitches on open / on return" bug. Skip the reset; the goto handler
+    // already lands the operator on the primary sub-view.
+    if (view === "onboarding-ops") return;
 
     // Top-level subnav (Drivers / Schedule / Pipeline / Workflows /
     // Performance / Fleet / Finances / Today).  Click the first

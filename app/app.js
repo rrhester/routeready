@@ -1000,9 +1000,14 @@ const routes = {
   "/settings/availability": { render: renderAvailability,    tab: "/more", back: "/more", title: "Availability" },
   "/settings/attendance":   { render: renderAttendance,      tab: "/more", back: "/more", title: "Attendance" },
   "/settings/time-off":     { render: renderTimeOff,         tab: "/more", back: "/more", title: "Time off" },
+<<<<<<< HEAD
   "/chat":              { render: renderMessagesInbox,   tab: "/chat" },
   "/chat/dispatch":     { render: renderChat,            tab: "/chat", back: "/chat" },
   "/chat/channels":     { render: renderChatChannelsList, tab: "/chat", back: "/chat" },
+=======
+  "/chat":              { render: renderChat,            tab: "/chat" },
+  "/chat/channels":     { render: renderChatChannelsList, tab: "/chat" },
+>>>>>>> origin/main
   "/chat/channel":      { render: renderChatChannelThread, tab: "/chat", back: "/chat/channels" },
   "/team":              { render: renderTeam,            tab: "/more", back: "/more", title: "Team" },
   "/profile":           { render: renderProfileHub,      tab: "/profile" },
@@ -7799,7 +7804,11 @@ async function _renderToday(session, main) {
       <div class="rr2-flex1">
         <div class="nt">No van assigned yet</div>
         <div class="nb">You'll see it here the moment dispatch assigns one. You can still check in.</div>
+<<<<<<< HEAD
         <div class="na"><button class="btn btn-sm" data-task-route="/chat/dispatch">Message dispatch</button></div>
+=======
+        <div class="na"><button class="btn btn-sm" data-task-route="/chat">Message dispatch</button></div>
+>>>>>>> origin/main
       </div>
     </div>` : "";
 
@@ -7893,7 +7902,11 @@ async function _renderToday(session, main) {
           <span class="rbody"><span class="rtitle">Messages</span></span>
           <span class="rend"><span class="rchev"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span></span>
         </button>
+<<<<<<< HEAD
         <button class="rr2-row" type="button" data-task-route="/chat/dispatch" data-rr2-issue>
+=======
+        <button class="rr2-row" type="button" data-task-route="/chat" data-rr2-issue>
+>>>>>>> origin/main
           <span class="ric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg></span>
           <span class="rbody"><span class="rtitle">Report an issue</span><span class="rmeta">Van defect, delay or incident — goes to dispatch</span></span>
           <span class="rend"><span class="rchev"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span></span>
@@ -10793,8 +10806,15 @@ function _stopCheckinCountdown() {
 function _startCheckinCountdown(targetMs) {
   _stopCheckinCountdown();
   const tick = () => {
+<<<<<<< HEAD
     // The countdown lives inline in the sticky action bar's note.
     const el = document.getElementById("rr2-count");
+=======
+    // Redesign: the countdown lives inline in the sticky action bar's
+    // note (#rr2-count). The legacy #rr-checkin-countdown target is kept
+    // for one release in case a cached shell is still on screen.
+    const el = document.getElementById("rr2-count") || document.getElementById("rr-checkin-countdown");
+>>>>>>> origin/main
     if (!el) { _stopCheckinCountdown(); return; }
     const txt = _countdownText(targetMs);
     if (!txt) {
@@ -10805,7 +10825,12 @@ function _startCheckinCountdown(targetMs) {
       _todayRepaint();
       return;
     }
+<<<<<<< HEAD
     el.textContent = txt;
+=======
+    const valueEl = el.querySelector?.(".opens-card-countdown-value");
+    (valueEl || el).textContent = txt;
+>>>>>>> origin/main
   };
   tick();
   _checkinCountdownTimer = setInterval(tick, 30 * 1000);
