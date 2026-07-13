@@ -216,7 +216,15 @@
 // schedule row into the shared shape + reusing _hydrateShiftWeather), so a
 // shift reads identically on both screens. The bespoke .up-next-card family
 // is retired. Bumped so installed driver PWAs pick up the new app.js + CSS.
-const SHELL_CACHE = "rr-app-shell-v173";
+// v174 · Design-review quick wins: the chat unread + tasks tab badges move
+// from red to accent (a count isn't urgent) and consolidate onto a real
+// .rr-tab-badge class; the Settings › PIN page's error/help text is fixed
+// (the .err/.help rules were scoped to .login-screen, so they rendered as
+// bare body text); Sign-out demotes from red to a neutral ghost button; an
+// overdue-assignment title goes red→amber; the retired tab-lens JS/CSS and
+// dead .shift-card .meta-*/.tag CSS are deleted; "4-digit PIN" copy → "4–6".
+// Bumped so installed driver PWAs pick up the new app.js + CSS.
+const SHELL_CACHE = "rr-app-shell-v174";
 const SHELL_FILES = [
   "./",
   "index.html",

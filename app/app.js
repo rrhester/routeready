@@ -145,13 +145,9 @@ function _setChatTabBadge(n) {
     if (!ic) return;
     let badge = ic.querySelector(".rr-tab-badge");
     if (n > 0) {
-      // Position the icon's parent so the badge can absolutely-position
-      // over the top-right corner of the glyph.
-      if (getComputedStyle(ic).position === "static") ic.style.position = "relative";
       if (!badge) {
         badge = document.createElement("span");
         badge.className = "rr-tab-badge";
-        badge.style.cssText = "position:absolute;top:-4px;right:-8px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--red);color:var(--rr-white);font-size:10px;font-weight:700;line-height:16px;text-align:center;box-shadow:0 0 0 2px var(--bg,#fff);box-sizing:border-box";
         ic.appendChild(badge);
       }
       badge.textContent = n > 99 ? "99+" : String(n);
@@ -189,11 +185,9 @@ function _paintTasksTabBadge() {
     if (!ic) return;
     let badge = ic.querySelector(".rr-tab-badge");
     if (n > 0) {
-      if (getComputedStyle(ic).position === "static") ic.style.position = "relative";
       if (!badge) {
         badge = document.createElement("span");
         badge.className = "rr-tab-badge";
-        badge.style.cssText = "position:absolute;top:-4px;right:-8px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--red);color:var(--rr-white);font-size:10px;font-weight:700;line-height:16px;text-align:center;box-shadow:0 0 0 2px var(--bg,#fff);box-sizing:border-box";
         ic.appendChild(badge);
       }
       badge.textContent = n > 99 ? "99+" : String(n);
@@ -1174,7 +1168,6 @@ function render() {
     if (isActive) t.setAttribute("aria-current", "page");
     else          t.removeAttribute("aria-current");
   });
-  _updateTabLens();
   // Refresh the cached photo URL from the server in the background.
   // Cheap way to pick up a photo set on another device without forcing
   // the user to do anything.
@@ -1532,12 +1525,12 @@ function renderLogin(errorMsg) {
         <div class="brand"><div class="brand-icon"><img src="Icon.png" alt="RouteReady"></div></div>
         <div style="text-align:center;margin-bottom:22px">
           <div style="font-size:22px;font-weight:700;letter-spacing:-.02em">${escapeHtml(greet)}!</div>
-          <div style="font-size:var(--fs-md);color:var(--text-subtle);margin-top:8px;line-height:1.55">We found your info from your ${lk.dsp_name ? escapeHtml(lk.dsp_name) + " " : ""}onboarding invite.${phoneHint ? ` Phone on file: ${escapeHtml(phoneHint)}.` : ""} Pick a 4-digit PIN — you'll use this to sign in when you install the app on your phone.</div>
+          <div style="font-size:var(--fs-md);color:var(--text-subtle);margin-top:8px;line-height:1.55">We found your info from your ${lk.dsp_name ? escapeHtml(lk.dsp_name) + " " : ""}onboarding invite.${phoneHint ? ` Phone on file: ${escapeHtml(phoneHint)}.` : ""} Pick a 4–6 digit PIN — you'll use this to sign in when you install the app on your phone.</div>
         </div>
         <form class="form" id="rr-activate-form" style="margin-top:8px">
           ${_loginState.errorMsg ? `<div class="err">${escapeHtml(_loginState.errorMsg)}</div>` : ""}
 
-          <label class="field-label">Create a 4-digit PIN</label>
+          <label class="field-label">Create a 4–6 digit PIN</label>
           <input class="field" id="rr-activate-pin" type="password" inputmode="numeric" autocomplete="new-password" pattern="[0-9]*" maxlength="6" placeholder="••••" style="letter-spacing:.5em;text-align:center" value="${escapeHtml(_loginState.pinInput || "")}" />
 
           <label class="field-label" style="margin-top:14px">Confirm PIN</label>
@@ -1791,98 +1784,6 @@ function renderShell(session) {
   // "back online" confirmation on `online`. Idempotent; safe to call
   // on every shell re-render.
   _wireOfflineBanner();
-}
-
-// Position the translucent glass lens behind the active tab's icon.
-// Measured from the DOM so the lens lands exactly on the active icon
-// regardless of viewport width, safe-area inset, or how many tabs the
-// current shell shows (onboarding has 3, the active shell has 5). The
-// lens itself is a plain absolutely-positioned element that animates
-// transform/width/height — GPU-friendly and respects reduced-motion
-// via CSS.
-//
-// renderShell() wipes #app's innerHTML on every route render, so the
-// tabbar (and the lens with it) is destroyed and recreated on each
-// tab switch. To keep the slide animation visible across that rebuild
-// we cache the previous lens geometry here and, on a freshly mounted
-// shell, paint the new lens at the *previous* tab's spot first, then
-// move it to the new active tab on the next frame so the CSS
-// transition has something to interpolate from.
-let _lensState = { x: null, y: null, w: null, h: null };
-
-function _updateTabLens() {
-  const bar = document.querySelector(".tabbar");
-  if (!bar) return;
-  let lens = bar.querySelector(".tab-lens");
-  const isFresh = !lens;
-  if (isFresh) {
-    lens = document.createElement("span");
-    lens.className = "tab-lens";
-    lens.setAttribute("aria-hidden", "true");
-    const inner = document.createElement("span");
-    inner.className = "tab-lens-inner";
-    lens.appendChild(inner);
-    bar.prepend(lens);
-  }
-  const ic = bar.querySelector(".tab.active .tab-ic");
-  if (!ic) {
-    lens.classList.remove("ready", "moving");
-    return;
-  }
-  const barRect = bar.getBoundingClientRect();
-  const icRect  = ic.getBoundingClientRect();
-  // Slightly larger than the icon container so the lens reads as a
-  // "magnifier" sitting around the icon, not a flat chip behind it.
-  const padX = 3, padY = 2;
-  const w = Math.round(icRect.width  + padX * 2);
-  const h = Math.round(icRect.height + padY * 2);
-  const x = Math.round(icRect.left - barRect.left - padX);
-  const y = Math.round(icRect.top  - barRect.top  - padY);
-
-  const applyTarget = () => {
-    const prevX = lens._x;
-    lens.style.width  = w + "px";
-    lens.style.height = h + "px";
-    lens.style.transform = `translate3d(${x}px, ${y}px, 0)`;
-    lens._x = x;
-    if (lens.classList.contains("ready") && prevX != null && Math.abs(prevX - x) > 2) {
-      lens.classList.remove("moving");
-      void lens.offsetWidth;
-      lens.classList.add("moving");
-    }
-    _lensState = { x, y, w, h };
-  };
-
-  if (isFresh && _lensState.x != null) {
-    // Seed the new lens at the *previous* active tab's geometry with
-    // transitions disabled, then re-enable transitions and move it to
-    // the new target on the next frame. The result is a visible slide
-    // instead of a teleport on every tab tap.
-    lens.style.transition = "none";
-    lens.style.width  = _lensState.w + "px";
-    lens.style.height = _lensState.h + "px";
-    lens.style.transform = `translate3d(${_lensState.x}px, ${_lensState.y}px, 0)`;
-    lens._x = _lensState.x;
-    lens.classList.add("ready");
-    void lens.offsetWidth; // flush the initial paint
-    lens.style.transition = "";
-    requestAnimationFrame(applyTarget);
-    return;
-  }
-
-  applyTarget();
-  // Reveal on the next frame so the very first paint of a brand-new
-  // session doesn't render the lens at 0,0 before snapping into place.
-  requestAnimationFrame(() => lens.classList.add("ready"));
-}
-
-// Re-align the lens after viewport changes (rotation, on-screen
-// keyboard, dev-tools resizes). Wired exactly once.
-if (!window._rrTabLensWired) {
-  window._rrTabLensWired = true;
-  const onResize = () => _updateTabLens();
-  window.addEventListener("resize", onResize, { passive: true });
-  window.addEventListener("orientationchange", onResize, { passive: true });
 }
 
 // Module-scoped so the listeners attach exactly once across re-renders.
@@ -8045,7 +7946,7 @@ function renderSettings() {
         </section>
       </div>
 
-      <button class="btn btn-block btn-danger" id="rr-signout" style="margin-top:6px">Sign out</button>
+      <button class="btn btn-block btn-ghost" id="rr-signout" style="margin-top:6px">Sign out</button>
 
       <div class="settings-diag" id="rr-settings-diag" aria-hidden="true"></div>
     </div>`;
