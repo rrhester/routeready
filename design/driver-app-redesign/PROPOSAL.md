@@ -113,6 +113,23 @@ requirements, messages), then a sticky primary action. Mockups: screens 01–07.
 **Recommendation: Concept B**, keeping the best of A as the 4-segment progress
 rail. The timeline remains viable as a future "day detail" drill-in.
 
+### Revision 1 — the calmer Today (screens 20–22)
+
+Owner feedback on the first pass: *good, but a bit cluttered.* Screens
+`20-clean-ready`, `21-clean-onduty`, `22-clean-active` keep the architecture and
+halve the furniture — **one focus item, everything else one tap away**:
+
+- 4-cell assignment board → one meta line (`DAU5 · Van V-214 · Wave 9:35 AM`)
+- countdown row + location panel → folded into the sticky action bar's note
+- rail labels dropped (segments alone carry progress)
+- full requirement lists → a single **Next** item + quiet "See all"
+- app-bar eyebrow + sync chip removed (sync appears only when not synced)
+- active-shift check-out list → one collapsed row ("2 items before check-out")
+
+If this density is preferred it becomes the default treatment across Schedule,
+Tasks, and Messages. Blockers (urgent unacknowledged notice, missing van) still
+bring their banners back at full strength — calm by default, loud when wrong.
+
 ---
 
 ## 4 · Navigation proposal

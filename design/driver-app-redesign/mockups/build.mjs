@@ -85,14 +85,15 @@ function tabbar(active, { tasksBadge = 2, msgBadge = 1, msgUrgent = true, offlin
 }
 
 function appbar({ eyebrow = "Summit Logistics · DAU5", title = "Today", date = "Mon, Jul 13", conn = "ok", back = null, pill = "", avatar = "MR" } = {}) {
-  const connHtml = conn === "off"
-    ? `<span class="conn off"><span class="dot"></span>Offline</span>`
-    : conn === "sync"
-      ? `<span class="conn"><span class="dot" style="background:var(--amber)"></span>Syncing</span>`
-      : `<span class="conn"><span class="dot"></span>Synced</span>`;
+  const connHtml = conn === "none" ? ""
+    : conn === "off"
+      ? `<span class="conn off"><span class="dot"></span>Offline</span>`
+      : conn === "sync"
+        ? `<span class="conn"><span class="dot" style="background:var(--amber)"></span>Syncing</span>`
+        : `<span class="conn"><span class="dot"></span>Synced</span>`;
   return `
 <header class="appbar">
-  ${back === null ? `<div class="appbar-eyebrow">${eyebrow}</div>` : ""}
+  ${back === null && eyebrow ? `<div class="appbar-eyebrow">${eyebrow}</div>` : ""}
   <div class="appbar-row">
     ${back !== null ? `<button class="appbar-back" aria-label="Back">${I.back(22)}</button>` : ""}
     <div class="appbar-title"><span class="title-text">${title}</span>${pill}</div>
@@ -1115,6 +1116,119 @@ page({
   <button class="btn btn-primary">${I.check(17)}Check in · 9:20 AM shift</button>
   <div class="cta-note ok">Location confirmed — you're inside the station geofence</div>
 </div>`,
+});
+
+/* ═══════════ 20–22 · REVISION 1 — the calmer Today ═══════════════
+   Same architecture, half the furniture: one meta line instead of the
+   4-cell board, an unlabeled progress rail, no countdown row (it moves
+   into the CTA note), one focus item instead of full requirement lists,
+   location + urgency folded into the action bar. */
+
+const railMini = (stage) => `
+  <div class="rail" style="padding:2px 14px 14px">
+    <div class="rail-track">${[1, 2, 3, 4].map((i) =>
+      `<span class="rail-seg ${i < stage ? "done" : i === stage ? "cur" : ""}" style="height:3px"></span>`).join("")}
+    </div>
+  </div>`;
+
+const cleanCard = ({ pill, time = `9:20 <small>AM</small> – 6:00 <small>PM</small>`, meta, stage }) => `
+<section class="panel shiftcard">
+  <div class="sc-top">${pill}</div>
+  <div class="sc-time-row"><span class="sc-time">${time}</span></div>
+  <div class="sc-sub" style="padding-bottom:14px">${meta}</div>
+  ${railMini(stage)}
+</section>`;
+
+const CLEAN_APPBAR = { eyebrow: "", conn: "none" };
+
+page({
+  name: "20-clean-ready",
+  title: "Revision — Today, ready (calm)",
+  appbarOpts: CLEAN_APPBAR,
+  body: `
+<main class="main has-cta">
+  ${cleanCard({
+    pill: P.ready, stage: 1,
+    meta: `DAU5 · Van <b>V-214</b> · Wave <b>9:35 AM</b>`,
+  })}
+
+  <div class="sec">Next</div>
+  <div class="panel">
+    ${taskRow({ state: "blocked", title: "Pre-trip inspection", meta: "Starts after you check in · 12 items · ~4 min" })}
+  </div>
+  <div class="divider-note">2 of 3 steps done today · <a href="#" style="color:var(--blue);text-decoration:none;font-weight:600">See all</a></div>
+</main>`,
+  cta: `
+<div class="cta-bar">
+  <button class="btn btn-primary">${I.check(17)}Check in</button>
+  <div class="cta-note ok">You're at DAU5 · shift starts in 38 min</div>
+</div>`,
+});
+
+page({
+  name: "21-clean-onduty",
+  title: "Revision — Today, on duty (calm)",
+  appbarOpts: CLEAN_APPBAR,
+  body: `
+<main class="main has-cta">
+  ${cleanCard({
+    pill: P.onduty, stage: 2,
+    meta: `Checked in <b>8:04 AM</b> · Wave <b>9:35 AM</b> · Van <b>V-214</b>`,
+  })}
+
+  <div class="sec">Next</div>
+  <div class="panel">
+    ${taskRow({ state: "cur", title: "Pre-trip inspection", meta: "12 items · ~4 min · goes to Fleet", pill: `<span class="pill amber">Due 9:20 AM</span>` })}
+  </div>
+  <div class="divider-note">2 more steps later today · <a href="#" style="color:var(--blue);text-decoration:none;font-weight:600">See all</a></div>
+</main>`,
+  cta: `
+<div class="cta-bar">
+  <button class="btn btn-primary">${I.tasks(17)}Start pre-trip inspection</button>
+  <div class="cta-note">Wave departs 9:35 AM · 53 min</div>
+</div>`,
+});
+
+page({
+  name: "22-clean-active",
+  title: "Revision — Today, active shift (calm)",
+  appbarOpts: CLEAN_APPBAR,
+  body: `
+<main class="main">
+  ${cleanCard({
+    pill: P.onduty, stage: 3,
+    meta: `On duty <b>4h 12m</b> · return by <b>6:00 PM</b>`,
+  })}
+
+  <div class="sec">During your shift</div>
+  <div class="panel">
+    <div class="row">
+      <span class="row-ic">${I.coffee(18)}</span>
+      <span class="row-body"><span class="row-title">30-min break</span><span class="row-meta">Take it before 2:00 PM</span></span>
+      <span class="row-end"><button class="btn btn-sm">Start</button></span>
+    </div>
+    <a class="row" href="#">
+      <span class="row-ic">${I.msg(18)}</span>
+      <span class="row-body"><span class="row-title">Messages</span></span>
+      <span class="row-end"><span class="pill blue">1 new</span><span class="chev">${I.chev(16)}</span></span>
+    </a>
+    <a class="row" href="#">
+      <span class="row-ic">${I.flag(18)}</span>
+      <span class="row-body"><span class="row-title">Report an issue</span></span>
+      <span class="row-end"><span class="chev">${I.chev(16)}</span></span>
+    </a>
+  </div>
+
+  <div class="sec">Check-out</div>
+  <div class="panel">
+    <a class="row" href="#">
+      <span class="row-ic">${I.clock(18)}</span>
+      <span class="row-body"><span class="row-title">2 items before you can check out</span><span class="row-meta">Mileage & fuel log · End-of-day debrief</span></span>
+      <span class="row-end"><span class="chev">${I.chev(16)}</span></span>
+    </a>
+  </div>
+  <div class="divider-note">Check-out unlocks when you're back at DAU5</div>
+</main>`,
 });
 
 console.log("all screens built →", OUT);
