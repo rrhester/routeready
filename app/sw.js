@@ -179,7 +179,11 @@
 // popup broke out of the installed PWA into Safari and got blocked after the
 // code fetch, so the radio appeared to do nothing. Bumped so installed driver
 // PWAs pick up the new app.js.
-const SHELL_CACHE = "rr-app-shell-v166";
+// v167 · Status-model consistency: the Time-off screen's decision + leave-type
+// badges drop the one-off .to-pill family for the shared .status-pill, so a
+// Pending / Approved / Denied reads identically to the same status elsewhere.
+// Bumped so installed driver PWAs pick up the new app.js + CSS.
+const SHELL_CACHE = "rr-app-shell-v167";
 const SHELL_FILES = [
   "./",
   "index.html",
