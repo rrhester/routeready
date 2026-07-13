@@ -37855,7 +37855,13 @@ async function refreshDriverChatThread(scrollToBottom) {
     const _hMeta = (_msgInboxList || []).find((t) => String(t.driver_id) === String(driverId)) || {};
     const _hStation = _hMeta.station_code ? escapeHtml(_hMeta.station_code) : "";
     const _hFav = _rrMsgFavs().has(driverId);
-    const _hSub = [_hStation, "Available"].filter(Boolean).join(" · ");
+    // Presence-aware sub-line; _presencePaintThreadHead refines it once the
+    // presence snapshot lands.  Default to the last-active hint so the head
+    // never flashes a stale "Available".
+    const _hLastRel = _fmtMsgRelative(_hMeta.last_at);
+    const _hSub = _presence.online.has(driverId)
+      ? [_hStation, `<span class="rr-mc-online-pip"></span>Available`].filter(Boolean).join(" · ")
+      : [_hStation, "Offline", _hLastRel ? `Last active ${escapeHtml(_hLastRel)}` : ""].filter(Boolean).join(" · ");
     conv.innerHTML = `
       <div class="rr-mc-shell">
         <div class="rr-mc-head" data-rr-driver-id="${escapeHtml(driverId)}">
@@ -37903,6 +37909,15 @@ async function refreshDriverChatThread(scrollToBottom) {
         </form>
       </div>`;
     const ta = document.getElementById("rr-mc-input");
+    // Send stays disabled until there's text or a pending attachment —
+    // clearer affordance than silently no-op'ing an empty submit.
+    const _mcSendBtn = document.querySelector("#rr-mc-form .rr-mc-send");
+    const _mcSyncSend = () => {
+      if (!_mcSendBtn) return;
+      _mcSendBtn.disabled = !((ta.value || "").trim() || window._rrMcPending);
+    };
+    _mcSyncSend();
+    window._rrMcSyncSend = _mcSyncSend;
     // Compact priority dropdown + require-acknowledgement toggle for the
     // next outbound message.
     _wirePriorityDropdown();
@@ -37910,6 +37925,7 @@ async function refreshDriverChatThread(scrollToBottom) {
       _dispatchRequiresAck = !!e.target.checked;
     });
     ta.addEventListener("input", () => {
+      _mcSyncSend();
       ta.style.height = "auto"; ta.style.height = Math.min(160, ta.scrollHeight) + "px";
       // Keep the caret visible inside the textarea — once the draft
       // exceeds max-height, the textarea internally scrolls.  We pin
@@ -37944,7 +37960,7 @@ async function refreshDriverChatThread(scrollToBottom) {
     const attachCtl = _rrWireComposerAttach({
       ta, fileInput, previewEl,
       attachBtn: document.getElementById("rr-mc-attach"),
-      setPending: (f) => { window._rrMcPending = f; },
+      setPending: (f) => { window._rrMcPending = f; if (typeof _mcSyncSend === "function") _mcSyncSend(); },
     });
 
     // ── Voice notes (dispatch → driver) ─────────────────────────────────
@@ -38018,6 +38034,7 @@ async function refreshDriverChatThread(scrollToBottom) {
       threadEl.dataset.rrAnchor = "1";
       const savedBody = body;
       ta.value = ""; ta.style.height = "auto";
+      if (typeof _mcSyncSend === "function") _mcSyncSend();
       // Direct scrollTop write — the cheap path.  The thread's bottom
       // edge sits just above the composer (grid layout), so scrollHeight
       // lands the just-inserted stub flush above the composer.
@@ -38262,7 +38279,7 @@ async function refreshDriverChatThread(scrollToBottom) {
           // browser's scroll-anchor algorithm to "preserve" (which is
           // what was yanking the operator UP to a fixed image position).
           ? `<img data-rr-mc-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" width="240" height="240" loading="eager" decoding="async" style="max-width:240px;border-radius:var(--r-lg);margin-bottom:6px;cursor:zoom-in" onclick="window.open(this.src,'_blank')"/>`
-          : `<a data-rr-mc-attach="${escapeHtml(m.attachment_path)}" target="_blank" rel="noopener" style="display:flex;gap:var(--s-2);align-items:center;padding:6px var(--s-2-5);background:rgba(255,255,255,.15);border-radius:8px;margin-bottom:6px;text-decoration:none;color:inherit;max-width:240px"><span>📎</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:var(--fs-sm)">${escapeHtml(name)}</span>${sizeKb != null ? `<span style="font-size:var(--fs-xs);opacity:.8">${sizeKb} KB</span>` : ""}</a>`;
+          : _rrMcAttachCard(m);
       }
       const isDeleted = !!m.deleted_at;
       const isMine    = m.sender_kind === "dispatch";
@@ -38297,7 +38314,10 @@ async function refreshDriverChatThread(scrollToBottom) {
             : `<div class="rr-mc-ack pending">Awaiting acknowledgement</div>`)
         : "";
       const likeBtn = isDeleted ? "" : `<button type="button" class="rr-mc-like" data-rr-mc-like="${escapeHtml(m.id)}" aria-label="Like" title="Like"><span class="rr-mc-like-icon" aria-hidden="true">👍</span><span class="rr-mc-like-n"></span></button>`;
-      html += `<div class="rr-mc-bubble ${m.sender_kind}${deletedClass}${priCls}" data-group-pos="${pos}" data-rr-mc-msg="${escapeHtml(m.id)}">
+      // Attachment-only messages drop the bubble chrome so the card /
+      // thumbnail reads as a standalone surface (enterprise register).
+      const attachOnly = (m.attachment_path && !m.body && !isDeleted) ? " attach-only" : "";
+      html += `<div class="rr-mc-bubble ${m.sender_kind}${deletedClass}${priCls}${attachOnly}" data-group-pos="${pos}" data-rr-mc-msg="${escapeHtml(m.id)}">
         ${actions}
         ${priTag}${attach}${m.is_auto ? '<span class="rr-mc-auto" title="Automated message">Auto</span>' : ''}${bodyHtml}${ackChip}
         <div class="rr-mc-time">${escapeHtml(time)}${editedTag}</div>
@@ -38672,6 +38692,67 @@ function _rrMcWireVoicePlayer(audio) {
     speedBtn.textContent = speeds[si] + "×";
   });
   showDur();
+}
+
+// ── File-type + size helpers for attachment cards ──────────────────────
+// Maps a filename / MIME to a compact badge label, a human file-type
+// description, and a colour class (kind-pdf / kind-doc / …).
+function _rrMcFileKind(name, mime) {
+  const ext = (String(name || "").match(/\.([a-z0-9]+)$/i)?.[1] || "").toLowerCase();
+  const m = (mime || "").toLowerCase();
+  if (m.startsWith("image/"))                                             return { badge: "IMG",              label: "Image",           cls: "img" };
+  if (ext === "pdf" || m === "application/pdf")                           return { badge: "PDF",              label: "PDF document",    cls: "pdf" };
+  if (["doc", "docx"].includes(ext) || m.includes("word"))               return { badge: "DOC",              label: "Word document",   cls: "doc" };
+  if (["xls", "xlsx"].includes(ext) || m.includes("sheet") || m.includes("excel")) return { badge: "XLS",     label: "Spreadsheet",     cls: "xls" };
+  if (ext === "csv" || m.includes("csv"))                                return { badge: "CSV",              label: "CSV spreadsheet", cls: "xls" };
+  if (["ppt", "pptx"].includes(ext) || m.includes("presentation"))       return { badge: "PPT",              label: "Presentation",    cls: "ppt" };
+  if (["zip", "rar", "7z", "gz"].includes(ext))                          return { badge: "ZIP",              label: "Archive",         cls: "zip" };
+  if (["txt", "rtf", "md"].includes(ext) || m.startsWith("text/"))       return { badge: "TXT",              label: "Text file",       cls: "txt" };
+  return { badge: ext ? ext.slice(0, 4).toUpperCase() : "FILE",          label: "File",            cls: "gen" };
+}
+function _rrFmtBytes(b) {
+  if (b == null || isNaN(b)) return "";
+  if (b < 1024) return b + " B";
+  if (b < 1048576) return Math.round(b / 1024) + " KB";
+  return (b / 1048576).toFixed(b < 10485760 ? 1 : 0) + " MB";
+}
+// ── Compact attachment card (direct + channel chat) ────────────────────
+// A horizontal card: file-type badge · filename · size + type meta ·
+// persistent Preview / Download / More actions.  Every action anchor
+// carries data-rr-mc-attach so _rrMcSignAttachments binds the private-
+// bucket signed URL after paint.  Used for non-image, non-audio files;
+// images keep their inline thumbnail.
+const _RR_DOC_ICON = {
+  eye:  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>`,
+  down: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
+  dots: `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg>`,
+};
+function _rrMcAttachCard(m) {
+  const path = escapeHtml(m.attachment_path);
+  const name = m.attachment_name || "Attachment";
+  const nameEsc = escapeHtml(name);
+  const kind = _rrMcFileKind(name, m.attachment_mime);
+  const meta = [_rrFmtBytes(m.attachment_size_bytes), kind.label].filter(Boolean).join(" · ");
+  return `<div class="rr-mc-doc kind-${kind.cls}">
+      <a class="rr-mc-doc-open" data-rr-mc-attach="${path}" target="_blank" rel="noopener" aria-label="Preview ${nameEsc}">
+        <span class="rr-mc-doc-badge" aria-hidden="true">${kind.badge}</span>
+        <span class="rr-mc-doc-text">
+          <span class="rr-mc-doc-name" title="${nameEsc}">${nameEsc}</span>
+          <span class="rr-mc-doc-meta">${escapeHtml(meta)}</span>
+        </span>
+      </a>
+      <div class="rr-mc-doc-actions">
+        <a class="rr-mc-doc-act" data-rr-mc-attach="${path}" target="_blank" rel="noopener" aria-label="Preview" title="Preview">${_RR_DOC_ICON.eye}</a>
+        <a class="rr-mc-doc-act" data-rr-mc-attach="${path}" download="${nameEsc}" target="_blank" rel="noopener" aria-label="Download" title="Download">${_RR_DOC_ICON.down}</a>
+        <details class="rr-mc-doc-more">
+          <summary class="rr-mc-doc-act" aria-label="More actions" title="More">${_RR_DOC_ICON.dots}</summary>
+          <div class="rr-mc-doc-menu" role="menu">
+            <button type="button" role="menuitem" onclick="(function(el){var a=el.closest('.rr-mc-doc').querySelector('.rr-mc-doc-open');if(a&&a.href)window.open(a.href,'_blank','noopener');el.closest('.rr-mc-doc-more').removeAttribute('open');})(this)">Open in new tab</button>
+            <button type="button" role="menuitem" onclick="(function(el){var a=el.closest('.rr-mc-doc').querySelector('.rr-mc-doc-open');if(a&&a.href&&navigator.clipboard){navigator.clipboard.writeText(a.href).then(function(){window.toast&&toast('Link copied','success')});}el.closest('.rr-mc-doc-more').removeAttribute('open');})(this)">Copy link</button>
+          </div>
+        </details>
+      </div>
+    </div>`;
 }
 
 async function _rrMcSignAttachments() {
@@ -39280,14 +39361,15 @@ async function refreshChannelThread(scrollToBottom) {
           // image load and the scroll-anchor algorithm has nothing to
           // walk up to preserve.
           ? `<img data-rr-mc-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" width="240" height="240" loading="eager" decoding="async" style="max-width:240px;border-radius:8px;margin-bottom:6px;cursor:zoom-in" onclick="window.open(this.src,'_blank')"/>`
-          : `<a data-rr-mc-attach="${escapeHtml(m.attachment_path)}" target="_blank" rel="noopener" style="display:flex;gap:var(--s-2);align-items:center;padding:6px var(--s-2-5);background:rgba(255,255,255,.15);border-radius:8px;margin-bottom:6px;text-decoration:none;color:inherit;max-width:240px"><span>📎</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:var(--fs-sm)">${escapeHtml(name)}</span>${sizeKb != null ? `<span style="font-size:var(--fs-xs);opacity:.8">${sizeKb} KB</span>` : ""}</a>`;
+          : _rrMcAttachCard(m);
       }
       const senderLabel = m.sender_kind === "dispatch"
         ? (m.sender_name ? `Dispatch · ${m.sender_name}` : "Dispatch")
         : (m.sender_name || "Driver");
       const bodyHtml = m.body ? `<div>${linkifyEscaped(escapeHtml(m.body).replace(/\n/g, "<br>"))}</div>` : "";
       const showSender = (pos === "first" || pos === "single");
-      return `<div class="rr-cc-bubble ${m.sender_kind}" data-group-pos="${pos}">
+      const ccAttachOnly = (m.attachment_path && !m.body) ? " attach-only" : "";
+      return `<div class="rr-cc-bubble ${m.sender_kind}${ccAttachOnly}" data-group-pos="${pos}">
         ${showSender ? `<div class="rr-cc-sender">${escapeHtml(senderLabel)}</div>` : ""}
         ${attach}
         ${bodyHtml}
@@ -42390,7 +42472,10 @@ function _presencePaintThreadHead(driverId) {
     if (_presence.online.has(driverId)) {
       sub.innerHTML = [station, `<span class="rr-mc-online-pip"></span>Available`].filter(Boolean).join(" · ");
     } else {
-      sub.innerHTML = [station, "Offline"].filter(Boolean).join(" · ");
+      // Offline → surface a last-active hint from the most recent thread
+      // activity, mirroring the reference ("DCA1 · Offline · Last active 5h ago").
+      const lastRel = _fmtMsgRelative(meta.last_at);
+      sub.innerHTML = [station, "Offline", lastRel ? `Last active ${escapeHtml(lastRel)}` : ""].filter(Boolean).join(" · ");
     }
   }
   // Keep the details-panel avatar dot in sync with presence.
