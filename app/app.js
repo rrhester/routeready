@@ -1025,6 +1025,20 @@ function navigate(path) {
 }
 window.addEventListener("hashchange", render);
 
+// Keyboard activation for non-native controls. Several tappable surfaces
+// (task cards, coaching rows) are divs with role="button" tabindex="0";
+// this makes Enter / Space fire their existing click handler so they're
+// operable without a pointer. Scoped to role="button" that is NOT a real
+// <button>/<a> (those activate natively — firing click() would double it).
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") return;
+  const el = e.target;
+  if (!el || typeof el.matches !== "function") return;
+  if (!el.matches('[role="button"]:not(button):not(a)')) return;
+  e.preventDefault();
+  el.click();
+});
+
 // ── Render entrypoint ───────────────────────────────────────────────
 function render() {
   const session = readSession();
@@ -1401,7 +1415,7 @@ function renderLogin(errorMsg) {
           <div style="font-size:var(--fs-md);color:var(--text-subtle);margin-top:6px">Your driver hub.</div>
         </div>
         <div class="form">
-          ${_loginState.errorMsg ? `<div class="err">${escapeHtml(_loginState.errorMsg)}</div>` : ""}
+          ${_loginState.errorMsg ? `<div class="err" role="alert">${escapeHtml(_loginState.errorMsg)}</div>` : ""}
           <button class="btn btn-primary btn-block" type="button" id="rr-login-signin">Sign in</button>
           <button class="btn btn-block" type="button" id="rr-login-activate" style="margin-top:10px;background:transparent;border:1px solid var(--border)">I have an activation code</button>
         </div>
@@ -1426,7 +1440,7 @@ function renderLogin(errorMsg) {
           <div style="font-size:var(--fs-md);color:var(--text-subtle);margin-top:6px;line-height:1.5">Enter the activation code from your welcome message.</div>
         </div>
         <form class="form" id="rr-code-form">
-          ${_loginState.errorMsg ? `<div class="err">${escapeHtml(_loginState.errorMsg)}</div>` : ""}
+          ${_loginState.errorMsg ? `<div class="err" role="alert">${escapeHtml(_loginState.errorMsg)}</div>` : ""}
           <label class="field-label">Activation code</label>
           <input class="field" id="rr-code-input" autocomplete="one-time-code" inputmode="latin" autocapitalize="characters" maxlength="10" placeholder="ABCD1234" required value="${escapeHtml(_loginState.codeInput || "")}" />
           <div style="margin-top:18px">
@@ -1478,7 +1492,7 @@ function renderLogin(errorMsg) {
             <div style="font-size:var(--fs-md);color:var(--text-subtle);margin-top:8px;line-height:1.55">Your driver profile is ready. Tap below to sign in on this device.</div>
           </div>
           <div class="form">
-            ${_loginState.errorMsg ? `<div class="err">${escapeHtml(_loginState.errorMsg)}</div>` : ""}
+            ${_loginState.errorMsg ? `<div class="err" role="alert">${escapeHtml(_loginState.errorMsg)}</div>` : ""}
             <button class="btn btn-primary btn-block" type="button" id="rr-activate-resume" ${_loginState.busy ? "disabled" : ""}>${_loginState.busy ? "Signing in…" : "Sign in"}</button>
             <div class="help" style="margin-top:14px;line-height:1.5">Forgot your PIN? Contact dispatch to send a fresh link.</div>
           </div>
@@ -1528,7 +1542,7 @@ function renderLogin(errorMsg) {
           <div style="font-size:var(--fs-md);color:var(--text-subtle);margin-top:8px;line-height:1.55">We found your info from your ${lk.dsp_name ? escapeHtml(lk.dsp_name) + " " : ""}onboarding invite.${phoneHint ? ` Phone on file: ${escapeHtml(phoneHint)}.` : ""} Pick a 4–6 digit PIN — you'll use this to sign in when you install the app on your phone.</div>
         </div>
         <form class="form" id="rr-activate-form" style="margin-top:8px">
-          ${_loginState.errorMsg ? `<div class="err">${escapeHtml(_loginState.errorMsg)}</div>` : ""}
+          ${_loginState.errorMsg ? `<div class="err" role="alert">${escapeHtml(_loginState.errorMsg)}</div>` : ""}
 
           <label class="field-label">Create a 4–6 digit PIN</label>
           <input class="field" id="rr-activate-pin" type="password" inputmode="numeric" autocomplete="new-password" pattern="[0-9]*" maxlength="6" placeholder="••••" style="letter-spacing:.5em;text-align:center" value="${escapeHtml(_loginState.pinInput || "")}" />
@@ -1593,7 +1607,7 @@ function renderLogin(errorMsg) {
           <div style="font-size:var(--fs-md);color:var(--text-subtle);margin-top:8px">Sign in with your number and PIN.</div>
         </div>
         <form class="form" id="rr-signin-form">
-          ${_loginState.errorMsg ? `<div class="err">${escapeHtml(_loginState.errorMsg)}</div>` : ""}
+          ${_loginState.errorMsg ? `<div class="err" role="alert">${escapeHtml(_loginState.errorMsg)}</div>` : ""}
           ${_loginState.infoMsg ? `<div style="background:var(--accent-soft);color:var(--accent);font-size:var(--fs-md);padding:var(--s-2-5) var(--s-3-5);border-radius:8px;text-align:center;margin-bottom:12px;line-height:1.45">${escapeHtml(_loginState.infoMsg)}</div>` : ""}
           <label class="field-label">Mobile number</label>
           <input class="field" id="rr-signin-phone" type="tel" inputmode="tel" autocomplete="tel" autocapitalize="off" maxlength="20" placeholder="(555) 123-4567" style="letter-spacing:0;text-align:left;text-transform:none" value="${escapeHtml(_formatPhone(_loginState.phoneInput || ""))}" />
@@ -3046,7 +3060,7 @@ function taskCardHtml(c) {
     ? `<span class="task-card-badge" aria-label="New" style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 6px;margin-left:8px;border-radius:999px;background:var(--rr-brand-primary);color:var(--rr-white);font-size:10px;font-weight:700;letter-spacing:.02em;vertical-align:middle">${(typeof c.badge === "number" && c.badge > 0) ? (c.badge > 99 ? "99+" : c.badge) : "NEW"}</span>`
     : "";
   return `
-    <div class="task-card" data-task-route="${c.route}">
+    <div class="task-card" data-task-route="${c.route}" role="button" tabindex="0">
       <span class="task-icon">${c.icon}</span>
       <div class="task-text">
         <div class="task-title">${escapeHtml(c.title)}${badge}</div>
@@ -5433,7 +5447,7 @@ async function renderChat() {
           return `<a class="chat-call" href="tel:${esc(href)}" aria-label="Call dispatch" title="Call dispatch"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg><span>Call</span></a>`;
         })()}
       </div>
-      <div id="chat-msgs" class="chat-msgs"><div class="loader"></div></div>
+      <div id="chat-msgs" class="chat-msgs" role="log" aria-live="polite" aria-relevant="additions" aria-label="Messages"><div class="loader"></div></div>
       <form class="chat-composer" id="chat-form">
         <input id="chat-file" type="file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" hidden>
         <button id="chat-attach" type="button" class="chat-attach" aria-label="Attach photo or document" title="Attach">
@@ -5448,7 +5462,7 @@ async function renderChat() {
             <button type="button" class="chat-qa-chip" data-qa="Need coverage">Need coverage</button>
           </div>
           <div id="chat-attachment-preview" style="display:none"></div>
-          <textarea id="chat-input" rows="1" placeholder="Message dispatch…" maxlength="2000"></textarea>
+          <textarea id="chat-input" rows="1" placeholder="Message dispatch…" aria-label="Message dispatch" maxlength="2000"></textarea>
         </div>
         <button class="chat-send is-mic" id="chat-send" type="submit" aria-label="Record a voice message">
           <svg class="ic-send" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
@@ -6997,7 +7011,7 @@ async function renderChatChannelThread() {
   const main = document.getElementById("main");
   main.innerHTML = `
     <div id="chat-shell">
-      <div id="chat-msgs" class="chat-msgs"><div class="loader"></div></div>
+      <div id="chat-msgs" class="chat-msgs" role="log" aria-live="polite" aria-relevant="additions" aria-label="Messages"><div class="loader"></div></div>
       <form class="chat-composer" id="chat-form">
         <input id="chat-file" type="file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" hidden>
         <button id="chat-attach" type="button" class="chat-attach" aria-label="Attach photo or document" title="Attach">
@@ -7005,7 +7019,7 @@ async function renderChatChannelThread() {
         </button>
         <div style="flex:1;display:flex;flex-direction:column;gap:6px;min-width:0">
           <div id="chat-attachment-preview" style="display:none"></div>
-          <textarea id="chat-input" rows="1" placeholder="Post to #${escapeHtml(meta.name || "channel")}…" maxlength="2000"></textarea>
+          <textarea id="chat-input" rows="1" placeholder="Post to #${escapeHtml(meta.name || "channel")}…" aria-label="Post to channel" maxlength="2000"></textarea>
         </div>
         <button class="chat-send" type="submit" aria-label="Send">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
@@ -8278,7 +8292,7 @@ async function renderSettingsPin() {
             : "Set a 4 to 6-digit PIN so you can sign in fast on a new device using your phone number. Without one, you'll need a fresh sign-in link from your dispatcher every time."}</div>
         </div>
         <form class="settings-form" id="rr-pin-form">
-          <div id="rr-pin-err" class="err" style="display:none"></div>
+          <div id="rr-pin-err" class="err" role="alert" style="display:none"></div>
 
           <label class="field-label">New PIN</label>
           <input class="field" id="rr-pin-1" type="password" inputmode="numeric" autocomplete="new-password" pattern="[0-9]*" maxlength="6" placeholder="••••" style="letter-spacing:.5em;text-align:center"/>
@@ -8664,7 +8678,7 @@ async function renderFormFill() {
     <div class="form-fill-page">
       ${form.description ? `<div class="form-fill-desc">${escapeHtml(form.description)}</div>` : ""}
       ${_hasRequired ? `
-      <div class="form-fill-progress" id="rr-ff-progress" role="progressbar" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">
+      <div class="form-fill-progress" id="rr-ff-progress" role="progressbar" aria-label="Required questions complete" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">
         <div class="form-fill-progress-head"><span class="form-fill-progress-label" id="rr-ff-progress-label">Required questions</span></div>
         <div class="form-fill-progress-track"><div class="form-fill-progress-fill" id="rr-ff-progress-fill" style="width:0%"></div></div>
       </div>` : ""}
@@ -8975,6 +8989,9 @@ function _formFieldInnerHtml(f) {
   const lbl  = escapeHtml(f.label || "");
   const help = f.help ? `<div class="form-fill-help">${escapeHtml(f.help)}</div>` : "";
   const req  = f.required ? `<span style="color:var(--red);margin-left:3px">*</span>` : "";
+  // The red "*" is decorative; aria-required carries the requirement to
+  // assistive tech (added to each control / group below).
+  const areq = f.required ? ' aria-required="true"' : "";
   const row  = (input) => `<div class="form-fill-row"><label class="form-fill-label" for="${id}">${lbl}${req}</label>${help}${input}</div>`;
   // Group row for radio/checkbox groups: the question is a <span> (not a
   // <label for>, which can only target one control) and the group carries
@@ -8989,60 +9006,60 @@ function _formFieldInnerHtml(f) {
     case "divider":
       return `<hr class="form-fill-divider"/>`;
     case "long_text":
-      return row(`<textarea class="field" id="${id}" rows="4" data-rr-field="${escapeHtml(f.id)}" data-rr-type="${f.type}"></textarea>`);
+      return row(`<textarea class="field" id="${id}" rows="4" data-rr-field="${escapeHtml(f.id)}"${areq} data-rr-type="${f.type}"></textarea>`);
     case "email":
-      return row(`<input class="field" id="${id}" type="email" inputmode="email" data-rr-field="${escapeHtml(f.id)}" data-rr-type="${f.type}"/>`);
+      return row(`<input class="field" id="${id}" type="email" inputmode="email" data-rr-field="${escapeHtml(f.id)}"${areq} data-rr-type="${f.type}"/>`);
     case "phone":
-      return row(`<input class="field" id="${id}" type="tel" inputmode="tel" data-rr-field="${escapeHtml(f.id)}" data-rr-type="${f.type}"/>`);
+      return row(`<input class="field" id="${id}" type="tel" inputmode="tel" data-rr-field="${escapeHtml(f.id)}"${areq} data-rr-type="${f.type}"/>`);
     case "number":
-      return row(`<input class="field" id="${id}" type="number" inputmode="decimal" data-rr-field="${escapeHtml(f.id)}" data-rr-type="${f.type}"/>`);
+      return row(`<input class="field" id="${id}" type="number" inputmode="decimal" data-rr-field="${escapeHtml(f.id)}"${areq} data-rr-type="${f.type}"/>`);
     case "date":
-      return row(`<input class="field" id="${id}" type="date" data-rr-field="${escapeHtml(f.id)}" data-rr-type="${f.type}"/>`);
+      return row(`<input class="field" id="${id}" type="date" data-rr-field="${escapeHtml(f.id)}"${areq} data-rr-type="${f.type}"/>`);
     case "time":
-      return row(`<input class="field" id="${id}" type="time" data-rr-field="${escapeHtml(f.id)}" data-rr-type="${f.type}"/>`);
+      return row(`<input class="field" id="${id}" type="time" data-rr-field="${escapeHtml(f.id)}"${areq} data-rr-type="${f.type}"/>`);
     case "yes_no":
       return grow(`
-        <div class="form-fill-choice-row" role="group" aria-labelledby="${id}-lbl" data-rr-field="${escapeHtml(f.id)}" data-rr-type="yes_no">
+        <div class="form-fill-choice-row" role="group" aria-labelledby="${id}-lbl" data-rr-field="${escapeHtml(f.id)}"${areq} data-rr-type="yes_no">
           <label class="form-fill-choice"><input type="radio" name="${id}" value="yes"/><span>Yes</span></label>
           <label class="form-fill-choice"><input type="radio" name="${id}" value="no"/><span>No</span></label>
         </div>`);
     case "rating":
       return grow(`
-        <div class="form-fill-rating" role="group" aria-labelledby="${id}-lbl" data-rr-field="${escapeHtml(f.id)}" data-rr-type="rating">
+        <div class="form-fill-rating" role="group" aria-labelledby="${id}-lbl" data-rr-field="${escapeHtml(f.id)}"${areq} data-rr-type="rating">
           ${[1,2,3,4,5].map(n => `<label class="form-fill-rating-star"><input type="radio" name="${id}" value="${n}"/><span>${n}</span></label>`).join("")}
         </div>`);
     case "single_choice": {
       const opts = (f.options || []).map((o, i) => `
         <label class="form-fill-choice"><input type="radio" name="${id}" value="${escapeHtml(o)}"/><span>${escapeHtml(o)}</span></label>`).join("");
-      return grow(`<div class="form-fill-choice-col" role="group" aria-labelledby="${id}-lbl" data-rr-field="${escapeHtml(f.id)}" data-rr-type="single_choice">${opts}</div>`);
+      return grow(`<div class="form-fill-choice-col" role="group" aria-labelledby="${id}-lbl" data-rr-field="${escapeHtml(f.id)}"${areq} data-rr-type="single_choice">${opts}</div>`);
     }
     case "multi_choice": {
       const opts = (f.options || []).map((o, i) => `
         <label class="form-fill-choice"><input type="checkbox" value="${escapeHtml(o)}"/><span>${escapeHtml(o)}</span></label>`).join("");
-      return grow(`<div class="form-fill-choice-col" role="group" aria-labelledby="${id}-lbl" data-rr-field="${escapeHtml(f.id)}" data-rr-type="multi_choice">${opts}</div>`);
+      return grow(`<div class="form-fill-choice-col" role="group" aria-labelledby="${id}-lbl" data-rr-field="${escapeHtml(f.id)}"${areq} data-rr-type="multi_choice">${opts}</div>`);
     }
     case "dropdown": {
       const opts = (f.options || []).map(o => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join("");
-      return row(`<select class="field" id="${id}" data-rr-field="${escapeHtml(f.id)}" data-rr-type="dropdown"><option value="">— Select —</option>${opts}</select>`);
+      return row(`<select class="field" id="${id}" data-rr-field="${escapeHtml(f.id)}"${areq} data-rr-type="dropdown"><option value="">— Select —</option>${opts}</select>`);
     }
     case "photo":
-      return row(`<input class="field" id="${id}" type="file" accept="image/*" capture="environment" data-rr-field="${escapeHtml(f.id)}" data-rr-type="photo"/>`);
+      return row(`<input class="field" id="${id}" type="file" accept="image/*" capture="environment" data-rr-field="${escapeHtml(f.id)}"${areq} data-rr-type="photo"/>`);
     case "file":
-      return row(`<input class="field" id="${id}" type="file" data-rr-field="${escapeHtml(f.id)}" data-rr-type="file"/>`);
+      return row(`<input class="field" id="${id}" type="file" data-rr-field="${escapeHtml(f.id)}"${areq} data-rr-type="file"/>`);
     case "signature":
       // Real canvas signature pad (shared _initSignaturePad, wired after
       // render). The canvas carries data-rr-field so _collectFormAnswers
       // reads its ink as a PNG data URL, matching the Checklist flow.
       return row(`<div class="form-fill-sigwrap">
-          <canvas class="form-fill-sigpad" id="${id}" data-rr-field="${escapeHtml(f.id)}" data-rr-type="signature" height="140"></canvas>
+          <canvas class="form-fill-sigpad" id="${id}" role="img" tabindex="0" aria-label="Signature pad — sign with your finger"${areq} data-rr-field="${escapeHtml(f.id)}" data-rr-type="signature" height="140"></canvas>
           <button type="button" class="form-fill-sigclear" id="${id}-clear">Clear</button>
         </div>`);
     case "gps":
       // GPS captures lat/lng on submit (see _collectFormAnswers).
-      return row(`<div class="form-fill-gps" data-rr-field="${escapeHtml(f.id)}" data-rr-type="gps">Location will be captured when you submit.</div>`);
+      return row(`<div class="form-fill-gps" data-rr-field="${escapeHtml(f.id)}"${areq} data-rr-type="gps">Location will be captured when you submit.</div>`);
     case "short_text":
     default:
-      return row(`<input class="field" id="${id}" type="text" data-rr-field="${escapeHtml(f.id)}" data-rr-type="short_text"/>`);
+      return row(`<input class="field" id="${id}" type="text" data-rr-field="${escapeHtml(f.id)}"${areq} data-rr-type="short_text"/>`);
   }
 }
 
@@ -10196,7 +10213,7 @@ function _coachingRowHtml(c) {
         ? `<span class="coaching-status done">Acknowledged</span>`
         : `<span class="coaching-status">Note</span>`);
   return `
-    <div class="${cls}" data-rr-coaching="${escapeHtml(c.id)}">
+    <div class="${cls}" data-rr-coaching="${escapeHtml(c.id)}" role="button" tabindex="0">
       <div class="coaching-row-head">
         <span class="coaching-badge cat-${escapeHtml(c.topic || "other")}">${escapeHtml(topic)}</span>
         <span class="coaching-badge sev-${escapeHtml(c.severity || "note")}">${escapeHtml(severity)}</span>

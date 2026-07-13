@@ -15,6 +15,7 @@ on:
     paths:
       - 'dashboard/**.css'
       - 'app/**.css'
+      - 'app/app.js'
       - 'scripts/design-lint.mjs'
       - 'scripts/design-baseline.json'
       - '.github/workflows/design-lint.yml'

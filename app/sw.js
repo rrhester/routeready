@@ -227,7 +227,13 @@
 // v175 · Dispatch radio hidden (operator request): the chat-tab radio button
 // is gone and _drvOpenRadio is a no-op behind RR_RADIO_ENABLED=false until
 // the radio is ready. Bumped so installed driver PWAs pick up the new app.js.
-const SHELL_CACHE = "rr-app-shell-v175";
+// v176 · Accessibility pass: chat message logs become role="log" aria-live
+// regions with labeled composers; task cards + coaching rows are keyboard-
+// operable (role=button + Enter/Space via one delegated handler); login and
+// PIN error blocks announce as role="alert"; form-fill required controls get
+// aria-required and the signature canvas gets role="img" + a label. No visual
+// change. Bumped so installed driver PWAs pick up the new app.js.
+const SHELL_CACHE = "rr-app-shell-v176";
 const SHELL_FILES = [
   "./",
   "index.html",
