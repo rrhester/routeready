@@ -183,7 +183,12 @@
 // badges drop the one-off .to-pill family for the shared .status-pill, so a
 // Pending / Approved / Denied reads identically to the same status elsewhere.
 // Bumped so installed driver PWAs pick up the new app.js + CSS.
-const SHELL_CACHE = "rr-app-shell-v167";
+// v168 · Driver calls get a TURN relay: the embedded Meet (radio + 1:1 calls)
+// now passes the driver's session token (?dtok) so it can mint Cloudflare TURN
+// via the new meet-turn-driver function. Without a relay a driver on cellular
+// couldn't connect (black tiles, "can't join the radio"). Bumped so installed
+// driver PWAs pick up the new app.js.
+const SHELL_CACHE = "rr-app-shell-v168";
 const SHELL_FILES = [
   "./",
   "index.html",
