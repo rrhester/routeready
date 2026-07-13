@@ -162,7 +162,10 @@
 // "Check in for shift" (was "Check in"), matching the reviewed redesign so a
 // driver knows exactly what tapping it commits to. Bumped so installed driver
 // PWAs pick up the new app.js.
-const SHELL_CACHE = "rr-app-shell-v162";
+// v163 · Radio hails dispatch: opening the push-to-talk radio now alerts
+// every open dashboard (banner + ring + one-click Join) and Web-Pushes a
+// closed one. Bumped so installed driver PWAs pick up the new app.js.
+const SHELL_CACHE = "rr-app-shell-v163";
 const SHELL_FILES = [
   "./",
   "index.html",

@@ -7143,6 +7143,23 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 @keyframes rrPulse{ 0%,100%{opacity:1} 50%{opacity:.35} }
 
+/* ── Radio hail (a driver is on the dispatch radio) ─────────────────────── */
+#rr-radio-hail{
+  position:fixed; top:14px; left:50%; transform:translateX(-50%); z-index:9999;
+  display:flex; align-items:center; gap:12px;
+  background:var(--red); color:var(--rr-white);
+  padding:10px 12px 10px 16px; border-radius:var(--r-pill,999px);
+  box-shadow:0 10px 30px rgba(0,0,0,.35); font-size:var(--fs-sm); font-weight:600;
+  max-width:calc(100vw - 24px);
+}
+#rr-radio-hail .rr-rh-dot{ width:10px; height:10px; border-radius:50%; flex:0 0 auto;
+  background:var(--rr-white); animation:rrPulse 1s ease-in-out infinite; }
+#rr-radio-hail .rr-rh-text{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#rr-radio-hail .rr-rh-join{ flex:0 0 auto; border:0; cursor:pointer; font-weight:700; font-size:var(--fs-xs);
+  background:var(--rr-white); color:var(--red); padding:6px 12px; border-radius:var(--r-pill,999px); }
+#rr-radio-hail .rr-rh-x{ flex:0 0 auto; border:0; background:none; color:var(--rr-white); cursor:pointer;
+  font-size:var(--fs-lg); line-height:1; opacity:.85; padding:2px 4px; }
+
 /* ── Voice-note player (dispatcher) ─────────────────────────────────────── */
 .rr-vn{ display:flex;align-items:center;gap:9px;max-width:300px;margin-bottom:6px;
   background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:6px 11px 6px 7px }

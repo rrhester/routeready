@@ -36,8 +36,11 @@ Deno.serve(async (req) => {
   const dspId = parsed?.dsp_id as string | undefined;
   const call  = parsed?.call as
     { callId?: string; caller_name?: string; media?: string } | undefined;
+  // A driver hailing the push-to-talk radio (no ring/answer handshake — just
+  // "someone needs you on the radio").
+  const radio = parsed?.radio as { caller_name?: string } | undefined;
   if (!dspId) return badRequest("dsp_id_required");
-  if (!call)  return badRequest("call_required");
+  if (!call && !radio) return badRequest("call_or_radio_required");
 
   const supa = serviceClient();
   const { data: subs, error: subsErr } = await supa
@@ -47,19 +50,29 @@ Deno.serve(async (req) => {
   if (subsErr) return badRequest(subsErr.message, 500);
   if (!subs || subs.length === 0) return jsonResponse({ sent: 0, total: 0 });
 
-  const media = call.media === "audio" ? "audio" : "video";
-  const qp = new URLSearchParams({
-    rrcall: "1",
-    callid: call.callId || "",
-    from:   call.caller_name || "Driver",
-    media,
-  });
-  const payload = JSON.stringify({
-    title: `Incoming ${media === "audio" ? "voice" : "video"} call`,
-    body:  `${call.caller_name || "A driver"} is calling`,
-    url:   "/dashboard/?" + qp.toString(),
-    type:  "call",
-  });
+  let payload: string;
+  if (radio) {
+    payload = JSON.stringify({
+      title: "📻 Driver on the radio",
+      body:  `${radio.caller_name || "A driver"} needs you on the radio`,
+      url:   "/dashboard/?rrradio=1",
+      type:  "radio",
+    });
+  } else {
+    const media = call!.media === "audio" ? "audio" : "video";
+    const qp = new URLSearchParams({
+      rrcall: "1",
+      callid: call!.callId || "",
+      from:   call!.caller_name || "Driver",
+      media,
+    });
+    payload = JSON.stringify({
+      title: `Incoming ${media === "audio" ? "voice" : "video"} call`,
+      body:  `${call!.caller_name || "A driver"} is calling`,
+      url:   "/dashboard/?" + qp.toString(),
+      type:  "call",
+    });
+  }
 
   let sent = 0, failed = 0, removed = 0;
   for (const sub of subs) {

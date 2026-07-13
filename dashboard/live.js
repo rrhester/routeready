@@ -42469,6 +42469,9 @@ function _presenceWire() {
     .on("broadcast", { event: "call-accept" },  ({ payload }) => _rrCallOnAccept(payload))
     .on("broadcast", { event: "call-decline" }, ({ payload }) => _rrCallOnDecline(payload))
     .on("broadcast", { event: "call-cancel" },  ({ payload }) => _rrCallOnCancel(payload))
+    // A driver opened the dispatch radio — alert any open dashboard (loud
+    // banner + sound + one-click Join), on whatever screen it's on.
+    .on("broadcast", { event: "radio-hail" },   ({ payload }) => _rrRadioHail(payload))
     .subscribe(async (status) => {
       if (status === "SUBSCRIBED") {
         await channel.track({
@@ -42863,6 +42866,39 @@ async function _rrOpenRadio() {
     if (w) w.location.href = url; else window.open(url, "_blank");
   } catch { if (w) w.close(); toast("Couldn't open the radio."); }
 }
+
+// A driver hailed the radio: show a loud, unmissable banner with a one-click
+// Join, on whatever dashboard screen the operator is on. Reuses the ring
+// engine for an audible alert. Auto-dismisses after 20s.
+const _rrRadioHailState = { ring: null, timer: null };
+function _rrRadioHailClear() {
+  try { _rrRadioHailState.ring && _rrRadioHailState.ring.stop(); } catch {}
+  _rrRadioHailState.ring = null;
+  clearTimeout(_rrRadioHailState.timer);
+  document.getElementById("rr-radio-hail")?.remove();
+}
+function _rrRadioHail(p) {
+  const name = (p && p.from && (p.from.name || p.from.full_name)) || "A driver";
+  let el = document.getElementById("rr-radio-hail");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "rr-radio-hail";
+    el.innerHTML = `
+      <span class="rr-rh-dot" aria-hidden="true"></span>
+      <span class="rr-rh-text"></span>
+      <button type="button" class="rr-rh-join" data-rr-radio>Join radio</button>
+      <button type="button" class="rr-rh-x" aria-label="Dismiss">×</button>`;
+    document.body.appendChild(el);
+    el.querySelector(".rr-rh-x").addEventListener("click", _rrRadioHailClear);
+    el.querySelector(".rr-rh-join").addEventListener("click", () => setTimeout(_rrRadioHailClear, 60));
+    try { _rrRadioHailState.ring = _rrRingEngine(520); } catch {}
+  }
+  const t = el.querySelector(".rr-rh-text");
+  if (t) t.innerHTML = `<strong>${escapeHtml(name)}</strong> is on the radio`;
+  clearTimeout(_rrRadioHailState.timer);
+  _rrRadioHailState.timer = setTimeout(_rrRadioHailClear, 20000);
+}
+window.rrRadioHail = _rrRadioHail; // so a push-wake can surface it too
 
 // Exposed so a push/service-worker wake (or the driver-app bridge) can inject
 // an incoming-call ring without going through the realtime broadcast.
