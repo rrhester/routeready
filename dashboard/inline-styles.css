@@ -6642,19 +6642,26 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   align-self:flex-end;margin:2px 2px 8px;font-size:var(--fs-9,10.5px);font-weight:600;
   letter-spacing:.02em;color:var(--text-subtle);text-align:right;
 }
-/* Save-for-later bookmark toggle (DM + channel bubbles). */
+/* Save-for-later bookmark toggle (DM + channel bubbles).  Floats as a chip
+   just ABOVE the bubble's top edge — never over the message text — and lifts
+   in on hover so it reads clearly as a button.  Left corner keeps it clear of
+   the top-right edit/delete cluster on the operator's own recent bubbles.
+   A saved message keeps the chip visible (amber) so it's obvious at a glance. */
 .rr-msg-bookmark{
-  position:absolute;top:4px;right:5px;display:inline-flex;align-items:center;justify-content:center;
-  width:24px;height:24px;background:transparent;border:0;border-radius:var(--r-2xl,8px);
-  color:var(--text-subtle);cursor:pointer;opacity:0;
-  transition:opacity var(--t-fast),color var(--t-fast),background var(--t-fast);
+  position:absolute;top:-12px;left:8px;right:auto;
+  display:inline-flex;align-items:center;justify-content:center;
+  width:26px;height:26px;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-pill);
+  box-shadow:var(--shadow-xs);
+  color:var(--text-muted);cursor:pointer;
+  opacity:0;transform:translateY(3px);
+  transition:opacity var(--t-fast),transform var(--t-fast),color var(--t-fast),border-color var(--t-fast);
+  z-index:3;
 }
 .rr-cc-bubble,.rr-mc-bubble{position:relative}
-.rr-cc-bubble:hover .rr-msg-bookmark,.rr-mc-bubble:hover .rr-msg-bookmark{opacity:.6}
-.rr-msg-bookmark:hover{opacity:1;color:var(--accent-text,var(--accent));background:var(--surface)}
-.rr-msg-bookmark.saved{opacity:1;color:var(--amber)}
-.rr-cc-bubble.dispatch .rr-msg-bookmark{color:rgba(255,255,255,.7)}
-.rr-cc-bubble.dispatch .rr-msg-bookmark.saved{color:var(--amber)}
+.rr-cc-bubble:hover .rr-msg-bookmark,.rr-mc-bubble:hover .rr-msg-bookmark{opacity:.92;transform:translateY(0)}
+.rr-msg-bookmark:hover{opacity:1;color:var(--accent-text,var(--accent));border-color:var(--accent)}
+.rr-msg-bookmark.saved{opacity:1;color:var(--amber);border-color:var(--amber)}
 /* Per-operator channel mute — header toggle + list-row marker. */
 .rr-cc-mute-btn.muted{color:var(--amber);border-color:var(--amber)}
 .rr-cc-muted-chip{display:inline-flex;align-items:center;margin-left:5px;color:var(--text-subtle);vertical-align:-1px}
