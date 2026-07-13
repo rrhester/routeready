@@ -55,7 +55,9 @@ Deno.serve(async (req) => {
     payload = JSON.stringify({
       title: "📻 Driver on the radio",
       body:  `${radio.caller_name || "A driver"} needs you on the radio`,
-      url:   "/dashboard/?rrradio=1",
+      // from rides along so the dashboard's boot-time ?rrradio consumer can
+      // name the caller in the Join banner it surfaces.
+      url:   "/dashboard/?rrradio=1&from=" + encodeURIComponent(radio.caller_name || ""),
       type:  "radio",
     });
   } else {

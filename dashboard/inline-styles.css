@@ -7151,12 +7151,20 @@ body.rr-cmdk-open{ overflow:hidden }
   padding:10px 12px 10px 16px; border-radius:var(--r-pill,999px);
   box-shadow:0 10px 30px rgba(0,0,0,.35); font-size:var(--fs-sm); font-weight:600;
   max-width:calc(100vw - 24px);
-  /* The desktop app paints a draggable title-bar strip across the top ~37px
+  /* The desktop app paints a draggable title-bar strip across the top ~40px
      (body::before, -webkit-app-region:drag). This banner lands inside it, so
      without an explicit no-drag its button clicks are swallowed as a window
      drag ("can't hit Join radio"). Carve the whole banner out of the drag
      region so its buttons are clickable in the desktop app. */
   -webkit-app-region:no-drag; app-region:no-drag;
+}
+/* Desktop app (WCO): don't rely on the no-drag carve-out alone — the strip's
+   top-right corner is OS-owned (min/max/close overlay) and drag-region
+   subtraction has platform quirks. Drop the banner fully BELOW the title-bar
+   band so its buttons sit in plain page territory. Browsers ignore this
+   block (display-mode never matches) and keep top:14px. */
+@media (display-mode: window-controls-overlay){
+  #rr-radio-hail{ top:calc(env(titlebar-area-height, 40px) + 10px); }
 }
 #rr-radio-hail .rr-rh-dot{ width:10px; height:10px; border-radius:50%; flex:0 0 auto;
   background:var(--rr-white); animation:rrPulse 1s ease-in-out infinite; }
@@ -7193,6 +7201,18 @@ body.rr-cmdk-open{ overflow:hidden }
   font-size:var(--fs-lg); line-height:1; opacity:.9; padding:2px 6px; }
 #rr-radio-overlay .rr-ro-x:hover{ opacity:1; }
 #rr-radio-overlay .rr-ro-frame{ flex:1 1 auto; width:100%; border:0; display:block; }
+/* author display:block would otherwise beat [hidden] (same trap as #wait-banner) */
+#rr-radio-overlay .rr-ro-frame[hidden]{ display:none; }
+#rr-radio-overlay .rr-ro-status{ flex:1 1 auto; display:flex; align-items:center; justify-content:center;
+  font-size:var(--fs-sm); font-weight:600; opacity:.65; }
+/* Join clicked while the radio is already open: pulse the panel so the
+   click visibly lands somewhere instead of appearing dead. */
+#rr-radio-overlay.rr-ro-flash .rr-ro-card{ animation:rrRoFlash .7s ease-out; }
+@keyframes rrRoFlash{
+  0%{ box-shadow:0 0 0 4px var(--red), 0 24px 60px rgba(0,0,0,.45); }
+  100%{ box-shadow:0 24px 60px rgba(0,0,0,.45); }
+}
+@media (prefers-reduced-motion:reduce){ #rr-radio-overlay.rr-ro-flash .rr-ro-card{ animation:none; } }
 @media (max-width:640px){
   #rr-radio-overlay{ align-items:center; justify-content:center; }
   #rr-radio-overlay .rr-ro-card{ width:100%; height:calc(100vh - 32px); }

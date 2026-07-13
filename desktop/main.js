@@ -327,9 +327,28 @@ function hardenNavigation(wc) {
     try { return !!allowedOrigin && new URL(url).origin === allowedOrigin; } catch { return false; }
   };
   wc.setWindowOpenHandler(({ url }) => {
+    // Same-origin dashboard pages (Meet call windows, print views) open as
+    // real in-app child windows. Denying them made every window.open a
+    // silent no-op in the desktop app — placing/answering a call bounced to
+    // the system browser (where the operator may not be signed in) or went
+    // nowhere. Same trust domain as the main window; child navigation is
+    // hardened below via did-create-window.
+    if (/^https?:/i.test(url) && allowed(url)) {
+      return {
+        action: "allow",
+        overrideBrowserWindowOptions: {
+          autoHideMenuBar: true,
+          backgroundColor: "#071E2F",
+          icon: path.join(__dirname, "build", "icon.png"),
+        },
+      };
+    }
     try { if (/^https?:/i.test(url)) shell.openExternal(url); } catch {}
     return { action: "deny" };
   });
+  // Child windows opened above run dashboard-origin content with the same
+  // bridge present — lock their navigation exactly like the main window's.
+  wc.on("did-create-window", (child) => hardenNavigation(child.webContents));
   wc.on("will-navigate", (e, url) => {
     if (allowed(url)) return;
     e.preventDefault();
