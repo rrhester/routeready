@@ -785,6 +785,19 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     bindOnce();
     initRealtime();
     setTimeout(outboxFlush, 400); // replay edits queued while offline / in a closed tab
+    // RouteReady Meet hand-off — if notes are waiting in the inbox, import them
+    // into the "Meeting Notes" notebook and open the page. Guarded so a second
+    // loadView() during the async import doesn't double-create.
+    if (!S.meetImporting && readMeetInbox().length) {
+      S.meetImporting = true;
+      return importMeetInbox().then(function (dest) {
+        S.meetImporting = false;
+        return S.be.listNotebooks().then(function (list) {
+          S.notebooks = list || []; renderNotebookMenu(); S.activeSection = null;
+          if (dest && dest.nbId) return selectNotebook(dest.nbId, dest.pageId);
+        });
+      }).catch(function (e) { S.meetImporting = false; return onLoadError(e); });
+    }
     // Object-notebook navigation (RRNotebooks.openFor) — consumed here,
     // synchronously, so it wins over any concurrent default load.
     var po = S.pendingObject; S.pendingObject = null;
@@ -3140,6 +3153,66 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     }).catch(fail);
   }
   function stripHtml(html) { var d = document.createElement("div"); d.innerHTML = html || ""; return d.innerText || ""; }
+
+  // ── RouteReady Meet hand-off ─────────────────────────────────────────────
+  // meet.js drops meeting notes into an "inbox" in localStorage, then opens
+  // the dashboard at #notebooks. We import them into a "Meeting Notes"
+  // notebook — one page per meeting, updated in place — and open the page, so
+  // the host lands on their filed notes. Backend-agnostic (Supabase / local).
+  var MEET_INBOX_KEY = "rr-notebook-inbox";
+  var MEET_PAGEMAP_KEY = "rr-notebook-meet-pages";
+  var MEET_NB_NAME = "Meeting Notes";
+  function readMeetInbox() { try { return JSON.parse(localStorage.getItem(MEET_INBOX_KEY) || "[]"); } catch (e) { return []; } }
+  function clearMeetInbox() { try { localStorage.removeItem(MEET_INBOX_KEY); } catch (e) {} }
+  function meetPageMap() { try { return JSON.parse(localStorage.getItem(MEET_PAGEMAP_KEY) || "{}"); } catch (e) { return {}; } }
+  function saveMeetPageMap(m) { try { localStorage.setItem(MEET_PAGEMAP_KEY, JSON.stringify(m)); } catch (e) {} }
+  function meetTextToHtml(t) {
+    return String(t || "").split(/\r?\n/).map(function (ln) {
+      return ln.trim() ? "<p>" + esc(ln) + "</p>" : "<p><br></p>";
+    }).join("") || "<p><br></p>";
+  }
+  function importMeetInbox() {
+    var items = readMeetInbox();
+    if (!items.length) return Promise.resolve(null);
+    return S.be.listNotebooks().then(function (list) {
+      var found = (list || []).filter(function (n) { return n.name === MEET_NB_NAME && !n.subject_type; })[0];
+      var getNb = found
+        ? Promise.resolve({ row: found, fresh: false })
+        : S.be.createNotebook(MEET_NB_NAME, "#2563eb").then(function (n) { return { row: n, fresh: true }; });
+      return getNb.then(function (res) {
+        var nbId = res.row.id;
+        return S.be.tree(nbId).then(function (tree) {
+          var sec0 = ((tree && tree.sections) || [])[0];
+          var getSec;
+          if (sec0 && res.fresh) getSec = S.be.rename("section", sec0.id, "Meetings").then(function () { return sec0; }, function () { return sec0; });
+          else if (sec0) getSec = Promise.resolve(sec0);
+          else getSec = S.be.createSection(nbId, "Meetings", null, "#2563eb");
+          return getSec.then(function (secrow) {
+            var secId = secrow.id;
+            var map = meetPageMap();
+            var lastPageId = null;
+            var chain = Promise.resolve();
+            items.forEach(function (it) {
+              chain = chain.then(function () {
+                var patch = { title: it.title, content_html: meetTextToHtml(it.text), content_text: String(it.text || ""), tags: [] };
+                var create = function () {
+                  return S.be.createPage(secId, it.title, null, 0).then(function (p) {
+                    map[it.code] = p.id; lastPageId = p.id;
+                    return S.be.savePage(p.id, patch, null);
+                  });
+                };
+                if (map[it.code]) {
+                  return S.be.savePage(map[it.code], patch, null).then(function () { lastPageId = map[it.code]; }, create);
+                }
+                return create();
+              });
+            });
+            return chain.then(function () { saveMeetPageMap(map); clearMeetInbox(); return { nbId: nbId, pageId: lastPageId }; });
+          });
+        });
+      });
+    });
+  }
 
   // ── Quick Notes: capture into a "Quick Notes" section of the current notebook ──
   function quickNote() {

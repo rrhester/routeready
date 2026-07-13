@@ -1794,11 +1794,31 @@ function toggleNotes(open) {
   if (want) { loadNotes(); $("notes-text").focus(); }
 }
 
-// Copy the notes and open the operator's Notebook (dashboard SPA, #notebooks
-// deep-link) so a host can paste them in to keep them permanently.
-async function notesToNotebook() {
-  try { await navigator.clipboard.writeText($("notes-text").value); toast("Notes copied — paste into your Notebook"); }
-  catch { /* clipboard blocked — still open the notebook */ }
+// File the notes into the operator's Notebook and open it there. We hand the
+// notes off through a localStorage "inbox" (same origin as the dashboard); the
+// Notebook picks it up on load and writes a real page — one per meeting,
+// updated in place — then opens it. Works whether the Notebook is backed by
+// Supabase (signed in) or its local store.
+function notesPageTitle() {
+  const t = (state.meeting && state.meeting.title) || "RouteReady meeting";
+  const d = new Date();
+  const stamp = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  return t + " · " + stamp;
+}
+function notesToNotebook() {
+  const text = $("notes-text").value;
+  try {
+    const KEY = "rr-notebook-inbox";
+    let q = [];
+    try { q = JSON.parse(localStorage.getItem(KEY) || "[]"); } catch { q = []; }
+    q = q.filter((e) => e && e.code !== (state.code || "_")); // one entry per meeting
+    q.push({ code: state.code || "_", title: notesPageTitle(), text, ts: Date.now() });
+    localStorage.setItem(KEY, JSON.stringify(q));
+    toast("Saved to your Notebook");
+  } catch {
+    // Private mode: can't stage the hand-off — fall back to a clipboard copy.
+    try { navigator.clipboard.writeText(text); toast("Notes copied — paste into your Notebook"); } catch { /* ignore */ }
+  }
   openNotebook();
 }
 function openNotebook() {
