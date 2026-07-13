@@ -1741,9 +1741,9 @@ function renderShell(session) {
       </button>
     </nav>`;
   const activeTabs = `<nav class="tabbar" role="tablist">
-      <button class="tab" data-route="/profile" data-c="profile" role="tab" aria-label="Profile">
-        <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
-        Profile
+      <button class="tab" data-route="/profile" data-c="profile" role="tab" aria-label="Home">
+        <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5"/></svg></span>
+        Home
       </button>
       <button class="tab" data-route="/schedule" data-c="schedule" role="tab" aria-label="Schedule">
         <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
@@ -7510,16 +7510,20 @@ function renderProfileHub() {
         <div class="home-hero-brand">${brandMark}<span>${escapeHtml(dsp)}</span></div>
         <button class="home-hero-gear" id="rr-home-settings" type="button" aria-label="Settings">${gearSvg}</button>
       </div>
-      <button class="profile-avatar-btn" id="rr-photo-btn" type="button" aria-label="Change photo">
-        ${avatarHtml(session, "profile-avatar")}
-        <span class="profile-avatar-edit" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-        </span>
-      </button>
-      <input type="file" id="rr-photo-input" accept="image/*" capture="user" style="display:none"/>
-      <div class="home-hero-greeting">${escapeHtml(greeting)}</div>
-      <div class="home-hero-name">${escapeHtml(name)}</div>
-      <div class="home-hero-meta" id="rr-home-meta">Driver</div>
+      <div class="home-hero-id">
+        <button class="profile-avatar-btn" id="rr-photo-btn" type="button" aria-label="Change photo">
+          ${avatarHtml(session, "profile-avatar")}
+          <span class="profile-avatar-edit" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          </span>
+        </button>
+        <input type="file" id="rr-photo-input" accept="image/*" capture="user" style="display:none"/>
+        <div class="home-hero-idtext">
+          <div class="home-hero-greeting">${escapeHtml(greeting)}</div>
+          <div class="home-hero-name">${escapeHtml(name)}</div>
+          <div class="home-hero-meta" id="rr-home-meta">Driver</div>
+        </div>
+      </div>
       <div class="home-hero-foot">
         <div class="home-hero-today" aria-label="Today">${escapeHtml(todayLabel)}</div>
         <div class="home-hero-status" id="rr-home-status" hidden>

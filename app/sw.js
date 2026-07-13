@@ -147,7 +147,21 @@
 // banner + record card with four stat tiles + ladder card), and the swap-
 // request dialog's icon-only close button gains an aria-label/title. Bumped
 // so installed driver PWAs pick up the new app.js.
-const SHELL_CACHE = "rr-app-shell-v160";
+// v160 · Navigation clarity: the bottom-tab that opens the daily hub is
+// renamed "Profile" -> "Home" with a house icon (it is the command center —
+// check-in, today's shift, pre-shift tasks — not a profile page). Route
+// (/profile) and badges are unchanged. First step of the reviewed redesign.
+// Bumped so installed driver PWAs pick up the new app.js.
+// v161 · Home command band: the tall, centered, avatar-first hero is
+// replaced by a slim left-aligned operational band (DSP + gear row · avatar
+// beside greeting/name/role · today + on-duty chips), so the check-in card
+// and pre-shift tasks lead the fold. Same elements and #rr-home-meta /
+// #rr-home-status hooks; the -48px content overlap becomes a clean seam.
+// Bumped so installed driver PWAs pick up the new app.js + CSS.
+// v162 · Radio hails dispatch: opening the push-to-talk radio now alerts
+// every open dashboard (banner + ring + one-click Join) and Web-Pushes a
+// closed one. Bumped so installed driver PWAs pick up the new app.js.
+const SHELL_CACHE = "rr-app-shell-v162";
 const SHELL_FILES = [
   "./",
   "index.html",
