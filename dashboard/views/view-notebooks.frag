@@ -275,6 +275,24 @@
 .rrnb-editor a:hover{border-bottom-color:var(--accent)}
 .rrnb-editor a.rrnb-pagelink,.rrnb-editor a.rrnb-objlink{background:var(--accent-soft);
   border-radius:var(--r-sm);padding:0 4px;border-bottom:0;font-weight:500}
+/* an auto-detected reference not yet tied to a real record: muted, dashed —
+   reads as "suggested link", click to resolve. Never navigates to a fake id. */
+.rrnb-editor a.rrnb-objlink.rrnb-objlink-unresolved{background:transparent;color:var(--text-muted);
+  border-bottom:1px dashed var(--border-strong,var(--text-disabled));border-radius:0;padding:0}
+.rrnb-editor a.rrnb-objlink.rrnb-objlink-unresolved:hover{color:var(--accent);border-bottom-color:var(--accent)}
+/* object-link resolver popover */
+.rrnb-pop.rrnb-objresolve{width:280px;padding:var(--s-2)}
+.rrnb-objresolve .rrnb-oh{font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);padding:var(--s-1) var(--s-1) var(--s-2)}
+.rrnb-objresolve .rrnb-orow{display:flex;align-items:center;gap:var(--s-2);width:100%;text-align:left;
+  padding:var(--s-2);border:0;background:transparent;border-radius:var(--r-md);cursor:pointer;margin:0}
+.rrnb-objresolve .rrnb-orow:hover{background:var(--accent-soft)}
+.rrnb-objresolve .rrnb-oic{width:26px;height:26px;border-radius:6px;flex:0 0 auto;display:flex;align-items:center;
+  justify-content:center;color:#fff;font-size:11px;font-weight:700}
+.rrnb-objresolve .rrnb-oic.mut{background:var(--surface-secondary,var(--surface-hover));color:var(--text-subtle)}
+.rrnb-objresolve .rrnb-otx{display:flex;flex-direction:column;min-width:0;font-size:var(--fs-sm);color:var(--text)}
+.rrnb-objresolve .rrnb-otx .mut{font-size:var(--fs-xs);color:var(--text-subtle);text-transform:capitalize}
+.rrnb-objresolve .rrnb-oempty{font-size:var(--fs-sm);color:var(--text-subtle);padding:var(--s-2)}
+.rrnb-objresolve .rrnb-osep{height:1px;background:var(--border);margin:var(--s-1) 0}
 .rrnb-editor blockquote{margin:var(--s-2) 0;padding:var(--s-1) var(--s-4);border-left:3px solid var(--accent);
   color:var(--text-muted);background:var(--accent-soft);border-radius:0 var(--r-md) var(--r-md) 0}
 .rrnb-editor pre{background:var(--surface-secondary);border:1px solid var(--border);border-radius:var(--r-md);
@@ -1506,16 +1524,22 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     var ol = e.target.closest("a.rrnb-objlink");
     if (ol) {
       e.preventDefault(); e.stopPropagation();
-      var ot = ol.getAttribute("data-obj-type"), oi = ol.getAttribute("data-obj-id");
-      var onm = ol.getAttribute("data-obj-name") || ol.textContent || "record";
-      if (!oi) { notify("“" + onm + "” isn’t linked to a record yet."); return; }
-      notify("Opening " + onm + "’s notebook…");
-      openObjectRef(ot, oi, onm);
+      var oi = ol.getAttribute("data-obj-id");
+      if (ol.getAttribute("data-obj-unresolved") || !oi) { openObjResolver(ol); return; }  // never navigate to a fabricated id
+      openObjectRef(ol.getAttribute("data-obj-type"), oi, ol.getAttribute("data-obj-name") || ol.textContent || "record");
     }
   }
+  // Deep-link a linked record to its ACTUAL record view (driver / vehicle /
+  // applicant drawer) rather than the per-entity notebook. Entity types with no
+  // dedicated drawer (route / station / shift / incident) fall back to opening
+  // their object notebook, which is still the right home for their notes.
   function openObjectRef(type, id, name) {
-    try { if (window.RRNotebooks && window.RRNotebooks.openFor) window.RRNotebooks.openFor(type, id, name || null); }
-    catch (e) { notify("Couldn’t open that notebook: " + ((e && e.message) || e)); }
+    try {
+      if (type === "driver" && typeof window.openDriverDrawer === "function") { window.openDriverDrawer(id); return; }
+      if (type === "vehicle" && typeof window.openFleetDrawer === "function") { window.openFleetDrawer(id); return; }
+      if (type === "applicant" && typeof window.openApplicant === "function") { window.openApplicant(id); return; }
+      if (window.RRNotebooks && window.RRNotebooks.openFor) window.RRNotebooks.openFor(type, id, name || null);
+    } catch (e) { notify("Couldn’t open that record: " + ((e && e.message) || e)); }
   }
 
   // ══════════════════════════════════════════════════════════════════
@@ -2839,9 +2863,68 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     a.setAttribute("data-obj-name", word);
     var known = byName[word.toLowerCase()];
     if (known) { a.setAttribute("data-obj-type", known.type); a.setAttribute("data-obj-id", known.id); }
-    else if (/^route/i.test(word)) { a.setAttribute("data-obj-type", "route"); a.setAttribute("data-obj-id", word.replace(/\D+/g, "")); }
-    else { a.setAttribute("data-obj-type", "vehicle"); a.setAttribute("data-obj-id", word.replace(/\D+/g, "")); }
+    else {
+      // A pattern match ("Van 27", "Route 341") that isn't a real roster/fleet
+      // record. NEVER fabricate a digit-only id that points at nothing — mark it
+      // unresolved so a click opens the resolver to pick the real record.
+      a.className += " rrnb-objlink-unresolved";
+      a.setAttribute("data-obj-unresolved", "1");
+      a.title = "Not linked yet — click to connect this to a record";
+    }
     a.textContent = word; return a;
+  }
+  // Resolve an unresolved object chip to a real record. Offers roster/fleet
+  // candidates matching the chip text (a plain digit token also matches a
+  // vehicle by number), plus "Keep as text" to unlink. On pick, the chip gets
+  // the real type + id and autosaves; the context rail refreshes.
+  function openObjResolver(el) {
+    if (!el) return;
+    var word = el.getAttribute("data-obj-name") || el.textContent || "";
+    var digits = word.replace(/\D+/g, "");
+    ensureEntIndex(function (index) {
+      index = index || [];
+      var wl = word.toLowerCase();
+      var hits = index.filter(function (e2) {
+        var n = e2.name.toLowerCase();
+        return n.indexOf(wl) >= 0 || wl.indexOf(n) >= 0 || (digits && (e2.type === "vehicle") && e2.name.replace(/\D+/g, "") === digits);
+      }).slice(0, 8);
+      var html = '<div class="rrnb-oh">Link “' + esc(word) + '” to a record</div>';
+      if (hits.length) {
+        html += hits.map(function (h) {
+          return '<button type="button" class="rrnb-orow" data-resolve-type="' + esc(h.type) + '" data-resolve-id="' + esc(h.id) + '" data-resolve-name="' + esc(h.name) + '">' +
+            '<span class="rrnb-oic" style="background:' + (CTX_COLORS[h.type] || "var(--accent)") + '">' + esc(recInitials(h.name)) + '</span>' +
+            '<span class="rrnb-otx"><b>' + esc(h.name) + '</b><span class="mut">' + esc(h.type) + '</span></span></button>';
+        }).join("");
+      } else {
+        html += '<div class="rrnb-oempty">No matching driver or vehicle found.</div>';
+      }
+      html += '<div class="rrnb-osep"></div><button type="button" class="rrnb-orow" data-resolve-unlink="1"><span class="rrnb-oic mut">×</span><span class="rrnb-otx">Keep as plain text</span></button>';
+      var pop = showPop(html, el.getBoundingClientRect());
+      pop.classList.add("rrnb-objresolve");
+      S._resolveEl = el;
+      bindResolveOnce(pop);
+    });
+  }
+  function bindResolveOnce(pop) {
+    if (pop._resolveBound) return; pop._resolveBound = true;
+    pop.addEventListener("click", function (e) {
+      var el = S._resolveEl; if (!el) return;
+      if (e.target.closest("[data-resolve-unlink]")) {
+        var tn = document.createTextNode(el.textContent || ""); if (el.parentNode) el.parentNode.replaceChild(tn, el);
+        pop.classList.remove("rrnb-objresolve"); hidePop(); scheduleSave(); return;
+      }
+      var row = e.target.closest("[data-resolve-type]");
+      if (row) {
+        el.setAttribute("data-obj-type", row.getAttribute("data-resolve-type"));
+        el.setAttribute("data-obj-id", row.getAttribute("data-resolve-id"));
+        el.setAttribute("data-obj-name", row.getAttribute("data-resolve-name"));
+        el.removeAttribute("data-obj-unresolved");
+        el.classList.remove("rrnb-objlink-unresolved");
+        el.title = "";
+        pop.classList.remove("rrnb-objresolve"); hidePop(); scheduleSave();
+        if (S.page) renderContextRail(S.page, true);
+      }
+    });
   }
   // The linkifier. caretAware=true (auto-as-you-type): only link matches that
   // END at or before the caret, then restore the caret — so what you just

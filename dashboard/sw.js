@@ -210,7 +210,8 @@
 //   2026-07-13.18 · Notebook contextual right rail — a 4th pane surfacing linked RouteReady records, page outline, backlinks and properties for the open note (collapsible; off-canvas drawer ≤1280px). Additive; no editor/autosave/realtime change. view-notebooks.frag.
 //   2026-07-13.19 · Notebook perf — autosave now patches only the edited page's list row instead of rebuilding the whole page-list DOM on every keystroke-batch (patchPageRow); falls back to a full render only when the row isn't mounted. Removes the per-save O(n) re-render. view-notebooks.frag.
 //   2026-07-13.20 · Notebook comments — threaded page comments with @mentions in the context rail (post / reply / resolve / delete), backed by new migration 0479_notebook_comments (RLS via private.notebook_role). view-notebooks.frag + supabase/migrations/0479.
-const SW_DEPLOY_NONCE = "2026-07-13.20";
+//   2026-07-13.21 · Notebook two-way record links — object-link chips now deep-link to the ACTUAL driver/vehicle record drawer (window.openDriverDrawer/openFleetDrawer, newly exposed) instead of the per-entity notebook; unmatched "Van 27"/"Route 341" no longer get fabricated digit-ids — they render as unresolved chips whose click opens a resolver to pick the real record. live.js + view-notebooks.frag.
+const SW_DEPLOY_NONCE = "2026-07-13.21";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without
