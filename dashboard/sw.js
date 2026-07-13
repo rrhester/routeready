@@ -211,7 +211,8 @@
 //   2026-07-13.19 · Notebook perf — autosave now patches only the edited page's list row instead of rebuilding the whole page-list DOM on every keystroke-batch (patchPageRow); falls back to a full render only when the row isn't mounted. Removes the per-save O(n) re-render. view-notebooks.frag.
 //   2026-07-13.20 · Notebook comments — threaded page comments with @mentions in the context rail (post / reply / resolve / delete), backed by new migration 0479_notebook_comments (RLS via private.notebook_role). view-notebooks.frag + supabase/migrations/0479.
 //   2026-07-13.21 · Notebook two-way record links — object-link chips now deep-link to the ACTUAL driver/vehicle record drawer (window.openDriverDrawer/openFleetDrawer, newly exposed) instead of the per-entity notebook; unmatched "Van 27"/"Route 341" no longer get fabricated digit-ids — they render as unresolved chips whose click opens a resolver to pick the real record. live.js + view-notebooks.frag.
-const SW_DEPLOY_NONCE = "2026-07-13.21";
+//   2026-07-13.22 · Messages page — Slack-parity upgrade for group channels + saved/scheduled comms. (1) Channel reactions: full emoji palette on HR/Rooms messages (was DM-only 👍), two-way with drivers, live. (2) @mentions in channels: composer autocomplete + highlighted mentions, delivered to the driver app. (3) Seen-by: "Seen by N of M" under the latest dispatch broadcast, from member read-state. (4) Per-operator channel mute (header toggle + list marker). (5) Saved messages: bookmark any DM/channel message → a Saved panel. (6) Scheduled send: compose now, deliver later (driver DM or channel) with a Scheduled panel + cancel; pg_cron flush + staff-callable fallback. Migrations 0480–0484. live.js + inline-styles.css + view-messages.frag + app/app.js + app/styles.css.
+const SW_DEPLOY_NONCE = "2026-07-13.22";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without

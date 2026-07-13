@@ -7331,13 +7331,46 @@ function _chatChannelRealtimeWire(channelId) {
     .subscribe();
 }
 
+// Channel enrichment maps (reactions / @mentions), rebuilt each refresh.
+let _ccReactByMsg = new Map();
+let _ccMentionByMsg = new Map();
+let _ccMentionMeId = null;
+const _RR_CHANNEL_REACTIONS = ['👍','❤️','✅','👀','😂','🎉','⚠️','🙏'];
+
+// Compose a channel body with @mention highlights (the driver's own mention
+// gets the stronger "me" treatment).
+function _ccRenderBodyApp(raw, mentioned, mine) {
+  let html = escapeHtml(raw || "");
+  (mentioned || []).forEach((mn) => {
+    const nm = escapeHtml("@" + (mn.full_name || "")).trim();
+    if (!nm || nm === "@") return;
+    const cls = (mn.driver_id && mn.driver_id === _ccMentionMeId) ? "cc-mention me" : "cc-mention";
+    html = html.split(nm).join(`<span class="${cls}">${nm}</span>`);
+  });
+  html = html.replace(/\n/g, "<br>");
+  return linkifyEscaped(html, mine);
+}
+
+// Reaction chips for a channel bubble + a tap-to-👍 affordance.
+function _ccReactionChipsApp(msgId) {
+  const list = (_ccReactByMsg.get(msgId) || []).filter((r) => (r.count || 0) > 0);
+  const chips = list.map((r) =>
+    `<button type="button" class="cc-react-chip${r.mine ? " mine" : ""}" data-rr-cc-react="${escapeHtml(msgId)}" data-emoji="${escapeHtml(r.emoji)}">${r.emoji} ${r.count}</button>`
+  ).join("");
+  const add = `<button type="button" class="cc-react-add" data-rr-cc-react-add="${escapeHtml(msgId)}" aria-label="React">＋</button>`;
+  return `<div class="cc-reacts">${chips}${add}</div>`;
+}
+
 async function refreshChannelThread(scrollToBottom) {
   const session = readSession();
   if (!session?.token || !_chatChannelId) return;
   const wrap = document.getElementById("chat-msgs");
-  const { data, error } = await sb.rpc("driver_channel_messages", {
-    p_token: session.token, p_channel_id: _chatChannelId, p_limit: 200,
-  });
+  const [msgRes, reactRes, mentionRes] = await Promise.all([
+    sb.rpc("driver_channel_messages", { p_token: session.token, p_channel_id: _chatChannelId, p_limit: 200 }),
+    sb.rpc("driver_channel_reactions", { p_token: session.token, p_channel_id: _chatChannelId }).then((r) => r, () => ({ data: null })),
+    sb.rpc("driver_channel_mentions",  { p_token: session.token, p_channel_id: _chatChannelId }).then((r) => r, () => ({ data: null })),
+  ]);
+  const { data, error } = msgRes;
   if (error) {
     if (/unauthorized|revoked|inactive/.test(error.message || "")) {
       writeSession(null); render(); return;
@@ -7347,6 +7380,14 @@ async function refreshChannelThread(scrollToBottom) {
     }
     return;
   }
+  // Index reactions + mentions for the bubble renderer.
+  _ccReactByMsg = new Map();
+  (reactRes?.data?.reactions || []).forEach((r) => {
+    if (!_ccReactByMsg.has(r.message_id)) _ccReactByMsg.set(r.message_id, []);
+    _ccReactByMsg.get(r.message_id).push(r);
+  });
+  _ccMentionByMsg = new Map((mentionRes?.data?.mentions || []).map((m) => [m.message_id, m.mentioned || []]));
+  _ccMentionMeId = mentionRes?.data?.me || null;
   if (!wrap) return;
   // Capture position BEFORE re-render so we can decide whether to
   // re-pin to bottom (driver was already there) or leave their
@@ -7404,9 +7445,8 @@ function channelBubbleHtml(m, pos) {
   const sender = m.sender_kind === "dispatch" ? "Dispatch" : (m.sender_name || "Driver");
   const groupAttr = pos ? ` data-group-pos="${pos}"` : "";
   const showSender = !mine && (pos === "first" || pos === "single" || !pos);
-  const body = m.body
-    ? linkifyEscaped(escapeHtml(m.body).replace(/\n/g, "<br>"), mine)
-    : "";
+  const mentioned = _ccMentionByMsg.get(m.id) || [];
+  const body = m.body ? _ccRenderBodyApp(m.body, mentioned, mine) : "";
 
   let attachment = "";
   if (m.attachment_path) {
@@ -7439,8 +7479,46 @@ function channelBubbleHtml(m, pos) {
       ${attachment}
       ${body ? `<div class="chat-body">${body}</div>` : ""}
       <div class="chat-time">${escapeHtml(time)}</div>
+      ${_ccReactionChipsApp(m.id)}
     </div>`;
 }
+
+// Channel reactions on the driver side: tap a chip to toggle that emoji;
+// tap ＋ to open the palette.  Delegated so it survives re-renders.
+document.addEventListener("click", async (e) => {
+  const session = readSession();
+  if (!session?.token) return;
+  const addBtn = e.target.closest("[data-rr-cc-react-add]");
+  if (addBtn) {
+    e.preventDefault();
+    const id = addBtn.getAttribute("data-rr-cc-react-add");
+    document.querySelector(".cc-react-pop")?.remove();
+    const pop = document.createElement("div");
+    pop.className = "cc-react-pop";
+    pop.innerHTML = _RR_CHANNEL_REACTIONS.map((em) => `<button type="button" data-emoji="${em}">${em}</button>`).join("");
+    document.body.appendChild(pop);
+    const r = addBtn.getBoundingClientRect();
+    pop.style.top = (window.scrollY + r.top - pop.offsetHeight - 6) + "px";
+    pop.style.left = (window.scrollX + Math.min(r.left, window.innerWidth - pop.offsetWidth - 8)) + "px";
+    const cleanup = () => { pop.remove(); document.removeEventListener("click", away, true); };
+    const away = (ev) => { if (!pop.contains(ev.target) && ev.target !== addBtn) cleanup(); };
+    pop.addEventListener("click", async (ev) => {
+      const b = ev.target.closest("[data-emoji]"); if (!b) return;
+      cleanup();
+      try { await sb.rpc("driver_channel_message_react", { p_token: session.token, p_message_id: id, p_emoji: b.getAttribute("data-emoji"), p_on: true }); refreshChannelThread(false); } catch (_) {}
+    });
+    setTimeout(() => document.addEventListener("click", away, true), 0);
+    return;
+  }
+  const chip = e.target.closest("[data-rr-cc-react]");
+  if (chip) {
+    e.preventDefault();
+    const id = chip.getAttribute("data-rr-cc-react");
+    const emoji = chip.getAttribute("data-emoji");
+    const turningOn = !chip.classList.contains("mine");
+    try { await sb.rpc("driver_channel_message_react", { p_token: session.token, p_message_id: id, p_emoji: emoji, p_on: turningOn }); refreshChannelThread(false); } catch (_) {}
+  }
+});
 
 // ── Team · WhatsApp-style directory of everyone at the DSP ──────────
 // Each row is one driver: photo or initial avatar, display name, a

@@ -37951,6 +37951,7 @@ async function _loadMcContextSchedule(driverId) {
 
 async function openDriverChatThread(driverId, focus) {
   _msgInboxSelectedId = driverId;
+  _rrLoadBookmarkIds();
   // Fresh thread — reset the page size so we don't over-fetch a short
   // conversation just because the previous one was expanded.  When opening
   // from a search hit we fetch the max page so the matched (possibly old)
@@ -38973,8 +38974,10 @@ async function refreshDriverChatThread(scrollToBottom) {
       // Attachment-only messages drop the bubble chrome so the card /
       // thumbnail reads as a standalone surface (enterprise register).
       const attachOnly = (m.attachment_path && !m.body && !isDeleted) ? " attach-only" : "";
+      const bookmarkBtn = isDeleted ? "" : _rrBookmarkBtnHtml("driver", m.id);
       html += `<div class="rr-mc-bubble ${m.sender_kind}${deletedClass}${priCls}${attachOnly}" data-group-pos="${pos}" data-rr-mc-msg="${escapeHtml(m.id)}">
         ${actions}
+        ${bookmarkBtn}
         ${priTag}${attach}${m.is_auto ? '<span class="rr-mc-auto" title="Automated message">Auto</span>' : ''}${bodyHtml}${ackChip}
         <div class="rr-mc-time">${escapeHtml(time)}${editedTag}</div>
         ${likeBtn}
@@ -39604,6 +39607,8 @@ async function refreshChannelList(autoSelect) {
     return;
   }
   _msgChannelList = data?.channels || [];
+  await _ccLoadChannelPrefs();
+  const mutedChip = `<span class="rr-cc-muted-chip" title="You muted this channel" aria-label="Muted"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg></span>`;
   const fmtRel = (iso) => {
     if (!iso) return "—";
     const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
@@ -39642,7 +39647,7 @@ async function refreshChannelList(autoSelect) {
     const lastBodyTrunc = lastBody.length > 60 ? lastBody.slice(0, 57) + "…" : lastBody;
     return `<div class="msg-item ${isActive ? "active" : ""}" data-rr-channel="${escapeHtml(c.id)}">
       <div class="msg-item-avatar"><div class="avatar-sm" style="background:var(--accent-soft);color:var(--accent-text);font-size:var(--fs-md)">#</div></div>
-      <div><div class="msg-item-name">${escapeHtml(c.name)}${stationChip}${archChip}</div><div class="msg-item-preview">${escapeHtml(lastBodyTrunc)}</div></div>
+      <div><div class="msg-item-name">${escapeHtml(c.name)}${stationChip}${_ccMutedIds.has(c.id) ? mutedChip : ""}${archChip}</div><div class="msg-item-preview">${escapeHtml(lastBodyTrunc)}</div></div>
       <div><div class="msg-item-time">${escapeHtml(fmtRel(c.last_message_at))}</div></div>
     </div>`;
   }).join("");
@@ -39743,8 +39748,396 @@ async function _createHrSpace() {
   await refreshHrRoster(true);
 }
 
+// ─── Channel enrichments: reactions, @mentions, seen-by, bookmarks ───────
+// Shared reaction palette — must match private.channel_reaction_allowed (0479).
+const _RR_CHANNEL_REACTIONS = ['👍','❤️','✅','👀','😂','🎉','⚠️','🙏'];
+
+// Member roster of the open channel, for @mention autocomplete + resolution.
+let _ccCurrentMembers = [];
+
+// Channels the current operator has muted (dispatcher-side prefs, 0481).
+// Muted channels are suppressed from the unread-badge treatment in the list.
+let _ccMutedIds = new Set();
+async function _ccLoadChannelPrefs() {
+  const { data } = await sb.rpc("dispatch_channel_prefs").then((r) => r, () => ({ data: null }));
+  _ccMutedIds = new Set((data?.prefs || []).filter((p) => p.muted).map((p) => p.channel_id));
+}
+
+// Resolve mentioned driver ids from a composed body: a member is mentioned
+// when "@Full Name" appears literally in the text (the autocomplete inserts
+// exactly that, and it stays deterministic even if the operator hand-types).
+function _ccResolveMentions(body) {
+  const text = String(body || "");
+  const ids = [];
+  (_ccCurrentMembers || []).forEach((m) => {
+    if (m.full_name && text.includes("@" + m.full_name)) ids.push(m.driver_id);
+  });
+  return ids;
+}
+
+// Attach @mention autocomplete to a channel composer textarea.  Detects a
+// trailing "@token" at the caret and offers matching members; picking one
+// splices "@Full Name " into the draft.
+function _ccWireMentionAutocomplete(ta) {
+  if (!ta || ta.dataset.rrMentionWired) return;
+  ta.dataset.rrMentionWired = "1";
+  let menu = null;
+  const close = () => { menu?.remove(); menu = null; };
+  const currentToken = () => {
+    const pos = ta.selectionStart || 0;
+    const upto = ta.value.slice(0, pos);
+    const m = upto.match(/@([\p{L}\p{N}][\p{L}\p{N} .'-]*)?$/u);
+    if (!m) return null;
+    return { q: (m[1] || "").toLowerCase(), start: pos - m[0].length, end: pos };
+  };
+  const render = () => {
+    const tok = currentToken();
+    if (!tok) { close(); return; }
+    const matches = (_ccCurrentMembers || [])
+      .filter((mm) => mm.full_name.toLowerCase().includes(tok.q))
+      .slice(0, 6);
+    if (!matches.length) { close(); return; }
+    if (!menu) { menu = document.createElement("div"); menu.className = "rr-cc-mention-menu"; document.body.appendChild(menu); }
+    menu.innerHTML = matches.map((mm, i) =>
+      `<button type="button" class="rr-cc-mention-opt${i === 0 ? " active" : ""}" data-name="${escapeHtml(mm.full_name)}">
+        <span class="rr-cc-mention-at">@</span>${escapeHtml(mm.full_name)}
+      </button>`).join("");
+    const r = ta.getBoundingClientRect();
+    menu.style.left = (window.scrollX + r.left) + "px";
+    menu.style.top  = (window.scrollY + r.top - menu.offsetHeight - 6) + "px";
+    requestAnimationFrame(() => { menu && (menu.style.top = (window.scrollY + r.top - menu.offsetHeight - 6) + "px"); });
+    menu.querySelectorAll(".rr-cc-mention-opt").forEach((btn) => {
+      btn.addEventListener("mousedown", (ev) => {
+        ev.preventDefault();
+        const name = btn.getAttribute("data-name");
+        const tok2 = currentToken();
+        if (!tok2) { close(); return; }
+        const before = ta.value.slice(0, tok2.start);
+        const after  = ta.value.slice(tok2.end);
+        ta.value = before + "@" + name + " " + after;
+        const caret = (before + "@" + name + " ").length;
+        ta.setSelectionRange(caret, caret);
+        close(); ta.focus();
+        ta.dispatchEvent(new Event("input"));
+      });
+    });
+  };
+  ta.addEventListener("input", render);
+  ta.addEventListener("keydown", (e) => { if (e.key === "Escape" && menu) { e.stopPropagation(); close(); } });
+  ta.addEventListener("blur", () => setTimeout(close, 120));
+}
+
+// Operator's saved-message ids (DM + channel), cached module-side and
+// refreshed on thread open + after each toggle so bubbles show a filled
+// bookmark without a per-poll fetch.
+let _rrSavedMsgIds = new Set();
+async function _rrLoadBookmarkIds() {
+  const { data } = await sb.rpc("dispatch_bookmarks_list").then((r) => r, () => ({ data: null }));
+  _rrSavedMsgIds = new Set((data?.bookmarks || []).map((b) => b.message_id));
+}
+
+// Reaction chip row + an "add reaction" trigger for a channel bubble.
+function _ccReactionsRowHtml(msgId, list) {
+  const chips = (list || [])
+    .filter((r) => (r.count || 0) > 0)
+    .map((r) => `<button type="button" class="rr-cc-react-chip${r.mine ? " mine" : ""}" data-rr-cc-react="${escapeHtml(msgId)}" data-rr-emoji="${escapeHtml(r.emoji)}"><span class="rr-cc-react-emoji">${r.emoji}</span><span class="rr-cc-react-n">${r.count}</span></button>`)
+    .join("");
+  const add = `<button type="button" class="rr-cc-react-add" data-rr-cc-react-add="${escapeHtml(msgId)}" aria-label="Add reaction" title="Add reaction"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg></button>`;
+  return `<div class="rr-cc-reacts">${chips}${add}</div>`;
+}
+
+// Compose a channel message body: escape → wrap @mentions → linkify.
+function _ccRenderBody(raw, mentioned) {
+  let html = escapeHtml(raw || "");
+  (mentioned || []).forEach((mn) => {
+    const nm = escapeHtml("@" + (mn.full_name || "")).trim();
+    if (!nm || nm === "@") return;
+    html = html.split(nm).join(`<span class="rr-cc-mention">${nm}</span>`);
+  });
+  html = html.replace(/\n/g, "<br>");
+  return linkifyEscaped(html);
+}
+
+// Bookmark toggle button for a bubble (kind = 'driver' | 'channel').
+function _rrBookmarkBtnHtml(kind, msgId) {
+  const saved = _rrSavedMsgIds.has(msgId);
+  return `<button type="button" class="rr-msg-bookmark${saved ? " saved" : ""}" data-rr-bookmark="${escapeHtml(msgId)}" data-rr-bookmark-kind="${kind}" aria-label="${saved ? "Remove from saved" : "Save message"}" title="${saved ? "Saved — click to remove" : "Save for later"}"><svg viewBox="0 0 24 24" width="13" height="13" fill="${saved ? "currentColor" : "none"}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></button>`;
+}
+
+// Emoji picker popover, anchored above the clicked "add reaction" button.
+function _ccOpenReactionPicker(anchor, msgId) {
+  document.querySelector(".rr-cc-react-pop")?.remove();
+  const pop = document.createElement("div");
+  pop.className = "rr-cc-react-pop";
+  pop.innerHTML = _RR_CHANNEL_REACTIONS
+    .map((em) => `<button type="button" data-rr-pick-emoji="${em}">${em}</button>`).join("");
+  document.body.appendChild(pop);
+  const place = () => {
+    const r = anchor.getBoundingClientRect();
+    pop.style.top  = (window.scrollY + r.top - pop.offsetHeight - 6) + "px";
+    pop.style.left = (window.scrollX + Math.min(r.left, window.innerWidth - pop.offsetWidth - 8)) + "px";
+  };
+  place(); requestAnimationFrame(place);
+  const cleanup = () => { pop.remove(); document.removeEventListener("click", onAway, true); };
+  const onAway = (ev) => { if (!pop.contains(ev.target) && ev.target !== anchor) cleanup(); };
+  pop.addEventListener("click", async (ev) => {
+    const b = ev.target.closest("[data-rr-pick-emoji]");
+    if (!b) return;
+    const em = b.getAttribute("data-rr-pick-emoji");
+    cleanup();
+    try { await sb.rpc("dispatch_channel_message_react", { p_message_id: msgId, p_emoji: em, p_on: true }); refreshChannelThread(false); } catch (_) {}
+  });
+  setTimeout(() => document.addEventListener("click", onAway, true), 0);
+}
+
+// Delegated: react-chip toggle, add-reaction picker, and bookmark toggle —
+// bound once, survive every thread re-render.
+document.addEventListener("click", async (e) => {
+  const muteBtn = e.target.closest("[data-rr-channel-mute]");
+  if (muteBtn) {
+    e.preventDefault();
+    const id = muteBtn.getAttribute("data-rr-channel-mute");
+    const turningOn = !_ccMutedIds.has(id);
+    try {
+      await sb.rpc("dispatch_channel_set_mute", { p_channel_id: id, p_muted: turningOn });
+      if (turningOn) _ccMutedIds.add(id); else _ccMutedIds.delete(id);
+      muteBtn.classList.toggle("muted", turningOn);
+      muteBtn.textContent = turningOn ? "Muted" : "Mute";
+      muteBtn.title = turningOn ? "Muted — click to unmute" : "Mute this channel";
+      if (typeof toast === "function") toast(turningOn ? "Channel muted" : "Channel unmuted", "info");
+      if (typeof refreshChannelList === "function") refreshChannelList(false);
+    } catch (err) {
+      if (typeof toast === "function") toast("Couldn't update mute: " + (err?.message || ""), "warn");
+    }
+    return;
+  }
+  const addBtn = e.target.closest("[data-rr-cc-react-add]");
+  if (addBtn) { e.preventDefault(); _ccOpenReactionPicker(addBtn, addBtn.getAttribute("data-rr-cc-react-add")); return; }
+  const chip = e.target.closest("[data-rr-cc-react]");
+  if (chip) {
+    e.preventDefault();
+    const id = chip.getAttribute("data-rr-cc-react");
+    const emoji = chip.getAttribute("data-rr-emoji");
+    const turningOn = !chip.classList.contains("mine");
+    try { await sb.rpc("dispatch_channel_message_react", { p_message_id: id, p_emoji: emoji, p_on: turningOn }); refreshChannelThread(false); } catch (_) {}
+    return;
+  }
+  const bm = e.target.closest("[data-rr-bookmark]");
+  if (bm) {
+    e.preventDefault(); e.stopPropagation();
+    const id = bm.getAttribute("data-rr-bookmark");
+    const kind = bm.getAttribute("data-rr-bookmark-kind");
+    const turningOn = !bm.classList.contains("saved");
+    const svg = bm.querySelector("svg");
+    bm.classList.toggle("saved", turningOn); if (svg) svg.setAttribute("fill", turningOn ? "currentColor" : "none");
+    try {
+      await sb.rpc("dispatch_bookmark_toggle", { p_message_kind: kind, p_message_id: id, p_on: turningOn });
+      if (turningOn) _rrSavedMsgIds.add(id); else _rrSavedMsgIds.delete(id);
+      if (typeof toast === "function") toast(turningOn ? "Saved to your list" : "Removed from saved", turningOn ? "success" : "info");
+    } catch (err) {
+      bm.classList.toggle("saved", !turningOn); if (svg) svg.setAttribute("fill", !turningOn ? "currentColor" : "none");
+      if (typeof toast === "function") toast("Couldn't update saved: " + (err?.message || ""), "warn");
+    }
+  }
+});
+
+// ─── Shared Messages overlay chrome ──────────────────────────────────────
+function _rrMsgOverlay(title, bodyHtml) {
+  document.getElementById("rr-msg-overlay")?.remove();
+  const o = document.createElement("div");
+  o.id = "rr-msg-overlay";
+  o.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
+  o.innerHTML = `
+    <div class="rr-msg-panel" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);max-width:560px;width:100%;max-height:86vh;display:flex;flex-direction:column;overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border)">
+        <h3 style="margin:0;font-size:var(--fs-lg);font-weight:600">${escapeHtml(title)}</h3>
+        <button data-rr-msg-overlay-close style="background:none;border:0;font-size:22px;cursor:pointer;color:var(--text-muted);line-height:1">×</button>
+      </div>
+      <div class="rr-msg-panel-body" style="padding:14px 20px;overflow:auto">${bodyHtml}</div>
+    </div>`;
+  document.body.appendChild(o);
+  o.addEventListener("click", (e) => { if (e.target === o || e.target.closest("[data-rr-msg-overlay-close]")) o.remove(); });
+  return o;
+}
+function _rrCloseMsgOverlay() { document.getElementById("rr-msg-overlay")?.remove(); }
+
+// ─── Saved messages panel (0482) ─────────────────────────────────────────
+async function openSavedMessagesPanel() {
+  const o = _rrMsgOverlay("Saved messages", `<div class="rr-empty-inline">Loading…</div>`);
+  const body = o.querySelector(".rr-msg-panel-body");
+  const { data, error } = await sb.rpc("dispatch_bookmarks_list").then((r) => r, () => ({ error: { message: "unavailable" } }));
+  if (error) { body.innerHTML = `<div class="rr-empty-inline">Saved messages aren't available yet.</div>`; return; }
+  const rows = data?.bookmarks || [];
+  _rrSavedMsgIds = new Set(rows.map((b) => b.message_id));
+  if (!rows.length) { body.innerHTML = `<div class="rr-empty-inline">No saved messages yet.<br>Hover a message and tap the bookmark to save it here.</div>`; return; }
+  body.innerHTML = rows.map((b) => {
+    const where = b.message_kind === "channel"
+      ? `#${escapeHtml(b.channel_name || "channel")}`
+      : escapeHtml(b.driver_name || "Driver");
+    const who = b.sender_kind === "dispatch" ? "You" : (b.message_kind === "channel" ? (b.driver_name || "") : (b.driver_name || "Driver"));
+    return `<div class="rr-saved-row" data-rr-saved-kind="${b.message_kind}" data-rr-saved-driver="${escapeHtml(b.driver_id || "")}" data-rr-saved-channel="${escapeHtml(b.channel_id || "")}" data-rr-saved-msg="${escapeHtml(b.message_id)}" data-rr-saved-at="${escapeHtml(b.message_at || "")}">
+      <div class="rr-saved-main">
+        <div class="rr-saved-where">${where}<span class="rr-saved-when">· ${escapeHtml(_fmtMsgRelative(b.message_at))}</span></div>
+        <div class="rr-saved-snippet">${escapeHtml(b.snippet || "(attachment)")}</div>
+        ${b.note ? `<div class="rr-saved-note">📝 ${escapeHtml(b.note)}</div>` : ""}
+      </div>
+      <button type="button" class="rr-saved-remove" data-rr-saved-remove="${escapeHtml(b.message_id)}" data-rr-saved-remove-kind="${b.message_kind}" title="Remove" aria-label="Remove from saved">×</button>
+    </div>`;
+  }).join("");
+  body.querySelectorAll(".rr-saved-row").forEach((row) => {
+    row.addEventListener("click", (e) => {
+      if (e.target.closest("[data-rr-saved-remove]")) return;
+      const kind = row.getAttribute("data-rr-saved-kind");
+      _rrCloseMsgOverlay();
+      if (kind === "driver") {
+        const did = row.getAttribute("data-rr-saved-driver");
+        const mid = row.getAttribute("data-rr-saved-msg");
+        if (did) openDriverChatThread(did, mid ? { id: mid, at: row.getAttribute("data-rr-saved-at") } : null);
+      } else {
+        const cid = row.getAttribute("data-rr-saved-channel");
+        if (cid) openChannelThread(cid);
+      }
+    });
+  });
+  body.querySelectorAll("[data-rr-saved-remove]").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const id = btn.getAttribute("data-rr-saved-remove");
+      const kind = btn.getAttribute("data-rr-saved-remove-kind");
+      try {
+        await sb.rpc("dispatch_bookmark_toggle", { p_message_kind: kind, p_message_id: id, p_on: false });
+        _rrSavedMsgIds.delete(id);
+        btn.closest(".rr-saved-row")?.remove();
+        if (!body.querySelector(".rr-saved-row")) body.innerHTML = `<div class="rr-empty-inline">No saved messages yet.</div>`;
+      } catch (_) {}
+    });
+  });
+}
+
+// ─── Scheduled messages panel + composer (0483) ──────────────────────────
+async function openScheduledPanel() {
+  const o = _rrMsgOverlay("Scheduled messages", `<div class="rr-empty-inline">Loading…</div>`);
+  await _renderScheduledList(o);
+}
+async function _renderScheduledList(o) {
+  const body = o.querySelector(".rr-msg-panel-body");
+  const { data, error } = await sb.rpc("dispatch_scheduled_list").then((r) => r, () => ({ error: { message: "unavailable" } }));
+  const newBtn = `<button type="button" class="btn btn-primary btn-sm" data-rr-schedule-new style="width:100%;margin-bottom:12px">+ Schedule a message</button>`;
+  if (error) { body.innerHTML = newBtn + `<div class="rr-empty-inline">Scheduling isn't available yet.</div>`; _wireScheduleNew(o); return; }
+  const rows = data?.scheduled || [];
+  const pillFor = (s) => s === "pending" ? "" : ` <span class="rr-sched-status rr-sched-${escapeHtml(s)}">${escapeHtml(s)}</span>`;
+  const list = rows.length ? rows.map((s) => {
+    const to = s.target_kind === "channel" ? `#${escapeHtml(s.channel_name || "channel")}` : escapeHtml(s.driver_name || "Driver");
+    const when = s.send_at ? new Date(s.send_at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+    return `<div class="rr-sched-row">
+      <div class="rr-sched-main">
+        <div class="rr-sched-to">${to}${pillFor(s.status)}</div>
+        <div class="rr-sched-snippet">${escapeHtml((s.body || "(attachment)").slice(0, 120))}</div>
+        <div class="rr-sched-when">${s.status === "pending" ? "Sends" : "Was for"} ${escapeHtml(when)}${s.priority && s.priority !== "normal" ? ` · ${escapeHtml(s.priority)}` : ""}</div>
+      </div>
+      ${s.status === "pending" ? `<button type="button" class="rr-sched-cancel" data-rr-sched-cancel="${escapeHtml(s.id)}">Cancel</button>` : ""}
+    </div>`;
+  }).join("") : `<div class="rr-empty-inline">Nothing scheduled.</div>`;
+  body.innerHTML = newBtn + list;
+  _wireScheduleNew(o);
+  body.querySelectorAll("[data-rr-sched-cancel]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const id = btn.getAttribute("data-rr-sched-cancel");
+      if (!(await _rrConfirmDialog({ title: "Cancel this scheduled message?", confirmLabel: "Cancel it", danger: true }))) return;
+      try { await sb.rpc("dispatch_scheduled_cancel", { p_id: id }); await _renderScheduledList(o); }
+      catch (err) { toast("Couldn't cancel: " + (err?.message || ""), "warn"); }
+    });
+  });
+}
+function _wireScheduleNew(o) {
+  o.querySelector("[data-rr-schedule-new]")?.addEventListener("click", () => openScheduleComposeModal());
+}
+async function openScheduleComposeModal() {
+  _rrCloseMsgOverlay();
+  const dspId = window.RR?.dsp?.id;
+  // Pull active drivers + channels for the recipient picker.
+  const [drvRes, chanRes] = await Promise.all([
+    sb.from("drivers").select("id, full_name").eq("dsp_id", dspId).in("status", ["active", "onboarding"]).order("full_name").then((r) => r, () => ({ data: [] })),
+    sb.rpc("dispatch_channels_list").then((r) => r, () => ({ data: null })),
+  ]);
+  const drivers = (drvRes?.data || []).filter((d) => d.full_name);
+  const channels = (chanRes?.data?.channels || []).filter((c) => !c.archived_at);
+  // Default send time: next top of the hour, local, formatted for datetime-local.
+  const dt = new Date(Date.now() + 60 * 60 * 1000);
+  dt.setMinutes(0, 0, 0);
+  const pad = (n) => String(n).padStart(2, "0");
+  const localVal = `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+  const o = _rrMsgOverlay("Schedule a message", `
+    <form id="rr-sched-form" style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;gap:8px">
+        <label class="rr-sched-seg"><input type="radio" name="sk" value="driver" checked> Driver</label>
+        <label class="rr-sched-seg"><input type="radio" name="sk" value="channel"> Channel</label>
+      </div>
+      <select id="rr-sched-driver" class="form-input">${drivers.map((d) => `<option value="${escapeHtml(d.id)}">${escapeHtml(d.full_name)}</option>`).join("")}</select>
+      <select id="rr-sched-channel" class="form-input" style="display:none">${channels.map((c) => `<option value="${escapeHtml(c.id)}">#${escapeHtml(c.name)}</option>`).join("")}</select>
+      <textarea id="rr-sched-body" class="form-input" rows="4" maxlength="2000" placeholder="Message…"></textarea>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <label style="font-size:var(--fs-sm);color:var(--text-muted)">Send at</label>
+        <input type="datetime-local" id="rr-sched-when" class="form-input" style="flex:1;min-width:190px" value="${localVal}">
+      </div>
+      <label id="rr-sched-ack-wrap" style="display:flex;align-items:center;gap:8px;font-size:var(--fs-sm)"><input type="checkbox" id="rr-sched-ack"> Require acknowledgement</label>
+      <div id="rr-sched-err" style="color:var(--red);font-size:var(--fs-sm);display:none"></div>
+      <div style="display:flex;justify-content:flex-end;gap:8px">
+        <button type="button" class="btn" data-rr-msg-overlay-close>Cancel</button>
+        <button type="submit" class="btn btn-primary">Schedule</button>
+      </div>
+    </form>`);
+  const form = o.querySelector("#rr-sched-form");
+  const drvSel = o.querySelector("#rr-sched-driver");
+  const chSel  = o.querySelector("#rr-sched-channel");
+  const ackWrap = o.querySelector("#rr-sched-ack-wrap");
+  const errEl = o.querySelector("#rr-sched-err");
+  form.querySelectorAll('input[name="sk"]').forEach((r) => r.addEventListener("change", () => {
+    const isChannel = form.querySelector('input[name="sk"]:checked').value === "channel";
+    chSel.style.display = isChannel ? "" : "none";
+    drvSel.style.display = isChannel ? "none" : "";
+    ackWrap.style.display = isChannel ? "none" : "flex";
+  }));
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    errEl.style.display = "none";
+    const kind = form.querySelector('input[name="sk"]:checked').value;
+    const body = o.querySelector("#rr-sched-body").value.trim();
+    const whenVal = o.querySelector("#rr-sched-when").value;
+    if (!body) { errEl.textContent = "Enter a message."; errEl.style.display = "block"; return; }
+    if (!whenVal) { errEl.textContent = "Pick a send time."; errEl.style.display = "block"; return; }
+    const sendAt = new Date(whenVal);
+    if (isNaN(sendAt.getTime()) || sendAt.getTime() <= Date.now()) { errEl.textContent = "Send time must be in the future."; errEl.style.display = "block"; return; }
+    const args = {
+      p_target_kind: kind,
+      p_send_at: sendAt.toISOString(),
+      p_body: body,
+      p_driver_id: kind === "driver" ? drvSel.value : null,
+      p_channel_id: kind === "channel" ? chSel.value : null,
+      p_requires_ack: kind === "driver" ? o.querySelector("#rr-sched-ack").checked : false,
+    };
+    try {
+      const { error } = await sb.rpc("dispatch_schedule_message", args);
+      if (error) throw error;
+      _rrCloseMsgOverlay();
+      toast("Message scheduled.", "success");
+      openScheduledPanel();
+    } catch (err) {
+      errEl.textContent = "Couldn't schedule: " + (err?.message || "");
+      errEl.style.display = "block";
+    }
+  });
+}
+
+// Header buttons: Saved + Scheduled.
+document.addEventListener("click", (e) => {
+  if (e.target.closest("[data-rr-saved-messages]"))     { e.preventDefault(); openSavedMessagesPanel(); }
+  if (e.target.closest("[data-rr-scheduled-messages]")) { e.preventDefault(); openScheduledPanel(); }
+});
+
 async function openChannelThread(channelId) {
   _msgChannelSelectedId = channelId;
+  _rrLoadBookmarkIds();
   _ccThreadLimit = 200; // fresh thread — reset the page size
   // Channels have no per-driver details context — close + clear the panel.
   const _dp = document.getElementById("rr-msg-details");
@@ -39772,14 +40165,51 @@ async function refreshChannelThread(scrollToBottom) {
   const channelId = _msgChannelSelectedId;
   const meta = _msgChannelList.find(c => c.id === channelId) || {};
 
-  const { data, error } = await sb.rpc("dispatch_channel_messages", {
-    p_channel_id: channelId, p_limit: _ccThreadLimit,
-  });
+  // Fetch the messages plus the three parallel enrichment streams —
+  // reactions, @mentions, and member read-state (0479 / 0480). Each is a
+  // graceful no-op on servers where the migration isn't applied yet, so the
+  // thread still renders if any RPC is missing.
+  const [msgRes, reactRes, mentionRes, readRes, memberRes] = await Promise.all([
+    sb.rpc("dispatch_channel_messages", { p_channel_id: channelId, p_limit: _ccThreadLimit }),
+    sb.rpc("dispatch_channel_reactions", { p_channel_id: channelId }).then((r) => r, () => ({ data: null })),
+    sb.rpc("dispatch_channel_mentions",  { p_channel_id: channelId }).then((r) => r, () => ({ data: null })),
+    sb.rpc("dispatch_channel_read_state",{ p_channel_id: channelId }).then((r) => r, () => ({ data: null })),
+    sb.rpc("dispatch_channel_members",   { p_channel_id: channelId }).then((r) => r, () => ({ data: null })),
+  ]);
+  // Cache the member roster for @mention autocomplete + on-send resolution.
+  _ccCurrentMembers = (memberRes?.data?.members || []).map((m) => ({ driver_id: m.driver_id, full_name: m.full_name })).filter((m) => m.full_name);
+  const { data, error } = msgRes;
   if (error) {
     conv.innerHTML = `<div style="margin:auto;color:var(--red);padding:40px">${escapeHtml(error.message)}</div>`;
     return;
   }
   const msgs = data?.messages || [];
+  // Index reactions by message id: { messageId → [{emoji,count,mine}] }.
+  const _ccReactByMsg = new Map();
+  (reactRes?.data?.reactions || []).forEach((r) => {
+    if (!_ccReactByMsg.has(r.message_id)) _ccReactByMsg.set(r.message_id, []);
+    _ccReactByMsg.get(r.message_id).push(r);
+  });
+  // Index mentions by message id: { messageId → [{driver_id,full_name}] }.
+  const _ccMentionByMsg = new Map(
+    (mentionRes?.data?.mentions || []).map((m) => [m.message_id, m.mentioned || []])
+  );
+  // Read-state: sorted list of member last_read_at times + total member count,
+  // for the "Seen by N of M" pill under the latest dispatch broadcast.
+  const _ccReaders = (readRes?.data?.readers || []).filter((x) => x.last_read_at);
+  const _ccReadTimes = _ccReaders.map((x) => new Date(x.last_read_at).getTime()).sort((a, b) => a - b);
+  const _ccMemberCount = readRes?.data?.member_count || 0;
+  const _ccSeenByCount = (msIso) => {
+    if (!msIso || !_ccReadTimes.length) return 0;
+    const t = new Date(msIso).getTime();
+    // binary-search the count of read times >= t
+    let lo = 0, hi = _ccReadTimes.length;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (_ccReadTimes[mid] >= t) hi = mid; else lo = mid + 1; }
+    return _ccReadTimes.length - lo;
+  };
+  // Index of the last dispatch message — the only one that gets a seen-by pill.
+  let _ccLastDispatchIdx = -1;
+  for (let i = msgs.length - 1; i >= 0; i--) { if (msgs[i].sender_kind === "dispatch") { _ccLastDispatchIdx = i; break; } }
 
   if (conv.dataset.rrChannelId !== channelId) {
     conv.dataset.rrChannelId = channelId;
@@ -39795,6 +40225,7 @@ async function refreshChannelThread(scrollToBottom) {
             <div class="rr-cc-sub">${memberCount} member${memberCount === 1 ? "" : "s"}${stationLine}${meta.archived_at ? " · archived" : ""}</div>
           </div>
           <div class="rr-cc-head-actions">
+            <button class="btn btn-sm rr-cc-mute-btn${_ccMutedIds.has(channelId) ? " muted" : ""}" data-rr-channel-mute="${escapeHtml(channelId)}" title="${_ccMutedIds.has(channelId) ? "Muted — click to unmute" : "Mute this channel"}" aria-label="${_ccMutedIds.has(channelId) ? "Unmute channel" : "Mute channel"}">${_ccMutedIds.has(channelId) ? "Muted" : "Mute"}</button>
             <button class="btn btn-sm" data-rr-channel-members="${escapeHtml(channelId)}">Members</button>
             <button class="btn btn-sm" data-rr-channel-archive="${escapeHtml(channelId)}">${meta.archived_at ? "Unarchive" : "Archive"}</button>
           </div>
@@ -39826,10 +40257,13 @@ async function refreshChannelThread(scrollToBottom) {
     });
     ta.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey) {
+        // Don't submit while the @mention menu is open — let a pick happen.
+        if (document.querySelector(".rr-cc-mention-menu")) return;
         e.preventDefault();
         document.getElementById("rr-cc-form").requestSubmit();
       }
     });
+    _ccWireMentionAutocomplete(ta);
 
     const fileInput = document.getElementById("rr-cc-file");
     const previewEl = document.getElementById("rr-cc-attach-preview");
@@ -39904,7 +40338,10 @@ async function refreshChannelThread(scrollToBottom) {
         attachment = { path, mime: file.type, name: file.name, size: file.size };
       }
 
-      const { error } = await sb.rpc("dispatch_channel_post", {
+      // Resolve @mentions from the draft against the member roster before we
+      // clear it, so we can attach them to the posted row.
+      const _mentionIds = _ccResolveMentions(savedBody);
+      const { data: postData, error } = await sb.rpc("dispatch_channel_post", {
         p_channel_id:            _msgChannelSelectedId,
         p_body:                  savedBody || null,
         p_attachment_path:       attachment?.path || null,
@@ -39921,6 +40358,12 @@ async function refreshChannelThread(scrollToBottom) {
         _ccFail("post failed · click to retry");
         toast("Couldn't post: " + error.message, "warn");
         return;
+      }
+      // Record @mentions on the freshly-posted message (best-effort — a
+      // missing RPC on an un-migrated server just no-ops).
+      if (_mentionIds.length && postData?.id) {
+        sb.rpc("dispatch_channel_set_mentions", { p_message_id: postData.id, p_driver_ids: _mentionIds })
+          .then(undefined, () => {});
       }
       ta.value = ""; ta.style.height = "auto";
       // Composer is a regular grid child now — track sizing handles
@@ -40022,15 +40465,27 @@ async function refreshChannelThread(scrollToBottom) {
       const senderLabel = m.sender_kind === "dispatch"
         ? (m.sender_name ? `Dispatch · ${m.sender_name}` : "Dispatch")
         : (m.sender_name || "Driver");
-      const bodyHtml = m.body ? `<div>${linkifyEscaped(escapeHtml(m.body).replace(/\n/g, "<br>"))}</div>` : "";
+      const mentioned = _ccMentionByMsg.get(m.id) || [];
+      const bodyHtml = m.body ? `<div>${_ccRenderBody(m.body, mentioned)}</div>` : "";
       const showSender = (pos === "first" || pos === "single");
       const ccAttachOnly = (m.attachment_path && !m.body) ? " attach-only" : "";
-      return `<div class="rr-cc-bubble ${m.sender_kind}${ccAttachOnly}" data-group-pos="${pos}">
+      const reactsRow  = _ccReactionsRowHtml(m.id, _ccReactByMsg.get(m.id));
+      const bookmarkBtn = _rrBookmarkBtnHtml("channel", m.id);
+      // "Seen by N of M" — only on the latest dispatch broadcast, so the
+      // operator can confirm the fleet actually saw an urgent notice.
+      let seenPill = "";
+      if (i === _ccLastDispatchIdx && _ccMemberCount > 0) {
+        const seen = _ccSeenByCount(m.created_at);
+        seenPill = `<div class="rr-cc-seen" title="${seen} of ${_ccMemberCount} members have opened the channel since this message">Seen by ${seen} of ${_ccMemberCount}</div>`;
+      }
+      return `<div class="rr-cc-bubble ${m.sender_kind}${ccAttachOnly}" data-group-pos="${pos}" data-rr-cc-msg="${escapeHtml(m.id)}">
         ${showSender ? `<div class="rr-cc-sender">${escapeHtml(senderLabel)}</div>` : ""}
+        ${bookmarkBtn}
         ${attach}
         ${bodyHtml}
         <div class="rr-cc-time">${escapeHtml(time)}</div>
-      </div>`;
+        ${reactsRow}
+      </div>${seenPill}`;
     }).join("");
   }
   thread.innerHTML = ccLoadOlderHtml + ccBody + ccLiveStubs + ccSentinelHtml;
