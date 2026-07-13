@@ -269,7 +269,9 @@
 // keys in driver_checkin_status, so it stays hidden until migration 0479
 // is applied. Wave time restored on Today's meta line via the same
 // migration.
-const SHELL_CACHE = "rr-app-shell-v183";
+// v184 · (version skip: another PR on main took v183 concurrently —
+// bumped past it so installed PWAs refresh for the break feature.)
+const SHELL_CACHE = "rr-app-shell-v184";
 const SHELL_FILES = [
   "./",
   "index.html",
