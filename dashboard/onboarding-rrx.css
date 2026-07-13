@@ -1389,6 +1389,14 @@
   font-family: var(--rr-font-family) !important;
   color: var(--rr-fg-primary) !important;
   background: transparent !important;
+  /* Reserve the fixed 52px utility rail that overlays the right edge
+     (Notes / Tasks / Ops / Forms). Without this the redesigned table's
+     Actions column and the toolbar's Add-applicant button run under the
+     rail — and off the window edge — and get clipped. Mirrors the
+     #obsub-pipeline reservation below and Schedule's .tcp-body. The
+     2-ID selector already outranks the base .page padding, so no
+     forced override is needed here. */
+  padding-right: 52px;
 }
 
 /* The pipeline + documents relocated views still own their own
