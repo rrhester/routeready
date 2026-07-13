@@ -1,12 +1,12 @@
 -- ─────────────────────────────────────────────────────────────────────────
--- Migration 0480 · @mentions in group / HR / broadcast channels
+-- Migration 0481 · @mentions in group / HR / broadcast channels
 --
 -- Lets a poster tag specific channel members ("@Marcus — this one's yours")
 -- so the mention is highlighted for that person in-app.  Mentions are
 -- recorded in their own table and set via a dedicated RPC called right
 -- after the message is posted — the auth-critical channel send/fetch RPCs
 -- (0073) are left completely untouched, same separation-of-concerns
--- pattern used for reactions (0389 / 0479).
+-- pattern used for reactions (0389 / 0480).
 --
 -- Notification: channel messages already fan out Web + native push to every
 -- member (migration 0074), so a mentioned driver is already notified.  This

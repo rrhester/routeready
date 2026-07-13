@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────
--- Migration 0479 · Channel reactions (multi-emoji) + channel read-state
+-- Migration 0480 · Channel reactions (multi-emoji) + channel read-state
 --
 -- Brings the group/HR/broadcast channels (driver_channel_messages, 0073) up
 -- to parity with the 1:1 driver chat, which already has 👍 reactions (0389)

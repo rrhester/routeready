@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────
--- Migration 0482 · Saved / flagged messages (operator bookmarks)
+-- Migration 0483 · Saved / flagged messages (operator bookmarks)
 --
 -- A dispatcher can flag any message — a 1:1 driver message (driver_messages)
 -- or a channel post (driver_channel_messages) — to a personal "Saved" list

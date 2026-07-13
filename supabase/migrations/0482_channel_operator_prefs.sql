@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────
--- Migration 0481 · Per-operator channel preferences (mute)
+-- Migration 0482 · Per-operator channel preferences (mute)
 --
 -- Drivers can already mute a channel (driver_channel_members.muted, 0073) and
 -- the push fan-out honors it — but the DASHBOARD operator had no equivalent:

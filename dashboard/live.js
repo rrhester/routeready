@@ -39749,13 +39749,13 @@ async function _createHrSpace() {
 }
 
 // ─── Channel enrichments: reactions, @mentions, seen-by, bookmarks ───────
-// Shared reaction palette — must match private.channel_reaction_allowed (0479).
+// Shared reaction palette — must match private.channel_reaction_allowed (0480).
 const _RR_CHANNEL_REACTIONS = ['👍','❤️','✅','👀','😂','🎉','⚠️','🙏'];
 
 // Member roster of the open channel, for @mention autocomplete + resolution.
 let _ccCurrentMembers = [];
 
-// Channels the current operator has muted (dispatcher-side prefs, 0481).
+// Channels the current operator has muted (dispatcher-side prefs, 0482).
 // Muted channels are suppressed from the unread-badge treatment in the list.
 let _ccMutedIds = new Set();
 async function _ccLoadChannelPrefs() {
@@ -40166,7 +40166,7 @@ async function refreshChannelThread(scrollToBottom) {
   const meta = _msgChannelList.find(c => c.id === channelId) || {};
 
   // Fetch the messages plus the three parallel enrichment streams —
-  // reactions, @mentions, and member read-state (0479 / 0480). Each is a
+  // reactions, @mentions, and member read-state (0480 / 0481). Each is a
   // graceful no-op on servers where the migration isn't applied yet, so the
   // thread still renders if any RPC is missing.
   const [msgRes, reactRes, mentionRes, readRes, memberRes] = await Promise.all([

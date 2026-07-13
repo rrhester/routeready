@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────
--- Migration 0483 · Scheduled send (dispatch → driver DM or channel)
+-- Migration 0484 · Scheduled send (dispatch → driver DM or channel)
 --
 -- Lets a dispatcher compose a message now and have it delivered at a future
 -- time — e.g. pre-staging tomorrow's route/dock assignments.  A scheduled
