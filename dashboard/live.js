@@ -9724,6 +9724,196 @@ document.addEventListener("click", (e) => {
   _openHelpPopup(b.getAttribute("data-rr-help"));
 });
 
+// ── Onboarding overview redesign — presentation helpers ───────────────
+// Grouped process columns (Screening / Employment / Activation) plus
+// Status and Next-action columns. Everything below is derived from the
+// same _obReadiness / _onbStepsResolved data and reuses the existing
+// dot-toggle + row handlers — pure presentation, no new data flow.
+const _OB_STEP_GROUP = {
+  bg_check: "screening", drug_test: "screening", bg_instructions: "screening", drug_info: "screening",
+  job_offer: "employment", handbook: "employment", i9: "employment", welcome_email: "employment",
+  trainer_pair: "activation", scheduled: "activation", training: "activation",
+};
+const _OB_GROUP_LABEL = { screening: "Screening", employment: "Employment", activation: "Activation", other: "Steps" };
+function _obGroupOf(key) { return _OB_STEP_GROUP[key] || "other"; }
+
+// Process-cell status glyphs. Neutral by default; color only where the
+// design calls for attention — green check = complete (RouteReady's
+// system-wide "confirmed" green), navy ring = in review, amber clock =
+// due, red triangle = issue, gray outline = not started.
+const _OB_PIC = {
+  done:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+  review: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="9" stroke-opacity=".28"/><path d="M12 3a9 9 0 0 1 9 9" stroke-linecap="round"/></svg>',
+  wait:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 8 12 12 15 14"/></svg>',
+  none:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/></svg>',
+  issue:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+};
+const _OB_PIC_LABEL = { done: "", review: "In review", wait: "Waiting", due: "Waiting", none: "Not started", issue: "Issue" };
+
+// One process <td>: status glyph + short label + date. When `toggleAttrs`
+// is supplied the glyph is an interactive button routed by the existing
+// data-rr-ob-mxdot handler; otherwise it's a static span (read-only step).
+function _obProcTd(state, dateStr, group, toggleAttrs, title) {
+  const iconKey = state === "due" ? "wait" : state;
+  const label = _OB_PIC_LABEL[state] || "";
+  const glyph = _OB_PIC[iconKey] || _OB_PIC.none;
+  const t = escapeHtml(title || label || "");
+  const ic = toggleAttrs
+    ? `<button type="button" class="ob-pc-ic st-${state}" ${toggleAttrs} title="${t}" aria-label="${t}">${glyph}</button>`
+    : `<span class="ob-pc-ic st-${state}" title="${t}" aria-label="${t}">${glyph}</span>`;
+  return `<td class="ob-pc-td" data-group="${group}"><span class="ob-pc st-${state}">${ic}`
+    + (label ? `<span class="ob-pc-lbl">${escapeHtml(label)}</span>` : "")
+    + (dateStr ? `<span class="ob-pc-dt">${escapeHtml(dateStr)}</span>` : "")
+    + `</span></td>`;
+}
+
+// Status column — pill + thin progress bar + completion count. Only a
+// genuine problem (red) or an approaching deadline (amber) carries
+// color; everything else stays neutral slate.
+function _obStatusCell(ob) {
+  const tone = ob.tone === "red" ? "blocked" : ob.tone === "amber" ? "warn"
+    : (ob.key === "ready" || ob.key === "active") ? "ready" : "progress";
+  const pillLabel = ob.tone === "red" ? "Blocked"
+    : ob.key === "ready" ? "Ready" : ob.key === "active" ? "Active"
+    : ob.tone === "amber" ? "Due soon" : "In progress";
+  return `<td class="ob-mx-statuscell">`
+    + `<span class="ob-st-pill ob-st-${tone}"><span class="ob-st-dot"></span>${escapeHtml(pillLabel)}</span>`
+    + `<span class="ob-pbar ob-pbar-${tone}"><i style="width:${Math.max(0, Math.min(100, ob.pct))}%"></i></span>`
+    + `<span class="ob-pcount">${ob.doneN} of ${ob.totalN} complete</span>`
+    + `</td>`;
+}
+
+// Next-action column — the one-line "what happens next" from
+// _obReadiness plus a compact secondary button that opens the driver so
+// the operator can act. Red text/button only for a real blocker.
+function _obNextCell(d, ob) {
+  const title = ob.next || "—";
+  let sub = "In progress", label = "Send documents", danger = false;
+  switch (ob.key) {
+    case "compliance_risk": case "needs_correction": sub = "Action required"; label = "View issue"; danger = true; break;
+    case "ready": sub = "All gates complete"; label = "Activate"; break;
+    case "due_soon": sub = "Approaching deadline"; label = "Review"; break;
+    case "awaiting_review": sub = "Awaiting your review"; label = "Review"; break;
+    case "waiting_on_driver": sub = "Waiting on the driver"; label = "Send reminder"; break;
+    case "active": sub = "Onboarding complete"; label = ""; break;
+    case "not_started": sub = "Not started"; label = "Send documents"; break;
+  }
+  const btn = label
+    ? `<button type="button" class="ob-na-btn${danger ? " danger" : ""}" data-rr-onboardops-open="${escapeHtml(d.id)}">${escapeHtml(label)}</button>`
+    : "";
+  return `<td class="ob-mx-nextcell"><div class="ob-na-t">${escapeHtml(title)}</div>`
+    + `<div class="ob-na-s${danger ? " flag" : ""}">${escapeHtml(sub)}</div>${btn}</td>`;
+}
+
+// Injected once, after onboarding-rrx.css, so these win on load order.
+// Scoped to #view-onboarding-ops.rrx-onboarding to match / beat the page
+// skin's specificity. Covers the redesigned toolbar, grouped headers,
+// process cells, and the status / next-action columns.
+function _obOverviewStylesOnce() {
+  if (document.getElementById("rr-ob-overview-styles")) return;
+  const P = "#view-onboarding-ops.rrx-onboarding ";
+  const s = document.createElement("style");
+  s.id = "rr-ob-overview-styles";
+  s.textContent =
+    /* ── Toolbar ─────────────────────────────────────────────── */
+    P + ".ob-tbx{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:8px 10px;margin-bottom:12px}" +
+    P + ".ob-tbx-l,.ob-tbx-r{display:flex;align-items:center;gap:8px;flex-wrap:wrap}" +
+    P + ".ob-tbx-search{position:relative;display:flex;align-items:center}" +
+    P + ".ob-tbx-search svg{position:absolute;left:9px;width:15px;height:15px;color:var(--text-subtle);pointer-events:none}" +
+    P + ".ob-tbx-search input{font:inherit;font-size:var(--fs-md);height:34px;padding:0 10px 0 30px;width:220px;border:1px solid var(--rr-ctl-border,#D7DCE3);border-radius:var(--r-md);background:var(--surface);color:var(--text)}" +
+    P + ".ob-tbx-search input::placeholder{color:var(--text-disabled)}" +
+    P + ".ob-tbx-search input:focus{outline:none;border-color:var(--accent);box-shadow:var(--ring-focus)}" +
+    P + ".ob-tbx-sel{appearance:none;font:inherit;font-size:var(--fs-md);font-weight:500;height:34px;padding:0 28px 0 12px;border:1px solid var(--rr-ctl-border,#D7DCE3);border-radius:var(--r-md);color:var(--text-muted);cursor:pointer;background:var(--surface) url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='%236B7280' stroke-width='2'><polyline points='2 4 6 8 10 4'/></svg>\") no-repeat right 9px center}" +
+    P + ".ob-tbx-sel:hover{border-color:var(--border-strong);background-color:var(--rr-ctl-hover,#F8FAFC)}" +
+    P + ".ob-tbx-sel:focus{outline:none;border-color:var(--accent);box-shadow:var(--ring-focus)}" +
+    P + ".ob-tbx-chip{display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 12px;border:1px solid var(--rr-ctl-border,#D7DCE3);border-radius:var(--r-md);background:var(--surface);font:inherit;font-size:var(--fs-md);font-weight:500;color:var(--text-muted);cursor:pointer}" +
+    P + ".ob-tbx-chip svg{width:13px;height:13px}" +
+    P + ".ob-tbx-chip:hover{border-color:var(--border-strong);background:var(--rr-ctl-hover,#F8FAFC)}" +
+    P + ".ob-tbx-chip.is-on{border-color:var(--red-border);background:var(--red-soft);color:var(--red)}" +
+    P + ".ob-tbx-chip-n{font-weight:700;font-variant-numeric:tabular-nums}" +
+    P + ".ob-tbx-div{width:1px;height:24px;background:var(--border)}" +
+    P + ".ob-tbx-btn{height:36px}" +
+    P + ".ob-tbx-primary{background:#1E293B;color:#fff;border-color:#1E293B;font-weight:600}" +
+    P + ".ob-tbx-primary:hover{background:#0F172A;border-color:#0F172A;color:#fff}" +
+    P + ".ob-tbx-primary svg{stroke:#fff}" +
+    /* ── Table shell ─────────────────────────────────────────── */
+    P + ".ob-mx-wrap{height:auto !important;min-height:360px;max-height:calc(100vh - 300px) !important}" +
+    P + ".ob-matrix-v2{min-width:1180px}" +
+    /* group caption row — sits above the sticky column head, scrolls away */
+    P + ".ob-matrix-v2 .ob-mx-grouprow th{top:auto !important;z-index:1 !important;background:var(--rr-gray-100,#F3F4F6) !important;border-bottom:0 !important;box-shadow:none !important;padding:9px 9px 2px !important}" +
+    P + ".ob-matrix-v2 .ob-mx-groupcell{font-size:9.5px !important;font-weight:700 !important;letter-spacing:.09em !important;text-transform:uppercase !important;color:var(--text-disabled,#9CA3AF) !important;text-align:center !important;border-left:1px solid var(--border) !important;white-space:nowrap}" +
+    P + ".ob-matrix-v2 .ob-grp-spacer{background:var(--rr-gray-100,#F3F4F6) !important;border-left:0 !important}" +
+    /* column head row — sticky at the top of the scroll viewport */
+    P + ".ob-matrix-v2 .ob-mx-colrow th{position:sticky !important;top:0 !important;z-index:3 !important;background:var(--rr-gray-100,#F3F4F6) !important;color:var(--text-subtle) !important;font-size:11px !important;font-weight:600 !important;text-transform:none !important;letter-spacing:0 !important;padding:4px 9px 10px !important;border-bottom:1px solid var(--border) !important;box-shadow:0 1px 0 var(--border) !important}" +
+    P + ".ob-matrix-v2 .ob-mx-colrow th.ob-mx-namecol{left:0 !important;z-index:5 !important;text-align:left !important;padding-left:16px !important}" +
+    P + ".ob-matrix-v2 .ob-mx-colrow th.ob-mx-statuscol,.ob-matrix-v2 .ob-mx-colrow th.ob-mx-nextcol{text-align:left !important}" +
+    P + ".ob-matrix-v2 .ob-mx-grouprow th.ob-mx-namecol{left:0 !important;z-index:2 !important}" +
+    /* body rows */
+    P + ".ob-matrix-v2 td{padding:14px 10px !important;text-align:center;vertical-align:middle}" +
+    P + ".ob-matrix-v2 tr.ob-mx-row{cursor:pointer}" +
+    P + ".ob-matrix-v2 td.ob-mx-namecell{text-align:left !important;min-width:250px;vertical-align:middle}" +
+    P + ".ob-matrix-v2 td.ob-mx-statuscell,.ob-matrix-v2 td.ob-mx-nextcell{text-align:left !important;vertical-align:middle}" +
+    P + ".ob-matrix-v2 td.ob-pc-td{vertical-align:middle}" +
+    P + ".ob-matrix-v2 td.ob-pc-td[data-group]{border-left:1px solid var(--border-subtle,#F3F4F6)}" +
+    /* name cell */
+    P + ".ob-mx-nameflex{display:flex;align-items:center;gap:11px}" +
+    P + ".ob-mx-nameflex .avatar-sm{width:38px;height:38px;font-size:13px;flex:0 0 auto}" +
+    P + ".ob-mx-nametext{min-width:0}" +
+    P + ".ob-mx-meta-sub{margin-top:1px;color:var(--text-muted)}" +
+    /* process cell */
+    P + ".ob-pc{display:inline-flex;flex-direction:column;align-items:center;gap:3px;line-height:1.2}" +
+    P + ".ob-pc-ic{width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;padding:0;border:0;background:transparent;color:var(--text-disabled);transition:transform .1s}" +
+    P + "button.ob-pc-ic{cursor:pointer}" +
+    P + "button.ob-pc-ic[disabled]{cursor:default}" +
+    P + "button.ob-pc-ic:not([disabled]):hover{transform:scale(1.14)}" +
+    P + ".ob-pc-ic:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}" +
+    P + ".ob-pc-ic svg{width:19px;height:19px}" +
+    P + ".ob-pc-ic.st-done{color:var(--green)}" +
+    P + ".ob-pc-ic.st-review{color:#1E293B}" +
+    P + ".ob-pc-ic.st-wait{color:var(--text-subtle)}" +
+    P + ".ob-pc-ic.st-due{color:var(--amber)}" +
+    P + ".ob-pc-ic.st-none{color:#CBD5E1}" +
+    P + ".ob-pc-ic.st-issue{color:var(--red)}" +
+    P + ".ob-pc-lbl{font-size:11px;font-weight:600;color:var(--text-muted)}" +
+    P + ".ob-pc.st-none .ob-pc-lbl{color:var(--text-disabled);font-weight:500}" +
+    P + ".ob-pc.st-review .ob-pc-lbl{color:#1E293B}" +
+    P + ".ob-pc.st-issue .ob-pc-lbl{color:var(--red)}" +
+    P + ".ob-pc-dt{font-size:10.5px;color:var(--text-subtle);font-variant-numeric:tabular-nums}" +
+    P + ".ob-pc.st-due .ob-pc-dt{color:var(--amber);font-weight:600}" +
+    /* status column */
+    P + ".ob-mx-statuscell{min-width:168px}" +
+    P + ".ob-st-pill{display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:var(--r-pill);font-size:11px;font-weight:600;line-height:1.5;white-space:nowrap}" +
+    P + ".ob-st-pill .ob-st-dot{width:6px;height:6px;border-radius:50%;background:currentColor}" +
+    P + ".ob-st-blocked{background:var(--red-soft);color:var(--red)}" +
+    P + ".ob-st-warn{background:var(--amber-soft);color:var(--amber-dark,#B45309)}" +
+    P + ".ob-st-ready{background:rgba(51,65,85,.10);color:#334155}" +
+    P + ".ob-st-progress{background:var(--surface-secondary,#F3F4F6);color:var(--text-muted)}" +
+    P + ".ob-pbar{display:block;height:4px;border-radius:2px;background:#EAECEF;margin:8px 0 4px;overflow:hidden;max-width:150px}" +
+    P + ".ob-pbar i{display:block;height:100%;border-radius:2px;background:#334155}" +
+    P + ".ob-pbar-blocked i{background:var(--red)}" +
+    P + ".ob-pbar-warn i{background:var(--amber)}" +
+    P + ".ob-pcount{font-size:11px;color:var(--text-subtle);font-variant-numeric:tabular-nums}" +
+    /* next-action column */
+    P + ".ob-mx-nextcell{min-width:206px}" +
+    P + ".ob-na-t{font-size:var(--fs-md);font-weight:600;color:var(--text);line-height:1.25}" +
+    P + ".ob-na-s{font-size:11px;color:var(--text-subtle);margin:1px 0 6px;line-height:1.3}" +
+    P + ".ob-na-s.flag{color:var(--red)}" +
+    P + ".ob-na-btn{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 10px;border-radius:var(--r-md);font:inherit;font-size:11.5px;font-weight:600;border:1px solid var(--rr-ctl-border,#D7DCE3);background:var(--surface);color:var(--text-muted);cursor:pointer}" +
+    P + ".ob-na-btn:hover{background:var(--rr-ctl-hover,#F8FAFC);border-color:var(--border-strong);color:var(--text)}" +
+    P + ".ob-na-btn.danger{border-color:var(--red-border);color:var(--red)}" +
+    P + ".ob-na-btn.danger:hover{background:var(--red-soft)}" +
+    /* empty + pager */
+    P + ".ob-mx-empty{padding:44px 16px;text-align:center;color:var(--text-subtle);font-size:var(--fs-md)}" +
+    P + ".ob-mx-pager{display:flex;justify-content:space-between;align-items:center;padding:10px 2px 2px}" +
+    P + ".ob-mx-pager-info{font-size:12px;color:var(--text-subtle)}" +
+    P + ".ob-mx-pager-info strong{color:var(--text);font-weight:700}" +
+    /* Collapse the empty KPI band on the Overview — the redesign has no
+       KPI cards. It still shows when the Funnel / Roster sub-views paint
+       their own pills into it. */
+    P + "#rr-ob-kpis:empty{display:none !important}";
+  document.head.appendChild(s);
+}
+
 async function loadOnboardingOps(opts) {
   // The readiness matrix renders into #obsub-overview-left. Fall back
   // to the outer #obsub-overview for legacy DOMs that haven't been
@@ -9801,15 +9991,71 @@ async function loadOnboardingOps(opts) {
   // fixed "Active" + a "Send documents" action column. The trainer-pair
   // column comes from the blueprint loop now (driver-state-backed),
   // so no special-case column rendering is needed.
+  _obOverviewStylesOnce();
   const stepCols = _obSteps().filter(s => s && s.enabled).map(_obStepColumn);
-  const fmtCellDate = (x) => x ? new Date(x).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : null;
-  // Onboarding dot: green once the step is complete, no fill otherwise.
-  // Every step in the overview is visible to the driver; hover for status.
-  const dotCell = (driverId, kind, field, done, val, opts) => {
-    const ro = opts && opts.readonly;
-    const dv = fmtCellDate(val);
-    const title = done ? ((opts && opts.labelDone ? opts.labelDone : "Done") + (dv ? " " + dv : "")) : ((opts && opts.labelTodo) || "Not yet");
-    return `<td><button type="button" class="ob-mxdot${done ? " done" : ""}${ro ? " readonly" : ""}" data-rr-ob-mxdot data-driver-id="${escapeHtml(driverId)}" data-kind="${kind}" data-field="${escapeHtml(field || "")}" data-state="${done ? "done" : "todo"}" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}"${ro ? " disabled" : ""}></button></td>`;
+  const colGroups = stepCols.map(s => _obGroupOf(s.key));
+  const fmtCellDate = (x) => x ? new Date(x).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : null;
+
+  // Process cells for one driver + the set of groups that still have
+  // open work (drives the stage filter). Each glyph keeps the existing
+  // data-rr-ob-mxdot / data-rr-tp-open toggle semantics unchanged.
+  const rowCells = (d, prog, i9, i9verified, i9CompletedAt, stState) => {
+    const openGroups = new Set();
+    const tds = stepCols.map((s, idx) => {
+      const m = s.map, group = colGroups[idx];
+      const tog = (kind, field, done, disabled) =>
+        `data-rr-ob-mxdot data-driver-id="${escapeHtml(d.id)}" data-kind="${kind}" data-field="${escapeHtml(field || "")}" data-state="${done ? "done" : "todo"}"${disabled ? " disabled" : ""}`;
+      let state = "none", dstr = null, title = "";
+      if (m.kind === "state") {
+        // Trainer pairing keeps its bespoke modal launcher (data-rr-tp-open):
+        // materialized = complete, needs_repair = a warning, proposed = in
+        // review, empty = not started.
+        if (s.key === "trainer_pair") {
+          const pair = _rosterPairings && _rosterPairings.get(d.id);
+          const st = pair && pair.status;
+          state = st === "materialized" ? "done" : st === "needs_repair" ? "due" : st === "proposed" ? "review" : "none";
+          dstr = st === "materialized" && pair.ride_along_date ? fmtCellDate(pair.ride_along_date) : null;
+          title = st === "materialized" ? `Scheduled${pair.ride_along_date ? " · ride-along " + pair.ride_along_date : ""}`
+            : st === "needs_repair" ? `Training pair needs a fix${pair.repair_reason ? " · " + pair.repair_reason : ""}`
+            : st === "proposed" ? "Match saved · awaiting activation" : "Pair this driver with a trainer";
+          if (state !== "done") openGroups.add(group);
+          return _obProcTd(state, dstr, group, `data-rr-tp-open="${escapeHtml(d.id)}"`, title);
+        }
+        const dspOwned = s.owner === "dsp";
+        const entry = stState[m.done];
+        const status = entry && entry.status;
+        if (status === "complete") { state = "done"; dstr = fmtCellDate(entry.at); title = (m.doneLabel || "Done") + (dstr ? " " + dstr : ""); }
+        else if (status === "awaiting_review") { state = "review"; dstr = fmtCellDate(entry && entry.at); title = "In review"; }
+        else if (status === "declined") { state = "issue"; title = "Declined — needs attention"; }
+        else if (status && status !== "not_started") { state = "wait"; dstr = fmtCellDate(entry && entry.at); title = _OB_STATE_LABELS[status] || status; }
+        else { title = `${s.title || "Step"} — not started`; }
+        if (state !== "done") openGroups.add(group);
+        return _obProcTd(state, dstr, group, tog("state", m.done, state === "done", !dspOwned), title);
+      }
+      if (m.kind === "i9") {
+        if (i9verified) { state = "done"; dstr = fmtCellDate(i9CompletedAt); title = "Form I-9 verified" + (dstr ? " " + dstr : ""); }
+        else if (i9.key === "section1_complete") { state = "review"; title = "Section 1 done — verify Section 2"; }
+        else if (i9.key === "needs_correction") { state = "issue"; title = "Form I-9 needs correction"; }
+        else if (i9.key === "section1_in_progress") { state = "wait"; title = "Form I-9 — with the driver (Section 1)"; }
+        else { title = "Form I-9 — not started"; }
+        if (state !== "done") openGroups.add(group);
+        return _obProcTd(state, dstr, group, tog("i9", "", state === "done", true), title);
+      }
+      if (m.kind === "drv") {
+        if (d[m.done]) { state = "done"; dstr = fmtCellDate(d[m.done]); title = (m.doneLabel || "Cleared") + (dstr ? " " + dstr : ""); }
+        else { title = `${s.title || "Step"} — not recorded`; }
+        if (state !== "done") openGroups.add(group);
+        return _obProcTd(state, dstr, group, tog("drv", m.done, state === "done", false), title);
+      }
+      // prog — welcome/scheduled (DSP-recorded, clickable) and the
+      // handbook/offer "sent" steps (driver-signed, read-only here).
+      if (prog[m.done]) { state = "done"; dstr = fmtCellDate(prog[m.done]); title = (m.doneLabel || "Done") + (dstr ? " " + dstr : ""); }
+      else if (m.sent && prog[m.sent]) { state = "wait"; dstr = fmtCellDate(prog[m.sent]); title = `Sent ${dstr || ""} — with the driver`; }
+      else { title = `${s.title || "Step"} — not sent`; }
+      if (state !== "done") openGroups.add(group);
+      return _obProcTd(state, dstr, group, tog("prog", m.done, state === "done", !!m.sent), title);
+    });
+    return { tds, openGroups };
   };
 
   const matrixRow = ({ d, ob }) => {
@@ -9822,153 +10068,213 @@ async function loadOnboardingOps(opts) {
     const days = d.hire_date ? Math.max(0, Math.floor((Date.now() - new Date(d.hire_date).getTime()) / 86400000)) : null;
     const tier = d.tier ? `tier-${String(d.tier).toLowerCase()}` : "";
     const stState = (_rosterState && _rosterState.get(d.id)) || {};
-    const builtCells = stepCols.map(s => {
-      const m = s.map;
-      const stepType = s.type || "";
-      let done = false, val = null;
-      let labelDone = m.doneLabel || "Done", labelTodo = m.todoLabel || `${s.title} — not yet`;
-      if (m.kind === "state") {
-        // Trainer pairing is special-cased: clicking the dot opens the
-        // dedicated training-pairing modal (driver ↔ trainer match +
-        // ride-along scheduling) instead of toggling a generic
-        // complete/not-started state. The dot's color reflects the
-        // training_pairings.status — materialized = green, proposed /
-        // needs_repair show their own colors, empty when no pairing
-        // exists yet.
-        if (s.key === "trainer_pair") {
-          const pair = _rosterPairings && _rosterPairings.get(d.id);
-          const st = pair && pair.status;
-          const isDone = st === "materialized";
-          const color =
-            st === "materialized" ? "#16a34a"
-          : st === "needs_repair" ? "#d97706"
-          : st === "proposed"     ? "var(--text-muted)"
-          :                         "transparent";
-          const border =
-            st === "materialized" ? "#16a34a"
-          : st === "needs_repair" ? "#d97706"
-          : st === "proposed"     ? "var(--text-muted)"
-          :                         "var(--border)";
-          const title =
-            st === "materialized" ? `Trainer pair materialized${pair && pair.ride_along_date ? ` · ${pair.ride_along_date}` : ""}`
-          : st === "needs_repair" ? `Trainer pair needs fix${pair && pair.repair_reason ? ` · ${pair.repair_reason}` : ""}`
-          : st === "proposed"     ? "Match saved · awaiting activate"
-          :                         "Click to pair this driver with a trainer";
-          return { done: isDone, html: `<td><button type="button" class="ob-mxdot${isDone ? " done" : ""}" data-rr-tp-open="${escapeHtml(d.id)}" style="background:${color};border-color:${border}" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}"></button></td>` };
-        }
-        // State-backed steps split by owner:
-        //   driver — completes them in their app (acknowledgement /
-        //     video / doc-to-sign); the dot is read-only here.
-        //   dsp    — operator records completion from the dashboard
-        //     (custom compliance gates, etc.); the dot is clickable to
-        //     toggle complete / not-started.
-        const dspOwned = s.owner === "dsp";
-        const entry = stState[m.done];
-        const status = entry && entry.status;
-        if (status === "complete") { done = true; val = entry.at || true; }
-        else if (status && status !== "not_started") labelTodo = `${_OB_STATE_LABELS[status] || status}${entry && entry.at ? " · " + (fmtCellDate(entry.at) || "") : ""}`;
-        else if (stepType === "document") labelTodo = `${s.title || "Step"} — not sent yet`;
-        return { done, html: dotCell(d.id, "state", m.done, done, val, { readonly: !dspOwned, labelDone, labelTodo }) };
-      }
-      if (m.kind === "i9") {
-        if (i9verified) { done = true; val = i9CompletedAt || true; }
-        else if (i9.key === "section1_complete") labelTodo = "Section 1 done — verify Section 2";
-        else if (["needs_correction", "section1_in_progress", "not_started", "no_record"].includes(i9.key)) labelTodo = "Form I-9 — with the driver (Section 1)";
-        return { done, html: dotCell(d.id, "i9", "", done, val, { readonly: true, labelDone, labelTodo }) };
-      }
-      if (m.kind === "drv") {
-        // Background check / drug test / training — recorded by the DSP.
-        if (d[m.done]) { done = true; val = d[m.done]; }
-        return { done, html: dotCell(d.id, "drv", m.done, done, val, { labelDone, labelTodo }) };
-      }
-      // prog: handbook / job offer are documents the driver signs (read-only
-      // dot); the "sent" steps (welcome email, etc.) are DSP-recorded.
-      if (prog[m.done]) { done = true; val = prog[m.done]; }
-      else if (m.sent && prog[m.sent]) labelTodo = `Sent · ${fmtCellDate(prog[m.sent]) || ""} — with the driver`;
-      return { done, html: dotCell(d.id, "prog", m.done, done, val, { readonly: !!m.sent, labelDone, labelTodo }) };
-    });
-    const cells = builtCells.map(c => c.html).join("");
+    const { tds } = rowCells(d, prog, i9, i9verified, i9CompletedAt, stState);
+    const name = displayDriverName(d);
+    const appliedStr = d.hire_date ? new Date(d.hire_date).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : null;
+    const metaLine = [appliedStr ? `Applied ${appliedStr}` : null, days != null ? `${days} day${days === 1 ? "" : "s"}` : null].filter(Boolean).join(" · ");
+    const active = d.status === "active";
+    const activeTd = _obProcTd(active ? "done" : "none", null, "activation",
+      `data-rr-ob-mxdot data-driver-id="${escapeHtml(d.id)}" data-kind="status" data-field="" data-state="${active ? "done" : "todo"}"`,
+      active ? "Active" : "Not active yet");
     return `
-      <tr data-driver-id="${escapeHtml(d.id)}">
+      <tr data-driver-id="${escapeHtml(d.id)}" class="ob-mx-row">
         <td class="ob-mx-namecell">
-          <div style="display:flex;align-items:center;gap:var(--s-2-5)">
-            <div class="avatar-sm ${tier}" style="flex:0 0 auto">${displayDriverInitials(d)}</div>
-            <div style="min-width:0">
-              <div class="ob-mx-name" data-rr-onboardops-open="${escapeHtml(d.id)}">${escapeHtml(displayDriverName(d))}</div>
-              <div class="ob-mx-meta">${[stationCode, d.hire_date ? new Date(d.hire_date).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : null, days != null ? `${days}d` : null].filter(Boolean).join(" · ") || "—"}</div>
+          <div class="ob-mx-nameflex">
+            <div class="avatar-sm ${tier}">${displayDriverInitials(d)}</div>
+            <div class="ob-mx-nametext">
+              <div class="ob-mx-name" data-rr-onboardops-open="${escapeHtml(d.id)}">${escapeHtml(name)}</div>
+              <div class="ob-mx-meta">${escapeHtml(metaLine || "—")}</div>
+              ${stationCode ? `<div class="ob-mx-meta ob-mx-meta-sub">${escapeHtml(stationCode)}</div>` : ""}
             </div>
           </div>
         </td>
-        ${cells}
-        <td>${(() => { const a = d.status === "active"; return `<button type="button" class="ob-mxdot${a ? " done" : ""}" data-rr-ob-mxdot data-driver-id="${escapeHtml(d.id)}" data-kind="status" data-field="" data-state="${a ? "done" : "todo"}" title="${a ? "Active" : "Not active yet"}" aria-label="${a ? "Active" : "Not active yet"}"></button>`; })()}</td>
+        ${_obStatusCell(ob)}
+        ${tds.join("")}
+        ${activeTd}
+        ${_obNextCell(d, ob)}
         <td class="ob-mx-toolcell"><div class="ob-mx-toolbar">
-          <button type="button" class="ob-tb-btn onb-msg-btn${(_onbUnreadByDriver && _onbUnreadByDriver.has(d.id)) ? " has-unread" : ""}" data-rr-ob-msg="${escapeHtml(d.id)}" data-name="${escapeHtml(displayDriverName(d))}" title="${(_onbUnreadByDriver && _onbUnreadByDriver.has(d.id)) ? `Message this driver — ${_onbUnreadByDriver.get(d.id)} unread` : "Message this driver"}" aria-label="Message this driver"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span class="ob-tb-btn-label">Message</span><span class="onb-msg-dot" aria-hidden="true"></span></button>
+          <button type="button" class="ob-tb-btn onb-msg-btn${(_onbUnreadByDriver && _onbUnreadByDriver.has(d.id)) ? " has-unread" : ""}" data-rr-ob-msg="${escapeHtml(d.id)}" data-name="${escapeHtml(name)}" title="${(_onbUnreadByDriver && _onbUnreadByDriver.has(d.id)) ? `Message this driver — ${_onbUnreadByDriver.get(d.id)} unread` : "Message this driver"}" aria-label="Message this driver"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span class="ob-tb-btn-label">Message</span><span class="onb-msg-dot" aria-hidden="true"></span></button>
           <button type="button" class="ob-tb-btn" data-rr-ob-send="${escapeHtml(d.id)}" title="Send documents…" aria-label="Send documents to this driver"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span class="ob-tb-btn-label">Documents</span></button>
-          <button type="button" class="ob-tb-btn ob-tb-more" data-rr-ob-more="${escapeHtml(d.id)}" data-name="${escapeHtml(displayDriverName(d))}" data-email="${escapeHtml(d.email || "")}" aria-haspopup="menu" aria-expanded="false" title="More actions" aria-label="More actions for this driver"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg><span class="ob-tb-btn-label">More</span></button>
+          <button type="button" class="ob-tb-btn ob-tb-more" data-rr-ob-more="${escapeHtml(d.id)}" data-name="${escapeHtml(name)}" data-email="${escapeHtml(d.email || "")}" aria-haspopup="menu" aria-expanded="false" title="More actions" aria-label="More actions for this driver"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg><span class="ob-tb-btn-label">More</span></button>
         </div></td>
       </tr>`;
   };
 
-  const stepHeaders = stepCols.map(s => `<th title="${escapeHtml(s.title)}">${escapeHtml(s.map.head)}</th>`).join("");
-  // Always render the table — skeleton rows fill in below the real
-  // applicants (zero or more). The previous "No one in onboarding"
-  // empty state was retired per operator request: the matrix should
-  // always feel like a populated queue, with new applicants
-  // "filling" skeleton slots as they arrive.
-  body.innerHTML = `${_helpBar("overview")}<div class="ob-mx-wrap"><div class="ob-mx-scroll"><table class="ob-matrix">
-        <thead>
-          <tr>
-            <th class="ob-mx-namecol">Driver</th>
-            ${stepHeaders}
-            <th>Active</th>
-            <th class="ob-mx-toolcol">Actions</th>
-          </tr>
-        </thead>
-        <tbody>${enriched.map(matrixRow).join("")}</tbody>
-      </table></div></div>`;
-  // Fill the rest of the viewport with skeleton rows so the matrix
-  // reads as a populated surface, not a half-empty table. Each
-  // skeleton row mirrors the column structure of a real row (avatar +
-  // text bars in the Driver col, hollow rings in each step col, a
-  // hollow ring in Active, ghost icons in Actions) — same line-height
-  // as a real row so adding a real applicant just replaces a skeleton.
-  // Ghost/skeleton filler rows removed by request — the table now ends after
-  // the real applicants instead of padding to the viewport bottom.
-  // Overview KPI strip (step-count pills above the matrix) removed by
-  // request — #rr-ob-kpis stays empty on the Overview and the :empty
-  // rule collapses it. The Funnel sub-tab and Roster mode still paint
-  // their own pills into the same host.
+  // ── Per-driver search/filter metadata (computed once) ──────────────
+  enriched.forEach(x => {
+    const d = x.d;
+    const prog = (_rosterProg && _rosterProg.get(d.id)) || {};
+    const i9r = (_rosterI9 && _rosterI9.get(d.id)) || null;
+    const i9 = _i9Derived(i9r);
+    const i9verified = i9.key === "verified" || i9.key === "verified_expiring" || i9.key === "sealing";
+    const i9CompletedAt = i9r && i9r.section2_completed_at ? i9r.section2_completed_at : null;
+    const stState = (_rosterState && _rosterState.get(d.id)) || {};
+    const { openGroups } = rowCells(d, prog, i9, i9verified, i9CompletedAt, stState);
+    const stationCode = (_driverStationsCache || []).find(s => s.id === d.station_id)?.code || "";
+    x.meta = {
+      name: displayDriverName(d),
+      station: stationCode,
+      attn: x.ob.tone === "red" || x.ob.tone === "amber",
+      appliedTs: d.hire_date ? new Date(d.hire_date).getTime() : 0,
+      days: d.hire_date ? Math.max(0, Math.floor((Date.now() - new Date(d.hire_date).getTime()) / 86400000)) : 0,
+      openGroups,
+    };
+  });
 
-  body.querySelectorAll("[data-rr-onboardops-open]").forEach(el => {
-    el.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
+  // Grouped header row (SCREENING / EMPLOYMENT / ACTIVATION), collapsed
+  // into colspan runs so a custom blueprint order still groups cleanly.
+  const gall = colGroups.concat(["activation"]);   // trailing "activation" covers the Active column
+  let groupCells = "", gi = 0;
+  while (gi < gall.length) {
+    let gj = gi + 1;
+    while (gj < gall.length && gall[gj] === gall[gi]) gj++;
+    groupCells += `<th class="ob-mx-groupcell ob-grp-${gall[gi]}" colspan="${gj - gi}">${escapeHtml(_OB_GROUP_LABEL[gall[gi]] || "")}</th>`;
+    gi = gj;
+  }
+  const stepHeaders = stepCols.map(s => `<th class="ob-pc-col" title="${escapeHtml(s.title || "")}">${escapeHtml(s.map.head)}</th>`).join("");
+  const colspan = stepCols.length + 5;
+
+  // Toolbar (search · stage · needs-attention · station · sort · import ·
+  // add) + the table shell. There is no Owner field in the data model,
+  // so the third filter groups by station/location instead.
+  const stations = Array.from(new Set(enriched.map(x => x.meta.station).filter(Boolean))).sort();
+  const attnCount = enriched.filter(x => x.meta.attn).length;
+  body.innerHTML = `${_helpBar("overview")}
+    <div class="ob-tbx" role="region" aria-label="Onboarding filters and actions">
+      <div class="ob-tbx-l">
+        <div class="ob-tbx-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
+          <input type="search" id="rr-ob-search" placeholder="Search applicants" aria-label="Search applicants" autocomplete="off" />
+        </div>
+        <select class="ob-tbx-sel" id="rr-ob-stage" aria-label="Filter by stage">
+          <option value="">All stages</option>
+          <option value="screening">Screening</option>
+          <option value="employment">Employment</option>
+          <option value="activation">Activation</option>
+        </select>
+        <button type="button" class="ob-tbx-chip" id="rr-ob-attn" aria-pressed="false" title="Show only applicants needing attention">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          Needs attention${attnCount ? ` <span class="ob-tbx-chip-n">${attnCount}</span>` : ""}
+        </button>
+        ${stations.length ? `<select class="ob-tbx-sel" id="rr-ob-station" aria-label="Filter by station">
+          <option value="">All stations</option>
+          ${stations.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("")}
+        </select>` : ""}
+      </div>
+      <div class="ob-tbx-r">
+        <select class="ob-tbx-sel" id="rr-ob-sort" aria-label="Sort applicants">
+          <option value="urgency">Sort: Urgency</option>
+          <option value="applied">Sort: Applied date</option>
+          <option value="days">Sort: Days in onboarding</option>
+          <option value="name">Sort: Name</option>
+        </select>
+        <span class="ob-tbx-div" aria-hidden="true"></span>
+        <button type="button" class="btn ob-tbx-btn" id="rr-ob-import-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Import</button>
+        <button type="button" class="btn ob-tbx-btn ob-tbx-primary" id="rr-ob-add-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add applicant</button>
+      </div>
+    </div>
+    <div class="ob-mx-wrap"><div class="ob-mx-scroll"><table class="ob-matrix ob-matrix-v2">
+      <thead>
+        <tr class="ob-mx-grouprow">
+          <th class="ob-mx-namecol ob-grp-spacer"></th>
+          <th class="ob-mx-statuscol ob-grp-spacer"></th>
+          ${groupCells}
+          <th class="ob-mx-nextcol ob-grp-spacer"></th>
+          <th class="ob-mx-toolcol ob-grp-spacer"></th>
+        </tr>
+        <tr class="ob-mx-colrow">
+          <th class="ob-mx-namecol">Applicant</th>
+          <th class="ob-mx-statuscol">Status</th>
+          ${stepHeaders}
+          <th class="ob-pc-col">Active</th>
+          <th class="ob-mx-nextcol">Next action</th>
+          <th class="ob-mx-toolcol">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="rr-ob-tbody"></tbody>
+    </table></div></div>
+    <div class="ob-mx-pager" id="rr-ob-pager" aria-live="polite"></div>`;
+
+  const tbody = document.getElementById("rr-ob-tbody");
+  const searchEl = document.getElementById("rr-ob-search");
+  const stageEl = document.getElementById("rr-ob-stage");
+  const attnEl = document.getElementById("rr-ob-attn");
+  const stationEl = document.getElementById("rr-ob-station");
+  const sortEl = document.getElementById("rr-ob-sort");
+  const pagerEl = document.getElementById("rr-ob-pager");
+
+  // Bind the per-row open/pairing/send handlers (tbody is repainted on
+  // every filter/sort, so these rebind each paint; the dot toggle, more
+  // menu, and message actions are document-delegated and persist).
+  const bindRow = () => {
+    tbody.querySelectorAll("[data-rr-onboardops-open]").forEach(el => el.addEventListener("click", (e) => {
+      e.preventDefault(); e.stopPropagation();
       const id = el.getAttribute("data-rr-onboardops-open");
       if (id) openDriverDrawer(id, { tab: "profile" });
-    });
-  });
-  body.querySelectorAll("[data-rr-tp-open]").forEach(el => {
-    el.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
+    }));
+    tbody.querySelectorAll("[data-rr-tp-open]").forEach(el => el.addEventListener("click", (e) => {
+      e.preventDefault(); e.stopPropagation();
       const id = el.getAttribute("data-rr-tp-open");
       if (id) openTrainingPairingModal(id);
-    });
-  });
-  body.querySelectorAll("[data-rr-ob-send]").forEach(el => {
-    el.addEventListener("click", async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
+    }));
+    tbody.querySelectorAll("[data-rr-ob-send]").forEach(el => el.addEventListener("click", async (e) => {
+      e.preventDefault(); e.stopPropagation();
       const id = el.getAttribute("data-rr-ob-send");
       if (!id) return;
-      // The send-docs modal expects _ddDriver.driver to be the recipient.
-      // Fetch the driver record into _ddDriver so the modal can render.
       const { data, error } = await sb.rpc("driver_record", { p_id: id });
       if (error || !data) { toast("Couldn't load driver: " + (error?.message || ""), "warn"); return; }
       _ddDriver = data;
       openOnboardingSendDocsModal(id);
+    }));
+    // Row click (anywhere but an interactive control) opens the driver.
+    tbody.querySelectorAll("tr.ob-mx-row").forEach(tr => tr.addEventListener("click", (e) => {
+      if (e.target.closest("button, a, [data-rr-onboardops-open], [data-rr-tp-open], [data-rr-ob-mxdot]")) return;
+      const id = tr.getAttribute("data-driver-id");
+      if (id) openDriverDrawer(id, { tab: "profile" });
+    }));
+  };
+
+  const paint = () => {
+    const q = (searchEl && searchEl.value || "").trim().toLowerCase();
+    const stage = stageEl ? stageEl.value : "";
+    const attnOnly = attnEl ? attnEl.getAttribute("aria-pressed") === "true" : false;
+    const station = stationEl ? stationEl.value : "";
+    const sort = sortEl ? sortEl.value : "urgency";
+    let list = enriched.filter(x => {
+      if (q && !x.meta.name.toLowerCase().includes(q)) return false;
+      if (attnOnly && !x.meta.attn) return false;
+      if (stage && !x.meta.openGroups.has(stage)) return false;
+      if (station && x.meta.station !== station) return false;
+      return true;
     });
+    list.sort((a, b) => {
+      if (sort === "applied") return a.meta.appliedTs - b.meta.appliedTs;
+      if (sort === "days") return b.meta.days - a.meta.days;
+      if (sort === "name") return a.meta.name.localeCompare(b.meta.name);
+      if (a.ob.weight !== b.ob.weight) return a.ob.weight - b.ob.weight;   // urgency
+      return a.meta.appliedTs - b.meta.appliedTs;
+    });
+    tbody.innerHTML = list.length
+      ? list.map(matrixRow).join("")
+      : `<tr class="ob-mx-emptyrow"><td colspan="${colspan}"><div class="ob-mx-empty">${(q || stage || attnOnly || station) ? "No applicants match these filters." : "No one is onboarding right now — add an applicant to get started."}</div></td></tr>`;
+    bindRow();
+    if (pagerEl) pagerEl.innerHTML = `<span class="ob-mx-pager-info">Showing <strong>${list.length}</strong> of ${enriched.length} applicant${enriched.length === 1 ? "" : "s"}</span>`;
+  };
+
+  if (searchEl) searchEl.addEventListener("input", paint);
+  if (stageEl) stageEl.addEventListener("change", paint);
+  if (stationEl) stationEl.addEventListener("change", paint);
+  if (sortEl) sortEl.addEventListener("change", paint);
+  if (attnEl) attnEl.addEventListener("click", () => {
+    const on = attnEl.getAttribute("aria-pressed") === "true";
+    attnEl.setAttribute("aria-pressed", on ? "false" : "true");
+    attnEl.classList.toggle("is-on", !on);
+    paint();
   });
+  document.getElementById("rr-ob-import-btn")?.addEventListener("click", () => { if (typeof openPdfUploadPicker === "function") openPdfUploadPicker(); });
+  document.getElementById("rr-ob-add-btn")?.addEventListener("click", () => { if (typeof openAddApplicantModal === "function") openAddApplicantModal(); });
+
+  paint();
 
   // Fill the embedded Work-authorization (Form I-9) queue.
   loadDriverWorkAuthView();
