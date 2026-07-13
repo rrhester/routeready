@@ -17,6 +17,13 @@ import { initReportsBuilder, renderReportsInto, buildReportData } from "./report
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
 
+// Expose the record drawers so the Notebook view (an inline, non-module script)
+// can deep-link a linked record straight to its actual driver/vehicle record,
+// not just the per-entity notebook. Both are hoisted function declarations, so
+// this assignment is safe here at module top.
+try { window.openDriverDrawer = openDriverDrawer; } catch (e) {}
+try { window.openFleetDrawer = openFleetDrawer; } catch (e) {}
+
 const sb = createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
 });
