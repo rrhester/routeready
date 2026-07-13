@@ -169,7 +169,12 @@
 // invite" (was "Continue") and "Set up my account" (was "Activate") so a new
 // driver knows what each tap does; the sign-in info banner is tokenized to
 // var(--accent-soft). Bumped so installed driver PWAs pick up the new app.js.
-const SHELL_CACHE = "rr-app-shell-v164";
+// v165 · Settings IA: the settings list gains an account header (photo · name ·
+// DSP — so a driver can see who they are signed in as) and the rows group into
+// "Account" (Profile / License / PIN) and "Work" (Availability / Time off /
+// Attendance) instead of one undifferentiated run. Bumped so installed driver
+// PWAs pick up the new app.js + CSS.
+const SHELL_CACHE = "rr-app-shell-v165";
 const SHELL_FILES = [
   "./",
   "index.html",
