@@ -30741,6 +30741,12 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
   border:1px solid var(--border);border-radius:0 0 var(--r-md) var(--r-md);
   background:var(--surface);
   outline:none;
+  /* Grid cells default to Arial (like Google Sheets) rather than the app's
+     Inter. Arial is far more heavily hinted at small sizes, so a dense grid
+     of numbers renders crisp instead of soft. Scoped to the grid text —
+     the workbook chrome (toolbar, chips, buttons) stays on Inter. Per-cell
+     font choices set an inline font-family and still win over this. */
+  --wb-grid-font:Arial,"Helvetica Neue",Helvetica,"Segoe UI",system-ui,sans-serif;
 }
 #view-workbooks .wb-grid:focus-visible{box-shadow:var(--ring-focus);border-color:var(--accent)}
 #view-workbooks .wb-gr-corner{
@@ -30755,6 +30761,7 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
   position:absolute;box-sizing:border-box;
   display:flex;align-items:center;justify-content:center;
   font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);
+  font-family:var(--wb-grid-font);font-feature-settings:normal;
   font-variant-numeric:tabular-nums;
   border-right:1px solid var(--wb-grid-line,#DADCE0);border-bottom:1px solid var(--wb-grid-line,#DADCE0);
   user-select:none;cursor:pointer;
@@ -30772,6 +30779,7 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
   position:absolute;box-sizing:border-box;
   border-right:1px solid var(--wb-grid-line,#DADCE0);border-bottom:1px solid var(--wb-grid-line,#DADCE0);
   font-size:calc(var(--fs-md) * var(--wb-zoom, 1));color:var(--text);
+  font-family:var(--wb-grid-font);font-feature-settings:normal;
   padding:0 7px;line-height:1.35;
   display:flex;align-items:center;
   white-space:nowrap;overflow:hidden;text-overflow:clip;
@@ -31110,7 +31118,7 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 }
 #view-workbooks .wb-cell-editor{
   position:absolute;z-index:4;box-sizing:border-box;
-  font:inherit;font-family:inherit;font-size:calc(var(--fs-md) * var(--wb-zoom, 1));color:var(--text);
+  font:inherit;font-family:var(--wb-grid-font);font-feature-settings:normal;font-size:calc(var(--fs-md) * var(--wb-zoom, 1));color:var(--text);
   border:2px solid var(--accent);border-radius:1px;outline:none;
   padding:2px 5px;background:var(--surface);
   box-shadow:var(--shadow-md);
