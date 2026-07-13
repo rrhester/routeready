@@ -215,7 +215,8 @@
 //   2026-07-13.23 · Workbook Macros — a user-scripting console (Tools ▸ Macros…). Write a small JS script that reads/writes the active sheet through a curated `workbook` API (getValue/setValue/getRange/setValues/setFormula/log/toast), then run it on demand. Writes go through setCells (undoable + recalc + persist). Macros never auto-run (explicit Run + one-time trust confirm), save per-browser in localStorage, and run with dangerous globals shadowed. Additive; no engine/data-flow change. workbook.js.
 //   2026-07-13.24 · Notebook TipTap editor (opt-in, default OFF) — a flag-gated ProseMirror-based rich editor on a separate render path; classic editor untouched and stays default. live.js lazy-loads TipTap from CDN and exposes window.RRTipTap; the notebook mounts it when a DSP sets metadata.notebook_editor='tiptap' (or localStorage rrnb-editor=tiptap), else classic. Falls back to classic if the CDN can't load. live.js + view-notebooks.frag.
 //   2026-07-13.25 · Workbook Macros hardened — macro code now runs inside a Web Worker sandbox with no DOM, no session token, and network APIs (fetch/XHR/WebSocket/…) deleted, so a macro physically can't exfiltrate data outside the org; the worker's only channel is a brokered postMessage bridge to the curated `workbook` API, and runaway loops are killed by worker.terminate() on a 10s timeout. The main module no longer evals anything. Cost: `workbook` calls are now async (`await`). Example + API reference updated. workbook.js.
-const SW_DEPLOY_NONCE = "2026-07-13.25";
+//   2026-07-13.26 · Macros promoted to the workbook toolbar — a labeled "Macros" button now sits on the main toolbar (next to People) instead of being buried in Tools ▸ Macros…, so it's one click. Same openMacrosPanel; Tools menu entry kept too. workbook.js + inline-styles.css.
+const SW_DEPLOY_NONCE = "2026-07-13.26";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without

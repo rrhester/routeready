@@ -30821,6 +30821,10 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 /* ── Sheet-to-Schedule · Build Schedule from Sheet ──────────────────── */
 /* Toolbar: People (ghost) + the emphasized Build Schedule action */
 #view-workbooks .wb-tb-fill{display:inline-flex;align-items:center;gap:6px;padding:0 9px;font-size:var(--fs-sm);font-weight:600;white-space:nowrap}
+/* Macros: a labeled toolbar action (not buried in a menu). Subtle accent so it
+   reads as a distinct power tool without a heavy filled button. */
+#view-workbooks .wb-tb-macros{display:inline-flex;align-items:center;gap:6px;padding:0 9px;font-size:var(--fs-sm);font-weight:600;white-space:nowrap;color:var(--accent,var(--text))}
+#view-workbooks .wb-tb-macros svg{opacity:.9}
 #view-workbooks .wb-tb-buildbtn{
   display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
   padding:4px 11px;border-radius:999px;cursor:pointer;
