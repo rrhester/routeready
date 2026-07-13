@@ -14096,6 +14096,25 @@ body.rr-cmdk-open{ overflow:hidden }
             .oc-setmenu .oc-set-work{display:flex;align-items:center;gap:7px;margin-top:8px;font-size:var(--fs-12-5);color:var(--text-subtle)}
             .oc-setmenu .oc-set-work.off{opacity:.4;pointer-events:none}
             .oc-setmenu .oc-set-work input[type=time]{font:inherit;font-size:var(--fs-12-5);padding:4px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text)}
+            /* Timezone select + the availability/booking items folded into the gear popover */
+            .oc-setmenu{max-width:320px}
+            .oc-setmenu .oc-set-tz{width:100%;font:inherit;font-size:var(--fs-12-5);font-weight:600;padding:7px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);cursor:pointer}
+            .oc-setmenu .oc-set-subh{font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);margin:9px 0 4px}
+            .oc-setmenu .oc-set-link{display:flex;align-items:center;gap:9px;width:100%;text-align:left;border:0;background:transparent;border-radius:8px;padding:7px 8px;font:inherit;font-size:var(--fs-md);color:var(--text);cursor:pointer}
+            .oc-setmenu .oc-set-link:hover{background:var(--accent-soft,rgba(37,99,235,.10))}
+            .oc-setmenu .oc-set-link-ico{display:inline-flex;flex:0 0 auto;color:var(--text-subtle)}
+            .oc-setmenu .oc-set-link-lbl{flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+            .oc-setmenu .oc-set-sub .oc-set-link-lbl,.oc-setmenu .oc-set-sub{font-size:var(--fs-12-5);color:var(--text-subtle)}
+            .oc-setmenu .oc-set-switch{flex:0 0 auto;width:34px;height:19px;border-radius:999px;background:var(--border);position:relative;transition:background .15s}
+            .oc-setmenu .oc-set-switch.on{background:var(--accent,var(--rr-blue-600))}
+            .oc-setmenu .oc-set-switch .oc-set-knob{position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:50%;background:var(--rr-white);box-shadow:0 1px 2px rgba(15,23,42,.3);transition:left .15s}
+            .oc-setmenu .oc-set-switch.on .oc-set-knob{left:17px}
+            .oc-setmenu .oc-set-bp{position:relative}
+            .oc-setmenu .oc-set-bp-active{flex:0 0 auto;font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--rr-green-600)}
+            .oc-setmenu .oc-set-bp-eye{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;border:0;background:transparent;padding:3px;border-radius:6px;color:var(--text-subtle);cursor:pointer;opacity:.75}
+            .oc-setmenu .oc-set-bp-eye:hover{opacity:1;background:var(--surface-2,rgba(15,23,42,.06))}
+            .oc-setmenu .oc-set-bp-empty{font-size:var(--fs-12-5);color:var(--text-subtle);padding:4px 8px}
+            .oc-setmenu .oc-set-add .oc-set-link-lbl{color:var(--accent,var(--rr-blue-600));font-weight:600}
             /* Right-click color palette (Google-style event recolor) */
             .oc-menu .oc-ctx-colors{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;padding:6px 8px 8px}
             .oc-menu .oc-ctx-sw{width:20px;height:20px;border-radius:50%;border:0;padding:0;cursor:pointer;box-shadow:inset 0 0 0 1px rgba(15,23,42,.12);position:relative;transition:transform .08s}
@@ -29060,9 +29079,11 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.cat-teal{ background:rgba(13,148,136,.10) !important; border-color:rgba(13,148,136,.22) !important; border-left-color:rgba(13,148,136,.22) !important; color:#115E59 !important; }
 
 /* ── MOTION · view-transition slide + event fade-in ──────────────────── */
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-cal{ animation:ocViewIn .2s ease; }
+/* Arrival/navigation only — `rr-oc-inplace` marks a same-period repaint
+   (silent data refresh) where replaying the animation would flash. */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal #rr-ivcal-body:not(.rr-oc-inplace) .oc-cal{ animation:ocViewIn .2s ease; }
 @keyframes ocViewIn{ from{ opacity:0; transform:translateX(10px); } to{ opacity:1; transform:none; } }
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-col .oc-ev{ animation:ocEvIn .2s ease backwards; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal #rr-ivcal-body:not(.rr-oc-inplace) .oc-col .oc-ev{ animation:ocEvIn .2s ease backwards; }
 @keyframes ocEvIn{ from{ opacity:0; } to{ opacity:1; } }
 
 /* ── ICONS · less prominent (18–20px, reduced opacity, more padding) ──── */
@@ -32219,9 +32240,15 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 /* Canceled / declined stay readable — strike only the name, never the card. */
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.cat-gray.declined{ text-decoration:none !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.declined .en{ text-decoration:line-through; }
-/* Restrained motion · fade only, 140ms. */
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-cal{ animation:rrOcFadeIn .14s ease !important; }
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-col .oc-ev{ animation:rrOcFadeIn .14s ease backwards !important; }
+/* Restrained motion · fade only, 140ms — on ARRIVAL only. In-place data
+   refreshes must stay invisible: when live.js repaints the same view +
+   period over an existing grid it tags the host `rr-oc-inplace` (see
+   _ivcalLastPaintSig), and these arrive fades don't apply — otherwise the
+   whole calendar re-faded on every silent refresh (focus, 30s tick, Google
+   overlay landing), which read as a glitch. Navigation / tab arrival clears
+   the tag so the fade still plays exactly once. */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal #rr-ivcal-body:not(.rr-oc-inplace) .oc-cal{ animation:rrOcFadeIn .14s ease !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal #rr-ivcal-body:not(.rr-oc-inplace) .oc-col .oc-ev{ animation:rrOcFadeIn .14s ease backwards !important; }
 @keyframes rrOcFadeIn{ from{ opacity:0; } to{ opacity:1; } }
 
 /* ── Left context panel · one structured 248px column ─────────────────── */
