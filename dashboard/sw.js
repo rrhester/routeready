@@ -226,7 +226,8 @@
 //   2026-07-13.34 · Macros — internet access ENABLED (owner decision). New async API: await workbook.fetchJson(url) / fetchText(url) / http(url,{method,headers,body}) can call ANY http(s) URL, brokered on the main thread (credentials omitted so the app's own session never leaves; response size/time-capped; CORS still applies). This DELIBERATELY drops the no-exfiltration guarantee — untrusted/pasted code can send data out — so the per-run confirmation now warns prominently about internet access, and all "can't reach the internet" copy/comments were corrected. workbook.js.
 //   2026-07-13.35 · Notebook — push the calm restyle closer to OneNote: the editor toolbar is now a SINGLE clean row of icons across the top (no more two-row wrap; scrolls sideways like an Office ribbon; compact icon sizing so most fit), per operator "I like Microsoft's icons across the top". Section rows show a small color SQUARE beside the name instead of a left bar; "Add section" / "Add page" move to the TOP of their panes. Scoped CSS + markup only, no behaviour change. view-notebooks.frag.
 //   2026-07-13.36 · Macros can format cells — new API: workbook.setFormat("A1:G1", {bg,bold,italic,align,…}) and getRange(…).setBackground(color)/.setFormat({…}). Whitelisted format keys merged onto the range's existing cells via setCells (undoable). Enables macros to highlight rows (e.g. understaffed days red). workbook.js.
-const SW_DEPLOY_NONCE = "2026-07-13.36";
+//   2026-07-13.37 · Notebook — bump the notebook fragment cache-bust (view-notebooks.frag ?v=radiohail01 → radiohail02) so the recent Notebook UI changes (single-row toolbar, calm restyle) are guaranteed to fetch fresh past HTTP/edge caches, not just the SW cache. index.html.
+const SW_DEPLOY_NONCE = "2026-07-13.37";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without
