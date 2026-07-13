@@ -51,9 +51,11 @@ window.RRTipTap = (function () {
       import(`${CDN}@tiptap/extension-table-cell${V}`),
       import(`${CDN}@tiptap/extension-image${V}`),
       import(`${CDN}@tiptap/extension-placeholder${V}`),
-    ]).then(([core, sk, ul, hl, link, tl, ti, tbl, trow, thead, tcell, img, ph]) => {
+      import(`${CDN}@tiptap/extension-bubble-menu${V}`),
+    ]).then(([core, sk, ul, hl, link, tl, ti, tbl, trow, thead, tcell, img, ph, bm]) => {
       mod = {
         Editor: core.Editor,
+        BubbleMenu: bm.default,
         exts: [
           sk.default, ul.default, hl.default,
           link.default.configure({ openOnClick: false, autolink: true }),
@@ -90,6 +92,89 @@ window.RRTipTap = (function () {
       default: c.run();
     }
   }
+  // ── selection bubble (TipTap BubbleMenu) — appears over selected text ──
+  function bubbleBtn(label, cmd, title, style) {
+    return `<button type="button" data-bcmd="${cmd}" title="${title || label}" style="height:26px;min-width:26px;padding:0 7px;border:0;background:transparent;color:#e5e7eb;font-size:12px;font-weight:600;cursor:pointer;border-radius:5px;${style || ""}">${label}</button>`;
+  }
+  function buildBubble() {
+    const b = document.createElement("div");
+    b.style.cssText = "display:flex;align-items:center;gap:1px;background:#1f2937;border-radius:7px;padding:3px;box-shadow:0 8px 24px rgba(0,0,0,.26);z-index:130";
+    b.innerHTML =
+      bubbleBtn("B", "bold", "Bold", "font-weight:800") +
+      bubbleBtn("I", "italic", "Italic", "font-style:italic") +
+      bubbleBtn("U", "underline", "Underline", "text-decoration:underline") +
+      bubbleBtn("S", "strikeThrough", "Strikethrough") +
+      bubbleBtn("H", "highlight", "Highlight") +
+      '<span style="width:1px;height:16px;background:rgba(255,255,255,.16);margin:0 3px"></span>' +
+      bubbleBtn("Link", "__link", "Add link");
+    document.body.appendChild(b);
+    return b;
+  }
+  function wireBubble(b, editor) {
+    b.addEventListener("mousedown", (e) => e.preventDefault());
+    b.addEventListener("click", (e) => {
+      const t = e.target.closest("[data-bcmd]"); if (!t) return;
+      const c = t.getAttribute("data-bcmd");
+      if (c === "__link") { const u = window.prompt("Link URL"); if (u != null && u.trim()) editor.chain().focus().extendMarkRange("link").setLink({ href: u.trim() }).run(); else if (u != null) editor.chain().focus().unsetLink().run(); return; }
+      runCmd(editor, c);
+    });
+  }
+  // ── slash command menu — "/" at the start of an empty line inserts a block ──
+  const SLASH = [
+    { k: "todo", label: "To-do checklist" },
+    { k: "h2", label: "Heading" },
+    { k: "insertUnorderedList", label: "Bulleted list" },
+    { k: "insertOrderedList", label: "Numbered list" },
+    { k: "quote", label: "Quote" },
+    { k: "code", label: "Code block" },
+    { k: "hr", label: "Divider" },
+    { k: "table", label: "Table" },
+  ];
+  function installSlash(editor) {
+    const menu = document.createElement("div");
+    menu.style.cssText = "position:absolute;display:none;min-width:210px;background:#fff;border:1px solid #E5E7EB;border-radius:8px;box-shadow:0 10px 28px rgba(15,23,42,.16);padding:5px;z-index:130;font:13px/1.4 Inter,system-ui,sans-serif;color:#1B2430";
+    document.body.appendChild(menu);
+    let open = false, from = 0, items = [], sel = 0;
+    function render() {
+      menu.innerHTML = items.length
+        ? items.map((it, i) => `<div data-si="${i}" style="padding:7px 10px;border-radius:6px;cursor:pointer;${i === sel ? "background:rgba(37,99,235,.08);color:#1E40AF;" : ""}">${it.label}</div>`).join("")
+        : '<div style="padding:7px 10px;color:#9CA3AF">No match</div>';
+    }
+    function close() { open = false; menu.style.display = "none"; }
+    function pick(it) {
+      if (!it) { close(); return; }
+      close();
+      editor.chain().focus().deleteRange({ from, to: editor.state.selection.from }).run();
+      if (it.k === "h2") runCmd(editor, "block", "H2"); else runCmd(editor, it.k);
+    }
+    function onUpdate() {
+      const s = editor.state.selection, $from = s.$from;
+      if (!$from.parent || $from.parent.type.name !== "paragraph") { if (open) close(); return; }
+      const before = $from.parent.textContent.slice(0, $from.parentOffset);
+      const mm = /^\/(\w*)$/.exec(before);
+      if (!mm) { if (open) close(); return; }
+      const q = mm[1].toLowerCase();
+      from = s.from - mm[0].length;
+      items = SLASH.filter((it) => it.label.toLowerCase().includes(q));
+      sel = 0; open = true; render();
+      try { const c = editor.view.coordsAtPos(s.from); menu.style.left = Math.round(c.left) + "px"; menu.style.top = Math.round(c.bottom + 4) + "px"; menu.style.display = "block"; } catch (e) { close(); }
+    }
+    function onKey(e) {
+      if (!open) return;
+      const n = Math.max(1, items.length);
+      if (e.key === "ArrowDown") { e.preventDefault(); sel = (sel + 1) % n; render(); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); sel = (sel - 1 + n) % n; render(); }
+      else if (e.key === "Enter") { e.preventDefault(); pick(items[sel]); }
+      else if (e.key === "Escape") { e.preventDefault(); close(); }
+    }
+    editor.on("update", onUpdate);
+    editor.on("selectionUpdate", onUpdate);
+    menu.addEventListener("mousedown", (e) => e.preventDefault());
+    menu.addEventListener("click", (e) => { const d = e.target.closest("[data-si]"); if (d) pick(items[+d.getAttribute("data-si")]); });
+    editor.view.dom.addEventListener("keydown", onKey, true);
+    return { destroy() { try { editor.off("update", onUpdate); editor.off("selectionUpdate", onUpdate); } catch (e) {} try { editor.view.dom.removeEventListener("keydown", onKey, true); } catch (e) {} if (menu.remove) menu.remove(); } };
+  }
+
   return {
     load,
     mount(el, opts) {
@@ -97,11 +182,21 @@ window.RRTipTap = (function () {
       return load().then((m) => {
         const ph = m.exts[m.exts.length - 1];
         const exts = m.exts.slice(0, -1).concat([ph.configure({ placeholder: opts.placeholder || "Type here…" })]);
+        let bubbleEl = null;
+        if (!opts.readOnly && m.BubbleMenu) {
+          bubbleEl = buildBubble();
+          exts.push(m.BubbleMenu.configure({
+            element: bubbleEl, tippyOptions: { duration: 100 },
+            shouldShow: (p) => { try { return p.from !== p.to && !p.editor.isActive("codeBlock"); } catch (e) { return false; } },
+          }));
+        }
         const editor = new m.Editor({
           element: el, extensions: exts, content: opts.content || "",
           editable: !opts.readOnly,
           onUpdate: () => { if (opts.onUpdate) opts.onUpdate(); },
         });
+        if (bubbleEl) wireBubble(bubbleEl, editor);
+        const slash = opts.readOnly ? null : installSlash(editor);
         return {
           editor,
           getHTML: () => editor.getHTML(),
@@ -111,7 +206,7 @@ window.RRTipTap = (function () {
           isActive: (n, a) => { try { return editor.isActive(n, a); } catch (e) { return false; } },
           activeBlock: () => { for (let i = 1; i <= 3; i++) if (editor.isActive("heading", { level: i })) return "H" + i; return "P"; },
           cmd: (name, arg) => runCmd(editor, name, arg),
-          destroy: () => { try { editor.destroy(); } catch (e) {} },
+          destroy: () => { try { if (slash) slash.destroy(); } catch (e) {} try { if (bubbleEl && bubbleEl.remove) bubbleEl.remove(); } catch (e) {} try { editor.destroy(); } catch (e) {} },
         };
       });
     },
