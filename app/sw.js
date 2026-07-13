@@ -188,7 +188,12 @@
 // via the new meet-turn-driver function. Without a relay a driver on cellular
 // couldn't connect (black tiles, "can't join the radio"). Bumped so installed
 // driver PWAs pick up the new app.js.
-const SHELL_CACHE = "rr-app-shell-v168";
+// v169 · Tasks IA: the actionable cards (onboarding / assignments / forms /
+// checklists) now sit under an explicit "Needs action" group heading, framing
+// them a tier above the Tools section below so the hub reads as two clear
+// groups instead of one undifferentiated run. The heading only appears once
+// real content lands. Bumped so installed driver PWAs pick up the new app.js + CSS.
+const SHELL_CACHE = "rr-app-shell-v169";
 const SHELL_FILES = [
   "./",
   "index.html",

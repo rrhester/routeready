@@ -2128,6 +2128,11 @@ body.scan-camming{overflow:hidden}
 /* ── Operational assignments — driver "My Tasks" cards ──────────── */
 .wt-sec{display:flex;align-items:center;gap:var(--s-2);font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-subtle);margin:18px 0 10px}
 .wt-sec-n{background:var(--canvas);color:var(--text-subtle);font-size:var(--fs-xs);font-weight:700;padding:1px 7px;border-radius:8px}
+/* Top-level group heading on the Tasks hub ("Needs action"), sitting a
+   tier above the uppercase .wt-sec subsection labels. Title-case, primary
+   ink — it frames the actionable cards apart from the always-on Tools
+   group below. Hidden via the [hidden] attribute until real content lands. */
+.tasks-grouphd{font-size:var(--fs-lg);font-weight:700;letter-spacing:-.01em;color:var(--text);margin:4px 0 2px}
 .wt-form-pending{font-size:var(--fs-xs);color:var(--text-subtle);background:var(--canvas);border:1px solid var(--border,var(--rr-gray-200));border-radius:10px;padding:8px 12px;margin:0 0 10px;line-height:1.4}
 /* Quiet "view more" link that closes out a hub section (e.g. completed
    checklists) without pulling a full card's worth of weight. */
