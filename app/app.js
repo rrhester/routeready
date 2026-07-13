@@ -7989,16 +7989,33 @@ function renderSettings() {
 
   main.innerHTML = `
     <div class="settings-page">
-      <section class="settings-section">
-        ${row("profile",      "/settings/profile",      "Profile",      "Name, contact, emergency contact")}
-        ${row("license",      "/settings/license",      "Driver's license", "License number and image")}
-        ${row("pin",          "/settings/pin",          "Sign-in PIN",  "Set or change your 4–6 digit PIN")}
-        ${driverFeatureOn("availability") ? row("availability", "/settings/availability", "Availability", "Days you can work and your earliest start") : ""}
-        ${driverFeatureOn("time_off")     ? row("time-off",     "/settings/time-off",     "Time off",     "Request a day off and see past decisions") : ""}
-        ${row("attendance",   "/settings/attendance",   "Attendance",   "Today's status and your DSP's points policy")}
-      </section>
+      <div class="settings-account">
+        ${avatarHtml(session, "settings-account-av")}
+        <div class="settings-account-body">
+          <div class="settings-account-name">${escapeHtml(session?.name || "Driver")}</div>
+          <div class="settings-account-dsp">${escapeHtml(session?.dsp_name || "RouteReady")}</div>
+        </div>
+      </div>
 
-      <button class="btn btn-block btn-danger" id="rr-signout" style="margin-top:18px">Sign out</button>
+      <div class="settings-group">
+        <div class="settings-grouplabel">Account</div>
+        <section class="settings-section">
+          ${row("profile",      "/settings/profile",      "Profile",      "Name, contact, emergency contact")}
+          ${row("license",      "/settings/license",      "Driver's license", "License number and image")}
+          ${row("pin",          "/settings/pin",          "Sign-in PIN",  "Set or change your 4–6 digit PIN")}
+        </section>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-grouplabel">Work</div>
+        <section class="settings-section">
+          ${driverFeatureOn("availability") ? row("availability", "/settings/availability", "Availability", "Days you can work and your earliest start") : ""}
+          ${driverFeatureOn("time_off")     ? row("time-off",     "/settings/time-off",     "Time off",     "Request a day off and see past decisions") : ""}
+          ${row("attendance",   "/settings/attendance",   "Attendance",   "Today's status and your DSP's points policy")}
+        </section>
+      </div>
+
+      <button class="btn btn-block btn-danger" id="rr-signout" style="margin-top:6px">Sign out</button>
 
       <div class="settings-diag" id="rr-settings-diag" aria-hidden="true"></div>
     </div>`;
