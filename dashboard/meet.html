@@ -207,6 +207,41 @@
   body.embed #waiting-pop{top:auto;bottom:78px;right:12px;left:auto;transform:none}
   @media (max-width:900px){body.embed .ctrl-info{display:none}}
 
+  /* call mode (?call=1) · FaceTime-style 1:1 window. The header and the
+     control bar float OVER the video (gradient scrim / rounded pill) and
+     fade out while idle — body.chrome-hidden only drops opacity, never
+     pointer-events, so the desktop app's title-bar drag region keeps
+     working and any mouse move wakes the chrome before a click lands.
+     #grid.ft is set by renderGrid only while exactly two people are in
+     the room with no screen share: the remote peer fills the window and
+     my own tile becomes the draggable corner pip below. */
+  body.call .room-wrap{position:relative}
+  body.call[data-screen="room"] .room-head{position:absolute;left:0;top:0;right:0;z-index:9;border-bottom:0;
+    background:linear-gradient(180deg,rgba(11,13,18,.8),rgba(11,13,18,0));transition:opacity .28s}
+  body.call .room-ctrls{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);z-index:9;border-top:0;
+    background:rgba(17,20,27,.84);border:1px solid rgba(255,255,255,.09);border-radius:999px;padding:10px 16px;
+    box-shadow:0 14px 40px rgba(0,0,0,.5);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    transition:opacity .28s;max-width:calc(100vw - 24px)}
+  body.call.chrome-hidden .room-head,body.call.chrome-hidden .room-ctrls{opacity:0}
+  @media (prefers-reduced-motion:reduce){body.call .room-head,body.call .room-ctrls{transition:none}}
+  #grid.ft{display:block;position:relative;padding:0}
+  #grid.ft .tile.stage{position:absolute;inset:0;height:auto;border-radius:0}
+  #grid.ft .tile.stage .pin-btn{display:none}
+  #grid.ft .tile.stage .avatar span{width:104px;height:104px;font-size:36px}
+  #grid.ft .tile.pip{position:absolute;z-index:8;width:clamp(110px,18vw,180px);aspect-ratio:3/4;border-radius:12px;
+    box-shadow:0 12px 32px rgba(0,0,0,.55);cursor:grab;touch-action:none;
+    transition:left .18s ease,top .18s ease,right .18s ease,bottom .18s ease}
+  #grid.ft .tile.pip.dragging{cursor:grabbing;transition:none}
+  @media (prefers-reduced-motion:reduce){#grid.ft .tile.pip{transition:none}}
+  /* Corner parks: top corners clear the header scrim, bottom corners clear
+     the floating control pill. */
+  #grid.ft .tile.pip.pip-br{right:16px;bottom:92px;left:auto;top:auto}
+  #grid.ft .tile.pip.pip-bl{left:16px;bottom:92px;right:auto;top:auto}
+  #grid.ft .tile.pip.pip-tr{right:16px;top:64px;left:auto;bottom:auto}
+  #grid.ft .tile.pip.pip-tl{left:16px;top:64px;right:auto;bottom:auto}
+  #grid.ft .tile.pip .plate,#grid.ft .tile.pip .qbars,#grid.ft .tile.pip .pin-btn,#grid.ft .tile.pip .tile-status{display:none}
+  #grid.ft .tile.pip .avatar span{width:44px;height:44px;font-size:16px}
+
   /* recording */
   #rec-pill{display:flex;align-items:center;gap:6px;color:#F87171;font-weight:800;font-size:12.5px;letter-spacing:.05em}
   .rec-dot{width:8px;height:8px;border-radius:50%;background:#DC2626;animation:recblink 1.4s ease-in-out infinite}

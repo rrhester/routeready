@@ -42615,11 +42615,15 @@ function _rrCallAskNotifyPermission() {
 // the features string, which would make window.open return null and hide
 // popup-blocking from us. If the popup is refused we fall back to the old
 // new-tab behavior rather than dropping the meeting on the floor.
-function rrOpenMeetWindow(url) {
+function rrOpenMeetWindow(url, opts) {
   const sw = window.screen?.availWidth  || 1280;
   const sh = window.screen?.availHeight || 800;
-  const w  = Math.min(1180, Math.max(640, sw - 120));
-  const h  = Math.min(760,  Math.max(480, sh - 120));
+  // Callers can ask for a FaceTime-style compact window (1:1 calls);
+  // meetings default to the full meeting-sized one.
+  const prefW = (opts && opts.w) || 1180;
+  const prefH = (opts && opts.h) || 760;
+  const w  = Math.min(prefW, Math.max(360, sw - 120));
+  const h  = Math.min(prefH, Math.max(420, sh - 120));
   const left = Math.round((window.screenLeft ?? 0) + Math.max(0, (sw - w) / 2));
   const top  = Math.round((window.screenTop  ?? 0) + Math.max(0, (sh - h) / 2));
   let win = null;
@@ -42642,7 +42646,9 @@ function _rrCallOpenRoom(room, media, replace) {
   // cold-boot — no synchronous gesture for a popup). location resolves
   // "meet.html" against /dashboard/.
   if (replace) { try { location.href = url; return; } catch {} }
-  rrOpenMeetWindow(url);
+  // FaceTime-style window sizes: voice calls get a small card, video
+  // calls a compact stage — both resizable, unlike a full meeting window.
+  rrOpenMeetWindow(url, media === "audio" ? { w: 460, h: 640 } : { w: 1020, h: 700 });
 }
 
 // base64url → Uint8Array (VAPID application server key).
