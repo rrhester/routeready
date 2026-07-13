@@ -431,6 +431,19 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
 .rrnb-pop-opt{padding:var(--s-2);border-radius:var(--r-md);cursor:pointer;font-size:var(--fs-base)}
 .rrnb-pop-opt:hover,.rrnb-pop-opt.sel{background:var(--accent-soft)}
 .rrnb-pop-opt .mut{font-size:var(--fs-xs);color:var(--text-subtle)}
+/* slash "/" command menu (classic editor) — floating block inserter */
+.rrnb-slash{position:fixed;z-index:90;background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-lg);box-shadow:var(--shadow-pop);padding:5px;min-width:236px;max-height:326px;
+  overflow:auto;font-size:var(--fs-base)}
+.rrnb-slash[hidden]{display:none}
+.rrnb-slash-opt{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:var(--r-md);
+  cursor:pointer;color:var(--text);white-space:nowrap}
+.rrnb-slash-opt.sel,.rrnb-slash-opt:hover{background:var(--accent-soft)}
+.rrnb-slash-opt.mut{color:var(--text-subtle);cursor:default}
+.rrnb-slash-opt.mut:hover{background:transparent}
+.rrnb-slash-opt .ic{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;
+  border-radius:var(--r-sm);background:var(--canvas,rgba(15,23,42,.05));font-size:11px;font-weight:700;
+  color:var(--text-muted);flex:0 0 auto}
 
 /* context menu */
 .rrnb-ctx{position:fixed;z-index:90;background:var(--surface);border:1px solid var(--border);
@@ -1438,7 +1451,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     title.addEventListener("keydown", stopTypingLeak);
     title.addEventListener("keyup", stopTypingLeak);
     title.addEventListener("keypress", stopTypingLeak);
-    ed.addEventListener("input", function () { scheduleSave(); autoLinkify(); positionImgResize(); scheduleCtxRefresh(); });
+    ed.addEventListener("input", function () { slashScan(); scheduleSave(); autoLinkify(); positionImgResize(); scheduleCtxRefresh(); });
     ed.addEventListener("keydown", onEditorKey);
     ed.addEventListener("click", onEditorClick);
     ed.addEventListener("contextmenu", onEditorCtx);
@@ -2170,6 +2183,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   // ── keyboard shortcuts in the editor ─────────────────────────────
   function onEditorKey(e) {
     var mod = e.ctrlKey || e.metaKey;
+    if (slashKey(e)) return;                       // slash menu owns arrows/enter/esc while open
     if (!mod && !e.altKey && todoKeydown(e)) return;
     if (!mod && !e.altKey && tableTabKey(e)) return;
     if (mod && !e.shiftKey && !e.altKey) {
@@ -3295,6 +3309,99 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
 
   // Auto-link ~1.4s after a pause in typing (URLs first, then entity chips).
   var autoLinkify = debounce(function () { if (S.pageId) { linkifyUrls(true); linkifyEditor(true, false); } }, 1400);
+
+  // ══════════════════════════════════════════════════════════════════
+  //  SLASH MENU (classic editor) — type "/" at the start of a block (or
+  //  after a space) to insert a block: heading, list, checklist, table,
+  //  callout, picture, link, record link… It dispatches to the SAME
+  //  commands the toolbar uses (doCommand / applyBlock), so there's no
+  //  parallel code path to keep in sync. Never steals caret focus.
+  // ══════════════════════════════════════════════════════════════════
+  var SLASH_CMDS = [
+    { cmd: "H1", block: true, label: "Heading 1", kw: "heading title h1", ic: "H1" },
+    { cmd: "H2", block: true, label: "Heading 2", kw: "heading subheading h2", ic: "H2" },
+    { cmd: "H3", block: true, label: "Heading 3", kw: "heading h3", ic: "H3" },
+    { cmd: "todo", label: "To-do checklist", kw: "todo task checkbox check", ic: "☑" },
+    { cmd: "insertUnorderedList", label: "Bulleted list", kw: "bullet unordered list", ic: "•" },
+    { cmd: "insertOrderedList", label: "Numbered list", kw: "number ordered list", ic: "1." },
+    { cmd: "quote", label: "Quote", kw: "quote blockquote", ic: "❝" },
+    { cmd: "callout", label: "Callout", kw: "callout note tip info highlight", ic: "💡" },
+    { cmd: "code", label: "Code block", kw: "code pre monospace", ic: "{ }" },
+    { cmd: "table", label: "Table", kw: "table grid rows columns", ic: "▦" },
+    { cmd: "hr", label: "Divider", kw: "divider hr line rule separator", ic: "—" },
+    { cmd: "image", label: "Picture", kw: "image picture photo upload", ic: "▧" },
+    { cmd: "attach", label: "File attachment", kw: "file attach upload document", ic: "📎" },
+    { cmd: "link", label: "Web link", kw: "link url web hyperlink", ic: "🔗" },
+    { cmd: "pagelink", label: "Link to page", kw: "page wiki internal link", ic: "❏" },
+    { cmd: "smartlink", label: "Link records (drivers, vehicles, routes)", kw: "record driver vehicle route smart link connect", ic: "⚡" }
+  ];
+  var SL = { open: false, node: null, at: 0, items: [], sel: 0, el: null };
+  function slashEl() {
+    if (SL.el) return SL.el;
+    var d = document.createElement("div"); d.className = "rrnb-slash"; d.id = "rrnb-slash"; d.hidden = true;
+    d.addEventListener("mousedown", function (e) { e.preventDefault(); });               // keep the caret in the editor
+    d.addEventListener("click", function (e) { var r = e.target.closest("[data-si]"); if (r) slashPick(SL.items[+r.getAttribute("data-si")]); });
+    document.body.appendChild(d);
+    document.addEventListener("mousedown", function (e) { if (SL.open && SL.el && !SL.el.contains(e.target)) slashClose(); });
+    SL.el = d; return d;
+  }
+  function slashRender() {
+    var d = slashEl();
+    d.innerHTML = SL.items.length
+      ? SL.items.map(function (it, i) { return '<div class="rrnb-slash-opt' + (i === SL.sel ? " sel" : "") + '" data-si="' + i + '"><span class="ic">' + esc(it.ic) + '</span>' + esc(it.label) + '</div>'; }).join("")
+      : '<div class="rrnb-slash-opt mut">No matching block</div>';
+  }
+  function slashClose() { SL.open = false; SL.node = null; if (SL.el) SL.el.hidden = true; }
+  function caretRect() {
+    var s = window.getSelection(); if (!s || !s.rangeCount) return null;
+    var r = s.getRangeAt(0).cloneRange(); r.collapse(true);
+    var rects = r.getClientRects(); var rr = (rects && rects[0]) || r.getBoundingClientRect();
+    return (rr && (rr.width || rr.height || rr.top || rr.left)) ? rr : null;
+  }
+  function slashScan() {
+    if (S.readOnly || S.editorKind === "tiptap") return slashClose();
+    var ed = $id("rrnb-editor"); if (!ed) return slashClose();
+    var s = window.getSelection();
+    if (!s || !s.rangeCount || !s.isCollapsed) return slashClose();
+    var node = s.anchorNode;
+    if (!node || node.nodeType !== 3 || !ed.contains(node)) return slashClose();
+    if (node.parentNode && node.parentNode.closest && node.parentNode.closest("a,pre,code")) return slashClose();
+    var m = /(^|\s)\/([\w-]*)$/.exec(node.nodeValue.slice(0, s.anchorOffset));
+    if (!m) return slashClose();
+    var q = m[2].toLowerCase();
+    SL.node = node; SL.at = s.anchorOffset - m[2].length - 1;       // index of the "/"
+    SL.items = SLASH_CMDS.filter(function (it) { return !q || it.label.toLowerCase().indexOf(q) >= 0 || it.kw.indexOf(q) >= 0; });
+    SL.sel = 0; SL.open = true; slashRender();
+    var d = slashEl(); d.hidden = false;
+    var rect = caretRect() || selRect();
+    if (rect) {
+      d.style.left = Math.max(12, Math.min(window.innerWidth - d.offsetWidth - 12, rect.left)) + "px";
+      var top = rect.bottom + 6;
+      if (top + d.offsetHeight > window.innerHeight - 12) top = Math.max(12, rect.top - d.offsetHeight - 6);
+      d.style.top = top + "px";
+    }
+  }
+  function slashKey(e) {
+    if (!SL.open) return false;
+    var n = Math.max(1, SL.items.length);
+    if (e.key === "ArrowDown") { e.preventDefault(); SL.sel = (SL.sel + 1) % n; slashRender(); return true; }
+    if (e.key === "ArrowUp") { e.preventDefault(); SL.sel = (SL.sel - 1 + n) % n; slashRender(); return true; }
+    if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); slashPick(SL.items[SL.sel]); return true; }
+    if (e.key === "Escape") { e.preventDefault(); slashClose(); return true; }
+    return false;
+  }
+  function slashPick(it) {
+    if (!it) { slashClose(); return; }
+    var ed = $id("rrnb-editor"); if (ed) ed.focus();
+    var s = window.getSelection();
+    // strip the "/query" trigger text, keeping the text node in place so the caret survives
+    if (SL.node && s && s.anchorNode === SL.node) {
+      var v = SL.node.nodeValue; SL.node.nodeValue = v.slice(0, SL.at) + v.slice(s.anchorOffset);
+      try { var r = document.createRange(); r.setStart(SL.node, SL.at); r.collapse(true); s.removeAllRanges(); s.addRange(r); } catch (e2) {}
+    }
+    slashClose();
+    if (it.block) applyBlock(it.cmd); else doCommand(it.cmd);
+  }
 
   // ══════════════════════════════════════════════════════════════════
   //  SEARCH
