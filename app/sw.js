@@ -211,7 +211,12 @@
 // toast). Submit stays enabled; server + client validation are unchanged.
 // Verified against the driver-app form-fill e2e. Bumped so installed driver
 // PWAs pick up the new app.js + CSS.
-const SHELL_CACHE = "rr-app-shell-v172";
+// v173 · Shift-card unification: the home "Up next" now renders through the
+// same shiftCardHtml primitive as the Schedule list cards (mapping the raw
+// schedule row into the shared shape + reusing _hydrateShiftWeather), so a
+// shift reads identically on both screens. The bespoke .up-next-card family
+// is retired. Bumped so installed driver PWAs pick up the new app.js + CSS.
+const SHELL_CACHE = "rr-app-shell-v173";
 const SHELL_FILES = [
   "./",
   "index.html",
