@@ -218,7 +218,8 @@
 //   2026-07-13.26 · Macros promoted to the workbook toolbar — a labeled "Macros" button now sits on the main toolbar (next to People) instead of being buried in Tools ▸ Macros…, so it's one click. Same openMacrosPanel; Tools menu entry kept too. workbook.js + inline-styles.css.
 //   2026-07-13.27 · Messages saved-bookmark polish (operator feedback): the per-message Save-for-later button no longer sits on top of the bubble text — it floats as a bordered chip just above the bubble's top-left edge (clear of the top-right edit/delete cluster) and lifts in on hover so it reads clearly as a button; a saved message keeps the chip visible in amber. inline-styles.css.
 //   2026-07-13.28 · Messages saved-bookmark — move it fully out of the bubble (operator: keep the message text away from the save control). The chip now sits in the empty GUTTER beside the bubble — left of the operator's own (right-aligned) messages, right of incoming ones — vertically centered, so it never sits over or against the text. Verified geometry via a standalone render. inline-styles.css.
-const SW_DEPLOY_NONCE = "2026-07-13.28";
+//   2026-07-13.29 · Notebook calm restyle (approved OneNote-clean direction) — content on white, an airy lighter title with a soft date line under it, whisper-quiet section/page lists (subtle gray selection, slim color tabs, text-link add controls), de-boxed callouts, hairline airy tables, and a lighter toolbar. Scoped, CSS-first (+ a dateline element); no behaviour/data change. view-notebooks.frag.
+const SW_DEPLOY_NONCE = "2026-07-13.29";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without
