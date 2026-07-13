@@ -193,7 +193,14 @@
 // them a tier above the Tools section below so the hub reads as two clear
 // groups instead of one undifferentiated run. The heading only appears once
 // real content lands. Bumped so installed driver PWAs pick up the new app.js + CSS.
-const SHELL_CACHE = "rr-app-shell-v169";
+// v170 · Proactive check-in location: the home check-in card gains an on-tap
+// "Check my location" hint that tells a driver whether they're at the station
+// (green), too far (amber, with distance), or location-off — BEFORE they commit
+// the check-in, instead of only learning from the server's rejection. The
+// check-in button stays enabled; the server still recomputes the geofence.
+// Needs migration 0477 (station coords in driver_checkin_status). Bumped so
+// installed driver PWAs pick up the new app.js + CSS.
+const SHELL_CACHE = "rr-app-shell-v170";
 const SHELL_FILES = [
   "./",
   "index.html",
