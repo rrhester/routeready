@@ -6130,6 +6130,18 @@ async function _drvOpenRadio() {
     const { data: code, error } = await sb.rpc("driver_meet_radio_code", { p_token: session.token });
     if (error || !code) { if (w) w.close(); toast("Couldn't open the radio. Try again.", "warn"); return; }
     const me = _drvCallMe ? _drvCallMe() : { name: "" };
+    // Summon dispatch: a radio channel is silent unless someone's listening,
+    // so broadcast a "hail" to every open dashboard (loud banner + one-click
+    // Join) and Web-Push a closed one. Best-effort — the radio still opens
+    // even if the alert can't be sent.
+    try { _drvCallSend("radio-hail", { from: me, code, ts: Date.now() }); } catch {}
+    try {
+      if (session.dsp_id) {
+        sb.functions.invoke("send-staff-push", {
+          body: { dsp_id: session.dsp_id, radio: { caller_name: me.name || "A driver" } },
+        }).then(undefined, () => {});
+      }
+    } catch {}
     const url = "/dashboard/meet.html?m=" + encodeURIComponent(code) + "&ptt=1&cam=0"
       + "&name=" + encodeURIComponent(me.name || "");
     if (w) w.location.href = url; else location.href = url;

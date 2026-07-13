@@ -147,7 +147,7 @@
 // banner + record card with four stat tiles + ladder card), and the swap-
 // request dialog's icon-only close button gains an aria-label/title. Bumped
 // so installed driver PWAs pick up the new app.js.
-const SHELL_CACHE = "rr-app-shell-v159";
+const SHELL_CACHE = "rr-app-shell-v160";
 const SHELL_FILES = [
   "./",
   "index.html",
