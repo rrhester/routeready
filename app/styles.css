@@ -2061,6 +2061,25 @@ body.scan-camming{overflow:hidden}
 .form-fill-divider{border:0;border-top:1px solid var(--border);margin:4px 0}
 .form-fill-instructions{background:var(--accent-soft);border:1px solid var(--border);border-radius:12px;padding:var(--s-3-5) var(--s-4);color:var(--text);line-height:1.5;font-size:var(--fs-sm);white-space:pre-wrap}
 .form-fill-instructions-title{font-weight:700;color:var(--text);margin-bottom:6px;font-size:var(--fs-md)}
+/* Required-progress meter at the top of a form (same primitive as the
+   checklist meter). Rendered only when the form has required questions. */
+.form-fill-progress{margin:2px 0 2px}
+.form-fill-progress-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.form-fill-progress-label{font-size:var(--fs-sm);font-weight:600;color:var(--text-subtle);font-variant-numeric:tabular-nums}
+.form-fill-progress-track{height:6px;border-radius:999px;background:var(--canvas,var(--rr-gray-200));overflow:hidden}
+.form-fill-progress-fill{height:100%;border-radius:999px;background:var(--accent);transition:width 220ms var(--ease-out)}
+.form-fill-progress.is-complete .form-fill-progress-fill{background:var(--green)}
+.form-fill-progress.is-complete .form-fill-progress-label{color:var(--green-dark)}
+/* Sticky submit bar — keeps Submit reachable on a long form and carries a
+   live hint of how many required questions remain. Fades the scrolling
+   content out beneath it against the page ground. */
+.form-fill-submitbar{position:sticky;bottom:0;margin-top:14px;padding:14px 0 max(12px,env(safe-area-inset-bottom));background:linear-gradient(180deg,transparent,var(--bg) 26%)}
+.form-fill-submithint{font-size:var(--fs-sm);font-weight:600;color:var(--text-subtle);text-align:center;margin-bottom:8px}
+.form-fill-submithint.is-ready{color:var(--green-dark)}
+/* Inline validation error under a field. Red is intended — it's a
+   submit-blocking failure the driver must fix, not a passive status. */
+.form-fill-row.has-error{border-color:var(--red)}
+.form-fill-error{font-size:var(--fs-sm);font-weight:600;color:var(--red-dark);line-height:1.35}
 /* Conditional fields — hidden until their trigger answer is satisfied.
    [hidden] is the source of truth (read by submit + validation); the soft
    reveal is purely cosmetic and disabled under reduced-motion. */
