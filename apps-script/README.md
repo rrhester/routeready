@@ -13,6 +13,22 @@ is the version-controlled source of truth for that script.
 1. Open the sheet → **Extensions → Apps Script**.
 2. New file → paste the contents of `setup-automation-sheet.gs` → **Save**.
 3. Run **`setupRouteReadySheet()`** and grant permissions.
+4. Reload the sheet — a **RouteReady Tools** menu appears. After that you can
+   run everything from that menu instead of the Apps Script editor.
+
+### RouteReady Tools menu
+
+| Menu item | Runs | Safe? |
+|-----------|------|-------|
+| Run full setup | `setupRouteReadySheet()` | ✅ additive |
+| Rebuild Dashboard | `buildDashboard_()` | ✅ new tab |
+| Refresh styling & colors | `styleAllTabs_()` | ✅ cosmetic |
+| Add column descriptions | `addColumnNotes_()` | ✅ cell notes |
+| Organize Settings | `organizeSettings_()` | ✅ adds col C, leaves A/B |
+| Fix "Phone Numer" typo | `fixHeaderTypo()` | ⚠️ reader-sensitive |
+| Standardize toggles | `standardizeToggles()` | ⚠️ reader-sensitive |
+| Canonicalize phone numbers | `canonicalizePhones()` | ⚠️ reader-sensitive |
+| Redact secret cells | `redactSecretCells()` | ⚠️ run after code swap |
 
 `setupRouteReadySheet()` runs only the **safe, additive** steps — it cannot
 break your automation:
