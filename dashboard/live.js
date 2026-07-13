@@ -236,6 +236,10 @@ registerReportsScreen(renderReportsInto);
 registerScheduleEngine(planScheduleWeek);
 registerDriverActions((id, opts) => { if (typeof openDriverDrawer === "function") openDriverDrawer(id, opts || {}); });
 window.openReportsScreen = openReportsScreen;
+// Bridge for the Parts Intelligence module (parts-ui.js, a separate module
+// script) so it can push a comparison sheet into a Workbook without importing
+// workbook.js a second time under a mismatched ?v= specifier.
+try { window.__rrCreateReportWorkbook = createReportWorkbook; } catch (e) {}
 // Devtools convenience: surface the Supabase client + a one-liner
 // for the okami_demand diagnostic so operators can paste a single
 // command without knowing about RR.sb.
@@ -76605,6 +76609,11 @@ window.fleetSub = function (sub) {
     if (typeof renderSchedVanAssignmentsBoard === "function") renderSchedVanAssignmentsBoard();
   }
   else if (sub === "rotation") _flRenderVanRotation();
+  else if (sub === "parts") {
+    // Parts Intelligence · the whole page is owned by parts-ui.js
+    // (window.RRParts), which uses the shared window.sb + parts-engine.
+    if (window.RRParts && typeof window.RRParts.mount === "function") window.RRParts.mount("fl-sub-parts");
+  }
   // Re-align the shared right utility rail to the new sub-view's card top
   // (Calendar / Assignments cards sit at a different Y than the tables).
   if (typeof window._rrSyncNotesRailTop === "function") {
@@ -76631,6 +76640,7 @@ async function loadFleetView() {
     if (typeof renderSchedVanAssignmentsBoard === "function") renderSchedVanAssignmentsBoard();
   }
   if (_fleetSub === "rotation") _flRenderVanRotation();
+  if (_fleetSub === "parts" && window.RRParts && typeof window.RRParts.mount === "function") window.RRParts.mount("fl-sub-parts");
   _flPaintTabCounts();
 }
 
@@ -78161,6 +78171,8 @@ async function openFleetDrawer(vehicleId, opts) {
               <div id="rr-fd-headside-status" style="font-weight:600;line-height:1.3">—</div>
               <div style="font-size:10px;color:var(--text-subtle);margin-top:2px;font-weight:500">Change from the Fleet roster</div>
             </div>
+            <button type="button" class="btn btn-sm btn-ghost" data-rr-fd-action="find-parts" title="Find replacement parts for this vehicle" style="align-self:center;display:inline-flex;align-items:center;gap:6px">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>Find Parts</button>
             <button type="button" class="btn btn-sm btn-ghost" data-rr-fd-action="notebook" title="Open this vehicle's notebook" style="align-self:center;display:inline-flex;align-items:center;gap:6px">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h11l5 5v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M14 4v6h6"/><path d="M8 13h6M8 17h4"/></svg>Notebook</button>
             <button id="rr-fd-close" style="background:none;border:0;font-size:var(--fs-xl);cursor:pointer;color:var(--text-muted);padding:0 6px;line-height:1">×</button>
@@ -78181,6 +78193,16 @@ async function openFleetDrawer(vehicleId, opts) {
   document.body.appendChild(drawer);
 
   drawer.addEventListener("click", (e) => {
+    const fpBtn = e.target.closest && e.target.closest("[data-rr-fd-action='find-parts']");
+    if (fpBtn) {
+      const v = _fdVehicle && _fdVehicle.vehicle;
+      drawer.remove();
+      if (v && typeof fleetSub === "function") {
+        fleetSub("parts");
+        if (window.RRParts && typeof window.RRParts.searchForVehicle === "function") window.RRParts.searchForVehicle(v.id);
+      }
+      return;
+    }
     const nbBtn = e.target.closest && e.target.closest("[data-rr-fd-action='notebook']");
     if (nbBtn) { const v = _fdVehicle && _fdVehicle.vehicle; drawer.remove(); if (v && window.RRNotebooks) window.RRNotebooks.openFor("vehicle", v.id, v.name || v.plate || "Vehicle"); return; }
     if (e.target === drawer || e.target.id === "rr-fd-close" || e.target.id === "rr-fd-cancel") { drawer.remove(); return; }

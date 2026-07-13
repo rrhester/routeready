@@ -32,6 +32,10 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 0 1 13.7-5.6L21 9"/><polyline points="21 4 21 9 16 9"/><path d="M20 12a8 8 0 0 1-13.7 5.6L3 15"/><polyline points="3 20 3 15 8 15"/></svg>
             <span class="rr-viewseg-label">Van Rotation</span>
           </button>
+          <button type="button" class="rr-viewseg-btn" role="tab" aria-selected="false" data-sub="parts" onclick="fleetSub('parts')" aria-label="Parts" title="Parts — find, verify &amp; buy replacement parts">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>
+            <span class="rr-viewseg-label">Parts</span>
+          </button>
           <button type="button" class="rr-viewseg-btn" role="tab" aria-selected="false" data-sub="assign" onclick="fleetSub('assign')" aria-label="Assignments" title="Assignments — van / driver chains">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4H4v18h16V4h-4"/><rect x="8" y="2" width="8" height="4"/><line x1="8" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="16" y2="15"/><line x1="8" y1="19" x2="12" y2="19"/></svg>
             <span class="rr-viewseg-label">Assignments</span>
@@ -382,5 +386,9 @@
             </aside>
           </div>
         </div>
+
+        <!-- PARTS sub-tab — Parts Intelligence. The whole page is rendered by
+             dashboard/parts/parts-ui.js (window.RRParts.mount) into this host,
+             mirroring how Calendar / Assignments mount shared nodes. -->
+        <div class="fl-sub" id="fl-sub-parts"></div>
       </div>
-    
