@@ -9482,6 +9482,33 @@ function _clkRenderPhotoStrip(itemId) {
     </div>`).join("");
 }
 
+// Is this item answered right now? Read straight off the live controls
+// (and the photo model) so the progress meter reflects exactly what the
+// driver sees, no re-collection. Display-only — never gates submit.
+function _clkItemAnswered(item, formEl) {
+  const id = item.id;
+  const t = item.item_type;
+  if (t === "photo") return (_clkPhotos[id] || []).length > 0;
+  const el = formEl.querySelector(`[data-rr-clk="${CSS.escape(id)}"]`);
+  if (!el) return false;
+  if (t === "checkbox") return !!el.checked;
+  if (t === "yes_no") return [...el.querySelectorAll("input[type=radio]")].some((r) => r.checked);
+  if (t === "signature") return !!(el._rrHasInk || el.dataset.rrExistingSig);
+  return "value" in el ? String(el.value || "").trim() !== "" : false;
+}
+function _clkUpdateProgress(items, formEl) {
+  const bar = document.getElementById("rr-clk-progress");
+  if (!bar || !formEl) return;
+  const total = items.length;
+  const done = items.reduce((n, it) => n + (_clkItemAnswered(it, formEl) ? 1 : 0), 0);
+  const fill = document.getElementById("rr-clk-progress-fill");
+  const label = document.getElementById("rr-clk-progress-label");
+  if (fill) fill.style.width = total ? `${Math.round((done / total) * 100)}%` : "0%";
+  if (label) label.textContent = `${done} of ${total} complete`;
+  bar.setAttribute("aria-valuenow", String(done));
+  bar.classList.toggle("is-complete", total > 0 && done === total);
+}
+
 function _clkItemHtml(item) {
   // Required is announced via aria-required on the control/group; the red
   // star is decorative (aria-hidden) so it isn't the only cue.
@@ -9859,6 +9886,13 @@ async function renderChecklistFill() {
       <div id="rr-clk-outbox-banner" hidden></div>
       ${reopened}${dueLine}
       ${cl.description ? `<div class="form-fill-desc">${escapeHtml(cl.description)}</div>` : ""}
+      ${items.length ? `
+      <div class="clk-progress" id="rr-clk-progress" role="progressbar" aria-valuemin="0" aria-valuemax="${items.length}" aria-valuenow="0">
+        <div class="clk-progress-head">
+          <span class="clk-progress-label" id="rr-clk-progress-label">0 of ${items.length} complete</span>
+        </div>
+        <div class="clk-progress-track"><div class="clk-progress-fill" id="rr-clk-progress-fill" style="width:0%"></div></div>
+      </div>` : ""}
       <form id="rr-clk-fill">
         ${items.map(_clkItemHtml).join("")}
         <button class="btn btn-primary btn-block" type="submit" style="margin-top:18px">Submit checklist</button>
@@ -9924,6 +9958,7 @@ async function renderChecklistFill() {
     }
   }
   if (restoredAny && draft) toast("Restored your in-progress answers", "ok");
+  _clkUpdateProgress(items, formEl);
 
   // Debounced local draft on any change (photos/signatures excluded —
   // they carry via dataset + server saves instead).
@@ -9936,6 +9971,12 @@ async function renderChecklistFill() {
   };
   formEl.addEventListener("input", saveLocal);
   formEl.addEventListener("change", saveLocal);
+  // Keep the progress meter live. pointerup covers signature strokes and
+  // the signature Clear button, which don't emit input/change events.
+  const bumpProgress = () => _clkUpdateProgress(items, formEl);
+  formEl.addEventListener("input", bumpProgress);
+  formEl.addEventListener("change", bumpProgress);
+  formEl.addEventListener("pointerup", bumpProgress);
 
   // Photo picking: compress each selection and append to the item's model,
   // so multiple photos accumulate across taps (the input is cleared so the
@@ -9953,6 +9994,7 @@ async function renderChecklistFill() {
       _clkPhotos[itemId].push({ file: c, url: URL.createObjectURL(c) });
     }
     _clkRenderPhotoStrip(itemId);
+    _clkUpdateProgress(items, formEl);
   });
 
   // Remove a photo (revoke its preview URL so we don't leak object URLs).
@@ -9968,6 +10010,7 @@ async function renderChecklistFill() {
     if (list[i].url) { try { URL.revokeObjectURL(list[i].url); } catch (_) {} }
     list.splice(i, 1);
     _clkRenderPhotoStrip(itemId);
+    _clkUpdateProgress(items, formEl);
   });
 
   // Save progress → server, so dispatch sees "In progress". Photos are
