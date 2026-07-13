@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Inspection — keyboard open · RouteReady Driver mockup</title>
+<link rel="stylesheet" href="../mockups/rr-mobile.css">
+</head>
+<body>
+<div class="phone">
+
+<div class="statusbar">
+  <span>8:42</span>
+  <span class="sb-icons">
+    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 20h2v-4H2zM7 20h2v-8H7zM12 20h2V8h-2zM17 20h2V4h-2z" fill="currentColor" stroke="none"/></svg>
+    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.55a11 11 0 0 1 14.08 0M8.5 15.5a6 6 0 0 1 7 0M12 19h.01"/></svg>
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1" y="7" width="18" height="10" rx="2.5"/><rect x="3" y="9" width="12" height="6" rx="1" fill="currentColor" stroke="none"/><path d="M21 10.5v3" stroke-width="2"/></svg>
+  </span>
+</div>
+
+<header class="appbar">
+  
+  <div class="appbar-row">
+    <button class="appbar-back" aria-label="Back"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg></button>
+    <div class="appbar-title"><span class="title-text">Pre-trip inspection</span><span class="pill amber">Due 9:20 AM</span></div>
+    <div class="appbar-spacer"></div>
+    
+    <span class="conn"><span class="dot"></span>Synced</span>
+    
+  </div>
+</header>
+
+
+<main class="main" style="padding-bottom:308px">
+  <div class="panel">
+    <div class="row" style="display:block;padding-bottom:13px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="t-state alert"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
+        <span class="row-body"><span class="row-title">Tires inflated & free of damage</span></span>
+        <span class="row-end" style="width:150px"><span class="seg" style="flex:1"><button>Pass</button><button class="on-bad">Fail</button></span></span>
+      </div>
+      <div style="margin:10px 0 0 32px;padding:11px 12px;border:1px solid var(--red-border);background:var(--red-soft);border-radius:6px">
+        <div style="font-size:12px;font-weight:700;color:var(--red-dark);margin-bottom:7px">Describe the defect — goes to Fleet</div>
+        <div class="field focused" style="min-height:58px;font-size:15px">Front-left tire worn to the wear bar, sidewall scuff on<span style="border-left:2px solid var(--blue);margin-left:1px"></span></div>
+        <div class="field-help">Saved automatically as you type</div>
+      </div>
+    </div>
+  </div>
+  <div style="display:flex;justify-content:flex-end;margin-top:10px">
+    <button class="btn btn-sm btn-primary">Done</button>
+  </div>
+</main>
+<div class="kbd-sim">
+  <div class="krow"><span class="key">Q</span><span class="key">W</span><span class="key">E</span><span class="key">R</span><span class="key">T</span><span class="key">Y</span><span class="key">U</span><span class="key">I</span><span class="key">O</span><span class="key">P</span></div>
+  <div class="krow"><span class="key">A</span><span class="key">S</span><span class="key">D</span><span class="key">F</span><span class="key">G</span><span class="key">H</span><span class="key">J</span><span class="key">K</span><span class="key">L</span></div>
+  <div class="krow"><span class="key wide">⇧</span><span class="key">Z</span><span class="key">X</span><span class="key">C</span><span class="key">V</span><span class="key">B</span><span class="key">N</span><span class="key">M</span><span class="key wide">⌫</span></div>
+  <div class="krow"><span class="key wide">123</span><span class="key space"></span><span class="key wide" style="width:74px;font-size:13px">return</span></div>
+</div>
+
+
+<nav class="tabbar" role="tablist">
+  
+    <a class="tab" href="#" aria-label="Today">
+      
+      
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><circle cx="12" cy="15.5" r="2.4" fill="currentColor" stroke="none"/></svg>Today
+    </a>
+  
+    <a class="tab" href="#" aria-label="Schedule">
+      
+      
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Schedule
+    </a>
+  
+    <a class="tab on" href="#" aria-label="Tasks (current)">
+      <span class="tab-badge">2</span>
+      
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="m9 14 2 2 4-4"/></svg>Tasks
+    </a>
+  
+    <a class="tab" href="#" aria-label="Messages">
+      
+      <span class="tab-badge urgent">1</span>
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Messages
+    </a>
+  
+    <a class="tab" href="#" aria-label="More">
+      
+      
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="9.2"/></svg>More
+    </a>
+</nav>
+<div class="homebar"></div>
+</div>
+</body>
+</html>

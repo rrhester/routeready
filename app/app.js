@@ -139,7 +139,7 @@ function setAppBadge(n, source) {
 // tab badge is what the driver sees while they're inside the app and
 // haven't tapped the Chat tab yet. We compute the count from the
 // per-message is_unread flag driver_chat_list already returns.
-function _setChatTabBadge(n) {
+function _setChatTabBadge(n, { urgent = false } = {}) {
   document.querySelectorAll('.tab[data-c="chat"]').forEach((tab) => {
     let ic = tab.querySelector(".tab-ic");
     if (!ic) return;
@@ -151,6 +151,9 @@ function _setChatTabBadge(n) {
         ic.appendChild(badge);
       }
       badge.textContent = n > 99 ? "99+" : String(n);
+      // Red only when something REQUIRES action (an unacknowledged
+      // ack-required notice) — counts alone stay informational blue.
+      badge.classList.toggle("urgent", !!urgent);
     } else if (badge) {
       badge.remove();
     }
@@ -166,7 +169,8 @@ async function refreshChatBadge() {
     if (error) return;
     const messages = data?.messages || [];
     const unread = messages.reduce((n, m) => n + (m.is_unread ? 1 : 0), 0);
-    _setChatTabBadge(unread);
+    const needsAck = messages.some((m) => m.sender_kind !== "driver" && m.requires_ack && !m.acked_at);
+    _setChatTabBadge(needsAck ? Math.max(unread, 1) : unread, { urgent: needsAck });
     setAppBadge(unread, "chat-badge");
   } catch {}
 }
@@ -995,18 +999,22 @@ const routes = {
   "/tasks/i9":          { render: renderI9Section1,      tab: "/tasks", back: "/tasks", title: "Form I-9" },
   "/tasks/scan":        { render: renderDocumentScanner, tab: "/tasks", back: "/tasks", title: "Scan a document" },
   "/tasks/scan/receipt":{ render: renderReceiptForm,      tab: "/tasks", back: "/tasks/scan", title: "Submit a receipt" },
-  "/settings/profile":      { render: renderSettingsProfile, tab: "/profile", back: "/settings", title: "Profile" },
-  "/settings/license":      { render: renderSettingsLicense, tab: "/profile", back: "/settings", title: "Driver's license" },
-  "/settings/pin":          { render: renderSettingsPin,     tab: "/profile", back: "/settings", title: "Sign-in PIN" },
-  "/settings/availability": { render: renderAvailability,    tab: "/profile", back: "/settings", title: "Availability" },
-  "/settings/attendance":   { render: renderAttendance,      tab: "/profile", back: "/settings", title: "Attendance" },
-  "/settings/time-off":     { render: renderTimeOff,         tab: "/profile", back: "/settings", title: "Time off" },
+  // Settings sub-pages live under the More tab now (redesign): the
+  // gear destination moved into the More hub alongside Team.
+  "/settings/profile":      { render: renderSettingsProfile, tab: "/more", back: "/settings", title: "Profile" },
+  "/settings/license":      { render: renderSettingsLicense, tab: "/more", back: "/settings", title: "Driver's license" },
+  "/settings/pin":          { render: renderSettingsPin,     tab: "/more", back: "/settings", title: "Sign-in PIN" },
+  "/settings/availability": { render: renderAvailability,    tab: "/more", back: "/more", title: "Availability" },
+  "/settings/attendance":   { render: renderAttendance,      tab: "/more", back: "/more", title: "Attendance" },
+  "/settings/time-off":     { render: renderTimeOff,         tab: "/more", back: "/more", title: "Time off" },
   "/chat":              { render: renderChat,            tab: "/chat" },
   "/chat/channels":     { render: renderChatChannelsList, tab: "/chat" },
   "/chat/channel":      { render: renderChatChannelThread, tab: "/chat", back: "/chat/channels" },
-  "/team":              { render: renderTeam,            tab: "/team" },
+  "/team":              { render: renderTeam,            tab: "/more", back: "/more", title: "Team" },
   "/profile":           { render: renderProfileHub,      tab: "/profile" },
-  "/settings":          { render: renderSettings,        tab: "/profile", back: "/profile", title: "Settings" },
+  "/more":              { render: renderMore,            tab: "/more" },
+  "/more/van":          { render: renderVanDocsPage,     tab: "/more", back: "/more", title: "Van documents" },
+  "/settings":          { render: renderSettings,        tab: "/more", back: "/more", title: "Settings" },
 };
 function currentRoute() {
   const h = (location.hash || "").replace(/^#/, "").split("?")[0];
@@ -1137,13 +1145,18 @@ function render() {
   if (back) back.style.display = backTarget ? "inline-flex" : "none";
   if (back && backTarget) back.onclick = () => navigate(backTarget);
   if (r.title) setHeader(r.title, "");
-  // The home (Profile) page swaps the standard header for a full-bleed
-  // blue gradient hero. Toggle a body class so CSS can hide .app-head
-  // and lift main to the top of the viewport on /profile only.
-  document.body.classList.toggle("is-home", path === "/profile");
+  // Redesign: the old /profile hero (which hid the header via
+  // body.is-home) is gone — Today uses the standard light header like
+  // every other screen. Clear the class in case it's still stamped from
+  // a pre-redesign session that was restored from bfcache.
+  document.body.classList.remove("is-home");
   // Reset per-route side-channels so a stale refresh callback from a
   // previous screen can't fire under the new one's pull-to-refresh.
   setRefresh(null);
+  // Clear the sticky action bar on every navigation — a route that wants
+  // one re-renders it; without this, Today's Check-in button would hover
+  // over the Schedule after a tab switch.
+  _setStickyCta("");
   // Save scroll position of the route we're leaving (if any).
   const _leavingMain = document.getElementById("main");
   if (_leavingMain && _navStack.length > 0) {
@@ -1738,45 +1751,58 @@ function avatarHtml(session, sizeClass) {
 function renderShell(session) {
   const name = session?.name || "Driver";
   // While the driver is in 'onboarding', the bottom tabbar is pared
-  // down to Onboarding + Chat so they can receive instructions from
-  // dispatch while they work through the sequential onboarding flow.
+  // down to Onboarding + Schedule + Messages so they can receive
+  // instructions from dispatch while they work through the flow.
   const isOnboarding = session?.status === "onboarding";
+  const msgTab = `
+      <button class="tab" data-route="/chat" data-c="chat" role="tab" aria-label="Messages">
+        <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+        Messages
+      </button>`;
+  const schedTab = `
+      <button class="tab" data-route="/schedule" data-c="schedule" role="tab" aria-label="Schedule">
+        <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
+        Schedule
+      </button>`;
   const onboardingTabs = `<nav class="tabbar" role="tablist">
       <button class="tab" data-route="/tasks/onboarding" data-c="tasks" role="tab" aria-label="Onboarding">
         <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
         Onboarding
       </button>
-      <button class="tab" data-route="/schedule" data-c="schedule" role="tab" aria-label="Schedule">
-        <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
-        Schedule
-      </button>
-      <button class="tab" data-route="/chat" data-c="chat" role="tab" aria-label="Chat">
-        <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
-        Chat
-      </button>
+      ${schedTab}
+      ${msgTab}
     </nav>`;
+  // Active-driver tabs (redesign 2026-07): Today · Schedule · Tasks ·
+  // Messages · More. "/profile" stays the route key for the operational
+  // home so existing deep links and the router fallback keep working;
+  // Team and the Settings contents live under More now.
   const activeTabs = `<nav class="tabbar" role="tablist">
-      <button class="tab" data-route="/profile" data-c="profile" role="tab" aria-label="Home">
-        <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5"/></svg></span>
-        Home
+      <button class="tab" data-route="/profile" data-c="profile" role="tab" aria-label="Today">
+        <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><circle cx="12" cy="15.5" r="2.2" fill="currentColor" stroke="none"/></svg></span>
+        Today
       </button>
-      <button class="tab" data-route="/schedule" data-c="schedule" role="tab" aria-label="Schedule">
-        <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
-        Schedule
-      </button>
+      ${schedTab}
       <button class="tab" data-route="/tasks" data-c="tasks" role="tab" aria-label="Tasks">
         <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="m9 14 2 2 4-4"/></svg></span>
         Tasks
       </button>
-      <button class="tab" data-route="/chat" data-c="chat" role="tab" aria-label="Chat">
-        <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
-        Chat
-      </button>
-      <button class="tab" data-route="/team" data-c="team" role="tab" aria-label="Team">
-        <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
-        Team
+      ${msgTab}
+      <button class="tab" data-route="/more" data-c="more" role="tab" aria-label="More">
+        <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.2"/><circle cx="7.2" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="16.8" cy="12" r="1.3" fill="currentColor" stroke="none"/></svg></span>
+        More
       </button>
     </nav>`;
+  // Header trailing control: onboarding drivers keep the settings gear
+  // (their /more is a blocked route); active drivers get their avatar,
+  // which opens More. The #head-gear id is shared so wiring + the
+  // focus-visible styles don't fork.
+  const trailing = isOnboarding
+    ? `<button class="head-gear" id="head-gear" type="button" aria-label="Settings" title="Settings">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      </button>`
+    : `<button class="head-gear" id="head-gear" type="button" aria-label="More" title="More">
+        ${avatarHtml(session, "rr2-ava")}
+      </button>`;
   document.getElementById("app").innerHTML = `
     <header class="app-head">
       <button class="head-back" id="head-back" type="button" aria-label="Back" style="display:none">
@@ -1786,21 +1812,23 @@ function renderShell(session) {
         <div class="title" id="head-title">${escapeHtml(session?.dsp_name || "Driver")}</div>
         <div class="sub" id="head-sub"></div>
       </div>
-      <button class="head-gear" id="head-gear" type="button" aria-label="Settings" title="Settings">
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
-      </button>
+      ${trailing}
     </header>
     <div id="rr-offline" class="rr-offline" aria-live="polite" role="status">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/><path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/><path d="M10.71 5.05A16 16 0 0 1 22.58 9"/><path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12" y2="20"/></svg>
       <span id="rr-offline-text">Offline — changes will sync when you're back</span>
     </div>
     <main id="main"><div class="loader"></div></main>
+    <div id="rr2-cta-slot"></div>
     ${isOnboarding ? onboardingTabs : activeTabs}`;
 
   document.querySelectorAll(".tab").forEach((t) => {
     t.addEventListener("click", () => { _haptic("select"); navigate(t.dataset.route); });
   });
-  document.getElementById("head-gear").addEventListener("click", () => { _haptic("tap"); navigate("/settings"); });
+  document.getElementById("head-gear").addEventListener("click", () => {
+    _haptic("tap");
+    navigate(isOnboarding ? "/settings" : "/more");
+  });
 
   // Wire the offline pill — flips on `offline`, briefly shows a green
   // "back online" confirmation on `online`. Idempotent; safe to call
@@ -1815,18 +1843,25 @@ function _wireOfflineBanner(){
     const el = document.getElementById("rr-offline");
     const tx = document.getElementById("rr-offline-text");
     if (!el || !tx) return;
+    // The strip occupies real height under the header (redesign), so
+    // body.rr-offline-on pushes #main down while it's visible. Only the
+    // persistent offline state shifts layout — the brief "back online"
+    // confirmation overlays instead of reflowing the page twice.
     if (state === "offline") {
       el.classList.remove("ok");
       tx.textContent = "Offline — changes will sync when you're back";
       el.classList.add("show");
+      document.body.classList.add("rr-offline-on");
     } else if (state === "online-briefly") {
       el.classList.add("ok");
       tx.textContent = "Back online";
       el.classList.add("show");
+      document.body.classList.remove("rr-offline-on");
       clearTimeout(el._t);
       el._t = setTimeout(() => el.classList.remove("show"), 1800);
     } else {
       el.classList.remove("show");
+      document.body.classList.remove("rr-offline-on");
     }
   };
   // Paint the initial state.
@@ -1976,7 +2011,7 @@ async function renderSchedule() {
     const thisWeek = upcomingShifts.filter((s) => s.iso <= _satIso);
     const nextWeek = upcomingShifts.filter((s) => s.iso >  _satIso);
     const groupHtml = (label, arr) => arr.length
-      ? `<div class="section-title">${label}</div>${arr.map((s) => shiftCardHtml(s, false, vanByIso.get(s.iso), { swappable: true })).join("")}`
+      ? `<div class="rr2-sec">${label}<span class="n">${arr.length}</span></div><div class="rr2-panel">${arr.map((s) => shiftCardHtml(s, false, vanByIso.get(s.iso), { swappable: true })).join("")}</div>`
       : "";
     main.innerHTML = `
       <div id="rr-shift-confirm-slot"></div>
@@ -2515,22 +2550,27 @@ function shiftCardHtml(s, isToday, vanInfo, opts) {
   const wxSlot = s.iso && s.status === "scheduled"
     ? `<div class="shift-weather" data-wx-iso="${escapeHtml(s.iso)}" hidden></div>`
     : "";
+  // Redesign: shifts render as compact rows inside a shared rr2-panel
+  // (the Schedule-page density on mobile) instead of one card per shift.
+  // The month only appears when it differs from the current month, so
+  // a normal fortnight reads as pure day numbers.
+  const showMonth = s.date.getMonth() !== new Date().getMonth();
   return `
-    <div class="shift-card ${isToday ? "is-today" : ""}">
-      <div class="date-block">
-        <div class="date-dow">${dow}</div>
-        <div class="date-day">${day}</div>
-        <div class="date-month">${month}</div>
-      </div>
-      <div class="sc-main">
-        <div class="sc-time">${escapeHtml(timeTxt)}</div>
-        ${line ? `<div class="sc-line">${line}</div>` : ""}
+    <div class="rr2-shift-row ${isToday ? "is-today" : ""}">
+      <span class="srd">
+        <span class="srdw">${dow}</span>
+        <span class="srdn">${day}</span>
+        ${showMonth ? `<span class="srdw">${month}</span>` : ""}
+      </span>
+      <span class="srb">
+        <span class="srt">${escapeHtml(timeTxt)}</span>
+        ${line ? `<span class="srm">${line}</span>` : ""}
         ${chips.length ? `<div class="sc-chips">${chips.join("")}</div>` : ""}
         ${wxSlot}
         ${opts?.swappable && s.status === "scheduled" && !isOnboardingShift ? `
           <div class="sc-swap"><a href="#" class="rr-text-link" data-rr-swap-from="${escapeHtml(s.id)}">Offer swap</a></div>
         ` : ""}
-      </div>
+      </span>
     </div>`;
 }
 
@@ -2766,299 +2806,143 @@ function renderTasksHub() {
   setHeader("Tasks", "");
   setRefresh(() => renderTasksHub());
   const main = document.getElementById("main");
+  main.innerHTML = `<div id="rr-tasks-skel">${taskSkeletonHtml(2)}</div>`;
+  // Flush anything queued offline now that the hub — and likely the
+  // network — is available again (guarded + silent).
+  _formFlushQueue({ silent: true });
+  const session = readSession();
+  if (!session?.token) { writeSession(null); render(); return; }
+  _renderTasksHub(session, main).catch((err) => {
+    console.error("Tasks hub failed:", err);
+    main.innerHTML = errorStateHtml("Couldn't load your tasks", err);
+  });
+}
 
-  // Render the always-on cards FIRST so the page never stays on the
-  // loader even when a network call hangs or a migration's missing.
-  // The Onboarding card (driver_get_profile) and Forms cards
-  // (driver_list_forms) are fetched in the background and spliced in
-  // when their responses land.
-  // Availability and Attendance both moved into Settings (driver gear
-  // icon) — they're things the driver checks/sets infrequently, not
-  // daily tasks.  The Tasks hub is for onboarding steps + assigned forms.
-  const baseCards = [];
-  // A short shimmer above the real slots so the page never paints empty
-  // for the half-second between mount and the first RPC landing. The
-  // skeleton auto-clears on a timer — fast enough that drivers on
-  // good connections never see it stick, slow enough that flaky
-  // networks don't flash a "you're all caught up" message that's
-  // about to be replaced by real content.
+// Tasks · the complete inventory, grouped by consequence (redesign):
+// Needs action → Assignments → To do → Completed → Tools. Forms,
+// checklists, coaching acknowledgements, documents to sign and the I-9
+// correction path all live in ONE list — nothing exists only on Today.
+async function _renderTasksHub(session, main) {
+  const tok = session.token;
+  const quiet = (p) => p.then((r) => r, (e) => ({ data: null, error: e }));
+  const [profRes, wtRes, coachRes, formRes, clkRes, envRes, i9Res, formQ, clkQ] = await Promise.all([
+    quiet(sb.rpc("driver_get_profile",     { p_token: tok })),
+    quiet(sb.rpc("driver_assignments_list",{ p_token: tok })),
+    quiet(sb.rpc("driver_list_coachings",  { p_token: tok })),
+    quiet(sb.rpc("driver_list_forms",      { p_token: tok })),
+    quiet(sb.rpc("driver_list_checklists", { p_token: tok })),
+    quiet(sb.rpc("driver_envelopes_list",  { p_token: tok })),
+    quiet(sb.rpc("driver_i9_get",          { p_token: tok })),
+    _formQueueCount().catch(() => 0),
+    _clkOutboxCount().catch(() => 0),
+  ]);
+  if (currentRoute() !== "/tasks") return;
+
+  // Count EVERY task source — a failed assignments or I-9 fetch must
+  // surface as a load error, never as a false "Nothing to do".
+  const taskSources = [profRes, wtRes, coachRes, formRes, clkRes, envRes, i9Res];
+  const errCount = taskSources.filter((r) => r.error).length;
+  const chev = '<span class="rchev"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>';
+
+  // ── Collect the inventory ──
+  const clkAll   = Array.isArray(clkRes.data) ? clkRes.data : [];
+  const clkTodo  = clkAll.filter((c) => c.status !== "completed");
+  const clkDone  = clkAll.filter((c) => c.status === "completed");
+  const coach    = Array.isArray(coachRes.data) ? coachRes.data : [];
+  const forms    = Array.isArray(formRes.data) ? formRes.data : [];
+  const formsOpen = forms.filter((f) => !(f.settings?.once_per_driver && f.submission_count > 0));
+  const formsDone = forms.filter((f) => f.settings?.once_per_driver && f.submission_count > 0);
+  const envPend  = Array.isArray(envRes.data?.pending) ? envRes.data.pending : [];
+  const wtOpen   = (Array.isArray(wtRes.data) ? wtRes.data : []).filter((a) => a && !a.completed_at);
+  const i9Fix    = i9Res.data?.record?.status === "needs_correction";
+  const isOnboarding = profRes.data?.status === "onboarding";
+
+  // Keep the tab badges in sync with what we render.
+  _setChecklistsTabBadge(clkTodo.length);
+  if (typeof _setFormsTabBadge === "function") _setFormsTabBadge(coach.length);
+
+  const clkMeta = (c) => {
+    const bits = [c.required ? "Required" : "Optional", `${c.item_count} item${c.item_count === 1 ? "" : "s"}`];
+    if (c.due_at) bits.push(`due <b>${_t12(c.due_at)}</b>`);
+    return bits.join(" · ");
+  };
+  const needs = [];
+  if (isOnboarding) needs.push(_reqRowHtml({ state: "cur", title: "Onboarding", meta: "Steps to get hired", route: "/tasks/onboarding" }));
+  for (const c of clkTodo.filter((c) => c.required || c.status === "overdue")) {
+    const overdue = c.status === "overdue" || (c.due_at && Date.now() > new Date(c.due_at).getTime());
+    needs.push(_reqRowHtml({
+      state: overdue ? "alert" : "cur", title: c.name || "Checklist", meta: clkMeta(c),
+      pillHtml: overdue ? `<span class="rr2-pill red">Overdue</span>` : `<span class="rr2-pill amber">Required</span>`,
+      route: `/tasks/checklist?id=${encodeURIComponent(c.assignment_id)}`,
+    }));
+  }
+  if (coach.length) needs.push(_reqRowHtml({
+    state: "cur", title: "Coaching", meta: `${coach.length} to review and acknowledge`,
+    pillHtml: `<span class="rr2-pill amber">Required</span>`, route: "/tasks/coaching",
+  }));
+  if (i9Fix) needs.push(_reqRowHtml({
+    state: "alert", title: "Form I-9 — Section 1", meta: "Needs a correction",
+    pillHtml: `<span class="rr2-pill red">Fix</span>`, route: "/tasks/i9",
+  }));
+
+  const todo = [];
+  for (const c of clkTodo.filter((c) => !c.required && c.status !== "overdue")) {
+    todo.push(_reqRowHtml({
+      state: "cur", title: c.name || "Checklist", meta: clkMeta(c),
+      route: `/tasks/checklist?id=${encodeURIComponent(c.assignment_id)}`,
+    }));
+  }
+  for (const f of formsOpen) {
+    todo.push(_reqRowHtml({
+      state: "cur", title: f.title || "Untitled form",
+      meta: escapeHtml(f.description || `${f.field_count} question${f.field_count === 1 ? "" : "s"}`),
+      route: `/tasks/form?id=${encodeURIComponent(f.id)}`,
+    }));
+  }
+  if (envPend.length) todo.push(_reqRowHtml({
+    state: "cur", title: "Documents to sign", meta: `${envPend.length} pending`, route: "/tasks/documents",
+  }));
+
+  const done = [];
+  for (const f of formsDone) {
+    const when = f.last_submitted_at ? new Date(f.last_submitted_at).toLocaleDateString() : "";
+    done.push(_reqRowHtml({ state: "done", title: f.title || "Untitled form", meta: `Submitted${when ? " · " + escapeHtml(when) : ""}` }));
+  }
+
+  const queued = (formQ || 0) + (clkQ || 0);
+  const syncHtml = queued > 0 ? `
+    <div class="rr2-sec is-amber">Waiting to sync<span class="n">${queued}</span></div>
+    <div class="rr2-panel">
+      <div class="rr2-row static">
+        <span class="ric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></span>
+        <span class="rbody"><span class="rtitle">${queued} item${queued === 1 ? "" : "s"} saved on this phone</span><span class="rmeta">Sends automatically when you're back in coverage</span></span>
+        <span class="rend"><span class="rr2-pill amber"><span class="pdot"></span>Pending</span></span>
+      </div>
+    </div>` : "";
+
+  const hasAny = needs.length || todo.length || wtOpen.length || done.length || clkDone.length;
   main.innerHTML = `
-    <div id="rr-tasks-skel">${taskSkeletonHtml(2)}</div>
-    <div class="tasks-grouphd" id="rr-tasks-needs" hidden>Needs action</div>
-    <div id="rr-tasks-onboarding-slot"></div>
-    <div id="rr-tasks-assignments-slot"></div>
-    ${baseCards.map(taskCardHtml).join("")}
-    <div id="rr-tasks-forms-slot"></div>
-    <div id="rr-tasks-checklists-slot"></div>
-    <div id="rr-tasks-tools-slot">
-      <div class="wt-sec">Tools</div>
-      ${taskCardHtml({
-        route: "/tasks/scan",
-        title: "Scan a document",
-        sub: "Snap photos with your phone → PDF you can send",
-        icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><rect x="7" y="8" width="10" height="8" rx="1"/></svg>',
-      })}
+    ${syncHtml}
+    ${needs.length ? `<div class="rr2-sec is-red">Needs action<span class="n">${needs.length}</span></div><div class="rr2-panel">${needs.join("")}</div>` : ""}
+    ${wtOpen.length ? `<div class="rr2-sec">Assignments<span class="n">${wtOpen.length}</span></div><div id="rr-tasks-assignments-slot">${wtOpen.map(_wtCardHtml).join("")}</div>` : ""}
+    ${todo.length ? `<div class="rr2-sec">To do<span class="n">${todo.length}</span></div><div class="rr2-panel">${todo.join("")}</div>` : ""}
+    ${done.length ? `<div class="rr2-sec">Completed<span class="n">${done.length}</span></div><div class="rr2-panel">${done.join("")}</div>` : ""}
+    ${clkDone.length ? `<div class="rr2-divnote">${clkDone.length} completed checklist${clkDone.length === 1 ? "" : "s"} · <button type="button" data-task-route="/checklists">View</button></div>` : ""}
+    <div class="rr2-sec">Tools</div>
+    <div class="rr2-panel">
+      ${_reqRowHtml({ state: "cur", title: "Scan a document", meta: "Snap photos with your phone → PDF you can send", route: "/tasks/scan" })}
     </div>
-    <div class="rr-empty-inline" id="rr-tasks-empty" style="padding:48px 20px;color:var(--text-subtle);font-size:var(--fs-md);display:none">Nothing to do right now — you're all set.</div>`;
-  // Skeleton-removal strategy:
-  //   • The instant the first real card lands, drop the skeleton.
-  //     That avoids the previous "two phantom cards visible above the
-  //     real task" flicker, where a fixed 800ms setTimeout pulled the
-  //     skeleton at one fixed moment regardless of whether content
-  //     had arrived or not.
-  //   • If every RPC settles with nothing to show, drop the skeleton
-  //     and reveal the "Nothing to do" empty state instead.
-  //   • 3 s safety net for genuinely-stuck networks.
-  const TASKS_RPC_COUNT = 7;
-  let _tasksPending = TASKS_RPC_COUNT;
-  let _tasksRevealed = false;
-  // Any RPC failure lands here so the reveal step can tell "no tasks"
-  // apart from "couldn't load tasks" — a driver in a dead zone used to
-  // be shown the all-clear when every fetch had actually failed.
-  let _tasksErrCount = 0;
-  let _tasksFirstErr = null;
-  const rpcFailed = (err) => { _tasksErrCount++; if (!_tasksFirstErr && err) _tasksFirstErr = err; };
-  const slotHasContent = () => {
-    // Real task content only — the always-on Tools section (and the
-    // skeleton) don't count, and the "Documents to sign" / I-9 cards
-    // are inserted AFTER the forms slot, so look at #main as a whole.
-    const mainEl = document.getElementById("main");
-    if (!mainEl) return false;
-    return [...mainEl.querySelectorAll(".task-card, .wt-sec")].some(
-      (el) => !el.closest("#rr-tasks-tools-slot") && !el.closest("#rr-tasks-skel")
-    );
-  };
-  // Show the "Needs action" group header only once there's real content
-  // above the Tools section — an empty page shouldn't carry a lone
-  // heading, and it mustn't sit above the "Nothing to do" empty state.
-  const syncNeeds = () => {
-    const hd = document.getElementById("rr-tasks-needs");
-    if (hd) hd.hidden = !slotHasContent();
-  };
-  const revealTasks = () => {
-    if (_tasksRevealed) return;
-    _tasksRevealed = true;
-    if (currentRoute() !== "/tasks") return;
-    document.getElementById("rr-tasks-skel")?.remove();
-    syncNeeds();
-    maybeShowEmpty();
-  };
-  // The empty-vs-error decision is separate from the skeleton reveal and
-  // only fires once every RPC has settled: the 3s safety net can drop the
-  // skeleton while fetches are still in flight on a slow connection, and
-  // a "Nothing to do" that's about to be buried under late-arriving task
-  // cards would read as a glitch. Content can't arrive after the last
-  // settle (each handler inserts before its finally()), so the decision
-  // is final when it runs.
-  const maybeShowEmpty = () => {
-    if (_tasksPending > 0 || currentRoute() !== "/tasks") return;
-    const empty = document.getElementById("rr-tasks-empty");
-    if (!empty || slotHasContent()) return;
-    if (_tasksErrCount > 0) empty.outerHTML = errorStateHtml("Couldn't load your tasks", _tasksFirstErr);
-    else empty.style.display = "";
-  };
-  // Call after a slot is populated to drop the skeleton immediately.
-  const onContent = () => { syncNeeds(); if (!_tasksRevealed && slotHasContent()) revealTasks(); };
-  const rpcSettled = () => {
-    _tasksPending--;
-    if (_tasksPending <= 0) { revealTasks(); maybeShowEmpty(); }
-  };
-  setTimeout(revealTasks, 3000);
+    ${!hasAny && errCount === 0 ? `<div class="rr2-divnote rr2-divnote-roomy">Nothing to do right now — you're all set.</div>` : ""}
+    ${!hasAny && errCount > 0 ? errorStateHtml("Couldn't load your tasks", taskSources.find((r) => r.error)?.error) : ""}`;
+
   main.querySelectorAll("[data-task-route]").forEach((el) => {
+    if (el.dataset.rrBound) return;
+    el.dataset.rrBound = "1";
     el.addEventListener("click", () => navigate(el.dataset.taskRoute));
   });
-
-  const session = readSession();
-  if (!session?.token) { _tasksPending = 0; revealTasks(); return; }
-
-  // Onboarding card — only when status === 'onboarding'.
-  sb.rpc("driver_get_profile", { p_token: session.token }).then(({ data, error }) => {
-    if (error) { rpcFailed(error); return; }
-    if (!data || data.status !== "onboarding") return;
-    const slot = document.getElementById("rr-tasks-onboarding-slot");
-    if (!slot) return;
-    slot.innerHTML = taskCardHtml({
-      route: "/tasks/onboarding", title: "Onboarding", sub: "Steps to get hired",
-      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
-    });
-    slot.querySelectorAll("[data-task-route]").forEach(el => el.addEventListener("click", () => navigate(el.dataset.taskRoute)));
-    onContent();
-  }).catch(rpcFailed).finally(rpcSettled);
-
-  // Operational assignments — rows assigned to this driver on the DSP's
-  // Workspaces boards.  Incomplete ones surface as cards with a
-  // completion action (label / photo / note rules come from the board's
-  // config — migration 0183).  driver_assignments_list returns [] when
-  // there are none or the migration's still deploying.
-  sb.rpc("driver_assignments_list", { p_token: session.token }).then(({ data, error }) => {
-    if (error) { rpcFailed(error); return; }
-    const open = (Array.isArray(data) ? data : []).filter(a => a && !a.completed_at);
-    const slot = document.getElementById("rr-tasks-assignments-slot");
-    if (!slot || !open.length) return;
-    slot.innerHTML = `<div class="wt-sec">Assignments<span class="wt-sec-n">${open.length}</span></div>` + open.map(_wtCardHtml).join("");
-    _wtBindSlot(slot);
-    onContent();
-  }).catch(rpcFailed).finally(rpcSettled);
-
-  // Coaching feed — single card that opens the unified /tasks/coaching
-  // list.  Any coaching with delivery_required = ack/sign that's
-  // unacknowledged counts toward the "X to acknowledge" badge.
-  // Coaching card — driver_list_coachings now returns only pending
-  // (acknowledged_at IS NULL) rows server-side.  If the response is
-  // empty, the driver has nothing to address — hide the card.
-  sb.rpc("driver_list_coachings", { p_token: session.token }).then(({ data, error }) => {
-    if (error) { rpcFailed(error); return; }
-    const list = Array.isArray(data) ? data : [];
-    if (list.length === 0) return;
-    const slot = document.getElementById("rr-tasks-onboarding-slot");
-    if (!slot) return;
-    const sub = `${list.length} to review`;
-    slot.insertAdjacentHTML("beforeend", taskCardHtml({
-      route: "/tasks/coaching",
-      title: "Coaching",
-      sub,
-      badge: list.length,   // red count pill — signals a new Coaching to review
-      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
-    }));
-    // Keep the Forms tab badge in sync with what we just rendered.
-    if (typeof _setFormsTabBadge === "function") _setFormsTabBadge(list.length);
-    slot.querySelectorAll("[data-task-route]").forEach(el => {
-      if (el.dataset.rrBound) return;
-      el.dataset.rrBound = "1";
-      el.addEventListener("click", () => navigate(el.dataset.taskRoute));
-    });
-    onContent();
-  }).catch(rpcFailed).finally(rpcSettled);
-
-  // Published forms — append one card per form when the RPC returns.
-  // Failures surface as an inline diagnostic instead of being
-  // swallowed; "no forms yet" stays silent (no visual noise on
-  // tenants that haven't published anything).
-  // Flush any submissions queued while offline now that the hub — and
-  // likely the network — is available again (guarded + silent).
-  _formFlushQueue({ silent: true });
-
-  sb.rpc("driver_list_forms", { p_token: session.token }).then(async ({ data, error }) => {
-    const slot = document.getElementById("rr-tasks-forms-slot");
-    if (!slot) return;
-    if (error) {
-      console.warn("driver_list_forms error:", error);
-      // Don't shout per-fetch — but count the failure so the reveal
-      // step shows an error state instead of a false "Nothing to do".
-      rpcFailed(error);
-      return;
-    }
-    const forms = Array.isArray(data) ? data : [];
-    let queued = 0;
-    try { queued = await _formQueueCount(); } catch {}
-    if (forms.length === 0 && queued === 0) return;
-    const queuedNote = queued > 0
-      ? `<div class="wt-form-pending">${queued} form${queued === 1 ? "" : "s"} waiting to sync — will submit automatically.</div>`
-      : "";
-    slot.innerHTML = `<div class="wt-sec">Forms<span class="wt-sec-n">${forms.length}</span></div>` + queuedNote + forms.map(f => {
-      const oncePer = !!f.settings?.once_per_driver;
-      const done = oncePer && f.submission_count > 0;
-      if (done) {
-        // Completed once-per-driver form: render as done and NOT tappable.
-        // The server rejects a second submit anyway; this spares the driver
-        // the confusing open → refill → "already submitted" round-trip.
-        const when = f.last_submitted_at ? new Date(f.last_submitted_at).toLocaleDateString() : "";
-        return `
-          <div class="task-card is-done" aria-disabled="true">
-            <span class="task-icon" style="color:var(--green,var(--rr-green-600))"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
-            <div class="task-text">
-              <div class="task-title">${escapeHtml(f.title || "Untitled form")}</div>
-              <div class="task-sub">Submitted${when ? " · " + escapeHtml(when) : ""}</div>
-            </div>
-          </div>`;
-      }
-      return taskCardHtml({
-        route: `/tasks/form?id=${encodeURIComponent(f.id)}`,
-        title: f.title || "Untitled form",
-        sub:   f.description || `${f.field_count} question${f.field_count === 1 ? "" : "s"}`,
-        icon:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>',
-      });
-    }).join("");
-    slot.querySelectorAll("[data-task-route]").forEach(el => el.addEventListener("click", () => navigate(el.dataset.taskRoute)));
-    onContent();
-  }).catch((err) => {
-    // Network / runtime failure — log, count, and let the reveal step
-    // decide. The Tasks hub still shows what loaded; PTR re-tries.
-    console.warn("driver_list_forms rejected:", err);
-    rpcFailed(err);
-  }).finally(rpcSettled);
-
-  // Checklists — folded into the Tasks hub (they used to live in a
-  // separate bottom-nav tab). Open ones render under a "Checklists"
-  // section header; completed ones stay in the dedicated /checklists
-  // view to keep the hub focused on what still needs doing.
-  sb.rpc("driver_list_checklists", { p_token: session.token }).then(({ data, error }) => {
-    const slot = document.getElementById("rr-tasks-checklists-slot");
-    if (!slot) return;
-    if (error) { console.warn("driver_list_checklists error:", error); rpcFailed(error); return; }
-    const lists = Array.isArray(data) ? data : [];
-    const todo = lists.filter((c) => c.status !== "completed");
-    const completed = lists.filter((c) => c.status === "completed");
-    _setChecklistsTabBadge(todo.length);
-    if (todo.length === 0) return;
-    slot.innerHTML = `<div class="wt-sec">Checklists<span class="wt-sec-n">${todo.length}</span></div>`
-      + todo.map(_clkCardHtml).join("")
-      + (completed.length ? `<a class="rr-hub-link" data-task-route="/checklists">View ${completed.length} completed</a>` : "");
-    slot.querySelectorAll("[data-task-route]").forEach(el => el.addEventListener("click", () => navigate(el.dataset.taskRoute)));
-    onContent();
-  }).catch((err) => { console.warn("driver_list_checklists rejected:", err); rpcFailed(err); }).finally(rpcSettled);
-
-  // Documents to sign — single card surfacing the count of pending
-  // envelopes the dispatcher has sent for this driver.
-  sb.rpc("driver_envelopes_list", { p_token: session.token }).then(({ data, error }) => {
-    if (error) { rpcFailed(error); return; }
-    const pending = Array.isArray(data?.pending) ? data.pending : [];
-    if (pending.length === 0) return;
-    const slot = document.getElementById("rr-tasks-forms-slot");
-    if (!slot) return;
-    slot.insertAdjacentHTML("afterend", taskCardHtml({
-      route: "/tasks/documents",
-      title: "Documents to sign",
-      sub: `${pending.length} pending`,
-      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>',
-    }));
-    document.querySelectorAll("[data-task-route='/tasks/documents']").forEach((el) => {
-      if (el.dataset.rrBound) return;
-      el.dataset.rrBound = "1";
-      el.addEventListener("click", () => navigate(el.dataset.taskRoute));
-    });
-    onContent();
-  }).catch(rpcFailed).finally(rpcSettled);
-
-  // Form I-9 (Section 1) — only surfaced when the operator explicitly
-  // re-opens the form for a correction. The "not_started" case lives
-  // inside the Onboarding card's step list, and once Section 1 is
-  // submitted dispatch handles Section 2. Surfacing a standalone task
-  // for "not_started" duplicated the onboarding step in the active-
-  // driver Tasks hub (operator: "Thats not needed when its completed
-  // in the on boarding process"); the only case where the driver
-  // legitimately needs a re-entry point with no onboarding card
-  // around is the "needs_correction" path.
-  sb.rpc("driver_i9_get", { p_token: session.token }).then(({ data, error }) => {
-    if (error) { rpcFailed(error); return; }
-    if (!data?.record) return;
-    if (data.record.status !== "needs_correction") return;
-    const slot = document.getElementById("rr-tasks-forms-slot");
-    if (!slot) return;
-    slot.insertAdjacentHTML("afterend", taskCardHtml({
-      route: "/tasks/i9",
-      title: "Form I-9 — Section 1",
-      sub: "Needs a correction",
-      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg>',
-    }));
-    document.querySelectorAll("[data-task-route='/tasks/i9']").forEach((el) => {
-      if (el.dataset.rrBound) return;
-      el.dataset.rrBound = "1";
-      el.addEventListener("click", () => navigate(el.dataset.taskRoute));
-    });
-    onContent();
-  }).catch(rpcFailed).finally(rpcSettled);
+  if (wtOpen.length) _wtBindSlot(document.getElementById("rr-tasks-assignments-slot"));
 }
+
 function taskCardHtml(c) {
   // Optional signal next to the title — a count pill (number) or a "NEW"
   // pill (boolean). Used to flag a freshly-sent Coaching. Brand blue, not
@@ -5374,6 +5258,30 @@ function _scanCloseCamera() {
 let _chatPollTimer = null;
 let _chatLastIds = new Set();
 let _chatTab        = "dispatch";  // "dispatch" | "channels"
+
+// ── Pinned acknowledgements (redesign) ──────────────────────────────
+// An ack-required dispatch notice is a compliance item, not chat — it
+// must not scroll away with the thread. Any unacknowledged one renders
+// as a fixed strip between the tabs and the thread; the button reuses
+// the same [data-rr-ack] delegation as in-bubble Acknowledge.
+function _paintAckStrip(messages) {
+  const host = document.getElementById("rr2-ack-strip");
+  if (!host) return;
+  const pending = (messages || []).filter((m) => m.sender_kind !== "driver" && m.requires_ack && !m.acked_at);
+  if (!pending.length) { host.hidden = true; host.innerHTML = ""; return; }
+  const m = pending[pending.length - 1]; // newest for the driver
+  const body = String(m.body || "").slice(0, 160);
+  host.hidden = false;
+  host.innerHTML = `
+    <div class="rr2-notice danger rr2-ack-notice">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <div class="rr2-flex1">
+        <div class="nt">Needs acknowledgement${pending.length > 1 ? ` · ${pending.length}` : ""}</div>
+        <div class="nb">${escapeHtml(body)}${(m.body || "").length > 160 ? "…" : ""}</div>
+        <div class="na"><button class="btn btn-sm btn-primary" type="button" data-rr-ack="${escapeHtml(m.id)}">Acknowledge</button><span class="rr2-ack-when">Dispatch · ${_t12(m.created_at)}</span></div>
+      </div>
+    </div>`;
+}
 let _chatChannelId  = null;        // when set, render the channel thread
 let _chatChannelMeta = null;       // cached header info for the thread
 
@@ -5435,7 +5343,7 @@ async function renderChat() {
   // vars remain as caches for pollers/guards and the thread header.
   _chatTab = "dispatch";
   _chatChannelId = null;
-  setHeader("Chat", "");
+  setHeader("Messages", "");
   const main = document.getElementById("main");
   main.innerHTML = `
     <div id="chat-shell">
@@ -5455,6 +5363,7 @@ async function renderChat() {
           return `<a class="chat-call" href="tel:${esc(href)}" aria-label="Call dispatch" title="Call dispatch"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg><span>Call</span></a>`;
         })()}
       </div>
+      <div id="rr2-ack-strip" hidden></div>
       <div id="chat-msgs" class="chat-msgs" role="log" aria-live="polite" aria-relevant="additions" aria-label="Messages"><div class="loader"></div></div>
       <form class="chat-composer" id="chat-form">
         <input id="chat-file" type="file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" hidden>
@@ -5533,7 +5442,7 @@ async function renderChat() {
 
   // Acknowledge button on requires_ack dispatch messages — delegated so
   // re-renders don't re-bind.
-  document.getElementById("chat-msgs")?.addEventListener("click", async (e) => {
+  document.getElementById("chat-shell")?.addEventListener("click", async (e) => {
     const btn = e.target.closest("[data-rr-ack]");
     if (!btn || btn.disabled) return;
     const id = btn.getAttribute("data-rr-ack");
@@ -6418,6 +6327,7 @@ async function refreshChat(scrollToBottom) {
   const messages = data?.messages || [];
   const peerReadAt = data?.peer_last_read_at ? new Date(data.peer_last_read_at).getTime() : 0;
   wrap.dataset.rrMsgCount = String(messages.length);
+  _paintAckStrip(messages);
   const _chatReactions = _reactRes?.data?.reactions || [];
 
   // Bodies of driver-sent messages the server has now confirmed. An
@@ -7478,76 +7388,527 @@ function _teamRowHtml(d, callIcon, textIcon) {
     </div>`;
 }
 
-// ── Profile · home screen ──────────────────────────────────────────
-// Branded hero on top, operational cards below.  Three slots load
-// independently so each can stream in without blocking the others:
-//   #rr-checkin-slot  — primary "Opens at" / check-in surface
-//   #rr-missed-slot   — "Report missed day" row (only when relevant)
-//   #rr-upnext-slot   — next upcoming shift summary
+// ── Today · operational home (redesign 2026-07, approved mockups) ────
+// The calm command center: one shift status card (state pill · times ·
+// lifecycle rail · assignment meta line), ONE focus item under "Next",
+// and a single sticky action for the current lifecycle state. Everything
+// else is one tap away — full lists live on Tasks / Schedule.
+//
+// Route stays "/profile" (router fallback + old deep links), the tab
+// label is "Today". Sticky CTA renders into #rr2-cta-slot via
+// _setStickyCta, which render() clears on every navigation.
+
+// Sticky action bar plumbing — shared by Today and any future screen
+// that wants a docked primary action.
+function _setStickyCta(html) {
+  const slot = document.getElementById("rr2-cta-slot");
+  const main = document.getElementById("main");
+  if (slot) slot.innerHTML = html ? `<div class="rr2-cta">${html}</div>` : "";
+  if (main) main.classList.toggle("has-rr2-cta", !!html);
+}
+
+// 12-hour clock, "9:20 AM". Falls back to an em dash for null.
+function _t12(iso) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
+// The 4-segment lifecycle rail: Check in → Inspect → Drive → Check out.
+// Unlabeled (calm treatment); stage 5 = everything done.
+function _railHtml(stage, blocked) {
+  const seg = (i) => {
+    if (i < stage) return `<span class="seg done"></span>`;
+    if (i === stage) return `<span class="seg ${blocked ? "blocked" : "cur"}"></span>`;
+    return `<span class="seg"></span>`;
+  };
+  return `<div class="rr2-rail" aria-hidden="true">${seg(1)}${seg(2)}${seg(3)}${seg(4)}</div>`;
+}
+
+// One requirement / task row with a state ring. `state` ∈ done | cur |
+// blocked | alert. Rows navigate via data-task-route (wired by caller).
+function _reqRowHtml({ state, title, meta, pillHtml = "", route = "" }) {
+  const glyph = state === "done"
+    ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
+    : state === "cur"
+      ? '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="5" fill="currentColor"/></svg>'
+      : state === "alert"
+        ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
+        : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+  return `
+    <button class="rr2-row${state === "done" ? " done" : ""}" type="button" ${route ? `data-task-route="${route}"` : ""}>
+      <span class="rr2-tstate ${state}">${glyph}</span>
+      <span class="rbody">
+        <span class="rtitle">${escapeHtml(title)}</span>
+        ${meta ? `<span class="rmeta">${meta}</span>` : ""}
+      </span>
+      <span class="rend">${pillHtml}<span class="rchev"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span></span>
+    </button>`;
+}
+
+// Re-render Today after a check-in / check-out / missed-day action —
+// the whole screen is one state machine, so partial repaints aren't
+// worth their complexity.
+function _todayRepaint() {
+  if (currentRoute() === "/profile") renderProfileHub();
+}
+
 function renderProfileHub() {
   const session = readSession();
-  const name = session?.name || "Driver";
-  const dsp  = session?.dsp_name || "RouteReady";
-  const greeting = homeGreeting();
-  const todayLabel = homeTodayLabel();
-  setHeader(dsp, "");
+  setHeader("Today", homeTodayLabel());
+  setRefresh(() => renderProfileHub());
   const main = document.getElementById("main");
-  // Brand mark (small shield) lives inside the hero brand row.
-  const brandMark = `
-    <span class="home-hero-brand-mark" aria-hidden="true">
-      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.5 9 8 11 4.5-2 8-6 8-11V5l-8-3z"/></svg>
-    </span>`;
-  const gearSvg = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>';
-
+  _stopCheckinCountdown();
+  // The no-shift state may start the open-shift pickup poller below;
+  // reset any previous instance so tab-hopping can't stack timers.
+  _pickupListTeardown();
+  // Skeleton: the shift card's silhouette, so the swap-in doesn't jump.
   main.innerHTML = `
-    <div class="home-hero">
-      <div class="home-hero-bar">
-        <div class="home-hero-brand">${brandMark}<span>${escapeHtml(dsp)}</span></div>
-        <button class="home-hero-gear" id="rr-home-settings" type="button" aria-label="Settings">${gearSvg}</button>
+    <section class="rr2-panel rr2-sc">
+      <div class="sc-top"><span class="skel skel-line rr2-skel-pill"></span></div>
+      <div class="sc-time"><span class="skel skel-line-lg rr2-skel-time"></span></div>
+      <div class="sc-sub"><span class="skel skel-line rr2-skel-sub"></span></div>
+      <div class="rr2-rail"><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div>
+    </section>`;
+  _renderToday(session, main).catch((err) => {
+    console.error("Today render failed:", err);
+    main.innerHTML = errorStateHtml("Today couldn't load", err);
+  });
+}
+
+async function _renderToday(session, main) {
+  if (!session?.token) { _setStickyCta(""); return; }
+  const tok = session.token;
+  const quiet = (p) => p.then((r) => r, (e) => ({ data: null, error: e }));
+  // driver_checkin_status is the backbone; the rest degrade gracefully.
+  const [stRes, schedRes, vanRes, clkRes, formRes, coachRes, envRes, formQ, clkQ] = await Promise.all([
+    quiet(sb.rpc("driver_checkin_status", { p_token: tok })),
+    quiet(sb.rpc("driver_my_schedule",    { p_token: tok, p_weeks: 2 })),
+    quiet(sb.rpc("driver_vehicle_days",   { p_token: tok })),
+    quiet(sb.rpc("driver_list_checklists",{ p_token: tok })),
+    quiet(sb.rpc("driver_list_forms",     { p_token: tok })),
+    quiet(sb.rpc("driver_list_coachings", { p_token: tok })),
+    quiet(sb.rpc("driver_envelopes_list", { p_token: tok })),
+    _formQueueCount().catch(() => 0),
+    _clkOutboxCount().catch(() => 0),
+  ]);
+  if (currentRoute() !== "/profile") return; // navigated away mid-fetch
+
+  if (stRes.error || !stRes.data) {
+    main.innerHTML = errorStateHtml("Couldn't load your shift", stRes.error);
+    _setStickyCta("");
+    return;
+  }
+  const status = stRes.data;
+  const shift  = status.shift;
+  const chk    = status.checkin;
+  const todayIso = fmtIsoDate(new Date());
+
+  // Today's schedule row fills in what checkin_status doesn't carry
+  // (end time, service type); the van comes from the assignment chains.
+  const schedShifts = Array.isArray(schedRes.data?.shifts) ? schedRes.data.shifts : [];
+  const todayRow = schedShifts.find((s) => s.date === todayIso && ["scheduled", "completed"].includes(s.status)) || null;
+  const nextRow  = schedShifts
+    .filter((s) => s.status === "scheduled" && s.date > todayIso)
+    .sort((a, b) => (a.date < b.date ? -1 : 1))[0] || null;
+  let vanToday = null;
+  for (const r of (Array.isArray(vanRes.data) ? vanRes.data : [])) {
+    if (r && r.date === todayIso && r.vehicle) { vanToday = r.vehicle; break; }
+  }
+
+  // ── The unified requirement inventory (forms + checklists + acks) ──
+  // Stage binding is a presentational due-time heuristic (approved
+  // proposal): required + due before the wave → gates departure;
+  // required + due near/after shift end → gates check-out (soft).
+  const waveMs = shift?.wave_starts_at ? new Date(shift.wave_starts_at).getTime()
+               : shift?.starts_at ? new Date(shift.starts_at).getTime() : NaN;
+  const endMs  = todayRow?.ends_at ? new Date(todayRow.ends_at).getTime() : NaN;
+  const items = [];
+  for (const c of (Array.isArray(clkRes.data) ? clkRes.data : [])) {
+    if (c.status === "completed") continue;
+    const dueMs = c.due_at ? new Date(c.due_at).getTime() : NaN;
+    items.push({
+      kind: "checklist", title: c.name || "Checklist",
+      route: `/tasks/checklist?id=${encodeURIComponent(c.assignment_id)}`,
+      required: !!c.required, dueMs,
+      overdue: c.status === "overdue" || (Number.isFinite(dueMs) && Date.now() > dueMs),
+      meta: `${c.item_count} item${c.item_count === 1 ? "" : "s"}${c.due_at ? ` · due <b>${_t12(c.due_at)}</b>` : ""}`,
+      stage: Number.isFinite(dueMs) && Number.isFinite(waveMs) && dueMs <= waveMs ? "wave"
+           : Number.isFinite(dueMs) && Number.isFinite(endMs) && dueMs >= endMs - 60 * 60 * 1000 ? "checkout" : "day",
+    });
+  }
+  for (const f of (Array.isArray(formRes.data) ? formRes.data : [])) {
+    const oncePer = !!f.settings?.once_per_driver;
+    if (oncePer && f.submission_count > 0) continue;
+    items.push({
+      kind: "form", title: f.title || "Form",
+      route: `/tasks/form?id=${encodeURIComponent(f.id)}`,
+      required: false, dueMs: NaN, overdue: false,
+      meta: f.description ? escapeHtml(f.description) : `${f.field_count} question${f.field_count === 1 ? "" : "s"}`,
+      stage: "day",
+    });
+  }
+  const coachN = Array.isArray(coachRes.data) ? coachRes.data.length : 0;
+  if (coachN > 0) {
+    items.push({
+      kind: "coaching", title: "Coaching to acknowledge",
+      route: "/tasks/coaching", required: true, dueMs: NaN, overdue: false,
+      meta: `${coachN} to review`, stage: "day",
+    });
+  }
+  const envN = Array.isArray(envRes.data?.pending) ? envRes.data.pending.length : 0;
+  if (envN > 0) {
+    items.push({
+      kind: "sign", title: "Documents to sign",
+      route: "/tasks/documents", required: false, dueMs: NaN, overdue: false,
+      meta: `${envN} pending`, stage: "day",
+    });
+  }
+  // Priority: overdue → required-with-due → required → soonest due → rest.
+  items.sort((a, b) =>
+    (b.overdue - a.overdue)
+    || (b.required - a.required)
+    || ((Number.isFinite(a.dueMs) ? a.dueMs : Infinity) - (Number.isFinite(b.dueMs) ? b.dueMs : Infinity)));
+
+  const upNextHtml = nextRow ? `
+    <div class="rr2-sec">Up next<a class="lnk" href="#/schedule">Schedule</a></div>
+    <div class="rr2-panel">
+      <button class="rr2-shift-row" type="button" data-task-route="/schedule">
+        <span class="srd">
+          <span class="srdw">${new Date(nextRow.date + "T12:00:00").toLocaleDateString(undefined, { weekday: "short" })}</span>
+          <span class="srdn">${new Date(nextRow.date + "T12:00:00").getDate()}</span>
+        </span>
+        <span class="srb">
+          <span class="srt">${_t12(nextRow.starts_at)} – ${_t12(nextRow.ends_at)}</span>
+          <span class="srm">${escapeHtml(nextRow.station_code || "")}${nextRow.service_type_code ? ` · ${escapeHtml(nextRow.service_type_code)}` : ""}</span>
+        </span>
+      </button>
+    </div>` : "";
+
+  // "Waiting to sync" — makes the existing offline outboxes visible.
+  const queued = (formQ || 0) + (clkQ || 0);
+  const syncHtml = queued > 0 ? `
+    <div class="rr2-sec is-amber">Waiting to sync<span class="n">${queued}</span></div>
+    <div class="rr2-panel">
+      <div class="rr2-row static">
+        <span class="ric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></span>
+        <span class="rbody">
+          <span class="rtitle">${queued} item${queued === 1 ? "" : "s"} saved on this phone</span>
+          <span class="rmeta">Sends automatically when you're back in coverage</span>
+        </span>
+        <span class="rend"><span class="rr2-pill amber"><span class="pdot"></span>Pending</span><button class="btn btn-sm" id="rr2-sync-now" ${navigator.onLine === false ? "disabled" : ""}>Send now</button></span>
       </div>
-      <div class="home-hero-id">
-        <button class="profile-avatar-btn" id="rr-photo-btn" type="button" aria-label="Change photo">
-          ${avatarHtml(session, "profile-avatar")}
-          <span class="profile-avatar-edit" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+    </div>` : "";
+
+  // ── Compose per lifecycle state ─────────────────────────────────
+  let cardHtml = "", bodyHtml = "", ctaHtml = "";
+  // No date inside the card — the header's subtitle already carries it
+  // (the mockup review flagged the duplication).
+  const scCard = ({ pill, time, sub, stage, blocked }) => `
+    <section class="rr2-panel rr2-sc">
+      <div class="sc-top">${pill}</div>
+      ${time ? `<div class="sc-time">${time}</div>` : ""}
+      ${sub ? `<div class="sc-sub">${sub}</div>` : ""}
+      ${_railHtml(stage, blocked)}
+    </section>`;
+  const timeRange = shift
+    ? `${_t12(shift.starts_at)}${todayRow?.ends_at ? ` – ${_t12(todayRow.ends_at)}` : ""}`
+    : "";
+  const metaBits = shift ? [
+    escapeHtml(shift.station_code || "—"),
+    vanToday ? `Van <b>${escapeHtml(vanToday)}</b>` : null,
+    shift.wave_starts_at && shift.wave_starts_at !== shift.starts_at ? `Wave <b>${_t12(shift.wave_starts_at)}</b>` : null,
+  ].filter(Boolean).join(" · ") : "";
+
+  // Requirement section for the current stage: ONE focus item + a quiet
+  // "see all" line (calm treatment). Done-today items stay off Today.
+  // Before check-in, wave-stage items render locked ("after you check
+  // in") instead of actionable — the order of the day is real.
+  const openItems = items;
+  const focus = openItems[0] || null;
+  const nextSectionHtml = (lockWave) => {
+    if (!focus) return "";
+    const locked = lockWave && focus.stage === "wave";
+    return `
+    <div class="rr2-sec">Next</div>
+    <div class="rr2-panel">
+      ${_reqRowHtml({
+        state: locked ? "blocked" : focus.overdue ? "alert" : "cur",
+        title: focus.title,
+        meta: locked ? `Starts after you check in · ${focus.meta}` : focus.meta,
+        pillHtml: focus.overdue && !locked ? `<span class="rr2-pill red">Overdue</span>`
+                : focus.required ? `<span class="rr2-pill amber">Required</span>` : "",
+        route: locked ? "" : focus.route,
+      })}
+    </div>
+    ${openItems.length > 1 ? `<div class="rr2-divnote">${openItems.length - 1} more on your list · <button type="button" data-task-route="/tasks">See all</button></div>` : ""}`;
+  };
+  const nextSection = nextSectionHtml(false);
+
+  // Missing-assignment awareness (van not assigned yet).
+  const missingVanHtml = (shift && !vanToday && !chk?.checked_out_at) ? `
+    <div class="rr2-notice warn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <div class="rr2-flex1">
+        <div class="nt">No van assigned yet</div>
+        <div class="nb">You'll see it here the moment dispatch assigns one. You can still check in.</div>
+        <div class="na"><button class="btn btn-sm" data-task-route="/chat">Message dispatch</button></div>
+      </div>
+    </div>` : "";
+
+  if (!shift) {
+    // ── No shift today ──
+    cardHtml = `
+      <section class="rr2-panel rr2-sc">
+        <div class="sc-top"><span class="rr2-pill"><span class="pdot"></span>No shift today</span></div>
+        <div class="rr2-offcard">
+          <div class="rr2-offcard-t">You're off today</div>
+          <div class="rr2-offcard-s">${nextRow ? `Next shift ${new Date(nextRow.date + "T12:00:00").toLocaleDateString(undefined, { weekday: "long" })} at ${_t12(nextRow.starts_at)}` : "Nothing scheduled in the next two weeks yet"}</div>
+        </div>
+      </section>`;
+    bodyHtml = `
+      ${syncHtml}
+      <div id="rr-pickup-slot"></div>
+      ${upNextHtml}
+      ${focus ? `
+        <div class="rr2-sec">Worth doing today</div>
+        <div class="rr2-panel">${openItems.slice(0, 2).map((it) => _reqRowHtml({
+          state: it.overdue ? "alert" : "cur", title: it.title, meta: it.meta,
+          pillHtml: it.overdue ? `<span class="rr2-pill red">Overdue</span>` : "", route: it.route,
+        })).join("")}</div>
+        ${openItems.length > 2 ? `<div class="rr2-divnote">${openItems.length - 2} more · <button type="button" data-task-route="/tasks">See all</button></div>` : ""}` : ""}`;
+    ctaHtml = "";
+  } else if (chk?.missed_reported_at && !chk?.checked_in_at) {
+    // ── Missed day reported ──
+    cardHtml = scCard({
+      pill: `<span class="rr2-pill red"><span class="pdot"></span>Missed day reported</span>`,
+      time: timeRange, sub: metaBits, stage: 1, blocked: true,
+    });
+    bodyHtml = `
+      <div class="rr2-notice warn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <div>
+          <div class="nt">Reported at ${_t12(chk.missed_reported_at)} — dispatch has been notified</div>
+          ${chk.missed_reason ? `<div class="nb">${escapeHtml(chk.missed_reason)}</div>` : ""}
+        </div>
+      </div>
+      ${syncHtml}${upNextHtml}`;
+    ctaHtml = "";
+  } else if (chk?.checked_in_at && chk?.checked_out_at) {
+    // ── Shift complete ──
+    const inMs = new Date(chk.checked_in_at).getTime();
+    const outMs = new Date(chk.checked_out_at).getTime();
+    const mins = Math.max(0, Math.round((outMs - inMs) / 60000));
+    const dur = `${Math.floor(mins / 60)}h ${String(mins % 60).padStart(2, "0")}m`;
+    cardHtml = `
+      <section class="rr2-panel rr2-sc">
+        <div class="rr2-ok">
+          <div class="ring"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+          <div class="t">Shift complete</div>
+          <div class="s">Checked out at ${_t12(chk.checked_out_at)} · dispatch has been notified</div>
+        </div>
+        ${_railHtml(5)}
+      </section>`;
+    bodyHtml = `
+      ${syncHtml}
+      <div class="rr2-sec">Today's summary</div>
+      <div class="rr2-panel">
+        <div class="rr2-kv"><span class="k">On duty</span><span class="v">${dur}</span><span class="kend"><span class="rr2-pill green">Complete</span></span></div>
+        <div class="rr2-kv"><span class="k">Checked in</span><span class="v">${_t12(chk.checked_in_at)}${shift.station_code ? ` · ${escapeHtml(shift.station_code)}` : ""}</span></div>
+        <div class="rr2-kv"><span class="k">Checked out</span><span class="v">${_t12(chk.checked_out_at)}</span></div>
+        ${vanToday ? `<div class="rr2-kv"><span class="k">Van</span><span class="v">${escapeHtml(vanToday)}</span></div>` : ""}
+      </div>
+      ${nextSection}
+      ${upNextHtml}
+      <div class="rr2-divnote"><button type="button" id="rr-undo-checkout">Undo check-out</button></div>`;
+    ctaHtml = "";
+  } else if (chk?.checked_in_at) {
+    // ── On duty ──
+    const waveOpen = Number.isFinite(waveMs) && Date.now() < waveMs;
+    const waveGate = openItems.find((it) => it.stage === "wave") || null;
+    const stage = (waveOpen || waveGate) ? 2 : 3;
+    cardHtml = scCard({
+      pill: `<span class="rr2-pill green"><span class="pdot"></span>On duty</span>`,
+      time: timeRange,
+      sub: [`Checked in <b>${_t12(chk.checked_in_at)}</b>`, metaBits].filter(Boolean).join(" · "),
+      stage,
+      blocked: !!(waveGate && waveGate.overdue),
+    });
+    const checkoutGates = openItems.filter((it) => it.stage === "checkout" && it.required);
+    bodyHtml = `
+      ${missingVanHtml}
+      ${syncHtml}
+      ${nextSection}
+      <div class="rr2-sec">During your shift</div>
+      <div class="rr2-panel">
+        <button class="rr2-row" type="button" data-task-route="/chat">
+          <span class="ric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+          <span class="rbody"><span class="rtitle">Messages</span></span>
+          <span class="rend"><span class="rchev"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span></span>
+        </button>
+        <button class="rr2-row" type="button" data-task-route="/chat" data-rr2-issue>
+          <span class="ric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg></span>
+          <span class="rbody"><span class="rtitle">Report an issue</span><span class="rmeta">Van defect, delay or incident — goes to dispatch</span></span>
+          <span class="rend"><span class="rchev"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span></span>
+        </button>
+      </div>`;
+    // Soft gate (approved): Check out stays enabled; the note carries
+    // what's still open so ending a shift is never hard-blocked.
+    if (waveGate) {
+      ctaHtml = `
+        <button class="btn btn-primary" id="rr2-cta-btn" data-task-route="${waveGate.route}">Start ${escapeHtml(waveGate.title.toLowerCase())}</button>
+        <span class="cta-note warn">${waveGate.overdue ? "Overdue — " : "Required — "}wave departs ${_t12(shift.wave_starts_at || shift.starts_at)}</span>`;
+    } else {
+      ctaHtml = `
+        <button class="btn btn-primary" id="rr-checkout-btn">Check out</button>
+        ${checkoutGates.length
+          ? `<span class="cta-note warn">${checkoutGates.length} required item${checkoutGates.length === 1 ? "" : "s"} still open — finish before you leave</span>`
+          : `<span class="cta-note">Ends your shift and notifies dispatch</span>`}`;
+    }
+  } else {
+    // ── Not checked in yet ──
+    const windowOpen = !!status.window_is_open;
+    const closeMs = shift.window_close_at ? new Date(shift.window_close_at).getTime() : NaN;
+    const windowClosed = !windowOpen && Number.isFinite(closeMs) && Date.now() > closeMs;
+    const noStart = !shift.starts_at;
+    const pill = windowOpen
+      ? `<span class="rr2-pill blue"><span class="pdot"></span>Ready to check in</span>`
+      : `<span class="rr2-pill navy"><span class="pdot"></span>Scheduled</span>`;
+    cardHtml = scCard({
+      pill,
+      time: timeRange,
+      sub: windowOpen
+        ? `Check-in closes <b>${_t12(shift.window_close_at)}</b>${metaBits ? ` · ${metaBits}` : ""}`
+        : `Check-in opens <b>${_t12(shift.window_open_at)}</b>${metaBits ? ` · ${metaBits}` : ""}`,
+      stage: 1,
+      blocked: windowClosed || noStart,
+    });
+    const canLocate = windowOpen
+      && Number.isFinite(Number(shift.station_latitude))
+      && Number.isFinite(Number(shift.station_longitude))
+      && "geolocation" in navigator;
+    bodyHtml = `
+      ${missingVanHtml}
+      ${syncHtml}
+      ${canLocate ? `<div class="checkin-loc" id="rr-checkin-loc">${_checkinLocIdleHtml()}</div>` : ""}
+      ${nextSectionHtml(true)}
+      ${upNextHtml}
+      <div class="rr2-divnote"><button type="button" id="rr-missed-btn">Can't make it? Report a missed day</button></div>`;
+    if (noStart) {
+      ctaHtml = `
+        <button class="btn" disabled>Check-in unavailable</button>
+        <span class="cta-note warn">No scheduled start time on this shift yet — contact dispatch</span>`;
+    } else if (!shift.has_geofence) {
+      ctaHtml = `
+        <button class="btn" disabled>Check-in unavailable</button>
+        <span class="cta-note warn">Geofence isn't set for ${escapeHtml(shift.station_code || "your station")} — contact dispatch</span>`;
+    } else if (windowOpen) {
+      ctaHtml = `
+        <button class="btn btn-primary" id="rr-checkin-btn">Check in · ${_t12(shift.starts_at)} shift</button>
+        <span class="cta-note">We'll confirm you're at the station and log your start time</span>`;
+    } else if (windowClosed) {
+      ctaHtml = `
+        <button class="btn" disabled>Check-in closed at ${_t12(shift.window_close_at)}</button>
+        <span class="cta-note warn">If you still need to start your shift, contact dispatch</span>`;
+    } else {
+      ctaHtml = `
+        <button class="btn" disabled>Check-in opens at ${_t12(shift.window_open_at)}</button>
+        <span class="cta-note">Shift starts in <span id="rr2-count">${escapeHtml(_countdownText(new Date(shift.starts_at).getTime()) || "")}</span></span>`;
+    }
+  }
+
+  main.innerHTML = cardHtml + bodyHtml;
+  _setStickyCta(ctaHtml);
+
+  // ── Wiring ──
+  document.querySelectorAll("[data-task-route]").forEach((el) => {
+    if (el.dataset.rrBound) return;
+    el.dataset.rrBound = "1";
+    el.addEventListener("click", () => navigate(el.dataset.taskRoute));
+  });
+  document.getElementById("rr-checkin-btn")?.addEventListener("click", () => doCheckin(session));
+  document.getElementById("rr-checkout-btn")?.addEventListener("click", () => doCheckout(session));
+  document.getElementById("rr-undo-checkout")?.addEventListener("click", () => doUndoCheckout(session));
+  document.getElementById("rr-missed-btn")?.addEventListener("click", () => doMissedDay(session));
+  document.getElementById("rr2-sync-now")?.addEventListener("click", () => {
+    _formFlushQueue({ silent: false });
+    _clkFlushOutbox();
+  });
+  if (shift && !chk?.checked_in_at && status.window_is_open) _wireCheckinLocation(shift);
+  if (shift && !chk?.checked_in_at && shift.starts_at) {
+    _startCheckinCountdown(new Date(shift.starts_at).getTime());
+  }
+  // No-shift state reuses the Schedule's open-shift pickup module — it
+  // renders into #rr-pickup-slot and hides itself when there's nothing.
+  if (!shift) _pickupListStart(tok);
+}
+
+// ── More · secondary tools hub (redesign) ────────────────────────────
+// Absorbs the old Team tab and the driver-relevant Settings contents so
+// Messages could take a primary tab. Compliance state surfaces on the
+// rows themselves (license, attendance) via async chips.
+function renderMore() {
+  const session = readSession();
+  setHeader("More", "");
+  setRefresh(() => renderMore());
+  const main = document.getElementById("main");
+  const chev = '<span class="rchev"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>';
+  const row = ({ route, href, title, meta, icon, endId }) => `
+    <${href ? `a href="${href}"` : `button type="button" ${route ? `data-task-route="${route}"` : ""}`} class="rr2-row">
+      <span class="ric">${icon}</span>
+      <span class="rbody"><span class="rtitle">${escapeHtml(title)}</span>${meta ? `<span class="rmeta">${escapeHtml(meta)}</span>` : ""}</span>
+      <span class="rend">${endId ? `<span id="${endId}"></span>` : ""}${chev}</span>
+    </${href ? "a" : "button"}>`;
+  const dspPhone = (session?.dsp_phone || "").replace(/[^0-9+]/g, "");
+  main.innerHTML = `
+    <div class="rr2-panel">
+      <div class="rr2-row static rr2-row-lg">
+        <button type="button" id="rr-photo-btn" class="rr2-photo-btn" aria-label="Change photo">
+          ${avatarHtml(session, "rr2-ava rr2-ava-lg")}
+          <span aria-hidden="true" class="rr2-photo-edit">
+            <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
           </span>
         </button>
-        <input type="file" id="rr-photo-input" accept="image/*" capture="user" style="display:none"/>
-        <div class="home-hero-idtext">
-          <div class="home-hero-greeting">${escapeHtml(greeting)}</div>
-          <div class="home-hero-name">${escapeHtml(name)}</div>
-          <div class="home-hero-meta" id="rr-home-meta">Driver</div>
-        </div>
-      </div>
-      <div class="home-hero-foot">
-        <div class="home-hero-today" aria-label="Today">${escapeHtml(todayLabel)}</div>
-        <div class="home-hero-status" id="rr-home-status" hidden>
-          <span class="home-hero-status-dot"></span>ON DUTY
-        </div>
+        <input type="file" id="rr-photo-input" accept="image/*" capture="user" hidden/>
+        <span class="rbody">
+          <span class="rtitle rtitle-lg">${escapeHtml(session?.name || "Driver")}</span>
+          <span class="rmeta">Driver · ${escapeHtml(session?.dsp_name || "RouteReady")}</span>
+        </span>
+        <span class="rend"><button class="btn btn-sm" type="button" data-task-route="/settings/profile">Edit</button></span>
       </div>
     </div>
 
-    <div class="home-content">
-      <div id="rr-checkin-slot">
-        <div class="opens-card opens-card-muted">
-          <div class="opens-card-row">
-            <div class="opens-card-icon"><div class="loader" style="margin:0;width:20px;height:20px;border-width:2px"></div></div>
-            <div class="opens-card-body">
-              <div class="opens-card-title" style="font-size:18px">Checking your shift…</div>
-              <div class="opens-card-meta">One moment</div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div id="rr-missed-slot" hidden></div>
-      <div id="rr-actionneeded-slot" hidden></div>
-      <section class="up-next" id="rr-upnext-slot" hidden></section>
-      <section class="van-docs" id="rr-vandocs-slot" hidden></section>
+    <div class="rr2-sec">Documents &amp; compliance</div>
+    <div class="rr2-panel">
+      ${row({ route: "/tasks/documents", title: "My documents", icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>' })}
+      ${row({ route: "/settings/license", title: "Driver's license", icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="8.5" cy="11.5" r="2"/><path d="M5.5 16.5c.6-1.5 1.7-2.2 3-2.2s2.4.7 3 2.2"/><line x1="14" y1="10" x2="19" y2="10"/><line x1="14" y1="14" x2="18" y2="14"/></svg>' })}
+      ${row({ route: "/more/van", title: "Van documents", meta: "Insurance · registration for today's van", icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 17h4V5H2v12h3"/><path d="M20 17h2v-3.34a4 4 0 0 0-1.17-2.83L19 9h-5v8h1"/><circle cx="7.5" cy="17.5" r="2"/><circle cx="17.5" cy="17.5" r="2"/></svg>' })}
+      ${row({ route: "/tasks/scan", title: "Scan a document", meta: "Photos → PDF straight to dispatch", icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><rect x="7" y="8" width="10" height="8" rx="1"/></svg>' })}
+    </div>
+
+    <div class="rr2-sec">Work</div>
+    <div class="rr2-panel">
+      ${row({ route: "/settings/availability", title: "Availability", icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>' })}
+      ${row({ route: "/settings/time-off", title: "Time off", icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>' })}
+      ${row({ route: "/settings/attendance", title: "Attendance", icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.5 9 8 11 4.5-2 8-6 8-11V5l-8-3z"/></svg>' })}
+    </div>
+
+    <div class="rr2-sec">Team &amp; support</div>
+    <div class="rr2-panel">
+      ${row({ route: "/team", title: "Team roster", meta: "Call or text your teammates", icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>' })}
+      ${dspPhone ? row({ href: `tel:${escapeHtml(dspPhone)}`, title: "Call dispatch", icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>' }) : ""}
+    </div>
+
+    <div class="rr2-sec">App</div>
+    <div class="rr2-panel">
+      ${row({ route: "/settings/pin", title: "Sign-in PIN", icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>' })}
+      ${row({ route: "/settings", title: "Settings", meta: "Notifications, sign out and more", icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>' })}
     </div>`;
 
-  document.getElementById("rr-home-settings").addEventListener("click", () => { _haptic("tap"); navigate("/settings"); });
-
-  // Photo upload — clicking the avatar opens the camera or picker.
+  main.querySelectorAll("[data-task-route]").forEach((el) => {
+    el.addEventListener("click", () => navigate(el.dataset.taskRoute));
+  });
+  // Photo upload — the avatar in the profile row opens camera/picker
+  // (moved here from the retired home hero).
   const fileInput = document.getElementById("rr-photo-input");
   document.getElementById("rr-photo-btn").addEventListener("click", () => fileInput.click());
   fileInput.addEventListener("change", async (e) => {
@@ -7557,161 +7918,21 @@ function renderProfileHub() {
     await uploadDriverPhoto(file);
     fileInput.value = ""; // allow re-selecting the same file
   });
+}
 
-  // Independent loaders so the page is responsive while data streams in.
-  renderCheckinCard(session);
-  renderActionNeeded(session);
-  renderUpNext(session);
+// Van documents got their own sub-screen under More (they used to be a
+// card on the home screen). Reuses renderVanDocs, which renders into
+// #rr-vandocs-slot and owns its own fetch/error/empty states.
+function renderVanDocsPage() {
+  const session = readSession();
+  const main = document.getElementById("main");
+  main.innerHTML = `<section class="van-docs" id="rr-vandocs-slot"><div class="loader"></div></section>`;
+  setRefresh(() => renderVanDocsPage());
   renderVanDocs(session);
-
-  // Pull-to-refresh re-fetches both async surfaces.  Avatar / name
-  // come from the session, which is hydrated in the background by
-  // refreshDriverProfile in render().
-  setRefresh(() => {
-    const s = readSession();
-    renderCheckinCard(s);
-    renderActionNeeded(s);
-    renderUpNext(s);
-    renderVanDocs(s);
-  });
-
-  main.querySelectorAll("[data-task-route]").forEach((el) => {
-    el.addEventListener("click", () => navigate(el.dataset.taskRoute));
-  });
 }
 
-// ── ACTION NEEDED · pending required tasks, promoted to the home ─────
-// Command-center surface answering "what must I complete?" without a
-// menu dive. Counts the same actionable items the Tasks tab badge
-// tracks — open checklists (status !== "completed") + unacknowledged
-// coaching — so the home count and the Tasks tab badge always agree.
-// Renders a single tappable task card (→ /tasks) only when something is
-// pending; hides silently when the list is clear (a clean home) and on
-// load error (the Tasks tab remains the source of truth, so a failed
-// promo-fetch must never leave a broken card on the home screen).
-async function renderActionNeeded(session) {
-  const slot = document.getElementById("rr-actionneeded-slot");
-  if (!slot || !session?.token) return;
-  let coaching = 0, checklists = 0;
-  try {
-    const [cRes, kRes] = await Promise.all([
-      sb.rpc("driver_list_coachings",  { p_token: session.token }),
-      sb.rpc("driver_list_checklists", { p_token: session.token }),
-    ]);
-    if (cRes.error || kRes.error) { slot.hidden = true; slot.innerHTML = ""; return; }
-    coaching   = Array.isArray(cRes.data) ? cRes.data.length : 0;
-    checklists = Array.isArray(kRes.data) ? kRes.data.filter((c) => c.status !== "completed").length : 0;
-  } catch { slot.hidden = true; slot.innerHTML = ""; return; }
-
-  const total = coaching + checklists;
-  if (total === 0) { slot.hidden = true; slot.innerHTML = ""; return; }
-
-  // Specific breakdown so the driver knows what's waiting before they tap.
-  const parts = [];
-  if (checklists) parts.push(`${checklists} checklist${checklists === 1 ? "" : "s"}`);
-  if (coaching)   parts.push(`${coaching} coaching note${coaching === 1 ? "" : "s"}`);
-
-  slot.hidden = false;
-  slot.innerHTML = taskCardHtml({
-    route: "/tasks",
-    title: `${total} task${total === 1 ? "" : "s"} to complete`,
-    sub:   parts.join(" · "),
-    icon:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="m9 14 2 2 4-4"/></svg>',
-  });
-  slot.querySelectorAll("[data-task-route]").forEach((el) =>
-    el.addEventListener("click", () => navigate(el.dataset.taskRoute)));
-}
-
-// ── UP NEXT · next upcoming shift after today ──────────────────────
-// Reads from driver_my_schedule (same RPC the Schedule tab uses) and
-// renders the closest future shift as a single white card.  Hides
-// itself silently on empty / error so the home page never shows a
-// broken section.
-async function renderUpNext(session) {
-  const slot = document.getElementById("rr-upnext-slot");
-  if (!slot || !session?.token) return;
-  let data, error;
-  try {
-    const res = await sb.rpc("driver_my_schedule", { p_token: session.token, p_weeks: 2 });
-    data = res.data; error = res.error;
-  } catch (e) { error = e; }
-  // A genuine load failure shows a calm, labeled, retryable card rather than
-  // silently vanishing — a driver on a flaky signal couldn't otherwise tell
-  // "no upcoming shift" (an intentional hide) from "couldn't load it". Reuses
-  // the shared compact home-section state card (.van-docs-empty). The
-  // no-future-shift / no-data cases below still hide silently — that's a
-  // normal state, not an error, and a placeholder there would just be noise.
-  if (error) {
-    slot.hidden = false;
-    slot.innerHTML = `
-      <div class="up-next-label">Up next</div>
-      <div class="van-docs-empty">
-        <div class="van-docs-empty-ic" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        </div>
-        <div class="van-docs-empty-title">Couldn't load your upcoming shift</div>
-        <div class="van-docs-empty-sub">${escapeHtml(_friendlyError(error, "Pull down to retry."))}</div>
-      </div>`;
-    return;
-  }
-  if (!data) { slot.hidden = true; return; }
-
-  const todayIso = fmtIsoDate(new Date());
-  const shifts = (Array.isArray(data.shifts) ? data.shifts : [])
-    .filter((s) => s.status === "scheduled" && s.date > todayIso)
-    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
-  if (shifts.length === 0) { slot.hidden = true; return; }
-  const s = shifts[0];
-
-  // Resolve the assigned vehicle for that day — same RPC + {name,
-  // isRotation} shape the Schedule page builds, so a rotation van is
-  // flagged identically. Silent on failure (van just hides).
-  let vanInfo = null;
-  try {
-    const vRes = await sb.rpc("driver_vehicle_days", { p_token: session.token });
-    for (const r of (Array.isArray(vRes?.data) ? vRes.data : [])) {
-      if (r && r.date === s.date && r.vehicle) {
-        vanInfo = { name: r.vehicle, isRotation: (r.is_chain_match === false) || r.via === "rotation" };
-        break;
-      }
-    }
-  } catch {}
-
-  // Render through the shared shiftCardHtml primitive so "Up next" on the
-  // home screen and the Schedule list cards are literally the same
-  // component — one shift reads identically everywhere. Map the raw
-  // driver_my_schedule row into the exact shape the Schedule builds
-  // (app.js renderSchedule). No swap action here: the home preview is
-  // read-only; swaps live on the Schedule tab.
-  const card = {
-    id:                s.id,
-    date:              new Date(s.date + "T12:00:00"),
-    iso:               s.date,
-    starts_at:         s.starts_at,
-    ends_at:           s.ends_at,
-    wave_starts_at:    s.wave_starts_at || s.starts_at,
-    reportLeadMinutes: s.report_lead_minutes || 0,
-    station:           s.station_code || "",
-    status:            s.status,
-    type:              s.service_type_code || "",
-    typeColor:         s.service_type_color || "",
-    isCushion:         !!s.is_cushion,
-    shiftKind:         s.shift_kind || "regular",
-    trainerName:       s.trainer_name || "",
-    trainingDay:       s.shift_kind === "training" ? 1 : 0,
-    stationLat:        Number(s.station_latitude),
-    stationLng:        Number(s.station_longitude),
-  };
-
-  slot.hidden = false;
-  slot.innerHTML = `
-    <div class="up-next-label">Up next</div>
-    ${shiftCardHtml(card, false, vanInfo, {})}`;
-
-  // Fill the card's weather slot via the same hydrator the Schedule uses
-  // (it walks every .shift-weather[data-wx-iso] in the document).
-  _hydrateShiftWeather([card]);
-}
+// (renderActionNeeded / renderUpNext retired 2026-07 — the Today screen's
+//  unified requirement inventory + Up-next section replaced them.)
 
 // ── VAN DOCUMENTS · insurance + registration for today's assigned van ─
 // Surfaces under "Up next" on the home screen.  Always visible *as a
@@ -10424,257 +10645,29 @@ function _stopCheckinCountdown() {
 function _startCheckinCountdown(targetMs) {
   _stopCheckinCountdown();
   const tick = () => {
-    const el = document.getElementById("rr-checkin-countdown");
+    // Redesign: the countdown lives inline in the sticky action bar's
+    // note (#rr2-count). The legacy #rr-checkin-countdown target is kept
+    // for one release in case a cached shell is still on screen.
+    const el = document.getElementById("rr2-count") || document.getElementById("rr-checkin-countdown");
     if (!el) { _stopCheckinCountdown(); return; }
-    const valueEl = el.querySelector(".opens-card-countdown-value");
     const txt = _countdownText(targetMs);
     if (!txt) {
-      el.hidden = true;
+      // Start time reached — the state machine may have moved on
+      // (window opened / shift started). Repaint rather than leaving a
+      // stale "starts in 0m".
       _stopCheckinCountdown();
+      _todayRepaint();
       return;
     }
-    if (valueEl) valueEl.textContent = txt;
+    const valueEl = el.querySelector?.(".opens-card-countdown-value");
+    (valueEl || el).textContent = txt;
   };
   tick();
   _checkinCountdownTimer = setInterval(tick, 30 * 1000);
 }
 
-async function renderCheckinCard(session) {
-  const slot = document.getElementById("rr-checkin-slot");
-  const missedSlot = document.getElementById("rr-missed-slot");
-  if (!slot) return;
-  _stopCheckinCountdown();
-  // Helper: render the "Report missed day" row into its own slot.
-  // Hidden by default; only the states where a missed-day makes sense
-  // turn it on (pre-checkin window-not-open / no-geofence).
-  const showMissed = (visible) => {
-    if (!missedSlot) return;
-    missedSlot.hidden = !visible;
-    if (!visible) { missedSlot.innerHTML = ""; return; }
-    missedSlot.innerHTML = `
-      <button class="missed-day-card" id="rr-missed-btn" type="button">
-        <span class="missed-day-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
-        </span>
-        <div class="missed-day-body">
-          <div class="missed-day-title">Report missed day</div>
-          <div class="missed-day-sub">Let dispatch know if you can't make it</div>
-        </div>
-        <span class="missed-day-chev" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-        </span>
-      </button>`;
-    document.getElementById("rr-missed-btn").addEventListener("click", () => doMissedDay(session));
-  };
-
-  if (!session?.token) { slot.innerHTML = ""; showMissed(false); return; }
-
-  let status;
-  try {
-    const { data, error } = await sb.rpc("driver_checkin_status", { p_token: session.token });
-    if (error) throw error;
-    status = data;
-  } catch (err) {
-    slot.innerHTML = `
-      <div class="opens-card opens-card-warn">
-        <div class="opens-card-row">
-          <div class="opens-card-icon">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          </div>
-          <div class="opens-card-body">
-            <div class="opens-card-title" style="font-size:18px">Couldn't load shift</div>
-            <div class="opens-card-meta">${escapeHtml(_friendlyError(err, "Pull down to retry."))}</div>
-          </div>
-        </div>
-      </div>`;
-    showMissed(false);
-    return;
-  }
-
-  const shift = status?.shift;
-  // Mirror station + on-duty state into the home-hero subtitle / pill.
-  const metaEl = document.getElementById("rr-home-meta");
-  const dutyEl = document.getElementById("rr-home-status");
-  if (metaEl) {
-    const stn = shift?.station_code;
-    metaEl.textContent = stn ? `Driver · ${stn}` : "Driver";
-  }
-  if (dutyEl) {
-    const onDuty = !!(status?.checkin?.checked_in_at && !status?.checkin?.checked_out_at);
-    dutyEl.hidden = !onDuty;
-  }
-
-  // Reusable bits for the "Opens at" surface.
-  const clockIcon = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
-  const checkIcon = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
-  const card = (cls, icon, title, meta, extra = "") => `
-    <div class="opens-card ${cls}">
-      <div class="opens-card-row">
-        <div class="opens-card-icon">${icon}</div>
-        <div class="opens-card-body">
-          <div class="opens-card-title">${title}</div>
-          ${meta ? `<div class="opens-card-meta">${meta}</div>` : ""}
-        </div>
-      </div>
-      ${extra}
-    </div>`;
-
-  if (!shift) {
-    slot.innerHTML = card("opens-card-muted", clockIcon, "No shift today", "Enjoy your day off.");
-    showMissed(false);
-    return;
-  }
-
-  const startsAtTxt = shift.starts_at
-    ? new Date(shift.starts_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
-    : "—";
-  const stationCode = shift.station_code || "—";
-  const windowOpenTxt = shift.window_open_at
-    ? new Date(shift.window_open_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
-    : "—";
-
-  const hasReportLead = shift.report_lead_minutes > 0
-    && shift.wave_starts_at
-    && new Date(shift.wave_starts_at).getTime() !== new Date(shift.starts_at).getTime();
-  const waveTxt = hasReportLead
-    ? new Date(shift.wave_starts_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
-    : "";
-  const startWithWave = hasReportLead
-    ? `${startsAtTxt} · Wave ${waveTxt}`
-    : startsAtTxt;
-  const detailMeta = `${escapeHtml(stationCode)} · ${escapeHtml(startWithWave)}`;
-
-  const chk = status?.checkin;
-
-  // Already missed-day reported.
-  if (chk?.missed_reported_at && !chk?.checked_in_at) {
-    const t = new Date(chk.missed_reported_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-    slot.innerHTML = card("opens-card-warn", clockIcon,
-      `Reported missed day · ${escapeHtml(t)}`,
-      chk.missed_reason ? escapeHtml(chk.missed_reason) : "Your dispatcher has been notified.");
-    showMissed(false);
-    return;
-  }
-
-  // Already checked in — show check-out CTA (or already checked out).
-  if (chk?.checked_in_at) {
-    const inT  = new Date(chk.checked_in_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-    if (chk.checked_out_at) {
-      const outT = new Date(chk.checked_out_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-      slot.innerHTML = card("opens-card-ok", checkIcon,
-        `Shift complete · ${escapeHtml(outT)}`,
-        `In ${escapeHtml(inT)} · out ${escapeHtml(outT)}`,
-        `<button class="opens-card-cta" id="rr-undo-checkout" type="button">Undo check-out</button>`);
-      document.getElementById("rr-undo-checkout").addEventListener("click", () => doUndoCheckout(session));
-      showMissed(false);
-      return;
-    }
-    slot.innerHTML = card("opens-card-ok", checkIcon,
-      `Checked in · ${escapeHtml(inT)}`,
-      escapeHtml(stationCode),
-      `<button class="opens-card-cta" id="rr-checkout-btn" type="button">Check out</button>`);
-    document.getElementById("rr-checkout-btn").addEventListener("click", () => doCheckout(session));
-    showMissed(false);
-    return;
-  }
-
-  // Not checked in. Show check-in (gated by window) + missed-day below.
-  if (!shift.has_geofence) {
-    slot.innerHTML = card("opens-card-muted", clockIcon,
-      "Check-in unavailable",
-      `Geofence isn't set for ${escapeHtml(stationCode)}.`);
-    showMissed(true);
-    return;
-  }
-
-  // "STARTS IN 45m" — counts down to shift start so the driver knows
-  // how long they've got. Initial value is rendered server-side from
-  // the markup below; _startCheckinCountdown refreshes it on a 30s
-  // interval and self-clears once the start time has passed.
-  const startsAtMs = shift.starts_at ? new Date(shift.starts_at).getTime() : NaN;
-  const initialCountdown = Number.isFinite(startsAtMs) ? _countdownText(startsAtMs) : null;
-  const countdownHtml = initialCountdown
-    ? `<div class="opens-card-countdown" id="rr-checkin-countdown">
-         <div class="opens-card-countdown-label">Starts in</div>
-         <div class="opens-card-countdown-value">${escapeHtml(initialCountdown)}</div>
-       </div>`
-    : "";
-
-  const windowOpen   = !!status.window_is_open;
-  const nowMs        = Date.now();
-  const closeAtMs    = shift.window_close_at ? new Date(shift.window_close_at).getTime() : NaN;
-  const windowClosed = !windowOpen && Number.isFinite(closeAtMs) && nowMs > closeAtMs;
-  const noStartTime  = !shift.starts_at;
-  const windowCloseTxt = shift.window_close_at
-    ? new Date(shift.window_close_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
-    : "—";
-
-  if (noStartTime) {
-    slot.innerHTML = `
-      <div class="opens-card opens-card-warn" aria-disabled="true">
-        <div class="opens-card-row">
-          <div class="opens-card-icon">${clockIcon}</div>
-          <div class="opens-card-body">
-            <div class="opens-card-title">Check-in unavailable</div>
-            <div class="opens-card-meta">No scheduled start time on this shift yet — contact dispatch.</div>
-          </div>
-        </div>
-      </div>`;
-    showMissed(true);
-    return;
-  }
-
-  if (windowOpen) {
-    // Proactive location awareness: a driver can confirm they're close
-    // enough to the station BEFORE committing the check-in, instead of
-    // only learning they're out of range from the server's rejection.
-    // On-tap (not on-load) so the home screen never fires a permission
-    // prompt on every visit. The check-in button stays enabled regardless
-    // — GPS can be flaky and the server is the authority on the geofence.
-    const canLocate = Number.isFinite(Number(shift.station_latitude))
-      && Number.isFinite(Number(shift.station_longitude))
-      && "geolocation" in navigator;
-    slot.innerHTML = `
-      <button class="opens-card" id="rr-checkin-btn" type="button">
-        <div class="opens-card-row">
-          <div class="opens-card-icon">${checkIcon}</div>
-          <div class="opens-card-body">
-            <div class="opens-card-title">Check in for shift</div>
-            <div class="opens-card-meta">${detailMeta}</div>
-          </div>
-          ${countdownHtml}
-        </div>
-      </button>
-      ${canLocate ? `<div class="checkin-loc" id="rr-checkin-loc">${_checkinLocIdleHtml()}</div>` : ""}`;
-    document.getElementById("rr-checkin-btn").addEventListener("click", () => doCheckin(session));
-    if (canLocate) _wireCheckinLocation(shift);
-  } else if (windowClosed) {
-    slot.innerHTML = `
-      <div class="opens-card opens-card-warn" aria-disabled="true">
-        <div class="opens-card-row">
-          <div class="opens-card-icon">${clockIcon}</div>
-          <div class="opens-card-body">
-            <div class="opens-card-title">Check-in closed at ${escapeHtml(windowCloseTxt)}</div>
-            <div class="opens-card-meta">If you still need to start your shift, contact dispatch.</div>
-          </div>
-        </div>
-      </div>`;
-  } else {
-    slot.innerHTML = `
-      <div class="opens-card" aria-disabled="true">
-        <div class="opens-card-row">
-          <div class="opens-card-icon">${clockIcon}</div>
-          <div class="opens-card-body">
-            <div class="opens-card-title">Opens at ${escapeHtml(windowOpenTxt)}</div>
-            <div class="opens-card-meta">${detailMeta}</div>
-          </div>
-          ${countdownHtml}
-        </div>
-      </div>`;
-  }
-  if (initialCountdown) _startCheckinCountdown(startsAtMs);
-  showMissed(true);
-}
+// (renderCheckinCard retired 2026-07 — renderProfileHub/_renderToday is
+//  the single state machine for the shift lifecycle now.)
 
 // ── Proactive check-in location awareness ───────────────────────────
 // Lets a driver confirm they're within the station geofence before they
@@ -10785,7 +10778,7 @@ async function doCheckin(session) {
     }
     _haptic("strong");
     toast(data?.already_checked_in ? "Already checked in" : "Checked in ✓", "ok");
-    renderCheckinCard(session);
+    _todayRepaint();
   }, (err) => {
     btn.disabled = false;
     btn.innerHTML = orig;
@@ -10814,7 +10807,7 @@ async function doCheckout(session) {
     if (error) { _haptic("warn"); toast(_friendlyError(error, "Couldn't check out. You're still on the clock — try again."), "warn"); return; }
     _haptic("strong");
     toast("Checked out ✓", "ok");
-    renderCheckinCard(session);
+    _todayRepaint();
   };
   if (!("geolocation" in navigator)) { submit(); return; }
   navigator.geolocation.getCurrentPosition(
@@ -10843,7 +10836,7 @@ async function doUndoCheckout(session) {
     return;
   }
   toast("Check-out undone", "ok");
-  renderCheckinCard(session);
+  _todayRepaint();
 }
 
 async function doMissedDay(session) {
@@ -10871,7 +10864,7 @@ async function doMissedDay(session) {
     return;
   }
   toast("Reported · dispatch has been notified", "ok");
-  renderCheckinCard(session);
+  _todayRepaint();
 }
 
 async function uploadDriverPhoto(file) {
