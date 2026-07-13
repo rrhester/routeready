@@ -1352,6 +1352,7 @@ function publishMeta() {
 
 function show(screen) {
   document.body.dataset.screen = screen;
+  if (screen !== "room") { const np = document.getElementById("notes-panel"); if (np) np.hidden = true; }
   if (screen === "room" && PTT) mountPttUI();
 }
 
@@ -1755,12 +1756,91 @@ function toggleFullscreen() {
   } catch (_) { /* fullscreen blocked (permissions policy / iframe) */ }
 }
 
-// Open the operator's Notebook (dashboard SPA, #notebooks deep-link) in a new
-// tab so a host can take/keep notes alongside the meeting. Host-only — guests
-// never see the button (it stays display:none until startInCall unhides it).
+// ─── ui · in-meeting notes (floating, draggable window) ───────────────────
+// A pop-open notes window so notes can be taken WITHOUT leaving the call.
+// Content autosaves to localStorage keyed by meeting code, so it survives a
+// reload and is scoped per meeting. "Open in Notebook" copies the notes and
+// opens the dashboard Notebook (host-only) to file them permanently.
+
+function notesKey() { return "rr-meet-notes:" + (state.code || "_"); }
+
+function loadNotes() {
+  let v = "";
+  try { v = localStorage.getItem(notesKey()) || ""; } catch { /* private mode */ }
+  const ta = $("notes-text");
+  if (ta) ta.value = v;
+  setNotesStatus(v ? "Saved" : "");
+}
+
+function setNotesStatus(s) { const el = $("notes-status"); if (el) el.textContent = s; }
+
+let _notesSaveT = 0;
+function saveNotesSoon() {
+  setNotesStatus("Saving…");
+  clearTimeout(_notesSaveT);
+  _notesSaveT = setTimeout(() => {
+    try { localStorage.setItem(notesKey(), $("notes-text").value); setNotesStatus("Saved"); }
+    catch { setNotesStatus("Couldn't save (private mode)"); }
+  }, 500);
+}
+
+function toggleNotes(open) {
+  const panel = $("notes-panel");
+  if (!panel) return;
+  const want = open === undefined ? panel.hidden : open;
+  panel.hidden = !want;
+  $("btn-notes").classList.toggle("on", want);
+  $("btn-notes").setAttribute("aria-pressed", want ? "true" : "false");
+  if (want) { loadNotes(); $("notes-text").focus(); }
+}
+
+// Copy the notes and open the operator's Notebook (dashboard SPA, #notebooks
+// deep-link) so a host can paste them in to keep them permanently.
+async function notesToNotebook() {
+  try { await navigator.clipboard.writeText($("notes-text").value); toast("Notes copied — paste into your Notebook"); }
+  catch { /* clipboard blocked — still open the notebook */ }
+  openNotebook();
+}
 function openNotebook() {
   try { window.open("/dashboard/index.html#notebooks", "_blank", "noopener"); }
   catch (_) { location.href = "/dashboard/index.html#notebooks"; }
+}
+
+// Drag the window by its header (clamped to the viewport). Switches from the
+// default right-anchored position to explicit left/top on first grab.
+function wireNotesDrag() {
+  const panel = $("notes-panel");
+  if (!panel) return;
+  const head = panel.querySelector(".notes-head");
+  let sx = 0, sy = 0, ox = 0, oy = 0, dragging = false;
+  head.addEventListener("pointerdown", (e) => {
+    if (e.target.closest("button")) return;
+    const r = panel.getBoundingClientRect();
+    panel.style.left = r.left + "px";
+    panel.style.top = r.top + "px";
+    panel.style.right = "auto";
+    sx = e.clientX; sy = e.clientY; ox = r.left; oy = r.top;
+    dragging = true;
+    head.classList.add("dragging");
+    try { head.setPointerCapture(e.pointerId); } catch { /* unsupported */ }
+  });
+  head.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    const w = panel.offsetWidth, h = panel.offsetHeight;
+    let nx = ox + (e.clientX - sx), ny = oy + (e.clientY - sy);
+    nx = Math.max(8, Math.min(nx, window.innerWidth - w - 8));
+    ny = Math.max(8, Math.min(ny, window.innerHeight - h - 8));
+    panel.style.left = nx + "px";
+    panel.style.top = ny + "px";
+  });
+  const end = (e) => {
+    if (!dragging) return;
+    dragging = false;
+    head.classList.remove("dragging");
+    try { head.releasePointerCapture(e.pointerId); } catch { /* already released */ }
+  };
+  head.addEventListener("pointerup", end);
+  head.addEventListener("pointercancel", end);
 }
 
 // ─── ui · controls ────────────────────────────────────────────────────────
@@ -2592,8 +2672,12 @@ function wire() {
     }
   });
   document.addEventListener("fullscreenchange", syncViewMenu);
-  // Notes → open the operator's Notebook (host-only; guests have no dashboard)
-  $("btn-notes").onclick = openNotebook;
+  // Notes → pop open the in-meeting notes window (take notes without leaving)
+  $("btn-notes").onclick = () => toggleNotes();
+  $("notes-close").onclick = () => toggleNotes(false);
+  $("notes-text").oninput = saveNotesSoon;
+  $("notes-open-nb").onclick = notesToNotebook;
+  wireNotesDrag();
   $("btn-settings").onclick = () => toggleSettingsPop();
   $("btn-react").onclick = () => toggleReactPop();
   $("btn-hand").onclick = toggleHand;
@@ -2626,6 +2710,7 @@ function wire() {
     else if (k === "v") { toggleCam(); }
     else if (k === "c") { toggleChat(); }
     else if (k === "h") { toggleHand(); }
+    else if (k === "n" && state.isHost) { toggleNotes(); }
     else if (k === "escape") { toggleReactPop(false); $("settings-pop").hidden = true; toggleViewMenu(false); }
   });
   // Network changed (wifi → hotspot, VPN toggled): restart ICE on every
