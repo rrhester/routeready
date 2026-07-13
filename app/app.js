@@ -2900,7 +2900,7 @@ async function _renderTasksHub(session, main) {
 
   const queued = (formQ || 0) + (clkQ || 0);
   const syncHtml = queued > 0 ? `
-    <div class="rr2-sec" style="color:var(--amber-dark)">Waiting to sync<span class="n">${queued}</span></div>
+    <div class="rr2-sec is-amber">Waiting to sync<span class="n">${queued}</span></div>
     <div class="rr2-panel">
       <div class="rr2-row static">
         <span class="ric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></span>
@@ -2912,7 +2912,7 @@ async function _renderTasksHub(session, main) {
   const hasAny = needs.length || todo.length || wtOpen.length || done.length || clkDone.length;
   main.innerHTML = `
     ${syncHtml}
-    ${needs.length ? `<div class="rr2-sec" style="color:var(--red-dark)">Needs action<span class="n">${needs.length}</span></div><div class="rr2-panel">${needs.join("")}</div>` : ""}
+    ${needs.length ? `<div class="rr2-sec is-red">Needs action<span class="n">${needs.length}</span></div><div class="rr2-panel">${needs.join("")}</div>` : ""}
     ${wtOpen.length ? `<div class="rr2-sec">Assignments<span class="n">${wtOpen.length}</span></div><div id="rr-tasks-assignments-slot">${wtOpen.map(_wtCardHtml).join("")}</div>` : ""}
     ${todo.length ? `<div class="rr2-sec">To do<span class="n">${todo.length}</span></div><div class="rr2-panel">${todo.join("")}</div>` : ""}
     ${done.length ? `<div class="rr2-sec">Completed<span class="n">${done.length}</span></div><div class="rr2-panel">${done.join("")}</div>` : ""}
@@ -2921,7 +2921,7 @@ async function _renderTasksHub(session, main) {
     <div class="rr2-panel">
       ${_reqRowHtml({ state: "cur", title: "Scan a document", meta: "Snap photos with your phone → PDF you can send", route: "/tasks/scan" })}
     </div>
-    ${!hasAny && errCount === 0 ? `<div class="rr2-divnote" style="padding:24px 0">Nothing to do right now — you're all set.</div>` : ""}
+    ${!hasAny && errCount === 0 ? `<div class="rr2-divnote rr2-divnote-roomy">Nothing to do right now — you're all set.</div>` : ""}
     ${!hasAny && errCount > 0 ? errorStateHtml("Couldn't load your tasks", [profRes, coachRes, formRes, clkRes, envRes].find((r) => r.error)?.error) : ""}`;
 
   main.querySelectorAll("[data-task-route]").forEach((el) => {
@@ -5262,12 +5262,12 @@ function _paintAckStrip(messages) {
   const body = String(m.body || "").slice(0, 160);
   host.hidden = false;
   host.innerHTML = `
-    <div class="rr2-notice danger" style="margin:10px 12px 4px;border-radius:var(--r-lg)">
+    <div class="rr2-notice danger rr2-ack-notice">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-      <div style="flex:1;min-width:0">
+      <div class="rr2-flex1">
         <div class="nt">Needs acknowledgement${pending.length > 1 ? ` · ${pending.length}` : ""}</div>
         <div class="nb">${escapeHtml(body)}${(m.body || "").length > 160 ? "…" : ""}</div>
-        <div class="na"><button class="btn btn-sm btn-primary" type="button" data-rr-ack="${escapeHtml(m.id)}">Acknowledge</button><span style="font-size:11px;color:var(--text-subtle)">Dispatch · ${_t12(m.created_at)}</span></div>
+        <div class="na"><button class="btn btn-sm btn-primary" type="button" data-rr-ack="${escapeHtml(m.id)}">Acknowledge</button><span class="rr2-ack-when">Dispatch · ${_t12(m.created_at)}</span></div>
       </div>
     </div>`;
 }
@@ -7429,9 +7429,9 @@ function renderProfileHub() {
   // Skeleton: the shift card's silhouette, so the swap-in doesn't jump.
   main.innerHTML = `
     <section class="rr2-panel rr2-sc">
-      <div class="sc-top"><span class="skel skel-line" style="width:120px;height:20px;border-radius:999px"></span></div>
-      <div class="sc-time"><span class="skel skel-line-lg" style="width:210px"></span></div>
-      <div class="sc-sub"><span class="skel skel-line" style="width:160px"></span></div>
+      <div class="sc-top"><span class="skel skel-line rr2-skel-pill"></span></div>
+      <div class="sc-time"><span class="skel skel-line-lg rr2-skel-time"></span></div>
+      <div class="sc-sub"><span class="skel skel-line rr2-skel-sub"></span></div>
       <div class="rr2-rail"><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div>
     </section>`;
   _renderToday(session, main).catch((err) => {
@@ -7552,7 +7552,7 @@ async function _renderToday(session, main) {
   // "Waiting to sync" — makes the existing offline outboxes visible.
   const queued = (formQ || 0) + (clkQ || 0);
   const syncHtml = queued > 0 ? `
-    <div class="rr2-sec" style="color:var(--amber-dark)">Waiting to sync<span class="n">${queued}</span></div>
+    <div class="rr2-sec is-amber">Waiting to sync<span class="n">${queued}</span></div>
     <div class="rr2-panel">
       <div class="rr2-row static">
         <span class="ric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></span>
@@ -7613,7 +7613,7 @@ async function _renderToday(session, main) {
   const missingVanHtml = (shift && !vanToday && !chk?.checked_out_at) ? `
     <div class="rr2-notice warn">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-      <div style="flex:1">
+      <div class="rr2-flex1">
         <div class="nt">No van assigned yet</div>
         <div class="nb">You'll see it here the moment dispatch assigns one. You can still check in.</div>
         <div class="na"><button class="btn btn-sm" data-task-route="/chat">Message dispatch</button></div>
@@ -7625,9 +7625,9 @@ async function _renderToday(session, main) {
     cardHtml = `
       <section class="rr2-panel rr2-sc">
         <div class="sc-top"><span class="rr2-pill"><span class="pdot"></span>No shift today</span></div>
-        <div class="panel-pad" style="padding:2px 14px 14px">
-          <div style="font-size:17px;font-weight:700;letter-spacing:-.01em">You're off today</div>
-          <div style="font-size:var(--fs-md);color:var(--text-subtle);margin-top:2px">${nextRow ? `Next shift ${new Date(nextRow.date + "T12:00:00").toLocaleDateString(undefined, { weekday: "long" })} at ${_t12(nextRow.starts_at)}` : "Nothing scheduled in the next two weeks yet"}</div>
+        <div class="rr2-offcard">
+          <div class="rr2-offcard-t">You're off today</div>
+          <div class="rr2-offcard-s">${nextRow ? `Next shift ${new Date(nextRow.date + "T12:00:00").toLocaleDateString(undefined, { weekday: "long" })} at ${_t12(nextRow.starts_at)}` : "Nothing scheduled in the next two weeks yet"}</div>
         </div>
       </section>`;
     bodyHtml = `
@@ -7826,16 +7826,16 @@ function renderMore() {
   const dspPhone = (session?.dsp_phone || "").replace(/[^0-9+]/g, "");
   main.innerHTML = `
     <div class="rr2-panel">
-      <div class="rr2-row static" style="min-height:62px">
-        <button type="button" id="rr-photo-btn" aria-label="Change photo" style="border:0;background:none;padding:0;position:relative;flex:none;cursor:pointer">
+      <div class="rr2-row static rr2-row-lg">
+        <button type="button" id="rr-photo-btn" class="rr2-photo-btn" aria-label="Change photo">
           ${avatarHtml(session, "rr2-ava rr2-ava-lg")}
-          <span aria-hidden="true" style="position:absolute;right:-4px;bottom:-4px;width:18px;height:18px;border-radius:50%;background:var(--surface);border:1px solid var(--border-strong);display:flex;align-items:center;justify-content:center;color:var(--text-subtle)">
+          <span aria-hidden="true" class="rr2-photo-edit">
             <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
           </span>
         </button>
-        <input type="file" id="rr-photo-input" accept="image/*" capture="user" style="display:none"/>
+        <input type="file" id="rr-photo-input" accept="image/*" capture="user" hidden/>
         <span class="rbody">
-          <span class="rtitle" style="font-size:16px">${escapeHtml(session?.name || "Driver")}</span>
+          <span class="rtitle rtitle-lg">${escapeHtml(session?.name || "Driver")}</span>
           <span class="rmeta">Driver · ${escapeHtml(session?.dsp_name || "RouteReady")}</span>
         </span>
         <span class="rend"><button class="btn btn-sm" type="button" data-task-route="/settings/profile">Edit</button></span>
