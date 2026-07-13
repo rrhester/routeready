@@ -600,11 +600,32 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
 #view-notebooks .rrnb-editor h2{margin-top:var(--s-5)}
 #view-notebooks .rrnb-editor h3{margin-top:var(--s-5)}
 
-/* toolbar — lighter: a quiet hairline underline, muted icons, no heavy frame */
+/* toolbar — lighter, and a SINGLE clean row across the top (Office/OneNote
+   style): never wraps to two rows; scrolls sideways if it's wider than the
+   editor. A thin, unobtrusive scrollbar. */
 #view-notebooks .rrnb-toolbar{background:transparent;border:0;border-bottom:1px solid #ECEEF1;
-  border-radius:0;box-shadow:none;padding:2px 0 6px;margin-bottom:var(--s-3)}
-#view-notebooks .rrnb-tb{color:#5A6472}
+  border-radius:0;box-shadow:none;padding:2px 0 6px;margin-bottom:var(--s-3);
+  flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;scrollbar-color:#D1D5DB transparent}
+#view-notebooks .rrnb-toolbar > *{flex:0 0 auto}
+#view-notebooks .rrnb-toolbar::-webkit-scrollbar{height:6px}
+#view-notebooks .rrnb-toolbar::-webkit-scrollbar-thumb{background:#D9DDE3;border-radius:3px}
+#view-notebooks .rrnb-toolbar::-webkit-scrollbar-track{background:transparent}
+#view-notebooks .rrnb-tb{color:#5A6472;min-width:26px;height:28px;padding:0 4px}
 #view-notebooks .rrnb-tb:hover{background:rgba(15,23,42,.04);color:#1B2430}
+#view-notebooks .rrnb-tb svg{width:15px;height:15px}
+#view-notebooks .rrnb-tb-sel{height:28px;font-size:12px;padding:0 6px}
+#view-notebooks .rrnb-tb-sep{margin:4px 3px}
+
+/* section list — a small color SQUARE before the name (not a left bar), like OneNote */
+#view-notebooks .rrnb-section{padding:7px 10px}
+#view-notebooks .rrnb-section .bar{position:static;left:auto;top:auto;bottom:auto;width:11px;height:11px;
+  border-radius:3px;flex:0 0 auto}
+#view-notebooks .rrnb-section.active{box-shadow:none}
+
+/* "Add section" / "Add page" pinned to the top of each pane, quiet text links */
+#view-notebooks .rrnb-addtop{margin:0 0 var(--s-1);font-weight:500}
+#view-notebooks .rrnb-pageadd-top{padding:var(--s-1) var(--s-2) var(--s-2);margin:0}
+#view-notebooks .rrnb-pageadd-top .rrnb-tpl-btn{flex:0 0 auto;width:auto}
 
 /* callouts — de-boxed: a soft left rule, content breathing, no card */
 #view-notebooks .rrnb-editor .rrnb-callout{background:transparent;border:0;border-left:2px solid var(--amber-bright,#d97706);
@@ -1206,6 +1227,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     // a section whose group was deleted renders as ungrouped, not invisible
     var byGroup = {}; sections.forEach(function (s) { var g = (s.group_id && liveGroups[s.group_id]) ? s.group_id : "_"; (byGroup[g] = byGroup[g] || []).push(s); });
     var html = "";
+    if (!S.readOnly) html += '<button class="rrnb-newpage rrnb-addtop" data-add-section="1">＋ Add section</button>';
     function secRow(s) {
       var on = s.id === S.activeSection ? " active" : "";
       return '<div class="rrnb-section' + on + '" data-sec="' + s.id + '"><span class="bar" style="background:' + esc(s.color) + '"></span>' +
@@ -1219,7 +1241,6 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
         '<span class="tw">▾</span><span class="gnm">' + esc(g.name) + '</span></div>' +
         (byGroup[g.id] || []).map(secRow).join("") + '</div>';
     });
-    if (!S.readOnly) html += '<button class="rrnb-newpage" data-add-section="1" style="margin-top:var(--s-2)">＋ New section</button>';
     host.innerHTML = html;
   }
 
@@ -1238,11 +1259,11 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     Object.keys(kids).forEach(function (k) { kids[k].sort(function (a, b) { return a.position - b.position; }); });
     var pinned = pages.filter(function (p) { return p.is_pinned; }).sort(function (a, b) { return a.position - b.position; });
     var html = "";
+    if (!S.readOnly) html += '<div class="rrnb-pageadd rrnb-pageadd-top"><button class="rrnb-newpage rrnb-addtop" data-add-page="1">＋ Add page  <span style="margin-left:auto;color:var(--text-disabled)">Alt+N</span></button>' +
+      '<button class="rrnb-newpage rrnb-tpl-btn" data-template-menu="1" title="New page from a template">▤</button></div>';
     if (pinned.length) { html += '<div class="rrnb-plgroup-hd">Pinned</div>' + pinned.map(function (p) { return pageRow(p, true); }).join(""); html += '<div class="rrnb-plgroup-hd">Pages</div>'; }
     function walk(p) { html += pageRow(p, false); (kids[p.id] || []).forEach(walk); }
     tops.forEach(walk);
-    if (!S.readOnly) html += '<div class="rrnb-pageadd"><button class="rrnb-newpage" data-add-page="1">＋ Add page  <span style="margin-left:auto;color:var(--text-disabled)">Alt+N</span></button>' +
-      '<button class="rrnb-newpage rrnb-tpl-btn" data-template-menu="1" title="New page from a template">▤</button></div>';
     host.innerHTML = html;
   }
   function pageRow(p, pinnedCtx) {
@@ -1312,20 +1333,19 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       '<button class="rrnb-tb" data-cmd="underline" title="Underline (Ctrl+U)"><u>U</u></button>' +
       '<button class="rrnb-tb" data-cmd="strikeThrough" title="Strikethrough"><s>S</s></button>' +
       '<button class="rrnb-tb" data-cmd="highlight" title="Highlight (Ctrl+Shift+H)"><span style="background:var(--amber-soft,rgba(217,119,6,.3));padding:0 3px;border-radius:2px">H</span></button>' +
-      '<span class="rrnb-tb-sep"></span>' +
-      '<button class="rrnb-tb" data-cmd="todo" title="To-do checkbox (Ctrl+1)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 12l3 3 5-6"/></svg></button>' +
       '<button class="rrnb-tb" data-cmd="insertUnorderedList" title="Bulleted list (Ctrl+.)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/><path d="M9 6h11M9 12h11M9 18h11"/></svg></button>' +
       '<button class="rrnb-tb" data-cmd="insertOrderedList" title="Numbered list (Ctrl+/)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 6h11M9 12h11M9 18h11"/><text x="1" y="8" font-size="7" fill="currentColor" stroke="none">1</text><text x="1" y="14" font-size="7" fill="currentColor" stroke="none">2</text><text x="1" y="20" font-size="7" fill="currentColor" stroke="none">3</text></svg></button>' +
-      '<span class="rrnb-tb-sep"></span>' +
       '<button class="rrnb-tb" data-cmd="quote" title="Quote">“</button>' +
-      '<button class="rrnb-tb" data-cmd="code" title="Code block"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"/></svg></button>' +
-      '<button class="rrnb-tb" data-cmd="callout" title="Callout"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 15V4h13l-2 3 2 3H4"/><path d="M4 21v-6"/></svg></button>' +
-      '<button class="rrnb-tb" data-cmd="hr" title="Divider">—</button>' +
+      '<span class="rrnb-tb-sep"></span>' +
+      '<button class="rrnb-tb" data-cmd="todo" title="To-do checkbox (Ctrl+1)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 12l3 3 5-6"/></svg></button>' +
       '<button class="rrnb-tb" data-cmd="table" title="Insert table"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 4v16M15 4v16"/></svg></button>' +
       '<button class="rrnb-tb" data-cmd="image" title="Insert picture"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.8"/><path d="M21 16l-5-5-6 6-3-3-4 4"/></svg></button>' +
       '<button class="rrnb-tb" data-cmd="attach" title="Attach a file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 11.5l-8.5 8.5a5 5 0 0 1-7-7l9-9a3.3 3.3 0 0 1 4.7 4.7l-9 9a1.6 1.6 0 0 1-2.3-2.3l8.3-8.3"/></svg></button>' +
-      '<span class="rrnb-tb-sep"></span>' +
       '<button class="rrnb-tb" data-cmd="link" title="Link (Ctrl+K)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg></button>' +
+      '<span class="rrnb-tb-sep"></span>' +
+      '<button class="rrnb-tb" data-cmd="callout" title="Callout"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 15V4h13l-2 3 2 3H4"/><path d="M4 21v-6"/></svg></button>' +
+      '<button class="rrnb-tb" data-cmd="code" title="Code block"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"/></svg></button>' +
+      '<button class="rrnb-tb" data-cmd="hr" title="Divider">—</button>' +
       '<button class="rrnb-tb" data-cmd="pagelink" title="Link to a page">[[ ]]</button>' +
       '<button class="rrnb-tb" data-cmd="smartlink" title="Auto-link objects (drivers, Van 27, Route 341)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"/></svg></button>' +
       '<span class="rrnb-tb-sep"></span>' +
