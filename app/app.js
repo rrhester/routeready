@@ -7498,16 +7498,20 @@ function renderProfileHub() {
         <div class="home-hero-brand">${brandMark}<span>${escapeHtml(dsp)}</span></div>
         <button class="home-hero-gear" id="rr-home-settings" type="button" aria-label="Settings">${gearSvg}</button>
       </div>
-      <button class="profile-avatar-btn" id="rr-photo-btn" type="button" aria-label="Change photo">
-        ${avatarHtml(session, "profile-avatar")}
-        <span class="profile-avatar-edit" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-        </span>
-      </button>
-      <input type="file" id="rr-photo-input" accept="image/*" capture="user" style="display:none"/>
-      <div class="home-hero-greeting">${escapeHtml(greeting)}</div>
-      <div class="home-hero-name">${escapeHtml(name)}</div>
-      <div class="home-hero-meta" id="rr-home-meta">Driver</div>
+      <div class="home-hero-id">
+        <button class="profile-avatar-btn" id="rr-photo-btn" type="button" aria-label="Change photo">
+          ${avatarHtml(session, "profile-avatar")}
+          <span class="profile-avatar-edit" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          </span>
+        </button>
+        <input type="file" id="rr-photo-input" accept="image/*" capture="user" style="display:none"/>
+        <div class="home-hero-idtext">
+          <div class="home-hero-greeting">${escapeHtml(greeting)}</div>
+          <div class="home-hero-name">${escapeHtml(name)}</div>
+          <div class="home-hero-meta" id="rr-home-meta">Driver</div>
+        </div>
+      </div>
       <div class="home-hero-foot">
         <div class="home-hero-today" aria-label="Today">${escapeHtml(todayLabel)}</div>
         <div class="home-hero-status" id="rr-home-status" hidden>
