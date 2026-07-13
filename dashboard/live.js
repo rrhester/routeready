@@ -36723,18 +36723,64 @@ const _RR_MC_ICONS = {
 };
 const _rrStarSvg = (on) => `<svg viewBox="0 0 24 24" width="15" height="15" fill="${on ? "currentColor" : "none"}" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`;
 
-// Favorite conversations — persisted locally (no backend contract change).
-// Favorited drivers pin to the top of the Recent list and carry a star in
-// the conversation header.
+// Favorite conversations. The database (msg_favorites, via
+// dispatch_chat_set_favorite / the is_favorite flag on dispatch_chat_threads)
+// is the source of truth so stars survive a sign-out, a browser data wipe, a
+// private window, or a move to another device. localStorage is kept only as an
+// instant-paint cache that reconciles against server truth on every inbox
+// fetch (see _rrReconcileFavs). Favorited drivers pin to the top of the Recent
+// list and carry a star in the conversation header.
 function _rrMsgFavs() {
-  try { return new Set(JSON.parse(localStorage.getItem("rr_msg_favs") || "[]")); }
+  try { return new Set((JSON.parse(localStorage.getItem("rr_msg_favs") || "[]")).map(String)); }
   catch { return new Set(); }
 }
+function _rrWriteMsgFavs(set) {
+  try { localStorage.setItem("rr_msg_favs", JSON.stringify([...set])); } catch {}
+}
+// Flip the local cache immediately (optimistic) and return the new state.
 function _rrToggleMsgFav(id) {
   const s = _rrMsgFavs();
+  id = String(id);
   if (s.has(id)) s.delete(id); else s.add(id);
-  try { localStorage.setItem("rr_msg_favs", JSON.stringify([...s])); } catch {}
+  _rrWriteMsgFavs(s);
   return s.has(id);
+}
+// driver_ids with an in-flight DB write — reconciliation leaves these alone
+// so a poll that lands mid-toggle can't clobber the optimistic state.
+const _rrFavPending = new Set();
+// Persist a star to the server. Resolves true on success, false on failure
+// so the caller can roll the optimistic UI back.
+async function _rrPushFav(id, on) {
+  try {
+    const { error } = await sb.rpc("dispatch_chat_set_favorite", { p_driver_id: id, p_on: !!on });
+    return !error;
+  } catch { return false; }
+}
+// Reconcile the localStorage cache against the is_favorite flags returned by
+// dispatch_chat_threads. Union semantics, non-destructive:
+//   • server star not cached locally  → add it (recovers a fav after a wipe /
+//     from another device).
+//   • cached star not yet on the server → push it up (migrates pre-existing
+//     localStorage favorites, and re-syncs anything set while offline).
+// A star is only ever removed by an explicit user un-star (which deletes on
+// both sides), never by reconciliation — that keeps a transient empty server
+// read from silently wiping the operator's favorites.
+function _rrReconcileFavs(threads) {
+  if (!Array.isArray(threads)) return;
+  const local = _rrMsgFavs();
+  let changed = false;
+  for (const t of threads) {
+    if (!t || t.driver_id == null) continue;
+    const id = String(t.driver_id);
+    if (_rrFavPending.has(id)) continue;
+    if (t.is_favorite && !local.has(id)) { local.add(id); changed = true; }
+    else if (!t.is_favorite && local.has(id)) {
+      // Local-only star — migrate / re-sync it to the server.
+      _rrFavPending.add(id);
+      _rrPushFav(id, true).finally(() => _rrFavPending.delete(id));
+    }
+  }
+  if (changed) _rrWriteMsgFavs(local);
 }
 
 // Driver-details panel open/closed preference (remembered across sessions).
@@ -36779,11 +36825,21 @@ if (!window.__rrMsgChromeWired) {
     const fav = e.target.closest("[data-rr-fav]");
     if (fav) {
       const id = fav.getAttribute("data-rr-fav");
-      const on = _rrToggleMsgFav(id);
+      const on = _rrToggleMsgFav(id);          // optimistic local flip
       fav.classList.toggle("on", on);
       fav.setAttribute("aria-pressed", on ? "true" : "false");
       fav.title = on ? "Remove from favorites" : "Add to favorites";
       fav.innerHTML = _rrStarSvg(on);
+      // Persist to the server (source of truth). Roll the optimistic flip
+      // back if the write fails so the UI never lies about what's saved.
+      _rrFavPending.add(String(id));
+      _rrPushFav(id, on).then((ok) => {
+        _rrFavPending.delete(String(id));
+        if (!ok) {
+          _rrToggleMsgFav(id);                 // revert the cache
+          if (typeof refreshDriverChatList === "function") refreshDriverChatList(false);
+        }
+      });
       if (typeof refreshDriverChatList === "function") refreshDriverChatList(false);
       return;
     }
@@ -37077,6 +37133,11 @@ async function refreshDriverChatList(autoSelect) {
   // Drivers still in onboarding don't belong in the general Messages
   // inbox — they're reachable from the Orientation dashboard's inline
   // chat instead, and roll into this inbox once they're activated.
+  // Reconcile favorites against server truth (is_favorite) before we build
+  // the list, so a star saved on another device / recovered after a local
+  // wipe shows up, and any local-only star gets migrated up. Runs on the raw
+  // result so favorites for filtered-out drivers aren't disturbed.
+  _rrReconcileFavs(data);
   _msgInboxList = (data || []).filter(t => t && t.status !== "onboarding");
   // (No early return on an empty driver list — the pinned RouteReady
   // Support row is still rendered below, so the inbox is never empty.)
