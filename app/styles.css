@@ -1540,6 +1540,31 @@ body.scan-camming{overflow:hidden}
 .chat-bubble{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 .chat-bubble.mine .chat-like{color:rgba(255,255,255,.92)}
 .chat-bubble.mine .chat-like.on{color:var(--rr-white)}
+
+/* ── Channel @mention highlight + reactions (driver side) ──────────────── */
+.cc-mention{font-weight:700;color:var(--accent);background:rgba(37,99,235,.12);border-radius:4px;padding:0 3px}
+.cc-mention.me{background:rgba(37,99,235,.22)}
+.chat-bubble.mine .cc-mention{background:rgba(255,255,255,.22);color:inherit}
+.cc-reacts{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
+.cc-react-chip{
+  display:inline-flex;align-items:center;gap:3px;padding:1px 8px;font-size:var(--fs-sm);line-height:1.5;
+  background:var(--surface);border:1px solid var(--border);border-radius:999px;color:var(--text-muted);
+  font-family:inherit;cursor:pointer;
+}
+.cc-react-chip.mine{background:rgba(37,99,235,.12);border-color:rgba(37,99,235,.30);color:var(--accent)}
+.cc-react-add{
+  width:24px;height:22px;display:inline-flex;align-items:center;justify-content:center;
+  background:transparent;border:1px solid var(--border);border-radius:999px;color:var(--text-subtle);
+  font-size:var(--fs-md);line-height:1;cursor:pointer;opacity:.7;
+}
+.chat-bubble.mine .cc-react-chip,.chat-bubble.mine .cc-react-add{color:rgba(255,255,255,.9);border-color:rgba(255,255,255,.35)}
+.cc-react-pop{
+  position:absolute;z-index:1000;display:flex;gap:2px;padding:5px 6px;
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  box-shadow:0 6px 20px rgba(0,0,0,.18);
+}
+.cc-react-pop button{width:32px;height:32px;font-size:var(--fs-lg);background:transparent;border:0;border-radius:8px;cursor:pointer}
+.cc-react-pop button:active{transform:scale(1.2)}
 /* Channel sender label — sits above the body inside theirs-bubbles
    in the channels view.  Tight, all-caps tracking gives it the
    "speaker name" voice without screaming.  Only renders when

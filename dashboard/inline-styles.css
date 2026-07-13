@@ -6585,6 +6585,106 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 .rr-mc-like.on{background:var(--accent-soft);border-color:rgba(37,99,235,.30);color:var(--accent-text)}
 .rr-mc-like-icon{font-size:var(--fs-sm);line-height:1}
 .rr-mc-like-n{font-weight:600;font-variant-numeric:tabular-nums}
+
+/* ── Channel enrichments: reactions, @mentions, seen-by, bookmarks ──────── */
+/* Reaction chip row under a channel bubble.  Chips persist; the add-reaction
+   trigger reveals on bubble hover. */
+.rr-cc-reacts{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:5px}
+.rr-cc-react-chip{
+  display:inline-flex;align-items:center;gap:4px;padding:1px 8px;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-pill);
+  font-family:inherit;font-size:var(--fs-sm);line-height:1.5;color:var(--text-muted);
+  cursor:pointer;transition:background var(--t-fast),border-color var(--t-fast),color var(--t-fast);
+}
+.rr-cc-react-chip:hover{border-color:var(--border-strong);color:var(--text)}
+.rr-cc-react-chip.mine{background:var(--accent-soft);border-color:rgba(37,99,235,.30);color:var(--accent-text)}
+.rr-cc-react-emoji{font-size:var(--fs-sm);line-height:1}
+.rr-cc-react-n{font-weight:600;font-variant-numeric:tabular-nums}
+.rr-cc-react-add{
+  display:inline-flex;align-items:center;justify-content:center;width:24px;height:22px;
+  background:transparent;border:1px solid transparent;border-radius:var(--r-pill);
+  color:var(--text-subtle);cursor:pointer;opacity:0;transition:opacity var(--t-fast),background var(--t-fast),color var(--t-fast);
+}
+.rr-cc-bubble:hover .rr-cc-react-add{opacity:.7}
+.rr-cc-react-add:hover{opacity:1;background:var(--surface);border-color:var(--border);color:var(--text)}
+/* Floating emoji palette. */
+.rr-cc-react-pop{
+  position:absolute;z-index:10000;display:flex;gap:2px;padding:5px 6px;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg,12px);
+  box-shadow:var(--shadow-md,0 6px 20px rgba(0,0,0,.18));
+}
+.rr-cc-react-pop button{
+  width:30px;height:30px;font-size:var(--fs-lg);line-height:1;background:transparent;border:0;
+  border-radius:8px;cursor:pointer;transition:background var(--t-fast),transform var(--t-fast);
+}
+.rr-cc-react-pop button:hover{background:var(--canvas);transform:scale(1.18)}
+/* @mention autocomplete menu, floated above the composer. */
+.rr-cc-mention-menu{
+  position:absolute;z-index:10000;min-width:200px;max-width:280px;padding:4px;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg,12px);
+  box-shadow:var(--shadow-md,0 6px 20px rgba(0,0,0,.18));
+}
+.rr-cc-mention-opt{
+  display:flex;align-items:center;gap:6px;width:100%;padding:6px 8px;
+  background:transparent;border:0;border-radius:8px;cursor:pointer;text-align:left;
+  font-family:inherit;font-size:var(--fs-sm);color:var(--text);
+}
+.rr-cc-mention-opt:hover,.rr-cc-mention-opt.active{background:var(--canvas)}
+.rr-cc-mention-at{font-weight:700;color:var(--accent-text,var(--accent))}
+/* @mention highlight inside a channel bubble. */
+.rr-cc-mention{
+  font-weight:700;color:var(--accent-text,var(--accent));
+  background:var(--accent-soft);border-radius:4px;padding:0 3px;
+}
+.rr-cc-bubble.dispatch .rr-cc-mention{background:rgba(255,255,255,.22);color:inherit}
+/* "Seen by N of M" pill under the latest dispatch broadcast. */
+.rr-cc-seen{
+  align-self:flex-end;margin:2px 2px 8px;font-size:var(--fs-9,10.5px);font-weight:600;
+  letter-spacing:.02em;color:var(--text-subtle);text-align:right;
+}
+/* Save-for-later bookmark toggle (DM + channel bubbles). */
+.rr-msg-bookmark{
+  position:absolute;top:4px;right:5px;display:inline-flex;align-items:center;justify-content:center;
+  width:24px;height:24px;background:transparent;border:0;border-radius:var(--r-2xl,8px);
+  color:var(--text-subtle);cursor:pointer;opacity:0;
+  transition:opacity var(--t-fast),color var(--t-fast),background var(--t-fast);
+}
+.rr-cc-bubble,.rr-mc-bubble{position:relative}
+.rr-cc-bubble:hover .rr-msg-bookmark,.rr-mc-bubble:hover .rr-msg-bookmark{opacity:.6}
+.rr-msg-bookmark:hover{opacity:1;color:var(--accent-text,var(--accent));background:var(--surface)}
+.rr-msg-bookmark.saved{opacity:1;color:var(--amber)}
+.rr-cc-bubble.dispatch .rr-msg-bookmark{color:rgba(255,255,255,.7)}
+.rr-cc-bubble.dispatch .rr-msg-bookmark.saved{color:var(--amber)}
+/* Per-operator channel mute — header toggle + list-row marker. */
+.rr-cc-mute-btn.muted{color:var(--amber);border-color:var(--amber)}
+.rr-cc-muted-chip{display:inline-flex;align-items:center;margin-left:5px;color:var(--text-subtle);vertical-align:-1px}
+
+/* Saved-messages + scheduled-messages panels. */
+.rr-saved-row,.rr-sched-row{
+  display:flex;align-items:flex-start;gap:10px;padding:10px 4px;
+  border-bottom:1px solid var(--border);cursor:pointer;
+}
+.rr-sched-row{cursor:default}
+.rr-saved-row:hover{background:var(--canvas)}
+.rr-saved-main,.rr-sched-main{flex:1;min-width:0}
+.rr-saved-where,.rr-sched-to{font-size:var(--fs-sm);font-weight:600;color:var(--text)}
+.rr-saved-when{margin-left:6px;font-weight:400;color:var(--text-subtle)}
+.rr-saved-snippet,.rr-sched-snippet{font-size:var(--fs-sm);color:var(--text-muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rr-saved-note{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:3px}
+.rr-sched-when{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:3px}
+.rr-saved-remove,.rr-sched-cancel{
+  flex:0 0 auto;background:transparent;border:1px solid var(--border);border-radius:var(--r-pill);
+  color:var(--text-muted);cursor:pointer;font-family:inherit;
+}
+.rr-saved-remove{width:24px;height:24px;font-size:var(--fs-lg);line-height:1}
+.rr-sched-cancel{padding:3px 10px;font-size:var(--fs-xs);font-weight:600}
+.rr-saved-remove:hover,.rr-sched-cancel:hover{border-color:var(--red);color:var(--red)}
+.rr-sched-status{font-size:var(--fs-9,10.5px);font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:1px 6px;border-radius:var(--r-pill);margin-left:4px}
+.rr-sched-sent{background:var(--green-soft);color:var(--green)}
+.rr-sched-canceled{background:var(--canvas);color:var(--text-subtle)}
+.rr-sched-failed{background:var(--red-soft);color:var(--red)}
+.rr-sched-seg{display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-sm);cursor:pointer}
+
 /* Edited / deleted markers. */
 .rr-mc-edited{
   margin-left:6px;font-size:var(--fs-9);font-weight:600;letter-spacing:.04em;
