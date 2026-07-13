@@ -13324,18 +13324,24 @@ function openGoalSeekDialog(g) {
 //  recalculation, re-render, and queue persistence — exactly like typing.
 //
 //  SECURITY POSTURE (read before changing):
-//   • Macros execute via `new Function` — the ONE place in this module that
-//     does, deliberately breaking the formula engine's no-eval invariant. That
-//     invariant protects *shared formulas*; a macro is code the operator writes
-//     for their own workbook and runs explicitly.
-//   • Macros NEVER auto-run. They run only on an explicit "Run" click, behind a
-//     one-time per-session trust confirmation.
-//   • Saved macros live in localStorage (per-browser, per-user) — a macro can't
-//     silently travel to a teammate's session and execute there.
-//   • Dangerous globals (window/document/fetch/eval/timers/storage/…) are
-//     shadowed to `undefined` inside the macro scope. This is a guard rail, not
-//     a jail (determined code can still reach globals via constructors). True
-//     isolation (Web Worker) is the intended hardening follow-up.
+//   • Macro code runs inside a Web Worker (MACRO_WORKER_SRC) — a separate
+//     thread with NO access to the DOM, `window`, cookies, the Supabase
+//     session token, or this module's state. The main module itself contains
+//     no eval/new Function, so the formula engine's no-eval invariant holds
+//     here; the only code-gen is inside the isolated worker.
+//   • The worker's network APIs (fetch / XHR / WebSocket / importScripts /
+//     nested Worker / indexedDB / caches) are deleted before the macro runs,
+//     so a macro physically CANNOT make a network request — nothing can be
+//     exfiltrated outside the org. Cross-tenant reads are separately blocked
+//     by Supabase RLS. The worker's ONLY channel is postMessage to the main
+//     thread, which brokers exactly the curated `workbook` API below.
+//   • Because it's a worker, runaway/infinite-loop macros are killed by
+//     worker.terminate() on a wall-clock timeout — a real interrupt.
+//   • Macros NEVER auto-run: explicit "Run" only, behind a one-time per-session
+//     trust confirmation. Saved macros live in localStorage (per-browser).
+//
+//  Cost of isolation: every `workbook` call crosses the thread boundary, so
+//  the worker-side API is ASYNC — macros use `await workbook.getValue(...)`.
 // ═══════════════════════════════════════════════════════════════════════════
 
 const MACRO_STORE_PREFIX = "rr-wb-macros:";
@@ -13359,16 +13365,16 @@ function macroFmt(v) {
 }
 
 const MACRO_EXAMPLE = [
-  "// Your first macro. Edit freely, then click Run.",
-  "// The `workbook` object reads & writes the active sheet.",
-  "workbook.toast('Hello from your first macro!');",
-  "workbook.log('Active sheet: ' + workbook.getActiveSheetName());",
+  "// Your first macro. It runs in a sandbox with no internet access.",
+  "// Every workbook call is async — put `await` in front of it.",
+  "await workbook.toast('Hello from your first macro!');",
+  "await workbook.log('Active sheet: ' + await workbook.getActiveSheetName());",
   "",
-  "// Uncomment to stamp a checkmark into whatever you've selected:",
-  "// workbook.getRange(workbook.getSelection()).setValue('✓');",
+  "// Stamp a checkmark into whatever you've selected:",
+  "// await workbook.getRange(await workbook.getSelection()).setValue('✓');",
   "",
-  "// Example — number the rows A2:A11:",
-  "// for (let i = 0; i < 10; i++) workbook.setValue('A' + (i + 2), i + 1);",
+  "// Number the rows A2:A11:",
+  "// for (let i = 0; i < 10; i++) await workbook.setValue('A' + (i + 2), i + 1);",
 ].join("\n");
 
 // Build the curated API object bound to one grid. Everything a macro can touch
@@ -13464,32 +13470,127 @@ function buildMacroApi(g, logFn) {
   };
 }
 
-// The macro engine. Executes `code` with the curated API in scope and dangerous
-// globals shadowed away. Deliberately the only `new Function` in this module.
-function runMacro(code, g, logFn) {
-  const api = buildMacroApi(g, logFn);
-  const consoleShim = {
-    log() { logFn(Array.prototype.map.call(arguments, macroFmt).join(" ")); },
-    info() { logFn(Array.prototype.map.call(arguments, macroFmt).join(" ")); },
-    warn() { logFn("⚠ " + Array.prototype.map.call(arguments, macroFmt).join(" ")); },
-    error() { logFn("✖ " + Array.prototype.map.call(arguments, macroFmt).join(" ")); },
-    table(v) { logFn(macroFmt(v)); },
+// The worker bootstrap (runs INSIDE the Web Worker). It strips network APIs,
+// exposes an async `workbook` proxy that forwards each call to the main thread
+// over postMessage, and runs the macro as an async function. No DOM, no session,
+// no network — the only thing reachable is the brokered API. Kept as a string so
+// it can be turned into a Blob worker; the main module never evals anything.
+const MACRO_WORKER_SRC = `
+'use strict';
+// Hard-remove anything that could reach the network or spawn an un-neutered
+// scope. fetch/importScripts live as non-writable properties on the
+// WorkerGlobalScope prototype, so plain assignment or delete does not remove
+// them -- walk the whole prototype chain and redefine each as an immutable
+// undefined (this also shadows the bare identifier for fetch, etc.).
+['fetch','XMLHttpRequest','WebSocket','EventSource','importScripts','Worker',
+ 'SharedWorker','ServiceWorker','indexedDB','caches','BroadcastChannel',
+ 'Notification','navigator','clients','RTCPeerConnection','WebTransport'].forEach(function (name) {
+  var obj = self;
+  while (obj) {
+    if (Object.prototype.hasOwnProperty.call(obj, name)) {
+      try { Object.defineProperty(obj, name, { value: undefined, writable: false, configurable: false }); } catch (e) {}
+    }
+    obj = Object.getPrototypeOf(obj);
+  }
+  try { Object.defineProperty(self, name, { value: undefined, writable: false, configurable: false }); } catch (e) {}
+});
+var seq = 0; var pending = new Map();
+function call(method, args) {
+  return new Promise(function (resolve, reject) {
+    var id = ++seq; pending.set(id, { resolve: resolve, reject: reject });
+    self.postMessage({ __call: true, id: id, method: method, args: args });
+  });
+}
+function mk(method) { return function () { return call(method, Array.prototype.slice.call(arguments)); }; }
+function makeRange(a1) {
+  return {
+    a1: a1,
+    getValues: function () { return call('range.getValues', [a1]); },
+    setValue: function (v) { return call('range.setValue', [a1, v]); },
+    setValues: function (vals) { return call('range.setValues', [a1, vals]); },
+    setFormula: function (f) { return call('range.setFormula', [a1, f]); },
+    clear: function () { return call('range.clear', [a1]); },
   };
-  const SHADOW = [
-    "window", "document", "globalThis", "self", "top", "parent", "frames", "opener",
-    "fetch", "XMLHttpRequest", "WebSocket", "EventSource", "navigator", "location", "history",
-    "localStorage", "sessionStorage", "indexedDB", "caches", "crypto",
-    // NB: "eval"/"arguments" can't be parameter names in strict mode; the
-    // strict-mode body already blocks direct eval from leaking caller scope.
-    "Function", "importScripts", "postMessage", "open", "close", "alert", "confirm", "prompt",
-    "setTimeout", "setInterval", "setImmediate", "requestAnimationFrame", "queueMicrotask",
-    "Worker", "SharedWorker", "ServiceWorker", "Notification", "WB", "GRIDS",
-  ];
-  const argNames = ["workbook", "ss", "console"].concat(SHADOW);
-  const argVals = [api, api, consoleShim].concat(SHADOW.map(() => undefined));
-  // eslint-disable-next-line no-new-func -- this IS the macro engine; see SECURITY POSTURE above.
-  const fn = new Function(argNames.join(","), '"use strict";\n' + String(code) + "\n//# sourceURL=rr-macro.js");
-  return fn.apply(Object.freeze({}), argVals); // `this` is a frozen empty object, not the global
+}
+var workbook = {
+  getValue: mk('getValue'), getNumber: mk('getNumber'), getFormula: mk('getFormula'),
+  getValues: mk('getValues'), getRange: makeRange,
+  setValue: mk('setValue'), setFormula: mk('setFormula'), setValues: mk('setValues'), clear: mk('clear'),
+  getActiveSheetName: mk('getActiveSheetName'), getSheetNames: mk('getSheetNames'),
+  getActiveCell: mk('getActiveCell'), getSelection: mk('getSelection'), sheetInfo: mk('sheetInfo'),
+  sheet: mk('sheet'), log: mk('log'), toast: mk('toast'), alert: mk('alert'),
+};
+var consoleShim = { log: mk('log'), info: mk('log'), warn: mk('log'), error: mk('log'), table: mk('log') };
+function safe(v) { if (v === undefined) return undefined; try { return JSON.parse(JSON.stringify(v)); } catch (e) { return String(v); } }
+self.onmessage = function (e) {
+  var m = e.data;
+  if (m && m.__resp) { var p = pending.get(m.id); if (p) { pending.delete(m.id); m.error ? p.reject(new Error(m.error)) : p.resolve(m.result); } return; }
+  if (m && m.__start) {
+    var AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+    var fn;
+    try { fn = new AsyncFunction('workbook', 'ss', 'console', '"use strict";\\n' + m.code); }
+    catch (err) { self.postMessage({ __done: true, error: 'Syntax error: ' + (err && err.message || err) }); return; }
+    Promise.resolve().then(function () { return fn(workbook, workbook, consoleShim); })
+      .then(function (result) { self.postMessage({ __done: true, hasResult: result !== undefined, result: safe(result) }); })
+      .catch(function (err) { self.postMessage({ __done: true, error: (err && err.message ? err.message : String(err)) }); });
+  }
+};
+`;
+
+// Main-thread macro runner. Spins up the sandbox worker, brokers each API call
+// to the curated `workbook` API (buildMacroApi), and enforces a wall-clock
+// timeout + call cap. Returns a Promise resolving to the macro's return value.
+function runMacroSandboxed(code, g, logFn) {
+  return new Promise(function (resolve, reject) {
+    if (typeof Worker === "undefined") { reject(new Error("Macros need a browser that supports Web Workers.")); return; }
+    const api = buildMacroApi(g, logFn);
+    const dispatch = (method, args) => {
+      switch (method) {
+        case "getValue": return api.getValue(args[0]);
+        case "getNumber": return api.getNumber(args[0]);
+        case "getFormula": return api.getFormula(args[0]);
+        case "getValues": return api.getValues(args[0]);
+        case "setValue": api.setValue(args[0], args[1]); return true;
+        case "setFormula": api.setFormula(args[0], args[1]); return true;
+        case "setValues": return api.setValues(args[0], args[1]);
+        case "clear": api.clear(args[0]); return true;
+        case "getActiveSheetName": return api.getActiveSheetName();
+        case "getSheetNames": return api.getSheetNames();
+        case "getActiveCell": return api.getActiveCell();
+        case "getSelection": return api.getSelection();
+        case "sheetInfo": return api.sheetInfo();
+        case "sheet": api.sheet(args[0]); return true;
+        case "range.getValues": return api.getRange(args[0]).getValues();
+        case "range.setValue": api.getRange(args[0]).setValue(args[1]); return true;
+        case "range.setValues": api.getRange(args[0]).setValues(args[1]); return true;
+        case "range.setFormula": api.getRange(args[0]).setFormula(args[1]); return true;
+        case "range.clear": api.getRange(args[0]).clear(); return true;
+        case "log": logFn(Array.prototype.map.call(args, macroFmt).join(" ")); return true;
+        case "toast": api.toast(args[0], args[1]); return true;
+        case "alert": api.alert(args[0]); return true;
+        default: throw new Error("Unknown API method: " + method);
+      }
+    };
+    const url = URL.createObjectURL(new Blob([MACRO_WORKER_SRC], { type: "text/javascript" }));
+    const worker = new Worker(url);
+    let calls = 0, done = false;
+    const finish = (fn2) => { if (done) return; done = true; try { worker.terminate(); } catch (e) {} URL.revokeObjectURL(url); clearTimeout(timer); fn2(); };
+    const timer = setTimeout(() => finish(() => reject(new Error("Macro timed out after 10s (possible infinite loop) — stopped."))), 10000);
+    worker.onmessage = (e) => {
+      const m = e.data;
+      if (m && m.__call) {
+        if (++calls > 100000) { finish(() => reject(new Error("Macro made too many API calls — stopped."))); return; }
+        let result = undefined, error = null;
+        try { result = dispatch(m.method, m.args || []); } catch (err) { error = err && err.message ? err.message : String(err); }
+        try { worker.postMessage({ __resp: true, id: m.id, result: error ? undefined : result, error }); }
+        catch (_) { worker.postMessage({ __resp: true, id: m.id, error: "Return value from " + m.method + " isn't serializable." }); }
+        return;
+      }
+      if (m && m.__done) finish(() => m.error ? reject(new Error(m.error)) : resolve(m.hasResult ? m.result : undefined));
+    };
+    worker.onerror = (e) => finish(() => reject(new Error((e && e.message) || "Macro worker error")));
+    worker.postMessage({ __start: true, code: String(code) });
+  });
 }
 
 function openMacrosPanel(g) {
@@ -13516,6 +13617,7 @@ function openMacrosPanel(g) {
           <textarea id="wb-macro-code" spellcheck="false" wrap="off" style="margin-top:10px;flex:1;min-height:190px;width:100%;box-sizing:border-box;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px;line-height:1.5;padding:10px;border:1px solid var(--border);border-radius:var(--r-md,8px);background:var(--surface);color:var(--text);resize:vertical;white-space:pre;overflow:auto"></textarea>
           <details style="margin-top:8px"><summary style="cursor:pointer;font-size:12px;color:var(--text-subtle)">API reference</summary>
             <div style="font-size:12px;color:var(--text-subtle);line-height:1.7;margin-top:6px;font-family:ui-monospace,Menlo,Consolas,monospace">
+              <b>Sandboxed &amp; async</b> — no internet access; put <b>await</b> before every call.<br>
               workbook.getValue("A1") · getNumber("A1") · getFormula("A1")<br>
               workbook.setValue("A1", v) · setFormula("A1", "=SUM(B1:B9)")<br>
               workbook.getRange("A2:C9").getValues() / .setValue(v) / .setValues([[…]]) / .clear()<br>
@@ -13569,20 +13671,24 @@ function openMacrosPanel(g) {
     if (!currentId) { newMacro(); return; }
     macros = macros.filter((x) => x.id !== currentId); saveMacros(macros); newMacro(); _toast("Macro deleted", "info");
   });
-  $("#wb-macro-run").addEventListener("click", () => {
+  $("#wb-macro-run").addEventListener("click", async () => {
     if (!macroRunConfirmed) {
-      if (!window.confirm("Macros run code you write, with access to this workbook's data.\nOnly run scripts you trust.\n\nRun this macro?")) return;
+      if (!window.confirm("This runs the code in the editor. It's sandboxed — no internet access, and it can only touch this workbook — but only run scripts you understand.\n\nRun this macro?")) return;
       macroRunConfirmed = true;
     }
+    const runBtn = $("#wb-macro-run");
     outEl.textContent = ""; appendOut("▶ Running…");
     const t0 = Date.now();
+    runBtn.disabled = true;
     try {
-      const result = runMacro(codeEl.value, g, appendOut);
+      const result = await runMacroSandboxed(codeEl.value, g, appendOut);
       if (result !== undefined) appendOut("⇒ " + macroFmt(result));
       appendOut("✓ Done in " + (Date.now() - t0) + " ms");
     } catch (e) {
       appendOut("✖ " + (e && e.message ? e.message : String(e)));
       _toast("Macro error: " + (e && e.message ? e.message : e), "warn");
+    } finally {
+      runBtn.disabled = false;
     }
   });
   wrap.addEventListener("click", (e) => { if (e.target === wrap || e.target.closest("[data-wb-close]")) close(); });
