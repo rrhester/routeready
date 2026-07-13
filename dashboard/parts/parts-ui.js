@@ -19,6 +19,7 @@ import {
   computeLandedCost, evaluateFitment, rankOffers, detectOfferFlags,
   normalizePartTerms, FITMENT_LABEL, FITMENT_CLASS, formatCents, formatDelivery,
 } from "./parts-engine.js";
+import { makeNhtsaProvider } from "./adapters/nhtsa.js";
 
 (() => {
   "use strict";
@@ -686,9 +687,8 @@ import {
     if (!v || !v.vin) return;
     const btn = el("rrp-decode"); if (btn) { btn.disabled = true; btn.textContent = "Decoding…"; }
     try {
-      const { data, error } = await sb().functions.invoke("vin-decode", { body: { vin: v.vin } });
-      if (error) throw error;
-      const c = (data && data.config) || {};
+      const provider = makeNhtsaProvider((name, opts) => sb().functions.invoke(name, opts));
+      const c = (await provider.decodeVin(v.vin)) || {};
       v.required_features = c.required_features || v.required_features;
       v.required_connector = c.required_connector || v.required_connector;
       const bits = [c.body_class, c.drive_type, c.engine, c.wheelbase ? c.wheelbase + '" WB' : null].filter(Boolean).join(" · ");
