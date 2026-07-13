@@ -29060,9 +29060,11 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.cat-teal{ background:rgba(13,148,136,.10) !important; border-color:rgba(13,148,136,.22) !important; border-left-color:rgba(13,148,136,.22) !important; color:#115E59 !important; }
 
 /* ── MOTION · view-transition slide + event fade-in ──────────────────── */
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-cal{ animation:ocViewIn .2s ease; }
+/* Arrival/navigation only — `rr-oc-inplace` marks a same-period repaint
+   (silent data refresh) where replaying the animation would flash. */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal #rr-ivcal-body:not(.rr-oc-inplace) .oc-cal{ animation:ocViewIn .2s ease; }
 @keyframes ocViewIn{ from{ opacity:0; transform:translateX(10px); } to{ opacity:1; transform:none; } }
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-col .oc-ev{ animation:ocEvIn .2s ease backwards; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal #rr-ivcal-body:not(.rr-oc-inplace) .oc-col .oc-ev{ animation:ocEvIn .2s ease backwards; }
 @keyframes ocEvIn{ from{ opacity:0; } to{ opacity:1; } }
 
 /* ── ICONS · less prominent (18–20px, reduced opacity, more padding) ──── */
@@ -32219,9 +32221,15 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 /* Canceled / declined stay readable — strike only the name, never the card. */
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.cat-gray.declined{ text-decoration:none !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.declined .en{ text-decoration:line-through; }
-/* Restrained motion · fade only, 140ms. */
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-cal{ animation:rrOcFadeIn .14s ease !important; }
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-col .oc-ev{ animation:rrOcFadeIn .14s ease backwards !important; }
+/* Restrained motion · fade only, 140ms — on ARRIVAL only. In-place data
+   refreshes must stay invisible: when live.js repaints the same view +
+   period over an existing grid it tags the host `rr-oc-inplace` (see
+   _ivcalLastPaintSig), and these arrive fades don't apply — otherwise the
+   whole calendar re-faded on every silent refresh (focus, 30s tick, Google
+   overlay landing), which read as a glitch. Navigation / tab arrival clears
+   the tag so the fade still plays exactly once. */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal #rr-ivcal-body:not(.rr-oc-inplace) .oc-cal{ animation:rrOcFadeIn .14s ease !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal #rr-ivcal-body:not(.rr-oc-inplace) .oc-col .oc-ev{ animation:rrOcFadeIn .14s ease backwards !important; }
 @keyframes rrOcFadeIn{ from{ opacity:0; } to{ opacity:1; } }
 
 /* ── Left context panel · one structured 248px column ─────────────────── */
