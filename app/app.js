@@ -7711,67 +7711,54 @@ async function renderUpNext(session) {
   if (shifts.length === 0) { slot.hidden = true; return; }
   const s = shifts[0];
 
-  // Try to look up the assigned vehicle for that day — same RPC
-  // the Schedule page uses.  Silent on failure (van just hides).
-  let vehicle = "";
+  // Resolve the assigned vehicle for that day — same RPC + {name,
+  // isRotation} shape the Schedule page builds, so a rotation van is
+  // flagged identically. Silent on failure (van just hides).
+  let vanInfo = null;
   try {
     const vRes = await sb.rpc("driver_vehicle_days", { p_token: session.token });
     for (const r of (Array.isArray(vRes?.data) ? vRes.data : [])) {
-      if (r && r.date === s.date && r.vehicle) { vehicle = r.vehicle; break; }
+      if (r && r.date === s.date && r.vehicle) {
+        vanInfo = { name: r.vehicle, isRotation: (r.is_chain_match === false) || r.via === "rotation" };
+        break;
+      }
     }
   } catch {}
 
-  const d = new Date(s.date + "T12:00:00");
-  const dow = d.toLocaleDateString(undefined, { weekday: "short" }).toUpperCase();
-  const day = d.getDate();
-  const mon = d.toLocaleDateString(undefined, { month: "short" }).toUpperCase();
-
-  const timeRange = (s.starts_at && s.ends_at)
-    ? `${fmtTime(s.starts_at)} – ${fmtTime(s.ends_at)}`
-    : "";
-  const hasLead = (s.report_lead_minutes || 0) > 0
-    && s.wave_starts_at
-    && new Date(s.wave_starts_at).getTime() !== new Date(s.starts_at).getTime();
-
-  // Same meta contract as the schedule cards — Van + Wave read as
-  // labeled values so the "Up next" hero feels like one product.
-  const upCells = [];
-  if (vehicle) upCells.push(`<div class="sc-cell"><div class="sc-cell-l">Van</div><div class="sc-cell-v sc-cell-v--van">${escapeHtml(vehicle)}</div></div>`);
-  if (hasLead) upCells.push(`<div class="sc-cell"><div class="sc-cell-l">Wave</div><div class="sc-cell-v">${escapeHtml(fmtTime(s.wave_starts_at))}</div></div>`);
+  // Render through the shared shiftCardHtml primitive so "Up next" on the
+  // home screen and the Schedule list cards are literally the same
+  // component — one shift reads identically everywhere. Map the raw
+  // driver_my_schedule row into the exact shape the Schedule builds
+  // (app.js renderSchedule). No swap action here: the home preview is
+  // read-only; swaps live on the Schedule tab.
+  const card = {
+    id:                s.id,
+    date:              new Date(s.date + "T12:00:00"),
+    iso:               s.date,
+    starts_at:         s.starts_at,
+    ends_at:           s.ends_at,
+    wave_starts_at:    s.wave_starts_at || s.starts_at,
+    reportLeadMinutes: s.report_lead_minutes || 0,
+    station:           s.station_code || "",
+    status:            s.status,
+    type:              s.service_type_code || "",
+    typeColor:         s.service_type_color || "",
+    isCushion:         !!s.is_cushion,
+    shiftKind:         s.shift_kind || "regular",
+    trainerName:       s.trainer_name || "",
+    trainingDay:       s.shift_kind === "training" ? 1 : 0,
+    stationLat:        Number(s.station_latitude),
+    stationLng:        Number(s.station_longitude),
+  };
 
   slot.hidden = false;
   slot.innerHTML = `
     <div class="up-next-label">Up next</div>
-    <div class="up-next-card">
-      <div class="up-next-date">
-        <div class="up-next-dow">${escapeHtml(dow)}</div>
-        <div class="up-next-day">${day}</div>
-        <div class="up-next-mon">${escapeHtml(mon)}</div>
-      </div>
-      <div class="up-next-body">
-        <div class="up-next-time">${escapeHtml(timeRange)}</div>
-        ${s.station_code ? `<div class="up-next-meta">${escapeHtml(s.station_code)}</div>` : ""}
-        ${upCells.length ? `<div class="sc-meta">${upCells.join("")}</div>` : ""}
-        <div class="up-next-weather" id="rr-upnext-wx" hidden></div>
-      </div>
-    </div>`;
+    ${shiftCardHtml(card, false, vanInfo, {})}`;
 
-  // Forecast for the shift's station — silent on miss / failure.
-  const lat = Number(s.station_latitude);
-  const lng = Number(s.station_longitude);
-  if (Number.isFinite(lat) && Number.isFinite(lng)) {
-    _fetchForecastByLatLng(lat, lng).then((byIso) => {
-      const el = document.getElementById("rr-upnext-wx");
-      if (!el || !byIso) return;
-      const wx = byIso.get(s.date);
-      if (!wx) return;
-      el.hidden = false;
-      el.innerHTML = `
-        <span class="shift-weather-icon" aria-hidden="true">${_weatherIcon(wx.conditions)}</span>
-        <span class="shift-weather-temp">${wx.tempF}°</span>
-        <span class="shift-weather-text">${escapeHtml(wx.conditions || "")}</span>`;
-    });
-  }
+  // Fill the card's weather slot via the same hydrator the Schedule uses
+  // (it walks every .shift-weather[data-wx-iso] in the document).
+  _hydrateShiftWeather([card]);
 }
 
 // ── VAN DOCUMENTS · insurance + registration for today's assigned van ─
