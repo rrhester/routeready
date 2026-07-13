@@ -499,47 +499,14 @@
                     <span>Work auth</span>
                   </button>
                 </div>
-                <div class="ob-tab-wrap" draggable="true" data-rr-tile="ob-addapplicant">
-                  <button class="subnav-item" onclick="openAddApplicantModal()" title="Add applicant">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="2" y="5" width="14" height="14"/><line x1="5" y1="9" x2="9" y2="9"/><line x1="5" y1="12" x2="13" y2="12"/><line x1="5" y1="15" x2="11" y2="15"/><line x1="20" y1="7" x2="20" y2="15"/><line x1="16" y1="11" x2="24" y2="11"/></svg>
-                    <span>Add applicant</span>
-                  </button>
-                  <!-- Split ▾ · schedule-style split affordance on this
-                       action tile (parity with the Schedule action bar's
-                       Build Schedule / Unassign Fleet .rr-ab-caret split).
-                       The tile body still opens the manual add-applicant
-                       form; this hover-revealed caret drops a small menu
-                       with BOTH add paths — manual entry and PDF import.
-                       Uses its own .ob-split-caret class (not .ob-rules-foot,
-                       which the actions-group `display:none` rule in
-                       onboarding-rrx.css would hide); wired by the inline
-                       script below. -->
-                  <button type="button" class="ob-split-caret" id="rr-ob-addapplicant-split"
-                          aria-haspopup="menu" aria-expanded="false"
-                          aria-controls="rr-ob-addapplicant-menu"
-                          title="Add options — manual entry or import">
-                    <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
-                  </button>
-                  <div class="ob-split-menu" id="rr-ob-addapplicant-menu" role="menu" aria-label="Add applicant options" hidden>
-                    <button type="button" role="menuitem" data-ob-add="manual">Add applicant manually</button>
-                    <button type="button" role="menuitem" data-ob-add="import">Import from PDF</button>
-                  </div>
-                </div>
-                <!-- Import · keeps the former PDF-Upload icon + action, relabeled
-                     to "Import" per operator request. -->
-                <div class="ob-tab-wrap" draggable="true" data-rr-tile="ob-pdf-upload">
-                  <button class="subnav-item" onclick="openPdfUploadPicker()" title="Import (upload a PDF)">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      <rect x="5" y="3" width="14" height="18" rx="2"/>
-                      <line class="rr-pdf-arrow" x1="12" y1="16" x2="12" y2="9"/>
-                      <polyline class="rr-pdf-arrow" points="9 12 12 9 15 12"/>
-                    </svg>
-                    <span>Import</span>
-                  </button>
-                </div>
-                <!-- The hidden file input openPdfUploadPicker() clicks now
-                     lives globally in index.html (shared with the app
-                     launcher's Indeed Import). -->
+                <!-- Add applicant + Import moved into the Overview toolbar
+                     (redesign 2026-07): the operational table now owns a
+                     single restrained toolbar with Search / filters / Sort /
+                     Import / Add applicant, so these ribbon tiles were removed
+                     to avoid a duplicate command surface. The global handlers
+                     (openAddApplicantModal / openPdfUploadPicker) are called
+                     from the toolbar buttons; the hidden PDF file input still
+                     lives in index.html. -->
                 <div class="ob-tab-divider" aria-hidden="true"></div>
               </div>
               <!-- Actions group · no caption/launcher (Add applicant + PDF Upload
