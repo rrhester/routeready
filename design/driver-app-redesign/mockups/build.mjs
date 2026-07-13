@@ -1231,4 +1231,82 @@ page({
 </main>`,
 });
 
+/* ═══════════ 23 · Form fill — calm treatment ═════════════════════
+   A published form (driver_list_forms → renderFormFill) rendered with
+   the same kit as checklists: field rows, autosave, sticky submit that
+   states its consequence. Demonstrates stage binding: this form gates
+   check-out, so Today's CTA leads here at the right moment. */
+page({
+  name: "23-clean-form",
+  title: "Revision — form fill (Mileage & fuel log)",
+  active: "tasks",
+  appbarOpts: { back: true, title: "Mileage & fuel log", date: "", avatar: "", conn: "none", pill: `<span class="pill amber">Unlocks check-out</span>` },
+  body: `
+<main class="main has-cta">
+  <div class="panel">
+    <div class="row" style="display:block;padding:14px">
+      <label class="field-label">Odometer at return <span class="req">*</span></label>
+      <div class="field" style="font-variant-numeric:tabular-nums">48,391</div>
+      <div class="field-help">Started at 48,213 this morning · about 178 mi driven</div>
+    </div>
+    <div class="row" style="display:block;padding:14px">
+      <label class="field-label">Fuel level <span class="req">*</span></label>
+      <div class="seg">
+        <button>Full</button><button>¾</button><button class="on">½</button><button>¼ or less</button>
+      </div>
+    </div>
+    <div class="row" style="display:block;padding:14px">
+      <label class="field-label">Photo of dash <span class="req">*</span></label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span class="photo-thumb"></span>
+        <span class="photo-add">${I.cam(15)}Retake</span>
+      </div>
+      <div class="field-help">Odometer and fuel gauge visible in one shot</div>
+    </div>
+    <div class="row" style="display:block;padding:14px">
+      <label class="field-label">Anything to note? <span style="color:var(--faint, var(--disabled));text-transform:none;letter-spacing:0">(optional)</span></label>
+      <div class="field" style="min-height:58px;color:var(--disabled)">e.g. warning lights, low washer fluid…</div>
+    </div>
+  </div>
+  <div class="divider-note">Saved automatically — safe to leave and come back, even offline</div>
+</main>`,
+  cta: `
+<div class="cta-bar">
+  <button class="btn btn-primary">Submit mileage & fuel log</button>
+  <div class="cta-note">1 required item left after this: End-of-day debrief</div>
+</div>`,
+});
+
+/* ═══════════ 24 · Tasks — calm treatment ═════════════════════════
+   The single inventory: forms, checklists, coaching acks, documents
+   to sign — one list, grouped by consequence, completed collapsed. */
+page({
+  name: "24-clean-tasks",
+  title: "Revision — Tasks (calm)",
+  active: "tasks",
+  appbarOpts: { eyebrow: "", conn: "none", title: "Tasks", date: "" },
+  body: `
+<main class="main">
+  <div class="sec">Before check-out <span class="sec-n">2</span></div>
+  <div class="panel">
+    ${taskRow({ state: "cur", title: "Mileage & fuel log", meta: "Form · ~1 min", pill: `<span class="pill amber">Required</span>` })}
+    ${taskRow({ state: "cur", title: "End-of-day debrief", meta: "Form · 3 questions", pill: `<span class="pill amber">Required</span>` })}
+  </div>
+
+  <div class="sec">This week <span class="sec-n">1</span></div>
+  <div class="panel">
+    ${taskRow({ state: "cur", title: "Coaching: speeding event review", meta: "Acknowledge · sent Jul 11", pill: `<span class="pill amber">Due Fri</span>` })}
+  </div>
+
+  <div class="sec">When you have a minute <span class="sec-n">3</span></div>
+  <div class="panel">
+    ${taskRow({ state: "cur", title: "2026 Handbook acknowledgement", meta: "Sign · 1 document" })}
+    ${taskRow({ state: "cur", title: "Scan a document", meta: "Photos → PDF to dispatch" })}
+    ${taskRow({ state: "blocked", title: "Form I-9 — Section 2", meta: "Dispatch completes this step", pill: `<span class="pill">Waiting</span>` })}
+  </div>
+
+  <div class="divider-note">Completed today (2) · <a href="#" style="color:var(--blue);text-decoration:none;font-weight:600">See all</a></div>
+</main>`,
+});
+
 console.log("all screens built →", OUT);
