@@ -6102,7 +6102,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   transition:background var(--t-fast);
 }
 .msg-item:hover{background:var(--surface-hover)}
-.msg-item.active{background:var(--accent-soft)}
+.msg-item.active{background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--accent)}
 /* Pin column 1 to the avatar's intrinsic size and column 2 to fill the
    rest with proper truncation.  Without an explicit avatar column width
    and minmax(0, 1fr) on the middle column, a long preview/name pushed
@@ -6655,9 +6655,15 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   text-transform:uppercase;letter-spacing:.06em;
   font-variant-numeric:tabular-nums;
 }
-/* Clean centred date label (no flanking rules) — quieter, more
-   enterprise, and matches the reference. */
-.rr-msg-day::before, .rr-msg-day::after{ content:none; }
+/* Centred uppercase date label flanked by subtle hairline rules that
+   extend from both sides — divides the timeline without dominating it
+   (Teams / Chime register).  Gap keeps the label off the rules. */
+.rr-msg-day{ gap:var(--s-3); }
+.rr-msg-day::before, .rr-msg-day::after{
+  content:"";flex:1;height:1px;
+  background:var(--border);
+  max-width:120px;
+}
 /* Empty / loading / error block. */
 .rr-mc-empty, .rr-cc-empty{margin:auto;text-align:center;color:var(--text-subtle);font-size:var(--fs-md);padding:40px}
 /* Skeleton bubbles — shown on first paint while the RPC is in flight.
@@ -7339,6 +7345,98 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 
 /* ═══════════════════════════════════════════════════════════════════
+   Attachment cards · compact document chip (direct + channel chat)
+   ───────────────────────────────────────────────────────────────────
+   Horizontal card: coloured file-type badge · filename · size+type
+   meta · persistent Preview / Download / More actions.  Reads as a
+   standalone surface when the message is attachment-only (the bubble
+   chrome is stripped via .attach-only below), or nests above body
+   text when a caption is present.
+   ═══════════════════════════════════════════════════════════════════ */
+/* Attachment-only bubbles shed their fill/border/padding so the card or
+   image thumbnail is the surface — no balloon around a document. */
+.rr-mc-bubble.attach-only, .rr-cc-bubble.attach-only{
+  background:transparent !important;background-image:none !important;
+  border-color:transparent !important;box-shadow:none !important;
+  padding:0 !important;max-width:min(420px,86%);
+}
+.rr-mc-bubble.attach-only .rr-mc-time,
+.rr-cc-bubble.attach-only .rr-cc-time{ padding:0 2px; }
+.rr-cc-bubble.dispatch.attach-only .rr-cc-sender{ color:var(--accent-text); }
+
+.rr-mc-doc{
+  display:flex;align-items:center;gap:var(--s-2-5);
+  width:100%;max-width:400px;min-width:0;
+  padding:9px 10px;margin-bottom:6px;
+  background:var(--surface);
+  border:1px solid var(--border);border-radius:var(--r-lg);
+  box-shadow:var(--shadow-xs);
+}
+.attach-only .rr-mc-doc{ margin-bottom:2px; }
+.rr-mc-doc-open{
+  display:flex;align-items:center;gap:var(--s-2-5);flex:1;min-width:0;
+  text-decoration:none;color:inherit;border-radius:var(--r-md);
+}
+.rr-mc-doc-open:focus-visible{ outline:none;box-shadow:var(--ring-focus); }
+/* File-type badge — a colour-coded square with the extension label. */
+.rr-mc-doc-badge{
+  flex:0 0 auto;width:38px;height:38px;border-radius:var(--r-md);
+  display:inline-flex;align-items:center;justify-content:center;
+  font-size:9px;font-weight:800;letter-spacing:.04em;
+  color:var(--rr-white);background:var(--text-subtle);
+}
+.rr-mc-doc.kind-pdf .rr-mc-doc-badge{ background:#DC2626; }
+.rr-mc-doc.kind-doc .rr-mc-doc-badge{ background:#2563EB; }
+.rr-mc-doc.kind-xls .rr-mc-doc-badge{ background:#16A34A; }
+.rr-mc-doc.kind-ppt .rr-mc-doc-badge{ background:#EA580C; }
+.rr-mc-doc.kind-zip .rr-mc-doc-badge{ background:#7C3AED; }
+.rr-mc-doc.kind-txt .rr-mc-doc-badge{ background:#4B5563; }
+.rr-mc-doc.kind-img .rr-mc-doc-badge{ background:#0891B2; }
+.rr-mc-doc-text{ display:flex;flex-direction:column;min-width:0;gap:1px; }
+.rr-mc-doc-name{
+  font-size:var(--fs-sm);font-weight:600;color:var(--text);line-height:1.3;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;
+}
+.rr-mc-doc-meta{
+  font-size:var(--fs-10);font-weight:500;color:var(--text-subtle);line-height:1.3;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-variant-numeric:tabular-nums;
+}
+.rr-mc-doc-actions{ display:flex;align-items:center;gap:2px;flex:0 0 auto; }
+.rr-mc-doc-act{
+  width:28px;height:28px;flex:0 0 auto;
+  display:inline-flex;align-items:center;justify-content:center;
+  background:transparent;border:1px solid transparent;border-radius:var(--r-md);
+  color:var(--text-subtle);cursor:pointer;text-decoration:none;
+  transition:background var(--t-fast),color var(--t-fast),border-color var(--t-fast);
+}
+.rr-mc-doc-act:hover{ background:var(--surface-hover);color:var(--accent-text);border-color:var(--border); }
+.rr-mc-doc-act:focus-visible{ outline:none;box-shadow:var(--ring-focus); }
+.rr-mc-doc-act svg{ width:15px;height:15px; }
+/* More-actions menu — native <details> for zero-JS keyboard support. */
+.rr-mc-doc-more{ position:relative;display:inline-flex; }
+.rr-mc-doc-more > summary{ list-style:none; }
+.rr-mc-doc-more > summary::-webkit-details-marker{ display:none; }
+.rr-mc-doc-more > summary::marker{ content:""; }
+.rr-mc-doc-more[open] > summary{ background:var(--surface-hover);color:var(--accent-text);border-color:var(--border); }
+.rr-mc-doc-menu{
+  position:absolute;bottom:calc(100% + 6px);right:0;z-index:40;width:168px;padding:5px;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+  box-shadow:0 12px 30px -8px rgba(15,23,42,.28),0 4px 10px -4px rgba(15,23,42,.16);
+  display:flex;flex-direction:column;gap:1px;
+}
+.rr-mc-doc-menu button{
+  display:block;width:100%;text-align:left;padding:7px 9px;
+  font:inherit;font-size:var(--fs-sm);color:var(--text);
+  background:transparent;border:0;border-radius:var(--r-md);cursor:pointer;
+}
+.rr-mc-doc-menu button:hover{ background:var(--surface-hover); }
+.rr-mc-doc-menu button:focus-visible{ outline:none;background:var(--surface-hover);box-shadow:inset 0 0 0 1px var(--accent-border); }
+@media (prefers-reduced-motion:reduce){
+  .rr-mc-doc-act{ transition:none; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
    Messages · enterprise communications workspace (Chime-inspired)
    ───────────────────────────────────────────────────────────────────
    Four regions: [app sidebar · locked] · nav+list · conversation ·
@@ -7724,105 +7822,6 @@ body.rr-cmdk-open{ overflow:hidden }
   position:relative;background:var(--surface);
   min-height:0;min-width:0;height:100%;overflow:hidden;
 }
-.msg-conv-head{
-  padding:var(--s-3) 18px;border-bottom:1px solid var(--border);
-  display:flex;justify-content:space-between;align-items:center;gap:var(--s-3);
-}
-.msg-conv-head-info{display:flex;align-items:center;gap:var(--s-2-5);min-width:0;flex:1}
-.msg-conv-name{font-size:var(--fs-base);font-weight:600;color:var(--text)}
-.msg-conv-status{font-size:var(--fs-xs);color:var(--text-subtle);display:flex;align-items:center;gap:var(--s-1);margin-top:1px}
-.msg-conv-status .live-pulse{width:6px;height:6px;display:inline-block}
-.msg-conv-actions{display:flex;gap:6px}
-.msg-conv-actions .icon-btn{width:28px;height:28px}
-
-.msg-thread{
-  flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:var(--s-2);background:var(--rr-gray-50);
-  /* Hide the desktop-style scrollbar — chat threads should feel like
-     a messaging app, not a document viewer. Scrolling still works. */
-  scrollbar-width:none;
-}
-.msg-thread::-webkit-scrollbar{ display:none; width:0; height:0; }
-.msg-bubble-wrap{display:flex;flex-direction:column;max-width:72%}
-.msg-bubble-wrap.from-me{align-self:flex-end;align-items:flex-end}
-.msg-bubble-wrap.from-them{align-self:flex-start;align-items:flex-start}
-.msg-bubble{
-  padding:var(--s-2) var(--s-3);border-radius:var(--r-xl);font-size:var(--fs-12-5);line-height:1.45;color:var(--text);
-}
-.from-me .msg-bubble{background:var(--accent);color:var(--rr-white);border-bottom-right-radius:4px}
-.from-them .msg-bubble{background:var(--surface);border:1px solid var(--border);border-bottom-left-radius:4px}
-.msg-bubble.system{
-  background:transparent;border:1px dashed var(--border-strong);color:var(--text-muted);
-  font-size:var(--fs-xs);text-align:center;align-self:center;padding:5px 12px;
-}
-.msg-meta-row{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px;display:flex;align-items:center;gap:5px}
-.msg-meta-row .read-tick{color:var(--accent);font-weight:700}
-.msg-typing{
-  display:flex;align-items:center;gap:6px;padding:var(--s-2) var(--s-3);background:var(--surface);
-  border:1px solid var(--border);border-radius:var(--r-xl);border-bottom-left-radius:4px;
-  align-self:flex-start;font-size:var(--fs-xs);color:var(--text-subtle);
-}
-.msg-typing-dots{display:flex;gap:3px}
-.msg-typing-dots span{
-  width:5px;height:5px;border-radius:50%;background:var(--text-subtle);
-  animation:typingDot 1.2s infinite ease-in-out;
-}
-.msg-typing-dots span:nth-child(2){animation-delay:.15s}
-.msg-typing-dots span:nth-child(3){animation-delay:.3s}
-@keyframes typingDot{0%,60%,100%{opacity:.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
-
-.msg-day-divider{
-  display:flex;align-items:center;gap:var(--s-2-5);align-self:stretch;justify-content:center;margin:6px 0;
-  color:var(--text-subtle);font-size:var(--fs-xs);font-weight:600;letter-spacing:.04em;text-transform:uppercase;
-}
-.msg-day-divider::before,.msg-day-divider::after{
-  content:'';flex:1;height:1px;background:var(--border);max-width:60px;
-}
-
-.msg-attach-chip{
-  display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.15);
-  padding:var(--s-1) 8px;border-radius:var(--r-md);font-size:var(--fs-xs);margin-top:4px;
-}
-.from-them .msg-attach-chip{background:var(--canvas);color:var(--text-muted)}
-.msg-attach-chip svg{width:11px;height:11px}
-
-.msg-pinned{
-  background:var(--amber-soft);border:1px solid var(--amber-soft);border-radius:var(--r-md);padding:var(--s-2) var(--s-3);
-  font-size:var(--fs-xs);color:var(--amber-dark);margin-bottom:var(--s-2);display:flex;align-items:flex-start;gap:var(--s-2);
-}
-.msg-pinned svg{width:13px;height:13px;flex-shrink:0;margin-top:1px;color:var(--amber-dark)}
-.msg-pinned strong{color:var(--amber-dark);font-weight:700}
-
-.msg-composer{
-  border-top:1px solid var(--border);padding:var(--s-3) var(--s-5);background:var(--surface);
-}
-.msg-quick-replies{display:flex;gap:var(--s-1);margin-bottom:var(--s-2-5);flex-wrap:wrap}
-.msg-quick-reply{
-  background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-xl);
-  padding:var(--s-1) var(--s-3);font-size:var(--fs-xs);font-weight:500;color:var(--text-muted);cursor:pointer;font-family:inherit;
-}
-.msg-quick-reply:hover{background:var(--surface-hover);color:var(--text);border-color:var(--border-strong)}
-.msg-input-row{
-  display:flex;gap:var(--s-2);align-items:flex-end;
-  background:var(--canvas);border:1px solid var(--border-strong);border-radius:var(--r-lg);padding:var(--s-2);
-}
-.msg-input{
-  flex:1;border:none;background:transparent;font:inherit;font-size:var(--fs-md);color:var(--text);
-  outline:none;resize:none;min-height:24px;max-height:120px;line-height:1.4;
-}
-.msg-input::placeholder{color:var(--text-subtle)}
-.msg-input-tools{display:flex;gap:var(--s-1);align-items:center}
-.msg-input-tool{
-  width:28px;height:28px;border-radius:var(--r-md);background:transparent;border:none;
-  color:var(--text-subtle);display:flex;align-items:center;justify-content:center;cursor:pointer;
-}
-.msg-input-tool:hover{background:var(--surface);color:var(--text)}
-.msg-input-tool svg{width:14px;height:14px}
-.msg-send{
-  background:var(--rr-amber-primary);color:var(--text-inverse);border-radius:var(--r-md);padding:var(--s-1) var(--s-3-5);border:none;
-  font-size:var(--fs-sm);font-weight:700;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:var(--s-1);
-}
-.msg-send:hover{background:var(--rr-amber-primary-hover)}
-.msg-send svg{width:13px;height:13px}
 
 /* Broadcast composer */
 .broadcast-modal{max-width:560px}
