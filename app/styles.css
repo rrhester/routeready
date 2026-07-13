@@ -1972,6 +1972,27 @@ body.scan-camming{overflow:hidden}
 
 .rr-debug-banner{background:var(--amber-soft,var(--rr-amber-100));color:var(--text);border:1px solid var(--border);border-radius:8px;padding:var(--s-3) var(--s-3-5);font-size:var(--fs-sm);line-height:1.4}
 
+/* ── Documents list (driver-side) ───────────────────────────── */
+.docs-wrap{padding-bottom:24px}
+.docs-section-title{padding:18px 16px 6px;font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-subtle)}
+.docs-list{display:flex;flex-direction:column;gap:8px;padding:0 14px}
+.rr-doc-row{text-align:left;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-card);padding:14px 16px;cursor:pointer;display:flex;align-items:center;gap:12px;width:100%}
+.rr-doc-row:active{background:var(--surface-hover)}
+.doc-row-icon{width:34px;height:42px;flex:0 0 auto;background:var(--accent-soft);color:var(--accent);border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center}
+.doc-row-main{flex:1;min-width:0}
+.doc-row-title{font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.doc-row-tagline{margin-top:3px}
+.doc-row-chev{color:var(--text-subtle);flex:0 0 auto}
+/* Status tag on a document row — shares the pending/ok/neutral semantics of
+   the app's other status chips. Declined/voided/expired are terminal neutral
+   states (not destructive), so they stay gray, not red. */
+.doc-tag{display:inline-block;font-size:var(--fs-xs);font-weight:700;padding:2px 8px;border-radius:999px}
+.doc-tag-warn{color:var(--amber-dark);background:var(--amber-soft)}
+.doc-tag-ok{color:var(--green-dark);background:var(--green-soft)}
+.doc-tag-neutral{color:var(--text-subtle);background:var(--canvas)}
+.docs-empty{padding:64px 24px;color:var(--text-subtle);text-align:center}
+.docs-empty strong{display:block;color:var(--text);margin-bottom:4px}
+
 /* ── Coaching feed (driver-side) ────────────────────────────── */
 .coaching-feed{display:flex;flex-direction:column;gap:12px}
 .coaching-row{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-card);padding:14px 16px;cursor:pointer;display:flex;flex-direction:column;gap:var(--s-2);box-shadow:var(--shadow-card)}

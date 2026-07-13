@@ -11668,13 +11668,15 @@ const _DOCS_STATUS_LABEL_INFO = {
   voided:   "Cancelled by sender",
   expired:  "Expired",
 };
-const _DOCS_STATUS_COLOR = {
-  sent:     "color:var(--amber-dark);background:var(--amber-soft)",
-  viewed:   "color:var(--amber-dark);background:var(--amber-soft)",
-  signed:   "color:var(--green);background:var(--green-soft)",
-  declined: "color:var(--red);background:rgba(220,38,38,.10)",
-  voided:   "color:var(--text-subtle);background:var(--canvas)",
-  expired:  "color:var(--text-subtle);background:var(--canvas)",
+// Status → chip class. Declined / voided / expired are terminal neutral
+// states (not destructive), so they read gray, not red.
+const _DOCS_STATUS_CLASS = {
+  sent:     "doc-tag-warn",
+  viewed:   "doc-tag-warn",
+  signed:   "doc-tag-ok",
+  declined: "doc-tag-neutral",
+  voided:   "doc-tag-neutral",
+  expired:  "doc-tag-neutral",
 };
 const _docLabel = (e) => ((e && e.kind === "informational") ? _DOCS_STATUS_LABEL_INFO : _DOCS_STATUS_LABEL)[e?.status] || e?.status || "";
 
@@ -11695,29 +11697,29 @@ async function renderDocumentsList() {
   const section = (title, items, isPending) => {
     if (items.length === 0) return "";
     return `
-      <div style="padding:18px 16px 6px 16px;font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-subtle)">${escapeHtml(title)}</div>
-      <div style="display:flex;flex-direction:column;gap:8px;padding:0 14px">
+      <div class="docs-section-title">${escapeHtml(title)}</div>
+      <div class="docs-list">
         ${items.map((e) => `
-          <button class="rr-doc-row" data-sign="${escapeHtml(e.signing_token)}" style="text-align:left;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;cursor:pointer;display:flex;align-items:center;gap:12px;width:100%">
-            <div style="width:34px;height:42px;flex:0 0 auto;background:var(--accent-soft);color:var(--accent);border-radius:6px;display:flex;align-items:center;justify-content:center">
+          <button class="rr-doc-row" data-sign="${escapeHtml(e.signing_token)}">
+            <div class="doc-row-icon">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
             </div>
-            <div style="flex:1;min-width:0">
-              <div style="font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(e.template_title || "Document")}</div>
-              <div style="margin-top:3px"><span class="tag" style="${_DOCS_STATUS_COLOR[e.status] || ""};font-size:11px">${escapeHtml(_docLabel(e))}</span></div>
+            <div class="doc-row-main">
+              <div class="doc-row-title">${escapeHtml(e.template_title || "Document")}</div>
+              <div class="doc-row-tagline"><span class="doc-tag ${_DOCS_STATUS_CLASS[e.status] || "doc-tag-neutral"}">${escapeHtml(_docLabel(e))}</span></div>
             </div>
             ${isPending
-              ? '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" style="color:var(--text-subtle);flex:0 0 auto"><polyline points="9 18 15 12 9 6"/></svg>'
+              ? '<svg class="doc-row-chev" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>'
               : ""}
           </button>`).join("")}
       </div>`;
   };
 
   if (pending.length === 0 && completed.length === 0) {
-    main.innerHTML = `<div class="empty-state" style="padding:64px 24px;color:var(--text-subtle);text-align:center"><strong style="display:block;color:var(--text);margin-bottom:4px">No documents</strong>You'll see anything your team sends you here — to sign or to review.</div>`;
+    main.innerHTML = `<div class="empty-state docs-empty"><strong>No documents</strong>You'll see anything your team sends you here — to sign or to review.</div>`;
     return;
   }
-  main.innerHTML = `<div style="padding-bottom:24px">${section("To sign", pending, true)}${section("Recent", completed, false)}</div>`;
+  main.innerHTML = `<div class="docs-wrap">${section("To sign", pending, true)}${section("Recent", completed, false)}</div>`;
   main.querySelectorAll(".rr-doc-row").forEach((row) => {
     row.addEventListener("click", () => navigate("/tasks/documents/sign?st=" + row.getAttribute("data-sign")));
   });
@@ -11786,7 +11788,7 @@ async function renderDocumentSign() {
     main.innerHTML = `
       <div style="padding:32px 20px;text-align:center">
         <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text);margin-bottom:6px">${escapeHtml(tpl.title || "Document")}</div>
-        <div><span class="tag" style="${_DOCS_STATUS_COLOR[env.status] || ""};font-size:11px">${escapeHtml(_docLabel({ status: env.status, kind: tpl.kind }))}</span></div>
+        <div><span class="doc-tag ${_DOCS_STATUS_CLASS[env.status] || "doc-tag-neutral"}">${escapeHtml(_docLabel({ status: env.status, kind: tpl.kind }))}</span></div>
         <div style="margin-top:14px;color:var(--text-subtle);font-size:var(--fs-sm)">No further action needed.</div>
       </div>`;
     return;

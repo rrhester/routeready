@@ -233,7 +233,13 @@
 // PIN error blocks announce as role="alert"; form-fill required controls get
 // aria-required and the signature canvas gets role="img" + a label. No visual
 // change. Bumped so installed driver PWAs pick up the new app.js.
-const SHELL_CACHE = "rr-app-shell-v176";
+// v177 · Documents list de-inlined: the To sign / Recent list moves off ~13
+// inline style="" blocks onto .rr-doc-row / .doc-row-* / .doc-tag classes, and
+// the status tag's inline color map becomes chip classes — with declined /
+// voided / expired reading neutral gray instead of red (terminal states, not
+// destructive). Same layout. Bumped so installed driver PWAs pick up the new
+// app.js + CSS.
+const SHELL_CACHE = "rr-app-shell-v177";
 const SHELL_FILES = [
   "./",
   "index.html",
