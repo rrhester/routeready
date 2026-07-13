@@ -147,7 +147,12 @@
 // banner + record card with four stat tiles + ladder card), and the swap-
 // request dialog's icon-only close button gains an aria-label/title. Bumped
 // so installed driver PWAs pick up the new app.js.
-const SHELL_CACHE = "rr-app-shell-v159";
+// v160 · Navigation clarity: the bottom-tab that opens the daily hub is
+// renamed "Profile" -> "Home" with a house icon (it is the command center —
+// check-in, today's shift, pre-shift tasks — not a profile page). Route
+// (/profile) and badges are unchanged. First step of the reviewed redesign.
+// Bumped so installed driver PWAs pick up the new app.js.
+const SHELL_CACHE = "rr-app-shell-v160";
 const SHELL_FILES = [
   "./",
   "index.html",
