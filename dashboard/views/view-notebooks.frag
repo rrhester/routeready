@@ -555,6 +555,71 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     font-size:var(--fs-sm);font-weight:600;color:var(--text-subtle);text-align:right}
   .rrnb-doc{padding:var(--s-4) var(--s-4) 30vh}
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   CALM RESTYLE — the OneNote-clean direction (approved 2026-07-13).
+   Appended last so it wins the cascade; scoped to #view-notebooks. Purely
+   visual — no markup logic or behaviour changes. Content on white, an airy
+   title + soft date line, whisper-quiet lists, de-boxed callouts & tables,
+   a lighter toolbar. Everything stays functional; nothing is hidden.
+   ═══════════════════════════════════════════════════════════════════════ */
+#view-notebooks .rrnb-pane{border-right-color:#ECEEF1}
+#view-notebooks .rrnb-pane--ctx{border-left-color:#ECEEF1}
+#view-notebooks .rrnb-pane--canvas{background:#FFFFFF}
+
+/* section list — quiet: subtle gray selection (not a blue wash), a slim
+   rounded color tab, more air */
+#view-notebooks .rrnb-sections{padding:var(--s-2) var(--s-2) var(--s-4)}
+#view-notebooks .rrnb-section{padding:7px 10px 7px 14px;border-radius:var(--r-md)}
+#view-notebooks .rrnb-section:hover{background:rgba(15,23,42,.04)}
+#view-notebooks .rrnb-section.active{background:rgba(15,23,42,.05);font-weight:600}
+#view-notebooks .rrnb-section .bar{left:4px;top:7px;bottom:7px;width:4px;border-radius:2px}
+#view-notebooks .rrnb-section .nm{font-weight:460;font-size:13px;color:#1B2430}
+#view-notebooks .rrnb-section.active .nm{font-weight:600}
+
+/* page list — subtle gray selection, keep the slim accent bar as the marker */
+#view-notebooks .rrnb-page{padding:9px 12px}
+#view-notebooks .rrnb-page:hover{background:rgba(15,23,42,.04)}
+#view-notebooks .rrnb-page.active{background:rgba(15,23,42,.05)}
+#view-notebooks .rrnb-page .ttl{font-weight:480;color:#1B2430}
+#view-notebooks .rrnb-page .sub{color:#AEB6C2;margin-top:3px}
+
+/* add controls read as quiet text links, not heavy dashed buttons */
+#view-notebooks .rrnb-newpage{border:0;background:transparent;color:var(--accent);
+  justify-content:flex-start;padding:8px 10px;font-weight:500}
+#view-notebooks .rrnb-newpage:hover{background:rgba(15,23,42,.04);color:var(--accent)}
+
+/* editor — content on white, more air, a lighter title + soft date line */
+#view-notebooks .rrnb-doc{max-width:720px;padding:var(--s-6) var(--s-6) 40vh}
+#view-notebooks .rrnb-breadcrumb{color:#8A93A2}
+#view-notebooks .rrnb-title{font-size:30px;font-weight:600;letter-spacing:-.02em;color:#2A3340;line-height:1.15}
+#view-notebooks .rrnb-pdate{font-size:12.5px;color:#AEB6C2;margin:2px 0 4px}
+#view-notebooks .rrnb-metaline{gap:var(--s-2-5);color:#8A93A2;margin-top:2px}
+#view-notebooks .rrnb-metaline #rrnb-author{display:none}   /* author shown in the date line instead */
+#view-notebooks .rrnb-editor{line-height:1.72;min-height:46vh}
+#view-notebooks .rrnb-editor h2{margin-top:var(--s-5)}
+#view-notebooks .rrnb-editor h3{margin-top:var(--s-5)}
+
+/* toolbar — lighter: a quiet hairline underline, muted icons, no heavy frame */
+#view-notebooks .rrnb-toolbar{background:transparent;border:0;border-bottom:1px solid #ECEEF1;
+  border-radius:0;box-shadow:none;padding:2px 0 6px;margin-bottom:var(--s-3)}
+#view-notebooks .rrnb-tb{color:#5A6472}
+#view-notebooks .rrnb-tb:hover{background:rgba(15,23,42,.04);color:#1B2430}
+
+/* callouts — de-boxed: a soft left rule, content breathing, no card */
+#view-notebooks .rrnb-editor .rrnb-callout{background:transparent;border:0;border-left:2px solid var(--amber-bright,#d97706);
+  border-radius:0;padding:2px 0 2px 16px;margin:6px 0 18px}
+
+/* tables — airy: hairline underlines only, quiet uppercase headers, no fills */
+#view-notebooks .rrnb-editor table{min-width:60%;width:100%;margin:8px 0 20px}
+#view-notebooks .rrnb-editor td,#view-notebooks .rrnb-editor th{border:0;border-bottom:1px solid #ECEEF1;
+  padding:9px 14px 9px 0}
+#view-notebooks .rrnb-editor th{background:transparent;font-size:var(--fs-xs);text-transform:uppercase;
+  letter-spacing:.03em;color:#8A93A2;border-bottom-color:#E2E5EA}
+
+/* TipTap surface inherits the same calm */
+#view-notebooks .rrnb-tt table td,#view-notebooks .rrnb-tt table th{border:0;border-bottom:1px solid #ECEEF1}
+#view-notebooks .rrnb-tt table th{background:transparent}
 </style>
 
 <div class="rrnb-shell" id="rrnb-shell">
@@ -1316,6 +1381,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       '<div class="rrnb-doc">' +
         '<div class="rrnb-breadcrumb"><span class="rrnb-cr-nb">' + esc(nb.name || "Notebook") + '</span> <span class="sep">›</span> <span class="rrnb-cr-sec">' + esc(sec.name || "Section") + '</span> <span class="sep">›</span> <span class="rrnb-cr-pg">' + esc(p.title || "Page") + '</span></div>' +
         '<input class="rrnb-title" id="rrnb-title" placeholder="Untitled Page" value="' + esc(p.title || "") + '" />' +
+        '<div class="rrnb-pdate" id="rrnb-pdate">' + esc(pageDateLine(p)) + '</div>' +
         '<div class="rrnb-metaline"><span class="rrnb-save" id="rrnb-save"><span class="dot"></span><span id="rrnb-save-txt">Saved</span></span>' +
           '<span id="rrnb-author">' + esc(p.author || "") + '</span>' +
           '<span class="rrnb-presence" id="rrnb-presence" hidden><span class="pdot"></span><span id="rrnb-presence-txt"></span></span>' +
@@ -1364,6 +1430,18 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     refreshSaveLabel();
   }
   function id_of(p) { return p.id || S.pageId; }
+  // Soft "Monday, February 2, 2026 · 8:31 AM · Author" line under the title —
+  // the calm OneNote-style dateline. Best-effort locale formatting.
+  function pageDateLine(p) {
+    var d = (p && (p.updated_at || p.created_at)) || null; if (!d) return "";
+    try {
+      var dt = new Date(d);
+      var s = dt.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" }) +
+              " · " + dt.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+      if (p.author) s += " · " + p.author;
+      return s;
+    } catch (e) { return ""; }
+  }
 
   // ══════════════════════════════════════════════════════════════════
   //  TIPTAP EDITOR (opt-in, flag-gated) — a separate, self-contained
@@ -1412,6 +1490,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       '<div class="rrnb-doc">' +
         '<div class="rrnb-breadcrumb"><span class="rrnb-cr-nb">' + esc(nb.name || "Notebook") + '</span> <span class="sep">›</span> <span class="rrnb-cr-sec">' + esc(sec.name || "Section") + '</span> <span class="sep">›</span> <span class="rrnb-cr-pg">' + esc(p.title || "Page") + '</span></div>' +
         '<input class="rrnb-title" id="rrnb-title" placeholder="Untitled Page" value="' + esc(p.title || "") + '" />' +
+        '<div class="rrnb-pdate" id="rrnb-pdate">' + esc(pageDateLine(p)) + '</div>' +
         '<div class="rrnb-metaline"><span class="rrnb-save" id="rrnb-save"><span class="dot"></span><span id="rrnb-save-txt">Saved</span></span>' +
           '<span id="rrnb-author">' + esc(p.author || "") + '</span>' +
           '<span class="rrnb-tag rrnb-beta" title="You’re on the new rich editor (beta). Switch back anytime in settings.">Beta editor</span>' +
