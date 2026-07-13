@@ -24461,10 +24461,28 @@ const CAL_TZS = [
   "Etc/UTC",
 ];
 
+// Landing on the Onboarding page re-asserts obSub("calendar") four times
+// (0 / rAF / 60ms / 280ms) to beat a late sub-view default that would drop the
+// operator on Funnel. Each obSub("calendar") runs the CHEAP show/hide that wins
+// that race — but it also called loadCalendarTab, whose fetch + full innerHTML
+// rebuild is expensive, so the calendar tore itself down and rebuilt 4× over
+// ~300ms every time the page was opened or returned to: the visible glitch.
+// Coalesce that burst — load the data / render once, and let the remaining
+// re-asserts do only their (cheap) sub-view show/hide.
+let _calTabLoadT = 0, _calTabLoading = false;
 async function loadCalendarTab() {
-  // The availability editor now lives in the Calendar "Rules" → Interview
-  // availability popover (loaded lazily on open), not inline on this tab.
-  await Promise.all([loadCalBookingsList(), loadIvCalendar()]);
+  const now = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+  if (_calTabLoading) return;                           // a load from this burst is still in flight
+  if (_ivcalCache && now - _calTabLoadT < 500) return;  // just loaded this entry → don't rebuild
+  _calTabLoading = true;
+  _calTabLoadT = now;
+  try {
+    // The availability editor now lives in the Calendar "Rules" → Interview
+    // availability popover (loaded lazily on open), not inline on this tab.
+    await Promise.all([loadCalBookingsList(), loadIvCalendar()]);
+  } finally {
+    _calTabLoading = false;
+  }
 }
 
 // ── Native interview calendar · Day / Week / Month ────────────────────────
