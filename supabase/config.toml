@@ -159,5 +159,12 @@ verify_jwt = false
 [functions.dvic-ai-review]
 verify_jwt = false
 
+# Parts Intelligence VIN decode. Proxies the free public NHTSA vPIC API behind
+# a strict VIN allowlist (SSRF-safe: fixed host, validated 17-char VIN only).
+# Gateway verify_jwt off so the browser CORS preflight gets a 2xx; the function
+# validates the caller's JWT (auth.getUser) in-code. Deploy with --no-verify-jwt.
+[functions.vin-decode]
+verify_jwt = false
+
 [analytics]
 enabled = false

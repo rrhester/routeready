@@ -1,0 +1,50 @@
+{
+  "oem_exact": {
+    "seller_name": "Parts Authority", "supplier_source": "parts_authority",
+    "seller_part_number": "LK4Z-17683-AA", "product_title": "OEM Right passenger power heated mirror assembly",
+    "condition": "new", "is_oem": true,
+    "price_cents": 18900, "shipping_cents": 0, "tax_cents": 1560, "core_charge_cents": 0, "discount_cents": 0,
+    "availability": "in_stock", "delivery_days_min": 2, "delivery_days_max": 2,
+    "warranty": "12 month", "return_policy": "30-day returns", "seller_rating": 4.8,
+    "connector_type": "14-pin", "features": { "heated": true, "power": true },
+    "fitment_claim": "Direct OE replacement, fits 2020-2023 Transit"
+  },
+  "aftermarket_cheap": {
+    "seller_name": "RockAuto", "supplier_source": "rockauto",
+    "seller_part_number": "FO1321ABC", "product_title": "Brock passenger side heated power mirror",
+    "condition": "new", "is_oem": false,
+    "price_cents": 12999, "shipping_cents": 1683, "tax_cents": 0, "core_charge_cents": 0, "discount_cents": 0,
+    "availability": "in_stock", "delivery_days_min": 4, "delivery_days_max": 4,
+    "warranty": "Limited lifetime", "return_policy": "30-day returns", "seller_rating": 4.6,
+    "connector_type": "14-pin", "features": { "heated": true, "power": true },
+    "fitment_claim": "Compatible with Ford Transit"
+  },
+  "aftermarket_fast": {
+    "seller_name": "autopartsmax", "supplier_source": "ebay",
+    "seller_part_number": "TYC-5730151", "product_title": "TYC Right door mirror heated",
+    "condition": "new", "is_oem": false,
+    "price_cents": 14250, "shipping_cents": 2200, "tax_cents": 1316, "core_charge_cents": 0, "discount_cents": 0,
+    "availability": "low_stock", "delivery_days_min": 1, "delivery_days_max": 1,
+    "warranty": "90-day", "return_policy": "60-day returns", "seller_rating": 4.96,
+    "connector_type": "14-pin", "features": { "heated": true, "power": true }
+  },
+  "reman_used_ymm_only": {
+    "seller_name": "Keystone", "supplier_source": "keystone",
+    "seller_part_number": "KS-9920", "product_title": "Remanufactured mirror assembly",
+    "condition": "reman", "is_oem": false,
+    "price_cents": 9800, "shipping_cents": 1850, "tax_cents": 0, "core_charge_cents": 2500, "discount_cents": 0,
+    "availability": "in_stock", "delivery_days_min": 5, "delivery_days_max": 5,
+    "warranty": "6 month", "return_policy": "No returns", "seller_rating": 4.5,
+    "fitment_claim": "Fits 2020-2023 Ford Transit"
+  },
+  "incompatible_manual": {
+    "seller_name": "newseller11", "supplier_source": "ebay",
+    "seller_part_number": "GEN-0001", "product_title": "Manual non-heated mirror",
+    "condition": "new", "is_oem": false,
+    "price_cents": 4199, "shipping_cents": 999, "tax_cents": 0, "core_charge_cents": 0, "discount_cents": 0,
+    "availability": "in_stock", "delivery_days_min": 9, "delivery_days_max": 9,
+    "warranty": "None", "return_policy": "No returns", "seller_rating": 3.9,
+    "connector_type": "3-pin", "features": { "heated": false, "power": false },
+    "fitment_claim": "Universal mirror"
+  }
+}

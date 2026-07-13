@@ -180,6 +180,7 @@
 <link rel="modulepreload" href="./forecast-core.js?v=radiohail01">
 <link rel="modulepreload" href="./workbook.js?v=radiohail01">
 <link rel="modulepreload" href="./reports.js?v=radiohail01">
+<link rel="modulepreload" href="./parts/parts-engine.js?v=radiohail01">
 <link rel="stylesheet" href="../app/rr-system.css?v=radiohail01">
 <!-- Schedule page — Fluent 2 visual rebind (reference migration).
      Re-skins existing .sched-* chrome under #view-schedule.rrx-schedule
@@ -5294,6 +5295,9 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./fleet-sync.js?v=radiohail01"></script>
 <script src="./admin-crawl-tasks.js?v=radiohail01"></script>
 <script type="module" src="./live.js?v=radiohail02"></script>
+<!-- Parts Intelligence · Fleet "Parts" sub-tab. Self-registers window.RRParts;
+     live.js's fleetSub('parts') mounts it. Uses the shared window.sb. -->
+<script type="module" src="./parts/parts-ui.js?v=radiohail02"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA

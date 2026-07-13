@@ -1,0 +1,24 @@
+{
+  "transit_rh_mirror_oem": {
+    "category": "mirror", "part_type": "door mirror assembly", "side": "right",
+    "brand": "Ford", "is_oem": true,
+    "oem_part_numbers": ["LK4Z-17683-AA", "LK4Z17683AA"],
+    "aftermarket_part_numbers": [],
+    "interchange_numbers": ["FO1321XYZ"],
+    "superseded_part_numbers": [],
+    "connector_type": "14-pin",
+    "description": "Right passenger side power heated mirror assembly",
+    "attributes": { "required": { "heated": true, "power": true } }
+  },
+  "transit_rh_mirror_aftermarket": {
+    "category": "mirror", "part_type": "door mirror assembly", "side": "right",
+    "brand": "Brock", "is_oem": false,
+    "oem_part_numbers": [],
+    "aftermarket_part_numbers": ["FO1321ABC"],
+    "interchange_numbers": ["LK4Z-17683-AA"],
+    "superseded_part_numbers": [],
+    "connector_type": "14-pin",
+    "description": "Passenger side heated power mirror",
+    "attributes": { "required": { "heated": true, "power": true } }
+  }
+}
