@@ -47,27 +47,42 @@ Deno.serve(async (req) => {
   const apiToken = Deno.env.get("CF_TURN_API_TOKEN");
   if (!keyId || !apiToken) return respond({ ok: false, reason: "not_configured" });
 
-  try {
-    const res = await fetch(
-      `https://rtc.live.cloudflare.com/v1/turn/keys/${keyId}/credentials/generate`,
-      {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${apiToken}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ ttl: TURN_TTL_SECONDS }),
-      },
-    );
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      console.warn(`cf turn (driver) generate failed status=${res.status} body=${body.slice(0, 300)}`);
-      return respond({ ok: false, reason: "cf_error", status: res.status });
-    }
-    const data = await res.json();
-    const ice = data?.iceServers;
-    if (!ice) return respond({ ok: false, reason: "no_ice" });
-    const list = Array.isArray(ice) ? ice : [ice];
-    return respond({ ok: true, ice_servers: list });
-  } catch (err) {
-    console.warn("cf turn (driver) exception:", String(err));
-    return respond({ ok: false, reason: "exception" });
-  }
+  return respond(await mintCloudflareTurn(keyId, apiToken));
 });
+
+// Mint short-lived Cloudflare TURN credentials. Tries the current documented
+// endpoint (/credentials/generate-ice-servers → { iceServers: [STUN, TURN] })
+// first, falling back to the legacy /credentials/generate (→ { iceServers: {…} })
+// only on a 404. Kept in sync with meet-turn-credentials (edge functions bundle
+// separately, so it can't be shared without importing the other's Deno.serve).
+async function mintCloudflareTurn(keyId: string, token: string) {
+  const paths = ["generate-ice-servers", "generate"];
+  let lastStatus = 0;
+  for (const path of paths) {
+    try {
+      const res = await fetch(
+        `https://rtc.live.cloudflare.com/v1/turn/keys/${keyId}/credentials/${path}`,
+        {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ ttl: TURN_TTL_SECONDS }),
+        },
+      );
+      if (res.status === 404) { lastStatus = 404; continue; }
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        console.warn(`cf turn (driver) ${path} failed status=${res.status} body=${body.slice(0, 300)}`);
+        return { ok: false, reason: "cf_error", status: res.status };
+      }
+      const data = await res.json();
+      const ice = data?.iceServers;
+      if (!ice) return { ok: false, reason: "no_ice" };
+      const list = Array.isArray(ice) ? ice : [ice];
+      return { ok: true, ice_servers: list };
+    } catch (err) {
+      console.warn(`cf turn (driver) ${path} exception:`, String(err));
+      return { ok: false, reason: "exception" };
+    }
+  }
+  return { ok: false, reason: "cf_error", status: lastStatus };
+}
