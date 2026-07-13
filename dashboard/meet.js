@@ -135,6 +135,7 @@ const state = {
   // zoom-quality pass
   view: "gallery",     // "gallery" | "speaker"
   pipCorner: "br",     // FaceTime pip corner (?call=1): tl | tr | bl | br
+  ftSwapped: false,    // FaceTime swap (?call=1): true = I hold the stage, they ride in the pip
   pinnedKey: null,
   hand: false,
   activeSpeaker: null,
@@ -1457,6 +1458,9 @@ function tileFor(entry) {
 }
 
 function togglePin(key) {
+  // No pinning while the FaceTime 1:1 layout owns the stage — a double-tap
+  // on the pip is two swaps (back where you started), not a pin.
+  if ($("grid").classList.contains("ft")) return;
   state.pinnedKey = state.pinnedKey === key ? null : key;
   renderGrid();
 }
@@ -1488,10 +1492,17 @@ function renderGrid() {
       : (roster.find((r) => r.key !== state.peerKey) || roster[0]).key;
   }
   // FaceTime layout (?call=1, exactly two in the room, nobody sharing):
-  // the other person owns the whole window and my tile becomes the pip —
-  // pin/speaker semantics only resume with a third participant or a share.
+  // one tile owns the whole window, the other rides in the pip — normally
+  // them big / me small, flipped while state.ftSwapped (tap the pip to
+  // trade places, tap again to trade back). Pin/speaker semantics only
+  // resume with a third participant or a screen share.
   const ft = CALL && !sharer && roster.length === 2;
-  if (ft) stageKey = (roster.find((r) => r.key !== state.peerKey) || roster[0]).key;
+  let pipKey = null;
+  if (ft) {
+    const remoteKey = (roster.find((r) => r.key !== state.peerKey) || roster[0]).key;
+    stageKey = state.ftSwapped ? state.peerKey : remoteKey;
+    pipKey   = state.ftSwapped ? remoteKey : state.peerKey;
+  }
   grid.classList.toggle("ft", ft);
   if (CALL) {
     // The window is a call, not a meeting: title it after the far end,
@@ -1529,8 +1540,9 @@ function renderGrid() {
     const camOn = me ? (state.sharing || (state.cam && !!state.camTrack)) : (entry.cam || entry.screen);
     tile.classList.toggle("cam-off", !camOn);
     tile.classList.toggle("is-me", me);
-    tile.classList.toggle("pip", ft && me);
-    if (ft && me) applyPipCorner(tile);
+    const isPip = ft && entry.key === pipKey;
+    tile.classList.toggle("pip", isPip);
+    if (isPip) applyPipCorner(tile);
     else tile.classList.remove("pip-tl", "pip-tr", "pip-bl", "pip-br");
     tile.classList.toggle("stage", stageKey === entry.key);
     // Screen content letterboxes (never crop shared text); camera stages crop-fill.
@@ -1582,9 +1594,11 @@ function applyPipCorner(tile) {
 }
 
 // Drag the pip anywhere while the pointer is down, then snap it to the
-// nearest corner on release (FaceTime behavior). Delegated on #grid so it
+// nearest corner on release; a TAP (no real movement) swaps the pip with
+// the stage and back — both FaceTime behaviors. Delegated on #grid so it
 // survives tile recreation; buttons inside the pip are hidden in call mode
-// so pointerdown on it is always a drag.
+// so pointerdown on it is always a drag-or-tap.
+const PIP_TAP_SLOP = 8; // px of movement that still counts as a tap
 function wirePipDrag() {
   const grid = $("grid");
   let drag = null;
@@ -1593,12 +1607,17 @@ function wirePipDrag() {
     if (!tile || e.button) return;
     const r = tile.getBoundingClientRect();
     const g = grid.getBoundingClientRect();
-    drag = { tile, g, w: r.width, h: r.height, dx: e.clientX - r.left, dy: e.clientY - r.top };
-    tile.classList.add("dragging");
+    drag = { tile, g, w: r.width, h: r.height, dx: e.clientX - r.left, dy: e.clientY - r.top,
+             x0: e.clientX, y0: e.clientY, moved: false };
     try { tile.setPointerCapture(e.pointerId); } catch { /* older engines */ }
   });
   grid.addEventListener("pointermove", (e) => {
     if (!drag) return;
+    if (!drag.moved) {
+      if (Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < PIP_TAP_SLOP) return;
+      drag.moved = true;
+      drag.tile.classList.add("dragging");
+    }
     const x = Math.min(Math.max(e.clientX - drag.g.left - drag.dx, 6), drag.g.width - drag.w - 6);
     const y = Math.min(Math.max(e.clientY - drag.g.top - drag.dy, 6), drag.g.height - drag.h - 6);
     drag.tile.style.left = x + "px"; drag.tile.style.top = y + "px";
@@ -1607,6 +1626,13 @@ function wirePipDrag() {
   const end = () => {
     if (!drag) return;
     const t = drag.tile;
+    if (!drag.moved) {
+      // Tap → trade places with the stage (and back on the next tap).
+      drag = null;
+      state.ftSwapped = !state.ftSwapped;
+      renderGrid();
+      return;
+    }
     const cx = (parseFloat(t.style.left) || 0) + drag.w / 2;
     const cy = (parseFloat(t.style.top) || 0) + drag.h / 2;
     state.pipCorner = (cy < drag.g.height / 2 ? "t" : "b") + (cx < drag.g.width / 2 ? "l" : "r");
