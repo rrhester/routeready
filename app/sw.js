@@ -165,7 +165,11 @@
 // v163 · Radio hails dispatch: opening the push-to-talk radio now alerts
 // every open dashboard (banner + ring + one-click Join) and Web-Pushes a
 // closed one. Bumped so installed driver PWAs pick up the new app.js.
-const SHELL_CACHE = "rr-app-shell-v163";
+// v164 · Auth first-impression polish: the activation CTAs read "Look up my
+// invite" (was "Continue") and "Set up my account" (was "Activate") so a new
+// driver knows what each tap does; the sign-in info banner is tokenized to
+// var(--accent-soft). Bumped so installed driver PWAs pick up the new app.js.
+const SHELL_CACHE = "rr-app-shell-v164";
 const SHELL_FILES = [
   "./",
   "index.html",
