@@ -81,6 +81,44 @@
 .rrnb-prop .pv{color:var(--text);font-weight:500;text-align:right;white-space:nowrap}
 .rrnb-ctxempty{padding:var(--s-4);color:var(--text-subtle);font-size:var(--fs-sm);line-height:1.5}
 .rrnb-metabtn.on{color:var(--accent);background:var(--accent-soft)}
+/* comments */
+.rrnb-cmt{display:flex;gap:var(--s-2);margin-bottom:var(--s-3)}
+.rrnb-cmt.reply{margin-left:var(--s-5)}
+.rrnb-cmt.resolved{opacity:.55}
+.rrnb-cmt .av{width:24px;height:24px;border-radius:50%;flex:0 0 auto;display:flex;align-items:center;
+  justify-content:center;color:#fff;font-size:10px;font-weight:700;background:var(--accent)}
+.rrnb-cmt .cbd{flex:1;min-width:0}
+.rrnb-cmt .chd{display:flex;align-items:center;gap:6px;font-size:var(--fs-sm);font-weight:600}
+.rrnb-cmt .chd .tm{font-weight:400;color:var(--text-disabled);font-size:var(--fs-xs)}
+.rrnb-cmt .chd .act{margin-left:auto;display:flex;gap:2px;opacity:0}
+.rrnb-cmt:hover .chd .act{opacity:1}
+.rrnb-cmt .cta{width:22px;height:22px;border-radius:var(--r-sm);display:grid;place-items:center;color:var(--text-subtle);cursor:pointer;border:0;background:transparent}
+.rrnb-cmt .cta:hover{background:var(--surface-hover);color:var(--text)}
+.rrnb-cmt .cta svg{width:14px;height:14px}
+.rrnb-cmt .cta.on{color:var(--green)}
+.rrnb-cmt .ctx-body-txt{font-size:var(--fs-sm);color:var(--text-muted);line-height:1.45;margin-top:2px;white-space:pre-wrap;word-wrap:break-word}
+.rrnb-cmt .ctx-body-txt .mn{color:var(--accent);font-weight:600}
+.rrnb-cmt .rply{font-size:var(--fs-xs);color:var(--accent);cursor:pointer;margin-top:3px;display:inline-block}
+.rrnb-cmt .rslv-badge{font-size:var(--fs-xs);color:var(--green);font-weight:600}
+.rrnb-cmt-replychip{display:flex;align-items:center;gap:6px;font-size:var(--fs-xs);color:var(--text-subtle);
+  background:var(--surface-secondary,var(--surface-hover));border-radius:var(--r-md);padding:4px 8px;margin-bottom:6px}
+.rrnb-cmt-replychip button{margin-left:auto;border:0;background:transparent;color:var(--text-subtle);cursor:pointer;font-size:13px}
+.rrnb-cmt-composer{position:relative;margin-top:var(--s-2)}
+.rrnb-cmt-input{width:100%;min-height:34px;max-height:120px;resize:none;border:1px solid var(--border-strong);
+  border-radius:var(--r-md);padding:8px 10px;font:inherit;font-size:var(--fs-sm);color:var(--text);
+  background:var(--surface);box-shadow:var(--inset-input,inset 0 1px 2px rgba(15,23,42,.05))}
+.rrnb-cmt-input:focus{outline:none;border-color:var(--accent);box-shadow:var(--ring-focus,0 0 0 3px rgba(37,99,235,.18))}
+.rrnb-cmt-input::placeholder{color:var(--text-subtle)}
+.rrnb-cmt-row{display:flex;align-items:center;gap:8px;margin-top:6px}
+.rrnb-cmt-row .hint{font-size:var(--fs-xs);color:var(--text-disabled)}
+.rrnb-cmt-send{margin-left:auto;height:28px;padding:0 12px;border-radius:var(--r-md);border:1px solid var(--accent);
+  background:var(--accent);color:#fff;font-size:var(--fs-xs);font-weight:600;cursor:pointer}
+.rrnb-cmt-send:disabled{opacity:.5;cursor:default}
+.rrnb-mnmenu{position:absolute;left:0;right:0;bottom:calc(100% + 4px);z-index:20;background:var(--surface);
+  border:1px solid var(--border);border-radius:var(--r-md);box-shadow:var(--shadow-pop);padding:4px;max-height:180px;overflow:auto}
+.rrnb-mnmenu .mnrow{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:var(--r-sm);cursor:pointer;font-size:var(--fs-sm)}
+.rrnb-mnmenu .mnrow:hover,.rrnb-mnmenu .mnrow.on{background:var(--accent-soft)}
+.rrnb-mnmenu .mnav{width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font-size:9px;font-weight:700}
 @media (max-width:1280px){
   .rrnb-shell.ctx-on{grid-template-columns:248px 300px 1fr}
   .rrnb-pane--ctx{position:absolute;top:0;bottom:0;right:0;z-index:60;width:min(340px,88vw);
@@ -549,6 +587,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     <div class="rrnb-ctxbody" id="rrnb-ctxbody">
       <div class="rrnb-ctxsec" id="rrnb-ctx-records"></div>
       <div class="rrnb-ctxsec" id="rrnb-ctx-outline"></div>
+      <div class="rrnb-ctxsec" id="rrnb-ctx-comments"></div>
       <div class="rrnb-ctxsec" id="rrnb-ctx-backlinks"></div>
       <div class="rrnb-ctxsec" id="rrnb-ctx-props"></div>
       <div class="rrnb-ctxempty" id="rrnb-ctx-empty">Open a page to see its linked RouteReady records, outline, backlinks and properties.</div>
@@ -632,7 +671,12 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       restoreItem: function (kind, id) { return rpc("notebook_item_restore", { p_kind: kind, p_id: id }); },
       setLinks: function (page, links) { return rpc("notebook_links_set", { p_source_page_id: page, p_links: links }); },
       backlinks: function (page) { return rpc("notebook_page_backlinks", { p_page_id: page }); },
-      search: function (q, opt) { opt = opt || {}; return rpc("notebook_search", { p_query: q, p_notebook_id: opt.notebookId || null, p_tag: opt.tag || null, p_limit: 50 }); }
+      search: function (q, opt) { opt = opt || {}; return rpc("notebook_search", { p_query: q, p_notebook_id: opt.notebookId || null, p_tag: opt.tag || null, p_limit: 50 }); },
+      commentsList: function (page) { return rpc("notebook_comments_list", { p_page_id: page }); },
+      commentAdd: function (page, body, parent, anchor, mentions) { return rpc("notebook_comment_add", { p_page_id: page, p_body: body, p_parent_id: parent || null, p_anchor: anchor || null, p_mentions: (mentions && mentions.length) ? mentions : null }); },
+      commentResolve: function (id, on) { return rpc("notebook_comment_resolve", { p_id: id, p_resolved: !!on }); },
+      commentDelete: function (id) { return rpc("notebook_comment_delete", { p_id: id }); },
+      commentCounts: function (ids) { return rpc("notebook_comment_counts", { p_page_ids: ids || [] }); }
     };
   }
 
@@ -743,7 +787,15 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
           && (!q || (p.title + " " + p.content_text).toLowerCase().indexOf(q) >= 0); });
         return P(res.slice(0, 50).map(function (p) { var n = nb(p.notebook_id); var s = db.sections.filter(function (x) { return x.id === p.section_id; })[0];
           var idx = p.content_text.toLowerCase().indexOf(q); var snip = q && idx >= 0 ? p.content_text.slice(Math.max(0, idx - 20), idx + 40) : p.content_text.slice(0, 60);
-          return { id: p.id, notebook_id: p.notebook_id, section_id: p.section_id, title: p.title, tags: p.tags, notebook_name: n ? n.name : "", section_name: s ? s.name : "", snippet: esc(snip) }; })); }
+          return { id: p.id, notebook_id: p.notebook_id, section_id: p.section_id, title: p.title, tags: p.tags, notebook_name: n ? n.name : "", section_name: s ? s.name : "", snippet: esc(snip) }; })); },
+      commentsList: function (page) { return P((db.comments || []).filter(function (c) { return c.page_id === page; }).sort(function (a, b) { return a.created_at < b.created_at ? -1 : 1; })); },
+      commentAdd: function (page, body, parent, anchor) {
+        var c = { id: uid(), page_id: page, parent_id: parent || null, anchor: anchor || null, body: String(body).trim(),
+          author: "You", author_id: "local", is_mine: true, resolved: false, mentions: [], created_at: new Date().toISOString() };
+        (db.comments = db.comments || []).push(c); persist(); return P(c); },
+      commentResolve: function (id, on) { var c = (db.comments || []).filter(function (x) { return x.id === id; })[0]; if (c) { c.resolved = !!on; persist(); } return P(); },
+      commentDelete: function (id) { db.comments = (db.comments || []).filter(function (x) { return x.id !== id && x.parent_id !== id; }); persist(); return P(); },
+      commentCounts: function (ids) { var m = {}; (db.comments || []).forEach(function (c) { if (!c.resolved && (ids || []).indexOf(c.page_id) >= 0) m[c.page_id] = (m[c.page_id] || 0) + 1; }); return P(m); }
     };
   }
 
@@ -2025,8 +2077,15 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   var _ctxBound = false;
   function ensureCtxInit() {
     if (_ctxBound) return; _ctxBound = true;
+    if (!S._cmtMentions) S._cmtMentions = {};
     var sh = $id("rrnb-shell"); if (sh) sh.classList.toggle("ctx-on", ctxPref());
     var pane = $id("rrnb-ctxpane"); if (pane) pane.addEventListener("click", onCtxClick);
+    var ch = $id("rrnb-ctx-comments");
+    if (ch) {
+      ch.addEventListener("click", onCommentsClick);
+      ch.addEventListener("input", function (e) { if (e.target.classList && e.target.classList.contains("rrnb-cmt-input")) onComposerInput(e.target); });
+      ch.addEventListener("keydown", function (e) { if (e.target.classList && e.target.classList.contains("rrnb-cmt-input")) onComposerKey(e); });
+    }
   }
   var CTX_COLORS = { driver: "#2563eb", vehicle: "#7c3aed", route: "#475569", station: "#0891b2",
     incident: "#dc2626", shift: "#16a34a", applicant: "#d97706" };
@@ -2037,7 +2096,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   }
   function resetContextRail() {
     ensureCtxInit();
-    ["rrnb-ctx-records", "rrnb-ctx-outline", "rrnb-ctx-backlinks", "rrnb-ctx-props"].forEach(function (id) {
+    ["rrnb-ctx-records", "rrnb-ctx-outline", "rrnb-ctx-comments", "rrnb-ctx-backlinks", "rrnb-ctx-props"].forEach(function (id) {
       var el = $id(id); if (el) el.innerHTML = "";
     });
     var em = $id("rrnb-ctx-empty"); if (em) em.hidden = false;
@@ -2105,7 +2164,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     var em = $id("rrnb-ctx-empty"); if (em) em.hidden = true;
     fillCtxRecords();
     fillCtxOutline();
-    if (!localOnly) { renderBacklinks(id_of(p)); fillCtxProps(p); }
+    if (!localOnly) { S._replyTo = null; S._cmtMentions = {}; renderBacklinks(id_of(p)); fillCtxProps(p); fillCtxComments(id_of(p)); }
   }
   var scheduleCtxRefresh = debounce(function () { if (S.page) renderContextRail(S.page, true); }, 500);
   function onCtxClick(e) {
@@ -2122,6 +2181,124 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     var h = t.closest("[data-ctx-head]");
     if (h) { var el = document.getElementById(h.getAttribute("data-ctx-head")); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
     if (t.closest("[data-ctx-add]")) { try { smartLink(true); } catch (_) {} return; }
+  }
+
+  // ── comments (migration 0479) ────────────────────────────────────────────
+  function ensureCommentStaff() {
+    if (S._cmtStaff) return;
+    S._cmtStaff = []; // sentinel so we only fetch once
+    if (!S.be || !S.be.shareCandidates) return;
+    S.be.shareCandidates().then(function (rows) {
+      S._cmtStaff = (rows || []).map(function (r) { return { user_id: r.user_id, name: r.name || r.email || "teammate" }; });
+    }).catch(function () { S._cmtStaff = []; });
+  }
+  function fillCtxComments(pid) {
+    var host = $id("rrnb-ctx-comments"); if (!host || !pid) return;
+    ensureCommentStaff();
+    S.be.commentsList(pid).then(function (rows) {
+      if (S.pageId !== pid) return;             // page switched while loading
+      renderComments(host, rows || []);
+    }).catch(function () { host.innerHTML = ""; });
+  }
+  function cmtBodyHtml(c) {
+    var body = esc(c.body || "");
+    (c.mentions || []).forEach(function (nm) { body = body.split("@" + esc(nm)).join('<span class="mn">@' + esc(nm) + "</span>"); });
+    return body.replace(/\n/g, "<br>");
+  }
+  function cmtHtml(c, isReply) {
+    var canDel = c.is_mine || S.myRole === "owner";
+    var acts = S.readOnly ? "" : ('<span class="act">' +
+      '<button class="cta' + (c.resolved ? " on" : "") + '" data-cmt-resolve="' + esc(c.id) + '" title="' + (c.resolved ? "Reopen" : "Resolve") + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg></button>' +
+      (canDel ? '<button class="cta" data-cmt-del="' + esc(c.id) + '" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button>' : "") +
+      "</span>");
+    return '<div class="rrnb-cmt' + (isReply ? " reply" : "") + (c.resolved ? " resolved" : "") + '" data-cmt="' + esc(c.id) + '">' +
+      '<span class="av">' + esc(recInitials(c.author)) + "</span>" +
+      '<div class="cbd"><div class="chd"><span>' + esc(c.author || "Teammate") + '</span><span class="tm">' + esc(relTime(c.created_at)) + "</span>" + acts + "</div>" +
+      '<div class="ctx-body-txt">' + cmtBodyHtml(c) + "</div>" +
+      ((!isReply && !S.readOnly) ? '<span class="rply" data-cmt-reply="' + esc(c.id) + '">Reply</span>' : "") +
+      (c.resolved ? ' <span class="rslv-badge">· resolved</span>' : "") +
+      "</div></div>";
+  }
+  function renderComments(host, rows) {
+    var top = rows.filter(function (c) { return !c.parent_id; });
+    var repl = {}; rows.forEach(function (c) { if (c.parent_id) (repl[c.parent_id] = repl[c.parent_id] || []).push(c); });
+    var html = '<h4>Comments' + (rows.length ? '<span class="cnt">' + rows.length + "</span>" : "") + "</h4>";
+    if (!rows.length) html += '<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:8px">No comments yet — start the thread.</div>';
+    top.forEach(function (c) { html += cmtHtml(c, false); (repl[c.id] || []).forEach(function (r) { html += cmtHtml(r, true); }); });
+    var chip = "";
+    if (S._replyTo) {
+      var pc = rows.filter(function (x) { return x.id === S._replyTo; })[0];
+      chip = '<div class="rrnb-cmt-replychip">Replying to ' + esc(pc ? pc.author : "comment") + '<button data-cmt-cancelreply title="Cancel reply">✕</button></div>';
+    }
+    html += '<div class="rrnb-cmt-composer">' + chip + '<div class="rrnb-mnmenu" hidden></div>' +
+      '<textarea class="rrnb-cmt-input" rows="1" placeholder="' + (S.readOnly ? "View only" : "Comment or @mention…") + '"' + (S.readOnly ? " disabled" : "") + "></textarea>" +
+      '<div class="rrnb-cmt-row"><span class="hint">@ mention · ⌘↵ send</span><button class="rrnb-cmt-send" disabled>' + (S._replyTo ? "Reply" : "Comment") + "</button></div></div>";
+    host.innerHTML = html;
+  }
+  function onComposerInput(ta) {
+    ta.style.height = "auto"; ta.style.height = Math.min(120, ta.scrollHeight) + "px";
+    var wrap = ta.closest(".rrnb-cmt-composer"); if (!wrap) return;
+    var send = wrap.querySelector(".rrnb-cmt-send"); if (send) send.disabled = !ta.value.trim();
+    var menu = wrap.querySelector(".rrnb-mnmenu"); if (!menu) return;
+    var upto = ta.value.slice(0, ta.selectionStart);
+    var m = /@([\w.'-]*)$/.exec(upto);
+    if (m && S._cmtStaff && S._cmtStaff.length) {
+      var tok = m[1].toLowerCase();
+      var hits = S._cmtStaff.filter(function (s) { return s.name.toLowerCase().indexOf(tok) >= 0; }).slice(0, 6);
+      if (hits.length) {
+        menu.innerHTML = hits.map(function (s, i) {
+          return '<div class="mnrow' + (i === 0 ? " on" : "") + '" data-mn-id="' + esc(s.user_id) + '" data-mn-name="' + esc(s.name) + '"><span class="mnav">' + esc(recInitials(s.name)) + "</span>" + esc(s.name) + "</div>";
+        }).join(""); menu.hidden = false; return;
+      }
+    }
+    menu.hidden = true;
+  }
+  function insertMention(ta, id, name) {
+    var start = ta.selectionStart, before = ta.value.slice(0, start), after = ta.value.slice(start);
+    before = before.replace(/@([\w.'-]*)$/, "@" + name + " ");
+    ta.value = before + after; var pos = before.length; try { ta.setSelectionRange(pos, pos); } catch (e) {}
+    if (!S._cmtMentions) S._cmtMentions = {}; S._cmtMentions[name] = id;
+    var wrap = ta.closest(".rrnb-cmt-composer");
+    var menu = wrap && wrap.querySelector(".rrnb-mnmenu"); if (menu) menu.hidden = true;
+    var send = wrap && wrap.querySelector(".rrnb-cmt-send"); if (send) send.disabled = !ta.value.trim();
+    ta.focus();
+  }
+  function onComposerKey(e) {
+    var ta = e.target;
+    var wrap = ta.closest(".rrnb-cmt-composer"); if (!wrap) return;
+    var menu = wrap.querySelector(".rrnb-mnmenu");
+    if (menu && !menu.hidden) {
+      var rows = [].slice.call(menu.querySelectorAll(".mnrow")); if (!rows.length) { }
+      var cur = menu.querySelector(".mnrow.on"), i = rows.indexOf(cur);
+      if (e.key === "ArrowDown") { e.preventDefault(); if (cur) cur.classList.remove("on"); (rows[(i + 1) % rows.length] || rows[0]).classList.add("on"); return; }
+      if (e.key === "ArrowUp") { e.preventDefault(); if (cur) cur.classList.remove("on"); (rows[(i - 1 + rows.length) % rows.length] || rows[0]).classList.add("on"); return; }
+      if (e.key === "Enter") { e.preventDefault(); var pick = cur || rows[0]; if (pick) insertMention(ta, pick.getAttribute("data-mn-id"), pick.getAttribute("data-mn-name")); return; }
+      if (e.key === "Escape") { e.preventDefault(); menu.hidden = true; return; }
+    }
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submitComment(ta); }
+  }
+  function submitComment(ta) {
+    var body = (ta.value || "").trim(); if (!body) return;
+    var pid = S.pageId; if (!pid) return;
+    var ments = Object.keys(S._cmtMentions || {}).filter(function (n) { return body.indexOf("@" + n) >= 0; }).map(function (n) { return S._cmtMentions[n]; });
+    var parent = S._replyTo || null;
+    ta.disabled = true;
+    S.be.commentAdd(pid, body, parent, null, ments).then(function () {
+      S._cmtMentions = {}; S._replyTo = null; fillCtxComments(pid);
+    }).catch(function (e) { ta.disabled = false; fail(e); });
+  }
+  function onCommentsClick(e) {
+    var host = e.currentTarget;
+    var mn = e.target.closest("[data-mn-id]");
+    if (mn) { var ta = host.querySelector(".rrnb-cmt-input"); if (ta) insertMention(ta, mn.getAttribute("data-mn-id"), mn.getAttribute("data-mn-name")); return; }
+    if (e.target.closest(".rrnb-cmt-send")) { var ta2 = host.querySelector(".rrnb-cmt-input"); if (ta2) submitComment(ta2); return; }
+    var rs = e.target.closest("[data-cmt-resolve]");
+    if (rs) { var on = rs.classList.contains("on"); S.be.commentResolve(rs.getAttribute("data-cmt-resolve"), !on).then(function () { fillCtxComments(S.pageId); }).catch(fail); return; }
+    var dl = e.target.closest("[data-cmt-del]");
+    if (dl) { S.be.commentDelete(dl.getAttribute("data-cmt-del")).then(function () { fillCtxComments(S.pageId); }).catch(fail); return; }
+    var rp = e.target.closest("[data-cmt-reply]");
+    if (rp) { S._replyTo = rp.getAttribute("data-cmt-reply"); fillCtxComments(S.pageId); setTimeout(function () { var t = host.querySelector(".rrnb-cmt-input"); if (t) t.focus(); }, 60); return; }
+    if (e.target.closest("[data-cmt-cancelreply]")) { S._replyTo = null; fillCtxComments(S.pageId); return; }
   }
 
   // ══════════════════════════════════════════════════════════════════
