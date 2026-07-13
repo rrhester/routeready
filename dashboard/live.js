@@ -24,6 +24,100 @@ if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js")
 try { window.openDriverDrawer = openDriverDrawer; } catch (e) {}
 try { window.openFleetDrawer = openFleetDrawer; } catch (e) {}
 
+// ── Notebook rich editor (TipTap/ProseMirror) — opt-in, lazy-loaded ─────────
+// The Notebook view is a self-contained inline (non-module) script, so it can't
+// `import`. We expose a tiny loader here that dynamically imports TipTap from
+// the same CDN the app already uses for supabase, and hands back a minimal
+// editor API. Nothing loads until a DSP opts into the flagged editor and opens
+// a page, so classic-editor users never pay for it. Pinned to one version so
+// every @tiptap package shares the same ProseMirror core (no dup instances).
+window.RRTipTap = (function () {
+  const V = "@2.11.5", CDN = "https://esm.sh/";
+  let mod = null, loading = null;
+  function load() {
+    if (mod) return Promise.resolve(mod);
+    if (loading) return loading;
+    loading = Promise.all([
+      import(`${CDN}@tiptap/core${V}`),
+      import(`${CDN}@tiptap/starter-kit${V}`),
+      import(`${CDN}@tiptap/extension-underline${V}`),
+      import(`${CDN}@tiptap/extension-highlight${V}`),
+      import(`${CDN}@tiptap/extension-link${V}`),
+      import(`${CDN}@tiptap/extension-task-list${V}`),
+      import(`${CDN}@tiptap/extension-task-item${V}`),
+      import(`${CDN}@tiptap/extension-table${V}`),
+      import(`${CDN}@tiptap/extension-table-row${V}`),
+      import(`${CDN}@tiptap/extension-table-header${V}`),
+      import(`${CDN}@tiptap/extension-table-cell${V}`),
+      import(`${CDN}@tiptap/extension-image${V}`),
+      import(`${CDN}@tiptap/extension-placeholder${V}`),
+    ]).then(([core, sk, ul, hl, link, tl, ti, tbl, trow, thead, tcell, img, ph]) => {
+      mod = {
+        Editor: core.Editor,
+        exts: [
+          sk.default, ul.default, hl.default,
+          link.default.configure({ openOnClick: false, autolink: true }),
+          tl.default, ti.default.configure({ nested: true }),
+          tbl.default.configure({ resizable: true }), trow.default, thead.default, tcell.default,
+          img.default, ph.default,
+        ],
+      };
+      return mod;
+    });
+    return loading;
+  }
+  function runCmd(editor, name, arg) {
+    const c = editor.chain().focus();
+    switch (name) {
+      case "bold": c.toggleBold().run(); break;
+      case "italic": c.toggleItalic().run(); break;
+      case "underline": c.toggleUnderline().run(); break;
+      case "strikeThrough": c.toggleStrike().run(); break;
+      case "highlight": c.toggleHighlight().run(); break;
+      case "todo": c.toggleTaskList().run(); break;
+      case "insertUnorderedList": c.toggleBulletList().run(); break;
+      case "insertOrderedList": c.toggleOrderedList().run(); break;
+      case "quote": c.toggleBlockquote().run(); break;
+      case "code": c.toggleCodeBlock().run(); break;
+      case "hr": c.setHorizontalRule().run(); break;
+      case "table": c.insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); break;
+      case "image": if (arg) c.setImage({ src: arg }).run(); break;
+      case "link": if (arg) c.extendMarkRange("link").setLink({ href: arg }).run(); else c.unsetLink().run(); break;
+      case "block": arg === "P" ? c.setParagraph().run() : c.toggleHeading({ level: +arg.replace("H", "") }).run(); break;
+      case "undo": c.undo().run(); break;
+      case "redo": c.redo().run(); break;
+      case "removeFormat": c.unsetAllMarks().clearNodes().run(); break;
+      default: c.run();
+    }
+  }
+  return {
+    load,
+    mount(el, opts) {
+      opts = opts || {};
+      return load().then((m) => {
+        const ph = m.exts[m.exts.length - 1];
+        const exts = m.exts.slice(0, -1).concat([ph.configure({ placeholder: opts.placeholder || "Type here…" })]);
+        const editor = new m.Editor({
+          element: el, extensions: exts, content: opts.content || "",
+          editable: !opts.readOnly,
+          onUpdate: () => { if (opts.onUpdate) opts.onUpdate(); },
+        });
+        return {
+          editor,
+          getHTML: () => editor.getHTML(),
+          getText: () => editor.getText(),
+          focus: () => editor.chain().focus().run(),
+          setEditable: (b) => editor.setEditable(!!b),
+          isActive: (n, a) => { try { return editor.isActive(n, a); } catch (e) { return false; } },
+          activeBlock: () => { for (let i = 1; i <= 3; i++) if (editor.isActive("heading", { level: i })) return "H" + i; return "P"; },
+          cmd: (name, arg) => runCmd(editor, name, arg),
+          destroy: () => { try { editor.destroy(); } catch (e) {} },
+        };
+      });
+    },
+  };
+})();
+
 const sb = createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
 });

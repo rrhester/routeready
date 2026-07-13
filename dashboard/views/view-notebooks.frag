@@ -275,6 +275,25 @@
 .rrnb-editor a:hover{border-bottom-color:var(--accent)}
 .rrnb-editor a.rrnb-pagelink,.rrnb-editor a.rrnb-objlink{background:var(--accent-soft);
   border-radius:var(--r-sm);padding:0 4px;border-bottom:0;font-weight:500}
+/* ── TipTap (opt-in) editor surface ─────────────────────────────────── */
+.rrnb-editor.rrnb-tt{padding:0}
+.rrnb-tt .ProseMirror{outline:none;min-height:44vh;font-size:var(--fs-lg);line-height:1.6;color:var(--text)}
+.rrnb-tt .ProseMirror:focus{outline:none}
+.rrnb-tt-loading{color:var(--text-subtle);font-size:var(--fs-sm);padding:var(--s-2) 0}
+.rrnb-tt .ProseMirror p.is-editor-empty:first-child::before{content:attr(data-placeholder);
+  color:var(--text-disabled);float:left;height:0;pointer-events:none}
+.rrnb-tt ul[data-type="taskList"]{list-style:none;padding-left:0;margin:var(--s-2) 0}
+.rrnb-tt ul[data-type="taskList"] li{display:flex;align-items:flex-start;gap:var(--s-2);margin:3px 0}
+.rrnb-tt ul[data-type="taskList"] li>label{margin-top:2px}
+.rrnb-tt ul[data-type="taskList"] li>div{flex:1;min-width:0}
+.rrnb-tt ul[data-type="taskList"] input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent)}
+.rrnb-tt table{border-collapse:collapse;width:100%;margin:var(--s-2) 0;table-layout:fixed}
+.rrnb-tt td,.rrnb-tt th{border:1px solid var(--border);padding:6px 8px;min-width:40px;vertical-align:top}
+.rrnb-tt th{background:var(--canvas);font-weight:600;text-align:left}
+.rrnb-tt .selectedCell{background:var(--accent-soft)}
+.rrnb-tt img{max-width:100%;border-radius:var(--r-md)}
+.rrnb-beta{background:var(--accent-soft)!important;color:var(--accent-text)!important;
+  border:1px solid var(--accent-border)!important}
 /* an auto-detected reference not yet tied to a real record: muted, dashed —
    reads as "suggested link", click to resolve. Never navigates to a fake id. */
 .rrnb-editor a.rrnb-objlink.rrnb-objlink-unresolved{background:transparent;color:var(--text-muted);
@@ -1208,6 +1227,8 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   function showBlank() {
     var wrap = $id("rrnb-canvas-wrap"); if (!wrap) return;
     wrap.innerHTML = '<div class="rrnb-blank"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 4h11l5 5v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M14 4v6h6"/></svg><div>Select a page, or press <b>Alt+N</b> to create one.</div></div>';
+    if (S._tt) { S._tt.destroy(); S._tt = null; }
+    S.editorKind = "classic";
     S.pageId = null; S.page = null;
     resetContextRail();
     leavePresence();
@@ -1266,7 +1287,25 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     }).catch(fail);
   }
 
+  // Per-DSP opt-in for the TipTap/ProseMirror editor. Off by default; a DSP
+  // turns it on via dsp.metadata.notebook_editor='tiptap' (or metadata.flags.
+  // notebook_tiptap), and an individual can force classic/tiptap in this
+  // browser via localStorage 'rrnb-editor' for testing.
+  function tiptapEnabled() {
+    try { var o = localStorage.getItem("rrnb-editor"); if (o === "tiptap") return true; if (o === "classic") return false; } catch (e) {}
+    var md = window.RR && window.RR.dsp && window.RR.dsp.metadata;
+    return !!(md && (md.notebook_editor === "tiptap" || (md.flags && md.flags.notebook_tiptap)));
+  }
+  // Dispatcher: the TipTap path is entirely separate so the proven classic
+  // editor below stays untouched. Always tear down any live TipTap instance
+  // first so switching pages / editors never leaks a ProseMirror view.
   function renderCanvas(p) {
+    if (S._tt) { S._tt.destroy(); S._tt = null; }
+    if (tiptapEnabled() && window.RRTipTap) { S.editorKind = "tiptap"; return renderCanvasTipTap(p); }
+    S.editorKind = "classic";
+    return renderCanvasClassic(p);
+  }
+  function renderCanvasClassic(p) {
     var wrap = $id("rrnb-canvas-wrap"); if (!wrap) return;
     hideImgResize();
     // our own grips replace Firefox's native contenteditable image resizers
@@ -1325,6 +1364,128 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     refreshSaveLabel();
   }
   function id_of(p) { return p.id || S.pageId; }
+
+  // ══════════════════════════════════════════════════════════════════
+  //  TIPTAP EDITOR (opt-in, flag-gated) — a separate, self-contained
+  //  render path. Shares the title, metaline, tag bar, context rail and
+  //  the exact save/conflict/offline contract with the classic editor
+  //  (via currentEditorData's tiptap branch). Advanced classic-only
+  //  features (image annotation/OCR/resize, [[ page picker, ⚡ object
+  //  linking, attachments, dictation, AI) are not yet wired here — the
+  //  curated toolbar only exposes what actually works, so there are no
+  //  dead buttons. Falls back to the classic editor if TipTap can't load.
+  // ══════════════════════════════════════════════════════════════════
+  var TT_TOOLBAR_HTML =
+    '<div class="rrnb-toolbar" id="rrnb-toolbar">' +
+      '<button class="rrnb-tb" data-ttcmd="undo" title="Undo (Ctrl+Z)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></button>' +
+      '<button class="rrnb-tb" data-ttcmd="redo" title="Redo (Ctrl+Y)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M15 14l5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h3"/></svg></button>' +
+      '<span class="rrnb-tb-sep"></span>' +
+      '<select class="rrnb-tb-sel" id="rrnb-style-sel" title="Paragraph style">' +
+        '<option value="P">Normal</option><option value="H1">Heading 1</option><option value="H2">Heading 2</option><option value="H3">Heading 3</option></select>' +
+      '<span class="rrnb-tb-sep"></span>' +
+      '<button class="rrnb-tb" data-ttcmd="bold" title="Bold (Ctrl+B)"><b>B</b></button>' +
+      '<button class="rrnb-tb" data-ttcmd="italic" title="Italic (Ctrl+I)"><i>I</i></button>' +
+      '<button class="rrnb-tb" data-ttcmd="underline" title="Underline (Ctrl+U)"><u>U</u></button>' +
+      '<button class="rrnb-tb" data-ttcmd="strikeThrough" title="Strikethrough"><s>S</s></button>' +
+      '<button class="rrnb-tb" data-ttcmd="highlight" title="Highlight"><span style="background:var(--amber-soft,rgba(217,119,6,.3));padding:0 3px;border-radius:2px">H</span></button>' +
+      '<span class="rrnb-tb-sep"></span>' +
+      '<button class="rrnb-tb" data-ttcmd="todo" title="To-do checklist"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 12l3 3 5-6"/></svg></button>' +
+      '<button class="rrnb-tb" data-ttcmd="insertUnorderedList" title="Bulleted list"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/><path d="M9 6h11M9 12h11M9 18h11"/></svg></button>' +
+      '<button class="rrnb-tb" data-ttcmd="insertOrderedList" title="Numbered list"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 6h11M9 12h11M9 18h11"/><text x="1" y="8" font-size="7" fill="currentColor" stroke="none">1</text><text x="1" y="14" font-size="7" fill="currentColor" stroke="none">2</text><text x="1" y="20" font-size="7" fill="currentColor" stroke="none">3</text></svg></button>' +
+      '<span class="rrnb-tb-sep"></span>' +
+      '<button class="rrnb-tb" data-ttcmd="quote" title="Quote">“</button>' +
+      '<button class="rrnb-tb" data-ttcmd="code" title="Code block"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"/></svg></button>' +
+      '<button class="rrnb-tb" data-ttcmd="hr" title="Divider">—</button>' +
+      '<button class="rrnb-tb" data-ttcmd="table" title="Insert table"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 4v16M15 4v16"/></svg></button>' +
+      '<button class="rrnb-tb" data-ttcmd="image" title="Insert picture"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.8"/><path d="M21 16l-5-5-6 6-3-3-4 4"/></svg></button>' +
+      '<button class="rrnb-tb" data-ttcmd="link" title="Link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg></button>' +
+      '<span class="rrnb-tb-sep"></span>' +
+      '<button class="rrnb-tb" data-ttcmd="removeFormat" title="Clear formatting"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 5h13M9 5l-2 14M5 19h6"/><path d="M15 12l6 6M21 12l-6 6"/></svg></button>' +
+    '</div>';
+
+  function renderCanvasTipTap(p) {
+    var wrap = $id("rrnb-canvas-wrap"); if (!wrap) return;
+    var nb = (S.notebooks.filter(function (n) { return n.id === S.nbId; })[0]) || {};
+    var sec = ((S.tree && S.tree.sections) || []).filter(function (s) { return s.id === p.section_id; })[0] || {};
+    var ro = S.readOnly || p.my_role === "viewer";
+    wrap.innerHTML =
+      '<div class="rrnb-doc">' +
+        '<div class="rrnb-breadcrumb"><span class="rrnb-cr-nb">' + esc(nb.name || "Notebook") + '</span> <span class="sep">›</span> <span class="rrnb-cr-sec">' + esc(sec.name || "Section") + '</span> <span class="sep">›</span> <span class="rrnb-cr-pg">' + esc(p.title || "Page") + '</span></div>' +
+        '<input class="rrnb-title" id="rrnb-title" placeholder="Untitled Page" value="' + esc(p.title || "") + '" />' +
+        '<div class="rrnb-metaline"><span class="rrnb-save" id="rrnb-save"><span class="dot"></span><span id="rrnb-save-txt">Saved</span></span>' +
+          '<span id="rrnb-author">' + esc(p.author || "") + '</span>' +
+          '<span class="rrnb-tag rrnb-beta" title="You’re on the new rich editor (beta). Switch back anytime in settings.">Beta editor</span>' +
+          '<span class="rrnb-presence" id="rrnb-presence" hidden><span class="pdot"></span><span id="rrnb-presence-txt"></span></span>' +
+          '<button class="rrnb-metabtn" id="rrnb-history-btn" type="button" title="Page version history">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 8v4l3 2"/></svg>History</button>' +
+          '<button class="rrnb-metabtn" id="rrnb-ctx-toggle" type="button" title="Toggle the context panel">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg>Context</button></div>' +
+        (ro ? '' : TT_TOOLBAR_HTML) +
+        '<div class="rrnb-editor rrnb-tt" id="rrnb-editor"><div class="rrnb-tt-loading">Loading the rich editor…</div></div>' +
+        '<div class="rrnb-tagbar" id="rrnb-tagbar"></div>' +
+      '</div>';
+    var title = $id("rrnb-title");
+    autoGrow(title);
+    title.addEventListener("input", function () { autoGrow(title); scheduleSave(); updateBreadcrumbTitle(); });
+    var stopLeak = function (e) { if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key !== "Escape") e.stopPropagation(); };
+    title.addEventListener("keydown", function (e) { stopLeak(e); if (e.key === "Enter") { e.preventDefault(); if (S._tt) S._tt.focus(); } });
+    title.addEventListener("keyup", stopLeak); title.addEventListener("keypress", stopLeak);
+    var hb = $id("rrnb-history-btn"); if (hb) hb.addEventListener("click", openHistory);
+    var ctb = $id("rrnb-ctx-toggle"); if (ctb) ctb.addEventListener("click", function () { ctxToggle(); });
+    if (ro) applyReadOnly();
+    var mountEl = $id("rrnb-editor");
+    window.RRTipTap.mount(mountEl, {
+      content: p.content_html || "", readOnly: ro,
+      placeholder: "Type here. Everything autosaves.",
+      onUpdate: function () { scheduleSave(); scheduleCtxRefresh(); }
+    }).then(function (api) {
+      if (S.pageId !== id_of(p)) { api.destroy(); return; }   // page switched mid-load
+      S._tt = api; S.editorKind = "tiptap";
+      var mnt = $id("rrnb-editor"); if (mnt) { var ld = mnt.querySelector(".rrnb-tt-loading"); if (ld) ld.remove(); }
+      var pm = mnt && mnt.querySelector(".ProseMirror");
+      if (pm) { pm.addEventListener("keydown", stopLeak); pm.addEventListener("keyup", ttToolbarState); pm.addEventListener("mouseup", ttToolbarState); }
+      bindTTToolbar();
+    }).catch(function (e) {
+      // CDN unreachable → don't strand the user; fall back to the proven editor.
+      console.warn("TipTap load failed, using classic editor:", e);
+      S.editorKind = "classic"; renderCanvasClassic(p);
+    });
+    renderTags(p.tags || []);
+    renderContextRail(p);
+    refreshSaveLabel();
+  }
+  function bindTTToolbar() {
+    var tb = $id("rrnb-toolbar"); if (!tb) return;
+    tb.addEventListener("mousedown", function (e) { if (e.target.closest("[data-ttcmd]")) e.preventDefault(); });
+    tb.addEventListener("click", function (e) {
+      var b = e.target.closest("[data-ttcmd]"); if (!b || !S._tt) return;
+      var cmd = b.getAttribute("data-ttcmd");
+      if (cmd === "link") { var u = window.prompt("Link URL"); if (u == null) return; S._tt.cmd("link", u.trim() || null); }
+      else if (cmd === "image") { ttPickImage(); }
+      else { S._tt.cmd(cmd); }
+      ttToolbarState();
+    });
+    var sel = $id("rrnb-style-sel");
+    if (sel) sel.addEventListener("change", function () { if (S._tt) { S._tt.cmd("block", sel.value); ttToolbarState(); } });
+    ttToolbarState();
+  }
+  function ttToolbarState() {
+    var tb = $id("rrnb-toolbar"); if (!tb || !S._tt) return;
+    [["bold", "bold"], ["italic", "italic"], ["underline", "underline"], ["strikeThrough", "strike"],
+     ["highlight", "highlight"], ["todo", "taskList"], ["insertUnorderedList", "bulletList"],
+     ["insertOrderedList", "orderedList"], ["quote", "blockquote"], ["code", "codeBlock"]].forEach(function (m) {
+      var btn = tb.querySelector('[data-ttcmd="' + m[0] + '"]'); if (btn) btn.classList.toggle("on", S._tt.isActive(m[1]));
+    });
+    var sel = $id("rrnb-style-sel"); if (sel) sel.value = S._tt.activeBlock();
+  }
+  function ttPickImage() {
+    var inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*";
+    inp.onchange = function () {
+      var f = inp.files && inp.files[0]; if (!f || !S._tt) return;
+      compressImage(f, function (dataUrl) { S._tt.cmd("image", dataUrl); scheduleSave(); });
+    };
+    inp.click();
+  }
   // viewer role: the page renders normally but nothing is editable
   function applyReadOnly() {
     S.readOnly = true;
@@ -1921,6 +2082,11 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   //  AUTOSAVE
   // ══════════════════════════════════════════════════════════════════
   function currentEditorData() {
+    if (S.editorKind === "tiptap" && S._tt) {
+      var ttitle = $id("rrnb-title"); if (!ttitle) return null;
+      return { title: ttitle.value.trim() || "Untitled Page", content_html: S._tt.getHTML(),
+        content_text: S._tt.getText(), tags: (S.page && S.page.tags) || [] };
+    }
     var ed = $id("rrnb-editor"), title = $id("rrnb-title");
     if (!ed || !title) return null;
     // OCR'd picture text rides along in the plaintext mirror so full-text
