@@ -205,7 +205,13 @@
 // items (fill turns green at 100%) — so a long vehicle inspection shows how
 // far they've got. Display-only; never gates submit. Bumped so installed
 // driver PWAs pick up the new app.js + CSS.
-const SHELL_CACHE = "rr-app-shell-v171";
+// v172 · Form fill parity: the Form fill screen gains the same required-
+// progress meter, a sticky Submit bar with a live "N required left" hint,
+// and inline validation that names the problem under each field (not just a
+// toast). Submit stays enabled; server + client validation are unchanged.
+// Verified against the driver-app form-fill e2e. Bumped so installed driver
+// PWAs pick up the new app.js + CSS.
+const SHELL_CACHE = "rr-app-shell-v172";
 const SHELL_FILES = [
   "./",
   "index.html",

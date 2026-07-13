@@ -8763,13 +8763,24 @@ async function renderFormFill() {
 
   const fields = Array.isArray(form.fields) ? form.fields : [];
   const fieldHtml = fields.map((f, i) => _formFieldHtml(f, fields, i)).join("");
+  // Only track progress when there's something required to complete —
+  // an all-optional form shows no meter (nothing to "finish").
+  const _hasRequired = fields.some((f) => f.required && !["section_header", "divider", "instructions"].includes(f.type));
 
   main.innerHTML = `
     <div class="form-fill-page">
       ${form.description ? `<div class="form-fill-desc">${escapeHtml(form.description)}</div>` : ""}
+      ${_hasRequired ? `
+      <div class="form-fill-progress" id="rr-ff-progress" role="progressbar" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">
+        <div class="form-fill-progress-head"><span class="form-fill-progress-label" id="rr-ff-progress-label">Required questions</span></div>
+        <div class="form-fill-progress-track"><div class="form-fill-progress-fill" id="rr-ff-progress-fill" style="width:0%"></div></div>
+      </div>` : ""}
       <form id="rr-form-fill">
         ${fieldHtml}
-        <button class="btn btn-primary btn-block" type="submit" style="margin-top:18px">Submit form</button>
+        <div class="form-fill-submitbar">
+          ${_hasRequired ? `<div class="form-fill-submithint" id="rr-ff-hint" aria-live="polite"></div>` : ""}
+          <button class="btn btn-primary btn-block" type="submit">Submit form</button>
+        </div>
       </form>
     </div>`;
 
@@ -8858,6 +8869,22 @@ async function renderFormFill() {
   _formEl.addEventListener("change", _runConds);
   _runConds();
 
+  // Live required-progress meter + submit hint. Runs after _runConds on
+  // each event so it reflects post-conditional visibility. pointerup
+  // covers signature strokes, which emit no input/change.
+  const _ffBump = () => _ffUpdateProgress(fields, _formEl);
+  _formEl.addEventListener("input",  _ffBump);
+  _formEl.addEventListener("change", _ffBump);
+  _formEl.addEventListener("pointerup", _ffBump);
+  // Clear a field's inline error the moment the driver edits it.
+  const _ffClearOnEdit = (e) => {
+    const root = e.target.closest?.("[data-rr-field]");
+    if (root) _ffClearFieldError(_formEl, root.getAttribute("data-rr-field"));
+  };
+  _formEl.addEventListener("input",  _ffClearOnEdit);
+  _formEl.addEventListener("change", _ffClearOnEdit);
+  _ffUpdateProgress(fields, _formEl);
+
   _formEl.addEventListener("submit", async (e) => {
     e.preventDefault();
     const btn = e.target.querySelector("button[type=submit]");
@@ -8894,17 +8921,29 @@ async function renderFormFill() {
     // rule isn't met) is skipped: not required, not validated. On the first
     // failure we scroll to and focus the offending field so the driver
     // isn't left hunting for it on a long form.
+    // Paint an inline error under EVERY invalid field (not just the first)
+    // so a driver on a long form sees the whole list at once, then focus
+    // the first offender and summarize in a toast.
+    let _firstBad = null;
+    let _badCount = 0;
     for (const f of fields) {
       if (["section_header", "divider", "instructions"].includes(f.type)) continue;
       const condWrap = _formEl.querySelector(`[data-cond-field="${CSS.escape(f.id)}"]`);
       if (condWrap && condWrap.hidden) continue;
       const err = _validateFormAnswer(f, answers[f.id]);
       if (err) {
-        resetBtn();
-        _focusFormField(_formEl, f.id);
-        toast(err, "warn");
-        return;
+        _ffSetFieldError(_formEl, f.id, err);
+        if (!_firstBad) _firstBad = { id: f.id, err };
+        _badCount++;
+      } else {
+        _ffClearFieldError(_formEl, f.id);
       }
+    }
+    if (_firstBad) {
+      resetBtn();
+      _focusFormField(_formEl, _firstBad.id);
+      toast(_badCount > 1 ? `${_badCount} questions need attention` : _firstBad.err, "warn");
+      return;
     }
 
     // Persist offline (or when the network drops mid-submit): store the
@@ -9128,6 +9167,77 @@ function _focusFormField(formEl, fid) {
   const target = (root.matches("input,select,textarea") ? root : root.querySelector("input,select,textarea")) || root;
   try { target.scrollIntoView({ behavior: "smooth", block: "center" }); } catch { try { target.scrollIntoView(); } catch {} }
   try { target.focus({ preventScroll: true }); } catch {}
+}
+
+// Is this field answered right now? Read straight off the live controls so
+// the progress meter + submit hint mirror exactly what the driver sees.
+// A conditionally-hidden field doesn't count (it can't be answered).
+// Display-only — real required/format validation still runs on submit.
+function _ffFieldFilled(field, formEl) {
+  const root = formEl.querySelector(`[data-rr-field="${CSS.escape(field.id)}"]`);
+  if (!root) return false;
+  const condWrap = root.closest("[data-cond-field]");
+  if (condWrap && condWrap.hidden) return false;
+  const t = root.getAttribute("data-rr-type");
+  if (t === "yes_no" || t === "single_choice" || t === "rating") return !!root.querySelector("input[type=radio]:checked");
+  if (t === "multi_choice") return !!root.querySelector("input[type=checkbox]:checked");
+  if (t === "photo" || t === "file") return !!(root.files && root.files.length);
+  if (t === "signature") return !!root._rrHasInk;
+  if (t === "gps") return true;  // captured automatically at submit
+  return "value" in root ? String(root.value || "").trim() !== "" : false;
+}
+
+// Recompute the required-progress meter + the sticky submit hint. Counts
+// only required, currently-visible fields — the set a driver must clear to
+// submit. Never gates the button (submit still validates authoritatively).
+function _ffUpdateProgress(fields, formEl) {
+  const bar = document.getElementById("rr-ff-progress");
+  const req = fields.filter((f) => {
+    if (!f.required || ["section_header", "divider", "instructions"].includes(f.type)) return false;
+    const wrap = formEl.querySelector(`[data-cond-field="${CSS.escape(f.id)}"]`);
+    return !(wrap && wrap.hidden);
+  });
+  const total = req.length;
+  const done = req.reduce((n, f) => n + (_ffFieldFilled(f, formEl) ? 1 : 0), 0);
+  const left = total - done;
+  if (bar) {
+    const fill = document.getElementById("rr-ff-progress-fill");
+    const label = document.getElementById("rr-ff-progress-label");
+    if (fill) fill.style.width = total ? `${Math.round((done / total) * 100)}%` : "0%";
+    if (label) label.textContent = `${done} of ${total} required complete`;
+    bar.setAttribute("aria-valuemax", String(total));
+    bar.setAttribute("aria-valuenow", String(done));
+    bar.classList.toggle("is-complete", total > 0 && left === 0);
+  }
+  const hint = document.getElementById("rr-ff-hint");
+  if (hint) {
+    hint.textContent = left > 0 ? `${left} required question${left === 1 ? "" : "s"} left` : "All required questions answered";
+    hint.classList.toggle("is-ready", left === 0);
+  }
+}
+
+// Inline field error — names the problem right under the field, not just a
+// toast that vanishes. Cleared the moment the driver edits that field.
+function _ffSetFieldError(formEl, fid, msg) {
+  const root = formEl.querySelector(`[data-rr-field="${CSS.escape(fid)}"]`);
+  const rowEl = root && root.closest(".form-fill-row");
+  if (!rowEl) return;
+  rowEl.classList.add("has-error");
+  let el = rowEl.querySelector(".form-fill-error");
+  if (!el) {
+    el = document.createElement("div");
+    el.className = "form-fill-error";
+    el.setAttribute("role", "alert");
+    rowEl.appendChild(el);
+  }
+  el.textContent = msg;
+}
+function _ffClearFieldError(formEl, fid) {
+  const root = formEl.querySelector(`[data-rr-field="${CSS.escape(fid)}"]`);
+  const rowEl = root && root.closest(".form-fill-row");
+  if (!rowEl || !rowEl.classList.contains("has-error")) return;
+  rowEl.classList.remove("has-error");
+  rowEl.querySelector(".form-fill-error")?.remove();
 }
 
 async function _collectFormAnswers(fields, opts = {}) {
