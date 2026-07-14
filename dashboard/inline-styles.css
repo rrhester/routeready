@@ -32545,3 +32545,350 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
   #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-col .oc-ev{ animation:none !important; }
 }
 /* end CALENDAR enterprise reference pass ═════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════════════════════
+   Repair Center (#view-repair) · Phase 2 chrome + queue styles.
+   The viewseg/action-bar recipes are per-view clones of the Fleet
+   page's (which clone Schedule's) — same geometry, but written
+   token-only so the design-lint ratchet keeps holding: no raw hex,
+   no cascade overrides, no literal font-sizes.  Class prefix: rp-.
+   ═══════════════════════════════════════════════════════════════════ */
+#rr-repair-viewseg {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0 8px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+  margin-bottom: 14px;
+}
+#rr-repair-viewseg .rr-viewseg-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: auto;
+  height: auto;
+  padding: 13px 16px 12px;
+  margin-bottom: -1px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--rr-fg-secondary, var(--text-muted));
+  font-family: var(--rr-font-family, inherit);
+  font-size: var(--fs-base);
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--t-fast), border-color var(--t-fast);
+}
+#rr-repair-viewseg .rr-viewseg-btn svg { width: 18px; height: 18px; flex: 0 0 auto; stroke-width: 1.8; }
+#rr-repair-viewseg .rr-viewseg-btn:hover { color: var(--rr-fg-primary, var(--text)); }
+#rr-repair-viewseg .rr-viewseg-btn.active {
+  color: var(--rr-fg-primary, var(--text));
+  border-bottom-color: var(--rr-blue-600, var(--accent));
+}
+#rr-repair-viewseg .rr-viewseg-btn.active svg { color: var(--rr-fg-primary, var(--text)); }
+#rr-repair-viewseg .rr-viewseg-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -3px;
+  border-radius: 4px;
+}
+#view-repair .rp-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 17px;
+  padding: 0 5px;
+  border-radius: 5px;
+  background: var(--canvas);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+}
+#view-repair .rp-tab-count[hidden] { display: none; }
+
+/* Action bar — geometry twin of #view-fleet2 .rr-ab */
+#view-repair .rr-ab {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+  position: relative;
+  padding-bottom: 10px;
+  margin: 0 0 14px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+#view-repair .rr-ab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong, var(--border));
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-12-5, var(--fs-sm));
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color var(--t-fast), border-color var(--t-fast), box-shadow var(--t-fast);
+}
+#view-repair .rr-ab-btn:hover { background: var(--surface-hover); }
+#view-repair .rr-ab-btn:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--ring-focus);
+}
+#view-repair .rr-ab-btn svg { width: 15px; height: 15px; flex: 0 0 auto; }
+#view-repair .rp-ab-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--surface);
+}
+#view-repair .rp-ab-primary:hover { background: var(--accent-hover, var(--accent)); }
+#view-repair .rp-ab-coverage {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  margin-left: auto;
+}
+#view-repair .rp-ab-coverage[hidden] { display: none; }
+#view-repair .rp-ab-cov-main { display: inline-flex; align-items: baseline; gap: 5px; }
+#view-repair .rp-ab-cov-num {
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+#view-repair .rp-ab-cov-unit { font-size: var(--fs-xs); font-weight: 600; color: var(--text-muted); }
+#view-repair .rp-ab-coverage-sub { font-size: var(--fs-xs); font-weight: 600; }
+#view-repair .rp-cov-ok  { color: var(--green); }
+#view-repair .rp-cov-bad { color: var(--red); }
+
+/* Summary strip — .fl-kpi-pills twin, non-interactive pills */
+#view-repair .rp-kpi-pills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--s-2-5);
+  margin: 0 0 var(--s-4);
+}
+#view-repair .rp-kpi-pills[hidden] { display: none; }
+#view-repair .rp-kpi-pill {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: var(--shadow-xs, none);
+  font-size: var(--fs-md);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.3;
+}
+#view-repair .rp-kpi-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  align-self: center;
+  background: var(--border-strong, var(--border));
+}
+#view-repair .rp-kpi-dot-g { background: var(--green); }
+#view-repair .rp-kpi-dot-a { background: var(--amber-dark, var(--amber)); }
+#view-repair .rp-kpi-dot-r { background: var(--red); }
+#view-repair .rp-kpi-dot-b { background: var(--accent); }
+#view-repair .rp-kpi-value { font-size: var(--fs-lg); font-weight: 700; }
+#view-repair .rp-kpi-name  { font-size: var(--fs-xs); font-weight: 600; color: var(--text-muted); white-space: nowrap; }
+#view-repair .rp-kpi-sub   { font-size: var(--fs-xs); color: var(--text-subtle); white-space: nowrap; }
+
+/* Sub-views */
+#view-repair .rp-sub { display: none; }
+#view-repair .rp-sub.active { display: block; }
+
+/* Overview layout */
+#view-repair .rp-overview-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: var(--s-3);
+  align-items: start;
+}
+#view-repair .rp-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-2-5) var(--s-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+#view-repair .rp-card-title {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+#view-repair .rp-card-spacer { flex: 1; }
+#view-repair .rp-link-btn {
+  border: 0;
+  background: transparent;
+  color: var(--accent-text);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+#view-repair .rp-link-btn:hover { text-decoration: underline; }
+#view-repair .rp-activity { padding: var(--s-2) var(--s-4) var(--s-3); max-height: 520px; overflow: auto; }
+
+/* Queue toolbar (fl-roster-bar twin) */
+#view-repair .rp-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+  padding: var(--s-2-5) var(--s-3);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface);
+}
+#view-repair .rp-search {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: 1 1 220px;
+  max-width: 340px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0 10px;
+  background: var(--surface);
+  color: var(--text-subtle);
+}
+#view-repair .rp-search svg { width: 14px; height: 14px; flex: 0 0 auto; }
+#view-repair .rp-search input {
+  border: 0;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: var(--fs-sm);
+  color: var(--text);
+  width: 100%;
+}
+#view-repair .rp-bar-spacer { flex: 1; }
+#view-repair .rp-filter {
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text);
+  padding: 0 var(--s-2);
+}
+#view-repair .rp-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+#view-repair .rp-table-scroll { overflow-x: auto; }
+
+/* Table cells */
+#view-repair .rp-caserow { cursor: pointer; }
+#view-repair .rp-veh-un { display: block; font-weight: 600; white-space: nowrap; }
+#view-repair .rp-veh-sub, #view-repair .rp-cell-sub {
+  display: block;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  margin-top: 1px;
+  white-space: nowrap;
+}
+#view-repair .rp-strong { font-weight: 600; }
+#view-repair .rp-muted { color: var(--text-subtle); }
+#view-repair .rp-when { white-space: nowrap; color: var(--text-muted); }
+#view-repair .rp-promise-overdue { color: var(--red); font-weight: 700; white-space: nowrap; }
+#view-repair .rp-promise-soon { color: var(--amber-dark, var(--amber)); font-weight: 600; white-space: nowrap; }
+#view-repair .rp-table-empty {
+  padding: var(--s-8) var(--s-4);
+  text-align: center;
+  color: var(--text-subtle);
+  font-size: var(--fs-md);
+}
+#view-repair .rp-error { color: var(--red); }
+#view-repair .rp-skel-row td { padding: var(--s-3) var(--s-4); }
+#view-repair .rp-skel-row .rr-skel { display: block; width: 100%; }
+
+/* Shared small vocabulary (queue + drawer overlays live outside
+   #view-repair, so these are class-scoped with the rp- prefix). */
+.rp-mono { font-family: var(--rr-font-mono, ui-monospace, monospace); font-size: var(--fs-xs); }
+.rp-ost { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-sm); font-weight: 600; white-space: nowrap; }
+.rp-ost-dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; background: var(--border-strong, var(--border)); }
+.rp-ost-g { color: var(--green); }  .rp-ost-g .rp-ost-dot { background: var(--green); }
+.rp-ost-r { color: var(--red); }    .rp-ost-r .rp-ost-dot { background: var(--red); }
+.rp-ost-a { color: var(--amber-dark, var(--amber)); } .rp-ost-a .rp-ost-dot { background: var(--amber-dark, var(--amber)); }
+.rp-ost-n { color: var(--text-muted); } .rp-ost-n .rp-ost-dot { background: var(--border-strong, var(--border)); }
+.rp-days {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  padding: 2px var(--s-2);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  background: var(--canvas);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.rp-days-warn { background: var(--amber-soft); color: var(--amber-dark, var(--amber)); }
+.rp-days-bad  { background: var(--red-soft); color: var(--red); }
+/* Status-pill tone aliases (reuse the app-wide .status-pill base) */
+.rp-pill-ok      { background: var(--green-soft); color: var(--green); }
+.rp-pill-warn    { background: var(--amber-soft); color: var(--amber-dark, var(--amber)); }
+.rp-pill-bad     { background: var(--red-soft); color: var(--red); }
+.rp-pill-info    { background: var(--accent-soft); color: var(--accent-text); }
+.rp-pill-slate   { background: var(--canvas); color: var(--text-muted); border-color: var(--border); }
+.rp-pill-neutral { background: var(--canvas); color: var(--text-muted); border-color: var(--border); }
+/* Timeline (Overview activity + case drawer) */
+.rp-tl { display: flex; flex-direction: column; }
+.rp-tl-item { position: relative; display: flex; gap: var(--s-2-5); padding: var(--s-2) 0; }
+.rp-tl-item.rp-caserow { cursor: pointer; }
+.rp-tl-item.rp-caserow:hover .rp-tl-title { color: var(--accent-text); }
+.rp-tl-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  margin-top: 4px;
+  background: var(--surface);
+  border: 2px solid var(--border-strong, var(--border));
+}
+.rp-tl-b .rp-tl-dot { border-color: var(--accent); }
+.rp-tl-g .rp-tl-dot { border-color: var(--green); }
+.rp-tl-r .rp-tl-dot { border-color: var(--red); }
+.rp-tl-body { min-width: 0; }
+.rp-tl-title { font-size: var(--fs-sm); font-weight: 600; color: var(--text); line-height: 1.4; }
+.rp-tl-sub  { font-size: var(--fs-xs); color: var(--text-muted); margin-top: 1px; }
+.rp-tl-when { font-size: var(--fs-xs); color: var(--text-subtle); margin-top: 2px; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 980px) {
+  #view-repair .rp-overview-grid { grid-template-columns: 1fr; }
+}

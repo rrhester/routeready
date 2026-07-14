@@ -5049,6 +5049,9 @@ window.goto = function (view) {
   }
   if (view === "recognition" && typeof loadRecognitionView === "function") loadRecognitionView();
   if (view === "compliance" && typeof loadComplianceWorkspace === "function") loadComplianceWorkspace();
+  // Repair Center · self-registered module (dashboard/repair/repair-ui.js,
+  // the parts-ui.js pattern) — live.js only dispatches the view-enter.
+  if (view === "repair" && window.RRRepair) window.RRRepair.loadView();
 };
 
 // ── Platform admin view ────────────────────────────────────────────────────
