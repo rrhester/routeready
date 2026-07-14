@@ -23,6 +23,7 @@ import {
   STAGES, STAGE_LABEL, STAGE_TONE, isOpenStage,
   AVAILABILITY_LABEL, AVAILABILITY_TONE,
   SHOP_STATUS_LABEL, SHOP_STATUS_TONE, CATEGORY_OPTIONS,
+  REQUEST_STATUS_LABEL, REQUEST_STATUS_TONE, SHOP_CLASS_LABEL, SHOP_CLASS_TONE,
   msBetween, formatDuration, daysDown, daysDownTone, promiseState, downSince,
   formatCents, attentionScore, filterQueue, sortQueue,
   formatWhen, formatDay, vehicleShortDesc, parseOdometer, ODOMETER_MAX,
@@ -44,6 +45,8 @@ import {
     summary: null,
     activity: [],
     vehicles: [],          // fleet roster cache for the new-case picker
+    shops: [],             // vendor directory cache
+    shopsLoaded: false,
     filters: { search: "", stage: "", station: "", grounded: false, overdue: false, openOnly: true },
     drawerCase: null,
   };
@@ -109,6 +112,7 @@ import {
   async function loadView(force) {
     if (S.loading) return;
     S.loading = true;
+    injectCss(); // the frag's toolbar buttons use the injected classes
     try {
       const [list, summary] = await Promise.all([
         sb().rpc("repair_cases_list", { p_open_only: S.filters.openOnly }),
@@ -353,6 +357,140 @@ import {
     document.querySelectorAll("#view-repair .rp-sub").forEach((d) => {
       d.classList.toggle("active", d.id === `rp-sub-${name}`);
     });
+    if (name === "shops" && !S.shopsLoaded) loadShops();
+  }
+
+  // ── shop directory ───────────────────────────────────────────────────
+  async function loadShops(force) {
+    if (S.shopsLoaded && !force) { renderShops(); return S.shops; }
+    const { data, error } = await sb().rpc("repair_vendors_list");
+    if (error) {
+      fail("Couldn't load the shop directory", error);
+      const tbody = el("rr-repair-shops-tbody");
+      if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="rp-table-empty rp-error">Couldn't load shops · ${esc(error.message)}</td></tr>`;
+      return [];
+    }
+    S.shops = Array.isArray(data) ? data : [];
+    S.shopsLoaded = true;
+    renderShops();
+    return S.shops;
+  }
+
+  const shopClassPill = (s) =>
+    `<span class="status-pill rp-pill-${esc(SHOP_CLASS_TONE[s.preferred_status] || "neutral")}">${esc(SHOP_CLASS_LABEL[s.preferred_status] || s.preferred_status || "Approved")}</span>`;
+
+  function renderShops() {
+    const tbody = el("rr-repair-shops-tbody");
+    if (!tbody) return;
+    const count = el("rr-repair-shops-count");
+    if (count) {
+      const pref = S.shops.filter((s) => s.preferred_status === "preferred").length;
+      const blocked = S.shops.filter((s) => s.preferred_status === "blocked").length;
+      count.textContent = `${S.shops.length} shops · ${pref} preferred${blocked ? ` · ${blocked} blocked` : ""}`;
+    }
+    if (!S.shops.length) {
+      tbody.innerHTML = `<tr><td colspan="8" class="rp-table-empty">Add the shops you already use — a name and an email address are enough to send the first quote request.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = S.shops.map((s) => {
+      const services = Array.isArray(s.service_categories) ? s.service_categories.join(", ") : "";
+      const flags = [s.mobile_service ? "mobile" : null, s.towing_available ? "towing" : null,
+        s.after_hours ? "after-hours" : null].filter(Boolean).join(" · ");
+      const blocked = s.preferred_status === "blocked";
+      return `<tr class="rp-shoprow${blocked ? " rp-dim" : ""}" data-rp-shop="${esc(s.id)}">
+        <td><span class="rp-strong">${esc(s.name)}</span><span class="rp-cell-sub">${esc([s.address, s.city].filter(Boolean).join(" · ") || s.hours_note || "")}</span></td>
+        <td><span>${esc(s.kind || "repair")}</span><span class="rp-cell-sub">${esc([services, flags].filter(Boolean).join(" · "))}</span></td>
+        <td><span>${esc(s.contact_name || "—")}</span><span class="rp-cell-sub">${esc([s.contact_phone, s.contact_email].filter(Boolean).join(" · "))}</span></td>
+        <td class="num">${s.avg_response_hours != null ? `~${esc(String(s.avg_response_hours))}h` : `<span class="rp-muted">—</span>`}</td>
+        <td class="num">${esc(String(s.quotes_submitted ?? 0))}</td>
+        <td class="num">${s.open_cases > 0 ? `<span class="status-pill rp-pill-info">${esc(String(s.open_cases))} active</span>` : `<span class="rp-muted">—</span>`}</td>
+        <td>${shopClassPill(s)}${blocked && s.blocked_reason ? `<span class="rp-cell-sub">${esc(s.blocked_reason)}</span>` : ""}</td>
+        <td class="num"><button type="button" class="rp-btn rp-btn-sm" data-rp-shop-edit="${esc(s.id)}">Edit</button></td>
+      </tr>`;
+    }).join("");
+  }
+
+  function newShop(shopId) {
+    injectCss();
+    el("rr-rp-modal")?.remove();
+    const s = S.shops.find((x) => x.id === shopId) || {};
+    const wrap = document.createElement("div");
+    wrap.id = "rr-rp-modal";
+    const kindOpts = ["repair", "mobile", "tow", "parts", "other"].map((k) =>
+      `<option value="${k}"${(s.kind || "repair") === k ? " selected" : ""}>${k[0].toUpperCase() + k.slice(1)}</option>`).join("");
+    const classOpts = Object.entries(SHOP_CLASS_LABEL).map(([k, label]) =>
+      `<option value="${k}"${(s.preferred_status || "approved") === k ? " selected" : ""}>${label}</option>`).join("");
+    wrap.innerHTML = `
+      <div class="rp-modal-scrim" data-rp-mclose></div>
+      <div class="rp-modal-card rp-modal-wide" role="dialog" aria-modal="true" aria-label="${shopId ? "Edit shop" : "Add shop"}">
+        <header class="rp-modal-head"><h3>${shopId ? "Edit shop" : "Add shop"}</h3><button type="button" class="rp-drawer-x" data-rp-mclose aria-label="Close">✕</button></header>
+        <div class="rp-modal-body">
+          <div class="rp-form-grid">
+            <label class="rp-field"><span>Shop name <em>*</em></span><input id="rr-rp-sh-name" class="rp-input" maxlength="120" value="${esc(s.name || "")}"></label>
+            <label class="rp-field"><span>Type</span><select id="rr-rp-sh-kind" class="rp-input">${kindOpts}</select></label>
+            <label class="rp-field"><span>Contact name</span><input id="rr-rp-sh-cname" class="rp-input" maxlength="80" value="${esc(s.contact_name || "")}"></label>
+            <label class="rp-field"><span>Phone</span><input id="rr-rp-sh-phone" class="rp-input" maxlength="30" value="${esc(s.contact_phone || "")}"></label>
+            <label class="rp-field rp-span2"><span>Email (quote requests go here)</span><input id="rr-rp-sh-email" class="rp-input" maxlength="120" inputmode="email" value="${esc(s.contact_email || "")}"></label>
+            <label class="rp-field rp-span2"><span>Address</span><input id="rr-rp-sh-address" class="rp-input" maxlength="200" value="${esc(s.address || "")}"></label>
+            <label class="rp-field"><span>Distance (mi)</span><input id="rr-rp-sh-dist" class="rp-input" inputmode="decimal" value="${esc(s.distance_mi != null ? String(s.distance_mi) : "")}"></label>
+            <label class="rp-field"><span>Hours</span><input id="rr-rp-sh-hours" class="rp-input" maxlength="120" value="${esc(s.hours_note || "")}" placeholder="e.g. Mon–Sat 7–6"></label>
+            <label class="rp-field"><span>Classification</span><select id="rr-rp-sh-class" class="rp-input">${classOpts}</select></label>
+            <label class="rp-field" id="rr-rp-sh-blockwrap" ${((s.preferred_status || "approved") !== "blocked") ? "hidden" : ""}><span>Blocked reason</span><input id="rr-rp-sh-blockreason" class="rp-input" maxlength="200" value="${esc(s.blocked_reason || "")}"></label>
+            <label class="rp-field rp-span2"><span>Services (comma separated)</span><input id="rr-rp-sh-services" class="rp-input" maxlength="300" value="${esc(Array.isArray(s.service_categories) ? s.service_categories.join(", ") : "")}" placeholder="e.g. brakes, tires, collision, glass"></label>
+            <div class="rp-field rp-span2" style="flex-direction:row;gap:16px;align-items:center">
+              <label class="rp-checkline"><input type="checkbox" id="rr-rp-sh-mobile" ${s.mobile_service ? "checked" : ""}> Mobile service</label>
+              <label class="rp-checkline"><input type="checkbox" id="rr-rp-sh-towing" ${s.towing_available ? "checked" : ""}> Towing</label>
+              <label class="rp-checkline"><input type="checkbox" id="rr-rp-sh-afterhours" ${s.after_hours ? "checked" : ""}> After hours</label>
+            </div>
+            <label class="rp-field rp-span2"><span>Internal notes (never shown to shops)</span><textarea id="rr-rp-sh-notes" class="rp-input rp-input-ta" rows="2" maxlength="1000">${esc(s.notes || "")}</textarea></label>
+          </div>
+        </div>
+        <footer class="rp-modal-foot">
+          <button type="button" class="rp-btn" data-rp-mclose>Cancel</button>
+          <button type="button" class="rp-btn rp-btn-primary" data-rp-sh-save>${shopId ? "Save shop" : "Add shop"}</button>
+        </footer>
+      </div>`;
+    document.body.appendChild(wrap);
+    wrap.querySelector("#rr-rp-sh-class").addEventListener("change", (e) => {
+      wrap.querySelector("#rr-rp-sh-blockwrap").hidden = e.target.value !== "blocked";
+    });
+    wrap.addEventListener("click", async (e) => {
+      if (e.target.closest("[data-rp-mclose]")) { wrap.remove(); return; }
+      if (!e.target.closest("[data-rp-sh-save]")) return;
+      const name = wrap.querySelector("#rr-rp-sh-name").value.trim();
+      if (!name) { say("Give the shop a name", "warn"); return; }
+      const services = wrap.querySelector("#rr-rp-sh-services").value
+        .split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
+      const distRaw = wrap.querySelector("#rr-rp-sh-dist").value.replace(/[^\d.]/g, "");
+      const btn = e.target.closest("[data-rp-sh-save]");
+      btn.disabled = true;
+      const { error } = await sb().rpc("repair_vendor_save", {
+        p_id: shopId || null,
+        p_patch: {
+          name,
+          kind: wrap.querySelector("#rr-rp-sh-kind").value,
+          contact_name: wrap.querySelector("#rr-rp-sh-cname").value.trim() || null,
+          contact_phone: wrap.querySelector("#rr-rp-sh-phone").value.trim() || null,
+          contact_email: wrap.querySelector("#rr-rp-sh-email").value.trim() || null,
+          address: wrap.querySelector("#rr-rp-sh-address").value.trim() || null,
+          distance_mi: distRaw ? parseFloat(distRaw) : null,
+          hours_note: wrap.querySelector("#rr-rp-sh-hours").value.trim() || null,
+          preferred_status: wrap.querySelector("#rr-rp-sh-class").value,
+          blocked_reason: wrap.querySelector("#rr-rp-sh-blockreason")?.value.trim() || null,
+          service_categories: services,
+          mobile_service: wrap.querySelector("#rr-rp-sh-mobile").checked,
+          towing_available: wrap.querySelector("#rr-rp-sh-towing").checked,
+          after_hours: wrap.querySelector("#rr-rp-sh-afterhours").checked,
+          notes: wrap.querySelector("#rr-rp-sh-notes").value.trim() || null,
+        },
+      });
+      btn.disabled = false;
+      if (error) { fail("Couldn't save the shop", error); return; }
+      wrap.remove();
+      say("Shop saved");
+      await loadShops(true);
+    });
+    wrap.querySelector("#rr-rp-sh-name")?.focus();
   }
 
   // ── case drawer ──────────────────────────────────────────────────────
@@ -471,6 +609,14 @@ import {
             ${!c.ro ? `<button type="button" class="rp-btn" data-rp-link-ro>Open RO</button>` : ""}
             ${typeof window.openFleetDrawer === "function" ? `<button type="button" class="rp-btn" data-rp-fleet>Fleet record</button>` : ""}
           </div>
+          <h4 class="rp-drawer-h4">Quotes &amp; shops</h4>
+          <div class="rp-qsec" id="rr-rp-quotes">
+            <div class="rp-table-empty rp-qsec-loading">Loading quotes…</div>
+          </div>
+          <div class="rp-drawer-actions" style="border-top:none;margin-bottom:0;padding-bottom:0">
+            <button type="button" class="rp-btn rp-btn-primary" data-rp-request-quotes>Request quotes…</button>
+            <button type="button" class="rp-btn" data-rp-phone-quote>Log phone quote…</button>
+          </div>
           <h4 class="rp-drawer-h4">Attachments</h4>
           <div class="rp-atts" id="rr-rp-atts">${drawerAttachments(c)}</div>
           <h4 class="rp-drawer-h4">Timeline</h4>
@@ -487,6 +633,19 @@ import {
       if (e.target.closest("[data-rp-log]")) { openLogModal(c.id); return; }
       if (e.target.closest("[data-rp-link-ro]")) { await doLinkRo(c.id); return; }
       if (e.target.closest("[data-rp-fleet]")) { closeDrawer(); window.openFleetDrawer(c.vehicle?.id); return; }
+      if (e.target.closest("[data-rp-request-quotes]")) { openRequestModal(c); return; }
+      if (e.target.closest("[data-rp-phone-quote]")) { openPhoneQuoteModal(c); return; }
+      const reqAct = e.target.closest("[data-rp-req-action]");
+      if (reqAct) {
+        await doRequestAction(c, reqAct.getAttribute("data-rp-req-id"), reqAct.getAttribute("data-rp-req-action"));
+        return;
+      }
+      const qToggle = e.target.closest("[data-rp-quote-toggle]");
+      if (qToggle) {
+        const items = wrap.querySelector(`[data-rp-quote-items="${qToggle.getAttribute("data-rp-quote-toggle")}"]`);
+        if (items) items.hidden = !items.hidden;
+        return;
+      }
       const att = e.target.closest("[data-rp-att-path]");
       if (att) { await openAttachment(att.getAttribute("data-rp-att-bucket"), att.getAttribute("data-rp-att-path")); return; }
       if (e.target.closest(".rp-att-add .rp-link-btn")) { el("rr-rp-att-input")?.click(); }
@@ -494,6 +653,274 @@ import {
     const fileInput = wrap.querySelector("#rr-rp-att-input");
     if (fileInput) fileInput.addEventListener("change", () => uploadAttachments(c, fileInput.files));
     document.addEventListener("keydown", drawerEsc);
+    loadDrawerQuotes(c.id); // async fill; drawer stays responsive
+  }
+
+  // ── quotes section (drawer) ──────────────────────────────────────────
+  async function loadDrawerQuotes(caseId) {
+    const host = el("rr-rp-quotes");
+    if (!host) return;
+    const { data, error } = await sb().rpc("repair_case_quotes", { p_case_id: caseId });
+    if (!el("rr-rp-quotes")) return; // drawer closed meanwhile
+    if (error || !data) {
+      host.innerHTML = `<div class="rp-table-empty rp-error">Couldn't load quotes · ${esc(error?.message || "try again")}</div>`;
+      return;
+    }
+    renderDrawerQuotes(host, data);
+  }
+
+  function renderDrawerQuotes(host, data) {
+    const requests = data.requests || [];
+    const quotes = data.quotes || [];
+    if (!requests.length && !quotes.length) {
+      host.innerHTML = `<div class="rp-table-empty" style="padding:var(--s-3) 0;text-align:left">No quotes yet — send this case to your shops, or log a phone quote.</div>`;
+      return;
+    }
+    const reqPill = (r) =>
+      `<span class="status-pill rp-pill-${esc(REQUEST_STATUS_TONE[r.request_status] || "neutral")}">${esc(REQUEST_STATUS_LABEL[r.request_status] || r.request_status)}</span>`;
+    const reqSub = (r) => {
+      if (r.request_status === "submitted") return `quote in ${formatWhen(r.submitted_at, nowIso())}`;
+      if (r.request_status === "declined") return [`declined ${formatWhen(r.declined_at, nowIso())}`, r.decline_reason].filter(Boolean).join(" — ");
+      if (r.request_status === "opened") return `opened ${formatWhen(r.opened_at, nowIso())}`;
+      if (r.request_status === "sent") return `sent ${formatWhen(r.sent_at, nowIso())}${r.reminder_count ? ` · ${r.reminder_count} reminder${r.reminder_count > 1 ? "s" : ""}` : ""}`;
+      return "";
+    };
+    const reqRows = requests.map((r) => `
+      <div class="rp-qrow">
+        <div class="rp-qrow-main">
+          <span class="rp-strong">${esc(r.vendor_name || "Shop")}</span>
+          <span class="rp-cell-sub">${esc(reqSub(r))}</span>
+        </div>
+        ${reqPill(r)}
+        ${["sent", "opened"].includes(r.request_status)
+          ? `<button type="button" class="rp-btn rp-btn-sm" data-rp-req-action="remind" data-rp-req-id="${esc(r.id)}" title="Send a reminder email">Remind</button>`
+          : ""}
+        ${!["declined", "expired", "failed"].includes(r.request_status)
+          ? `<button type="button" class="rp-btn rp-btn-sm" data-rp-req-action="regenerate" data-rp-req-id="${esc(r.id)}" title="Copy a fresh secure link">Copy link</button>`
+          : ""}
+        ${["queued", "sent", "opened"].includes(r.request_status)
+          ? `<button type="button" class="rp-btn rp-btn-sm rp-btn-danger" data-rp-req-action="revoke" data-rp-req-id="${esc(r.id)}" title="Revoke the secure link">Revoke</button>`
+          : ""}
+      </div>`).join("");
+
+    const quoteRows = quotes.map((q) => {
+      const meta = [
+        q.earliest_appointment_at ? `appt ${formatDay(q.earliest_appointment_at)}` : null,
+        q.estimated_completion_at ? `done ${formatDay(q.estimated_completion_at)}` : null,
+        q.warranty_summary || null,
+        q.source !== "shop_form" ? q.source.replace(/_/g, " ") : null,
+      ].filter(Boolean).join(" · ");
+      const items = (q.line_items || []).map((li) => `
+        <div class="rp-qli">
+          <span class="rp-qli-desc">${esc(li.description)}${li.part_number ? ` <span class="rp-cell-sub" style="display:inline">· ${esc(li.part_number)}</span>` : ""}</span>
+          <span class="rp-qli-amt">${esc(formatCents(li.line_total_cents))}</span>
+        </div>`).join("");
+      return `
+      <div class="rp-qrow rp-qrow-quote">
+        <div class="rp-qrow-main">
+          <span class="rp-strong">${esc(q.vendor_name || "Shop")}
+            ${q.totals_mismatch ? `<span class="status-pill rp-pill-warn" title="The shop's own total doesn't match its line items">Totals differ</span>` : ""}
+            ${q.version > 1 ? `<span class="rp-cell-sub" style="display:inline"> · v${esc(String(q.version))}</span>` : ""}
+          </span>
+          <span class="rp-cell-sub">${esc(meta || "—")}</span>
+        </div>
+        <span class="rp-strong rp-qamt">${esc(formatCents(q.grand_total_cents ?? q.shop_reported_total_cents))}</span>
+        ${(q.line_items || []).length
+          ? `<button type="button" class="rp-btn rp-btn-sm" data-rp-quote-toggle="${esc(q.id)}">${(q.line_items || []).length} lines</button>`
+          : ""}
+      </div>
+      ${(q.line_items || []).length ? `<div class="rp-qitems" data-rp-quote-items="${esc(q.id)}" hidden>${items}</div>` : ""}`;
+    }).join("");
+
+    host.innerHTML = `
+      ${quotes.length ? `<div class="rp-qhead">Quotes received</div>${quoteRows}` : ""}
+      ${requests.length ? `<div class="rp-qhead">Requests</div>${reqRows}` : ""}`;
+  }
+
+  async function doRequestAction(c, requestId, action) {
+    if (action === "revoke") {
+      const ok = typeof window._rrConfirmDialog === "function"
+        ? await window._rrConfirmDialog({ title: "Revoke this link?", body: "The shop's secure link stops working immediately. You can copy a fresh link afterwards if needed.", confirmLabel: "Revoke link" })
+        : window.confirm("Revoke this shop's secure link?");
+      if (!ok) return;
+    }
+    const { data, error } = await sb().rpc("repair_quote_request_action", {
+      p_request_id: requestId, p_action: action,
+    });
+    if (error) { fail("Couldn't update the request", error); return; }
+    if (action === "regenerate" && data?.link) {
+      try {
+        await navigator.clipboard.writeText(data.link);
+        say("Fresh link copied to clipboard");
+      } catch {
+        window.prompt("Copy the fresh secure link:", data.link);
+      }
+    } else if (action === "remind") {
+      say("Reminder queued");
+    } else {
+      say("Link revoked");
+    }
+    loadDrawerQuotes(c.id);
+  }
+
+  // ── request-quotes modal ─────────────────────────────────────────────
+  async function openRequestModal(c) {
+    injectCss();
+    el("rr-rp-modal")?.remove();
+    const shops = await loadShops();
+    const wrap = document.createElement("div");
+    wrap.id = "rr-rp-modal";
+    const rows = shops.map((s) => {
+      const blocked = s.preferred_status === "blocked";
+      const noEmail = !s.contact_email;
+      const disabled = blocked || noEmail;
+      const why = blocked ? (s.blocked_reason ? `Blocked — ${s.blocked_reason}` : "Blocked")
+        : noEmail ? "No email on file — edit the shop first" : "";
+      const perf = [
+        s.avg_response_hours != null ? `responds ~${s.avg_response_hours}h` : null,
+        s.quotes_submitted ? `${s.quotes_submitted} quotes` : null,
+        s.distance_mi != null ? `${s.distance_mi} mi` : null,
+      ].filter(Boolean).join(" · ");
+      return `<label class="rp-shoppick${disabled ? " rp-dim" : ""}">
+        <input type="checkbox" value="${esc(s.id)}" ${disabled ? "disabled" : ""}>
+        <span class="rp-shoppick-main">
+          <span class="rp-strong">${esc(s.name)}</span>
+          <span class="rp-cell-sub">${esc(disabled ? why : [SHOP_CLASS_LABEL[s.preferred_status] || "", s.kind, perf].filter(Boolean).join(" · "))}</span>
+        </span>
+        ${shopClassPill(s)}
+      </label>`;
+    }).join("");
+    const defaultRespond = new Date(Date.now() + 2 * 24 * 3600e3);
+    defaultRespond.setHours(12, 0, 0, 0);
+    const pad = (n) => String(n).padStart(2, "0");
+    const respondVal = `${defaultRespond.getFullYear()}-${pad(defaultRespond.getMonth() + 1)}-${pad(defaultRespond.getDate())}T${pad(defaultRespond.getHours())}:${pad(defaultRespond.getMinutes())}`;
+    const photoCount = (c.attachments || []).filter((a) => /^image\//.test(a.mime_type || "")).length;
+    wrap.innerHTML = `
+      <div class="rp-modal-scrim" data-rp-mclose></div>
+      <div class="rp-modal-card rp-modal-wide" role="dialog" aria-modal="true" aria-label="Request quotes">
+        <header class="rp-modal-head"><h3>Request quotes — ${esc(c.case_number)}</h3><button type="button" class="rp-drawer-x" data-rp-mclose aria-label="Close">✕</button></header>
+        <div class="rp-modal-body">
+          <div class="rp-field"><span>Shops to contact <em>*</em></span></div>
+          <div class="rp-shoplist">${rows || `<div class="rp-table-empty">No shops yet — add one from the Shop Directory tab first.</div>`}</div>
+          <div class="rp-form-grid" style="margin-top:var(--s-3)">
+            <label class="rp-field"><span>Respond by</span><input id="rr-rp-rq-respond" class="rp-input" type="datetime-local" value="${respondVal}"></label>
+            <label class="rp-field"><span>Link expires</span>
+              <select id="rr-rp-rq-expires" class="rp-input">
+                <option value="7" selected>7 days after send</option>
+                <option value="14">14 days after send</option>
+                <option value="30">30 days after send</option>
+              </select>
+            </label>
+            <label class="rp-field rp-span2"><span>Message to shops</span>
+              <textarea id="rr-rp-rq-message" class="rp-input rp-input-ta" rows="3" maxlength="1500">${esc(c.description || c.title || "")}</textarea>
+            </label>
+            <div class="rp-field rp-span2" style="flex-direction:row;gap:16px;align-items:center;flex-wrap:wrap">
+              <label class="rp-checkline"><input type="checkbox" id="rr-rp-rq-mask" checked> Mask VIN to last 8</label>
+              <label class="rp-checkline"><input type="checkbox" id="rr-rp-rq-photos" ${photoCount ? "checked" : "disabled"}> Share photos (${photoCount})</label>
+            </div>
+          </div>
+          <div class="rp-callout rp-callout-info" style="margin:var(--s-3) 0 0">Each shop gets its own secure link and email. Shops never see each other, competing quotes, or your internal notes.</div>
+          <div id="rr-rp-rq-results" style="margin-top:var(--s-3)"></div>
+        </div>
+        <footer class="rp-modal-foot">
+          <button type="button" class="rp-btn" data-rp-mclose>Cancel</button>
+          <button type="button" class="rp-btn rp-btn-primary" data-rp-rq-send>Send quote requests</button>
+        </footer>
+      </div>`;
+    document.body.appendChild(wrap);
+    wrap.addEventListener("click", async (e) => {
+      if (e.target.closest("[data-rp-mclose]")) { wrap.remove(); return; }
+      const copyBtn = e.target.closest("[data-rp-copy-link]");
+      if (copyBtn) {
+        try { await navigator.clipboard.writeText(copyBtn.getAttribute("data-rp-copy-link")); say("Link copied"); }
+        catch { window.prompt("Copy the secure link:", copyBtn.getAttribute("data-rp-copy-link")); }
+        return;
+      }
+      if (!e.target.closest("[data-rp-rq-send]")) return;
+      const picked = [...wrap.querySelectorAll(".rp-shoplist input:checked")].map((i) => i.value);
+      if (!picked.length) { say("Pick at least one shop", "warn"); return; }
+      const respond = wrap.querySelector("#rr-rp-rq-respond").value;
+      const btn = e.target.closest("[data-rp-rq-send]");
+      btn.disabled = true;
+      const { data, error } = await sb().rpc("repair_quote_requests_send", {
+        p_case_id: c.id,
+        p_vendor_ids: picked,
+        p_message: wrap.querySelector("#rr-rp-rq-message").value.trim() || null,
+        p_respond_by: respond ? new Date(respond).toISOString() : null,
+        p_expires_days: parseInt(wrap.querySelector("#rr-rp-rq-expires").value, 10),
+        p_mask_vin: wrap.querySelector("#rr-rp-rq-mask").checked,
+        p_share_photos: wrap.querySelector("#rr-rp-rq-photos").checked,
+      });
+      btn.disabled = false;
+      if (error) { fail("Couldn't send the requests", error); return; }
+      const results = Array.isArray(data) ? data : [];
+      const okCount = results.filter((r) => r.ok).length;
+      const resHtml = results.map((r) => r.ok
+        ? `<div class="rp-qrow"><div class="rp-qrow-main"><span class="rp-strong">${esc(r.vendor_name)}</span><span class="rp-cell-sub">request sent</span></div><span class="status-pill rp-pill-ok">Sent</span><button type="button" class="rp-btn rp-btn-sm" data-rp-copy-link="${esc(r.link)}">Copy link</button></div>`
+        : `<div class="rp-qrow"><div class="rp-qrow-main"><span class="rp-strong">${esc(r.vendor_name || "Shop")}</span><span class="rp-cell-sub">${esc({ vendor_no_email: "no email on file", vendor_blocked: "blocked", request_already_active: "a request is already active", vendor_not_found: "not found" }[r.error] || r.error)}</span></div><span class="status-pill rp-pill-bad">Not sent</span></div>`
+      ).join("");
+      wrap.querySelector("#rr-rp-rq-results").innerHTML = resHtml;
+      btn.remove();
+      wrap.querySelector("[data-rp-mclose].rp-btn").textContent = "Done";
+      say(okCount ? `${okCount} request${okCount > 1 ? "s" : ""} sent` : "No requests sent", okCount ? undefined : "warn");
+      await loadView(true);
+      loadDrawerQuotes(c.id);
+    });
+  }
+
+  // ── phone/manual quote modal ─────────────────────────────────────────
+  async function openPhoneQuoteModal(c) {
+    injectCss();
+    el("rr-rp-modal")?.remove();
+    const shops = await loadShops();
+    const wrap = document.createElement("div");
+    wrap.id = "rr-rp-modal";
+    const opts = shops.filter((s) => s.preferred_status !== "blocked")
+      .map((s) => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join("");
+    wrap.innerHTML = `
+      <div class="rp-modal-scrim" data-rp-mclose></div>
+      <div class="rp-modal-card" role="dialog" aria-modal="true" aria-label="Log phone quote">
+        <header class="rp-modal-head"><h3>Log a phone quote</h3><button type="button" class="rp-drawer-x" data-rp-mclose aria-label="Close">✕</button></header>
+        <div class="rp-modal-body">
+          <label class="rp-field"><span>Shop <em>*</em></span><select id="rr-rp-pq-shop" class="rp-input">${opts || `<option value="">No shops yet</option>`}</select></label>
+          <div class="rp-form-grid">
+            <label class="rp-field"><span>Quoted total ($) <em>*</em></span><input id="rr-rp-pq-total" class="rp-input" inputmode="decimal" placeholder="e.g. 918.00"></label>
+            <label class="rp-field"><span>Earliest appointment</span><input id="rr-rp-pq-appt" class="rp-input" type="date"></label>
+          </div>
+          <label class="rp-field"><span>Notes (who you spoke to, scope, exclusions)</span><textarea id="rr-rp-pq-notes" class="rp-input rp-input-ta" rows="3" maxlength="1000"></textarea></label>
+        </div>
+        <footer class="rp-modal-foot">
+          <button type="button" class="rp-btn" data-rp-mclose>Cancel</button>
+          <button type="button" class="rp-btn rp-btn-primary" data-rp-pq-save>Record quote</button>
+        </footer>
+      </div>`;
+    document.body.appendChild(wrap);
+    wrap.addEventListener("click", async (e) => {
+      if (e.target.closest("[data-rp-mclose]")) { wrap.remove(); return; }
+      if (!e.target.closest("[data-rp-pq-save]")) return;
+      const shopId = wrap.querySelector("#rr-rp-pq-shop").value;
+      if (!shopId) { say("Pick a shop", "warn"); return; }
+      const totalRaw = wrap.querySelector("#rr-rp-pq-total").value.replace(/[^0-9.]/g, "");
+      const total = totalRaw ? Math.round(parseFloat(totalRaw) * 100) : NaN;
+      if (!Number.isFinite(total)) { say("Enter the quoted total", "warn"); return; }
+      const appt = wrap.querySelector("#rr-rp-pq-appt").value;
+      const btn = e.target.closest("[data-rp-pq-save]");
+      btn.disabled = true;
+      const { error } = await sb().rpc("repair_quote_manual_add", {
+        p_case_id: c.id, p_vendor_id: shopId, p_source: "phone",
+        p_grand_total_cents: total, p_line_items: [],
+        p_details: {
+          notes: wrap.querySelector("#rr-rp-pq-notes").value.trim() || null,
+          earliest_appointment_at: appt ? new Date(`${appt}T09:00:00`).toISOString() : null,
+        },
+      });
+      btn.disabled = false;
+      if (error) { fail("Couldn't record the quote", error); return; }
+      wrap.remove();
+      say("Phone quote recorded");
+      await loadView(true);
+      loadDrawerQuotes(c.id);
+    });
   }
 
   function drawerEsc(e) { if (e.key === "Escape") closeDrawer(); }
@@ -762,6 +1189,10 @@ import {
     view.__rrRepairWired = true;
 
     view.addEventListener("click", (e) => {
+      const shopEdit = e.target.closest("[data-rp-shop-edit]");
+      if (shopEdit) { newShop(shopEdit.getAttribute("data-rp-shop-edit")); return; }
+      const shopRow = e.target.closest(".rp-shoprow[data-rp-shop]");
+      if (shopRow) { newShop(shopRow.getAttribute("data-rp-shop")); return; }
       const row = e.target.closest(".rp-caserow[data-rp-case]");
       if (row) openCase(row.getAttribute("data-rp-case"));
     });
@@ -839,6 +1270,24 @@ import {
 .rp-btn-primary{background:var(--accent);border-color:var(--accent);color:var(--surface)}
 .rp-btn-primary:hover{background:var(--accent-hover,var(--accent))}
 .rp-btn-danger{color:var(--red);border-color:var(--red-border,var(--border))}
+.rp-btn-sm{padding:var(--s-1) var(--s-2);font-size:var(--fs-xs)}
+.rp-checkline{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-sm);font-weight:500;color:var(--text);cursor:pointer}
+.rp-dim{opacity:.55}
+.rp-shoplist{display:flex;flex-direction:column;gap:var(--s-1);max-height:260px;overflow:auto;border:1px solid var(--border);border-radius:var(--r-md);padding:var(--s-1)}
+.rp-shoppick{display:flex;align-items:center;gap:var(--s-2-5);padding:var(--s-2) var(--s-2-5);border-radius:var(--r-sm);cursor:pointer}
+.rp-shoppick:hover{background:var(--surface-hover)}
+.rp-shoppick-main{flex:1;min-width:0}
+.rp-shoppick-main .rp-strong,.rp-shoppick-main .rp-cell-sub{display:block}
+.rp-qsec{display:flex;flex-direction:column;gap:2px;margin-bottom:var(--s-3)}
+.rp-qhead{font-size:var(--fs-xs);font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin:var(--s-2) 0 var(--s-1)}
+.rp-qrow{display:flex;align-items:center;gap:var(--s-2);padding:var(--s-2) 0;border-bottom:1px solid var(--border-subtle)}
+.rp-qrow:last-child{border-bottom:none}
+.rp-qrow-main{flex:1;min-width:0}
+.rp-qrow-main .rp-strong,.rp-qrow-main .rp-cell-sub{display:block}
+.rp-qamt{font-variant-numeric:tabular-nums;white-space:nowrap}
+.rp-qitems{border:1px solid var(--border-subtle);border-radius:var(--r-md);padding:var(--s-2) var(--s-3);margin:0 0 var(--s-2);background:var(--canvas)}
+.rp-qli{display:flex;justify-content:space-between;gap:var(--s-3);padding:3px 0;font-size:var(--fs-sm)}
+.rp-qli-amt{font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:600}
 .rp-callout{border:1px solid var(--border);border-radius:var(--r-md);padding:var(--s-2-5) var(--s-3);font-size:var(--fs-sm);line-height:1.5;margin:0 var(--s-5) var(--s-2)}
 #rr-rp-modal .rp-callout{margin:var(--s-3) 0 0}
 .rp-callout-bad{background:var(--red-soft);border-color:var(--red-border,var(--border));color:var(--red-dark,var(--red))}
@@ -856,6 +1305,7 @@ import {
     sub,
     newCase,
     openCase,
+    newShop,
     // Fleet-side hook: create a case pre-targeted at a vehicle.
     createForVehicle: (vehicleId) => newCase(vehicleId),
   };

@@ -168,12 +168,13 @@ error states) exist as a published design artifact.
 ## 8 · Phases
 
 1. **Audit & design** — this document + mockups ✓
-2. **Repair-case foundation** ✓ (shipped with this doc; see §10)
-3. **Shop directory & quote requests** — vendors UI, shop_contacts,
-   repair_quote_requests, outbound email, secure links, delivery
-   tracking, Resend bounce webhook
-4. **Shop-facing quote portal** — static no-login page, structured
-   quote form, doc upload, decline/clarify, drafts
+2. **Repair-case foundation** ✓ (see §10)
+3. **Shop directory & quote requests** ✓ (see §11) — vendors UI,
+   repair_quote_requests, outbound email, secure links. Still open:
+   the Resend bounce/delivered webhook (bounces currently look like
+   silence — lands with Phase 7's inbound-email work)
+4. **Shop-facing quote portal** ✓ (see §11) — static no-login page,
+   structured quote form, doc upload, decline, questions, drafts
 5. **Quote comparison & authorization** — quotes/line-items schema,
    normalization, scope-difference warnings, full/lines/diag-only/NTE
    authorization + shop acknowledgement
@@ -225,3 +226,48 @@ board layout yet; Fleet Issues row button and vehicle-drawer Repairs
 tab land with Phase 3; attachments upload via the dashboard only; no
 station column on cases beyond the vehicle's; `estimate_total_cents` /
 `approved_total_cents` are written by later quote/authorization phases.
+
+## 11 · Phases 3+4 — what shipped
+
+- `supabase/migrations/0487_repair_center_quotes.sql` —
+  `secure_external_links` (sha-256 hash only; expiry, revocation, use
+  counting, abuse ceiling), `repair_quote_requests` (one active per
+  case × shop), `repair_quotes` (+ versioning, supersede,
+  server-recomputed totals, `totals_mismatch` flag),
+  `repair_quote_line_items`; staff RPCs (`repair_vendor_save`,
+  `repair_vendors_list`, `repair_quote_requests_send`,
+  `repair_quote_request_action` remind/revoke/regenerate,
+  `repair_case_quotes`, `repair_quote_manual_add`,
+  `repair_case_attachment_set_visibility`); portal RPCs granted to
+  service_role only (`repair_portal_load/save_quote/decline/question/
+  upload_target/register_upload`). Emails ride `email_messages` with
+  the Fleet Bridge Sent folder, per-DSP `repair.quote_request`
+  template override supported. Stage automation: send →
+  `quoting`, first quote → `quotes_in`.
+- `supabase/functions/repair-shop-portal` — the no-login shop API
+  (document-verify pattern): token-hash validation in SQL, signed
+  attachment URLs, base64 uploads (15 MB, MIME allowlist), per-IP
+  rate limiting; registered in config.toml + the deploy list.
+- `dashboard/shop.html` — mobile-first portal (view request, photos,
+  structured quote with live math preview, upload, decline,
+  question, draft/revise); `/q/:token` short links in `_redirects`
+  (302 — Cloudflare requirement) and `netlify.toml` (200).
+- Dashboard: Shop Directory tab (directory table with live activity
+  counts, add/edit shop modal, classification incl. blocked-with-
+  reason), case-drawer Quotes section (request statuses with
+  remind/copy-link/revoke, quotes with expandable line items,
+  totals-differ badge), request-quotes modal (shop picker that
+  disables blocked/no-email shops, respond-by, expiry, VIN masking,
+  photo sharing, per-shop send results with copy-link), phone-quote
+  modal.
+- Verified: migration applied twice + full lifecycle exercise on a
+  local Postgres 16 (send → open → draft with mismatch flag → submit
+  → supersede → decline/revoke/regenerate → manual quote → non-staff
+  refusal → raw token never stored); dashboard and portal driven
+  end-to-end in the Playwright harness with zero console errors;
+  design-lint/smoke/unit suites green.
+
+Phase 3+4 limits: reminders regenerate the link (hash-only storage
+makes the original irrecoverable — by design); no bounce tracking
+until the Resend webhook lands; vendor contacts jsonb (0313) is the
+contact store — no separate shop_contacts table (deliberate reuse).

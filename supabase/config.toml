@@ -99,6 +99,12 @@ verify_jwt = false
 [functions.webhook-email-inbound]
 verify_jwt = false
 
+# Repair Center shop portal — no-login access for repair shops via a
+# hashed capability token (migration 0487). The token IS the auth; the
+# repair_portal_* RPCs it calls are granted to service_role only.
+[functions.repair-shop-portal]
+verify_jwt = false
+
 # Workforce Optimization Engine functions. Both do their own JWT check
 # internally (auth.getUser + app_users role gate); gateway verify_jwt
 # must stay off so the browser CORS preflight gets a 2xx response. With

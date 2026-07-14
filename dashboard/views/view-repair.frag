@@ -25,6 +25,11 @@
             <span class="rr-viewseg-label">Repair Queue</span>
             <span class="rp-tab-count" id="rr-repair-tab-count" hidden>0</span>
           </button>
+          <button type="button" class="rr-viewseg-btn" role="tab" aria-selected="false" data-sub="shops"
+                  onclick="if(window.RRRepair)RRRepair.sub('shops')" aria-label="Shop Directory" title="Shop Directory — repair shops, contacts &amp; performance">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/></svg>
+            <span class="rr-viewseg-label">Shop Directory</span>
+          </button>
         </div>
 
         <!-- Row 2 · action bar (.rr-ab twin). -->
@@ -122,6 +127,38 @@
                   <tr class="rp-skel-row"><td colspan="10"><span class="rr-skel rr-skel-md"></span></td></tr>
                   <tr class="rp-skel-row"><td colspan="10"><span class="rr-skel rr-skel-md"></span></td></tr>
                   <tr class="rp-skel-row"><td colspan="10"><span class="rr-skel rr-skel-md"></span></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- SHOP DIRECTORY sub-view · vendors + Repair Center activity -->
+        <div class="rp-sub" id="rp-sub-shops">
+          <div class="table-wrap">
+            <div class="rp-toolbar">
+              <button type="button" class="rp-btn rp-btn-primary" id="rr-repair-shop-add"
+                      onclick="if(window.RRRepair)RRRepair.newShop()">+ Add shop</button>
+              <div class="rp-bar-spacer"></div>
+              <span class="rp-cell-sub" id="rr-repair-shops-count"></span>
+            </div>
+            <div class="rp-table-scroll">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Shop</th>
+                    <th>Type &amp; services</th>
+                    <th>Contact</th>
+                    <th class="num">Response</th>
+                    <th class="num">Quotes</th>
+                    <th class="num">Open</th>
+                    <th>Status</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="rr-repair-shops-tbody">
+                  <tr class="rp-skel-row"><td colspan="8"><span class="rr-skel rr-skel-md"></span></td></tr>
+                  <tr class="rp-skel-row"><td colspan="8"><span class="rr-skel rr-skel-md"></span></td></tr>
                 </tbody>
               </table>
             </div>
