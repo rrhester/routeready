@@ -2990,6 +2990,28 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       hidePop(); scheduleSave();
     });
   }
+  // Edit an existing link in place (right-click → Edit link…): change its
+  // display text and/or URL without re-selecting or retyping it.
+  function editLinkPopover(a) {
+    if (!a) return;
+    var pop = showPop(
+      '<label>Link text</label><input id="rrnb-lke-text" value="' + esc(a.textContent || "") + '" placeholder="Text to show" />' +
+      '<label>URL</label><input id="rrnb-lke-url" value="' + esc(a.getAttribute("href") || "") + '" placeholder="https://…" />' +
+      '<div class="rrnb-pop-row"><button class="rrnb-pop-btn ghost" data-pop-cancel="1">Cancel</button><button class="rrnb-pop-btn" id="rrnb-lke-ok">Save link</button></div>',
+      a.getBoundingClientRect());
+    var cancel = pop.querySelector("[data-pop-cancel]"); if (cancel) cancel.addEventListener("click", hidePop);
+    var uEl = $id("rrnb-lke-url"); if (uEl) uEl.focus();
+    $id("rrnb-lke-ok").addEventListener("click", function () {
+      var u = $id("rrnb-lke-url").value.trim();
+      var txt = $id("rrnb-lke-text").value.trim() || u;
+      if (!u) return; if (!/^[a-z]+:/i.test(u)) u = "https://" + u;
+      a.setAttribute("href", u);
+      a.textContent = txt;
+      if (!a.classList.contains("rrnb-weblink")) a.classList.add("rrnb-weblink");
+      a.setAttribute("target", "_blank"); a.setAttribute("rel", "noopener noreferrer");
+      hidePop(); scheduleSave();
+    });
+  }
 
   function openPagePicker() {
     var range = savedSelection();
@@ -3058,6 +3080,19 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     var ed = $id("rrnb-editor");
     var cell = e.target.closest && e.target.closest("td,th");
     if (cell && ed && ed.contains(cell)) { e.preventDefault(); showTableControls(cell); return; }
+    // hyperlink: right-click to edit its text/URL, copy, or unlink (skips the
+    // record/page/file chips, which have their own click behavior)
+    var link = e.target.closest && e.target.closest("a[href]");
+    if (link && ed && ed.contains(link) && !link.matches(".rrnb-objlink,.rrnb-pagelink,.rrnb-file")) {
+      e.preventDefault();
+      showCtx(e.clientX, e.clientY, [
+        { act: "edit", label: "Edit link…" },
+        { act: "copy", label: "Copy link address" },
+        { sep: 1 }, { act: "remove", label: "Remove link", danger: true }
+      ]);
+      $id("rrnb-ctx")._target = { kind: "link", el: link };
+      return;
+    }
     // block objects: right-click any of them to delete it
     var node = e.target.closest && e.target.closest("figure.rrnb-fig,.rrnb-file,.rrnb-callout,.rrnb-todo,hr");
     if (node && ed && ed.contains(node)) {
@@ -3737,6 +3772,13 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     }
     if (t.kind === "ednode") {
       if (act === "del" && t.el) { t.el.remove(); scheduleSave(); }
+      return;
+    }
+    if (t.kind === "link") {
+      var a = t.el; if (!a) return;
+      if (act === "edit") return editLinkPopover(a);
+      if (act === "copy") { try { navigator.clipboard.writeText(a.getAttribute("href") || ""); notify("Link copied"); } catch (e) {} return; }
+      if (act === "remove") { if (a.parentNode) { a.parentNode.replaceChild(document.createTextNode(a.textContent || ""), a); scheduleSave(); } return; }
       return;
     }
   }
