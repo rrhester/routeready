@@ -1071,6 +1071,9 @@ as $$
            case when c->>'stage' in ('closed','cancelled') then 1 else 0 end,
            c->>'reported_at' desc), '[]'::jsonb)
   from (
+    -- Postgres caps calls at 100 arguments (50 jsonb_build_object
+    -- pairs) — build the row as concatenated chunks and keep each
+    -- chunk comfortably under the cap as later phases add fields.
     select jsonb_build_object(
       'id',              rc.id,
       'case_number',     rc.case_number,
@@ -1097,7 +1100,8 @@ as $$
       'updated_at',      rc.updated_at,
       'closed_at',       rc.closed_at,
       'assigned_to',     rc.assigned_to,
-      'assigned_to_name', au.full_name,
+      'assigned_to_name', au.full_name
+    ) || jsonb_build_object(
       'vehicle_id',      rc.vehicle_id,
       'vehicle_name',    vh.name,
       'vehicle_nickname',vh.nickname,
@@ -1114,7 +1118,8 @@ as $$
       'vendor_name',     vn.name,
       'repair_order_id', rc.repair_order_id,
       'ro_code',         ro.code,
-      'ro_status',       ro.status,
+      'ro_status',       ro.status
+    ) || jsonb_build_object(
       'visit_id',        sv.id,
       'shop_status',     sv.shop_status,
       'appointment_at',  sv.appointment_at,
@@ -1169,6 +1174,8 @@ language sql
 stable
 security definer set search_path = ''
 as $$
+  -- Built as concatenated chunks — Postgres caps any call at 100
+  -- arguments (50 pairs); keep each chunk small as fields accrue.
   select jsonb_build_object(
     'id',              rc.id,
     'case_number',     rc.case_number,
@@ -1193,7 +1200,8 @@ as $$
     'driver_id',       rc.driver_id,
     'assigned_to',     rc.assigned_to,
     'current_location',rc.current_location,
-    'odometer',        rc.odometer,
+    'odometer',        rc.odometer
+  ) || jsonb_build_object(
     'required_completion_at', rc.required_completion_at,
     'requested_return_to_service_at', rc.requested_return_to_service_at,
     'estimated_return_to_service_at', rc.estimated_return_to_service_at,
@@ -1206,7 +1214,8 @@ as $$
     'created_at',      rc.created_at,
     'updated_at',      rc.updated_at,
     'closed_at',       rc.closed_at,
-    'cancelled_at',    rc.cancelled_at,
+    'cancelled_at',    rc.cancelled_at
+  ) || jsonb_build_object(
     'vehicle', jsonb_build_object(
       'id', vh.id, 'name', vh.name, 'nickname', vh.nickname,
       'year', vh.year, 'make', vh.make, 'model', vh.model,
