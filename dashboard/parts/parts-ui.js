@@ -176,8 +176,19 @@ import { makeNhtsaProvider } from "./adapters/nhtsa.js";
     if (!S.booted) {
       h.innerHTML = `<div class="rrp-empty"><h3>Loading Parts Intelligence…</h3></div>`;
       await boot();
+    } else {
+      // Re-pull the roster on every mount so a VIN just added on the Vehicles
+      // tab shows up here (the picker + Decode VIN read from this list).
+      await refreshVehicles();
     }
     render();
+  }
+
+  async function refreshVehicles() {
+    try {
+      const { data } = await sb().rpc("vehicles_roster");
+      if (Array.isArray(data)) S.vehicles = data;
+    } catch (e) { /* keep cached list */ }
   }
 
   async function searchForVehicle(vehicleId) {
@@ -201,8 +212,12 @@ import { makeNhtsaProvider } from "./adapters/nhtsa.js";
       ? [v.year, v.make, v.model, v.trim_level].filter(Boolean).join(" ")
       : "";
     const vehSub = v
-      ? [v.vin ? "VIN " + esc(v.vin) : null, v.station_code ? "Station " + esc(v.station_code) : null, v.mileage ? (Number(v.mileage).toLocaleString() + " mi") : null].filter(Boolean).join(" · ")
+      ? [v.vin ? "VIN " + esc(v.vin) : "No VIN on record", v.station_code ? "Station " + esc(v.station_code) : null, v.mileage ? (Number(v.mileage).toLocaleString() + " mi") : null].filter(Boolean).join(" · ")
       : "Pick a vehicle to scope fitment, or search unscoped.";
+    const dec = v && v._decoded;
+    const decLine = dec
+      ? [dec.year, dec.make, dec.model, dec.body_class, dec.drive_type, dec.engine, dec.wheelbase ? dec.wheelbase + '" WB' : null].filter(Boolean).join(" · ")
+      : "";
 
     h.innerHTML = `
     <div class="rrp-wrap">
@@ -210,6 +225,7 @@ import { makeNhtsaProvider } from "./adapters/nhtsa.js";
         <div style="min-width:0">
           <div class="nm">${v ? esc(v.name || "Van") + (vehLine ? " · " + esc(vehLine) : "") : "Any vehicle"}</div>
           <div class="ln">${vehSub}</div>
+          ${decLine ? `<div class="ln" style="color:var(--accent-text,#1E40AF);margin-top:3px;font-weight:600">Decoded (NHTSA): ${esc(decLine)}</div>` : ""}
         </div>
         <select id="rrp-vehsel" aria-label="Vehicle">
           <option value="">Any vehicle (unscoped)</option>
@@ -242,7 +258,7 @@ import { makeNhtsaProvider } from "./adapters/nhtsa.js";
           <div class="rrp-field"><label>Max landed ($)</label>
             <input id="rrp-fmax" type="number" min="0" step="1" placeholder="—" style="width:110px"></div>
           <div style="flex:1"></div>
-          ${v && v.vin ? `<button class="btn btn-sm" id="rrp-decode" title="Decode this VIN via NHTSA">${svg('<path d="M3 12h18M3 6h18M3 18h18"/>',13)} Decode VIN</button>` : ""}
+          <button class="btn btn-sm" id="rrp-decode" title="Decode a VIN via the free NHTSA database">${svg('<path d="M3 12h18M3 6h18M3 18h18"/>',13)} Decode VIN</button>
           <button class="btn btn-primary" id="rrp-run">${svg(ICON.search)} Search parts</button>
         </div>
       </div>
@@ -681,24 +697,66 @@ import { makeNhtsaProvider } from "./adapters/nhtsa.js";
     });
   }
 
-  // ── VIN decode (best-effort, via edge function) ───────────────────────
+  // ── VIN decode ────────────────────────────────────────────────────────
+  // Decodes against the free public NHTSA vPIC database. Runs DIRECTLY from the
+  // browser (keyless, CORS-enabled US-gov API) so there is nothing to deploy;
+  // if that ever fails it falls back to the optional vin-decode edge function.
+  const VIN_RE = /^[A-HJ-NPR-Z0-9]{17}$/;
+
   async function decodeVin() {
     const v = veh();
-    if (!v || !v.vin) return;
+    let vin = (v && v.vin ? String(v.vin) : "").toUpperCase().replace(/\s/g, "");
+    if (!VIN_RE.test(vin)) {
+      const entered = window.prompt(v ? `${v.name || "This van"} has no valid VIN on record. Enter a 17-character VIN to decode:` : "Enter a 17-character VIN to decode:", vin || "");
+      if (entered == null) return;
+      vin = entered.toUpperCase().replace(/\s/g, "");
+    }
+    if (!VIN_RE.test(vin)) { toast("That isn't a valid 17-character VIN (no I, O, or Q)."); return; }
+
     const btn = el("rrp-decode"); if (btn) { btn.disabled = true; btn.textContent = "Decoding…"; }
     try {
-      const provider = makeNhtsaProvider((name, opts) => sb().functions.invoke(name, opts));
-      const c = (await provider.decodeVin(v.vin)) || {};
-      v.required_features = c.required_features || v.required_features;
-      v.required_connector = c.required_connector || v.required_connector;
-      const bits = [c.body_class, c.drive_type, c.engine, c.wheelbase ? c.wheelbase + '" WB' : null].filter(Boolean).join(" · ");
-      toast(bits ? "Decoded: " + bits : "VIN decoded.");
+      const c = await decodeVinAnywhere(vin);
+      if (!c || (!c.make && !c.model && !c.year)) { toast("NHTSA had no data for that VIN."); return; }
+      if (v) {
+        v._decoded = c;
+        v.required_features = c.required_features || v.required_features;
+        v.required_connector = c.required_connector || v.required_connector;
+      }
       render();
+      const bits = [c.year, c.make, c.model].filter(Boolean).join(" ");
+      toast("Decoded: " + (bits || "VIN"));
     } catch (e) {
-      toast("VIN decode unavailable (deploy the vin-decode function). " + (e.message || ""));
+      toast("Couldn't reach the VIN database. " + (e.message || ""));
     } finally {
-      if (btn) { btn.disabled = false; btn.textContent = "Decode VIN"; }
+      const b = el("rrp-decode"); if (b) { b.disabled = false; b.innerHTML = svg('<path d="M3 12h18M3 6h18M3 18h18"/>', 13) + " Decode VIN"; }
     }
+  }
+
+  // Direct browser → NHTSA; fall back to the edge function if the direct call
+  // is blocked. Normalizes to the same shape the edge function returns.
+  async function decodeVinAnywhere(vin) {
+    try {
+      const res = await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValues/${encodeURIComponent(vin)}?format=json`);
+      if (res.ok) {
+        const p = await res.json();
+        return normalizeNhtsa((p && p.Results && p.Results[0]) || {});
+      }
+    } catch (e) { /* fall through to edge function */ }
+    const provider = makeNhtsaProvider((name, opts) => sb().functions.invoke(name, opts));
+    return await provider.decodeVin(vin);
+  }
+
+  function normalizeNhtsa(r) {
+    const s = (val) => { const t = String(val == null ? "" : val).trim(); return t && t !== "Not Applicable" && t !== "0" ? t : null; };
+    return {
+      make: s(r.Make), model: s(r.Model), year: s(r.ModelYear),
+      trim: s(r.Trim) || s(r.Series),
+      body_class: s(r.BodyClass), drive_type: s(r.DriveType),
+      engine: [s(r.DisplacementL) ? s(r.DisplacementL) + "L" : null, s(r.EngineCylinders) ? "V" + s(r.EngineCylinders) : null].filter(Boolean).join(" ") || s(r.EngineModel),
+      wheelbase: s(r.WheelBaseShort) || s(r.WheelBaseLong) || s(r.WheelBaseInches),
+      gvwr: s(r.GVWR),
+      required_features: {}, required_connector: null,
+    };
   }
 
   // ── Workbook / CSV export ─────────────────────────────────────────────
