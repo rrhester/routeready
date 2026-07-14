@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#FFFFFF">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Repair quote request</title>
+<!--
+  Repair Center · shop-facing quote portal (no login).
+  Opened from /q/<token> links in quote-request emails. Talks ONLY to
+  the repair-shop-portal edge function; the token is the capability.
+  Standalone static document (booking.html/screening.html pattern) —
+  the dashboard SPA requires a session, this page never does.
+  All amounts entered in dollars; converted to integer cents for the
+  API. The server recomputes every total from line items — this page's
+  arithmetic is a preview only.
+-->
+<style>
+  @font-face{font-family:'Inter';font-style:normal;font-weight:400 700;font-display:swap;src:url(../app/fonts/inter-var-latin.woff2) format('woff2')}
+  :root{
+    --accent:#2563EB; --accent-d:#1D4ED8; --text:#111827; --muted:#6B7280;
+    --subtle:#9CA3AF; --border:#E5E7EB; --canvas:#F9FAFB; --surface:#FFF;
+    --red:#DC2626; --red-soft:#FDEAEA; --green:#16A34A; --green-soft:#E9F9EF;
+    --amber:#B45309; --amber-soft:#FDF2DF; --slate9:#0F172A;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.5 "Inter","Segoe UI",system-ui,-apple-system,sans-serif;color:var(--text);background:var(--canvas)}
+  .topbar{background:var(--slate9);color:#fff;padding:12px 18px;display:flex;align-items:center;gap:10px}
+  .topbar .logo{width:26px;height:26px;border-radius:6px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex:0 0 auto}
+  .topbar .t{font-size:13px;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .topbar .via{margin-left:auto;font-size:11px;color:#94A3B8;flex:0 0 auto}
+  .wrap{max-width:760px;margin:0 auto;padding:18px 16px 80px}
+  h1{font-size:19px;font-weight:700;margin:0 0 4px;line-height:1.3}
+  .sub{font-size:12.5px;color:var(--muted);margin:0 0 12px}
+  .pill{display:inline-flex;align-items:center;padding:3px 10px;border-radius:11px;font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase}
+  .pill.warn{background:var(--amber-soft);color:var(--amber)}
+  .pill.ok{background:var(--green-soft);color:var(--green)}
+  .pill.bad{background:var(--red-soft);color:var(--red)}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;margin:0 0 12px}
+  .card .pad{padding:14px 16px}
+  .card h3{margin:0 0 10px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+  .atts{display:flex;flex-wrap:wrap;gap:8px}
+  .atts img{width:110px;height:82px;object-fit:cover;border-radius:8px;border:1px solid var(--border);cursor:pointer}
+  .att-doc{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:12.5px;font-weight:600;color:var(--accent-d);text-decoration:none;background:var(--surface)}
+  .btnrow{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid #D6DAE1;border-radius:8px;background:var(--surface);color:var(--text);font:inherit;font-size:13.5px;font-weight:600;padding:12px 14px;cursor:pointer;text-align:center}
+  .btn:hover{background:#F5F7FA}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn.primary:hover{background:var(--accent-d)}
+  .btn.sm{padding:7px 12px;font-size:12.5px}
+  .btn:disabled{opacity:.55;cursor:default}
+  .field{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
+  .field>span{font-size:12px;font-weight:600;color:#374151}
+  .inp{border:1px solid var(--border);border-radius:7px;background:var(--surface);color:var(--text);font:inherit;font-size:13.5px;padding:9px 10px;width:100%}
+  .inp:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(37,99,235,.18)}
+  textarea.inp{resize:vertical;min-height:64px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+  /* line items */
+  .li{border:1px solid var(--border);border-radius:9px;padding:10px 12px;margin-bottom:8px;background:var(--surface)}
+  .li-head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .li-head .n{font-size:11px;font-weight:700;color:var(--subtle)}
+  .li-head select{font-size:12px;border:1px solid var(--border);border-radius:6px;padding:4px 6px;background:var(--surface)}
+  .li-head .x{margin-left:auto;border:0;background:none;color:var(--subtle);font-size:15px;cursor:pointer;padding:2px 6px}
+  .li-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .li-grid .field{margin:0}
+  .li-total{font-size:12.5px;font-weight:700;text-align:right;margin-top:6px;color:var(--text)}
+  .totals{border-top:1px solid var(--border);margin-top:12px;padding-top:12px;display:flex;flex-direction:column;gap:6px;font-size:13px}
+  .trow{display:flex;justify-content:space-between;align-items:center}
+  .trow b{font-variant-numeric:tabular-nums}
+  .trow.grand{font-size:15px;border-top:1px solid var(--border);padding-top:8px}
+  .mismatch{background:var(--amber-soft);color:var(--amber);border-radius:7px;padding:8px 10px;font-size:12.5px;display:none}
+  .banner{border-radius:9px;padding:12px 14px;font-size:13px;line-height:1.5;margin:0 0 12px;display:none}
+  .banner.ok{background:var(--green-soft);color:#166534;display:block}
+  .banner.bad{background:var(--red-soft);color:#991B1B;display:block}
+  .banner.info{background:#EFF4FF;color:#1E40AF;display:block}
+  .footer{font-size:11.5px;color:var(--subtle);text-align:center;border-top:1px solid var(--border);padding-top:14px;margin-top:18px;line-height:1.6}
+  .modal{position:fixed;inset:0;background:rgba(15,23,42,.5);display:none;align-items:center;justify-content:center;padding:16px;z-index:50}
+  .modal.open{display:flex}
+  .mcard{background:#fff;border-radius:12px;max-width:440px;width:100%;padding:18px}
+  .mcard h4{margin:0 0 10px;font-size:15px}
+  .mrow{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
+  .hidden{display:none}
+  .kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px 16px;font-size:13px}
+  .kv .k{display:block;font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--subtle)}
+  .kv .v{font-weight:600}
+  #busy{position:fixed;top:0;left:0;right:0;height:3px;background:var(--accent);transform:scaleX(0);transform-origin:left;transition:transform .4s;z-index:60}
+  @media (max-width:560px){ .grid3{grid-template-columns:1fr 1fr} .li-grid{grid-template-columns:1fr 1fr} .btnrow{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<div id="busy" aria-hidden="true"></div>
+<div class="topbar">
+  <span class="logo">RR</span>
+  <span class="t" id="tb-title">Repair quote request</span>
+  <span class="via">via RouteReady</span>
+</div>
+
+<div class="wrap">
+  <div id="state-loading" class="sub" style="padding:40px 0;text-align:center">Loading the request…</div>
+
+  <div id="state-error" class="hidden">
+    <div class="card"><div class="pad" style="text-align:center;padding:40px 20px">
+      <div style="font-size:16px;font-weight:700;margin-bottom:6px" id="err-title">This link isn't valid</div>
+      <div class="sub" id="err-sub">The link may have expired or been replaced. Reply to the request email and the operator can send a fresh one.</div>
+    </div></div>
+  </div>
+
+  <div id="state-main" class="hidden">
+    <div class="banner" id="banner"></div>
+    <h1 id="veh-title">—</h1>
+    <p class="sub" id="veh-sub">—</p>
+    <p style="margin:0 0 12px" id="respond-pill"></p>
+
+    <div class="card"><div class="pad">
+      <h3>Requested work</h3>
+      <div id="req-message" style="font-size:13.5px;line-height:1.6"></div>
+      <div class="kv" id="req-facts" style="margin-top:10px"></div>
+    </div></div>
+
+    <div class="card" id="atts-card" style="display:none"><div class="pad">
+      <h3>Photos &amp; documents</h3>
+      <div class="atts" id="atts"></div>
+    </div></div>
+
+    <div class="btnrow" id="actions">
+      <button type="button" class="btn primary" id="act-quote">Submit a quote</button>
+      <button type="button" class="btn" id="act-upload">Upload an estimate (PDF or photo)</button>
+      <button type="button" class="btn" id="act-question">Ask a question</button>
+      <button type="button" class="btn" id="act-decline">Can't service this vehicle</button>
+    </div>
+    <input type="file" id="upload-input" accept="application/pdf,image/jpeg,image/png,image/webp,image/heic" hidden>
+
+    <!-- ── structured quote form ── -->
+    <div class="card hidden" id="quote-form"><div class="pad">
+      <h3>Your quote</h3>
+      <div class="grid3">
+        <label class="field"><span>Quote / estimate #</span><input class="inp" id="q-number" maxlength="60"></label>
+        <label class="field"><span>Work-order #</span><input class="inp" id="q-wo" maxlength="60"></label>
+        <label class="field"><span>Service advisor</span><input class="inp" id="q-advisor" maxlength="80"></label>
+      </div>
+      <div class="grid2">
+        <label class="field"><span>Earliest appointment</span><input class="inp" id="q-appt" type="datetime-local"></label>
+        <label class="field"><span>Estimated completion</span><input class="inp" id="q-complete" type="datetime-local"></label>
+      </div>
+      <div class="grid3">
+        <label class="field"><span>Contact name</span><input class="inp" id="q-cname" maxlength="80"></label>
+        <label class="field"><span>Phone</span><input class="inp" id="q-cphone" maxlength="30" inputmode="tel"></label>
+        <label class="field"><span>Email</span><input class="inp" id="q-cemail" maxlength="120" inputmode="email"></label>
+      </div>
+
+      <h3 style="margin-top:14px">Line items</h3>
+      <div id="lines"></div>
+      <button type="button" class="btn sm" id="add-line">+ Add line item</button>
+
+      <div class="totals">
+        <div class="trow"><span>Line items subtotal</span><b id="t-sub">$0.00</b></div>
+        <div class="trow"><span>Tax</span><span><input class="inp" id="t-tax" style="width:110px;text-align:right" inputmode="decimal" placeholder="0.00"></span></div>
+        <div class="trow grand"><span><strong>Computed total</strong></span><b id="t-grand">$0.00</b></div>
+        <div class="trow"><span>Your total (from your own paperwork)</span><span><input class="inp" id="t-reported" style="width:130px;text-align:right" inputmode="decimal" placeholder="0.00"></span></div>
+        <div class="mismatch" id="t-mismatch">Your total doesn't match the line items. You can still submit — the operator will see both numbers.</div>
+      </div>
+
+      <div class="grid2" style="margin-top:12px">
+        <label class="field"><span>Parts availability</span><input class="inp" id="q-parts" maxlength="200" placeholder="e.g. All parts in stock / rotors 2 days out"></label>
+        <label class="field"><span>Warranty</span><input class="inp" id="q-warranty" maxlength="200" placeholder="e.g. 24 months / 24,000 miles parts &amp; labor"></label>
+      </div>
+      <label class="field"><span>Notes / exclusions</span><textarea class="inp" id="q-notes" rows="3" maxlength="1500"></textarea></label>
+
+      <div class="mrow">
+        <button type="button" class="btn" id="save-draft">Save draft</button>
+        <button type="button" class="btn primary" id="submit-quote">Submit quote</button>
+      </div>
+    </div></div>
+
+    <div class="footer" id="footer">This private link is for your shop only. You can also reply to the request email with your written estimate attached.</div>
+  </div>
+</div>
+
+<!-- decline / question modals -->
+<div class="modal" id="m-decline"><div class="mcard">
+  <h4>Decline this request</h4>
+  <label class="field"><span>Reason (optional)</span><textarea class="inp" id="decline-reason" rows="3" maxlength="500" placeholder="e.g. Booked out two weeks / we don't service Sprinters"></textarea></label>
+  <div class="mrow"><button type="button" class="btn" data-close>Cancel</button><button type="button" class="btn primary" id="decline-send">Decline request</button></div>
+</div></div>
+<div class="modal" id="m-question"><div class="mcard">
+  <h4>Ask the operator a question</h4>
+  <label class="field"><span>Your question</span><textarea class="inp" id="question-text" rows="3" maxlength="1000" placeholder="e.g. Are the calipers original? Can you send a photo of the rotor face?"></textarea></label>
+  <div class="mrow"><button type="button" class="btn" data-close>Cancel</button><button type="button" class="btn primary" id="question-send">Send question</button></div>
+</div></div>
+
+<script src="./config.js?v=radiohail01"></script>
+<script>
+(function () {
+  "use strict";
+  var token = new URLSearchParams(location.search).get("t") || "";
+  var API = ((window.RR_CONFIG && window.RR_CONFIG.SUPABASE_URL) || "")
+    + "/functions/v1/repair-shop-portal";
+  var S = { data: null, lines: [], busyN: 0 };
+
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  };
+  var money = function (cents) {
+    if (cents == null || isNaN(cents)) return "$0.00";
+    var v = Math.round(cents) / 100;
+    return "$" + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+  var toCents = function (raw) {
+    if (raw == null) return null;
+    var s = String(raw).replace(/[^0-9.]/g, "");
+    if (s === "") return null;
+    var n = parseFloat(s);
+    return isNaN(n) ? null : Math.round(n * 100);
+  };
+  var busy = function (on) {
+    S.busyN += on ? 1 : -1;
+    $("busy").style.transform = S.busyN > 0 ? "scaleX(.8)" : "scaleX(0)";
+  };
+  function api(payload) {
+    busy(true);
+    return fetch(API, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(Object.assign({ token: token }, payload)),
+    }).then(function (r) {
+      return r.json().then(function (j) { return { ok: r.ok, status: r.status, body: j }; });
+    }).finally(function () { busy(false); });
+  }
+
+  // ── line-item editor ───────────────────────────────────────────────
+  var CATS = [
+    ["labor", "Labor"], ["part_oem", "Part (OEM)"], ["part_aftermarket", "Part (aftermarket)"],
+    ["part_used", "Part (used)"], ["part_reman", "Part (reman)"], ["diagnostic", "Diagnostic"],
+    ["sublet", "Sublet"], ["towing", "Towing"], ["supplies", "Shop supplies"],
+    ["environmental", "Environmental fee"], ["discount", "Discount"], ["misc", "Misc"],
+  ];
+  function lineTotalCents(l) {
+    var parts = toCents(l.parts) || 0;
+    var labor = Math.round((parseFloat(l.hours) || 0) * (toCents(l.rate) || 0));
+    var fees = toCents(l.fees) || 0;
+    return parts + labor + fees;
+  }
+  function renderLines() {
+    var host = $("lines");
+    host.innerHTML = S.lines.map(function (l, i) {
+      var opts = CATS.map(function (c) {
+        return '<option value="' + c[0] + '"' + (l.category === c[0] ? " selected" : "") + ">" + c[1] + "</option>";
+      }).join("");
+      return '<div class="li" data-i="' + i + '">'
+        + '<div class="li-head"><span class="n">' + (i + 1) + '</span>'
+        + '<select data-f="category" aria-label="Category">' + opts + '</select>'
+        + '<button type="button" class="x" data-del aria-label="Remove line">✕</button></div>'
+        + '<label class="field"><span>Operation / part description</span>'
+        + '<input class="inp" data-f="description" maxlength="300" value="' + esc(l.description) + '" placeholder="e.g. Front brake pads — Motorcraft BRF-1465"></label>'
+        + '<div class="li-grid">'
+        + '<label class="field"><span>Part # (optional)</span><input class="inp" data-f="part_number" maxlength="60" value="' + esc(l.part_number) + '"></label>'
+        + '<label class="field"><span>Parts $</span><input class="inp" data-f="parts" inputmode="decimal" value="' + esc(l.parts) + '"></label>'
+        + '<label class="field"><span>Labor hrs</span><input class="inp" data-f="hours" inputmode="decimal" value="' + esc(l.hours) + '"></label>'
+        + '<label class="field"><span>Rate $/hr</span><input class="inp" data-f="rate" inputmode="decimal" value="' + esc(l.rate) + '"></label>'
+        + '</div>'
+        + '<div class="li-total">Line total ' + money(lineTotalCents(l)) + "</div>"
+        + "</div>";
+    }).join("");
+    renderTotals();
+  }
+  function renderTotals() {
+    var sub = S.lines.reduce(function (a, l) { return a + lineTotalCents(l); }, 0);
+    var tax = toCents($("t-tax").value) || 0;
+    var grand = sub + tax;
+    $("t-sub").textContent = money(sub);
+    $("t-grand").textContent = money(grand);
+    var rep = toCents($("t-reported").value);
+    $("t-mismatch").style.display =
+      (rep != null && Math.abs(rep - grand) > 100) ? "block" : "none";
+  }
+  $("lines").addEventListener("input", function (e) {
+    var box = e.target.closest(".li"); if (!box) return;
+    var l = S.lines[+box.getAttribute("data-i")]; if (!l) return;
+    var f = e.target.getAttribute("data-f"); if (!f) return;
+    l[f] = e.target.value;
+    if (f === "parts" || f === "hours" || f === "rate") {
+      box.querySelector(".li-total").textContent = "Line total " + money(lineTotalCents(l));
+      renderTotals();
+    }
+  });
+  $("lines").addEventListener("change", function (e) {
+    var box = e.target.closest(".li"); if (!box) return;
+    var l = S.lines[+box.getAttribute("data-i")]; if (!l) return;
+    var f = e.target.getAttribute("data-f");
+    if (f) l[f] = e.target.value;
+  });
+  $("lines").addEventListener("click", function (e) {
+    if (!e.target.closest("[data-del]")) return;
+    var box = e.target.closest(".li");
+    S.lines.splice(+box.getAttribute("data-i"), 1);
+    renderLines();
+  });
+  $("add-line").addEventListener("click", function () {
+    S.lines.push({ category: "labor", description: "", part_number: "", parts: "", hours: "", rate: "" });
+    renderLines();
+  });
+  $("t-tax").addEventListener("input", renderTotals);
+  $("t-reported").addEventListener("input", renderTotals);
+
+  // ── quote payload ──────────────────────────────────────────────────
+  function isoOrNull(v) { return v ? new Date(v).toISOString() : null; }
+  function quotePayload() {
+    return {
+      quote_number: $("q-number").value.trim() || null,
+      shop_work_order_number: $("q-wo").value.trim() || null,
+      service_advisor: $("q-advisor").value.trim() || null,
+      contact_name: $("q-cname").value.trim() || null,
+      contact_phone: $("q-cphone").value.trim() || null,
+      contact_email: $("q-cemail").value.trim() || null,
+      earliest_appointment_at: isoOrNull($("q-appt").value),
+      estimated_completion_at: isoOrNull($("q-complete").value),
+      parts_availability: $("q-parts").value.trim() || null,
+      warranty_summary: $("q-warranty").value.trim() || null,
+      notes: $("q-notes").value.trim() || null,
+      shop_reported_total_cents: toCents($("t-reported").value),
+      line_items: S.lines
+        .filter(function (l) { return (l.description || "").trim() !== "" || lineTotalCents(l) > 0; })
+        .map(function (l, i) {
+          var laborCents = Math.round((parseFloat(l.hours) || 0) * (toCents(l.rate) || 0));
+          return {
+            line_number: i + 1,
+            category: l.category,
+            description: (l.description || "").trim() || ("Line " + (i + 1)),
+            part_number: (l.part_number || "").trim() || null,
+            parts_total_cents: toCents(l.parts),
+            labor_hours: parseFloat(l.hours) || null,
+            labor_rate_cents: toCents(l.rate),
+            labor_total_cents: laborCents || null,
+            line_total_cents: lineTotalCents(l),
+          };
+        })
+        .concat(toCents($("t-tax").value)
+          ? [{ line_number: 99, category: "tax", description: "Tax",
+               tax_cents: toCents($("t-tax").value), line_total_cents: toCents($("t-tax").value) }]
+          : []),
+    };
+  }
+  function saveQuote(submit) {
+    if (submit && !S.lines.length && toCents($("t-reported").value) == null) {
+      alert("Add at least one line item, or enter your total."); return;
+    }
+    $("save-draft").disabled = $("submit-quote").disabled = true;
+    api({ action: "save_quote", quote: quotePayload(), submit: !!submit }).then(function (r) {
+      $("save-draft").disabled = $("submit-quote").disabled = false;
+      if (!r.ok) { alert(friendly(r.body && r.body.error)); return; }
+      if (submit) {
+        setBanner("ok", "Quote submitted — " + (S.data.dsp && S.data.dsp.name ? S.data.dsp.name : "the operator")
+          + " has it. You can come back to this link to revise it until they decide.");
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } else {
+        setBanner("info", "Draft saved. This link keeps your draft — finish and submit any time before it expires.");
+      }
+    });
+  }
+  $("save-draft").addEventListener("click", function () { saveQuote(false); });
+  $("submit-quote").addEventListener("click", function () { saveQuote(true); });
+
+  // ── actions ────────────────────────────────────────────────────────
+  $("act-quote").addEventListener("click", function () {
+    $("quote-form").classList.remove("hidden");
+    if (!S.lines.length) { $("add-line").click(); }
+    $("quote-form").scrollIntoView({ behavior: "smooth" });
+  });
+  $("act-upload").addEventListener("click", function () { $("upload-input").click(); });
+  $("upload-input").addEventListener("change", function () {
+    var f = $("upload-input").files[0];
+    if (!f) return;
+    if (f.size > 15 * 1024 * 1024) { alert("That file is over 15 MB."); return; }
+    var reader = new FileReader();
+    reader.onload = function () {
+      var b64 = String(reader.result).split(",")[1] || "";
+      api({ action: "upload", file_name: f.name, mime_type: f.type || "application/pdf", data_base64: b64 })
+        .then(function (r) {
+          if (!r.ok) { alert(friendly(r.body && r.body.error)); return; }
+          setBanner("ok", "Estimate uploaded — the operator has been notified. You can also fill in the structured quote so your numbers are comparable.");
+        });
+    };
+    reader.readAsDataURL(f);
+    $("upload-input").value = "";
+  });
+  function wireModal(openBtn, modalId, sendBtn, run) {
+    $(openBtn).addEventListener("click", function () { $(modalId).classList.add("open"); });
+    $(modalId).addEventListener("click", function (e) {
+      if (e.target === $(modalId) || e.target.closest("[data-close]")) $(modalId).classList.remove("open");
+    });
+    $(sendBtn).addEventListener("click", run);
+  }
+  wireModal("act-decline", "m-decline", "decline-send", function () {
+    api({ action: "decline", reason: $("decline-reason").value.trim() || null }).then(function (r) {
+      $("m-decline").classList.remove("open");
+      if (!r.ok) { alert(friendly(r.body && r.body.error)); return; }
+      setBanner("info", "Request declined — thanks for letting them know.");
+      $("actions").style.display = "none";
+      $("quote-form").classList.add("hidden");
+    });
+  });
+  wireModal("act-question", "m-question", "question-send", function () {
+    var msg = $("question-text").value.trim();
+    if (!msg) { alert("Type your question first."); return; }
+    api({ action: "question", message: msg }).then(function (r) {
+      $("m-question").classList.remove("open");
+      if (!r.ok) { alert(friendly(r.body && r.body.error)); return; }
+      $("question-text").value = "";
+      setBanner("ok", "Question sent — the operator will follow up.");
+    });
+  });
+
+  function setBanner(kind, text) {
+    var b = $("banner");
+    b.className = "banner " + kind;
+    b.textContent = text;
+  }
+  function friendly(code) {
+    return {
+      invalid_link: "This link isn't valid.",
+      link_expired: "This link has expired — reply to the request email for a fresh one.",
+      link_revoked: "This link was replaced — check for a newer email from the operator.",
+      request_closed: "This request is closed.",
+      file_too_large: "That file is too large (15 MB max).",
+      unsupported_type: "Use a PDF or photo (JPG/PNG).",
+      rate_limited: "Too many requests — wait a minute and try again.",
+    }[code] || "Something went wrong — try again.";
+  }
+
+  // ── boot ───────────────────────────────────────────────────────────
+  function fail(code) {
+    $("state-loading").classList.add("hidden");
+    $("state-error").classList.remove("hidden");
+    if (code === "link_expired") {
+      $("err-title").textContent = "This link has expired";
+      $("err-sub").textContent = "Quote links expire for security. Reply to the request email and the operator can send a fresh one.";
+    } else if (code === "link_revoked") {
+      $("err-title").textContent = "This link was replaced";
+      $("err-sub").textContent = "Check your inbox for a newer email from the operator, or reply to the original request.";
+    }
+  }
+  function dtLocal(iso) {
+    if (!iso) return "";
+    var d = new Date(iso);
+    if (isNaN(d)) return "";
+    var p = function (n) { return String(n).padStart(2, "0"); };
+    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + "T" + p(d.getHours()) + ":" + p(d.getMinutes());
+  }
+  function boot(d) {
+    S.data = d;
+    $("state-loading").classList.add("hidden");
+    $("state-main").classList.remove("hidden");
+    var v = d.vehicle || {}, c = d.case || {}, req = d.request || {};
+    var veh = [v.year, v.make, v.model].filter(Boolean).join(" ");
+    document.title = "Quote request — " + veh;
+    $("tb-title").textContent = "Repair request from " + ((d.dsp && d.dsp.name) || "a RouteReady operator");
+    $("veh-title").textContent = veh + (c.title ? " — " + c.title : "");
+    $("veh-sub").textContent = [v.unit ? "Unit " + v.unit : null, v.vin ? "VIN " + v.vin : null,
+      v.mileage != null ? Number(v.mileage).toLocaleString("en-US") + " mi" : null].filter(Boolean).join(" · ");
+    if (req.respond_by) {
+      $("respond-pill").innerHTML = '<span class="pill warn">Respond by '
+        + esc(new Date(req.respond_by).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })) + "</span>";
+    }
+    $("req-message").textContent = req.message || c.description || c.title || "";
+    var facts = [];
+    if (c.category) facts.push(["Category", c.category]);
+    if (c.severity) facts.push(["Severity", c.severity]);
+    facts.push(["Drivable", c.drivable === false ? "No" : c.drivable === true ? "Yes" : "—"]);
+    if (c.towing_required) facts.push(["Towing", "Required"]);
+    if (c.required_completion_at) facts.push(["Needed back", new Date(c.required_completion_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })]);
+    $("req-facts").innerHTML = facts.map(function (f) {
+      return "<div><span class='k'>" + esc(f[0]) + "</span><span class='v'>" + esc(f[1]) + "</span></div>";
+    }).join("");
+    var atts = Array.isArray(d.attachments) ? d.attachments.filter(function (a) { return a.url; }) : [];
+    if (atts.length) {
+      $("atts-card").style.display = "";
+      $("atts").innerHTML = atts.map(function (a) {
+        if (/^image\//.test(a.mime_type || "")) {
+          return '<a href="' + esc(a.url) + '" target="_blank" rel="noopener"><img src="' + esc(a.url) + '" alt="' + esc(a.file_name) + '"></a>';
+        }
+        return '<a class="att-doc" href="' + esc(a.url) + '" target="_blank" rel="noopener">📄 ' + esc(a.file_name) + "</a>";
+      }).join("");
+    }
+    if (req.status === "declined") {
+      setBanner("info", "You declined this request. If that's changed, submit a quote below.");
+    } else if (req.status === "submitted") {
+      setBanner("ok", "Your quote is in. You can revise and resubmit until the operator decides.");
+    }
+    // Restore draft / submitted quote for revision
+    var q = d.quote;
+    if (q) {
+      $("quote-form").classList.remove("hidden");
+      $("q-number").value = q.quote_number || "";
+      $("q-wo").value = q.shop_work_order_number || "";
+      $("q-advisor").value = q.service_advisor || "";
+      $("q-cname").value = q.contact_name || "";
+      $("q-cphone").value = q.contact_phone || "";
+      $("q-cemail").value = q.contact_email || "";
+      $("q-appt").value = dtLocal(q.earliest_appointment_at);
+      $("q-complete").value = dtLocal(q.estimated_completion_at);
+      $("q-parts").value = q.parts_availability || "";
+      $("q-warranty").value = q.warranty_summary || "";
+      $("q-notes").value = q.notes || "";
+      if (q.shop_reported_total_cents != null) $("t-reported").value = (q.shop_reported_total_cents / 100).toFixed(2);
+      var items = Array.isArray(q.line_items) ? q.line_items : [];
+      items.forEach(function (li) {
+        if (li.category === "tax") { $("t-tax").value = ((li.tax_cents || li.line_total_cents || 0) / 100).toFixed(2); return; }
+        S.lines.push({
+          category: li.category || "labor",
+          description: li.description || "",
+          part_number: li.part_number || "",
+          parts: li.parts_total_cents != null ? (li.parts_total_cents / 100).toFixed(2) : "",
+          hours: li.labor_hours != null ? String(li.labor_hours) : "",
+          rate: li.labor_rate_cents != null ? (li.labor_rate_cents / 100).toFixed(2) : "",
+        });
+      });
+      renderLines();
+    }
+  }
+
+  if (!token) { fail("invalid_link"); return; }
+  api({ action: "load" }).then(function (r) {
+    if (!r.ok) { fail(r.body && r.body.error); return; }
+    boot(r.body);
+  }).catch(function () { fail(); });
+})();
+</script>
+</body>
+</html>

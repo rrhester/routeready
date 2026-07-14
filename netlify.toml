@@ -10,6 +10,12 @@
   to   = "/dashboard/screening.html?t=:token"
   status = 200
 
+# Repair Center — secure shop quote links (/q/<token> → shop portal).
+[[redirects]]
+  from = "/q/:token"
+  to   = "/dashboard/shop.html?t=:token"
+  status = 200
+
 [[redirects]]
   from = "/c/:token"
   to   = "/dashboard/coaching.html?t=:token"

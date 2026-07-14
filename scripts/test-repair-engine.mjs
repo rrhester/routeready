@@ -11,6 +11,7 @@ import {
   STAGES, STAGE_LABEL, STAGE_TONE, STAGE_TRANSITIONS,
   canTransition, isOpenStage,
   AVAILABILITY_LABEL, AVAILABILITY_TONE, SHOP_STATUS_LABEL, SHOP_STATUS_TONE,
+  REQUEST_STATUS_LABEL, REQUEST_STATUS_TONE, SHOP_CLASS_LABEL, SHOP_CLASS_TONE,
   msBetween, formatDuration, daysDown, daysDownTone, promiseState, downSince,
   formatCents, sumCents, varianceCents, variancePct,
   attentionScore, filterQueue, sortQueue, summarize,
@@ -84,6 +85,15 @@ t("isOpenStage", () => {
   assert.ok(isOpenStage("at_shop"));
   assert.ok(!isOpenStage("closed"));
   assert.ok(!isOpenStage("cancelled"));
+});
+
+t("request-status + shop-class vocab complete; red is earned", () => {
+  for (const k of Object.keys(REQUEST_STATUS_LABEL)) assert.ok(REQUEST_STATUS_TONE[k], k);
+  for (const k of Object.keys(SHOP_CLASS_LABEL)) assert.ok(SHOP_CLASS_TONE[k], k);
+  const redReq = Object.entries(REQUEST_STATUS_TONE).filter(([, v]) => v === "bad").map(([k]) => k);
+  assert.deepEqual(redReq, ["failed"]);
+  const redShop = Object.entries(SHOP_CLASS_TONE).filter(([, v]) => v === "bad").map(([k]) => k);
+  assert.deepEqual(redShop, ["blocked"]);
 });
 
 t("availability + shop-status vocab complete", () => {

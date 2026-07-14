@@ -127,6 +127,43 @@ export const SHOP_STATUS_TONE = {
   picked_up: "neutral",
 };
 
+// ── Quote-request status (per shop × case) ──────────────────────────────
+export const REQUEST_STATUS_LABEL = {
+  queued: "Queued",
+  sent: "Sent",
+  opened: "Opened",
+  submitted: "Quote received",
+  declined: "Declined",
+  expired: "Expired",
+  revoked: "Revoked",
+  failed: "Send failed",
+};
+
+export const REQUEST_STATUS_TONE = {
+  queued: "neutral",
+  sent: "info",
+  opened: "info",
+  submitted: "ok",
+  declined: "warn",
+  expired: "neutral",
+  revoked: "neutral",
+  failed: "bad",       // a failed shop communication is a serious state
+};
+
+export const SHOP_CLASS_LABEL = {
+  preferred: "Preferred",
+  approved: "Approved",
+  emergency: "Emergency",
+  blocked: "Blocked",
+};
+
+export const SHOP_CLASS_TONE = {
+  preferred: "ok",
+  approved: "neutral",
+  emergency: "warn",
+  blocked: "bad",
+};
+
 export const SEVERITY_LABEL = { low: "Low", medium: "Medium", high: "High", critical: "Critical" };
 export const CATEGORY_OPTIONS = [
   "mechanical", "electrical", "brakes", "tires", "body", "glass", "hvac",
