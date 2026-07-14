@@ -444,6 +444,14 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
 .rrnb-slash-opt .ic{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;
   border-radius:var(--r-sm);background:var(--canvas,rgba(15,23,42,.05));font-size:11px;font-weight:700;
   color:var(--text-muted);flex:0 0 auto}
+/* drag-to-reorder: left-margin grip + live drop line (classic editor) */
+.rrnb-draghandle{position:fixed;z-index:70;width:18px;height:22px;display:flex;align-items:center;
+  justify-content:center;color:var(--text-disabled);cursor:grab;border-radius:var(--r-sm);background:transparent}
+.rrnb-draghandle:hover{background:var(--accent-soft);color:var(--text-muted)}
+.rrnb-draghandle.grabbing{cursor:grabbing}
+.rrnb-draghandle[hidden]{display:none}
+.rrnb-dropline{position:fixed;z-index:71;height:2px;background:var(--accent);border-radius:2px;pointer-events:none}
+.rrnb-dropline[hidden]{display:none}
 
 /* context menu */
 .rrnb-ctx{position:fixed;z-index:90;background:var(--surface);border:1px solid var(--border);
@@ -1462,9 +1470,11 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     ed.addEventListener("keyup", refreshToolbarState);
     ed.addEventListener("mouseup", refreshToolbarState);
     ed.addEventListener("paste", onEditorPaste);
-    ed.addEventListener("dragover", function (e) { e.preventDefault(); ed.classList.add("rrnb-drop"); });
+    ed.addEventListener("dragover", function (e) { if (DH.dragging) { dhDragOver(e); return; } e.preventDefault(); ed.classList.add("rrnb-drop"); });
     ed.addEventListener("dragleave", function () { ed.classList.remove("rrnb-drop"); });
-    ed.addEventListener("drop", onEditorDrop);
+    ed.addEventListener("drop", function (e) { if (DH.dragging) { dhDrop(e); return; } onEditorDrop(e); });
+    ed.addEventListener("mousemove", dhMouseMove);
+    ed.addEventListener("mouseleave", hideHandle);
     bindToolbar();
     makeCaptionsEditable();
     if (S.readOnly || p.my_role === "viewer") applyReadOnly();
@@ -3401,6 +3411,95 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     }
     slashClose();
     if (it.block) applyBlock(it.cmd); else doCommand(it.cmd);
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  //  DRAG-TO-REORDER BLOCKS (classic editor) — a hover grip in the left
+  //  margin lets you pick up a top-level block (paragraph, heading, list,
+  //  table, callout, to-do, picture…) and drop it elsewhere, with a live
+  //  drop line. The grip is a separate draggable element (not the editable
+  //  content), so dragging never selects or splits text. Classic only.
+  // ══════════════════════════════════════════════════════════════════
+  var DH = { el: null, line: null, block: null, dragging: false, target: null };
+  function dhEl() {
+    if (DH.el) return DH.el;
+    var h = document.createElement("div");
+    h.className = "rrnb-draghandle"; h.id = "rrnb-draghandle"; h.hidden = true; h.setAttribute("draggable", "true");
+    h.title = "Drag to move this block";
+    h.innerHTML = '<svg viewBox="0 0 10 16" width="10" height="16" aria-hidden="true"><g fill="currentColor">' +
+      '<circle cx="2.5" cy="3" r="1.15"/><circle cx="7.5" cy="3" r="1.15"/><circle cx="2.5" cy="8" r="1.15"/>' +
+      '<circle cx="7.5" cy="8" r="1.15"/><circle cx="2.5" cy="13" r="1.15"/><circle cx="7.5" cy="13" r="1.15"/></g></svg>';
+    document.body.appendChild(h);
+    h.addEventListener("dragstart", dhDragStart);
+    h.addEventListener("dragend", dhDragEnd);
+    DH.el = h; return h;
+  }
+  function dhLine() {
+    if (DH.line) return DH.line;
+    var l = document.createElement("div"); l.className = "rrnb-dropline"; l.hidden = true;
+    document.body.appendChild(l); DH.line = l; return l;
+  }
+  function hideHandle() { if (DH.el && !DH.dragging) DH.el.hidden = true; }
+  function topBlockOf(node, ed) {
+    while (node && node.parentNode !== ed) node = node.parentNode;
+    return (node && node.nodeType === 1 && node !== DH.el && node !== DH.line) ? node : null;
+  }
+  function dhMouseMove(e) {
+    if (DH.dragging || S.readOnly || S.editorKind === "tiptap") return;
+    var ed = $id("rrnb-editor"); if (!ed) return;
+    if (DH.el && (e.target === DH.el || DH.el.contains(e.target))) return;   // hovering the grip itself
+    var blk = topBlockOf(e.target, ed);
+    if (!blk || blk.tagName === "HR") { hideHandle(); return; }
+    DH.block = blk;
+    var h = dhEl(), r = blk.getBoundingClientRect();
+    h.style.top = (r.top + 2) + "px";
+    h.style.left = Math.max(6, r.left - 22) + "px";
+    h.hidden = false;
+  }
+  function dhBlocks(ed) {
+    return [].slice.call(ed.children).filter(function (c) { return c.nodeType === 1 && c !== DH.el && c !== DH.line; });
+  }
+  function dhTargetAt(ed, y) {
+    var kids = dhBlocks(ed);
+    for (var i = 0; i < kids.length; i++) {
+      var r = kids[i].getBoundingClientRect();
+      if (y < r.top + r.height / 2) return { block: kids[i], before: true };
+    }
+    return kids.length ? { block: kids[kids.length - 1], before: false } : null;
+  }
+  function dhDragStart(e) {
+    if (!DH.block) { e.preventDefault(); return; }
+    DH.dragging = true; DH.el.classList.add("grabbing");
+    try { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/rrnb-block", "1"); } catch (x) {}
+    try { e.dataTransfer.setDragImage(DH.block, 12, 12); } catch (x) {}
+  }
+  function dhDragOver(e) {
+    e.preventDefault(); try { e.dataTransfer.dropEffect = "move"; } catch (x) {}
+    var ed = $id("rrnb-editor"); if (!ed) return;
+    var t = dhTargetAt(ed, e.clientY); DH.target = t;
+    var l = dhLine();
+    if (!t) { l.hidden = true; return; }
+    var r = t.block.getBoundingClientRect();
+    l.style.left = r.left + "px"; l.style.width = r.width + "px";
+    l.style.top = ((t.before ? r.top : r.bottom) - 1) + "px";
+    l.hidden = false;
+  }
+  function dhDrop(e) {
+    e.preventDefault();
+    var ed = $id("rrnb-editor");
+    var t = DH.target || (ed && dhTargetAt(ed, e.clientY));
+    if (ed && t && DH.block && t.block !== DH.block) {
+      if (t.before) ed.insertBefore(DH.block, t.block);
+      else ed.insertBefore(DH.block, t.block.nextSibling);
+      scheduleSave(); persistLinks(S.pageId);
+    }
+    dhDragEnd();
+  }
+  function dhDragEnd() {
+    DH.dragging = false; DH.target = null;
+    if (DH.el) { DH.el.classList.remove("grabbing"); DH.el.hidden = true; }
+    if (DH.line) DH.line.hidden = true;
+    var ed = $id("rrnb-editor"); if (ed) ed.classList.remove("rrnb-drop");
   }
 
   // ══════════════════════════════════════════════════════════════════
