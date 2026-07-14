@@ -633,9 +633,10 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
 
 /* editor — content on white, more air, a lighter title + soft date line.
    The canvas becomes a column so the toolbar can stretch full-width on top
-   while the page column stays centered below it. */
+   while the page column left-aligns below it so it uses the canvas width
+   instead of leaving a big centered margin. */
 #view-notebooks .rrnb-canvas-wrap{flex-direction:column;justify-content:flex-start;align-items:stretch}
-#view-notebooks .rrnb-doc{align-self:center;width:100%;max-width:720px;padding:var(--s-6) var(--s-6) 40vh}
+#view-notebooks .rrnb-doc{align-self:flex-start;width:100%;max-width:1100px;padding:var(--s-6) var(--s-8) 40vh}
 #view-notebooks .rrnb-breadcrumb{color:#8A93A2}
 #view-notebooks .rrnb-title{font-size:30px;font-weight:600;letter-spacing:-.02em;color:#2A3340;line-height:1.15}
 #view-notebooks .rrnb-pdate{font-size:12.5px;color:#AEB6C2;margin:2px 0 4px}
