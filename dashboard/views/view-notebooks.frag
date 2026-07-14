@@ -1499,7 +1499,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     title.addEventListener("keydown", stopTypingLeak);
     title.addEventListener("keyup", stopTypingLeak);
     title.addEventListener("keypress", stopTypingLeak);
-    ed.addEventListener("input", function () { slashScan(); scheduleSave(); autoLinkify(); positionImgResize(); scheduleCtxRefresh(); });
+    ed.addEventListener("input", function () { mdInline(); slashScan(); scheduleSave(); autoLinkify(); positionImgResize(); scheduleCtxRefresh(); });
     ed.addEventListener("keydown", onEditorKey);
     ed.addEventListener("click", onEditorClick);
     ed.addEventListener("contextmenu", onEditorCtx);
@@ -2382,10 +2382,67 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     }
     return false;
   }
+  // Inline markdown: typing the closing delimiter converts the wrapped text
+  // (**bold**, *italic*, ~~strike~~, `code`). Runs on input; skips code/links.
+  var MD_INLINE = [
+    { re: /`([^`\n]+)`$/, tag: "code" },
+    { re: /\*\*([^*\n]+)\*\*$/, tag: "strong" },
+    { re: /~~([^~\n]+)~~$/, tag: "s" },
+    { re: /(^|[^*])\*([^*\n]+)\*$/, tag: "em", grp: 2 }
+  ];
+  function mdInline() {
+    var ed = $id("rrnb-editor"); if (!ed || S.readOnly || S.editorKind === "tiptap") return;
+    var sel = window.getSelection(); if (!sel || !sel.rangeCount || !sel.isCollapsed) return;
+    var node = sel.anchorNode; if (!node || node.nodeType !== 3 || !ed.contains(node)) return;
+    if (node.parentNode && node.parentNode.closest && node.parentNode.closest("a,pre,code")) return;
+    var text = node.nodeValue, off = sel.anchorOffset, before = text.slice(0, off);
+    for (var i = 0; i < MD_INLINE.length; i++) {
+      var r = MD_INLINE[i], m = r.re.exec(before);
+      if (!m) continue;
+      var inner = m[r.grp || 1];
+      var lead = r.grp === 2 ? m[1] : "";
+      var full = m[0].slice(lead.length);
+      var start = off - full.length;
+      var el = document.createElement(r.tag); el.textContent = inner;
+      var frag = document.createDocumentFragment();
+      var head = text.slice(0, start), tail = text.slice(off);
+      if (head) frag.appendChild(document.createTextNode(head));
+      frag.appendChild(el);
+      // a trailing text node (zero-width when empty) keeps the caret OUTSIDE the
+      // new element, so typing continues unstyled instead of extending the mark
+      var tailNode = document.createTextNode(tail || "​");
+      frag.appendChild(tailNode);
+      node.parentNode.replaceChild(frag, node);
+      var c = document.createRange(); c.setStart(tailNode, tail ? 0 : 1); c.collapse(true);
+      sel.removeAllRanges(); sel.addRange(c);
+      scheduleSave();
+      return;
+    }
+  }
+  // Duplicate / move the current top-level block (Ctrl/⌘+D, Alt+↑/↓).
+  function currentTopBlock() {
+    var ed = $id("rrnb-editor"); var sel = window.getSelection();
+    if (!ed || !sel || !sel.anchorNode || !ed.contains(sel.anchorNode)) return null;
+    return topBlockOf(sel.anchorNode, ed);
+  }
+  function duplicateBlock() {
+    var ed = $id("rrnb-editor"); var blk = currentTopBlock(); if (!blk || !blk.parentNode) return;
+    var clone = blk.cloneNode(true); ed.insertBefore(clone, blk.nextSibling);
+    try { var c = document.createRange(); c.selectNodeContents(clone); c.collapse(false); var s = window.getSelection(); s.removeAllRanges(); s.addRange(c); } catch (e) {}
+    scheduleSave(); persistLinks(S.pageId);
+  }
+  function moveBlock(dir) {
+    var ed = $id("rrnb-editor"); var blk = currentTopBlock(); if (!blk) return;
+    if (dir < 0) { var prev = blk.previousElementSibling; if (prev && prev !== DH.el && prev !== DH.line) ed.insertBefore(blk, prev); else return; }
+    else { var next = blk.nextElementSibling; if (next && next !== DH.el && next !== DH.line) ed.insertBefore(next, blk); else return; }
+    scheduleSave();
+  }
   function onEditorKey(e) {
     var mod = e.ctrlKey || e.metaKey;
     if (slashKey(e)) return;                       // slash menu owns arrows/enter/esc while open
     if (mdKey(e)) return;                           // markdown shortcuts / smart quotes
+    if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "d") { e.preventDefault(); duplicateBlock(); return; }
+    if (e.altKey && !mod && (e.key === "ArrowUp" || e.key === "ArrowDown")) { e.preventDefault(); moveBlock(e.key === "ArrowUp" ? -1 : 1); return; }
     if (!mod && !e.altKey && todoKeydown(e)) return;
     if (!mod && !e.altKey && tableTabKey(e)) return;
     if (mod && !e.shiftKey && !e.altKey) {
