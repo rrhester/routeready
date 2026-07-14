@@ -239,12 +239,13 @@
               <input id="rr-fleet-search" type="search" placeholder="Search by name, plate, VIN, driver…" autocomplete="off">
             </div>
             <div class="fl-bar-spacer"></div>
+            <!-- Options match vehicles_roster.operational_status — the
+                 old employment-style list (Active / Spare / …) never
+                 matched a row, so the filter was a no-op. -->
             <select id="rr-fleet-status" class="fl-filter" aria-label="Filter by status">
               <option value="">Status: All</option>
-              <option value="active">Active</option>
-              <option value="spare">Spare</option>
-              <option value="out_of_service">Out of service</option>
-              <option value="retired">Retired</option>
+              <option value="operational">Operational</option>
+              <option value="grounded">Grounded</option>
             </select>
             <select id="rr-fleet-station" class="fl-filter" aria-label="Filter by station">
               <option value="">Station: All</option>
@@ -260,26 +261,33 @@
           <div id="rr-fleet-unground-alerts"></div>
           <div class="fl-table-scroll">
           <table class="table">
+            <!-- Static header for the pre-JS skeleton state only —
+                 _flRenderRoster() re-renders this row with the roster's
+                 sortable-caret headers on every paint. Ownership & type
+                 folded into the Vehicle identity cell (chips + sub line),
+                 the driver-roster anatomy. -->
             <thead>
               <tr>
                 <th>Vehicle</th>
                 <th>VIN</th>
-                <th>Ownership &amp; type</th>
                 <th>Operational status</th>
                 <th>Documents</th>
                 <th>Driver reports</th>
                 <th>Repair status</th>
+                <th class="rr-roster-th-actions"></th>
               </tr>
             </thead>
             <tbody id="fleet-tbody">
               <!-- Skeleton rows · painted before loadFleetRoster()
                    replaces them.  Matches the 7-col table head rhythm
-                   so the layout doesn't reflow when real vans arrive. -->
-              <tr class="fl-skel-row"><td><div class="fl-skel-veh"><span class="rr-skel" style="width:40px;height:40px;flex:0 0 auto;border-radius:var(--r-md)"></span><span class="rr-skel rr-skel-md" style="width:160px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:80%"></span></td><td><span class="rr-skel rr-skel-md" style="width:60%"></span></td><td><span class="rr-skel rr-skel-md" style="width:74%"></span></td><td><span class="rr-skel rr-skel-md" style="width:58%"></span></td><td><span class="rr-skel rr-skel-md" style="width:46%"></span></td><td><span class="rr-skel rr-skel-md" style="width:50%"></span></td></tr>
-              <tr class="fl-skel-row"><td><div class="fl-skel-veh"><span class="rr-skel" style="width:40px;height:40px;flex:0 0 auto;border-radius:var(--r-md)"></span><span class="rr-skel rr-skel-md" style="width:140px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:84%"></span></td><td><span class="rr-skel rr-skel-md" style="width:55%"></span></td><td><span class="rr-skel rr-skel-md" style="width:80%"></span></td><td><span class="rr-skel rr-skel-md" style="width:54%"></span></td><td><span class="rr-skel rr-skel-md" style="width:42%"></span></td><td><span class="rr-skel rr-skel-md" style="width:46%"></span></td></tr>
-              <tr class="fl-skel-row"><td><div class="fl-skel-veh"><span class="rr-skel" style="width:40px;height:40px;flex:0 0 auto;border-radius:var(--r-md)"></span><span class="rr-skel rr-skel-md" style="width:170px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:78%"></span></td><td><span class="rr-skel rr-skel-md" style="width:64%"></span></td><td><span class="rr-skel rr-skel-md" style="width:70%"></span></td><td><span class="rr-skel rr-skel-md" style="width:62%"></span></td><td><span class="rr-skel rr-skel-md" style="width:48%"></span></td><td><span class="rr-skel rr-skel-md" style="width:52%"></span></td></tr>
-              <tr class="fl-skel-row"><td><div class="fl-skel-veh"><span class="rr-skel" style="width:40px;height:40px;flex:0 0 auto;border-radius:var(--r-md)"></span><span class="rr-skel rr-skel-md" style="width:130px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:82%"></span></td><td><span class="rr-skel rr-skel-md" style="width:58%"></span></td><td><span class="rr-skel rr-skel-md" style="width:76%"></span></td><td><span class="rr-skel rr-skel-md" style="width:56%"></span></td><td><span class="rr-skel rr-skel-md" style="width:40%"></span></td><td><span class="rr-skel rr-skel-md" style="width:48%"></span></td></tr>
-              <tr class="fl-skel-row"><td><div class="fl-skel-veh"><span class="rr-skel" style="width:40px;height:40px;flex:0 0 auto;border-radius:var(--r-md)"></span><span class="rr-skel rr-skel-md" style="width:150px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:80%"></span></td><td><span class="rr-skel rr-skel-md" style="width:62%"></span></td><td><span class="rr-skel rr-skel-md" style="width:72%"></span></td><td><span class="rr-skel rr-skel-md" style="width:60%"></span></td><td><span class="rr-skel rr-skel-md" style="width:44%"></span></td><td><span class="rr-skel rr-skel-md" style="width:54%"></span></td></tr>
+                   (identity · VIN · status · docs · reports · repair ·
+                   actions) so the layout doesn't reflow when real vans
+                   arrive. Round 40px thumb = the roster-avatar shape. -->
+              <tr class="fl-skel-row"><td><div class="fl-skel-veh"><span class="rr-skel" style="width:40px;height:40px;flex:0 0 auto;border-radius:50%"></span><span class="rr-skel rr-skel-md" style="width:160px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:80%"></span></td><td><span class="rr-skel rr-skel-md" style="width:74%"></span></td><td><span class="rr-skel rr-skel-md" style="width:58%"></span></td><td><span class="rr-skel rr-skel-md" style="width:46%"></span></td><td><span class="rr-skel rr-skel-md" style="width:50%"></span></td><td></td></tr>
+              <tr class="fl-skel-row"><td><div class="fl-skel-veh"><span class="rr-skel" style="width:40px;height:40px;flex:0 0 auto;border-radius:50%"></span><span class="rr-skel rr-skel-md" style="width:140px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:84%"></span></td><td><span class="rr-skel rr-skel-md" style="width:80%"></span></td><td><span class="rr-skel rr-skel-md" style="width:54%"></span></td><td><span class="rr-skel rr-skel-md" style="width:42%"></span></td><td><span class="rr-skel rr-skel-md" style="width:46%"></span></td><td></td></tr>
+              <tr class="fl-skel-row"><td><div class="fl-skel-veh"><span class="rr-skel" style="width:40px;height:40px;flex:0 0 auto;border-radius:50%"></span><span class="rr-skel rr-skel-md" style="width:170px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:78%"></span></td><td><span class="rr-skel rr-skel-md" style="width:70%"></span></td><td><span class="rr-skel rr-skel-md" style="width:62%"></span></td><td><span class="rr-skel rr-skel-md" style="width:48%"></span></td><td><span class="rr-skel rr-skel-md" style="width:52%"></span></td><td></td></tr>
+              <tr class="fl-skel-row"><td><div class="fl-skel-veh"><span class="rr-skel" style="width:40px;height:40px;flex:0 0 auto;border-radius:50%"></span><span class="rr-skel rr-skel-md" style="width:130px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:82%"></span></td><td><span class="rr-skel rr-skel-md" style="width:76%"></span></td><td><span class="rr-skel rr-skel-md" style="width:56%"></span></td><td><span class="rr-skel rr-skel-md" style="width:40%"></span></td><td><span class="rr-skel rr-skel-md" style="width:48%"></span></td><td></td></tr>
+              <tr class="fl-skel-row"><td><div class="fl-skel-veh"><span class="rr-skel" style="width:40px;height:40px;flex:0 0 auto;border-radius:50%"></span><span class="rr-skel rr-skel-md" style="width:150px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:80%"></span></td><td><span class="rr-skel rr-skel-md" style="width:72%"></span></td><td><span class="rr-skel rr-skel-md" style="width:60%"></span></td><td><span class="rr-skel rr-skel-md" style="width:44%"></span></td><td><span class="rr-skel rr-skel-md" style="width:54%"></span></td><td></td></tr>
             </tbody>
           </table>
           </div><!-- /.fl-table-scroll -->

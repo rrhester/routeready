@@ -76189,7 +76189,7 @@ let _fleetRows         = [];            // last loaded vehicles_roster payload
 let _fleetIssues       = [];            // last loaded vehicles_issues_list payload
 let _fleetExecSummary  = null;          // last loaded fleet_execution_summary payload
 let _fleetExecLoading  = false;         // re-entry guard for the FEM/VORR RPC
-let _fleetFilters      = { q: "", status: "", station: "", docs: "" };
+let _fleetFilters      = { q: "", status: "", station: "", docs: "", sort: "name" };
 let _fleetIssueFilters = { q: "", state: "open", severity: "" };
 let _fleetSearchT      = null;
 let _fleetIssuesSearchT = null;
@@ -76206,10 +76206,29 @@ function _flVanIconSvg() {
 }
 
 function _flVehThumb(v, opts) {
-  const cls = (opts && opts.cls) || "fl-veh-thumb";
+  // Grounded vans carry a corner status dot — the driver roster's
+  // avatar-health recipe (.avatar-sm.rr-health-high), so a scan down
+  // the column reads attention-needed vans the same way it reads
+  // at-risk drivers. Healthy vans stay clean.
+  const grounded = (v.operational_status || "operational") === "grounded";
+  const cls = ((opts && opts.cls) || "fl-veh-thumb") + (grounded ? " is-grounded" : "");
   const url = v.photo_url || null;
   if (url) return `<div class="${cls}"><img src="${escapeHtml(url)}" alt=""></div>`;
   return `<div class="${cls}">${_flVanIconSvg()}</div>`;
+}
+
+// Ownership / van-type chips under the vehicle name — the driver
+// roster's cert-pill row (.rr-cert-row / .rr-cert) applied to vans, so
+// the identity cell reads the same way a driver's XL / DOT / Trainer
+// chips do. EDV reuses the roster's teal EDV tint outright.
+function _flVehTagChips(v) {
+  const chips = [];
+  const own = _flOwnershipLabel(v.ownership);
+  if (own && own !== "—") chips.push(`<span class="rr-cert fl-tag-own">${escapeHtml(own)}</span>`);
+  const type = _flVanTypeLabel(v.van_type);
+  if (type) chips.push(`<span class="rr-cert ${v.van_type === "edv" ? "rr-cert-edv" : "fl-tag-type"}">${escapeHtml(type)}</span>`);
+  if (v.kind && v.kind !== "van") chips.push(`<span class="rr-cert fl-tag-kind">${escapeHtml(v.kind)}</span>`);
+  return chips.length ? `<div class="rr-cert-row">${chips.join("")}</div>` : "";
 }
 
 // Batch-sign storage paths in a private bucket → Map(path → signedUrl).
@@ -77022,7 +77041,7 @@ document.addEventListener("keydown", (e) => {
 });
 
 function _flRosterSkeleton(n) {
-  const row = `<tr style="pointer-events:none"><td><div class="fl-veh-cell"><div class="fl-skel-thumb"></div><div style="flex:1"><div class="fl-skel-cell" style="width:50%"></div><div class="fl-skel-cell" style="width:35%;margin-top:6px;height:10px"></div></div></div></td><td><div class="fl-skel-cell" style="width:80%"></div></td><td><div class="fl-skel-cell" style="width:60%"></div></td><td><div class="fl-skel-cell" style="width:50%"></div></td><td><div class="fl-skel-cell" style="width:40%"></div></td><td><div class="fl-skel-cell" style="width:50%"></div></td><td><div class="fl-skel-cell" style="width:55%"></div></td></tr>`;
+  const row = `<tr style="pointer-events:none"><td><div class="fl-veh-cell"><div class="fl-skel-thumb"></div><div style="flex:1"><div class="fl-skel-cell" style="width:50%"></div><div class="fl-skel-cell" style="width:35%;margin-top:6px;height:10px"></div></div></div></td><td><div class="fl-skel-cell" style="width:80%"></div></td><td><div class="fl-skel-cell" style="width:60%"></div></td><td><div class="fl-skel-cell" style="width:50%"></div></td><td><div class="fl-skel-cell" style="width:40%"></div></td><td><div class="fl-skel-cell" style="width:50%"></div></td><td></td></tr>`;
   return row.repeat(n);
 }
 
@@ -77059,8 +77078,51 @@ function _flApplyRosterFilters(rows) {
       return true;
     });
   }
+  return _flSortRoster(out);
+}
+
+// Column sorting · the driver roster's click-to-sort headers applied to
+// the fleet roster. Name sorts numeric-aware so "Van 2" lands before
+// "Van 10" (the raw string sort read 1, 10, 11, 2 …).
+function _flSortRoster(rows) {
+  const s = _fleetFilters.sort || "name";
+  const byName = (a, b) => String(a.name || "").localeCompare(String(b.name || ""), undefined, { numeric: true, sensitivity: "base" });
+  // Grounded outranks operational; longer-grounded outranks fresher.
+  const statusRank = (v) => ((v.operational_status || "operational") === "grounded"
+    ? 1000 + (Number(v.days_grounded) || 0) : 0);
+  const docRank = (v) => ({ expired: 3, missing: 2, expiring_soon: 1 }[v.doc_exception_state] || 0);
+  const repRank = (v) => Number(v.driver_reported_open_count) || 0;
+  const out = rows.slice();
+  switch (s) {
+    case "name":         out.sort(byName); break;
+    case "name-desc":    out.sort((a, b) => byName(b, a)); break;
+    case "status-desc":  out.sort((a, b) => (statusRank(b) - statusRank(a)) || byName(a, b)); break;
+    case "status-asc":   out.sort((a, b) => (statusRank(a) - statusRank(b)) || byName(a, b)); break;
+    case "docs-desc":    out.sort((a, b) => (docRank(b) - docRank(a)) || byName(a, b)); break;
+    case "docs-asc":     out.sort((a, b) => (docRank(a) - docRank(b)) || byName(a, b)); break;
+    case "reports-desc": out.sort((a, b) => (repRank(b) - repRank(a)) || byName(a, b)); break;
+    case "reports-asc":  out.sort((a, b) => (repRank(a) - repRank(b)) || byName(a, b)); break;
+  }
   return out;
 }
+
+// Click a sortable fleet column header → toggle direction (or switch to
+// that column at its default direction). Same recipe as the driver
+// roster's data-rr-roster-sort handler.
+document.addEventListener("click", (e) => {
+  const th = e.target.closest("[data-rr-fleet-sort]");
+  if (!th) return;
+  const col = th.getAttribute("data-rr-fleet-sort");
+  const cur = _fleetFilters.sort;
+  let next;
+  if (col === "name")         next = cur === "name" ? "name-desc" : "name";
+  else if (col === "status")  next = cur === "status-desc"  ? "status-asc"  : "status-desc";
+  else if (col === "docs")    next = cur === "docs-desc"    ? "docs-asc"    : "docs-desc";
+  else if (col === "reports") next = cur === "reports-desc" ? "reports-asc" : "reports-desc";
+  if (!next) return;
+  _fleetFilters = { ..._fleetFilters, sort: next };
+  _flRenderRoster();
+});
 
 // ── Repair-status cell · two clocks + RO entry ────────────────────
 // Shown only for grounded vans.  Renders:
@@ -77145,6 +77207,30 @@ function _flRepairStatusCell(v) {
 function _flRenderRoster() {
   const tbody = document.getElementById("fleet-tbody");
   if (!tbody) return;
+
+  // Sortable headers · the driver roster's caret recipe: every sortable
+  // column shows a faded ⇅ at rest; the active one a solid ▲/▼.
+  const thead = tbody.parentElement?.querySelector("thead tr");
+  if (thead) {
+    const f = _fleetFilters;
+    const caret = (col) => {
+      const active = (f.sort || "").replace(/-.*$/, "") === col || f.sort === col;
+      if (!active) return ' <span class="rr-sort-caret rr-sort-caret-idle" aria-hidden="true">⇅</span>';
+      const isAsc = f.sort.endsWith("-asc") || f.sort === "name";
+      return ` <span class="rr-sort-caret rr-sort-caret-active" aria-hidden="true">${isAsc ? "▲" : "▼"}</span>`;
+    };
+    const sortable = (col, label, title) =>
+      `<th data-rr-fleet-sort="${col}" style="cursor:pointer;user-select:none"${title ? ` title="${title}"` : ""}>${label}${caret(col)}</th>`;
+    thead.innerHTML =
+      sortable("name", "Vehicle")
+      + `<th>VIN</th>`
+      + sortable("status", "Operational status", "Grounded vans first — longest-grounded on top")
+      + sortable("docs", "Documents", "Worst document exception first")
+      + sortable("reports", "Driver reports", "Most open driver-reported concerns first")
+      + `<th>Repair status</th>`
+      + `<th class="rr-roster-th-actions"></th>`;
+  }
+
   const rows = _flApplyRosterFilters(_fleetRows);
   if (rows.length === 0) {
     tbody.innerHTML = _fleetRows.length === 0
@@ -77158,23 +77244,43 @@ function _flRenderRoster() {
     return;
   }
   tbody.innerHTML = rows.map((v) => {
+    // Identity cell · the driver roster's cell-driver anatomy: round
+    // avatar (status dot when grounded), bold name, cert-style
+    // ownership/type chips, then a quiet station · year-make-model sub.
     const yearModel = [v.year, v.make, v.model].filter(Boolean).join(" ") || "";
-    const ownershipLine = `${_flOwnershipLabel(v.ownership)}${_flVanTypeLabel(v.van_type) ? ` · ${_flVanTypeLabel(v.van_type)}` : ""}${yearModel ? ` · ${escapeHtml(yearModel)}` : ""}`;
-    const vehSub = v.station_code || "";
+    const vehSub = [v.station_code, yearModel].filter(Boolean).join(" · ");
     return `<tr data-rr-vehicle-id="${escapeHtml(v.id)}">
-      <td><div class="fl-veh-cell">${_flVehThumb(v)}<div>
-        <div class="cell-name">${escapeHtml(v.name)}</div>
+      <td><div class="fl-veh-cell">${_flVehThumb(v)}<div class="cell-driver-text">
+        <div class="cell-name"><span class="cell-name-text">${escapeHtml(v.name)}</span></div>
+        ${_flVehTagChips(v)}
         ${vehSub ? `<div class="cell-name-sub">${escapeHtml(vehSub)}</div>` : ""}
         <div class="cell-chips">${_dvicChipHtml(v)}</div>
       </div></div></td>
       <td>${v.vin ? `<span style="font-family:var(--ff-mono,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:var(--fs-sm)">${escapeHtml(v.vin)}</span>` : `<span class="fl-cell-none">—</span>`}</td>
-      <td>${ownershipLine}${v.kind && v.kind !== "van" ? `<div class="cell-name-sub" style="margin-top:2px">${escapeHtml(v.kind)}</div>` : ""}</td>
       <td>${_flOpStatCell(v)}</td>
       <td>${_flDocCell(v)}</td>
       <td>${_flDriverReportsCell(v)}</td>
       <td>${_flRepairStatusCell(v)}</td>
+      <td class="rr-row-actions">${_flRowActionsFor(v)}</td>
     </tr>`;
   }).join("");
+}
+
+// Per-row quick actions · the driver roster's trailing icon cluster
+// (.rr-row-actions-bar), wired to flows the fleet page already has:
+// Proof of Use (report modal, this van preselected), Documents and
+// Inspections (drawer deep-links the doc/report chips already use).
+function _flRowActionsFor(v) {
+  const id = escapeHtml(v.id);
+  const name = escapeHtml(v.name || "van");
+  const proofIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>';
+  const docsIcon  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>';
+  const inspIcon  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>';
+  return `<div class="rr-row-actions-bar is-persistent">
+    <button type="button" class="rr-row-action" data-rr-veh-proof="${id}" title="Proof of Use report" aria-label="Proof of Use report for ${name}">${proofIcon}</button>
+    <button type="button" class="rr-row-action" data-rr-veh-docs="${id}" title="Documents" aria-label="Documents for ${name}">${docsIcon}</button>
+    <button type="button" class="rr-row-action" data-rr-veh-insp="${id}" title="Inspections" aria-label="Inspections for ${name}">${inspIcon}</button>
+  </div>`;
 }
 
 // Fill the Utilization / Readiness column · 14 past usage blocks, a
@@ -77437,7 +77543,7 @@ window._flCmdTab = _flCmdTab;
 // range, get every DVIC submitted in that window (timestamp, inspector,
 // result, mileage). Download as CSV or print — both produce something
 // the operator can email to a business coach.
-function _flOpenProofModal() {
+function _flOpenProofModal(preselectVehId) {
   document.getElementById("rr-fl-proof")?.remove();
   const wrap = document.createElement("div");
   wrap.id = "rr-fl-proof";
@@ -77486,6 +77592,11 @@ function _flOpenProofModal() {
       </div>
     </div>`;
   document.body.appendChild(wrap);
+  // Row-action entry point — land with that van already picked.
+  if (preselectVehId) {
+    const sel = wrap.querySelector("#rr-proof-veh");
+    if (sel && [...sel.options].some((o) => o.value === preselectVehId)) sel.value = preselectVehId;
+  }
 
   const close = () => { wrap.remove(); };
   wrap.addEventListener("click", (e) => { if (e.target === wrap) close(); });
@@ -77782,6 +77893,25 @@ document.addEventListener("click", async (e) => {
     return;
   }
 
+  // Trailing row-action icons (roster-style quick actions).
+  const proofBtn = e.target.closest("#fleet-tbody [data-rr-veh-proof]");
+  if (proofBtn) {
+    e.preventDefault(); e.stopPropagation();
+    _flOpenProofModal(proofBtn.getAttribute("data-rr-veh-proof"));
+    return;
+  }
+  const docsBtn = e.target.closest("#fleet-tbody [data-rr-veh-docs]");
+  if (docsBtn) {
+    e.preventDefault(); e.stopPropagation();
+    openFleetDrawer(docsBtn.getAttribute("data-rr-veh-docs"), { tab: "documents" });
+    return;
+  }
+  const inspBtn = e.target.closest("#fleet-tbody [data-rr-veh-insp]");
+  if (inspBtn) {
+    e.preventDefault(); e.stopPropagation();
+    openFleetDrawer(inspBtn.getAttribute("data-rr-veh-insp"), { tab: "inspections" });
+    return;
+  }
   // Doc-exception chip on the roster — open drawer directly to Documents
   const docChip = e.target.closest("#fleet-tbody [data-rr-veh-doc]");
   if (docChip) {
