@@ -452,6 +452,14 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
 .rrnb-draghandle[hidden]{display:none}
 .rrnb-dropline{position:fixed;z-index:71;height:2px;background:var(--accent);border-radius:2px;pointer-events:none}
 .rrnb-dropline[hidden]{display:none}
+/* block action menu (opened by clicking the grip) */
+.rrnb-blockmenu{min-width:196px}
+.rrnb-bm-head{padding:5px 9px 3px;font-size:var(--fs-xs);font-weight:700;letter-spacing:.05em;
+  text-transform:uppercase;color:var(--text-subtle)}
+.rrnb-bm-sep{height:1px;background:var(--border);margin:5px 6px}
+.rrnb-slash-opt.danger{color:var(--red,#dc2626)}
+.rrnb-slash-opt.danger:hover{background:var(--red-soft,rgba(220,38,38,.08))}
+.rrnb-slash-opt.danger .ic{color:inherit;background:transparent}
 
 /* context menu */
 .rrnb-ctx{position:fixed;z-index:90;background:var(--surface);border:1px solid var(--border);
@@ -3432,6 +3440,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     document.body.appendChild(h);
     h.addEventListener("dragstart", dhDragStart);
     h.addEventListener("dragend", dhDragEnd);
+    h.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); openBlockMenu(); });   // click (not drag) → actions
     DH.el = h; return h;
   }
   function dhLine() {
@@ -3500,6 +3509,81 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     if (DH.el) { DH.el.classList.remove("grabbing"); DH.el.hidden = true; }
     if (DH.line) DH.line.hidden = true;
     var ed = $id("rrnb-editor"); if (ed) ed.classList.remove("rrnb-drop");
+  }
+
+  // ── block action menu — click the grip to turn a block into another
+  //    type, duplicate it, or delete it. Operates on the grip's block, not
+  //    the caret. Reuses formatBlock/execCommand, so conversions match the
+  //    toolbar. ─────────────────────────────────────────────────────────
+  var BLOCK_ACTIONS = [
+    { head: true, label: "Turn into" },
+    { act: "turn", arg: "P", label: "Text", ic: "¶" },
+    { act: "turn", arg: "H1", label: "Heading 1", ic: "H1" },
+    { act: "turn", arg: "H2", label: "Heading 2", ic: "H2" },
+    { act: "turn", arg: "H3", label: "Heading 3", ic: "H3" },
+    { act: "turn", arg: "ul", label: "Bulleted list", ic: "•" },
+    { act: "turn", arg: "ol", label: "Numbered list", ic: "1." },
+    { act: "turn", arg: "quote", label: "Quote", ic: "❝" },
+    { sep: true },
+    { act: "dup", label: "Duplicate", ic: "⧉" },
+    { act: "del", label: "Delete", ic: "✕", danger: true }
+  ];
+  var BM = { el: null, block: null };
+  function blockMenuEl() {
+    if (BM.el) return BM.el;
+    var m = document.createElement("div"); m.className = "rrnb-slash rrnb-blockmenu"; m.id = "rrnb-blockmenu"; m.hidden = true;
+    m.addEventListener("mousedown", function (e) { e.preventDefault(); });
+    m.addEventListener("click", function (e) { var r = e.target.closest("[data-bi]"); if (r) blockAction(BLOCK_ACTIONS[+r.getAttribute("data-bi")]); });
+    document.body.appendChild(m);
+    document.addEventListener("mousedown", function (e) { if (!BM.el || BM.el.hidden) return; if (BM.el.contains(e.target) || (DH.el && DH.el.contains(e.target))) return; closeBlockMenu(); });
+    BM.el = m; return m;
+  }
+  function openBlockMenu() {
+    if (!DH.block || S.readOnly || S.editorKind === "tiptap") return;
+    BM.block = DH.block;
+    var m = blockMenuEl();
+    m.innerHTML = BLOCK_ACTIONS.map(function (a, i) {
+      if (a.head) return '<div class="rrnb-bm-head">' + esc(a.label) + '</div>';
+      if (a.sep) return '<div class="rrnb-bm-sep"></div>';
+      return '<div class="rrnb-slash-opt' + (a.danger ? " danger" : "") + '" data-bi="' + i + '"><span class="ic">' + esc(a.ic) + '</span>' + esc(a.label) + '</div>';
+    }).join("");
+    m.hidden = false;
+    var r = DH.el.getBoundingClientRect();
+    m.style.left = Math.max(12, Math.min(window.innerWidth - m.offsetWidth - 12, r.right + 4)) + "px";
+    var top = r.top; if (top + m.offsetHeight > window.innerHeight - 12) top = Math.max(12, window.innerHeight - m.offsetHeight - 12);
+    m.style.top = top + "px";
+  }
+  function closeBlockMenu() { if (BM.el) BM.el.hidden = true; BM.block = null; }
+  function blockAction(a) {
+    var blk = BM.block; var ed = $id("rrnb-editor");
+    if (!a || !blk || !ed) { closeBlockMenu(); return; }
+    if (a.act === "turn") {
+      var nb2 = convertBlock(blk, a.arg);
+      if (nb2) { ed.focus(); try { var rg = document.createRange(); rg.selectNodeContents(nb2.tagName === "UL" || nb2.tagName === "OL" ? (nb2.querySelector("li") || nb2) : nb2); rg.collapse(false); var s = window.getSelection(); s.removeAllRanges(); s.addRange(rg); } catch (e3) {} }
+      scheduleSave(); persistLinks(S.pageId);
+    } else if (a.act === "dup") {
+      ed.insertBefore(blk.cloneNode(true), blk.nextSibling); scheduleSave(); persistLinks(S.pageId);
+    } else if (a.act === "del") {
+      blk.remove(); if (!ed.firstChild) ed.innerHTML = "<p><br></p>"; scheduleSave(); persistLinks(S.pageId);
+    }
+    closeBlockMenu(); hideHandle();
+  }
+  // Deterministic block conversion (no execCommand — it nests <ul> inside <p>).
+  // Moves the block's actual child nodes, so inline record links survive.
+  function bmMove(from, to) { while (from.firstChild) to.appendChild(from.firstChild); if (!to.firstChild) to.appendChild(document.createElement("br")); }
+  function convertBlock(blk, arg) {
+    if (!blk || !blk.parentNode) return null;
+    var isList = blk.tagName === "UL" || blk.tagName === "OL";
+    if (arg === "ul" || arg === "ol") {
+      if (isList) { if (blk.tagName.toLowerCase() === arg) return blk; var nl = document.createElement(arg); while (blk.firstChild) nl.appendChild(blk.firstChild); blk.parentNode.replaceChild(nl, blk); return nl; }
+      var list = document.createElement(arg), li = document.createElement("li");
+      bmMove(blk, li); list.appendChild(li); blk.parentNode.replaceChild(list, blk); return list;
+    }
+    var tag = arg === "P" ? "p" : arg === "quote" ? "blockquote" : arg.toLowerCase();   // h1/h2/h3
+    var el = document.createElement(tag);
+    if (isList) { el.innerHTML = [].slice.call(blk.querySelectorAll("li")).map(function (li) { return li.innerHTML; }).join("<br>") || "<br>"; }
+    else bmMove(blk, el);
+    blk.parentNode.replaceChild(el, blk); return el;
   }
 
   // ══════════════════════════════════════════════════════════════════
