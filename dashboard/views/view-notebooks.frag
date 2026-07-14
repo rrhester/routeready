@@ -823,6 +823,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       tree: function (id) { return rpc("notebook_tree", { p_notebook_id: id }); },
       ensureFor: function (t, i, title) { return rpc("notebook_ensure_for", { p_subject_type: t, p_subject_id: String(i), p_title: title || null }); },
       createNotebook: function (name, color, kind) { return rpc("notebook_create", { p_name: name, p_color: color, p_kind: kind || "workspace" }); },
+      setNotebookKind: function (id, kind) { return rpc("notebook_set_kind", { p_notebook_id: id, p_kind: kind }); },
       shareCandidates: function () { return rpc("notebook_share_candidates"); },
       shareList: function (nb) { return rpc("notebook_share_list", { p_notebook_id: nb }); },
       shareSet: function (nb, members) { return rpc("notebook_share_set", { p_notebook_id: nb, p_members: members }); },
@@ -923,6 +924,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       shareSet: function () { return P([]); },
       createNotebook: function (name, color, kind) { var id = uid(); var n = { id: id, name: name || "New Notebook", color: color || "#2563eb", kind: kind === "personal" ? "personal" : "workspace", is_pinned: false, position: db.notebooks.length, subject_type: null, subject_id: null };
         db.notebooks.push(n); db.sections.push({ id: uid(), notebook_id: id, group_id: null, name: "New Section", color: color || "#2563eb", position: 0 }); persist(); return P(n); },
+      setNotebookKind: function (id, kind) { var n = db.notebooks.filter(function (x) { return x.id === id; })[0]; if (n) { n.kind = kind === "personal" ? "personal" : "workspace"; persist(); } return P({ id: id, kind: n ? n.kind : kind, my_role: "owner" }); },
       createGroup: function (nbId, name) { var g = { id: uid(), notebook_id: nbId, name: name || "New Group", color: "#64748b", position: db.groups.length }; db.groups.push(g); persist(); return P(g); },
       createSection: function (nbId, name, grp, color) { var s = { id: uid(), notebook_id: nbId, group_id: grp || null, name: name || "New Section", color: color || "#2563eb", position: db.sections.length }; db.sections.push(s); persist(); return P(s); },
       createPage: function (sec, title, parent, level) { var s = db.sections.filter(function (x) { return x.id === sec; })[0]; var now = new Date().toISOString();
@@ -1197,6 +1199,24 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
         var hn = $id("rrnb-nb-name"); if (hn) hn.textContent = "Notebooks";
         var sw = $id("rrnb-nb-swatch"); if (sw) sw.style.background = "var(--accent)";
         renderSections(); renderPageList(); renderFirstRun();
+      });
+    }).catch(fail);
+  }
+  // Flip a notebook between private (personal) and public (workspace). Both
+  // directions are consequential — private hides it from teammates, public
+  // exposes it — so we confirm either way. The server enforces owner-only.
+  function setNotebookVisibility(id, kind) {
+    var makingPrivate = kind === "personal";
+    var n0 = (S.notebooks || []).filter(function (x) { return x.id === id; })[0];
+    var nm = n0 ? n0.name : "this notebook";
+    var warn = makingPrivate
+      ? 'Make "' + nm + '" private? Only you will see it (until you share it) — teammates will lose access.'
+      : 'Make "' + nm + '" public? Everyone on your team will be able to see and edit it.';
+    if (!window.confirm(warn)) return;
+    return S.be.setNotebookKind(id, kind).then(function () {
+      return S.be.listNotebooks().then(function (list) {
+        S.notebooks = list || []; renderNotebookMenu();
+        notify(makingPrivate ? "Made private — only you can see it now" : "Made public — the whole team can see it");
       });
     }).catch(fail);
   }
@@ -3813,8 +3833,15 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   }
   function notebookMenu(id, x, y) {
     var n = (S.notebooks || []).filter(function (x2) { return x2.id === id; })[0] || {};
+    var isOwner = n.my_role === "owner" || n.my_role == null;
     var items = [{ act: "rename", label: "Rename notebook" }];
-    if (n.kind === "personal" && (n.my_role === "owner" || n.my_role == null)) {
+    // visibility toggle — owner only, and never for object (record) notebooks
+    if (isOwner && n.kind !== "object") {
+      items.push(n.kind === "personal"
+        ? { act: "makepublic", label: "Make public (whole team)" }
+        : { act: "makeprivate", label: "Make private (only you)" });
+    }
+    if (n.kind === "personal" && isOwner) {
       items.push({ act: "share", label: "Share…" + (n.member_count ? " (" + n.member_count + ")" : "") });
     }
     items.push({ sep: 1 }, { act: "del", label: "Delete notebook", danger: true });
@@ -3853,6 +3880,8 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     if (t.kind === "notebook") {
       if (act === "rename") return startNotebookRename(t.id);
       if (act === "share") return openSharePopover(t.id);
+      if (act === "makeprivate") return setNotebookVisibility(t.id, "personal");
+      if (act === "makepublic") return setNotebookVisibility(t.id, "workspace");
       if (act === "del") return deleteNotebook(t.id);
     }
     if (t.kind === "section") {
