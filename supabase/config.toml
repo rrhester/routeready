@@ -166,5 +166,13 @@ verify_jwt = false
 [functions.vin-decode]
 verify_jwt = false
 
+# Live parts-supplier search proxy. Fans out to providers that have credentials
+# configured (e.g. eBay Browse API via EBAY_CLIENT_ID/EBAY_CLIENT_SECRET edge
+# secrets) — keys stay server-side, only fixed provider hosts are contacted.
+# Gateway verify_jwt off so the browser CORS preflight gets a 2xx; the function
+# validates the caller's JWT in-code. Deploy with --no-verify-jwt.
+[functions.parts-search]
+verify_jwt = false
+
 [analytics]
 enabled = false
