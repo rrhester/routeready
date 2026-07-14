@@ -98,7 +98,10 @@ import { makeNhtsaProvider } from "./adapters/nhtsa.js";
     #fl-sub-parts .rrp-tagam{font-size:var(--fs-xs);font-weight:700;padding:2px 6px;border-radius:var(--r-sm,4px);background:var(--surface-2,#F3F4F6);color:var(--text-muted);border:1px solid var(--border)}
     #fl-sub-parts .rrp-empty{padding:34px 20px;text-align:center;color:var(--text-subtle);border:1px dashed var(--border-strong,#D1D5DB);border-radius:var(--r-lg);background:var(--surface)}
     #fl-sub-parts .rrp-empty h3{margin:0 0 5px;font-size:var(--fs-lg);color:var(--text)}
-    #fl-sub-parts .rrp-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    #fl-sub-parts .rrp-shop{display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:11px 14px;margin:2px 0 2px}
+    #fl-sub-parts .rrp-shop-lbl{font-weight:700;font-size:var(--fs-md);margin-right:2px}
+    #fl-sub-parts .rrp-shop-link{text-decoration:none}
+    #fl-sub-parts .rrp-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:2px}
     #fl-sub-parts .rrp-warn{display:flex;gap:9px;align-items:flex-start;background:var(--red-soft,#FEF2F2);border:1px solid var(--red-border,#FECACA);border-radius:var(--r-md);padding:9px 12px;font-size:var(--fs-sm);color:var(--red-text,#B91C1C)}
     /* modal + drawer share the app overlay tokens */
     .rrp-overlay{position:fixed;inset:0;background:var(--overlay,rgba(16,24,40,.4));z-index:9998;display:flex}
@@ -398,6 +401,28 @@ import { makeNhtsaProvider } from "./adapters/nhtsa.js";
     renderResults();
   }
 
+  // ── "Shop this part" · zero-setup buy links ───────────────────────────
+  // Deep-links to each retailer's own search for the part + vehicle. No API,
+  // no key, no cost — just hyperlinks that send you to buy. This is always
+  // available the moment you search, independent of any connected supplier.
+  function shopLinksHtml() {
+    const v = veh();
+    const base = [S.partNumber || S.query, v && v.year, v && v.make, v && v.model].filter(Boolean).join(" ").trim();
+    if (!base) return "";
+    const q = encodeURIComponent(base);
+    const links = [
+      ["eBay Motors", `https://www.ebay.com/sch/6030/i.html?_nkw=${q}`],
+      ["Amazon", `https://www.amazon.com/s?k=${q}&i=automotive`],
+      ["Google Shopping", `https://www.google.com/search?tbm=shop&q=${q}`],
+      ["Walmart", `https://www.walmart.com/search?q=${q}`],
+      ["RockAuto", `https://www.google.com/search?q=${encodeURIComponent(base + " site:rockauto.com")}`],
+    ];
+    return `<div class="rrp-shop">
+      <span class="rrp-shop-lbl">Shop this part${v ? " for " + esc(v.name || "this van") : ""}:</span>
+      ${links.map(([l, u]) => `<a class="btn btn-sm rrp-shop-link" href="${u}" target="_blank" rel="noopener noreferrer">${esc(l)} ↗</a>`).join("")}
+    </div>`;
+  }
+
   // ── Results (summary + comparison table) ──────────────────────────────
   function renderResults() {
     const host2 = el("rrp-results");
@@ -434,8 +459,8 @@ import { makeNhtsaProvider } from "./adapters/nhtsa.js";
 
     let body;
     if (!offers.length) {
-      body = `<div class="rrp-empty"><h3>No offers yet</h3>
-        <p>No supplier returned an offer for this search. Add a supplier quote manually, or enable an API source under <b>Sources &amp; health</b>.</p></div>`;
+      body = `<div class="rrp-empty"><h3>No supplier offers yet</h3>
+        <p>No connected supplier returned a priced offer. Use <b>Shop this part</b> above to buy directly at a retailer, add a supplier quote manually, or connect a supplier under <b>Sources &amp; health</b>.</p></div>`;
     } else {
       body = `<div class="table-wrap"><div class="rrp-tbl-scroll"><table class="rrp-tbl">
         <thead><tr>
@@ -444,7 +469,7 @@ import { makeNhtsaProvider } from "./adapters/nhtsa.js";
           <th>Avail.</th><th>Delivery</th><th>Seller</th><th>Warranty</th><th>Return</th>
         </tr></thead><tbody>${offers.map(rowHtml).join("")}</tbody></table></div></div>`;
     }
-    host2.innerHTML = summary + actions + body;
+    host2.innerHTML = summary + shopLinksHtml() + actions + body;
 
     // Wire actions
     el("rrp-addoffer").onclick = () => openOfferModal();
