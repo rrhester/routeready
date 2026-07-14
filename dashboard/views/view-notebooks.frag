@@ -37,8 +37,8 @@
 #view-notebooks.active{display:block;height:100vh;box-sizing:border-box;padding-top:44px;
   overflow:hidden;background:var(--canvas)}
 .rrnb-shell{height:100%;display:grid;
-  grid-template-columns:208px 248px 1fr;min-height:0;min-width:0}
-.rrnb-shell.ctx-on{grid-template-columns:208px 248px 1fr minmax(280px,320px)}
+  grid-template-columns:176px 208px 1fr;min-height:0;min-width:0}
+.rrnb-shell.ctx-on{grid-template-columns:176px 208px 1fr minmax(280px,320px)}
 .rrnb-pane{min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden;
   border-right:1px solid var(--border);background:var(--surface)}
 .rrnb-pane--canvas{border-right:0;background:var(--canvas)}
@@ -120,7 +120,7 @@
 .rrnb-mnmenu .mnrow:hover,.rrnb-mnmenu .mnrow.on{background:var(--accent-soft)}
 .rrnb-mnmenu .mnav{width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font-size:9px;font-weight:700}
 @media (max-width:1280px){
-  .rrnb-shell.ctx-on{grid-template-columns:208px 248px 1fr}
+  .rrnb-shell.ctx-on{grid-template-columns:176px 208px 1fr}
   .rrnb-pane--ctx{position:absolute;top:0;bottom:0;right:0;z-index:60;width:min(340px,88vw);
     transform:translateX(105%);transition:transform .18s ease;box-shadow:var(--shadow-pop);display:flex}
   .rrnb-shell.ctx-on .rrnb-pane--ctx{transform:translateX(0)}
@@ -579,7 +579,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
 /* mobile top bar (hidden on desktop) */
 .rrnb-mobilebar{display:none}
 
-@media (max-width:1100px){.rrnb-shell{grid-template-columns:188px 224px 1fr}}
+@media (max-width:1100px){.rrnb-shell{grid-template-columns:164px 192px 1fr}}
 @media (max-width:860px){
   .rrnb-shell{grid-template-columns:1fr;position:relative}
   /* rail + pages become off-canvas drawers instead of vanishing */
@@ -673,8 +673,9 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
 #view-notebooks .rrnb-section.active{box-shadow:none}
 
 /* "Add section" / "Add page" pinned to the top of each pane, quiet text links */
-#view-notebooks .rrnb-addtop{margin:0 0 var(--s-1);font-weight:500}
+#view-notebooks .rrnb-addtop{margin:0 0 var(--s-1);font-weight:500;white-space:nowrap}
 #view-notebooks .rrnb-pageadd-top{padding:var(--s-1) var(--s-2) var(--s-2);margin:0}
+#view-notebooks .rrnb-pageadd-top .rrnb-addtop{min-width:0;overflow:hidden}
 #view-notebooks .rrnb-pageadd-top .rrnb-tpl-btn{flex:0 0 auto;width:auto}
 
 /* callouts — de-boxed: a soft left rule, content breathing, no card */
