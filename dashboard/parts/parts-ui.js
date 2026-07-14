@@ -350,10 +350,15 @@ import { makeNhtsaProvider } from "./adapters/nhtsa.js";
       connector_type: (v && v.required_connector) || null,
       attributes: { required: (v && v.required_features) || {} },
     };
+    // Scope the keyword search to the selected van so eBay returns parts for
+    // THIS vehicle, not every "front seat". Year/make/model are appended to the
+    // query (a part-number search is already specific, so it's left as-is).
+    const vehQ = v ? [v.year, v.make, v.model].filter(Boolean).join(" ") : "";
+    const scopedQuery = [S.query, vehQ].filter(Boolean).join(" ").trim() || null;
     let perSource = {};
     try {
       const { data, error } = await sb().functions.invoke("parts-search", {
-        body: { query: S.query || null, part_number: S.partNumber || null, limit: 25 },
+        body: { query: scopedQuery, part_number: S.partNumber || null, limit: 25 },
       });
       if (error) throw error;
       perSource = (data && data.source_status) || {};
