@@ -22766,11 +22766,44 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-fleet2 select.fl-filter:hover{background-color:var(--canvas)}
           #view-fleet2 select.fl-filter:focus{outline:none;border-color:var(--accent);box-shadow:var(--ring-focus)}
           #view-fleet2 select.fl-filter.is-set{border-color:var(--accent);color:var(--accent-text)}
-          /* Vehicle photo / fallback icon in roster + drawer · 40px to
-             match Schedule's 40px row avatars; flat sidebar-navy fill. */
-          #view-fleet2 .fl-veh-thumb{width:40px;height:40px;border-radius:var(--r-md);background:var(--sidebar-bg,var(--rr-slate-900));color:var(--rr-white);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden}
-          #view-fleet2 .fl-veh-thumb img{width:100%;height:100%;object-fit:cover}
+          /* Vehicle photo / fallback icon in roster + rotation · the
+             driver roster's avatar shape: 40px circle, flat sidebar-navy
+             fill. overflow stays visible so the grounded corner-dot can
+             sit outside the circle (the photo rounds itself instead). */
+          #view-fleet2 .fl-veh-thumb{position:relative;width:40px;height:40px;border-radius:50%;background:var(--sidebar-bg,var(--rr-slate-900));color:var(--rr-white);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+          #view-fleet2 .fl-veh-thumb img{width:100%;height:100%;object-fit:cover;border-radius:50%}
           #view-fleet2 .fl-veh-thumb svg{width:18px;height:18px}
+          /* Grounded status dot · twin of the roster's
+             .avatar-sm.rr-health-high::after corner dot. */
+          #view-fleet2 .fl-veh-thumb.is-grounded::after{
+            content:"";position:absolute;right:-2px;bottom:-2px;
+            width:9px;height:9px;border-radius:50%;
+            border:2px solid var(--surface);background:var(--rr-red-600);
+          }
+          /* Ownership / van-type chips under the vehicle name · fleet
+             tints for the shared .rr-cert pill recipe (EDV reuses the
+             roster's own .rr-cert-edv teal). */
+          #view-fleet2 .fl-tag-own{background:rgba(15,23,42,.05);color:var(--text-muted)}
+          #view-fleet2 .fl-tag-type{background:var(--accent-soft);color:var(--accent-text)}
+          #view-fleet2 .fl-tag-kind{background:var(--canvas);color:var(--text-muted);text-transform:capitalize}
+          /* Sort carets · the driver roster's header recipe
+             (#rr-roster-thead .rr-sort-caret) re-scoped to the fleet
+             table: faded dual-arrow at rest, solid arrow when active. */
+          #view-fleet2 .rr-sort-caret{
+            display:inline-block;margin-left:2px;
+            font-size:var(--fs-9);line-height:1;vertical-align:1px;
+            font-variant-numeric:tabular-nums;
+          }
+          #view-fleet2 .rr-sort-caret-idle{
+            color:var(--text-subtle);opacity:.3;
+            transition:opacity var(--t-fast);
+          }
+          #view-fleet2 th[data-rr-fleet-sort]:hover .rr-sort-caret-idle{opacity:.6}
+          #view-fleet2 .rr-sort-caret-active{color:var(--text);font-weight:700}
+          #view-fleet2 th[data-rr-fleet-sort]:hover{color:var(--text)}
+          /* Trailing quick-action cell · the roster's rr-row-actions
+             cluster (global .rr-row-action styles), fleet width. */
+          #view-fleet2 td.rr-row-actions{width:130px;text-align:right;padding-right:12px}
           /* Vehicle identity block — icon + id + meta grouped as one
              unit, the way Schedule groups its driver rows. */
           #view-fleet2 .fl-veh-cell{display:flex;align-items:center;gap:var(--s-2-5);min-width:0}
