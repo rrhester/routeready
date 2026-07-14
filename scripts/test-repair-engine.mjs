@@ -14,7 +14,7 @@ import {
   msBetween, formatDuration, daysDown, daysDownTone, promiseState, downSince,
   formatCents, sumCents, varianceCents, variancePct,
   attentionScore, filterQueue, sortQueue, summarize,
-  formatWhen, formatDay, vehicleShortDesc,
+  formatWhen, formatDay, vehicleShortDesc, parseOdometer, ODOMETER_MAX,
 } from "../dashboard/repair/repair-engine.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -178,6 +178,18 @@ t("variance math", () => {
   assert.equal(varianceCents(null, 84200), null);
   assert.ok(Math.abs(variancePct(78000, 84200) - 7.9487) < 0.001);
   assert.equal(variancePct(0, 100), null);
+});
+
+t("parseOdometer — blank ok, units stripped, junk and overflow refused", () => {
+  assert.deepEqual(parseOdometer(""), { ok: true, value: null, reason: null });
+  assert.deepEqual(parseOdometer(null), { ok: true, value: null, reason: null });
+  assert.deepEqual(parseOdometer("44,318"), { ok: true, value: 44318, reason: null });
+  assert.deepEqual(parseOdometer("44318 mi"), { ok: true, value: 44318, reason: null });
+  assert.deepEqual(parseOdometer("abc"), { ok: false, value: null, reason: "not_a_number" });
+  // The exact fat-finger case from the field: 11 digits overflows int4.
+  assert.deepEqual(parseOdometer("75765765765"), { ok: false, value: null, reason: "too_large" });
+  assert.equal(parseOdometer(String(ODOMETER_MAX)).ok, true);
+  assert.equal(parseOdometer(String(ODOMETER_MAX + 1)).ok, false);
 });
 
 // ── Queue logic on realistic fixtures ───────────────────────────────────

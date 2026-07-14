@@ -25,7 +25,7 @@ import {
   SHOP_STATUS_LABEL, SHOP_STATUS_TONE, CATEGORY_OPTIONS,
   msBetween, formatDuration, daysDown, daysDownTone, promiseState, downSince,
   formatCents, attentionScore, filterQueue, sortQueue,
-  formatWhen, formatDay, vehicleShortDesc,
+  formatWhen, formatDay, vehicleShortDesc, parseOdometer, ODOMETER_MAX,
 } from "./repair-engine.js";
 
 (() => {
@@ -523,10 +523,15 @@ import {
     const current = c.odometer ?? c.vehicle?.mileage ?? "";
     const raw = window.prompt("Return to service — current odometer (leave blank to skip):", current);
     if (raw === null) return;
-    const odo = raw.trim() === "" ? null : parseInt(raw.replace(/[^\d]/g, ""), 10);
-    if (raw.trim() !== "" && !Number.isFinite(odo)) { say("Odometer must be a number", "warn"); return; }
+    const odo = parseOdometer(raw);
+    if (!odo.ok) {
+      say(odo.reason === "too_large"
+        ? `Odometer looks wrong — readings above ${ODOMETER_MAX.toLocaleString("en-US")} miles aren't accepted`
+        : "Odometer must be a number", "warn");
+      return;
+    }
     const { error } = await sb().rpc("repair_case_return_to_service", {
-      p_id: c.id, p_odometer: odo, p_note: null, p_close: true,
+      p_id: c.id, p_odometer: odo.value, p_note: null, p_close: true,
     });
     if (error) { fail("Couldn't return the vehicle to service", error); return; }
     say("Vehicle returned to service");
@@ -708,7 +713,15 @@ import {
       if (!vehicle) { say("Pick a vehicle", "warn"); return; }
       if (!title) { say("Give the issue a title", "warn"); return; }
       const safetyVal = safety.value;
-      const odoRaw = wrap.querySelector("#rr-rp-nc-odo").value.replace(/[^\d]/g, "");
+      const odoField = wrap.querySelector("#rr-rp-nc-odo");
+      const odo = parseOdometer(odoField.value);
+      if (!odo.ok) {
+        say(odo.reason === "too_large"
+          ? `Odometer looks wrong — readings above ${ODOMETER_MAX.toLocaleString("en-US")} miles aren't accepted`
+          : "Odometer must be a number", "warn");
+        odoField.focus();
+        return;
+      }
       const needed = wrap.querySelector("#rr-rp-nc-needed").value;
       const btn = e.target.closest("[data-rp-nc-save]");
       btn.disabled = true;
@@ -725,7 +738,7 @@ import {
         p_limitation_note: safetyVal === "limited"
           ? (wrap.querySelector("#rr-rp-nc-limit").value.trim() || null) : null,
         p_towing_required: wrap.querySelector("#rr-rp-nc-tow").value === "yes",
-        p_odometer: odoRaw ? parseInt(odoRaw, 10) : null,
+        p_odometer: odo.value,
         p_required_completion_at: needed ? new Date(`${needed}T23:59:00`).toISOString() : null,
       });
       btn.disabled = false;

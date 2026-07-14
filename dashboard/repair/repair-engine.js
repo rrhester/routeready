@@ -235,6 +235,25 @@ export function variancePct(approvedCents, invoiceCents) {
   return (d / Math.abs(approvedCents)) * 100;
 }
 
+// Odometer sanity. Accepts "44,318", "44318 mi", etc. (non-digits are
+// stripped, like the Fleet mileage inputs), but refuses implausible
+// readings BEFORE they reach the integer RPC parameter — the highest
+// real-world odometers are ~1M miles, and Postgres int4 tops out at
+// 2.1B, so a fat-fingered 11-digit entry otherwise surfaces as a raw
+// "out of range for type integer" database error.
+// Returns { ok, value, reason }: value is null for blank input (ok) and
+// reason is 'not_a_number' | 'too_large' when ok is false.
+export const ODOMETER_MAX = 2_000_000;
+export function parseOdometer(raw) {
+  if (raw == null || String(raw).trim() === "") return { ok: true, value: null, reason: null };
+  const digits = String(raw).replace(/[^\d]/g, "");
+  if (digits === "") return { ok: false, value: null, reason: "not_a_number" };
+  const n = parseInt(digits, 10);
+  if (!Number.isFinite(n)) return { ok: false, value: null, reason: "not_a_number" };
+  if (n > ODOMETER_MAX) return { ok: false, value: null, reason: "too_large" };
+  return { ok: true, value: n, reason: null };
+}
+
 // ── Queue helpers ───────────────────────────────────────────────────────
 // Attention rank drives the "Needs attention" list and default queue
 // sort: overdue promises and old grounded vans float to the top.
