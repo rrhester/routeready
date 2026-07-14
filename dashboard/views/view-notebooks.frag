@@ -347,6 +347,9 @@
 .rrnb-editor .rrnb-file .fnm{flex:1;min-width:0}
 .rrnb-editor .rrnb-file .fnm b{display:block;color:var(--text);font-size:var(--fs-base);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rrnb-editor .rrnb-file .fnm span{font-size:var(--fs-xs);color:var(--text-subtle)}
+/* spreadsheet-insert caption (above the parsed table) */
+.rrnb-editor .rrnb-sheetcap{display:inline-flex;align-items:center;gap:6px;margin:12px 0 4px;
+  font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);letter-spacing:.02em}
 .rrnb-editor.rrnb-drop{outline:2px dashed var(--accent);outline-offset:-6px;background:var(--accent-soft)}
 /* image size popover buttons */
 .rrnb-pop .rrnb-sizes{display:flex;gap:4px;margin-top:var(--s-1)}
@@ -1937,7 +1940,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     document.body.appendChild(inp);
     inp.addEventListener("change", function () {
       var files = Array.prototype.slice.call(inp.files || []);
-      files.forEach(function (f) { isImage || /^image\//.test(f.type) ? insertImageFile(f) : insertFileAttachment(f); });
+      files.forEach(function (f) { isImage || /^image\//.test(f.type) ? insertImageFile(f) : insertNonImage(f); });
       inp.remove();
     });
     inp.click();
@@ -2012,6 +2015,98 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     reader.readAsDataURL(file);
   }
   function fmtBytes(n) { if (!n && n !== 0) return ""; if (n < 1024) return n + " B"; if (n < 1048576) return (n / 1024).toFixed(0) + " KB"; return (n / 1048576).toFixed(1) + " MB"; }
+
+  // ══════════════════════════════════════════════════════════════════
+  //  SPREADSHEETS — drop/attach a .csv/.tsv/.xlsx/.xls and see the data
+  //  as a real editable table in the page (OneNote-style), not just a
+  //  download chip. CSV/TSV parse in-browser; xlsx via SheetJS loaded on
+  //  demand. Anything that fails falls back to a plain file attachment.
+  // ══════════════════════════════════════════════════════════════════
+  function isSpreadsheet(file) {
+    var n = (file.name || "").toLowerCase();
+    return /\.(csv|tsv|xlsx|xls)$/.test(n) || /spreadsheetml|ms-excel|csv|tab-separated/.test(file.type || "");
+  }
+  function insertNonImage(file) { return isSpreadsheet(file) ? insertSpreadsheet(file) : insertFileAttachment(file); }
+  function detectDelim(text) {
+    var head = text.slice(0, 4000);
+    var c = (head.match(/,/g) || []).length, t = (head.match(/\t/g) || []).length, s = (head.match(/;/g) || []).length;
+    if (t >= c && t >= s && t) return "\t";
+    if (s > c && s >= t) return ";";
+    return ",";
+  }
+  function parseDelimited(text, delim) {
+    text = text.replace(/^﻿/, "");
+    var rows = [], row = [], cur = "", inQ = false;
+    for (var i = 0; i < text.length; i++) {
+      var ch = text[i];
+      if (inQ) { if (ch === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else inQ = false; } else cur += ch; }
+      else if (ch === '"') inQ = true;
+      else if (ch === delim) { row.push(cur); cur = ""; }
+      else if (ch === "\n") { row.push(cur); rows.push(row); row = []; cur = ""; }
+      else if (ch !== "\r") cur += ch;
+    }
+    if (cur !== "" || row.length) { row.push(cur); rows.push(row); }
+    if (rows.length && rows[rows.length - 1].every(function (x) { return x === ""; })) rows.pop();
+    return rows;
+  }
+  function rowsToTableHTML(rows) {
+    var MAXR = 100, MAXC = 30;
+    var trunc = rows.length > MAXR;
+    var use = rows.slice(0, MAXR);
+    var maxc = 0; use.forEach(function (r) { if (r.length > maxc) maxc = r.length; });
+    if (maxc > MAXC) { maxc = MAXC; trunc = true; }
+    var html = "<table>";
+    use.forEach(function (r, ri) {
+      html += "<tr>";
+      for (var ci = 0; ci < maxc; ci++) {
+        var tag = ri === 0 ? "th" : "td";
+        var v = r[ci] == null ? "" : String(r[ci]);
+        html += "<" + tag + ">" + (esc(v) || "<br>") + "</" + tag + ">";
+      }
+      html += "</tr>";
+    });
+    html += "</table>";
+    return { html: html, trunc: trunc, rows: use.length };
+  }
+  var _xlsxP = null;
+  function loadXlsx() {
+    if (_xlsxP) return _xlsxP;
+    try { _xlsxP = import("https://esm.sh/xlsx@0.18.5").then(function (m) { return m.default || m; }); }
+    catch (e) { _xlsxP = Promise.reject(e); }
+    return _xlsxP;
+  }
+  function insertSpreadsheet(file) {
+    var name = file.name || "spreadsheet";
+    var ext = (name.split(".").pop() || "").toLowerCase();
+    var place = function (rows) {
+      rows = (rows || []).filter(function (r) { return r && r.length; });
+      if (!rows.length) { notify("That spreadsheet looked empty — attaching as a file."); return insertFileAttachment(file); }
+      var t = rowsToTableHTML(rows);
+      var cap = '<div class="rrnb-sheetcap" contenteditable="false">▦ ' + esc(name) + (t.trunc ? " · first " + t.rows + " rows" : "") + "</div>";
+      insertHTMLAtCursor(cap + t.html + "<p><br></p>");
+      scheduleSave();
+    };
+    if (ext === "csv" || ext === "tsv" || /csv|tab-separated/.test(file.type || "")) {
+      var fr = new FileReader();
+      fr.onload = function () { try { var s = String(fr.result); place(parseDelimited(s, ext === "tsv" ? "\t" : detectDelim(s))); } catch (e) { insertFileAttachment(file); } };
+      fr.onerror = function () { notify("Couldn't read that file — attaching as a file."); insertFileAttachment(file); };
+      fr.readAsText(file);
+      return;
+    }
+    notify("Reading " + name + "…");
+    loadXlsx().then(function (XLSX) {
+      var fr = new FileReader();
+      fr.onload = function () {
+        try {
+          var wb = XLSX.read(new Uint8Array(fr.result), { type: "array" });
+          var sh = wb.Sheets[wb.SheetNames[0]];
+          place(XLSX.utils.sheet_to_json(sh, { header: 1, blankrows: false, defval: "" }));
+        } catch (e) { notify("Couldn't read that spreadsheet — attaching as a file."); insertFileAttachment(file); }
+      };
+      fr.onerror = function () { insertFileAttachment(file); };
+      fr.readAsArrayBuffer(file);
+    }).catch(function () { notify("Couldn't load the spreadsheet reader — attaching as a file."); insertFileAttachment(file); });
+  }
   function makeCaptionsEditable() {
     var ed = $id("rrnb-editor"); if (!ed) return;
     ed.querySelectorAll("figure.rrnb-fig figcaption").forEach(function (c) { c.setAttribute("contenteditable", "true"); });
@@ -2034,7 +2129,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     var files = (e.dataTransfer && e.dataTransfer.files) || [];
     if (files.length) {
       e.preventDefault();
-      Array.prototype.slice.call(files).forEach(function (f) { /^image\//.test(f.type) ? insertImageFile(f) : insertFileAttachment(f); });
+      Array.prototype.slice.call(files).forEach(function (f) { /^image\//.test(f.type) ? insertImageFile(f) : insertNonImage(f); });
     }
   }
   function openImageSize(fig, img) {
@@ -2990,6 +3085,28 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       hidePop(); scheduleSave();
     });
   }
+  // Edit an existing link in place (right-click → Edit link…): change its
+  // display text and/or URL without re-selecting or retyping it.
+  function editLinkPopover(a) {
+    if (!a) return;
+    var pop = showPop(
+      '<label>Link text</label><input id="rrnb-lke-text" value="' + esc(a.textContent || "") + '" placeholder="Text to show" />' +
+      '<label>URL</label><input id="rrnb-lke-url" value="' + esc(a.getAttribute("href") || "") + '" placeholder="https://…" />' +
+      '<div class="rrnb-pop-row"><button class="rrnb-pop-btn ghost" data-pop-cancel="1">Cancel</button><button class="rrnb-pop-btn" id="rrnb-lke-ok">Save link</button></div>',
+      a.getBoundingClientRect());
+    var cancel = pop.querySelector("[data-pop-cancel]"); if (cancel) cancel.addEventListener("click", hidePop);
+    var uEl = $id("rrnb-lke-url"); if (uEl) uEl.focus();
+    $id("rrnb-lke-ok").addEventListener("click", function () {
+      var u = $id("rrnb-lke-url").value.trim();
+      var txt = $id("rrnb-lke-text").value.trim() || u;
+      if (!u) return; if (!/^[a-z]+:/i.test(u)) u = "https://" + u;
+      a.setAttribute("href", u);
+      a.textContent = txt;
+      if (!a.classList.contains("rrnb-weblink")) a.classList.add("rrnb-weblink");
+      a.setAttribute("target", "_blank"); a.setAttribute("rel", "noopener noreferrer");
+      hidePop(); scheduleSave();
+    });
+  }
 
   function openPagePicker() {
     var range = savedSelection();
@@ -3058,6 +3175,19 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     var ed = $id("rrnb-editor");
     var cell = e.target.closest && e.target.closest("td,th");
     if (cell && ed && ed.contains(cell)) { e.preventDefault(); showTableControls(cell); return; }
+    // hyperlink: right-click to edit its text/URL, copy, or unlink (skips the
+    // record/page/file chips, which have their own click behavior)
+    var link = e.target.closest && e.target.closest("a[href]");
+    if (link && ed && ed.contains(link) && !link.matches(".rrnb-objlink,.rrnb-pagelink,.rrnb-file")) {
+      e.preventDefault();
+      showCtx(e.clientX, e.clientY, [
+        { act: "edit", label: "Edit link…" },
+        { act: "copy", label: "Copy link address" },
+        { sep: 1 }, { act: "remove", label: "Remove link", danger: true }
+      ]);
+      $id("rrnb-ctx")._target = { kind: "link", el: link };
+      return;
+    }
     // block objects: right-click any of them to delete it
     var node = e.target.closest && e.target.closest("figure.rrnb-fig,.rrnb-file,.rrnb-callout,.rrnb-todo,hr");
     if (node && ed && ed.contains(node)) {
@@ -3737,6 +3867,13 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     }
     if (t.kind === "ednode") {
       if (act === "del" && t.el) { t.el.remove(); scheduleSave(); }
+      return;
+    }
+    if (t.kind === "link") {
+      var a = t.el; if (!a) return;
+      if (act === "edit") return editLinkPopover(a);
+      if (act === "copy") { try { navigator.clipboard.writeText(a.getAttribute("href") || ""); notify("Link copied"); } catch (e) {} return; }
+      if (act === "remove") { if (a.parentNode) { a.parentNode.replaceChild(document.createTextNode(a.textContent || ""), a); scheduleSave(); } return; }
       return;
     }
   }
