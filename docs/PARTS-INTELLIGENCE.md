@@ -67,5 +67,8 @@ image-assisted part ID, price-alert delivery, supplier analytics.
 
 - **Migration 0485 must be applied** (Supabase SQL Editor) before the tab can
   load data; it is idempotent. CI `migration-check` validates it from scratch.
-- **Deploy the `vin-decode` function** (`supabase functions deploy vin-decode
-  --no-verify-jwt`) to enable "Decode VIN"; the UI degrades gracefully without it.
+- **VIN decode needs no deploy.** "Decode VIN" (Parts search bar) calls the free
+  public NHTSA vPIC database directly from the browser (keyless, CORS-enabled).
+  The `vin-decode` edge function is an optional server-side fallback — deploy it
+  (`supabase functions deploy vin-decode --no-verify-jwt`) only if you want the
+  decode proxied server-side.
