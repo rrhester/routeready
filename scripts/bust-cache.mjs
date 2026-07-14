@@ -52,6 +52,7 @@ const FILES = [
   "dashboard/live.js",
   "dashboard/meet.html",
   "dashboard/meet.js",
+  "dashboard/repair/repair-ui.js",
   "app/index.html",
 ];
 
