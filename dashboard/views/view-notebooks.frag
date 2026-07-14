@@ -460,6 +460,13 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
 .rrnb-slash-opt.danger{color:var(--red,#dc2626)}
 .rrnb-slash-opt.danger:hover{background:var(--red-soft,rgba(220,38,38,.08))}
 .rrnb-slash-opt.danger .ic{color:inherit;background:transparent}
+/* code-block copy chip (hover overlay) */
+.rrnb-codecopy{position:fixed;z-index:72;height:24px;padding:0 10px;border:1px solid var(--border);
+  border-radius:var(--r-md);background:var(--surface);color:var(--text-muted);font-size:var(--fs-xs);
+  font-weight:600;cursor:pointer;box-shadow:var(--shadow-sm,0 1px 2px rgba(15,23,42,.06))}
+.rrnb-codecopy:hover{color:var(--text);border-color:var(--border-strong,var(--text-disabled))}
+.rrnb-codecopy.done{color:var(--green);border-color:var(--green)}
+.rrnb-codecopy[hidden]{display:none}
 
 /* context menu */
 .rrnb-ctx{position:fixed;z-index:90;background:var(--surface);border:1px solid var(--border);
@@ -1482,7 +1489,8 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     ed.addEventListener("dragleave", function () { ed.classList.remove("rrnb-drop"); });
     ed.addEventListener("drop", function (e) { if (DH.dragging) { dhDrop(e); return; } onEditorDrop(e); });
     ed.addEventListener("mousemove", dhMouseMove);
-    ed.addEventListener("mouseleave", hideHandle);
+    ed.addEventListener("mousemove", cpMouseMove);
+    ed.addEventListener("mouseleave", function () { hideHandle(); cpHide(); });
     bindToolbar();
     makeCaptionsEditable();
     if (S.readOnly || p.my_role === "viewer") applyReadOnly();
@@ -3584,6 +3592,38 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     if (isList) { el.innerHTML = [].slice.call(blk.querySelectorAll("li")).map(function (li) { return li.innerHTML; }).join("<br>") || "<br>"; }
     else bmMove(blk, el);
     blk.parentNode.replaceChild(el, blk); return el;
+  }
+
+  // ── code-block copy button — a floating "Copy" chip on hover over a
+  //    <pre>. An overlay (not injected into content), so it never persists
+  //    into the saved HTML. Classic editor only. ──────────────────────────
+  var CP = { el: null, pre: null };
+  function cpEl() {
+    if (CP.el) return CP.el;
+    var b = document.createElement("button"); b.type = "button"; b.className = "rrnb-codecopy"; b.id = "rrnb-codecopy"; b.hidden = true; b.textContent = "Copy";
+    b.addEventListener("mousedown", function (e) { e.preventDefault(); });
+    b.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); cpDo(); });
+    document.body.appendChild(b); CP.el = b; return b;
+  }
+  function cpHide() { if (CP.el && !CP.el.classList.contains("done")) { CP.el.hidden = true; CP.pre = null; } }
+  function cpDo() {
+    if (!CP.pre) return;
+    var text = CP.pre.innerText || CP.pre.textContent || "";
+    var done = function () { var b = cpEl(); b.textContent = "Copied"; b.classList.add("done"); setTimeout(function () { if (CP.el) { CP.el.textContent = "Copy"; CP.el.classList.remove("done"); CP.el.hidden = true; } }, 1100); };
+    try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, done); else done(); }
+    catch (e) { done(); }
+  }
+  function cpMouseMove(e) {
+    if (S.readOnly || S.editorKind === "tiptap") return;
+    var ed = $id("rrnb-editor"); if (!ed) return;
+    if (CP.el && (e.target === CP.el || CP.el.contains(e.target))) return;
+    var pre = e.target.closest ? e.target.closest("pre") : null;
+    if (!pre || !ed.contains(pre)) { cpHide(); return; }
+    CP.pre = pre;
+    var el = cpEl(); el.hidden = false;
+    var r = pre.getBoundingClientRect();
+    el.style.top = (r.top + 6) + "px";
+    el.style.left = (r.right - el.offsetWidth - 8) + "px";
   }
 
   // ══════════════════════════════════════════════════════════════════
