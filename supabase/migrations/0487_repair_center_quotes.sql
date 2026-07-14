@@ -40,6 +40,19 @@
 --
 -- Idempotent: safe to re-run in the SQL Editor.
 
+-- ═══════════════════════════ 0. vendors — adopted-migration gap ═════
+-- Migration 0313 added vendors.address + vendors.contacts, but ledgers
+-- baselined at 0373 ADOPT older migrations without executing them — at
+-- least one production environment is missing these columns (found
+-- when this migration's repair_vendors_list failed to parse there).
+-- Re-add them defensively; identical to 0313's statements, so this is
+-- a no-op where 0313 really ran.
+
+alter table public.vendors
+  add column if not exists address  text,
+  add column if not exists contacts jsonb not null default '[]'::jsonb;
+
+
 -- ═══════════════════════════ 1. secure_external_links ═══════════════
 
 create table if not exists public.secure_external_links (
