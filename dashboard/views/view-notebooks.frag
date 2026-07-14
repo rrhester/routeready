@@ -2324,9 +2324,68 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   }
 
   // ── keyboard shortcuts in the editor ─────────────────────────────
+  // ── markdown-as-you-type + autocorrect + smart quotes (classic editor) ──
+  //  Type "# ", "- ", "1. ", "> ", "[] " at the start of a line to convert
+  //  the block; "--"/"->"/"(c)" etc. autocorrect on the next space; and
+  //  straight quotes curl based on context. All reuse the existing block
+  //  commands, and never fire inside a link or code block.
+  var MD_AUTOCORRECT = [
+    [/---$/, "—"], [/--$/, "–"], [/->$/, "→"], [/<-$/, "←"],
+    [/\(c\)$/i, "©"], [/\(r\)$/i, "®"], [/\(tm\)$/i, "™"], [/\.\.\.$/, "…"]
+  ];
+  function mdTextBeforeCaret(blk, sel) {
+    try { var r = document.createRange(); r.selectNodeContents(blk); r.setEnd(sel.anchorNode, sel.anchorOffset); return r.toString().replace(/​/g, ""); }
+    catch (e) { return null; }
+  }
+  function mdStripMarker(blk, sel) {
+    try { var r = document.createRange(); r.selectNodeContents(blk); r.setEnd(sel.anchorNode, sel.anchorOffset); r.deleteContents(); } catch (e) {}
+    if (!blk.firstChild) blk.appendChild(document.createElement("br"));
+    var c = document.createRange(); c.setStart(blk, 0); c.collapse(true);
+    var s = window.getSelection(); s.removeAllRanges(); s.addRange(c);
+  }
+  function mdKey(e) {
+    if (e.ctrlKey || e.metaKey || e.altKey) return false;
+    var ed = $id("rrnb-editor"); if (!ed || S.readOnly || S.editorKind === "tiptap") return false;
+    var sel = window.getSelection(); if (!sel || !sel.rangeCount || !sel.isCollapsed) return false;
+    var node = sel.anchorNode; if (!node || node.nodeType !== 3 || !ed.contains(node)) return false;
+    if (node.parentNode && node.parentNode.closest && node.parentNode.closest("a,pre,code")) return false;
+    // smart quotes — curl based on the preceding character
+    if (e.key === '"' || e.key === "'") {
+      var b = node.nodeValue.slice(0, sel.anchorOffset).slice(-1);
+      var open = !b || /[\s(\[\{‘“–—]/.test(b);
+      var q = e.key === '"' ? (open ? "“" : "”") : (open ? "‘" : "’");
+      e.preventDefault(); try { document.execCommand("insertText", false, q); } catch (x) {} return true;
+    }
+    if (e.key === " ") {
+      var blk = blockOf(node, ed);
+      if (blk && !/^(H1|H2|H3|LI)$/.test(blk.tagName)) {
+        var before = mdTextBeforeCaret(blk, sel);
+        var mm;
+        if (before != null && (mm = /^(#{1,3})$/.exec(before))) { e.preventDefault(); mdStripMarker(blk, sel); applyBlock("H" + mm[1].length); scheduleSave(); return true; }
+        if (before === "-" || before === "*") { e.preventDefault(); mdStripMarker(blk, sel); exec("insertUnorderedList"); scheduleSave(); return true; }
+        if (before === "1.") { e.preventDefault(); mdStripMarker(blk, sel); exec("insertOrderedList"); scheduleSave(); return true; }
+        if (before === ">") { e.preventDefault(); mdStripMarker(blk, sel); exec("formatBlock", "<blockquote>"); scheduleSave(); return true; }
+        if (before === "[]" || before === "[ ]") { e.preventDefault(); mdStripMarker(blk, sel); insertTodo(); return true; }
+      }
+      // autocorrect — replace the token before the caret; let the space still type
+      var pre = node.nodeValue.slice(0, sel.anchorOffset);
+      for (var i = 0; i < MD_AUTOCORRECT.length; i++) {
+        var m = MD_AUTOCORRECT[i][0].exec(pre);
+        if (m) {
+          var rep = MD_AUTOCORRECT[i][1], start = sel.anchorOffset - m[0].length;
+          node.nodeValue = node.nodeValue.slice(0, start) + rep + node.nodeValue.slice(sel.anchorOffset);
+          var c = document.createRange(); c.setStart(node, start + rep.length); c.collapse(true);
+          var s = window.getSelection(); s.removeAllRanges(); s.addRange(c);
+          break;
+        }
+      }
+    }
+    return false;
+  }
   function onEditorKey(e) {
     var mod = e.ctrlKey || e.metaKey;
     if (slashKey(e)) return;                       // slash menu owns arrows/enter/esc while open
+    if (mdKey(e)) return;                           // markdown shortcuts / smart quotes
     if (!mod && !e.altKey && todoKeydown(e)) return;
     if (!mod && !e.altKey && tableTabKey(e)) return;
     if (mod && !e.shiftKey && !e.altKey) {
