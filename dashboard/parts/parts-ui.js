@@ -342,6 +342,10 @@ import { makeNhtsaProvider } from "./adapters/nhtsa.js";
     const apiSources = S.sources.filter((s) => s.active && s.source_type !== "manual");
     if (!apiSources.length) return { _noApi: true };
     const v = veh();
+    // Decode the VIN first (auto, no click needed) so the search is driven by
+    // the VIN — the authoritative source — rather than whatever's typed in the
+    // van record. Falls back to record fields if there's no VIN / decode fails.
+    await ensureVehicleDecoded(v);
     const terms = normalizePartTerms([S.query, S.partNumber].filter(Boolean).join(" "));
     const part = {
       oem_part_numbers: S.partNumber ? [S.partNumber] : [],
@@ -350,10 +354,15 @@ import { makeNhtsaProvider } from "./adapters/nhtsa.js";
       connector_type: (v && v.required_connector) || null,
       attributes: { required: (v && v.required_features) || {} },
     };
-    // Scope the keyword search to the selected van so eBay returns parts for
-    // THIS vehicle, not every "front seat". Year/make/model are appended to the
-    // query (a part-number search is already specific, so it's left as-is).
-    const vehQ = v ? [v.year, v.make, v.model].filter(Boolean).join(" ") : "";
+    // Scope the keyword search to the selected van. Prefer the DECODED VIN
+    // (year/make/model from NHTSA); fall back to the van record only if the VIN
+    // couldn't be decoded. A part-number search is already specific → left as-is.
+    const dec = v && v._decoded;
+    const vehQ = v ? [
+      (dec && dec.year) || v.year,
+      (dec && dec.make) || v.make,
+      (dec && dec.model) || v.model,
+    ].filter(Boolean).join(" ") : "";
     const scopedQuery = [S.query, vehQ].filter(Boolean).join(" ").trim() || null;
     let perSource = {};
     try {
@@ -821,6 +830,23 @@ import { makeNhtsaProvider } from "./adapters/nhtsa.js";
     } finally {
       const b = el("rrp-decode"); if (b) { b.disabled = false; b.innerHTML = svg('<path d="M3 12h18M3 6h18M3 18h18"/>', 13) + " Decode VIN"; }
     }
+  }
+
+  // Auto-decode a vehicle's VIN once and cache it on the row, so the search can
+  // be VIN-driven without the user clicking "Decode VIN". No-op if the van has
+  // no valid VIN or is already decoded; swallows failures (search still runs).
+  async function ensureVehicleDecoded(v) {
+    if (!v || v._decoded) return;
+    const vin = String(v.vin || "").toUpperCase().replace(/\s/g, "");
+    if (!VIN_RE.test(vin)) return;
+    try {
+      const c = await decodeVinAnywhere(vin);
+      if (c && (c.make || c.model || c.year)) {
+        v._decoded = c;
+        v.required_features = c.required_features || v.required_features;
+        v.required_connector = c.required_connector || v.required_connector;
+      }
+    } catch (e) { /* leave undecoded; search falls back to record fields */ }
   }
 
   // Direct browser → NHTSA; fall back to the edge function if the direct call
