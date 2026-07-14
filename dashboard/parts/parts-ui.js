@@ -311,11 +311,20 @@ import { makeNhtsaProvider } from "./adapters/nhtsa.js";
       });
       if (error) throw error;
       S.search = data;
-      // MVP: enabled adapters run server/client-side in later phases; the
-      // working connector today is manual entry + already-saved offers for
-      // this vehicle/part. Mark the job complete and load whatever exists.
-      await sb().rpc("parts_search_finish", { p_search_id: S.search.id, p_status: "complete" });
+      // Run enabled live suppliers (server-side proxy), plus manual entries
+      // already saved. A supplier failure never fails the whole search.
+      const perSource = await runLiveSuppliers();
+      await sb().rpc("parts_search_finish", {
+        p_search_id: S.search.id,
+        p_status: perSource && perSource._anyError ? "partial" : "complete",
+        p_per_source: JSON.stringify(perSource || {}),
+      });
       await reloadResults();
+      if (perSource && perSource._noApi) {
+        toast("No live API source is enabled — add a supplier quote, or enable eBay under Sources & health.");
+      } else if (perSource && perSource.ebay && perSource.ebay.status === "no_credentials") {
+        toast("eBay is enabled but its API keys aren't set yet (see docs/PARTS-INTELLIGENCE.md).");
+      }
     } catch (e) {
       toast("Search failed: " + (e.message || e));
     } finally {
@@ -323,11 +332,63 @@ import { makeNhtsaProvider } from "./adapters/nhtsa.js";
     }
   }
 
+  // Call the parts-search edge function for every enabled non-manual source,
+  // score fitment client-side (we hold the vehicle context), and persist each
+  // offer. Returns a per-source status map for the search job.
+  async function runLiveSuppliers() {
+    const apiSources = S.sources.filter((s) => s.active && s.source_type !== "manual");
+    if (!apiSources.length) return { _noApi: true };
+    const v = veh();
+    const terms = normalizePartTerms([S.query, S.partNumber].filter(Boolean).join(" "));
+    const part = {
+      oem_part_numbers: S.partNumber ? [S.partNumber] : [],
+      aftermarket_part_numbers: [],
+      side: terms.side,
+      connector_type: (v && v.required_connector) || null,
+      attributes: { required: (v && v.required_features) || {} },
+    };
+    let perSource = {};
+    try {
+      const { data, error } = await sb().functions.invoke("parts-search", {
+        body: { query: S.query || null, part_number: S.partNumber || null, limit: 25 },
+      });
+      if (error) throw error;
+      perSource = (data && data.source_status) || {};
+      const offers = (data && data.offers) || [];
+      for (const o of offers) {
+        const srcRow = S.sources.find((s) => new RegExp(o.provider, "i").test(s.name)) || null;
+        const fit = evaluateFitment(v || {}, part, {
+          seller_part_number: o.seller_part_number, product_title: o.product_title,
+          fitment_claim: o.product_title, features: {}, connector_type: null,
+        });
+        try {
+          await sb().rpc("parts_offer_save", {
+            p_search_id: S.search.id, p_source_id: srcRow ? srcRow.id : null, p_vehicle_id: S.vehicleId,
+            p_seller_name: o.seller_name, p_seller_part_number: o.seller_part_number, p_title: o.product_title,
+            p_url: o.product_url, p_condition: o.condition && o.condition !== "unknown" ? o.condition : "used",
+            p_price_cents: o.price_cents, p_shipping_cents: o.shipping_cents, p_availability: o.availability,
+            p_seller_rating: o.seller_rating, p_fitment_claim: o.product_title,
+            p_fitment_confidence: fit.level, p_fitment_score: fit.score, p_fitment_reasons: JSON.stringify(fit.reasons),
+            p_raw_source_id: o.raw_source_id,
+          });
+        } catch (e) { /* skip a bad row, keep the rest */ }
+      }
+    } catch (e) {
+      perSource._anyError = String(e.message || e);
+    }
+    return perSource;
+  }
+
   async function reloadResults() {
     if (!S.search) return;
     const { data, error } = await sb().rpc("parts_search_results", { p_search_id: S.search.id });
     if (error) { toast("Couldn't load results"); return; }
     const raw = (data && data.offers) || [];
+    // Derive OEM vs aftermarket from brand/title (no is_oem column on the row).
+    raw.forEach((o) => {
+      if (o.is_oem == null) o.is_oem = /\b(oem|genuine oem|mopar|motorcraft|ac ?delco|genuine (ford|gm|toyota|honda|ram|mercedes))\b/i.test(
+        [o.product_title, o.seller_part_number].filter(Boolean).join(" "));
+    });
     // Client-side rank + flag (deterministic engine).
     const landedVals = raw.map((o) => o.total_landed_cents).filter((n) => n > 0);
     const median = landedVals.length ? landedVals.slice().sort((a, b) => a - b)[Math.floor(landedVals.length / 2)] : 0;

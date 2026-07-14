@@ -63,6 +63,43 @@ VIN decode, fitment/landed/ranking, watchlist, purchases, Workbook/CSV export,
 supplier health admin. Deferred: live API/crawler connectors (need credentials),
 image-assisted part ID, price-alert delivery, supplier analytics.
 
+## Connecting live suppliers
+
+Real parts catalogs (eBay, RockAuto, Amazon, distributor feeds) require a key,
+affiliate approval, or a business account — none return live data anonymously,
+and RouteReady never scrapes or bypasses access controls. Live search runs
+server-side in the `parts-search` edge function, which fans out to whichever
+providers have credentials set and normalizes results into the offer shape; the
+browser scores fitment and persists each offer. A provider failure never fails
+the whole search (partial results are returned).
+
+**One central account serves every DSP.** Provider keys are Supabase **edge
+secrets** (platform-level, server-side) — the same model as `ai-proxy`'s central
+Anthropic key. You set them once; every tenant's Parts tab can search. Each DSP
+only toggles a source on/off in their own **Sources & health** panel; the
+credential underneath is shared. There is no per-DSP supplier account.
+
+### eBay (implemented — free developer account)
+1. Create a free eBay developer account → an app → get the **production**
+   Client ID + Client Secret (App ID / Cert ID).
+2. Set them as edge secrets (once, for all DSPs):
+   `supabase secrets set EBAY_CLIENT_ID=… EBAY_CLIENT_SECRET=…`
+   (optional `EBAY_MARKETPLACE_ID`, default `EBAY_US`).
+3. Deploy the function: `supabase functions deploy parts-search --no-verify-jwt`.
+4. In the Parts tab → **Sources & health**, toggle **eBay Motors** on.
+Now "Search parts" returns live eBay listings (price, shipping, condition,
+seller rating) into the comparison table. Watch eBay's per-app daily call limit;
+`supplier_sources.rate_limit_per_min` + persisted `price_observations` support
+caching/freshness windows to stay under it. Usage is governed by eBay's API
+License Agreement — confirm your platform use case is within its terms.
+
+### Adding more providers
+Drop another entry in `PROVIDERS` in `supabase/functions/parts-search/index.ts`
+(a pure fetch+normalize unit) with its own edge secret. Candidates: Amazon
+PA-API (needs affiliate approval), a distributor JSON/CSV feed (Keystone,
+Turn14, Meyer — account holders get a feed URL). The core engine and UI never
+hardcode a supplier.
+
 ## Operational notes
 
 - **Migration 0485 must be applied** (Supabase SQL Editor) before the tab can
