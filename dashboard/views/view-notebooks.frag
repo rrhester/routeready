@@ -234,6 +234,9 @@
 .rrnb-breadcrumb{display:flex;align-items:center;gap:var(--s-1);font-size:var(--fs-sm);
   color:var(--text-subtle);margin-bottom:var(--s-3);flex-wrap:wrap}
 .rrnb-breadcrumb .sep{opacity:.5}
+.rrnb-breadcrumb .rrnb-crlink{cursor:pointer;border-radius:4px;transition:color .1s}
+.rrnb-breadcrumb .rrnb-crlink:hover{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
+.rrnb-page .sub .rrnb-pt{cursor:help}
 .rrnb-title{width:100%;border:0;outline:0;background:transparent;color:var(--text);
   font-size:var(--fs-xxl);font-weight:700;line-height:1.2;padding:0 0 var(--s-2);
   font-family:inherit;resize:none;overflow:hidden}
@@ -800,6 +803,11 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     if (d < 86400) return Math.round(d / 3600) + " h ago";
     return Math.round(d / 86400) + " d ago";
   }
+  function absTime(iso) {
+    if (!iso) return "";
+    try { return new Date(iso).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }); }
+    catch (e) { return ""; }
+  }
   var PALETTE = ["#2563eb", "#7c3aed", "#dc2626", "#d97706", "#16a34a", "#0891b2", "#db2777", "#475569"];
 
   // ══════════════════════════════════════════════════════════════════
@@ -1349,7 +1357,8 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       '<button class="rrnb-iconbtn kebab" data-menu="page" data-id="' + p.id + '" title="Page options">⋯</button></div>';
   }
   function pageRowSub(p) {
-    return esc(relTime(p.updated_at)) + (p.tags && p.tags.length ? '  ·  ' + p.tags.map(esc).join(", ") : "");
+    return '<span class="rrnb-pt" title="' + esc(absTime(p.updated_at)) + '">' + esc(relTime(p.updated_at)) + '</span>' +
+      (p.tags && p.tags.length ? '  ·  ' + p.tags.map(esc).join(", ") : "");
   }
   // Patch just one page's row in place (title + meta) instead of rebuilding the
   // whole list. Returns false when the row isn't in the current view so the
@@ -1472,7 +1481,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     wrap.innerHTML =
       TOOLBAR_HTML +
       '<div class="rrnb-doc">' +
-        '<div class="rrnb-breadcrumb"><span class="rrnb-cr-nb">' + esc(nb.name || "Notebook") + '</span> <span class="sep">›</span> <span class="rrnb-cr-sec">' + esc(sec.name || "Section") + '</span> <span class="sep">›</span> <span class="rrnb-cr-pg">' + esc(p.title || "Page") + '</span></div>' +
+        '<div class="rrnb-breadcrumb"><span class="rrnb-cr-nb rrnb-crlink" data-cr="nb" title="Switch notebook">' + esc(nb.name || "Notebook") + '</span> <span class="sep">›</span> <span class="rrnb-cr-sec rrnb-crlink" data-cr="sec" title="Go to this section">' + esc(sec.name || "Section") + '</span> <span class="sep">›</span> <span class="rrnb-cr-pg">' + esc(p.title || "Page") + '</span></div>' +
         '<input class="rrnb-title" id="rrnb-title" placeholder="Untitled Page" value="' + esc(p.title || "") + '" />' +
         '<div class="rrnb-pdate" id="rrnb-pdate">' + esc(pageDateLine(p)) + '</div>' +
         '<div class="rrnb-metaline"><span class="rrnb-save" id="rrnb-save"><span class="dot"></span><span id="rrnb-save-txt">Saved</span></span>' +
@@ -1584,7 +1593,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     wrap.innerHTML =
       (ro ? '' : TT_TOOLBAR_HTML) +
       '<div class="rrnb-doc">' +
-        '<div class="rrnb-breadcrumb"><span class="rrnb-cr-nb">' + esc(nb.name || "Notebook") + '</span> <span class="sep">›</span> <span class="rrnb-cr-sec">' + esc(sec.name || "Section") + '</span> <span class="sep">›</span> <span class="rrnb-cr-pg">' + esc(p.title || "Page") + '</span></div>' +
+        '<div class="rrnb-breadcrumb"><span class="rrnb-cr-nb rrnb-crlink" data-cr="nb" title="Switch notebook">' + esc(nb.name || "Notebook") + '</span> <span class="sep">›</span> <span class="rrnb-cr-sec rrnb-crlink" data-cr="sec" title="Go to this section">' + esc(sec.name || "Section") + '</span> <span class="sep">›</span> <span class="rrnb-cr-pg">' + esc(p.title || "Page") + '</span></div>' +
         '<input class="rrnb-title" id="rrnb-title" placeholder="Untitled Page" value="' + esc(p.title || "") + '" />' +
         '<div class="rrnb-pdate" id="rrnb-pdate">' + esc(pageDateLine(p)) + '</div>' +
         '<div class="rrnb-metaline"><span class="rrnb-save" id="rrnb-save"><span class="dot"></span><span id="rrnb-save-txt">Saved</span></span>' +
@@ -1701,8 +1710,8 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     var ed = $id("rrnb-editor"); if (ed) ed.focus();
     switch (cmd) {
       case "bold": case "italic": case "underline": case "strikeThrough":
-      case "insertUnorderedList": case "insertOrderedList": case "undo": case "redo":
-      case "removeFormat": exec(cmd); break;
+      case "insertUnorderedList": case "insertOrderedList": case "undo": case "redo": exec(cmd); break;
+      case "removeFormat": exec("removeFormat"); try { exec("hiliteColor", "transparent"); } catch (e) {} exec("unlink"); break;
       case "highlight": exec("hiliteColor", "#fde68a"); break;
       case "quote": exec("formatBlock", "<blockquote>"); break;
       case "hr": exec("insertHorizontalRule"); break;
@@ -4196,6 +4205,12 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     // context menu dispatch + dismissers
     var ctx = $id("rrnb-ctx");
     if (ctx) ctx.addEventListener("click", function (e) { var it = e.target.closest("[data-act]"); if (it) handleCtx(it.getAttribute("data-act")); });
+    // clickable breadcrumb segments — notebook opens the picker, section jumps to it
+    document.addEventListener("click", function (e) {
+      var cr = e.target.closest(".rrnb-breadcrumb [data-cr]"); if (!cr) return;
+      if (cr.getAttribute("data-cr") === "nb") { var c = $id("rrnb-nb-current"); if (c) c.click(); }
+      else { var pg = pageById(S.pageId); var sid = pg && pg.section_id; if (sid && sid !== S.activeSection) { S.activeSection = sid; renderSections(); renderPageList(); } }
+    });
     document.addEventListener("mousedown", function (e) {
       if (!e.target.closest("#rrnb-ctx")) hideCtx();
       if (!e.target.closest("#rrnb-pop") && !e.target.closest("[data-cmd]")) hidePop();
