@@ -1,0 +1,15 @@
+{
+  "reported":          ["review", "quoting", "scheduled", "at_shop", "cancelled"],
+  "review":            ["reported", "quoting", "scheduled", "at_shop", "cancelled"],
+  "quoting":           ["quotes_in", "awaiting_approval", "cancelled"],
+  "quotes_in":         ["quoting", "awaiting_approval", "cancelled"],
+  "awaiting_approval": ["approved", "quoting", "cancelled"],
+  "approved":          ["scheduled", "at_shop", "quoting", "cancelled"],
+  "scheduled":         ["at_shop", "approved", "cancelled"],
+  "at_shop":           ["ready_for_pickup", "cancelled"],
+  "ready_for_pickup":  ["quality_check", "at_shop"],
+  "quality_check":     ["returned", "at_shop"],
+  "returned":          ["closed"],
+  "closed":            [],
+  "cancelled":         []
+}

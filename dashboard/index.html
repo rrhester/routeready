@@ -181,6 +181,7 @@
 <link rel="modulepreload" href="./workbook.js?v=radiohail01">
 <link rel="modulepreload" href="./reports.js?v=radiohail01">
 <link rel="modulepreload" href="./parts/parts-engine.js?v=radiohail01">
+<link rel="modulepreload" href="./repair/repair-engine.js?v=radiohail01">
 <link rel="stylesheet" href="../app/rr-system.css?v=radiohail01">
 <!-- Schedule page — Fluent 2 visual rebind (reference migration).
      Re-skins existing .sched-* chrome under #view-schedule.rrx-schedule
@@ -1123,6 +1124,14 @@
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h11v9H3z"/><path d="M14 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg></span>
         Fleet
       </button>
+      <!-- Repair Center · outside-repair lifecycle for vans (repair
+           cases → quotes → authorization → in-shop tracking → return
+           to service). Routes to #view-repair; behavior lives in
+           dashboard/repair/repair-ui.js (window.RRRepair). -->
+      <button class="nav-item" data-view="repair" data-c="schedule" title="Repair Center" onclick="goto('repair')">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4.5 4.5 0 0 0-6 6L3 18l3 3 5.7-5.7a4.5 4.5 0 0 0 6-6L14 13l-3-3 3.7-3.7z"/></svg></span>
+        Repair Center
+      </button>
       <!-- Compliance · nav entry removed per operator direction
            (2026-07-04, "kill this page") after a brief appearance —
            the operator didn't like the surfaced workspace. The view
@@ -1899,6 +1908,17 @@
          ═══════════════════════════════════════════════════════════ -->
     <div class="view rrx-schedule" id="view-fleet2" data-rr-view-src="views/view-fleet2.frag?v=radiohail01">
       <!-- markup extracted to views/view-fleet2.frag (monolith split phase 2) -->
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         REPAIR CENTER — outside-repair lifecycle (repair cases, quotes,
+         in-shop tracking, return to service). Chrome mirrors the
+         Fleet/Schedule generation; data + behavior live in
+         dashboard/repair/repair-ui.js (window.RRRepair), backed by the
+         repair_cases schema (migration 0486).
+         ═══════════════════════════════════════════════════════════ -->
+    <div class="view rrx-schedule" id="view-repair" data-rr-view-src="views/view-repair.frag?v=radiohail01">
+      <!-- markup in views/view-repair.frag -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
@@ -5298,6 +5318,9 @@ John,Smith,555-0101,john@example.com</code>
 <!-- Parts Intelligence · Fleet "Parts" sub-tab. Self-registers window.RRParts;
      live.js's fleetSub('parts') mounts it. Uses the shared window.sb. -->
 <script type="module" src="./parts/parts-ui.js?v=radiohail02"></script>
+<!-- Repair Center · top-level page. Self-registers window.RRRepair;
+     live.js's goto('repair') dispatches it. Uses the shared window.sb. -->
+<script type="module" src="./repair/repair-ui.js?v=radiohail01"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA

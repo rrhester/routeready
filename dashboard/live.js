@@ -759,6 +759,7 @@ window.RR_ENTITLEMENTS = {
     { key: "schedule",       label: "Schedule",   desc: "Routes, dispatch & the daily board" },
     { key: "onboarding-ops", label: "Onboarding", desc: "New-hire onboarding workflow" },
     { key: "fleet2",         label: "Fleet",      desc: "Vehicles, maintenance & assignments" },
+    { key: "repair",         label: "Repair Center", desc: "Repair cases, quotes & in-shop tracking" },
     { key: "workbooks",      label: "Workbooks",  desc: "Spreadsheets & saved reports" },
     { key: "messages",       label: "Messages",   desc: "Driver & team messaging" },
     { key: "email",          label: "Email",      desc: "Connected email inbox" },
@@ -5049,6 +5050,9 @@ window.goto = function (view) {
   }
   if (view === "recognition" && typeof loadRecognitionView === "function") loadRecognitionView();
   if (view === "compliance" && typeof loadComplianceWorkspace === "function") loadComplianceWorkspace();
+  // Repair Center · self-registered module (dashboard/repair/repair-ui.js,
+  // the parts-ui.js pattern) — live.js only dispatches the view-enter.
+  if (view === "repair" && window.RRRepair) window.RRRepair.loadView();
 };
 
 // ── Platform admin view ────────────────────────────────────────────────────
@@ -19214,6 +19218,7 @@ async function loadTeamMembers() {
     { key: "drivers",   label: "Drivers" },
     { key: "staffing",  label: "Performance" },
     { key: "fleet",     label: "Fleet" },
+    { key: "repair",    label: "Repair Center" },
     { key: "schedule",  label: "Schedule" },
     { key: "messages",  label: "Messages" },
     { key: "forms",     label: "Workflows" },
@@ -19295,6 +19300,7 @@ document.addEventListener("click", async (e) => {
     { key: "drivers",   label: "Drivers" },
     { key: "staffing",  label: "Performance" },
     { key: "fleet",     label: "Fleet" },
+    { key: "repair",    label: "Repair Center" },
     { key: "schedule",  label: "Schedule" },
     { key: "messages",  label: "Messages" },
     { key: "forms",     label: "Workflows" },

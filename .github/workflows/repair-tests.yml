@@ -1,0 +1,31 @@
+# Repair Center · unit tests for the pure repair logic
+# (dashboard/repair/repair-engine.js — stage machine, timers, money
+# math, queue filtering) plus the JS↔SQL stage-transition contract
+# fixture. Same per-suite pattern as meet-tests.yml et al.
+name: Repair Center tests
+
+on:
+  pull_request:
+    paths:
+      - "dashboard/repair/**"
+      - "tests/fixtures/repair/**"
+      - "scripts/test-repair-engine.mjs"
+      - ".github/workflows/repair-tests.yml"
+  push:
+    branches: [main]
+    paths:
+      - "dashboard/repair/**"
+      - "tests/fixtures/repair/**"
+      - "scripts/test-repair-engine.mjs"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Repair engine unit tests
+        run: node scripts/test-repair-engine.mjs
