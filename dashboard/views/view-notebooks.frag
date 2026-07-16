@@ -331,6 +331,7 @@
 .rrnb-editor td,.rrnb-editor th{border:1px solid var(--border-strong);padding:var(--s-1) var(--s-2);
   min-width:60px;vertical-align:top}
 .rrnb-editor th{background:var(--surface-secondary);font-weight:600;text-align:left}
+.rrnb-editor table.rrnb-zebra tbody tr:nth-child(even) td{background:rgba(15,23,42,.035)}
 .rrnb-editor mark{background:var(--amber-soft,rgba(217,119,6,.18));border-radius:2px;padding:0 1px}
 .rrnb-editor img{max-width:100%;border-radius:var(--r-md);margin:var(--s-1) 0}
 /* figures (pasted / dropped images) */
@@ -624,6 +625,8 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
 
 /* page list — subtle gray selection, keep the slim accent bar as the marker */
 #view-notebooks .rrnb-page{padding:9px 12px}
+#view-notebooks .rrnb-shell.rrnb-compact .rrnb-page{padding:4px 12px}
+#view-notebooks .rrnb-shell.rrnb-compact .rrnb-page .sub{display:none}
 #view-notebooks .rrnb-page:hover{background:rgba(15,23,42,.04)}
 #view-notebooks .rrnb-page.active{background:rgba(15,23,42,.05)}
 #view-notebooks .rrnb-page .ttl{font-weight:480;color:#1B2430}
@@ -1340,11 +1343,19 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     var pinned = pages.filter(function (p) { return p.is_pinned; }).sort(function (a, b) { return a.position - b.position; });
     var html = "";
     if (!S.readOnly) html += '<div class="rrnb-pageadd rrnb-pageadd-top"><button class="rrnb-newpage rrnb-addtop" data-add-page="1">＋ Add page  <span style="margin-left:auto;color:var(--text-disabled)">Alt+N</span></button>' +
+      '<button class="rrnb-newpage rrnb-tpl-btn" data-density-toggle="1" title="Compact / comfortable list">⇕</button>' +
       '<button class="rrnb-newpage rrnb-tpl-btn" data-template-menu="1" title="New page from a template">▤</button></div>';
     if (pinned.length) { html += '<div class="rrnb-plgroup-hd">Pinned</div>' + pinned.map(function (p) { return pageRow(p, true); }).join(""); html += '<div class="rrnb-plgroup-hd">Pages</div>'; }
     function walk(p) { html += pageRow(p, false); (kids[p.id] || []).forEach(walk); }
     tops.forEach(walk);
     host.innerHTML = html;
+    applyDensity();
+  }
+  // Compact vs comfortable page list — persisted per browser.
+  function applyDensity() {
+    if (S.density == null) { try { S.density = localStorage.getItem("rrnb-density") || "comfortable"; } catch (e) { S.density = "comfortable"; } }
+    var sh = $id("rrnb-shell"); if (sh) sh.classList.toggle("rrnb-compact", S.density === "compact");
+    return S.density;
   }
   function pageRow(p, pinnedCtx) {
     var on = p.id === S.pageId ? " active" : "";
@@ -3352,8 +3363,10 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     var pop = showPop('<label>Table</label><div class="rrnb-tablectl">' +
       '<button data-tbl="row+">＋ Row</button><button data-tbl="col+">＋ Column</button>' +
       '<button data-tbl="row-" class="danger">− Row</button><button data-tbl="col-" class="danger">− Column</button>' +
+      '<button data-tbl="al-left" title="Align column left">⇤</button><button data-tbl="al-center" title="Align column center">↔</button><button data-tbl="al-right" title="Align column right">⇥</button>' +
+      '<button data-tbl="zebra" title="Toggle row striping">Striping</button>' +
       '<button data-tbl="del" class="danger">Delete table</button></div>', cell.getBoundingClientRect());
-    pop.addEventListener("click", function (ev) {
+    pop.onclick = function (ev) {   // assign (not addEventListener) so reopening doesn't stack handlers
       var b = ev.target.closest("[data-tbl]"); if (!b) return;
       var act = b.getAttribute("data-tbl");
       var tr = cell.closest("tr"); var ci = cell.cellIndex;
@@ -3375,9 +3388,13 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
         });
       } else if (act === "col-") {
         rows.forEach(function (r) { if (r.cells[ci]) r.cells[ci].remove(); });
+      } else if (act === "al-left" || act === "al-center" || act === "al-right") {
+        var al = act.slice(3); rows.forEach(function (r) { if (r.cells[ci]) r.cells[ci].style.textAlign = al; });
+      } else if (act === "zebra") {
+        table.classList.toggle("rrnb-zebra");
       }
       hidePop(); scheduleSave();
-    });
+    };
   }
 
   function openTablePicker() {
@@ -4147,6 +4164,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       plHost.addEventListener("click", function (e) {
         if (S._inlineEditing) return;
         var kb = e.target.closest("[data-menu='page']"); if (kb) { var r = kb.getBoundingClientRect(); return pageMenu(kb.getAttribute("data-id"), r.left, r.bottom); }
+        var den = e.target.closest("[data-density-toggle]"); if (den) { S.density = (applyDensity() === "compact") ? "comfortable" : "compact"; try { localStorage.setItem("rrnb-density", S.density); } catch (x) {} applyDensity(); return; }
         var add = e.target.closest("[data-add-page]"); if (add) return newPage();
         var tpl = e.target.closest("[data-template-menu]"); if (tpl) return openTemplateMenu(tpl);
         var exit = e.target.closest("[data-exit-recycle]"); if (exit) { S.mode = "notebook"; return renderPageList(); }
