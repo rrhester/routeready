@@ -24,9 +24,12 @@ import {
   AVAILABILITY_LABEL, AVAILABILITY_TONE,
   SHOP_STATUS_LABEL, SHOP_STATUS_TONE, CATEGORY_OPTIONS,
   REQUEST_STATUS_LABEL, REQUEST_STATUS_TONE, SHOP_CLASS_LABEL, SHOP_CLASS_TONE,
+  QUOTE_STATUS_LABEL, QUOTE_STATUS_TONE,
+  AUTH_TYPE_LABEL, AUTH_STATUS_LABEL, AUTH_STATUS_TONE,
   msBetween, formatDuration, daysDown, daysDownTone, promiseState, downSince,
-  formatCents, attentionScore, filterQueue, sortQueue,
+  formatCents, sumCents, attentionScore, filterQueue, sortQueue,
   formatWhen, formatDay, vehicleShortDesc, parseOdometer, ODOMETER_MAX,
+  parseMoney, buildComparison, comparableQuotes,
   // The ?v= token is rewritten per deploy by scripts/bust-cache.mjs
   // (this file is in its FILES list). Without it the browser can pair a
   // fresh repair-ui.js with a stale cached repair-engine.js — a missing
@@ -49,6 +52,7 @@ import {
     shopsLoaded: false,
     filters: { search: "", stage: "", station: "", grounded: false, overdue: false, openOnly: true },
     drawerCase: null,
+    drawerQuotes: null,    // last repair_case_quotes payload for the open drawer
   };
 
   const sb = () => window.sb;
@@ -277,8 +281,10 @@ import {
       const c = byCase.get(e.repair_case_id);
       const who = c ? `${c.case_number} · ${c.vehicle_nickname || c.vehicle_name || ""}` : "";
       const tone = e.kind === "grounded" ? "r"
-        : (e.kind === "returned_to_service" || e.kind === "ungrounded") ? "g"
-        : (e.kind === "stage_changed" || e.kind === "created") ? "b" : "n";
+        : (e.kind === "returned_to_service" || e.kind === "ungrounded"
+           || e.kind === "authorization_acknowledged") ? "g"
+        : (e.kind === "stage_changed" || e.kind === "created"
+           || e.kind === "authorization_issued") ? "b" : "n";
       const label = e.kind === "stage_changed" && e.new_value
         ? `${STAGE_LABEL[e.new_value] || e.new_value}`
         : (e.message || e.kind);
@@ -530,8 +536,10 @@ import {
     if (!events.length) return `<div class="rp-table-empty">No activity yet.</div>`;
     return `<div class="rp-tl">` + events.map((e) => {
       const tone = e.kind === "grounded" ? "r"
-        : (e.kind === "returned_to_service" || e.kind === "ungrounded") ? "g"
-        : (e.kind === "stage_changed" || e.kind === "created" || e.kind === "ro_linked") ? "b" : "n";
+        : (e.kind === "returned_to_service" || e.kind === "ungrounded"
+           || e.kind === "authorization_acknowledged") ? "g"
+        : (e.kind === "stage_changed" || e.kind === "created" || e.kind === "ro_linked"
+           || e.kind === "authorization_issued") ? "b" : "n";
       const title = e.kind === "stage_changed" && e.new_value
         ? `Stage → ${STAGE_LABEL[e.new_value] || e.new_value}${e.message && e.message !== "Stage changed" ? ` — ${e.message}` : ""}`
         : (e.message || e.kind);
@@ -616,6 +624,7 @@ import {
           <div class="rp-drawer-actions" style="border-top:none;margin-bottom:0;padding-bottom:0">
             <button type="button" class="rp-btn rp-btn-primary" data-rp-request-quotes>Request quotes…</button>
             <button type="button" class="rp-btn" data-rp-phone-quote>Log phone quote…</button>
+            <button type="button" class="rp-btn" data-rp-authorize="" title="Authorize diagnostics or set a not-to-exceed cap — a quote isn't required">Authorize work…</button>
           </div>
           <h4 class="rp-drawer-h4">Attachments</h4>
           <div class="rp-atts" id="rr-rp-atts">${drawerAttachments(c)}</div>
@@ -635,6 +644,25 @@ import {
       if (e.target.closest("[data-rp-fleet]")) { closeDrawer(); window.openFleetDrawer(c.vehicle?.id); return; }
       if (e.target.closest("[data-rp-request-quotes]")) { openRequestModal(c); return; }
       if (e.target.closest("[data-rp-phone-quote]")) { openPhoneQuoteModal(c); return; }
+      if (e.target.closest("[data-rp-compare]")) { openCompareModal(c); return; }
+      const authBtn = e.target.closest("[data-rp-authorize]");
+      if (authBtn) {
+        const qid = authBtn.getAttribute("data-rp-authorize");
+        const quote = (S.drawerQuotes?.quotes || []).find((q) => q.id === qid) || null;
+        openAuthorizeModal(c, quote);
+        return;
+      }
+      const authAct = e.target.closest("[data-rp-auth-action]");
+      if (authAct) {
+        await doAuthAction(c, authAct.getAttribute("data-rp-auth-id"), authAct.getAttribute("data-rp-auth-action"));
+        return;
+      }
+      const authLines = e.target.closest("[data-rp-auth-lines]");
+      if (authLines) {
+        const items = wrap.querySelector(`[data-rp-auth-items="${authLines.getAttribute("data-rp-auth-lines")}"]`);
+        if (items) items.hidden = !items.hidden;
+        return;
+      }
       const reqAct = e.target.closest("[data-rp-req-action]");
       if (reqAct) {
         await doRequestAction(c, reqAct.getAttribute("data-rp-req-id"), reqAct.getAttribute("data-rp-req-action"));
@@ -666,13 +694,77 @@ import {
       host.innerHTML = `<div class="rp-table-empty rp-error">Couldn't load quotes · ${esc(error?.message || "try again")}</div>`;
       return;
     }
+    S.drawerQuotes = data;
     renderDrawerQuotes(host, data);
+  }
+
+  // The current authorization + its history, rendered above the quotes.
+  function authSection(auths) {
+    if (!auths.length) return "";
+    const current = auths.find((a) => a.status === "issued" || a.status === "acknowledged");
+    const history = auths.filter((a) => a !== current);
+    const authPill = (a) =>
+      `<span class="status-pill rp-pill-${esc(AUTH_STATUS_TONE[a.status] || "neutral")}">${esc(AUTH_STATUS_LABEL[a.status] || a.status)}</span>`;
+    let html = "";
+    if (current) {
+      const approved = (current.lines || []).filter((l) => l.decision === "approved");
+      const declined = (current.lines || []).filter((l) => l.decision === "declined");
+      const amount = current.authorized_total_cents != null
+        ? `${formatCents(current.authorized_total_cents)}${current.authorization_type === "not_to_exceed" ? " cap" : ""}`
+        : (current.authorization_type === "diagnostics_only" ? "fee TBD" : "—");
+      const subBits = [
+        current.vendor_name,
+        `authorized ${formatWhen(current.authorized_at, nowIso())}`,
+        current.po_number ? (/^po/i.test(current.po_number) ? current.po_number : `PO ${current.po_number}`) : null,
+        current.status === "acknowledged" && current.acknowledged_by ? `ack. ${current.acknowledged_by}` : null,
+        declined.length ? `${declined.length} line${declined.length > 1 ? "s" : ""} declined` : null,
+      ].filter(Boolean).join(" · ");
+      const lineRows = (current.lines || []).map((l) => `
+        <div class="rp-qli${l.decision === "declined" ? " rp-qli-declined" : ""}">
+          <span class="rp-qli-desc">${esc(l.description)}${l.decision === "declined" ? ` <span class="rp-cell-sub" style="display:inline">· not approved</span>` : ""}</span>
+          <span class="rp-qli-amt">${esc(formatCents(l.line_total_cents))}</span>
+        </div>`).join("");
+      html += `
+      <div class="rp-auth-card">
+        <div class="rp-qrow" style="border-bottom:none;padding-bottom:0">
+          <div class="rp-qrow-main">
+            <span class="rp-strong">${esc(AUTH_TYPE_LABEL[current.authorization_type] || current.authorization_type)}
+              ${current.version > 1 ? `<span class="rp-cell-sub" style="display:inline"> · v${esc(String(current.version))}</span>` : ""}
+            </span>
+            <span class="rp-cell-sub">${esc(subBits)}</span>
+          </div>
+          <span class="rp-strong rp-qamt">${esc(amount)}</span>
+          ${authPill(current)}
+        </div>
+        ${current.notes ? `<div class="rp-cell-sub" style="margin:var(--s-1) 0 0">${esc(current.notes)}</div>` : ""}
+        <div class="rp-auth-actions">
+          ${approved.length || declined.length
+            ? `<button type="button" class="rp-btn rp-btn-sm" data-rp-auth-lines="${esc(current.id)}">${approved.length + declined.length} lines</button>` : ""}
+          <button type="button" class="rp-btn rp-btn-sm" data-rp-auth-action="resend" data-rp-auth-id="${esc(current.id)}" title="Email the authorization to the shop again (fresh link)">Resend</button>
+          ${current.status === "issued"
+            ? `<button type="button" class="rp-btn rp-btn-sm" data-rp-auth-action="mark_acknowledged" data-rp-auth-id="${esc(current.id)}" title="Record an acknowledgement received by phone or email">Mark acknowledged</button>` : ""}
+          <button type="button" class="rp-btn rp-btn-sm rp-btn-danger" data-rp-auth-action="revoke" data-rp-auth-id="${esc(current.id)}">Revoke</button>
+        </div>
+        ${lineRows ? `<div class="rp-qitems" data-rp-auth-items="${esc(current.id)}" hidden>${lineRows}</div>` : ""}
+      </div>`;
+    }
+    if (history.length) {
+      html += history.map((a) => `
+        <div class="rp-qrow rp-auth-hist">
+          <div class="rp-qrow-main">
+            <span class="rp-cell-sub">v${esc(String(a.version))} · ${esc(AUTH_TYPE_LABEL[a.authorization_type] || a.authorization_type)}${a.authorized_total_cents != null ? ` · ${esc(formatCents(a.authorized_total_cents))}` : ""}${a.revoke_reason ? ` — ${esc(a.revoke_reason)}` : ""}</span>
+          </div>
+          ${authPill(a)}
+        </div>`).join("");
+    }
+    return `<div class="rp-qhead">Authorization</div>${html}`;
   }
 
   function renderDrawerQuotes(host, data) {
     const requests = data.requests || [];
     const quotes = data.quotes || [];
-    if (!requests.length && !quotes.length) {
+    const auths = data.authorizations || [];
+    if (!requests.length && !quotes.length && !auths.length) {
       host.innerHTML = `<div class="rp-table-empty" style="padding:var(--s-3) 0;text-align:left">No quotes yet — send this case to your shops, or log a phone quote.</div>`;
       return;
     }
@@ -715,10 +807,14 @@ import {
           <span class="rp-qli-desc">${esc(li.description)}${li.part_number ? ` <span class="rp-cell-sub" style="display:inline">· ${esc(li.part_number)}</span>` : ""}</span>
           <span class="rp-qli-amt">${esc(formatCents(li.line_total_cents))}</span>
         </div>`).join("");
+      const statusPill = (q.status === "accepted" || q.status === "declined")
+        ? `<span class="status-pill rp-pill-${esc(QUOTE_STATUS_TONE[q.status] || "neutral")}">${esc(QUOTE_STATUS_LABEL[q.status] || q.status)}</span>`
+        : "";
       return `
       <div class="rp-qrow rp-qrow-quote">
         <div class="rp-qrow-main">
           <span class="rp-strong">${esc(q.vendor_name || "Shop")}
+            ${statusPill}
             ${q.totals_mismatch ? `<span class="status-pill rp-pill-warn" title="The shop's own total doesn't match its line items">Totals differ</span>` : ""}
             ${q.version > 1 ? `<span class="rp-cell-sub" style="display:inline"> · v${esc(String(q.version))}</span>` : ""}
           </span>
@@ -728,12 +824,19 @@ import {
         ${(q.line_items || []).length
           ? `<button type="button" class="rp-btn rp-btn-sm" data-rp-quote-toggle="${esc(q.id)}">${(q.line_items || []).length} lines</button>`
           : ""}
+        ${q.status === "submitted"
+          ? `<button type="button" class="rp-btn rp-btn-sm" data-rp-authorize="${esc(q.id)}">Authorize…</button>`
+          : ""}
       </div>
       ${(q.line_items || []).length ? `<div class="rp-qitems" data-rp-quote-items="${esc(q.id)}" hidden>${items}</div>` : ""}`;
     }).join("");
 
+    const compareBtn = comparableQuotes(quotes).length >= 2
+      ? `<button type="button" class="rp-link-btn" data-rp-compare>Compare side by side →</button>`
+      : "";
     host.innerHTML = `
-      ${quotes.length ? `<div class="rp-qhead">Quotes received</div>${quoteRows}` : ""}
+      ${authSection(auths)}
+      ${quotes.length ? `<div class="rp-qhead rp-qhead-row"><span>Quotes received</span>${compareBtn}</div>${quoteRows}` : ""}
       ${requests.length ? `<div class="rp-qhead">Requests</div>${reqRows}` : ""}`;
   }
 
@@ -923,11 +1026,266 @@ import {
     });
   }
 
+  // ── quote comparison modal (Phase 5) ─────────────────────────────────
+  // Pure display over stored, server-computed totals: buildComparison()
+  // in the engine does the matching; scope differences are WARNED about,
+  // never papered over.
+  function openCompareModal(c) {
+    injectCss();
+    el("rr-rp-modal")?.remove();
+    const data = S.drawerQuotes;
+    const cmp = buildComparison(data?.quotes || []);
+    if (cmp.quotes.length < 2) { say("Need at least two open quotes to compare", "warn"); return; }
+    const wrap = document.createElement("div");
+    wrap.id = "rr-rp-modal";
+
+    const headCells = cmp.quotes.map((q) => {
+      const pills = [
+        q.is_cheapest ? `<span class="status-pill rp-pill-ok">Lowest</span>` : "",
+        q.status === "accepted" ? `<span class="status-pill rp-pill-ok">Accepted</span>` : "",
+        q.totals_mismatch ? `<span class="status-pill rp-pill-warn" title="The shop's own total doesn't match its line items">Totals differ</span>` : "",
+      ].filter(Boolean).join(" ");
+      const meta = [
+        q.earliest_appointment_at ? `appt ${formatDay(q.earliest_appointment_at)}` : null,
+        q.estimated_completion_at ? `done ${formatDay(q.estimated_completion_at)}` : null,
+        q.warranty_summary || null,
+      ].filter(Boolean).join(" · ");
+      return `<th class="rp-cmp-col">
+        <div class="rp-strong">${esc(q.vendor_name || "Shop")}${q.version > 1 ? ` <span class="rp-cell-sub" style="display:inline">v${esc(String(q.version))}</span>` : ""}</div>
+        <div class="rp-cmp-total">${esc(formatCents(q.compare_total_cents))}</div>
+        ${q.delta_vs_cheapest_cents != null && q.delta_vs_cheapest_cents !== 0
+          ? `<div class="rp-cmp-delta">+${esc(formatCents(q.delta_vs_cheapest_cents))} vs lowest</div>` : ""}
+        ${pills ? `<div class="rp-cmp-pills">${pills}</div>` : ""}
+        ${meta ? `<div class="rp-cell-sub">${esc(meta)}</div>` : ""}
+        ${q.status === "submitted" || q.status === "accepted"
+          ? `<button type="button" class="rp-btn rp-btn-sm rp-btn-primary" data-rp-cmp-auth="${esc(q.id)}" style="margin-top:var(--s-2)">Authorize…</button>` : ""}
+      </th>`;
+    }).join("");
+
+    const bodyRows = cmp.rows.map((r) => {
+      const cells = cmp.quotes.map((q) => {
+        const cell = r.cells[q.id];
+        if (!cell) return `<td class="num rp-cmp-missing" title="Not in this quote">—</td>`;
+        return `<td class="num">${esc(formatCents(cell.cents))}${cell.count > 1 ? ` <span class="rp-cell-sub" style="display:inline">×${cell.count}</span>` : ""}</td>`;
+      }).join("");
+      return `<tr>
+        <td><span class="rp-cmp-desc">${esc(r.description)}</span>${r.category ? `<span class="rp-cell-sub">${esc(r.category.replace(/_/g, " "))}</span>` : ""}</td>
+        ${cells}
+      </tr>`;
+    }).join("");
+
+    wrap.innerHTML = `
+      <div class="rp-modal-scrim" data-rp-mclose></div>
+      <div class="rp-modal-card rp-modal-xwide" role="dialog" aria-modal="true" aria-label="Compare quotes">
+        <header class="rp-modal-head"><h3>Compare quotes — ${esc(c.case_number)}</h3><button type="button" class="rp-drawer-x" data-rp-mclose aria-label="Close">✕</button></header>
+        <div class="rp-modal-body">
+          ${cmp.warnings.length ? `<div class="rp-callout rp-callout-warn" style="margin:0 0 var(--s-3)"><strong>The quotes don't cover the same work.</strong><br>${cmp.warnings.map(esc).join("<br>")}</div>` : ""}
+          <div class="rp-cmp-scroll">
+            <table class="rp-cmp">
+              <thead><tr><th class="rp-cmp-rowhead"></th>${headCells}</tr></thead>
+              <tbody>
+                ${bodyRows || `<tr><td class="rp-cell-sub" colspan="${cmp.quotes.length + 1}" style="padding:var(--s-3) 0">No line detail to compare — the totals above are all the shops provided.</td></tr>`}
+                <tr class="rp-cmp-totalrow">
+                  <td><span class="rp-strong">Total</span><span class="rp-cell-sub">as quoted, incl. tax</span></td>
+                  ${cmp.quotes.map((q) => `<td class="num rp-strong">${esc(formatCents(q.compare_total_cents))}</td>`).join("")}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <footer class="rp-modal-foot">
+          <button type="button" class="rp-btn" data-rp-mclose>Close</button>
+        </footer>
+      </div>`;
+    document.body.appendChild(wrap);
+    wrap.addEventListener("click", (e) => {
+      if (e.target.closest("[data-rp-mclose]")) { wrap.remove(); return; }
+      const authBtn = e.target.closest("[data-rp-cmp-auth]");
+      if (authBtn) {
+        const quote = (data?.quotes || []).find((q) => q.id === authBtn.getAttribute("data-rp-cmp-auth"));
+        openAuthorizeModal(c, quote || null);
+      }
+    });
+  }
+
+  // ── authorize modal (Phase 5) ────────────────────────────────────────
+  // The client only collects the DECISION — every authorized amount is
+  // recomputed server-side by repair_authorization_issue().
+  async function openAuthorizeModal(c, quote) {
+    injectCss();
+    el("rr-rp-modal")?.remove();
+    const shops = quote ? [] : await loadShops();
+    const wrap = document.createElement("div");
+    wrap.id = "rr-rp-modal";
+    const types = quote
+      ? [["full", "Full quote", "Everything on the quote"],
+         ["selected_lines", "Selected lines", "Approve some items, decline the rest"],
+         ["diagnostics_only", "Diagnostics only", "Diagnose first, quote the fix after"],
+         ["not_to_exceed", "Not-to-exceed", "Cap the spend, shop proceeds up to it"]]
+      : [["diagnostics_only", "Diagnostics only", "Diagnose first, quote the fix after"],
+         ["not_to_exceed", "Not-to-exceed", "Cap the spend, shop proceeds up to it"]];
+    const typeBtns = types.map(([k, label, hint], i) => `
+      <label class="rp-authtype-opt" title="${esc(hint)}">
+        <input type="radio" name="rr-rp-au-type" value="${esc(k)}" ${i === 0 ? "checked" : ""}>
+        <span>${esc(label)}</span>
+      </label>`).join("");
+    const lineRows = (quote?.line_items || []).map((li) => `
+      <label class="rp-authline">
+        <input type="checkbox" data-rp-au-line="${esc(li.id)}" data-rp-au-cents="${esc(String(li.line_total_cents ?? 0))}" checked>
+        <span class="rp-authline-desc">${esc(li.description)}${li.recommended && !li.required ? ` <span class="rp-cell-sub" style="display:inline">· recommended</span>` : ""}</span>
+        <span class="rp-qli-amt">${esc(formatCents(li.line_total_cents))}</span>
+      </label>`).join("");
+    const shopOpts = shops.filter((s) => s.preferred_status !== "blocked")
+      .map((s) => `<option value="${esc(s.id)}"${s.id === c.vendor?.id ? " selected" : ""}>${esc(s.name)}</option>`).join("");
+    const otherSubmitted = (S.drawerQuotes?.quotes || [])
+      .filter((q) => q.status === "submitted" && (!quote || q.id !== quote.id)).length;
+    const quoteTotal = quote ? (quote.grand_total_cents ?? quote.shop_reported_total_cents) : null;
+
+    wrap.innerHTML = `
+      <div class="rp-modal-scrim" data-rp-mclose></div>
+      <div class="rp-modal-card rp-modal-wide" role="dialog" aria-modal="true" aria-label="Authorize work">
+        <header class="rp-modal-head"><h3>Authorize work — ${esc(c.case_number)}</h3><button type="button" class="rp-drawer-x" data-rp-mclose aria-label="Close">✕</button></header>
+        <div class="rp-modal-body">
+          ${quote
+            ? `<div class="rp-qrow" style="border-bottom:1px solid var(--border-subtle);padding-top:0">
+                 <div class="rp-qrow-main"><span class="rp-strong">${esc(quote.vendor_name || "Shop")}</span>
+                 <span class="rp-cell-sub">${esc([quote.quote_number ? `quote ${quote.quote_number}` : null, `${(quote.line_items || []).length} lines`].filter(Boolean).join(" · "))}</span></div>
+                 <span class="rp-strong rp-qamt">${esc(formatCents(quoteTotal))}</span>
+               </div>`
+            : `<label class="rp-field"><span>Shop <em>*</em></span><select id="rr-rp-au-shop" class="rp-input">${shopOpts || `<option value="">No shops yet</option>`}</select></label>`}
+          <div class="rp-field" style="margin-top:var(--s-3)"><span>What's authorized?</span></div>
+          <div class="rp-authtype">${typeBtns}</div>
+          <div id="rr-rp-au-lines-wrap" hidden style="margin-top:var(--s-3)">
+            <div class="rp-authlines">${lineRows}</div>
+            <div class="rp-authsum">Selected total <strong id="rr-rp-au-sum">${esc(formatCents(quote ? sumCents((quote.line_items || []).map((li) => li.line_total_cents)) : 0))}</strong> <span class="rp-cell-sub" style="display:inline">— recomputed by the server at issue</span></div>
+          </div>
+          <div class="rp-form-grid" style="margin-top:var(--s-3)">
+            <label class="rp-field" id="rr-rp-au-amount-wrap" hidden><span id="rr-rp-au-amount-label">Cap ($)</span>
+              <input id="rr-rp-au-amount" class="rp-input" inputmode="decimal" placeholder="e.g. 500.00"></label>
+            <label class="rp-field"><span>PO number</span><input id="rr-rp-au-po" class="rp-input" maxlength="60"></label>
+            <label class="rp-field rp-span2"><span>Note to the shop</span>
+              <textarea id="rr-rp-au-notes" class="rp-input rp-input-ta" rows="2" maxlength="2000" placeholder="e.g. Please call before replacing anything beyond the approved lines"></textarea></label>
+            <div class="rp-field rp-span2" style="flex-direction:row;gap:16px;align-items:center;flex-wrap:wrap">
+              <label class="rp-checkline"><input type="checkbox" id="rr-rp-au-email" checked> Email the shop (with an acknowledge link)</label>
+              ${quote && otherSubmitted
+                ? `<label class="rp-checkline"><input type="checkbox" id="rr-rp-au-decline"> Decline the ${otherSubmitted} other quote${otherSubmitted > 1 ? "s" : ""}</label>` : ""}
+            </div>
+          </div>
+        </div>
+        <footer class="rp-modal-foot">
+          <button type="button" class="rp-btn" data-rp-mclose>Cancel</button>
+          <button type="button" class="rp-btn rp-btn-primary" data-rp-au-issue>Issue authorization</button>
+        </footer>
+      </div>`;
+    document.body.appendChild(wrap);
+
+    const syncType = () => {
+      const t = wrap.querySelector("input[name='rr-rp-au-type']:checked")?.value;
+      wrap.querySelector("#rr-rp-au-lines-wrap").hidden = t !== "selected_lines";
+      const amtWrap = wrap.querySelector("#rr-rp-au-amount-wrap");
+      amtWrap.hidden = t !== "not_to_exceed" && t !== "diagnostics_only";
+      wrap.querySelector("#rr-rp-au-amount-label").textContent =
+        t === "not_to_exceed" ? "Cap ($) *" : "Diagnostic cap ($, optional)";
+    };
+    wrap.querySelectorAll("input[name='rr-rp-au-type']").forEach((r) => r.addEventListener("change", syncType));
+    syncType();
+    const syncSum = () => {
+      const cents = [...wrap.querySelectorAll("[data-rp-au-line]:checked")]
+        .map((i) => parseInt(i.getAttribute("data-rp-au-cents"), 10));
+      const sumEl = wrap.querySelector("#rr-rp-au-sum");
+      if (sumEl) sumEl.textContent = formatCents(sumCents(cents));
+    };
+    wrap.querySelectorAll("[data-rp-au-line]").forEach((i) => i.addEventListener("change", syncSum));
+
+    wrap.addEventListener("click", async (e) => {
+      if (e.target.closest("[data-rp-mclose]")) { wrap.remove(); return; }
+      if (!e.target.closest("[data-rp-au-issue]")) return;
+      const type = wrap.querySelector("input[name='rr-rp-au-type']:checked")?.value;
+      const vendorId = quote ? null : wrap.querySelector("#rr-rp-au-shop")?.value;
+      if (!quote && !vendorId) { say("Pick a shop", "warn"); return; }
+      let lineDecisions = [];
+      if (type === "selected_lines") {
+        const boxes = [...wrap.querySelectorAll("[data-rp-au-line]")];
+        lineDecisions = boxes.map((b) => ({
+          id: b.getAttribute("data-rp-au-line"),
+          decision: b.checked ? "approved" : "declined",
+        }));
+        if (!lineDecisions.some((d) => d.decision === "approved")) {
+          say("Approve at least one line — or decline the quote instead", "warn");
+          return;
+        }
+      }
+      let amountCents = null;
+      if (type === "not_to_exceed" || type === "diagnostics_only") {
+        const m = parseMoney(wrap.querySelector("#rr-rp-au-amount").value);
+        if (!m.ok) {
+          say(m.reason === "too_large" ? "That cap looks wrong — amounts above $1,000,000 aren't accepted"
+            : m.reason === "negative" ? "The cap can't be negative"
+            : "Enter the cap as a dollar amount, e.g. 500.00", "warn");
+          return;
+        }
+        if (type === "not_to_exceed" && (m.cents == null || m.cents <= 0)) {
+          say("A not-to-exceed authorization needs a cap amount", "warn");
+          return;
+        }
+        amountCents = m.cents;
+      }
+      const btn = e.target.closest("[data-rp-au-issue]");
+      btn.disabled = true;
+      const { data, error } = await sb().rpc("repair_authorization_issue", {
+        p_case_id: c.id,
+        p_type: type,
+        p_quote_id: quote?.id || null,
+        p_vendor_id: vendorId || null,
+        p_line_decisions: lineDecisions,
+        p_amount_cents: amountCents,
+        p_po_number: wrap.querySelector("#rr-rp-au-po").value.trim() || null,
+        p_notes: wrap.querySelector("#rr-rp-au-notes").value.trim() || null,
+        p_decline_others: wrap.querySelector("#rr-rp-au-decline")?.checked || false,
+        p_send_email: wrap.querySelector("#rr-rp-au-email").checked,
+      });
+      btn.disabled = false;
+      if (error) { fail("Couldn't issue the authorization", error); return; }
+      wrap.remove();
+      if (data?.email_queued) say("Authorization issued and emailed to the shop");
+      else say("Authorization issued — the shop has no email on file, so tell them directly", "warn");
+      await refreshDrawer(c.id);
+    });
+  }
+
+  async function doAuthAction(c, authId, action) {
+    let note = null;
+    if (action === "revoke") {
+      note = window.prompt("Revoke this authorization? The shop should stop any unstarted work.\nOptional reason (shared with the shop):", "");
+      if (note === null) return;
+      note = note.trim() || null;
+    } else if (action === "mark_acknowledged") {
+      note = window.prompt("Record the acknowledgement — who confirmed it (name, optional)?", "");
+      if (note === null) return;
+      note = note.trim() || null;
+    }
+    const { data, error } = await sb().rpc("repair_authorization_action", {
+      p_authorization_id: authId, p_action: action, p_note: note,
+    });
+    if (error) { fail("Couldn't update the authorization", error); return; }
+    if (action === "resend") {
+      say(data?.email_queued ? "Authorization email queued" : "Couldn't email — the shop has no address on file", data?.email_queued ? undefined : "warn");
+      loadDrawerQuotes(c.id);
+    } else if (action === "mark_acknowledged") {
+      say("Acknowledgement recorded");
+      loadDrawerQuotes(c.id);
+    } else {
+      say("Authorization revoked");
+      await refreshDrawer(c.id);
+    }
+  }
+
   function drawerEsc(e) { if (e.key === "Escape") closeDrawer(); }
   function closeDrawer() {
     document.removeEventListener("keydown", drawerEsc);
     el("rr-rp-drawer")?.remove();
     S.drawerCase = null;
+    S.drawerQuotes = null;
   }
 
   async function refreshDrawer(caseId) {
@@ -1258,6 +1616,8 @@ import {
 #rr-rp-modal .rp-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--s-3) var(--s-4)}
 #rr-rp-modal .rp-span2{grid-column:1 / -1}
 #rr-rp-modal .rp-field span,#rr-rp-modal .rp-field em{font-size:var(--fs-sm)}
+/* author display rules would otherwise defeat the hidden attribute */
+#rr-rp-modal [hidden],#rr-rp-drawer [hidden]{display:none}
 .rp-field{display:flex;flex-direction:column;gap:var(--s-1)}
 .rp-field>span{font-weight:600;color:var(--text)}
 .rp-field em{color:var(--red);font-style:normal}
@@ -1286,6 +1646,37 @@ import {
 .rp-qrow-main .rp-strong,.rp-qrow-main .rp-cell-sub{display:block}
 .rp-qamt{font-variant-numeric:tabular-nums;white-space:nowrap}
 .rp-qitems{border:1px solid var(--border-subtle);border-radius:var(--r-md);padding:var(--s-2) var(--s-3);margin:0 0 var(--s-2);background:var(--canvas)}
+.rp-qhead-row{display:flex;align-items:center;justify-content:space-between;gap:var(--s-2)}
+.rp-auth-card{border:1px solid var(--border);border-radius:var(--r-md);padding:var(--s-2-5) var(--s-3);margin-bottom:var(--s-2);background:var(--canvas)}
+.rp-auth-card .rp-qitems{margin:var(--s-2) 0 0;background:var(--surface)}
+.rp-auth-actions{display:flex;gap:var(--s-2);flex-wrap:wrap;margin-top:var(--s-2)}
+.rp-auth-hist{padding:var(--s-1) 0}
+.rp-qli-declined{opacity:.6}
+.rp-qli-declined .rp-qli-desc{text-decoration:line-through}
+#rr-rp-modal .rp-modal-xwide{max-width:960px}
+.rp-cmp-scroll{overflow-x:auto}
+.rp-cmp{border-collapse:collapse;width:100%}
+.rp-cmp th,.rp-cmp td{padding:var(--s-2) var(--s-2-5);border-bottom:1px solid var(--border-subtle);text-align:left;vertical-align:top;font-size:var(--fs-sm)}
+.rp-cmp thead th{border-bottom:1px solid var(--border)}
+.rp-cmp .rp-cmp-col{min-width:150px}
+.rp-cmp .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.rp-cmp-total{font-size:var(--fs-lg);font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;margin-top:2px}
+.rp-cmp-delta{font-size:var(--fs-xs);color:var(--text-muted);font-variant-numeric:tabular-nums}
+.rp-cmp-pills{display:flex;gap:var(--s-1);flex-wrap:wrap;margin-top:var(--s-1)}
+.rp-cmp-missing{color:var(--text-subtle)}
+.rp-cmp-desc{display:block;font-weight:600;color:var(--text)}
+.rp-cmp td .rp-cell-sub,.rp-cmp th .rp-cell-sub{display:block}
+.rp-cmp-totalrow td{border-top:1px solid var(--border);border-bottom:none}
+.rp-authtype{display:flex;gap:var(--s-2);flex-wrap:wrap}
+.rp-authtype-opt{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:var(--r-md);padding:var(--s-2) var(--s-3);font-size:var(--fs-sm);font-weight:600;color:var(--text);cursor:pointer;background:var(--surface)}
+.rp-authtype-opt:has(input:checked){border-color:var(--accent);box-shadow:var(--ring-focus);background:var(--surface-hover)}
+.rp-authtype-opt input{margin:0}
+.rp-authlines{border:1px solid var(--border);border-radius:var(--r-md);max-height:240px;overflow:auto;padding:var(--s-1)}
+.rp-authline{display:flex;align-items:center;gap:var(--s-2-5);padding:var(--s-1-5,6px) var(--s-2);border-radius:var(--r-sm);cursor:pointer;font-size:var(--fs-sm)}
+.rp-authline:hover{background:var(--surface-hover)}
+.rp-authline-desc{flex:1;min-width:0}
+.rp-authline:has(input:not(:checked)) .rp-authline-desc{opacity:.55;text-decoration:line-through}
+.rp-authsum{margin-top:var(--s-2);font-size:var(--fs-sm);color:var(--text)}
 .rp-qli{display:flex;justify-content:space-between;gap:var(--s-3);padding:3px 0;font-size:var(--fs-sm)}
 .rp-qli-amt{font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:600}
 .rp-callout{border:1px solid var(--border);border-radius:var(--r-md);padding:var(--s-2-5) var(--s-3);font-size:var(--fs-sm);line-height:1.5;margin:0 var(--s-5) var(--s-2)}

@@ -157,6 +157,50 @@ export const SHOP_CLASS_LABEL = {
   blocked: "Blocked",
 };
 
+// ── Quote status (per quote version) ────────────────────────────────────
+export const QUOTE_STATUS_LABEL = {
+  draft: "Draft",
+  submitted: "Submitted",
+  superseded: "Superseded",
+  accepted: "Accepted",
+  declined: "Declined",
+  expired: "Expired",
+};
+
+export const QUOTE_STATUS_TONE = {
+  draft: "neutral",
+  submitted: "info",
+  superseded: "neutral",
+  accepted: "ok",
+  declined: "neutral",
+  expired: "neutral",
+};
+
+// ── Authorization vocabulary (Phase 5) ──────────────────────────────────
+// Mirrors migration 0488's repair_authorizations checks.
+export const AUTH_TYPE_LABEL = {
+  full: "Approved in full",
+  selected_lines: "Selected lines approved",
+  diagnostics_only: "Diagnostics only",
+  not_to_exceed: "Not-to-exceed cap",
+};
+
+export const AUTH_STATUS_LABEL = {
+  issued: "Awaiting shop acknowledgement",
+  acknowledged: "Acknowledged by shop",
+  superseded: "Superseded",
+  revoked: "Revoked",
+};
+
+// Calm by design: an un-acknowledged authorization is a normal working
+// state (amber only via age, handled by the caller), never red.
+export const AUTH_STATUS_TONE = {
+  issued: "info",
+  acknowledged: "ok",
+  superseded: "neutral",
+  revoked: "warn",
+};
+
 export const SHOP_CLASS_TONE = {
   preferred: "ok",
   approved: "neutral",
@@ -289,6 +333,121 @@ export function parseOdometer(raw) {
   if (!Number.isFinite(n)) return { ok: false, value: null, reason: "not_a_number" };
   if (n > ODOMETER_MAX) return { ok: false, value: null, reason: "too_large" };
   return { ok: true, value: n, reason: null };
+}
+
+// Dollar input → integer cents WITHOUT float multiplication ("1,234.56"
+// → 123456 by string math). Blank is ok/null (caller decides if it's
+// required). Rejects negatives, junk, more than two decimal places, and
+// fat-fingered amounts over $1M (mirrors the odometer guard: better a
+// friendly warning than an integer-overflow database error).
+export const MONEY_MAX_CENTS = 100_000_000; // $1,000,000.00
+export function parseMoney(raw) {
+  if (raw == null || String(raw).trim() === "") return { ok: true, cents: null, reason: null };
+  const s = String(raw).replace(/[$,\s]/g, "");
+  if (s.includes("-")) return { ok: false, cents: null, reason: "negative" };
+  if (!/^\d*(\.\d*)?$/.test(s) || s === "" || s === ".") {
+    return { ok: false, cents: null, reason: "not_a_number" };
+  }
+  const [d = "0", c = ""] = s.split(".");
+  if (c.length > 2) return { ok: false, cents: null, reason: "too_precise" };
+  const cents = parseInt(d || "0", 10) * 100 + parseInt((c + "00").slice(0, 2), 10);
+  if (!Number.isFinite(cents)) return { ok: false, cents: null, reason: "not_a_number" };
+  if (cents > MONEY_MAX_CENTS) return { ok: false, cents: null, reason: "too_large" };
+  return { ok: true, cents, reason: null };
+}
+
+// ── Quote comparison (Phase 5) ──────────────────────────────────────────
+// Everything here is DISPLAY math over totals the server already
+// computed and stored — no authoritative money is produced client-side.
+
+// The quotes worth comparing: submitted or accepted (drafts and
+// superseded versions are noise).
+export function comparableQuotes(quotes) {
+  return (quotes || []).filter((q) => q.status === "submitted" || q.status === "accepted");
+}
+
+// Conservative line matching key: same wording (case/punctuation
+// insensitive) = same work item. Fuzzy matching is deliberately NOT
+// attempted — a wrong merge is worse than an unmatched row.
+export function normalizeLineKey(description) {
+  return String(description || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+const quoteTotal = (q) => q.grand_total_cents ?? q.shop_reported_total_cents ?? null;
+
+// Side-by-side matrix over the comparable quotes:
+//   quotes   — sorted cheapest-first (unknown totals last), each with
+//              total + delta vs the cheapest
+//   rows     — union of line items grouped by normalizeLineKey; each
+//              row has cells keyed by quote id ({cents, count} or null)
+//   warnings — scope differences in plain words (per-quote missing
+//              items, totals-only quotes) — flagged, never "corrected"
+export function buildComparison(quotes) {
+  const qs = comparableQuotes(quotes);
+  const sorted = [...qs].sort((a, b) => {
+    const ta = quoteTotal(a); const tb = quoteTotal(b);
+    if (ta == null && tb == null) return 0;
+    if (ta == null) return 1;
+    if (tb == null) return -1;
+    return ta - tb;
+  });
+  const cheapest = sorted.find((q) => quoteTotal(q) != null) || null;
+
+  const rows = [];
+  const byKey = new Map();
+  for (const q of sorted) {
+    for (const li of q.line_items || []) {
+      if (li.category === "tax") continue; // compared via totals, not scope
+      const key = normalizeLineKey(li.description);
+      if (!key) continue;
+      let row = byKey.get(key);
+      if (!row) {
+        row = { key, description: li.description, category: li.category, cells: {} };
+        byKey.set(key, row);
+        rows.push(row);
+      }
+      const cell = row.cells[q.id] || { cents: 0, count: 0 };
+      cell.cents += Number.isFinite(li.line_total_cents) ? Math.round(li.line_total_cents) : 0;
+      cell.count += 1;
+      row.cells[q.id] = cell;
+    }
+  }
+
+  const warnings = [];
+  if (sorted.length >= 2) {
+    for (const q of sorted) {
+      const name = q.vendor_name || "A shop";
+      if (!(q.line_items || []).some((li) => li.category !== "tax")) {
+        warnings.push(`${name} sent a total without line detail — scope can't be compared.`);
+        continue;
+      }
+      const missing = rows.filter((r) => !r.cells[q.id]).map((r) => r.description);
+      if (missing.length) {
+        const head = missing.slice(0, 4).join(", ");
+        const more = missing.length > 4 ? ` +${missing.length - 4} more` : "";
+        warnings.push(`${name} doesn't include: ${head}${more}.`);
+      }
+    }
+  }
+
+  return {
+    quotes: sorted.map((q) => {
+      const total = quoteTotal(q);
+      const base = cheapest ? quoteTotal(cheapest) : null;
+      return {
+        ...q,
+        compare_total_cents: total,
+        delta_vs_cheapest_cents:
+          total != null && base != null && q !== cheapest ? total - base : null,
+        is_cheapest: cheapest != null && q.id === cheapest.id,
+      };
+    }),
+    rows,
+    warnings,
+  };
 }
 
 // ── Queue helpers ───────────────────────────────────────────────────────

@@ -271,3 +271,55 @@ Phase 3+4 limits: reminders regenerate the link (hash-only storage
 makes the original irrecoverable — by design); no bounce tracking
 until the Resend webhook lands; vendor contacts jsonb (0313) is the
 contact store — no separate shop_contacts table (deliberate reuse).
+
+## 12 · Phase 5 — what shipped
+
+- `supabase/migrations/0488_repair_center_authorizations.sql` —
+  `repair_authorizations` (versioned; full / selected_lines /
+  diagnostics_only / not_to_exceed; one CURRENT per case enforced by a
+  partial unique index; supersede chain never rewrites history) +
+  `repair_authorization_lines` (immutable snapshot of the quote's
+  lines with per-line approved/declined decisions taken at issue
+  time). Every authorized amount is computed in SQL from stored data
+  (quote grand total, sum of approved snapshot lines, or the explicit
+  cap) — never client math, never AI. Staff RPCs:
+  `repair_authorization_issue` (also flips quote statuses —
+  accepted / optional decline-others — updates the case rollup +
+  vendor, moves pre-approval stages to `approved`, writes audit +
+  timeline events, queues the authorization email with a freshly
+  rotated portal link) and `repair_authorization_action`
+  (revoke / mark_acknowledged / resend). `repair_case_quotes` and
+  `repair_portal_load` replaced to carry authorizations (the portal
+  sees only ITS shop's current authorization). New portal RPC
+  `repair_portal_acknowledge` (service_role only, idempotent).
+  Per-DSP `repair.authorization` template override supported.
+- Engine (`repair-engine.js`) — `parseMoney` (string-math dollars →
+  integer cents, $1M fat-finger ceiling), `buildComparison`
+  (conservative normalized-description line matching, cheapest-first
+  ordering with deltas, plain-word scope-difference warnings —
+  flagged, never merged), authorization/quote-status vocabularies
+  (no red: an unacknowledged authorization is a working state).
+  41 node tests incl. the comparison matrix and money parsing.
+- Dashboard — side-by-side compare modal (columns per quote, Lowest
+  pill, gap cells, scope-warning callout, per-column Authorize),
+  authorize modal (type picker, per-line checkboxes with live
+  display-only sum, NTE/diagnostic cap with parseMoney validation,
+  PO, note to shop, email toggle, decline-others), authorization
+  card in the drawer (status pill, line decisions, resend /
+  mark-acknowledged / revoke, version history).
+- Portal (`shop.html` + `repair-shop-portal` action `acknowledge`) —
+  authorization card with scope wording per type, approved lines with
+  amounts, struck-through declined lines, cap/total, acknowledge
+  button with optional name.
+- Verified: 0486→0488 applied from scratch + 0488 double-applied on
+  local Postgres 16; 0487 exercise re-run against the replaced
+  functions; new 0488 exercise (selected-lines math, supersede chain,
+  portal ack incl. cross-vendor refusal and idempotency, revoke
+  clearing the rollup, decline-others, fee-TBD diagnostics, guard
+  rails, audit trail); dashboard + portal driven in the Playwright
+  harness with zero console errors.
+
+Phase 5 limits: acknowledgement rides the quote-request link channel —
+a shop that was only ever phone-quoted gets the email record but
+acknowledges by phone (staff records it via mark_acknowledged); shop
+acknowledgement is a courtesy signal, not a legal e-signature.
