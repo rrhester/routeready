@@ -72,6 +72,15 @@
   .trow b{font-variant-numeric:tabular-nums}
   .trow.grand{font-size:15px;border-top:1px solid var(--border);padding-top:8px}
   .mismatch{background:var(--amber-soft);color:var(--amber);border-radius:7px;padding:8px 10px;font-size:12.5px;display:none}
+  /* authorization card (Phase 5) */
+  .auth-line{display:flex;justify-content:space-between;gap:12px;padding:5px 0;font-size:13px;border-bottom:1px solid #F3F4F6}
+  .auth-line:last-child{border-bottom:none}
+  .auth-line b{font-variant-numeric:tabular-nums;white-space:nowrap}
+  .auth-line.declined{color:var(--subtle)}
+  .auth-line.declined .d{text-decoration:line-through}
+  .auth-total{display:flex;justify-content:space-between;font-size:15px;font-weight:700;border-top:1px solid var(--border);margin-top:8px;padding-top:10px}
+  .auth-ackrow{display:flex;gap:8px;margin-top:12px;align-items:center;flex-wrap:wrap}
+  .auth-ackrow .inp{flex:1;min-width:160px}
   .banner{border-radius:9px;padding:12px 14px;font-size:13px;line-height:1.5;margin:0 0 12px;display:none}
   .banner.ok{background:var(--green-soft);color:#166534;display:block}
   .banner.bad{background:var(--red-soft);color:#991B1B;display:block}
@@ -113,6 +122,19 @@
     <h1 id="veh-title">—</h1>
     <p class="sub" id="veh-sub">—</p>
     <p style="margin:0 0 12px" id="respond-pill"></p>
+
+    <!-- ── authorization (Phase 5) — filled by renderAuth() ── -->
+    <div class="card" id="auth-card" style="display:none"><div class="pad">
+      <h3 style="display:flex;align-items:center;gap:8px"><span id="auth-title">Authorization</span><span id="auth-pill"></span></h3>
+      <div id="auth-scope" style="font-size:13.5px;line-height:1.6;margin-bottom:6px"></div>
+      <div id="auth-lines"></div>
+      <div class="auth-total" id="auth-total" style="display:none"><span id="auth-total-label">Authorized total</span><span id="auth-total-amt"></span></div>
+      <div id="auth-notes" style="font-size:13px;color:var(--muted);margin-top:8px"></div>
+      <div class="auth-ackrow" id="auth-ackrow" style="display:none">
+        <input class="inp" id="ack-name" maxlength="120" placeholder="Your name (optional)">
+        <button type="button" class="btn primary" id="ack-send">Acknowledge authorization</button>
+      </div>
+    </div></div>
 
     <div class="card"><div class="pad">
       <h3>Requested work</h3>
@@ -430,8 +452,59 @@
       file_too_large: "That file is too large (15 MB max).",
       unsupported_type: "Use a PDF or photo (JPG/PNG).",
       rate_limited: "Too many requests — wait a minute and try again.",
+      no_authorization: "There's no authorization on this request yet.",
     }[code] || "Something went wrong — try again.";
   }
+
+  // ── authorization card (Phase 5) ───────────────────────────────────
+  var AUTH_HEAD = {
+    full: "Work authorized — full quote",
+    selected_lines: "Work authorized — selected items",
+    diagnostics_only: "Diagnostics authorized",
+    not_to_exceed: "Work authorized — not to exceed",
+  };
+  function renderAuth(a) {
+    if (!a) return;
+    $("auth-card").style.display = "";
+    $("auth-title").textContent = AUTH_HEAD[a.authorization_type] || "Authorization";
+    $("auth-pill").innerHTML = a.status === "acknowledged"
+      ? '<span class="pill ok">Acknowledged</span>'
+      : '<span class="pill warn">Please acknowledge</span>';
+    var scope = {
+      full: "The quote is approved in full. Please proceed with all listed work.",
+      selected_lines: "Only the items below marked approved are authorized. Items shown struck through are NOT approved.",
+      diagnostics_only: "Diagnosis only — please send findings and an updated quote before any repair work.",
+      not_to_exceed: "Proceed with the work up to the cap below. Anything beyond it needs written approval first.",
+    }[a.authorization_type] || "";
+    if (a.po_number) scope += (/^po/i.test(a.po_number) ? " " : " PO ") + a.po_number + ".";
+    $("auth-scope").textContent = scope;
+    var lines = Array.isArray(a.lines) ? a.lines : [];
+    $("auth-lines").innerHTML = lines.map(function (l) {
+      var declined = l.decision !== "approved";
+      return '<div class="auth-line' + (declined ? " declined" : "") + '">'
+        + '<span class="d">' + esc(l.description) + (declined ? " — not approved" : "") + "</span>"
+        + "<b>" + money(l.line_total_cents) + "</b></div>";
+    }).join("");
+    if (a.authorized_total_cents != null) {
+      $("auth-total").style.display = "";
+      $("auth-total-label").textContent =
+        a.authorization_type === "not_to_exceed" ? "Authorized cap" : "Authorized total";
+      $("auth-total-amt").textContent = money(a.authorized_total_cents);
+    }
+    $("auth-notes").textContent = a.notes || "";
+    $("auth-ackrow").style.display = a.status === "issued" ? "" : "none";
+  }
+  $("ack-send").addEventListener("click", function () {
+    $("ack-send").disabled = true;
+    api({ action: "acknowledge", name: $("ack-name").value.trim() || null }).then(function (r) {
+      $("ack-send").disabled = false;
+      if (!r.ok) { alert(friendly(r.body && r.body.error)); return; }
+      $("auth-ackrow").style.display = "none";
+      $("auth-pill").innerHTML = '<span class="pill ok">Acknowledged</span>';
+      setBanner("ok", "Thanks — the operator can see you've acknowledged the authorization.");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  });
 
   // ── boot ───────────────────────────────────────────────────────────
   function fail(code) {
@@ -487,7 +560,10 @@
         return '<a class="att-doc" href="' + esc(a.url) + '" target="_blank" rel="noopener">📄 ' + esc(a.file_name) + "</a>";
       }).join("");
     }
-    if (req.status === "declined") {
+    renderAuth(d.authorization);
+    if (d.authorization && d.authorization.status === "issued") {
+      setBanner("info", "Good news — work has been authorized. Review the authorization below and acknowledge it.");
+    } else if (req.status === "declined") {
       setBanner("info", "You declined this request. If that's changed, submit a quote below.");
     } else if (req.status === "submitted") {
       setBanner("ok", "Your quote is in. You can revise and resubmit until the operator decides.");

@@ -16,6 +16,10 @@ import {
   formatCents, sumCents, varianceCents, variancePct,
   attentionScore, filterQueue, sortQueue, summarize,
   formatWhen, formatDay, vehicleShortDesc, parseOdometer, ODOMETER_MAX,
+  QUOTE_STATUS_LABEL, QUOTE_STATUS_TONE,
+  AUTH_TYPE_LABEL, AUTH_STATUS_LABEL, AUTH_STATUS_TONE,
+  parseMoney, MONEY_MAX_CENTS,
+  comparableQuotes, normalizeLineKey, buildComparison,
 } from "../dashboard/repair/repair-engine.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -271,6 +275,142 @@ t("vehicleShortDesc", () => {
   }), "'22 Ford Transit 250");
   assert.equal(vehicleShortDesc({}), "");
   assert.equal(vehicleShortDesc(null), "");
+});
+
+// ── Money input (Phase 5) ───────────────────────────────────────────────
+t("parseMoney — happy paths, string math only", () => {
+  assert.deepEqual(parseMoney("918.00"), { ok: true, cents: 91800, reason: null });
+  assert.equal(parseMoney("1,234.56").cents, 123456);
+  assert.equal(parseMoney("$2,500").cents, 250000);
+  assert.equal(parseMoney("0.1").cents, 10);   // "0.1" is 10¢, not 9.999…
+  assert.equal(parseMoney(".50").cents, 50);
+  assert.equal(parseMoney("7").cents, 700);
+  assert.deepEqual(parseMoney(""), { ok: true, cents: null, reason: null });
+  assert.deepEqual(parseMoney(null), { ok: true, cents: null, reason: null });
+});
+
+t("parseMoney — refuses junk, negatives, over-precision, fat fingers", () => {
+  assert.equal(parseMoney("abc").reason, "not_a_number");
+  assert.equal(parseMoney("-50").reason, "negative");
+  assert.equal(parseMoney("1.234").reason, "too_precise");
+  assert.equal(parseMoney("2000000").reason, "too_large"); // > $1M ceiling
+  assert.equal(parseMoney("1000000").cents, MONEY_MAX_CENTS); // exactly $1M ok
+  assert.equal(parseMoney(".").reason, "not_a_number");
+});
+
+// ── Authorization vocabulary ────────────────────────────────────────────
+t("authorization labels/tones cover every type and status; red is earned", () => {
+  for (const k of ["full", "selected_lines", "diagnostics_only", "not_to_exceed"]) {
+    assert.ok(AUTH_TYPE_LABEL[k], `type label ${k}`);
+  }
+  for (const k of ["issued", "acknowledged", "superseded", "revoked"]) {
+    assert.ok(AUTH_STATUS_LABEL[k], `status label ${k}`);
+    assert.ok(AUTH_STATUS_TONE[k], `status tone ${k}`);
+    // No authorization state is a red/serious condition by itself.
+    assert.notEqual(AUTH_STATUS_TONE[k], "bad", `${k} must not be red`);
+  }
+  for (const k of ["draft", "submitted", "superseded", "accepted", "declined", "expired"]) {
+    assert.ok(QUOTE_STATUS_LABEL[k] && QUOTE_STATUS_TONE[k], `quote status ${k}`);
+  }
+});
+
+// ── Quote comparison ────────────────────────────────────────────────────
+const cq = (id, vendor, total, items, status = "submitted") => ({
+  id, vendor_name: vendor, status,
+  grand_total_cents: total,
+  line_items: items,
+});
+const li = (desc, cents, category = "labor") =>
+  ({ description: desc, line_total_cents: cents, category });
+
+t("comparableQuotes keeps submitted/accepted only", () => {
+  const qs = [
+    cq("a", "A", 100, [], "submitted"),
+    cq("b", "B", 100, [], "accepted"),
+    cq("c", "C", 100, [], "superseded"),
+    cq("d", "D", 100, [], "draft"),
+    cq("e", "E", 100, [], "declined"),
+  ];
+  assert.deepEqual(comparableQuotes(qs).map((q) => q.id), ["a", "b"]);
+});
+
+t("normalizeLineKey — case/punctuation insensitive, conservative", () => {
+  assert.equal(normalizeLineKey("Front Brake Pads — Motorcraft"),
+    normalizeLineKey("front brake pads   motorcraft"));
+  assert.notEqual(normalizeLineKey("Front brake pads"), normalizeLineKey("Rear brake pads"));
+  assert.equal(normalizeLineKey(null), "");
+});
+
+t("buildComparison — sorts cheapest first, computes deltas", () => {
+  const c = buildComparison([
+    cq("hi", "Pricey Garage", 120000, [li("Brakes", 120000)]),
+    cq("lo", "Value Fleet", 90000, [li("Brakes", 90000)]),
+    cq("na", "Totals Only", null, []),
+  ]);
+  assert.deepEqual(c.quotes.map((q) => q.id), ["lo", "hi", "na"]);
+  assert.equal(c.quotes[0].is_cheapest, true);
+  assert.equal(c.quotes[0].delta_vs_cheapest_cents, null);
+  assert.equal(c.quotes[1].delta_vs_cheapest_cents, 30000);
+  assert.equal(c.quotes[2].compare_total_cents, null);
+});
+
+t("buildComparison — matches identical lines, leaves gaps for scope holes", () => {
+  const c = buildComparison([
+    cq("a", "Shop A", 100000, [li("Front brake pads", 40000), li("Rotors", 60000)]),
+    cq("b", "Shop B", 45000, [li("front brake pads.", 45000)]),
+  ]);
+  const pads = c.rows.find((r) => r.key === "front brake pads");
+  assert.ok(pads, "matched row exists");
+  assert.equal(pads.cells.a.cents, 40000);
+  assert.equal(pads.cells.b.cents, 45000);
+  const rotors = c.rows.find((r) => r.key === "rotors");
+  assert.ok(rotors.cells.a);
+  assert.equal(rotors.cells.b, undefined);
+});
+
+t("buildComparison — scope warnings name the shop and the missing work", () => {
+  const c = buildComparison([
+    cq("a", "Shop A", 100000, [li("Front brake pads", 40000), li("Rotors", 60000)]),
+    cq("b", "Shop B", 45000, [li("Front brake pads", 45000)]),
+  ]);
+  assert.equal(c.warnings.length, 1);
+  assert.ok(c.warnings[0].includes("Shop B"));
+  assert.ok(c.warnings[0].includes("Rotors"));
+});
+
+t("buildComparison — totals-only quote is flagged, not merged", () => {
+  const c = buildComparison([
+    cq("a", "Shop A", 100000, [li("Brakes", 100000)]),
+    { id: "p", vendor_name: "Phone Shop", status: "submitted",
+      grand_total_cents: null, shop_reported_total_cents: 91800, line_items: [] },
+  ]);
+  assert.equal(c.quotes.find((q) => q.id === "p").compare_total_cents, 91800);
+  assert.ok(c.warnings.some((w) => w.includes("Phone Shop") && w.includes("line detail")));
+});
+
+t("buildComparison — tax lines never appear as scope", () => {
+  const c = buildComparison([
+    cq("a", "Shop A", 107000, [li("Brakes", 100000), li("Tax", 7000, "tax")]),
+    cq("b", "Shop B", 99000, [li("Brakes", 99000)]),
+  ]);
+  assert.ok(!c.rows.some((r) => r.key === "tax"));
+  assert.equal(c.warnings.length, 0);
+});
+
+t("buildComparison — duplicate descriptions within one quote sum into the cell", () => {
+  const c = buildComparison([
+    cq("a", "Shop A", 30000, [li("Shop supplies", 10000), li("Shop supplies", 20000)]),
+    cq("b", "Shop B", 25000, [li("Shop supplies", 25000)]),
+  ]);
+  const row = c.rows.find((r) => r.key === "shop supplies");
+  assert.equal(row.cells.a.cents, 30000);
+  assert.equal(row.cells.a.count, 2);
+});
+
+t("buildComparison — single quote produces no warnings", () => {
+  const c = buildComparison([cq("a", "Shop A", 100000, [])]);
+  assert.equal(c.warnings.length, 0);
+  assert.equal(c.quotes.length, 1);
 });
 
 console.log(`test-repair-engine: ${passed} passed${process.exitCode ? " (with failures)" : ""}`);

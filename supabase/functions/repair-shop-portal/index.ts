@@ -14,6 +14,7 @@
 //   action "decline"    → { reason }
 //   action "question"   → { message }
 //   action "upload"     → { file_name, mime_type, data_base64 }
+//   action "acknowledge"→ { name } confirm the current authorization
 //
 // The shop never sees other shops, competing quotes, internal notes, or
 // tenant identifiers — the SQL projection is the boundary.
@@ -56,6 +57,7 @@ function errCode(message: string): { code: string; status: number } {
   if (message.includes("link_revoked"))  return { code: "link_revoked", status: 410 };
   if (message.includes("request_closed")) return { code: "request_closed", status: 409 };
   if (message.includes("message_required")) return { code: "message_required", status: 400 };
+  if (message.includes("no_authorization")) return { code: "no_authorization", status: 409 };
   return { code: "portal_error", status: 500 };
 }
 
@@ -108,6 +110,15 @@ Deno.serve(async (req) => {
       const { data, error } = await supa.rpc("repair_portal_decline", {
         p_token: token,
         p_reason: typeof body.reason === "string" ? body.reason : null,
+      });
+      if (error) throw error;
+      return json(data);
+    }
+
+    if (action === "acknowledge") {
+      const { data, error } = await supa.rpc("repair_portal_acknowledge", {
+        p_token: token,
+        p_name: typeof body.name === "string" ? body.name : null,
       });
       if (error) throw error;
       return json(data);
