@@ -216,7 +216,7 @@
 .rrnb-page.active .ttl{font-weight:600}
 .rrnb-page .sub{font-size:var(--fs-xs);color:var(--text-subtle);white-space:nowrap;overflow:hidden;
   text-overflow:ellipsis;margin-top:1px}
-.rrnb-page .sub mark{background:var(--accent-soft-strong,rgba(37,99,235,.16));color:var(--accent-text);
+.rrnb-page .sub mark,.rrnb-page .ttl mark{background:var(--accent-soft-strong,rgba(37,99,235,.16));color:var(--accent-text);
   border-radius:2px;padding:0 1px}
 .rrnb-page .pin{flex:0 0 auto;color:var(--amber);opacity:0}
 .rrnb-page.pinned .pin{opacity:1}
@@ -348,6 +348,7 @@
 .rrnb-editor .rrnb-file:hover{border-color:var(--accent);background:var(--accent-soft)}
 .rrnb-editor .rrnb-file .fic{width:34px;height:34px;border-radius:var(--r-sm);background:var(--surface-secondary);
   display:grid;place-items:center;flex:0 0 auto;font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);text-transform:uppercase}
+.rrnb-editor .rrnb-file .fic.rrnb-fic-emoji{font-size:18px;text-transform:none;background:transparent}
 .rrnb-editor .rrnb-file .fnm{flex:1;min-width:0}
 .rrnb-editor .rrnb-file .fnm b{display:block;color:var(--text);font-size:var(--fs-base);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rrnb-editor .rrnb-file .fnm span{font-size:var(--fs-xs);color:var(--text-subtle)}
@@ -810,6 +811,14 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     if (!iso) return "";
     try { return new Date(iso).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }); }
     catch (e) { return ""; }
+  }
+  // esc + wrap query matches in <mark> for search-result highlighting
+  function hlText(text, q) {
+    var safe = esc(text || "");
+    q = String(q || "").trim();
+    if (!q) return safe;
+    try { return safe.replace(new RegExp("(" + q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ")", "ig"), "<mark>$1</mark>"); }
+    catch (e) { return safe; }
   }
   var PALETTE = ["#2563eb", "#7c3aed", "#dc2626", "#d97706", "#16a34a", "#0891b2", "#db2777", "#475569"];
 
@@ -2015,12 +2024,22 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       im.src = dataUrl;
     } catch (e) { cb(dataUrl); }
   }
+  function fileIcon(name) {
+    var ext = ((name || "").split(".").pop() || "").toLowerCase();
+    var map = { pdf: "📕", doc: "📘", docx: "📘", xls: "📗", xlsx: "📗", csv: "📗", tsv: "📗",
+      ppt: "📙", pptx: "📙", key: "📙", zip: "🗜️", rar: "🗜️", "7z": "🗜️", gz: "🗜️", tar: "🗜️",
+      txt: "📄", md: "📄", rtf: "📄", json: "🧾", xml: "🧾", eml: "✉️", msg: "✉️",
+      png: "🖼️", jpg: "🖼️", jpeg: "🖼️", gif: "🖼️", svg: "🖼️", webp: "🖼️", heic: "🖼️",
+      mp4: "🎬", mov: "🎬", avi: "🎬", webm: "🎬", mp3: "🎵", wav: "🎵", m4a: "🎵" };
+    return map[ext] || null;
+  }
   function fileChipHTML(file, href, mediaPath) {
     var ext = ((file.name || "").split(".").pop() || "file").slice(0, 4);
+    var ic = fileIcon(file.name);
     return '<a class="rrnb-file" contenteditable="false" href="' + esc(href || "#") + '"' +
       (mediaPath ? ' data-media-path="' + esc(mediaPath) + '"' : '') +
       ' download="' + esc(file.name || "file") + '">' +
-      '<span class="fic">' + esc(ext) + '</span><span class="fnm"><b>' + esc(file.name || "file") + '</b><span>' +
+      '<span class="fic' + (ic ? ' rrnb-fic-emoji' : '') + '">' + (ic ? ic : esc(ext)) + '</span><span class="fnm"><b>' + esc(file.name || "file") + '</b><span>' +
       fmtBytes(file.size) + '</span></span></a><p><br></p>';
   }
   function insertFileAttachment(file) {
@@ -3364,6 +3383,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       '<button data-tbl="row+">＋ Row</button><button data-tbl="col+">＋ Column</button>' +
       '<button data-tbl="row-" class="danger">− Row</button><button data-tbl="col-" class="danger">− Column</button>' +
       '<button data-tbl="al-left" title="Align column left">⇤</button><button data-tbl="al-center" title="Align column center">↔</button><button data-tbl="al-right" title="Align column right">⇥</button>' +
+      '<button data-tbl="hdr" title="Toggle header row">Header row</button>' +
       '<button data-tbl="zebra" title="Toggle row striping">Striping</button>' +
       '<button data-tbl="del" class="danger">Delete table</button></div>', cell.getBoundingClientRect());
     pop.onclick = function (ev) {   // assign (not addEventListener) so reopening doesn't stack handlers
@@ -3392,6 +3412,16 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
         var al = act.slice(3); rows.forEach(function (r) { if (r.cells[ci]) r.cells[ci].style.textAlign = al; });
       } else if (act === "zebra") {
         table.classList.toggle("rrnb-zebra");
+      } else if (act === "hdr") {
+        var firstTr = table.querySelector("tr");
+        if (firstTr && firstTr.cells.length) {
+          var toTh = firstTr.cells[0].tagName === "TD";
+          [].slice.call(firstTr.cells).forEach(function (c) {
+            var n = document.createElement(toTh ? "th" : "td");
+            n.innerHTML = c.innerHTML; if (c.style.textAlign) n.style.textAlign = c.style.textAlign;
+            c.parentNode.replaceChild(n, c);
+          });
+        }
       }
       hidePop(); scheduleSave();
     };
@@ -3934,7 +3964,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       if (!rows || !rows.length) { host.innerHTML = '<div class="rrnb-empty">No results for “' + esc(label) + '”.</div>'; return; }
       host.innerHTML = '<div class="rrnb-plgroup-hd">' + rows.length + ' result' + (rows.length > 1 ? "s" : "") + '</div>' + rows.map(function (r) {
         return '<div class="rrnb-page" data-search-page="' + r.id + '" data-search-nb="' + r.notebook_id + '"><div class="body">' +
-          '<div class="ttl">' + esc(r.title || "Untitled") + '</div>' +
+          '<div class="ttl">' + hlText(r.title || "Untitled", q) + '</div>' +
           '<div class="sub">' + esc(r.notebook_name || "") + (r.section_name ? ' › ' + esc(r.section_name) : "") + '</div>' +
           (r.snippet ? '<div class="sub">' + r.snippet + '</div>' : "") + '</div></div>';
       }).join("");
