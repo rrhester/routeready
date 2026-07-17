@@ -40496,7 +40496,28 @@ function _renderDriverDetails(driverId, drv) {
           <button type="button" class="dd-link" onclick="if(window.goto)goto('drivers')">Open full profile ${_RR_MC_ICONS.chevron.replace('polyline points="6 9 12 15 18 9"','polyline points="9 18 15 12 9 6"')}</button>
         </div>
       </details>
+
+      <details class="dd-section">
+        <summary class="dd-sec-head" data-rr-shared-summary>${_RR_MC_ICONS.msg}<span>Shared in this chat</span>${_RR_MC_ICONS.chevron}</summary>
+        <div class="dd-sec-body">
+          <div class="msg-list-tabs" role="tablist" aria-label="Shared content" style="margin:0 0 8px">
+            <button type="button" class="msg-list-tab active" data-rr-shared-tab="media" role="tab" aria-selected="true">Media</button>
+            <button type="button" class="msg-list-tab" data-rr-shared-tab="files" role="tab" aria-selected="false">Files</button>
+            <button type="button" class="msg-list-tab" data-rr-shared-tab="links" role="tab" aria-selected="false">Links</button>
+          </div>
+          <div id="rr-dd-shared"></div>
+        </div>
+      </details>
     </div>`;
+  // Shared tab (#22) — painted lazily from the loaded thread window when
+  // the section opens or a tab is clicked.
+  panel.querySelector("[data-rr-shared-summary]")?.parentElement?.addEventListener("toggle", (ev) => {
+    if (ev.target.open) _mcPaintSharedTab(panel.querySelector(".msg-list-tab.active[data-rr-shared-tab]")?.getAttribute("data-rr-shared-tab") || "media");
+  });
+  panel.querySelectorAll("[data-rr-shared-tab]").forEach((b) => b.addEventListener("click", () => {
+    panel.querySelectorAll("[data-rr-shared-tab]").forEach((x) => { x.classList.toggle("active", x === b); x.setAttribute("aria-selected", x === b ? "true" : "false"); });
+    _mcPaintSharedTab(b.getAttribute("data-rr-shared-tab"));
+  }));
   _paintMsgHeadStats(driverId);
   _presencePaintList();
   // Mirror online state onto the panel avatar dot.
@@ -41046,6 +41067,29 @@ function _rrWireComposerMic({ micBtn, previewEl, getTargets }) {
   if (!canRecord) { micBtn.style.display = "none"; return; }
 
   let rec = null, chunks = [], stream = null, t0 = 0, timer = null, sendOnStop = false;
+  // Live transcript (#23): best-effort Web Speech running alongside the
+  // recorder, so the voice note lands with searchable text under the
+  // player. Chrome-only; silently absent elsewhere.
+  let sr = null, srText = "";
+  const startTranscript = () => {
+    srText = "";
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return;
+    try {
+      sr = new SR();
+      sr.continuous = true;
+      sr.interimResults = false;
+      sr.lang = navigator.language || "en-US";
+      sr.onresult = (e) => {
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          if (e.results[i].isFinal) srText += (srText ? " " : "") + e.results[i][0].transcript.trim();
+        }
+      };
+      sr.onerror = () => {};
+      sr.start();
+    } catch { sr = null; }
+  };
+  const stopTranscript = () => { try { sr && sr.stop(); } catch {} sr = null; };
   const pickMime = () => {
     const cands = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/aac", "audio/ogg;codecs=opus"];
     for (const m of cands) { try { if (MediaRecorder.isTypeSupported(m)) return m; } catch {} }
@@ -41086,7 +41130,7 @@ function _rrWireComposerMic({ micBtn, previewEl, getTargets }) {
     previewEl.querySelector("[data-rr-vcancel]").addEventListener("click", () => { sendOnStop = false; try { rec && rec.stop(); } catch { teardown(); } });
     previewEl.querySelector("[data-rr-vsend]").addEventListener("click", stopAndSend);
   };
-  const sendVoiceNote = async (blob, type) => {
+  const sendVoiceNote = async (blob, type, transcript) => {
     const { dspId, driverId } = getTargets() || {};
     if (!dspId || !driverId) { toast("Pick a driver first", "warn"); return; }
     const ext = type.includes("mp4") || type.includes("aac") ? "m4a" : type.includes("ogg") ? "ogg" : "webm";
@@ -41097,7 +41141,7 @@ function _rrWireComposerMic({ micBtn, previewEl, getTargets }) {
     if (upErr) { toast("Upload failed: " + upErr.message, "warn"); return; }
     const { error } = await sb.rpc("dispatch_chat_send", {
       p_driver_id:             driverId,
-      p_body:                  null,
+      p_body:                  (transcript || "").trim() ? (transcript.trim().slice(0, 1000)) : null,
       p_attachment_path:       path,
       p_attachment_mime:       type,
       p_attachment_name:       "Voice message",
@@ -41122,14 +41166,18 @@ function _rrWireComposerMic({ micBtn, previewEl, getTargets }) {
       const elapsed = Date.now() - t0;
       const blob = new Blob(chunks, { type });
       chunks = [];
+      stopTranscript();
       teardown();
       if (!send) return;
       if (!blob.size || elapsed < 700) { toast("Too short — hold to record a bit longer", "warn"); return; }
-      await sendVoiceNote(blob, type);
+      // Give the recognizer a beat to flush its final segment.
+      await new Promise((r) => setTimeout(r, 350));
+      await sendVoiceNote(blob, type, srText);
     });
     micBtn.classList.add("recording");
     renderBar();
     rec.start();
+    startTranscript();
   };
   micBtn.addEventListener("click", () => { if (rec && rec.state === "recording") stopAndSend(); else start(); });
 }
@@ -41205,6 +41253,52 @@ function _mcEnsureExtrasCss() {
     .rr-mc-tpl-row .rr-mc-tpl-sc{font-family:ui-monospace,Menlo,monospace;font-size:11px;background:var(--accent-soft);color:var(--accent-text);border-radius:4px;padding:1px 6px;flex:0 0 auto}
     .rr-mc-tpl-row .rr-mc-tpl-act{background:none;border:0;cursor:pointer;color:var(--text-subtle);padding:3px;border-radius:var(--r-sm);flex:0 0 auto}
     .rr-mc-tpl-row .rr-mc-tpl-act:hover{background:var(--surface-hover,#f3f4f6);color:var(--text)}
+    /* Batch 2 · bubbles & thread interactions */
+    .rr-mc-quote{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;text-align:left;background:rgba(127,127,127,.12);border:0;border-left:3px solid var(--accent,#2563eb);border-radius:6px;padding:5px 9px;margin-bottom:6px;cursor:pointer;font:inherit;color:inherit}
+    .rr-mc-bubble.dispatch .rr-mc-quote{background:rgba(255,255,255,.16);border-left-color:rgba(255,255,255,.65)}
+    .rr-mc-quote-who{font-size:10px;font-weight:700;opacity:.8}
+    .rr-mc-quote-text{font-size:var(--fs-xs);opacity:.85;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:280px}
+    .rr-mc-replybar{position:absolute;bottom:100%;left:0;right:0;display:flex;align-items:center;gap:8px;background:var(--surface,#fff);border:1px solid var(--border);border-bottom:0;border-radius:var(--r-md) var(--r-md) 0 0;padding:6px 10px;font-size:var(--fs-xs);color:var(--text-subtle);z-index:5}
+    .rr-mc-replybar-txt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .rr-mc-replybar b{color:var(--text)}
+    .rr-mc-replybar button{background:none;border:0;color:var(--text-subtle);cursor:pointer;font-size:15px;line-height:1;padding:2px}
+    .rr-mc-unread-divider{display:flex;align-items:center;gap:10px;margin:10px 0;color:var(--danger,#dc2626)}
+    .rr-mc-unread-divider::before,.rr-mc-unread-divider::after{content:"";flex:1;height:1px;background:var(--danger,#dc2626);opacity:.4}
+    .rr-mc-unread-divider span{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+    .rr-mc-reacts{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+    .rr-mc-react-chip{display:inline-flex;align-items:center;gap:4px;background:var(--surface,#fff);border:1px solid var(--border);border-radius:var(--r-pill,999px);padding:1px 8px;font-size:13px;cursor:pointer;color:var(--text)}
+    .rr-mc-react-chip span{font-size:11px;font-weight:700;color:var(--text-subtle)}
+    .rr-mc-react-chip.mine{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-text)}
+    .rr-mc-react-chip.mine span{color:var(--accent-text)}
+    .rr-mc-reactpick{display:flex;gap:2px;padding:6px}
+    .rr-mc-reactpick button{background:none;border:0;font-size:20px;line-height:1;padding:6px;border-radius:var(--r-sm);cursor:pointer}
+    .rr-mc-reactpick button:hover{background:var(--surface-hover,#f3f4f6)}
+    .rr-mc-reactpick button.on{background:var(--accent-soft)}
+    .rr-mc-pinsbar{position:sticky;top:0;z-index:8;display:flex;gap:6px;overflow-x:auto;padding:6px 4px;margin:-4px -4px 6px;background:linear-gradient(var(--canvas,#fafafa) 78%,transparent);scrollbar-width:none}
+    .rr-mc-pinsbar::-webkit-scrollbar{display:none}
+    .rr-mc-pin-chip{flex:0 0 auto;background:var(--surface,#fff);border:1px solid var(--border);border-radius:var(--r-pill,999px);padding:4px 11px;font:inherit;font-size:var(--fs-xs);font-weight:600;color:var(--text);cursor:pointer;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .rr-mc-pin-chip:hover{border-color:var(--accent);color:var(--accent-text)}
+    .rr-mc-pinned-tag{margin-right:4px;font-size:10px}
+    button.rr-mc-edited{background:none;border:0;padding:0;font:inherit;font-size:inherit;color:inherit;opacity:.8;cursor:pointer;text-decoration:underline dotted;margin-left:4px}
+    .rr-mc-fwd-row{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:none;border:0;border-radius:var(--r-md);padding:7px 8px;cursor:pointer;font:inherit;color:var(--text)}
+    .rr-mc-fwd-row:hover{background:var(--surface-hover,#f3f4f6)}
+    .rr-mc-fwd-av{width:28px;height:28px;border-radius:50%;background:var(--accent-soft);color:var(--accent-text);display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex:0 0 auto}
+    .rr-mc-fwd-name{font-weight:600;font-size:var(--fs-sm)}
+    .rr-mc-fwd-sub{margin-left:auto;color:var(--text-subtle);font-size:var(--fs-xs)}
+    .rr-mc-lightbox{position:fixed;inset:0;z-index:9900;background:rgba(8,10,18,.88);display:flex;align-items:center;justify-content:center;padding:40px}
+    .rr-mc-lightbox img{max-width:88vw;max-height:84vh;border-radius:10px;box-shadow:0 18px 60px rgba(0,0,0,.55);background:#000}
+    .rr-mc-lightbox .rr-lb-x{position:absolute;top:14px;right:18px;background:rgba(255,255,255,.14);border:0;color:#fff;font-size:22px;line-height:1;width:38px;height:38px;border-radius:50%;cursor:pointer}
+    .rr-mc-lightbox .rr-lb-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.14);border:0;color:#fff;font-size:28px;line-height:1;width:44px;height:44px;border-radius:50%;cursor:pointer}
+    .rr-mc-lightbox .rr-lb-nav:hover,.rr-mc-lightbox .rr-lb-x:hover{background:rgba(255,255,255,.28)}
+    .rr-mc-lightbox .rr-lb-prev{left:18px}
+    .rr-mc-lightbox .rr-lb-next{right:18px}
+    .rr-mc-lightbox .rr-lb-meta{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);display:flex;gap:14px;align-items:center;color:#cbd5e1;font-size:12px}
+    .rr-mc-lightbox .rr-lb-dl{color:#93c5fd}
+    .rr-mc-linkcard{display:block;border:1px solid var(--border);border-radius:var(--r-md);padding:7px 10px;margin-top:6px;text-decoration:none;background:var(--surface,#fff);max-width:300px}
+    .rr-mc-bubble.dispatch .rr-mc-linkcard{background:rgba(255,255,255,.94)}
+    .rr-mc-linkcard .rr-lc-title{font-size:var(--fs-xs);font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .rr-mc-linkcard .rr-lc-desc{font-size:11px;color:var(--text-subtle);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+    .rr-mc-linkcard .rr-lc-host{font-size:10px;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.04em;margin-top:2px}
   `;
   document.head.appendChild(st);
 }
@@ -41852,12 +41946,13 @@ async function refreshDriverChatThread(scrollToBottom) {
   // shell, so the skeleton only fires on initial open.
   const isFirstPaint = conv.dataset.rrDriverId !== driverId;
 
-  const [{ data, error }, _reactRes, _delivRes] = await Promise.all([
+  const [{ data, error }, _reactions, _delivRes, _pinRes] = await Promise.all([
     sb.rpc("dispatch_chat_thread", { p_driver_id: driverId, p_limit: _mcThreadLimit }),
-    sb.rpc("dispatch_chat_reactions", { p_driver_id: driverId }).then((r) => r, () => ({ data: null })),
+    _mcFetchReactions(driverId),
     sb.rpc("dispatch_chat_delivered", { p_driver_id: driverId }).then((r) => r, () => ({ data: null })),
+    sb.rpc("dispatch_chat_pins", { p_driver_id: driverId }).then((r) => r, () => ({ data: null })),
   ]);
-  const _reactions = _reactRes?.data?.reactions || [];
+  _mcPins = _pinRes?.data?.pins || [];
   const peerDeliveredAt = _delivRes?.data ? new Date(_delivRes.data).getTime() : 0;
   if (error) {
     if (_isAuthError(error)) {
@@ -41871,6 +41966,18 @@ async function refreshDriverChatThread(scrollToBottom) {
   const drv = data?.driver || {};
   const msgs = data?.messages || [];
   const peerReadAt = data?.peer_last_read_at ? new Date(data.peer_last_read_at).getTime() : 0;
+  // Cache the loaded window for the bubble menus (info/forward/copy), the
+  // details-rail "Shared" tab and reply-quote lookups.
+  _mcLastMsgs = msgs;
+  _mcLastReadState = { peerReadAt, peerDeliveredAt };
+  // Unread divider (#19): remember the FIRST unread driver message at the
+  // moment the thread is opened; the marker holds until the operator
+  // switches threads, so the "New messages" line doesn't vanish under
+  // them the instant mark-read fires.
+  if (isFirstPaint) {
+    const firstUnread = msgs.find((m) => m.sender_kind === "driver" && m.is_unread);
+    _mcUnreadMarkId = firstUnread ? firstUnread.id : null;
+  }
 
   // First render: build the shell. After that, only re-render the thread
   // body and leave the composer / textarea state alone.
@@ -42017,6 +42124,7 @@ async function refreshDriverChatThread(scrollToBottom) {
       const body = _mcApplyShortcodes(rawBody);
       const staged = Array.isArray(window._rrMcPending) ? window._rrMcPending.slice() : [];
       if (!body && !staged.length) return;
+      const replyTo = _mcReplyTo ? { ..._mcReplyTo } : null;
       // Urgent messages get a confirmation before they leave — they fire an
       // immediate high-priority notification on the driver's device. Runs
       // BEFORE the optimistic stub so a cancel leaves the draft untouched.
@@ -42075,6 +42183,8 @@ async function refreshDriverChatThread(scrollToBottom) {
       const savedBody = rawBody;
       ta.value = ""; ta.style.height = "auto";
       _mcDraftClear("dm", sendDriverId);
+      _mcReplyTo = null;
+      _mcShowReplyBar();
       if (typeof _mcSyncSend === "function") _mcSyncSend();
       // Direct scrollTop write — the cheap path.  The thread's bottom
       // edge sits just above the composer (grid layout), so scrollHeight
@@ -42123,6 +42233,7 @@ async function refreshDriverChatThread(scrollToBottom) {
           ta.dispatchEvent(new Event("input", { bubbles: true }));
           if (staged.length && attachCtl.stage) attachCtl.stage(staged.map((s) => s.file));
           _mcDraftSave("dm", sendDriverId, savedBody);
+          if (replyTo) { _mcReplyTo = replyTo; _mcShowReplyBar(); }
           send.disabled = false;
           ta.focus();
           return;
@@ -42131,17 +42242,29 @@ async function refreshDriverChatThread(scrollToBottom) {
 
       // ── Upload + send ── one RPC per attachment (the schema carries one
       // attachment per row); the text body rides the first message and so
-      // do priority / requires-ack.
-      const sendOne = (msgBody, attachment, priority, requiresAck) => sb.rpc("dispatch_chat_send", {
-        p_driver_id:             sendDriverId,
-        p_body:                  msgBody || null,
-        p_attachment_path:       attachment?.path || null,
-        p_attachment_mime:       attachment?.mime || null,
-        p_attachment_name:       attachment?.name || null,
-        p_attachment_size_bytes: attachment?.size || null,
-        p_priority:              priority,
-        p_requires_ack:          requiresAck,
-      });
+      // do priority / requires-ack / reply-to.
+      const sendOne = async (msgBody, attachment, priority, requiresAck, replyToId) => {
+        const params = {
+          p_driver_id:             sendDriverId,
+          p_body:                  msgBody || null,
+          p_attachment_path:       attachment?.path || null,
+          p_attachment_mime:       attachment?.mime || null,
+          p_attachment_name:       attachment?.name || null,
+          p_attachment_size_bytes: attachment?.size || null,
+          p_priority:              priority,
+          p_requires_ack:          requiresAck,
+        };
+        if (replyToId) params.p_reply_to = replyToId;
+        let res = await sb.rpc("dispatch_chat_send", params);
+        // Pre-0504 servers don't know p_reply_to — retry as a plain send
+        // rather than losing the message.
+        if (res.error && replyToId && _mcRpcMissing(res.error)) {
+          delete params.p_reply_to;
+          res = await sb.rpc("dispatch_chat_send", params);
+          if (!res.error) toast("Sent — reply-quoting unlocks once migration 0504 is applied", "info");
+        }
+        return res;
+      };
       const failStub = (label, restoreFiles) => {
         send.disabled = false;
         const stub = threadEl.querySelector(`[data-rr-stub="${stubId}"]`);
@@ -42163,7 +42286,7 @@ async function refreshDriverChatThread(scrollToBottom) {
       };
 
       if (!staged.length) {
-        const { error } = await sendOne(body, null, _dispatchPriority, _dispatchRequiresAck);
+        const { error } = await sendOne(body, null, _dispatchPriority, _dispatchRequiresAck, replyTo?.id);
         send.disabled = false;
         if (error) {
           failStub("send failed · click to retry");
@@ -42188,7 +42311,8 @@ async function refreshDriverChatThread(scrollToBottom) {
           const { error } = await sendOne(
             fi === 0 ? body : null, attachment,
             fi === 0 ? _dispatchPriority : "normal",
-            fi === 0 ? _dispatchRequiresAck : false);
+            fi === 0 ? _dispatchRequiresAck : false,
+            fi === 0 ? replyTo?.id : null);
           if (error) {
             // Drop the just-uploaded blob so a failed send doesn't orphan it.
             try { await sb.storage.from("driver-chat-attachments").remove([path]); } catch (_) {}
@@ -42354,14 +42478,34 @@ async function refreshDriverChatThread(scrollToBottom) {
           // own height once src lands, so there's nothing for the
           // browser's scroll-anchor algorithm to "preserve" (which is
           // what was yanking the operator UP to a fixed image position).
-          ? `<img data-rr-mc-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" width="240" height="240" loading="eager" decoding="async" style="max-width:240px;border-radius:var(--r-lg);margin-bottom:6px;cursor:zoom-in" onclick="window.open(this.src,'_blank')"/>`
+          ? `<img data-rr-mc-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" width="240" height="240" loading="eager" decoding="async" style="max-width:240px;border-radius:var(--r-lg);margin-bottom:6px;cursor:zoom-in" data-rr-mc-lightbox="${escapeHtml(m.id)}"/>`
           : _rrMcAttachCard(m);
       }
       const isDeleted = !!m.deleted_at;
       const isMine    = m.sender_kind === "dispatch";
+      // "edited" is clickable → edit-history popover (#20).
       const editedTag = m.edited_at && !isDeleted
-        ? `<span class="rr-mc-edited" title="Edited ${new Date(m.edited_at).toLocaleString()}">edited</span>`
+        ? `<button type="button" class="rr-mc-edited" data-rr-mc-edithist="${escapeHtml(m.id)}" title="Edited ${new Date(m.edited_at).toLocaleString()} — click for history">edited</button>`
         : "";
+      // Unread divider (#19) — a "New messages" rule above the first
+      // driver message that was unread when the thread was opened.
+      if (_mcUnreadMarkId && m.id === _mcUnreadMarkId) {
+        html += `<div class="rr-mc-unread-divider" id="rr-mc-unread-divider"><span>New messages</span></div>`;
+      }
+      // Reply-quote block (#13) — renders the quoted message (if it's in
+      // the loaded window) above the body; click scrolls to the original.
+      let quoteHtml = "";
+      if (m.reply_to && !isDeleted) {
+        const q = msgs.find((x) => x.id === m.reply_to);
+        const qLabel = q ? (q.sender_kind === "dispatch" ? "You" : (drv.name || "Driver")) : "";
+        const qText = q
+          ? (q.deleted_at ? "Message deleted" : (q.body || (q.attachment_name ? "📎 " + q.attachment_name : "Message")))
+          : "Earlier message";
+        quoteHtml = `<button type="button" class="rr-mc-quote" data-rr-mc-jumpto="${escapeHtml(m.reply_to)}" title="Go to the original message">
+            ${qLabel ? `<span class="rr-mc-quote-who">${escapeHtml(qLabel)}</span>` : ""}
+            <span class="rr-mc-quote-text">${escapeHtml(String(qText).slice(0, 120))}</span>
+          </button>`;
+      }
       let bodyHtml = "";
       if (isDeleted) {
         bodyHtml = `<div class="rr-mc-deleted-body">Message deleted</div>`;
@@ -42370,14 +42514,20 @@ async function refreshDriverChatThread(scrollToBottom) {
         // text runs between tags, so anchors and entities are safe.
         bodyHtml = `<div>${_mdLite(linkifyEscaped(escapeHtml(m.body).replace(/\n/g, "<br>")))}</div>`;
       }
-      // Hover actions — only on the dispatcher's own non-deleted
-      // bubbles within the 15-minute edit window.  Visual affordance
-      // only; the RPCs re-check the window server-side.
+      // Hover actions — reply / react / more on every live bubble; edit +
+      // delete only on the dispatcher's own bubbles within the 15-minute
+      // window (visual affordance only; RPCs re-check server-side).
       const within = (Date.now() - t.getTime()) < 15 * 60 * 1000;
-      const actions = (isMine && !isDeleted && within)
+      const ownActions = (isMine && !isDeleted && within)
+        ? `<button type="button" data-rr-mc-edit="${escapeHtml(m.id)}" aria-label="Edit message" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+            <button type="button" data-rr-mc-delete="${escapeHtml(m.id)}" aria-label="Delete message" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button>`
+        : "";
+      const actions = !isDeleted
         ? `<div class="rr-mc-bubble-actions">
-            <button type="button" data-rr-mc-edit="${escapeHtml(m.id)}" aria-label="Edit message" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
-            <button type="button" data-rr-mc-delete="${escapeHtml(m.id)}" aria-label="Delete message" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button>
+            <button type="button" data-rr-mc-reply="${escapeHtml(m.id)}" aria-label="Reply" title="Reply"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg></button>
+            <button type="button" data-rr-mc-react="${escapeHtml(m.id)}" aria-label="Add reaction" title="React"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg></button>
+            ${ownActions}
+            <button type="button" data-rr-mc-more="${escapeHtml(m.id)}" aria-label="More actions" title="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
           </div>`
         : "";
       const deletedClass = isDeleted ? " is-deleted" : "";
@@ -42396,11 +42546,14 @@ async function refreshDriverChatThread(scrollToBottom) {
       // thumbnail reads as a standalone surface (enterprise register).
       const attachOnly = (m.attachment_path && !m.body && !isDeleted) ? " attach-only" : "";
       const bookmarkBtn = isDeleted ? "" : _rrBookmarkBtnHtml("driver", m.id);
+      const pinnedTag = _mcPins.some((p) => p.message_id === m.id)
+        ? `<span class="rr-mc-pinned-tag" title="Pinned">📌</span>` : "";
       html += `<div class="rr-mc-bubble ${m.sender_kind}${deletedClass}${priCls}${attachOnly}" data-group-pos="${pos}" data-rr-mc-msg="${escapeHtml(m.id)}">
         ${actions}
         ${bookmarkBtn}
-        ${priTag}${attach}${m.is_auto ? '<span class="rr-mc-auto" title="Automated message">Auto</span>' : ''}${bodyHtml}${ackChip}
-        <div class="rr-mc-time">${escapeHtml(time)}${editedTag}</div>
+        ${quoteHtml}${priTag}${attach}${m.is_auto ? '<span class="rr-mc-auto" title="Automated message">Auto</span>' : ''}${bodyHtml}${ackChip}
+        <div class="rr-mc-time">${pinnedTag}${escapeHtml(time)}${editedTag}</div>
+        <div class="rr-mc-reacts" data-rr-mc-reacts="${escapeHtml(m.id)}"></div>
         ${likeBtn}
       </div>`;
       // Drop the read-receipt pill immediately after the last
@@ -42460,7 +42613,7 @@ async function refreshDriverChatThread(scrollToBottom) {
   // everything else) handles re-pinning across subsequent reflows
   // (image loads, padding changes, content additions) WITHOUT a
   // JS-driven re-pin — that is what eliminates the visible glitch.
-  thread.innerHTML = loadOlderHtml + html + liveStubs + jumpPillHtml + sentinelHtml;
+  thread.innerHTML = _mcPinsBarHtml() + loadOlderHtml + html + liveStubs + jumpPillHtml + sentinelHtml;
   _applyMcReactions(_reactions);
   // Wire "Load earlier" — grow the page and re-fetch, then restore the
   // operator's scroll by the exact height the prepended history added so
@@ -42487,6 +42640,8 @@ async function refreshDriverChatThread(scrollToBottom) {
   _rrMcInstallAnchorEnforcer(thread);
   // Sign attachment paths so they render — bucket is private.
   setTimeout(() => _rrMcSignAttachments(), 0);
+  // Link-preview cards under recent bubbles (#24) — async, cached.
+  setTimeout(() => { _mcHydrateLinkCards().catch(() => {}); }, 60);
 
   // Wire the jump pill (re-rendered each time, so we re-bind every poll).
   const jump = document.getElementById("rr-mc-jump");
@@ -42510,10 +42665,23 @@ async function refreshDriverChatThread(scrollToBottom) {
   if (typeof _syncComposerPos === "function") _syncComposerPos();
   if (typeof _ensureComposerResizeWatch === "function") _ensureComposerResizeWatch();
 
+  // Unread-divider landing (#19): when the thread opens with unread
+  // driver messages, land the operator ON the "New messages" rule rather
+  // than the very bottom, so nothing unread is above the fold unseen.
+  const unreadLanding = isFirstPaint && _mcUnreadMarkId && !_mcFocusMsgId
+    && thread.querySelector("#rr-mc-unread-divider");
+  if (unreadLanding) {
+    thread.dataset.rrAnchor = "0";
+    requestAnimationFrame(() => {
+      const dv = document.getElementById("rr-mc-unread-divider");
+      if (dv) dv.scrollIntoView({ block: "center" });
+    });
+  }
+
   // Smart-scroll: pin to bottom if the operator was already near it,
   // or if the caller forced it (e.g. opening a new thread).  Otherwise
   // surface the jump pill if the message count grew under their feet.
-  if (!_mcFocusMsgId && (scrollToBottom || wasNearBottom)) {
+  if (!unreadLanding && !_mcFocusMsgId && (scrollToBottom || wasNearBottom)) {
     thread.dataset.rrAnchor = "1";
     if (jump) jump.classList.remove("show");
     // Multi-pass pin to bottom.  Each pass uses scrollTop assignment
@@ -42609,10 +42777,61 @@ async function refreshDriverChatThread(scrollToBottom) {
   _paintMsgHeadStats(driverId);
 }
 
-// ─── Message likes (👍) ──────────────────────────────────────────────────
-// Two-way reactions on the 1:1 chat.  Counts come from a separate
-// reactions RPC (the message-fetch RPCs are untouched); the realtime
-// subscription on driver_message_reactions keeps both ends live.
+// ─── Message reactions (Batch 2 · #15) ───────────────────────────────────
+// Multi-emoji reactions on the 1:1 chat, grouped per emoji under each
+// bubble (chips), with the 👍 bubble button kept as a quick-toggle.
+// Server: dispatch_chat_reactions_v2 / dispatch_message_react_emoji
+// (migration 0504), falling back to the 0389 single-👍 RPCs until the
+// migration is applied.
+let _mcLastMsgs = [];              // loaded window, for menus/quotes/media tab
+let _mcLastReadState = {};         // { peerReadAt, peerDeliveredAt }
+let _mcUnreadMarkId = null;        // first-unread divider anchor (#19)
+let _mcPins = [];                  // pinned messages for the open thread (#18)
+let _mcReplyTo = null;             // { id, label, text } while composing a reply (#13)
+let _mcReactCache = [];            // normalized [{message_id, emoji, count, mine}]
+let _mcReactV2 = null;             // null=unknown, true/false once probed
+const _MC_DM_REACTIONS = ["👍", "👎", "❤️", "😂", "😮", "😢", "✅", "❌", "🔥", "🎉", "🙏"];
+const _mcRpcMissing = (err) => /PGRST202|does not exist|could not find|schema cache|404/i.test((err && (err.message || err.code)) || "");
+
+async function _mcFetchReactions(driverId) {
+  if (_mcReactV2 !== false) {
+    const res = await sb.rpc("dispatch_chat_reactions_v2", { p_driver_id: driverId })
+      .then((r) => r, (e) => ({ error: e || { message: "network" } }));
+    if (!res.error) {
+      _mcReactV2 = true;
+      _mcReactCache = res.data?.reactions || [];
+      return _mcReactCache;
+    }
+    if (_mcRpcMissing(res.error)) _mcReactV2 = false;
+    else return _mcReactCache; // transient — keep last known
+  }
+  const { data } = await sb.rpc("dispatch_chat_reactions", { p_driver_id: driverId })
+    .then((r) => r, () => ({ data: null }));
+  _mcReactCache = (data?.reactions || []).map((e) => ({
+    message_id: e.message_id, emoji: "👍", count: e.like_count || 0, mine: !!e.liked_by_me,
+  }));
+  return _mcReactCache;
+}
+async function _mcReact(messageId, emoji, on) {
+  if (_mcReactV2 !== false) {
+    const { data, error } = await sb.rpc("dispatch_message_react_emoji", { p_message_id: messageId, p_emoji: emoji, p_on: on });
+    if (!error) { _mcReactV2 = true; return data; }
+    if (!_mcRpcMissing(error)) throw error;
+    _mcReactV2 = false;
+  }
+  if (emoji !== "👍") { toast("More reactions unlock once migration 0504 is applied — 👍 works today", "info"); return null; }
+  const { data, error } = await sb.rpc("dispatch_message_react", { p_message_id: messageId, p_on: on });
+  if (error) throw error;
+  return { message_id: messageId, emoji: "👍", count: data?.like_count || 0, mine: !!data?.liked_by_me };
+}
+function _mcUpdateReactCache(res) {
+  if (!res) return;
+  const i = _mcReactCache.findIndex((e) => String(e.message_id) === String(res.message_id) && e.emoji === res.emoji);
+  if (i >= 0) { if ((res.count || 0) > 0) _mcReactCache[i] = res; else _mcReactCache.splice(i, 1); }
+  else if ((res.count || 0) > 0) _mcReactCache.push(res);
+  _applyMcReactions(_mcReactCache);
+}
+
 function _setMcLike(btn, count, mine) {
   if (!btn) return;
   btn.classList.toggle("on", !!mine);
@@ -42623,29 +42842,553 @@ function _setMcLike(btn, count, mine) {
 function _applyMcReactions(entries) {
   const thread = document.getElementById("rr-mc-thread");
   if (!thread) return;
-  const map = new Map((entries || []).map((e) => [String(e.message_id), e]));
+  const byMsg = new Map();
+  (entries || []).forEach((e) => {
+    const k = String(e.message_id);
+    if (!byMsg.has(k)) byMsg.set(k, []);
+    byMsg.get(k).push(e);
+  });
+  // Per-emoji chip rows under each bubble.
+  thread.querySelectorAll("[data-rr-mc-reacts]").forEach((row) => {
+    const list = (byMsg.get(String(row.getAttribute("data-rr-mc-reacts"))) || []).filter((e) => (e.count || 0) > 0);
+    row.innerHTML = list.map((e) =>
+      `<button type="button" class="rr-mc-react-chip${e.mine ? " mine" : ""}" data-rr-mc-chip="${escapeHtml(String(e.message_id))}" data-emoji="${escapeHtml(e.emoji)}" aria-pressed="${e.mine ? "true" : "false"}" title="${e.count} reaction${e.count === 1 ? "" : "s"} — click to ${e.mine ? "remove yours" : "react too"}">${e.emoji}<span>${e.count}</span></button>`).join("");
+    row.style.display = list.length ? "" : "none";
+  });
+  // The 👍 quick button mirrors "did I 👍 this" (count lives on the chip).
   thread.querySelectorAll("[data-rr-mc-like]").forEach((btn) => {
-    const e = map.get(String(btn.getAttribute("data-rr-mc-like")));
-    _setMcLike(btn, e ? (e.like_count || 0) : 0, !!(e && e.liked_by_me));
+    const list = byMsg.get(String(btn.getAttribute("data-rr-mc-like"))) || [];
+    const up = list.find((e) => e.emoji === "👍");
+    _setMcLike(btn, 0, !!(up && up.mine));
   });
 }
-// Delegated so it survives the thread's re-render on every poll.
+// Delegated so they survive the thread's re-render on every poll.
 document.addEventListener("click", async (e) => {
   const btn = e.target.closest("[data-rr-mc-like]");
-  if (!btn) return;
-  const id = btn.getAttribute("data-rr-mc-like");
-  const turningOn = !btn.classList.contains("on");
-  const ns = btn.querySelector(".rr-mc-like-n");
-  const cur = parseInt((ns && ns.textContent) || "0", 10) || 0;
-  _setMcLike(btn, Math.max(0, cur + (turningOn ? 1 : -1)), turningOn); // optimistic
-  try {
-    const { data, error } = await sb.rpc("dispatch_message_react", { p_message_id: id, p_on: turningOn });
-    if (error) throw error;
-    if (data) _setMcLike(btn, data.like_count || 0, !!data.liked_by_me);
-  } catch (_) {
-    _setMcLike(btn, cur, !turningOn); // revert on failure
+  if (btn) {
+    const id = btn.getAttribute("data-rr-mc-like");
+    const turningOn = !btn.classList.contains("on");
+    btn.classList.toggle("on", turningOn); // optimistic
+    try { _mcUpdateReactCache(await _mcReact(id, "👍", turningOn)); }
+    catch { btn.classList.toggle("on", !turningOn); }
+    return;
+  }
+  const chip = e.target.closest("[data-rr-mc-chip]");
+  if (chip) {
+    const id = chip.getAttribute("data-rr-mc-chip");
+    const emoji = chip.getAttribute("data-emoji");
+    const turningOn = !chip.classList.contains("mine");
+    chip.classList.toggle("mine", turningOn); // optimistic
+    try { _mcUpdateReactCache(await _mcReact(id, emoji, turningOn)); }
+    catch { chip.classList.toggle("mine", !turningOn); }
+    return;
+  }
+  const reactBtn = e.target.closest("[data-rr-mc-react]");
+  if (reactBtn) {
+    e.preventDefault();
+    _mcOpenReactPicker(reactBtn, reactBtn.getAttribute("data-rr-mc-react"));
+    return;
   }
 });
+
+// Quick reaction picker for a bubble.
+function _mcOpenReactPicker(anchor, messageId) {
+  _mcDismissPops();
+  _mcEnsureExtrasCss();
+  const pop = document.createElement("div");
+  pop.className = "rr-mc-pop rr-mc-reactpick";
+  pop.setAttribute("role", "menu");
+  const mine = new Set(_mcReactCache.filter((e) => String(e.message_id) === String(messageId) && e.mine).map((e) => e.emoji));
+  pop.innerHTML = _MC_DM_REACTIONS.map((em) =>
+    `<button type="button" class="${mine.has(em) ? "on" : ""}" data-rr-rp="${escapeHtml(em)}" aria-label="React ${escapeHtml(em)}">${em}</button>`).join("");
+  _mcPlacePop(pop, anchor);
+  pop.addEventListener("click", async (ev) => {
+    const b = ev.target.closest("[data-rr-rp]");
+    if (!b) return;
+    const em = b.getAttribute("data-rr-rp");
+    const on = !b.classList.contains("on");
+    _mcDismissPops();
+    try { _mcUpdateReactCache(await _mcReact(messageId, em, on)); } catch {}
+  });
+}
+
+// ─── Bubble action handlers (Batch 2: reply / more / history / jump) ─────
+function _mcMsgById(id) { return (_mcLastMsgs || []).find((m) => String(m.id) === String(id)); }
+
+// Reply bar above the composer (#13).
+function _mcShowReplyBar() {
+  const form = document.getElementById("rr-mc-form");
+  if (!form) return;
+  form.querySelector(".rr-mc-replybar")?.remove();
+  if (!_mcReplyTo) return;
+  _mcEnsureExtrasCss();
+  const bar = document.createElement("div");
+  bar.className = "rr-mc-replybar";
+  bar.innerHTML = `
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+    <span class="rr-mc-replybar-txt"><b>Replying to ${escapeHtml(_mcReplyTo.label)}</b> · ${escapeHtml(_mcReplyTo.text.slice(0, 80))}</span>
+    <button type="button" data-rr-reply-cancel aria-label="Cancel reply">×</button>`;
+  form.style.position = "relative";
+  form.appendChild(bar);
+  bar.querySelector("[data-rr-reply-cancel]").addEventListener("click", () => {
+    _mcReplyTo = null;
+    _mcShowReplyBar();
+  });
+}
+
+document.addEventListener("click", async (e) => {
+  // Reply (#13)
+  const replyBtn = e.target.closest("[data-rr-mc-reply]");
+  if (replyBtn) {
+    const m = _mcMsgById(replyBtn.getAttribute("data-rr-mc-reply"));
+    if (!m) return;
+    const drvName = (document.querySelector(".rr-mc-name")?.childNodes[0]?.textContent || "Driver").trim();
+    _mcReplyTo = {
+      id: m.id,
+      label: m.sender_kind === "dispatch" ? "yourself" : drvName,
+      text: m.body || (m.attachment_name ? "📎 " + m.attachment_name : "Message"),
+    };
+    _mcShowReplyBar();
+    document.getElementById("rr-mc-input")?.focus();
+    return;
+  }
+  // Jump to quoted original (#13)
+  const jumpBtn = e.target.closest("[data-rr-mc-jumpto]");
+  if (jumpBtn) {
+    const id = jumpBtn.getAttribute("data-rr-mc-jumpto");
+    const sel = (window.CSS && CSS.escape) ? CSS.escape(id) : id;
+    const bubble = document.querySelector(`#rr-mc-thread [data-rr-mc-msg="${sel}"]`);
+    if (bubble) _rrMcFlashBubble(bubble);
+    else toast("That message is further back in history — use Load earlier messages", "info");
+    return;
+  }
+  // Edit history (#20)
+  const histBtn = e.target.closest("[data-rr-mc-edithist]");
+  if (histBtn) {
+    e.preventDefault();
+    _mcOpenEditHistory(histBtn, histBtn.getAttribute("data-rr-mc-edithist"));
+    return;
+  }
+  // More menu (#14 #16 #17 #18)
+  const moreBtn = e.target.closest("[data-rr-mc-more]");
+  if (moreBtn) {
+    e.preventDefault();
+    _mcOpenMoreMenu(moreBtn, moreBtn.getAttribute("data-rr-mc-more"));
+    return;
+  }
+  // Lightbox (#21)
+  const lightImg = e.target.closest("[data-rr-mc-lightbox]");
+  if (lightImg && lightImg.tagName === "IMG") {
+    e.preventDefault();
+    _mcOpenLightbox(lightImg);
+    return;
+  }
+  // Pins bar interactions (#18)
+  const pinJump = e.target.closest("[data-rr-pin-jump]");
+  if (pinJump) {
+    const id = pinJump.getAttribute("data-rr-pin-jump");
+    const sel = (window.CSS && CSS.escape) ? CSS.escape(id) : id;
+    const bubble = document.querySelector(`#rr-mc-thread [data-rr-mc-msg="${sel}"]`);
+    if (bubble) _rrMcFlashBubble(bubble);
+    else toast("Pinned message is further back in history — use Load earlier messages", "info");
+    return;
+  }
+});
+
+async function _mcOpenEditHistory(anchor, messageId) {
+  _mcDismissPops();
+  _mcEnsureExtrasCss();
+  const pop = document.createElement("div");
+  pop.className = "rr-mc-pop rr-mc-suggest";
+  pop.style.maxWidth = "360px";
+  pop.innerHTML = `<div class="rr-mc-emoji-head" style="padding:8px 10px 6px">Edit history</div><div style="padding:4px 10px 10px;font-size:var(--fs-sm);color:var(--text-subtle)">Loading…</div>`;
+  _mcPlacePop(pop, anchor);
+  const { data, error } = await sb.rpc("dispatch_message_edit_history", { p_message_id: messageId })
+    .then((r) => r, (err) => ({ error: err }));
+  const bodyEl = pop.lastElementChild;
+  if (!bodyEl || !pop.isConnected) return;
+  if (error) {
+    bodyEl.textContent = _mcRpcMissing(error) ? "Edit history starts recording once migration 0504 is applied." : "Couldn't load history.";
+    return;
+  }
+  const hist = data?.history || [];
+  const cur = _mcMsgById(messageId);
+  bodyEl.innerHTML = (hist.length ? hist.map((h) =>
+      `<div style="margin-bottom:8px"><div style="font-size:10px;color:var(--text-subtle);font-weight:600">${escapeHtml(new Date(h.edited_at).toLocaleString())}</div><div style="font-size:var(--fs-sm);color:var(--text);white-space:pre-wrap">${escapeHtml(h.old_body || "")}</div></div>`).join("")
+    : `<div style="font-size:var(--fs-sm);color:var(--text-subtle)">No earlier versions recorded.</div>`)
+    + (cur ? `<div style="border-top:1px solid var(--border);padding-top:6px;margin-top:2px"><div style="font-size:10px;color:var(--text-subtle);font-weight:600">Current</div><div style="font-size:var(--fs-sm);color:var(--text);white-space:pre-wrap">${escapeHtml(cur.body || "")}</div></div>` : "");
+}
+
+// "More" menu on a bubble: copy, copy link, message info, pin, forward.
+function _mcOpenMoreMenu(anchor, messageId) {
+  _mcDismissPops();
+  _mcEnsureExtrasCss();
+  const m = _mcMsgById(messageId);
+  if (!m) return;
+  const pinned = _mcPins.some((p) => p.message_id === m.id);
+  const pop = document.createElement("div");
+  pop.className = "rr-mc-pop rr-mc-plus-menu";
+  pop.setAttribute("role", "menu");
+  pop.innerHTML = `
+    ${m.body ? `<button type="button" data-rr-mm="copy">📄<span>Copy text</span></button>` : ""}
+    <button type="button" data-rr-mm="link">🔗<span>Copy link to message</span></button>
+    <button type="button" data-rr-mm="info">ℹ️<span>Message info</span></button>
+    <button type="button" data-rr-mm="pin">📌<span>${pinned ? "Unpin from conversation" : "Pin to conversation"}</span></button>
+    <button type="button" data-rr-mm="fwd">↪️<span>Forward…</span></button>`;
+  _mcPlacePop(pop, anchor);
+  pop.addEventListener("click", async (ev) => {
+    const b = ev.target.closest("[data-rr-mm]");
+    if (!b) return;
+    const act = b.getAttribute("data-rr-mm");
+    _mcDismissPops();
+    if (act === "copy") {
+      try { await navigator.clipboard.writeText(m.body || ""); toast("Copied", "ok"); }
+      catch { toast("Couldn't access the clipboard", "warn"); }
+    } else if (act === "link") {
+      const url = `${location.origin}${location.pathname}#msg-driver-${_msgInboxSelectedId}-${m.id}`;
+      try { await navigator.clipboard.writeText(url); toast("Link copied — opens this conversation at this message", "ok"); }
+      catch { toast("Couldn't access the clipboard", "warn"); }
+    } else if (act === "info") {
+      _mcOpenMsgInfo(m);
+    } else if (act === "pin") {
+      const { error } = await sb.rpc("dispatch_pin_message", { p_message_id: m.id, p_on: !pinned })
+        .then((r) => r, (err) => ({ error: err }));
+      if (error) {
+        toast(_mcRpcMissing(error) ? "Pinning unlocks once migration 0504 is applied" : ("Couldn't pin: " + (error.message || "")), "warn");
+        return;
+      }
+      toast(pinned ? "Unpinned" : "Pinned to the top of this conversation", "ok");
+      refreshDriverChatThread(false);
+    } else if (act === "fwd") {
+      _mcOpenForwardModal(m);
+    }
+  });
+}
+
+// Message info (#17): timestamps + delivery state + priority/ack.
+function _mcOpenMsgInfo(m) {
+  _mcEnsureExtrasCss();
+  document.getElementById("rr-mc-info-modal")?.remove();
+  const t = new Date(m.created_at).getTime();
+  const { peerReadAt = 0, peerDeliveredAt = 0 } = _mcLastReadState || {};
+  const isMine = m.sender_kind === "dispatch";
+  let state = "—";
+  if (isMine) {
+    state = (peerReadAt >= t) ? `Read` : (peerDeliveredAt >= t) ? "Delivered — device received it, not opened yet" : "Sent";
+  } else {
+    state = "Received";
+  }
+  const row = (k, v) => v ? `<div style="display:flex;justify-content:space-between;gap:14px;padding:5px 0;border-bottom:1px solid var(--border);font-size:var(--fs-sm)"><span style="color:var(--text-subtle)">${k}</span><span style="color:var(--text);text-align:right">${v}</span></div>` : "";
+  const ov = document.createElement("div");
+  ov.className = "rr-mc-modal";
+  ov.id = "rr-mc-info-modal";
+  ov.innerHTML = `
+    <div class="rr-mc-modal-back"></div>
+    <div class="rr-mc-modal-card" role="dialog" aria-modal="true" aria-label="Message info" style="width:min(400px,94vw)">
+      <div class="rr-mc-modal-head">Message info<button type="button" class="rr-mc-modal-x" aria-label="Close">×</button></div>
+      <div class="rr-mc-modal-body">
+        ${m.body ? `<div style="font-size:var(--fs-sm);color:var(--text);white-space:pre-wrap;border:1px solid var(--border);border-radius:var(--r-md);padding:8px 10px;margin-bottom:10px;max-height:120px;overflow-y:auto">${escapeHtml(m.body)}</div>` : ""}
+        ${row("Sent", escapeHtml(new Date(m.created_at).toLocaleString()))}
+        ${row("From", isMine ? (m.is_auto ? "RouteReady (automated)" : "Dispatch") : "Driver")}
+        ${row("Status", escapeHtml(state))}
+        ${row("Priority", m.priority && m.priority !== "normal" ? escapeHtml(m.priority.charAt(0).toUpperCase() + m.priority.slice(1)) : "")}
+        ${row("Acknowledgement", m.requires_ack ? (m.acked_at ? "Acknowledged " + escapeHtml(new Date(m.acked_at).toLocaleString()) : "Awaiting acknowledgement") : "")}
+        ${row("Edited", m.edited_at ? escapeHtml(new Date(m.edited_at).toLocaleString()) : "")}
+        ${row("Attachment", m.attachment_name ? escapeHtml(m.attachment_name) + (m.attachment_size_bytes ? " · " + _rrFmtBytes(m.attachment_size_bytes) : "") : "")}
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelector(".rr-mc-modal-back").addEventListener("click", close);
+  ov.querySelector(".rr-mc-modal-x").addEventListener("click", close);
+}
+
+// Forward a message to another driver or a channel (#14).
+function _mcOpenForwardModal(m) {
+  _mcEnsureExtrasCss();
+  document.getElementById("rr-mc-fwd-modal")?.remove();
+  const drivers = (_msgInboxList || []).filter((t) => String(t.driver_id) !== String(_msgInboxSelectedId));
+  const channels = (typeof _msgChannelList !== "undefined" ? _msgChannelList : []).filter((c) => !c.archived_at);
+  const ov = document.createElement("div");
+  ov.className = "rr-mc-modal";
+  ov.id = "rr-mc-fwd-modal";
+  const rowHtml = (kind, id, name, sub) => `
+    <button type="button" class="rr-mc-fwd-row" data-rr-fwd-kind="${kind}" data-rr-fwd-id="${escapeHtml(String(id))}">
+      <span class="rr-mc-fwd-av">${kind === "ch" ? "#" : escapeHtml((name || "?").split(/\s+/).map((p) => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase())}</span>
+      <span class="rr-mc-fwd-name">${escapeHtml(name || "")}</span>
+      ${sub ? `<span class="rr-mc-fwd-sub">${escapeHtml(sub)}</span>` : ""}
+    </button>`;
+  ov.innerHTML = `
+    <div class="rr-mc-modal-back"></div>
+    <div class="rr-mc-modal-card" role="dialog" aria-modal="true" aria-label="Forward message">
+      <div class="rr-mc-modal-head">Forward message<button type="button" class="rr-mc-modal-x" aria-label="Close">×</button></div>
+      <div class="rr-mc-modal-body">
+        <div style="font-size:var(--fs-sm);color:var(--text-subtle);border:1px solid var(--border);border-radius:var(--r-md);padding:8px 10px;margin-bottom:10px;max-height:88px;overflow-y:auto;white-space:pre-wrap">${escapeHtml(m.body || "")}${m.attachment_name ? `${m.body ? "\n" : ""}📎 ${escapeHtml(m.attachment_name)}` : ""}</div>
+        <input type="text" data-rr-fwd-q placeholder="Search drivers and rooms…" aria-label="Search forward targets" style="margin-bottom:10px">
+        <div data-rr-fwd-list style="max-height:300px;overflow-y:auto"></div>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelector(".rr-mc-modal-back").addEventListener("click", close);
+  ov.querySelector(".rr-mc-modal-x").addEventListener("click", close);
+  const listEl = ov.querySelector("[data-rr-fwd-list]");
+  const paint = (q) => {
+    const s = (q || "").toLowerCase();
+    const dRows = drivers.filter((d) => !s || (d.name || "").toLowerCase().includes(s))
+      .slice(0, 30).map((d) => rowHtml("dm", d.driver_id, d.name, d.station_code));
+    const cRows = channels.filter((c) => !s || (c.name || "").toLowerCase().includes(s))
+      .slice(0, 15).map((c) => rowHtml("ch", c.id, c.name, `${c.member_count || 0} members`));
+    listEl.innerHTML =
+      (dRows.length ? `<div class="rr-mc-emoji-head" style="padding:2px 0 5px">Drivers</div>` + dRows.join("") : "")
+      + (cRows.length ? `<div class="rr-mc-emoji-head" style="padding:8px 0 5px">Rooms</div>` + cRows.join("") : "")
+      || `<div class="u-subtle" style="font-size:var(--fs-sm)">No matches.</div>`;
+  };
+  paint("");
+  ov.querySelector("[data-rr-fwd-q]").addEventListener("input", (ev) => paint(ev.target.value));
+  listEl.addEventListener("click", async (ev) => {
+    const btn = ev.target.closest("[data-rr-fwd-id]");
+    if (!btn) return;
+    btn.disabled = true;
+    const kind = btn.getAttribute("data-rr-fwd-kind");
+    const targetId = btn.getAttribute("data-rr-fwd-id");
+    const ok = await _mcForwardMessage(m, kind, targetId);
+    if (ok) { close(); toast("Forwarded", "ok"); }
+    else btn.disabled = false;
+  });
+}
+async function _mcForwardMessage(m, kind, targetId) {
+  let attachment = null;
+  if (m.attachment_path) {
+    // Copy the blob to a path owned by the destination conversation, so
+    // the original can be deleted without breaking the forward.
+    const dspId = window.RR?.dsp?.id || "unknown";
+    const base = String(m.attachment_path).split("/").pop() || "file";
+    const toPath = kind === "ch"
+      ? `${dspId}/channels/${targetId}/${Date.now()}-fwd-${base}`
+      : `${dspId}/${targetId}/${Date.now()}-fwd-${base}`;
+    let copied = false;
+    try {
+      const { error } = await sb.storage.from("driver-chat-attachments").copy(m.attachment_path, toPath);
+      copied = !error;
+    } catch { copied = false; }
+    if (!copied) {
+      // Fallback: download + re-upload (older storage-js or cross-checks).
+      try {
+        const { data: blob, error: dErr } = await sb.storage.from("driver-chat-attachments").download(m.attachment_path);
+        if (dErr || !blob) throw dErr || new Error("download failed");
+        const { error: uErr } = await sb.storage.from("driver-chat-attachments").upload(toPath, blob, { contentType: m.attachment_mime || undefined, upsert: false });
+        if (uErr) throw uErr;
+        copied = true;
+      } catch (err) {
+        toast("Couldn't copy the attachment: " + ((err && err.message) || ""), "warn");
+        return false;
+      }
+    }
+    attachment = { path: toPath, mime: m.attachment_mime, name: m.attachment_name, size: m.attachment_size_bytes };
+  }
+  const res = kind === "ch"
+    ? await sb.rpc("dispatch_channel_post", {
+        p_channel_id: targetId, p_body: m.body || null,
+        p_attachment_path: attachment?.path || null, p_attachment_mime: attachment?.mime || null,
+        p_attachment_name: attachment?.name || null, p_attachment_size_bytes: attachment?.size || null,
+      })
+    : await sb.rpc("dispatch_chat_send", {
+        p_driver_id: targetId, p_body: m.body || null,
+        p_attachment_path: attachment?.path || null, p_attachment_mime: attachment?.mime || null,
+        p_attachment_name: attachment?.name || null, p_attachment_size_bytes: attachment?.size || null,
+        p_priority: "normal", p_requires_ack: false,
+      });
+  if (res.error) {
+    if (attachment?.path) { try { await sb.storage.from("driver-chat-attachments").remove([attachment.path]); } catch {} }
+    toast("Couldn't forward: " + res.error.message, "warn");
+    return false;
+  }
+  refreshDriverChatList(false);
+  return true;
+}
+
+// Pinned-messages strip (#18) — sticky at the top of the thread.
+function _mcPinsBarHtml() {
+  if (!_mcPins || !_mcPins.length) return "";
+  const chips = _mcPins.slice(0, 8).map((p) => {
+    const txt = p.body || (p.attachment_name ? "📎 " + p.attachment_name : "Message");
+    return `<button type="button" class="rr-mc-pin-chip" data-rr-pin-jump="${escapeHtml(p.message_id)}" title="${escapeHtml(String(txt).slice(0, 200))}">📌 ${escapeHtml(String(txt).slice(0, 42))}${String(txt).length > 42 ? "…" : ""}</button>`;
+  }).join("");
+  return `<div class="rr-mc-pinsbar" aria-label="Pinned messages">${chips}</div>`;
+}
+
+// ── "Shared in this chat" tab in the details rail (#22) ─────────────────
+// Media / files / links pulled from the loaded thread window (up to the
+// current page size). Signing reuses the [data-rr-mc-attach] resolver.
+function _mcPaintSharedTab(tab) {
+  const host = document.getElementById("rr-dd-shared");
+  if (!host) return;
+  const msgs = (_mcLastMsgs || []).filter((m) => !m.deleted_at);
+  const note = `<div class="u-subtle" style="font-size:10px;margin-top:7px">From the loaded portion of this conversation${msgs.length >= _mcThreadLimit ? " — use Load earlier messages to reach older items" : ""}.</div>`;
+  if (tab === "media") {
+    const media = msgs.filter((m) => (m.attachment_mime || "").startsWith("image/")).reverse();
+    host.innerHTML = media.length
+      ? `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px">${media.slice(0, 30).map((m) =>
+          `<img data-rr-mc-attach="${escapeHtml(m.attachment_path)}" data-rr-mc-lightbox="${escapeHtml(m.id)}" alt="${escapeHtml(m.attachment_name || "Image")}" loading="lazy" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:var(--r-sm);cursor:zoom-in;background:var(--surface-hover,#f3f4f6)">`).join("")}</div>${note}`
+      : `<div class="u-subtle" style="font-size:var(--fs-sm)">No photos shared yet.</div>`;
+    setTimeout(() => _rrMcSignAttachments(), 0);
+  } else if (tab === "files") {
+    const files = msgs.filter((m) => m.attachment_path && !(m.attachment_mime || "").startsWith("image/") && !(m.attachment_mime || "").startsWith("audio/")).reverse();
+    host.innerHTML = files.length
+      ? files.slice(0, 30).map((m) => {
+          const kind = _rrMcFileKind(m.attachment_name, m.attachment_mime);
+          return `<a data-rr-mc-attach="${escapeHtml(m.attachment_path)}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-md);margin-bottom:5px;text-decoration:none">
+            <span style="font-size:9px;font-weight:800;background:var(--accent-soft);color:var(--accent-text);border-radius:4px;padding:2px 5px">${escapeHtml(kind.badge)}</span>
+            <span style="flex:1;min-width:0;font-size:var(--fs-xs);font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(m.attachment_name || "File")}</span>
+            <span class="u-subtle" style="font-size:10px">${_rrFmtBytes(m.attachment_size_bytes)}</span>
+          </a>`;
+        }).join("") + note
+      : `<div class="u-subtle" style="font-size:var(--fs-sm)">No files shared yet.</div>`;
+    setTimeout(() => _rrMcSignAttachments(), 0);
+  } else {
+    const links = [];
+    msgs.forEach((m) => {
+      (String(m.body || "").match(/https?:\/\/[^\s<>"']+/g) || []).forEach((u) => links.push({ url: u, at: m.created_at, id: m.id }));
+    });
+    links.reverse();
+    host.innerHTML = links.length
+      ? links.slice(0, 30).map((l) => {
+          let hostLbl = l.url;
+          try { hostLbl = new URL(l.url).hostname; } catch {}
+          return `<a href="${escapeHtml(l.url)}" target="_blank" rel="noopener" style="display:block;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-md);margin-bottom:5px;text-decoration:none">
+            <span style="display:block;font-size:var(--fs-xs);font-weight:600;color:var(--accent-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(l.url)}</span>
+            <span class="u-subtle" style="font-size:10px">${escapeHtml(hostLbl)} · ${escapeHtml(_fmtMsgRelative(l.at))}</span>
+          </a>`;
+        }).join("") + note
+      : `<div class="u-subtle" style="font-size:var(--fs-sm)">No links shared yet.</div>`;
+  }
+}
+
+// ── Link unfurls (#24) ───────────────────────────────────────────────────
+// A small preview card under the first URL of recent bubbles. Metadata
+// comes from the link-preview edge function (CORS blocks fetching pages
+// straight from the browser); results are cached per URL for a week.
+const _mcLinkPrevMem = new Map();
+function _mcLinkPrevCacheGet(url) {
+  if (_mcLinkPrevMem.has(url)) return _mcLinkPrevMem.get(url);
+  try {
+    const all = JSON.parse(localStorage.getItem("rr_linkprev_cache") || "{}");
+    const hit = all[url];
+    if (hit && (Date.now() - hit.at) < 7 * 86400000) { _mcLinkPrevMem.set(url, hit.v); return hit.v; }
+  } catch {}
+  return undefined;
+}
+function _mcLinkPrevCachePut(url, v) {
+  _mcLinkPrevMem.set(url, v);
+  try {
+    const all = JSON.parse(localStorage.getItem("rr_linkprev_cache") || "{}");
+    all[url] = { v, at: Date.now() };
+    const keys = Object.keys(all);
+    if (keys.length > 120) keys.sort((a, b) => all[a].at - all[b].at).slice(0, keys.length - 120).forEach((k) => delete all[k]);
+    localStorage.setItem("rr_linkprev_cache", JSON.stringify(all));
+  } catch {}
+}
+let _mcLinkPrevDisabled = false; // edge function absent → stop asking
+async function _mcHydrateLinkCards() {
+  if (_mcLinkPrevDisabled) return;
+  const thread = document.getElementById("rr-mc-thread");
+  if (!thread) return;
+  const bubbles = Array.from(thread.querySelectorAll(".rr-mc-bubble:not([data-rr-lc-done])")).slice(-30);
+  for (const bubble of bubbles) {
+    bubble.setAttribute("data-rr-lc-done", "1");
+    const a = bubble.querySelector("div > a[href^='http']");
+    if (!a || bubble.querySelector(".rr-mc-linkcard")) continue;
+    const url = a.href;
+    let meta = _mcLinkPrevCacheGet(url);
+    if (meta === undefined) {
+      try {
+        const { data, error } = await sb.functions.invoke("link-preview", { body: { url } });
+        if (error) {
+          // Function not deployed / blocked — stop trying this session.
+          _mcLinkPrevDisabled = true;
+          return;
+        }
+        meta = (data && data.title) ? { title: data.title, desc: data.description || "", host: data.host || "" } : null;
+        _mcLinkPrevCachePut(url, meta);
+      } catch { _mcLinkPrevDisabled = true; return; }
+    }
+    if (!meta || !meta.title) continue;
+    if (!bubble.isConnected || bubble.querySelector(".rr-mc-linkcard")) continue;
+    const card = document.createElement("a");
+    card.className = "rr-mc-linkcard";
+    card.href = url;
+    card.target = "_blank";
+    card.rel = "noopener";
+    card.innerHTML = `<span class="rr-lc-title">${escapeHtml(meta.title)}</span>
+      ${meta.desc ? `<span class="rr-lc-desc">${escapeHtml(meta.desc)}</span>` : ""}
+      <span class="rr-lc-host">${escapeHtml(meta.host || (() => { try { return new URL(url).hostname; } catch { return ""; } })())}</span>`;
+    a.closest("div")?.insertAdjacentElement("afterend", card);
+  }
+}
+
+// Image lightbox with gallery arrows (#21).
+function _mcOpenLightbox(imgEl) {
+  _mcEnsureExtrasCss();
+  const thread = document.getElementById("rr-mc-thread") || document.getElementById("rr-cc-thread");
+  let imgs = thread ? Array.from(thread.querySelectorAll("img[data-rr-mc-lightbox]")).filter((i) => i.src) : [];
+  // Opened from outside the thread (e.g. the details-rail Shared tab) —
+  // gallery over that container instead.
+  if (!imgs.includes(imgEl)) {
+    const host = imgEl.closest("#rr-dd-shared");
+    imgs = host ? Array.from(host.querySelectorAll("img[data-rr-mc-lightbox]")).filter((i) => i.src) : [imgEl];
+    if (!imgs.includes(imgEl)) imgs = [imgEl];
+  }
+  let idx = Math.max(0, imgs.indexOf(imgEl));
+  document.getElementById("rr-mc-lightbox")?.remove();
+  const ov = document.createElement("div");
+  ov.id = "rr-mc-lightbox";
+  ov.className = "rr-mc-lightbox";
+  ov.innerHTML = `
+    <button type="button" class="rr-lb-x" aria-label="Close">×</button>
+    <button type="button" class="rr-lb-nav rr-lb-prev" aria-label="Previous image">‹</button>
+    <img alt="">
+    <button type="button" class="rr-lb-nav rr-lb-next" aria-label="Next image">›</button>
+    <div class="rr-lb-meta"><span class="rr-lb-count"></span><a class="rr-lb-dl" target="_blank" rel="noopener">Open original</a></div>`;
+  document.body.appendChild(ov);
+  const img = ov.querySelector("img");
+  const paint = () => {
+    const cur = imgs[idx];
+    img.src = cur.src;
+    img.alt = cur.alt || "";
+    ov.querySelector(".rr-lb-count").textContent = imgs.length > 1 ? `${idx + 1} of ${imgs.length}` : "";
+    ov.querySelector(".rr-lb-dl").href = cur.src;
+    ov.querySelector(".rr-lb-prev").style.visibility = imgs.length > 1 ? "" : "hidden";
+    ov.querySelector(".rr-lb-next").style.visibility = imgs.length > 1 ? "" : "hidden";
+  };
+  const close = () => { ov.remove(); document.removeEventListener("keydown", onKey); };
+  const step = (d) => { idx = (idx + d + imgs.length) % imgs.length; paint(); };
+  const onKey = (ev) => {
+    if (ev.key === "Escape") close();
+    else if (ev.key === "ArrowLeft") step(-1);
+    else if (ev.key === "ArrowRight") step(1);
+  };
+  ov.addEventListener("click", (ev) => { if (ev.target === ov || ev.target.classList.contains("rr-lb-x")) close(); });
+  ov.querySelector(".rr-lb-prev").addEventListener("click", () => step(-1));
+  ov.querySelector(".rr-lb-next").addEventListener("click", () => step(1));
+  document.addEventListener("keydown", onKey);
+  paint();
+}
+
+// Deep links (#16): #msg-driver-<driverId>-<messageId> opens Messages at
+// that bubble. Runs on load + every hash change.
+function _mcHandleMsgHash() {
+  const m = (location.hash || "").match(/^#msg-driver-([0-9a-f-]{36})-([0-9a-f-]{36})$/i);
+  if (!m) return;
+  history.replaceState(null, "", location.pathname + location.search); // consume
+  const [, driverId, msgId] = m;
+  try { if (typeof window.goto === "function") window.goto("messages"); } catch {}
+  setTimeout(() => {
+    try { openDriverChatThread(driverId, { id: msgId }); } catch {}
+  }, 350);
+}
+window.addEventListener("hashchange", _mcHandleMsgHash);
+setTimeout(_mcHandleMsgHash, 1500);
 
 // ─── Edit / delete on dispatcher's own bubbles ───────────────────────────
 //
