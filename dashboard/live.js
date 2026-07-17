@@ -25130,6 +25130,12 @@ let _ivSnapMin = (() => {
 })();
 // ISO week numbers in the mini-month, month view and grid corner.
 let _ivWeekNums = (() => { try { return localStorage.getItem("rr_ivcal_weeknums") === "1"; } catch (_) { return false; } })();
+// Double-booking enforcement: badge (display-only, the long-standing default),
+// warn (confirm dialog), or block.
+let _ivConflictMode = (() => {
+  try { const v = localStorage.getItem("rr_ivcal_conflictmode"); return ["badge", "warn", "block"].includes(v) ? v : "badge"; }
+  catch (_) { return "badge"; }
+})();
 function _ivSavePrefs() {
   try {
     localStorage.setItem("rr_ivcal_weekstart", _ivWeekStartMon ? "mon" : "sun");
@@ -25137,6 +25143,7 @@ function _ivSavePrefs() {
     localStorage.setItem("rr_ivcal_workhours", JSON.stringify(_ivWork));
     localStorage.setItem("rr_ivcal_snap", String(_ivSnapMin));
     localStorage.setItem("rr_ivcal_weeknums", _ivWeekNums ? "1" : "0");
+    localStorage.setItem("rr_ivcal_conflictmode", _ivConflictMode);
   } catch (_) {}
 }
 // Time-format options honoring the 12/24h preference. Pass extra opts to merge.
@@ -25495,15 +25502,16 @@ function _ivcalOpenBookPicker(applicantId, name) {
 // effective windows (override-aware, same math as the grid shading) and
 // returns the first slot start that is in the future and not booked to
 // capacity. Pure client-side read of the cache — no new query.
-function _ivcalNextOpenSlot() {
-  if (!_ivcalCache) return null;
+function _ivcalNextOpenSlots(limit) {
+  if (!_ivcalCache) return [];
+  const out = [];
   const slot = _ivcalCache.slot || 30, buf = _ivcalCache.buffer || 0;
   const now = new Date();
   const live = (_ivcalCache.bookings || []).filter(b =>
     b && b.status !== "cancelled" && b.status !== "no_show"
     && (b.rsvp || "accepted") !== "declined"
     && !(b.metadata && b.metadata.is_task));
-  for (let i = 0; i < 14; i++) {
+  for (let i = 0; i < 14 && out.length < limit; i++) {
     const d = new Date(now); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + i);
     for (const w of _ivcalDayWindows(d)) {
       for (const mm of _slotStarts(w, slot, buf)) {
@@ -25516,12 +25524,16 @@ function _ivcalNextOpenSlot() {
           const be = b.ends_at ? new Date(b.ends_at) : new Date(bs.getTime() + 30 * 60000);
           return bs < en && be > st;
         }).length;
-        if (taken < cap) return st;
+        if (taken < cap) {
+          out.push(st);
+          if (out.length >= limit) return out;
+        }
       }
     }
   }
-  return null;
+  return out;
 }
+function _ivcalNextOpenSlot() { return _ivcalNextOpenSlots(1)[0] || null; }
 // "Today at 2:30 PM" / "Tomorrow at 9:00 AM" / "Tuesday at 2:30 PM" /
 // "Tue, Jul 21 at 2:30 PM" — relative wording for the next-slot line.
 function _ivcalNextSlotTxt(st) {
@@ -25561,13 +25573,15 @@ function _ivcalAwaiting() {
   }).join("");
   const more = list.length > LIM
     ? `<button type="button" class="oc-await-more" data-ivcal-await-more>+${list.length - LIM} more in Funnel</button>` : "";
-  // Next genuinely-open slot (override- and capacity-aware) — the answer to
+  // Next genuinely-open slots (override- and capacity-aware) — the answer to
   // "when can the next candidate actually book?", straight from the cache.
-  const nextAt = _ivcalNextOpenSlot();
+  // Up to three chips (#14) so the operator can offer alternatives without
+  // opening the grid.
+  const nextAts = _ivcalNextOpenSlots(3);
   const nextRow = `<div class="oc-next-slot">
-    <span class="oc-next-slot-l">Next available slot</span>
-    ${nextAt
-      ? `<button type="button" class="oc-next-slot-v" data-ivcal-nextslot="${nextAt.toISOString()}" title="Go to this slot on the calendar">${escapeHtml(_ivcalNextSlotTxt(nextAt))}</button>`
+    <span class="oc-next-slot-l">Next available slot${nextAts.length > 1 ? "s" : ""}</span>
+    ${nextAts.length
+      ? nextAts.map((at, i) => `<button type="button" class="oc-next-slot-v${i ? " is-alt" : ""}" data-ivcal-nextslot="${at.toISOString()}" title="Go to this slot on the calendar">${escapeHtml(_ivcalNextSlotTxt(at))}</button>`).join("")
       : `<span class="oc-next-slot-none">None in the next 2 weeks</span>`}
   </div>`;
   const pendRow = `<div class="oc-await-pend"><span>Pending requests</span><span class="oc-await-count${list.length ? "" : " is-zero"}">${list.length}</span></div>`;
@@ -28416,6 +28430,7 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
         const startISO = isAllDay ? _ivLocalToISO(sdate, "00:00", tz) : _ivLocalToISO(sdate, stime, tz);
         const endISO   = isAllDay ? _ivLocalToISO(edate, "23:59", tz) : _ivLocalToISO(edate, etime, tz);
         if (new Date(endISO) <= new Date(startISO)) { toast("End must be after start", "warn"); if (btn) btn.style.opacity = ""; return; }
+        if (!isTask && !isAllDay && !(await _ivcalConflictGate(startISO, endISO, editEv.id))) { if (btn) btn.style.opacity = ""; return; }
         // Recurring-series member → ask the scope (Outlook-style). "Just this
         // event" falls through to the single-row patch below and detaches the
         // occurrence; wider scopes rewrite the series server-side.
@@ -28509,6 +28524,11 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
       }
       if (googleMeetPending && invitees.length) {
         toast("Heads up: the Google Meet link is attached when the event syncs to Google Calendar — the emailed invite may not include it yet", "info");
+      }
+      // Double-booking gate on the first occurrence (series follow the anchor).
+      if (!isTask && !isAllDay) {
+        const gs = _ivLocalToISO(sdate, stime, tz), ge = _ivLocalToISO(edate === sdate ? sdate : edate, etime, tz);
+        if (!(await _ivcalConflictGate(gs, ge, null))) { if (btn) btn.style.opacity = ""; return; }
       }
       // No forced video link — roomUrl is set only when the user pressed
       // Schedule Meeting. An untouched event stays a plain calendar invite.
@@ -30204,6 +30224,14 @@ function _ivcalSettingsMenu(btn) {
       </div>
     </div>
     <div class="oc-set-sec">
+      <div class="oc-set-h">Double-booking</div>
+      <div class="oc-set-seg" data-set-conflict title="What happens when a new or moved event overlaps another interview">
+        <button class="${_ivConflictMode === "badge" ? "on" : ""}" data-cf="badge">Badge</button>
+        <button class="${_ivConflictMode === "warn" ? "on" : ""}" data-cf="warn">Warn</button>
+        <button class="${_ivConflictMode === "block" ? "on" : ""}" data-cf="block">Block</button>
+      </div>
+    </div>
+    <div class="oc-set-sec">
       <div class="oc-set-h">Snap events to</div>
       <div class="oc-set-seg" data-set-snap>
         <button class="${_ivSnapMin === 5 ? "on" : ""}" data-sn="5">5m</button>
@@ -30276,6 +30304,12 @@ function _ivcalSettingsMenu(btn) {
     const b = e.target.closest("[data-sn]"); if (!b) return;
     _ivSnapMin = parseInt(b.getAttribute("data-sn"), 10) || 15;
     menu.querySelectorAll("[data-set-snap] button").forEach(x => x.classList.toggle("on", x === b));
+    _ivSavePrefs();
+  });
+  menu.querySelector("[data-set-conflict]").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-cf]"); if (!b) return;
+    _ivConflictMode = b.getAttribute("data-cf") || "badge";
+    menu.querySelectorAll("[data-set-conflict] button").forEach(x => x.classList.toggle("on", x === b));
     _ivSavePrefs();
   });
   menu.querySelector("[data-set-weeknums]").addEventListener("change", (e) => {
@@ -31020,11 +31054,54 @@ function _ivcalUndoToast(msg, undoFn) {
   document.body.appendChild(el);
   _ivcalUndoTimer = setTimeout(() => el.remove(), 8000);
 }
+// Schedulable events (not tasks, not the excluded id) overlapping [start,end).
+function _ivcalConflictsFor(startISO, endISO, excludeId) {
+  const s = new Date(startISO).getTime();
+  const e = endISO ? new Date(endISO).getTime() : s + 30 * 60000;
+  const out = [];
+  for (const b of ((_ivcalCache && _ivcalCache.bookings) || [])) {
+    if (String(b.id) === String(excludeId)) continue;
+    if (!["scheduled", "rescheduled"].includes(b.status || "scheduled")) continue;
+    if (b.metadata && b.metadata.is_task) continue;
+    const bs = new Date(b.starts_at).getTime();
+    const be = b.ends_at ? new Date(b.ends_at).getTime() : bs + 30 * 60000;
+    if (bs < e && s < be) out.push(b);
+  }
+  for (const g of ((_ivcalCache && _ivcalCache.sessions) || [])) {
+    const bs = new Date(g.starts_at).getTime();
+    const be = g.ends_at ? new Date(g.ends_at).getTime() : bs + 30 * 60000;
+    if (bs < e && s < be) out.push(g);
+  }
+  return out;
+}
+// Double-booking gate (#11): true = go ahead. Badge mode never intervenes
+// (the conflict badge still paints); warn asks; block refuses.
+async function _ivcalConflictGate(startISO, endISO, excludeId) {
+  if (_ivConflictMode === "badge") return true;
+  const hits = _ivcalConflictsFor(startISO, endISO, excludeId);
+  if (!hits.length) return true;
+  const names = hits.slice(0, 3).map(h => _ivcalEventLabel(h, h.capacity != null ? "session" : "booking")).join(", ");
+  if (_ivConflictMode === "block") {
+    toast(`Double-booking blocked — overlaps ${names}. Change this in calendar settings → Double-booking.`, "warn");
+    return false;
+  }
+  return await _rrConfirmDialog({
+    title: "Double-booked time",
+    body: `This overlaps: ${names}. Schedule anyway?`,
+    confirmLabel: "Schedule anyway",
+  });
+}
+
 // Optimistic time write: patch the cached row and repaint immediately, persist
 // in the background, roll the cache back on failure. `patch` carries the new
 // starts_at/ends_at (+ series detach); the pre-image of exactly those keys
 // backs both the rollback and the Undo toast.
 async function _ivcalApplyTimePatch(ev, patch, msg) {
+  // Double-booking enforcement on drags/nudges of schedulable events.
+  if (patch.starts_at && !(ev.metadata && ev.metadata.is_task)) {
+    const ok = await _ivcalConflictGate(patch.starts_at, patch.ends_at || ev.ends_at, ev.id);
+    if (!ok) { _ivcalRender(); return false; }
+  }
   const prev = {};
   for (const k of Object.keys(patch)) prev[k] = (k in ev && ev[k] !== undefined) ? ev[k] : null;
   Object.assign(ev, patch);
@@ -31401,6 +31478,16 @@ async function loadInterviewAvailabilityEditor() {
           <textarea class="rr-iv-intake" rows="3" placeholder="Do you have a valid CDL? *&#10;How did you hear about us? | Indeed / Referral / Other">${escapeHtml(iqLines)}</textarea></label>
         <label><input type="checkbox" class="rr-iv-verify" ${cfg.require_phone_verify ? "checked" : ""}> Require SMS code verification before booking</label>
         <label><input type="checkbox" class="rr-iv-public" ${cfg.offer_public ? "checked" : ""}> Offer this schedule as a pickable option on the booking page</label>
+        <div class="rr-iv-caps">
+          <label>Daily cap <input type="number" min="0" class="rr-iv-maxday" value="${parseInt(cfg.max_per_day, 10) || 0}" title="Maximum booked interviews per day — 0 = no cap"> /day (0 = off)</label>
+          <label>Min cancel notice <input type="number" min="0" class="rr-iv-mincancel" value="${parseInt(cfg.min_cancel_hours, 10) || 0}"> hrs</label>
+          <label>Self-reschedules <input type="number" min="0" class="rr-iv-maxresched" value="${parseInt(cfg.max_self_reschedules, 10) || 0}" title="After this many self-cancels, rebooking requires contacting you — 0 = unlimited"> max (0 = off)</label>
+        </div>
+        <div class="rr-iv-pool" data-pool="${escapeHtml(JSON.stringify(Array.isArray(cfg.interviewer_pool) ? cfg.interviewer_pool : []))}">
+          <span style="font-weight:600">Interviewer rotation</span>
+          <span class="rr-iv-hint">— bookings auto-assign the least-loaded teammate that week</span>
+          <div class="rr-iv-pool-list">Loading team…</div>
+        </div>
       </div>
     </details>`; })()}
     <div class="rr-iv-days">${rows}</div>
@@ -31414,6 +31501,20 @@ async function loadInterviewAvailabilityEditor() {
       <input type="text" class="rr-iv-s-label" placeholder="Label (optional)">
       <button class="rr-iv-btn is-ghost" id="rr-iv-add-btn">Add session</button>
     </div>`;
+
+  // Interviewer-rotation pool (0494): async staff list → checkboxes.
+  const poolHost = body.querySelector(".rr-iv-pool-list");
+  if (poolHost) {
+    _ivcalLoadStaff().then(staff => {
+      if (!document.body.contains(poolHost)) return;
+      let pool = [];
+      try { pool = JSON.parse(body.querySelector(".rr-iv-pool").getAttribute("data-pool") || "[]"); } catch (_) {}
+      const on = new Set(pool.map(p => String(p.id)));
+      poolHost.innerHTML = staff.length ? staff.map(u =>
+        `<label class="rr-iv-pool-item"><input type="checkbox" value="${escapeHtml(u.id)}" data-name="${escapeHtml(u.name)}"${on.has(String(u.id)) ? " checked" : ""}> ${escapeHtml(u.name)}</label>`).join("")
+        : `<span class="rr-iv-hint">No active teammates found.</span>`;
+    }).catch(() => { poolHost.innerHTML = `<span class="rr-iv-hint">Couldn't load the team list.</span>`; });
+  }
 
   // Replace a day's windows with a copied set (used by "copy to other days").
   const applyWinsToDay = (targetDay, srcWins) => {
@@ -31547,6 +31648,12 @@ async function _ivSave(body) {
           intake_questions: iq,
           require_phone_verify: !!body.querySelector(".rr-iv-verify")?.checked,
           offer_public: !!body.querySelector(".rr-iv-public")?.checked,
+          max_per_day: parseInt(body.querySelector(".rr-iv-maxday")?.value, 10) || 0,
+          min_cancel_hours: parseInt(body.querySelector(".rr-iv-mincancel")?.value, 10) || 0,
+          max_self_reschedules: parseInt(body.querySelector(".rr-iv-maxresched")?.value, 10) || 0,
+          interviewer_pool: Array.from(body.querySelectorAll(".rr-iv-pool-list input:checked")).map(cb => ({
+            id: cb.value, name: cb.getAttribute("data-name") || "Teammate",
+          })),
         };
       }
       const args = {
