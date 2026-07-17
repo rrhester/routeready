@@ -474,6 +474,18 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
 .rrnb-todo[data-checked="1"] .rrnb-todo-box{background:var(--accent);border-color:var(--accent);color:var(--surface)}
 .rrnb-todo[data-checked="1"] .rrnb-todo-text{color:var(--text-disabled);text-decoration:line-through}
 .rrnb-todo-text{flex:1;min-width:0}
+/* #22 nested to-dos + roll-up count */
+.rrnb-todo[data-todo-indent="1"]{margin-left:24px}
+.rrnb-todo[data-todo-indent="2"]{margin-left:48px}
+.rrnb-todo[data-todo-indent="3"]{margin-left:72px}
+.rrnb-todo[data-rollup]::after{content:attr(data-rollup);flex:0 0 auto;align-self:center;margin-left:6px;
+  font-size:11px;font-weight:600;color:var(--text-subtle);background:var(--surface-secondary);
+  border-radius:var(--r-pill);padding:1px 7px}
+/* #23 due-date chip */
+.rrnb-todo-due{flex:0 0 auto;align-self:center;margin-left:6px;font-size:11px;font-weight:600;
+  color:var(--text-subtle);background:var(--surface-secondary);border-radius:var(--r-pill);
+  padding:1px 7px;user-select:none}
+.rrnb-todo-due.overdue{color:var(--red,#dc2626);background:var(--red-soft,rgba(220,38,38,.12))}
 
 /* callout */
 .rrnb-editor .rrnb-callout{display:flex;gap:var(--s-2);margin:var(--s-2) 0;padding:var(--s-2) var(--s-3);
@@ -1712,6 +1724,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     ed.addEventListener("mousedown", tableResizeDown);
     ed.addEventListener("mousemove", tableResizeHover);
     updateWordCount();
+    recomputeTodoRollups(ed); scanTodoDue(ed);   // #22/#23 render saved nesting counts + due chips
     ed.addEventListener("dragover", function (e) { if (DH.dragging) { dhDragOver(e); return; } e.preventDefault(); ed.classList.add("rrnb-drop"); });
     ed.addEventListener("dragleave", function () { ed.classList.remove("rrnb-drop"); });
     ed.addEventListener("drop", function (e) { if (DH.dragging) { dhDrop(e); return; } onEditorDrop(e); });
@@ -2012,6 +2025,15 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     if (!todo || !ed.contains(todo)) return false;
     var txtEl = todo.querySelector(".rrnb-todo-text");
     var content = (txtEl && txtEl.textContent || "").replace(/​/g, "");
+    // #22 Tab / Shift+Tab nests / un-nests a to-do (up to 3 deep)
+    if (e.key === "Tab") {
+      e.preventDefault();
+      var lvl = +(todo.getAttribute("data-todo-indent") || 0);
+      lvl = e.shiftKey ? Math.max(0, lvl - 1) : Math.min(3, lvl + 1);
+      if (lvl) todo.setAttribute("data-todo-indent", String(lvl)); else todo.removeAttribute("data-todo-indent");
+      recomputeTodoRollups(ed); scheduleSave();
+      return true;
+    }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       if (!content.trim()) { todoToParagraph(todo, false); scheduleSave(); return true; }
@@ -2023,9 +2045,10 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
         r.deleteContents();
       } catch (err) {}
       var row = makeTodo(after);
+      var inh = todo.getAttribute("data-todo-indent"); if (inh) row.setAttribute("data-todo-indent", inh);   // new row keeps the nesting level
       todo.parentNode.insertBefore(row, todo.nextSibling);
       caretToEl(row.querySelector(".rrnb-todo-text"), true);
-      scheduleSave();
+      recomputeTodoRollups(ed); scheduleSave();
       return true;
     }
     if (e.key === "Backspace" && caretAtStartOf(txtEl, sel)) {
@@ -2035,6 +2058,50 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       return true;
     }
     return false;
+  }
+  // #22 roll-up count on a parent to-do: how many of the deeper-indented
+  // to-dos beneath it are done. Written to data-rollup (view-only, shown via
+  // CSS ::after) and stripped from the saved HTML.
+  function recomputeTodoRollups(ed) {
+    ed = ed || $id("rrnb-editor"); if (!ed) return;
+    var todos = [].slice.call(ed.querySelectorAll(".rrnb-todo"));
+    todos.forEach(function (t) { t.removeAttribute("data-rollup"); });
+    for (var i = 0; i < todos.length; i++) {
+      var lvl = +(todos[i].getAttribute("data-todo-indent") || 0), checked = 0, total = 0;
+      for (var j = i + 1; j < todos.length; j++) {
+        var lj = +(todos[j].getAttribute("data-todo-indent") || 0);
+        if (lj <= lvl) break;
+        total++; if (todos[j].getAttribute("data-checked") === "1") checked++;
+      }
+      if (total > 0) todos[i].setAttribute("data-rollup", checked + "/" + total);
+    }
+  }
+  // #23 due dates on to-dos. data-due (YYYY-MM-DD) persists; the visible chip
+  // and its overdue state are rendered fresh (stripped from saved HTML).
+  function todayISO() { var d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+  function renderTodoDue(row) {
+    if (!row) return;
+    var ex = row.querySelector(".rrnb-todo-due"); if (ex) ex.remove();
+    var due = row.getAttribute("data-due"); if (!due) return;
+    var chip = document.createElement("span");
+    chip.className = "rrnb-todo-due"; chip.setAttribute("contenteditable", "false");
+    if (due < todayISO() && row.getAttribute("data-checked") !== "1") chip.className += " overdue";
+    var parts = due.split("-");
+    chip.textContent = "📅 " + (parts[1] || "") + "/" + (parts[2] || "");
+    chip.title = "Due " + due;
+    row.appendChild(chip);
+  }
+  function scanTodoDue(ed) { ed = ed || $id("rrnb-editor"); if (!ed) return; [].slice.call(ed.querySelectorAll(".rrnb-todo[data-due]")).forEach(renderTodoDue); }
+  function setTodoDue(row) {
+    if (!row) return;
+    var cur = row.getAttribute("data-due") || "";
+    var pop = showPop('<label>Due date</label><input type="date" id="rrnb-due-in" value="' + esc(cur) + '" /><div class="rrnb-pop-row"><button class="rrnb-pop-btn ghost" data-due-clear="1">Clear</button><button class="rrnb-pop-btn" id="rrnb-due-ok">Set</button></div>', row.getBoundingClientRect());
+    pop.addEventListener("mousedown", function (e) { e.stopPropagation(); });
+    var inp = $id("rrnb-due-in"); if (inp) inp.focus();
+    pop.addEventListener("click", function (e) {
+      if (e.target.closest("[data-due-clear]")) { row.removeAttribute("data-due"); renderTodoDue(row); hidePop(); scheduleSave(); return; }
+      if (e.target.closest("#rrnb-due-ok")) { var v = ($id("rrnb-due-in") || {}).value; if (v) row.setAttribute("data-due", v); else row.removeAttribute("data-due"); renderTodoDue(row); hidePop(); scheduleSave(); return; }
+    });
   }
   function insertCodeBlock() { insertHTMLAtCursor('<pre><code>' + (esc(window.getSelection().toString()) || "​") + '</code></pre><p><br></p>'); }
   function insertCallout() { insertHTMLAtCursor('<div class="rrnb-callout"><span class="ico">💡</span><div>' + (esc(window.getSelection().toString()) || "Note…") + '</div></div><p><br></p>'); }
@@ -2095,7 +2162,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
 
   function onEditorClick(e) {
     var box = e.target.closest(".rrnb-todo-box");
-    if (box) { var row = box.closest(".rrnb-todo"); row.setAttribute("data-checked", row.getAttribute("data-checked") === "1" ? "0" : "1"); box.textContent = row.getAttribute("data-checked") === "1" ? "✓" : ""; scheduleSave(); return; }
+    if (box) { var row = box.closest(".rrnb-todo"); row.setAttribute("data-checked", row.getAttribute("data-checked") === "1" ? "0" : "1"); box.textContent = row.getAttribute("data-checked") === "1" ? "✓" : ""; recomputeTodoRollups(ed); if (row.getAttribute("data-due")) renderTodoDue(row); scheduleSave(); return; }
     var ed = $id("rrnb-editor");
     // #16: clicking the fold chevron in a heading's left gutter toggles the fold
     if (ed && !S.readOnly) {
@@ -2924,6 +2991,10 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     var clean = ed.cloneNode(true);
     clean.querySelectorAll("figure.rrnb-fig.sel, img.sel").forEach(function (n) { n.classList.remove("sel"); });
     clean.querySelectorAll(".rrnb-folded, .rrnb-fold-hidden").forEach(function (n) { n.classList.remove("rrnb-folded", "rrnb-fold-hidden"); if (!n.className) n.removeAttribute("class"); });
+    // #22/#23: fold-in the transient to-do roll-up count + rendered due chip;
+    // data-todo-indent and data-due are structural and kept.
+    clean.querySelectorAll(".rrnb-todo-due").forEach(function (n) { n.remove(); });
+    clean.querySelectorAll("[data-rollup]").forEach(function (n) { n.removeAttribute("data-rollup"); });
     return { title: title.value.trim() || "Untitled Page", content_html: clean.innerHTML, content_text: text, tags: (S.page && S.page.tags) || [] };
   }
   function scheduleSave() {
@@ -3787,9 +3858,11 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       var label = node.classList.contains("rrnb-fig") ? "picture"
         : node.classList.contains("rrnb-file") ? "attachment"
         : isCallout ? "callout" : node.classList.contains("rrnb-todo") ? "to-do" : "divider";
+      var isTodo = node.classList.contains("rrnb-todo");
       var items = [];
       if (isCallout) items.push({ act: "cv-note", label: "💡 Note" }, { act: "cv-info", label: "ℹ️ Info" }, { act: "cv-warn", label: "⚠️ Warning" }, { act: "cv-ok", label: "✅ Success" }, { sep: 1 });
       else if (isHr) items.push({ act: "dv-solid", label: "Solid line" }, { act: "dv-dotted", label: "Dotted line" }, { act: "dv-thick", label: "Thick line" }, { sep: 1 });
+      else if (isTodo) { items.push({ act: "due-set", label: node.getAttribute("data-due") ? "Change due date…" : "Set due date…" }); if (node.getAttribute("data-due")) items.push({ act: "due-clear", label: "Clear due date" }); items.push({ sep: 1 }); }
       items.push({ act: "del", label: "Delete " + label, danger: true });
       showCtx(e.clientX, e.clientY, items);
       $id("rrnb-ctx")._target = { kind: "ednode", el: node };
@@ -4672,6 +4745,8 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       if (act === "del" && t.el) { t.el.remove(); scheduleSave(); return; }
       if (act.indexOf("cv-") === 0 && t.el) { setCalloutVariant(t.el, act.slice(3)); return; }
       if (act.indexOf("dv-") === 0 && t.el) { t.el.setAttribute("data-style", act.slice(3)); scheduleSave(); return; }
+      if (act === "due-set" && t.el) { setTodoDue(t.el); return; }
+      if (act === "due-clear" && t.el) { t.el.removeAttribute("data-due"); renderTodoDue(t.el); scheduleSave(); return; }
       return;
     }
     if (t.kind === "seltable") { if (act === "totable") linesToTable(t.range, t.text); return; }
