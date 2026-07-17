@@ -41768,6 +41768,27 @@ function _mcEnsureExtrasCss() {
     .rr-mc-threadsearch button{background:none;border:0;cursor:pointer;color:var(--text-subtle);font-size:14px;line-height:1;padding:3px 5px;border-radius:var(--r-sm)}
     .rr-mc-threadsearch button:hover{background:var(--surface-hover,#f3f4f6);color:var(--text)}
     .rr-mc-bubble.search-hit{outline:2px solid rgba(250,204,21,.75);outline-offset:1px}
+    /* Batch 4 · rooms & broadcasts */
+    .rr-cc-bubble{position:relative}
+    .rr-cc-bubble .rr-cc-actions{position:absolute;top:-12px;right:8px;display:none;gap:2px;background:var(--surface,#fff);border:1px solid var(--border);border-radius:var(--r-md);padding:2px;box-shadow:0 4px 14px rgba(15,23,42,.12);z-index:4}
+    .rr-cc-bubble:hover .rr-cc-actions{display:flex}
+    .rr-cc-actions button{background:none;border:0;cursor:pointer;color:var(--text-subtle);padding:4px;border-radius:var(--r-sm);width:26px;height:26px;display:flex;align-items:center;justify-content:center}
+    .rr-cc-actions button:hover{background:var(--surface-hover,#f3f4f6);color:var(--text)}
+    .rr-cc-actions svg{width:14px;height:14px}
+    .rr-cc-thread-chip{display:inline-flex;align-items:center;gap:4px;background:none;border:0;color:var(--accent-text);font:inherit;font-size:var(--fs-xs);font-weight:600;cursor:pointer;padding:2px 0;margin-top:2px}
+    .rr-cc-thread-chip:hover{text-decoration:underline}
+    .rr-cc-ackchip{display:inline-flex;align-items:center;gap:5px;background:var(--surface,#fff);border:1px solid var(--border);border-radius:var(--r-pill,999px);color:var(--text-subtle);font:inherit;font-size:var(--fs-xs);font-weight:700;padding:2px 9px;margin:4px 0 2px;cursor:pointer}
+    .rr-cc-ackchip.done{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-text)}
+    .rr-cc-ackchip:hover{border-color:var(--accent)}
+    .rr-cc-poll{border:1px solid var(--border);border-radius:var(--r-md);padding:9px 10px;margin-top:4px;background:var(--surface,#fff);min-width:230px}
+    .rr-cc-poll-q{font-weight:700;font-size:var(--fs-sm);color:var(--text);margin-bottom:7px}
+    .rr-cc-poll-opt{position:relative;display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:var(--canvas,#fafafa);border:1px solid var(--border);border-radius:var(--r-sm);padding:6px 9px;margin-bottom:5px;cursor:pointer;font:inherit;font-size:var(--fs-sm);color:var(--text);overflow:hidden}
+    .rr-cc-poll-opt:disabled{cursor:default;opacity:.85}
+    .rr-cc-poll-opt.mine{border-color:var(--accent)}
+    .rr-cc-poll-bar{position:absolute;left:0;top:0;bottom:0;background:var(--accent-soft);z-index:0;transition:width .25s ease}
+    .rr-cc-poll-lbl{position:relative;z-index:1;flex:1}
+    .rr-cc-poll-n{position:relative;z-index:1;font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600}
+    .rr-cc-poll-meta{font-size:10px;color:var(--text-subtle);margin-top:2px}
   `;
   document.head.appendChild(st);
 }
@@ -42241,11 +42262,15 @@ function _mcOpenPlusMenu(anchor, { ta, kind, targetId }) {
   pop.className = "rr-mc-pop rr-mc-plus-menu";
   pop.setAttribute("role", "menu");
   const undoSecs = _mcUndoSecs();
+  const chExtras = kind === "ch" ? `
+    <button type="button" role="menuitem" data-rr-pm="poll">📊<span>Create poll…</span></button>
+    <button type="button" role="menuitemcheckbox" data-rr-pm="ccack" aria-checked="${_ccRequireAck}">🫡<span>Require acknowledgement</span><span class="rr-mc-plus-val">${_ccRequireAck ? "On for next post" : "Off"}</span></button>
+    <button type="button" role="menuitem" data-rr-pm="board">📋<span>Delivery board…</span></button>` : "";
   pop.innerHTML = `
     <button type="button" role="menuitem" data-rr-pm="tpl">📋<span>Insert template…</span></button>
     <button type="button" role="menuitem" data-rr-pm="tplmgr">🗂️<span>Manage templates…</span></button>
     <button type="button" role="menuitem" data-rr-pm="sched">🕐<span>Schedule send…</span></button>
-    <button type="button" role="menuitem" data-rr-pm="dict" data-rr-mc-dict class="${_mcDictation ? "on" : ""}">🎙️<span>${_mcDictation ? "Stop dictation" : "Dictate"}</span></button>
+    <button type="button" role="menuitem" data-rr-pm="dict" data-rr-mc-dict class="${_mcDictation ? "on" : ""}">🎙️<span>${_mcDictation ? "Stop dictation" : "Dictate"}</span></button>${chExtras}
     <div class="rr-mc-plus-sep"></div>
     <div class="rr-mc-plus-note">Composer settings</div>
     <button type="button" role="menuitemcheckbox" data-rr-pm="enter" aria-checked="${_mcEnterSends()}">⏎<span>Enter sends the message</span><span class="rr-mc-plus-val">${_mcEnterSends() ? "On" : "Off — Ctrl+Enter sends"}</span></button>
@@ -42258,6 +42283,21 @@ function _mcOpenPlusMenu(anchor, { ta, kind, targetId }) {
     if (act === "tpl") { _mcDismissPops(); _mcOpenTemplatePicker(ta, kind); return; }
     if (act === "tplmgr") { _mcDismissPops(); _mcOpenTemplateManager(); return; }
     if (act === "sched") { _mcDismissPops(); _mcOpenScheduleSend({ kind, targetId, ta }); return; }
+    if (act === "poll") { _mcDismissPops(); _ccOpenPollCreate(targetId); return; }
+    if (act === "ccack") {
+      _ccRequireAck = !_ccRequireAck;
+      b.setAttribute("aria-checked", String(_ccRequireAck));
+      b.querySelector(".rr-mc-plus-val").textContent = _ccRequireAck ? "On for next post" : "Off";
+      return;
+    }
+    if (act === "board") {
+      _mcDismissPops();
+      const lastAck = [..._ccLastChannelMsgs].reverse().find((m) => m.requires_ack && m.sender_kind === "dispatch")
+        || [..._ccLastChannelMsgs].reverse().find((m) => m.sender_kind === "dispatch");
+      if (lastAck) _ccOpenDeliveryBoard(lastAck.id);
+      else toast("Post a broadcast first — the board tracks who's seen and acknowledged it", "info");
+      return;
+    }
     if (act === "dict") { const on = _mcToggleDictation(ta); b.classList.toggle("on", on); b.querySelector("span").textContent = on ? "Stop dictation" : "Dictate"; return; }
     if (act === "enter") {
       _mcSetPref("rr_msg_enter_sends", _mcEnterSends() ? "0" : "1");
@@ -43385,25 +43425,31 @@ function _mcOpenReactPicker(anchor, messageId) {
 // ─── Bubble action handlers (Batch 2: reply / more / history / jump) ─────
 function _mcMsgById(id) { return (_mcLastMsgs || []).find((m) => String(m.id) === String(id)); }
 
-// Reply bar above the composer (#13).
-function _mcShowReplyBar() {
-  const form = document.getElementById("rr-mc-form");
+// Reply bar above a composer (#13 for DMs, #43 for rooms).
+function _mcRenderReplyBar(form, reply, onCancel) {
   if (!form) return;
   form.querySelector(".rr-mc-replybar")?.remove();
-  if (!_mcReplyTo) return;
+  if (!reply) return;
   _mcEnsureExtrasCss();
   const bar = document.createElement("div");
   bar.className = "rr-mc-replybar";
   bar.innerHTML = `
     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
-    <span class="rr-mc-replybar-txt"><b>Replying to ${escapeHtml(_mcReplyTo.label)}</b> · ${escapeHtml(_mcReplyTo.text.slice(0, 80))}</span>
+    <span class="rr-mc-replybar-txt"><b>Replying to ${escapeHtml(reply.label)}</b> · ${escapeHtml(reply.text.slice(0, 80))}</span>
     <button type="button" data-rr-reply-cancel aria-label="Cancel reply">×</button>`;
   form.style.position = "relative";
   form.appendChild(bar);
-  bar.querySelector("[data-rr-reply-cancel]").addEventListener("click", () => {
-    _mcReplyTo = null;
-    _mcShowReplyBar();
-  });
+  bar.querySelector("[data-rr-reply-cancel]").addEventListener("click", onCancel);
+}
+function _mcShowReplyBar() {
+  _mcRenderReplyBar(document.getElementById("rr-mc-form"), _mcReplyTo, () => { _mcReplyTo = null; _mcShowReplyBar(); });
+}
+let _ccReplyTo = null;     // channel reply state (#43)
+let _ccRequireAck = false; // next channel post requires ack (#38)
+let _ccAcks = [];          // acks for the open channel
+let _ccPolls = [];         // polls for the open channel
+function _ccShowReplyBar() {
+  _mcRenderReplyBar(document.getElementById("rr-cc-form"), _ccReplyTo, () => { _ccReplyTo = null; _ccShowReplyBar(); });
 }
 
 document.addEventListener("click", async (e) => {
@@ -43935,6 +43981,415 @@ document.addEventListener("click", (e) => {
   input.focus();
 });
 
+// ─── Rooms & broadcasts (Batch 4 · #35–44) ───────────────────────────────
+let _ccLastChannelMsgs = []; // loaded channel window (thread view, quotes)
+
+// Delegated channel-bubble handlers: reply, jump-to-quote, thread view,
+// ack board, room info.
+document.addEventListener("click", (e) => {
+  const replyBtn = e.target.closest("[data-rr-cc-reply]");
+  if (replyBtn) {
+    const id = replyBtn.getAttribute("data-rr-cc-reply");
+    const m = (_ccLastChannelMsgs || []).find((x) => String(x.id) === String(id));
+    if (!m) return;
+    _ccReplyTo = {
+      id: m.id,
+      label: m.sender_kind === "dispatch" ? (m.sender_name || "Dispatch") : (m.sender_name || "Driver"),
+      text: m.body || (m.attachment_name ? "📎 " + m.attachment_name : "Message"),
+    };
+    _ccShowReplyBar();
+    document.getElementById("rr-cc-input")?.focus();
+    return;
+  }
+  const ccJump = e.target.closest("[data-rr-cc-jumpto]");
+  if (ccJump) {
+    const id = ccJump.getAttribute("data-rr-cc-jumpto");
+    const sel = (window.CSS && CSS.escape) ? CSS.escape(id) : id;
+    const bubble = document.querySelector(`#rr-cc-thread [data-rr-cc-msg="${sel}"]`);
+    if (bubble) _rrMcFlashBubble(bubble);
+    else toast("That message is further back in history", "info");
+    return;
+  }
+  const tv = e.target.closest("[data-rr-cc-thread-view]");
+  if (tv) { _ccOpenThreadView(tv.getAttribute("data-rr-cc-thread-view")); return; }
+  const ab = e.target.closest("[data-rr-cc-ackboard]");
+  if (ab) { _ccOpenDeliveryBoard(ab.getAttribute("data-rr-cc-ackboard")); return; }
+  const info = e.target.closest("[data-rr-cc-info]");
+  if (info) { _ccOpenRoomInfo(info.getAttribute("data-rr-cc-info")); return; }
+});
+
+// Poll rendering (#41): swap the "📊 question" body for a live poll block.
+function _ccApplyPolls() {
+  const thread = document.getElementById("rr-cc-thread");
+  if (!thread || !_ccPolls.length) return;
+  _ccPolls.forEach((p) => {
+    if (!p.message_id) return;
+    const sel = (window.CSS && CSS.escape) ? CSS.escape(p.message_id) : p.message_id;
+    const bubble = thread.querySelector(`[data-rr-cc-msg="${sel}"]`);
+    if (!bubble || bubble.querySelector(".rr-cc-poll")) return;
+    const counts = Array.isArray(p.counts) ? p.counts : [];
+    const total = counts.reduce((a, b) => a + (b || 0), 0);
+    const closed = p.closes_at && new Date(p.closes_at).getTime() < Date.now();
+    const opts = (p.options || []).map((opt, i) => {
+      const n = counts[i] || 0;
+      const pct = total ? Math.round((n / total) * 100) : 0;
+      const mine = p.my_vote === i;
+      return `<button type="button" class="rr-cc-poll-opt${mine ? " mine" : ""}" data-rr-poll-vote="${escapeHtml(String(p.poll_id))}" data-idx="${i}" ${closed ? "disabled" : ""} aria-pressed="${mine}">
+          <span class="rr-cc-poll-bar" style="width:${pct}%"></span>
+          <span class="rr-cc-poll-lbl">${escapeHtml(String(opt))}</span>
+          <span class="rr-cc-poll-n">${n} · ${pct}%</span>
+        </button>`;
+    }).join("");
+    const block = document.createElement("div");
+    block.className = "rr-cc-poll";
+    block.innerHTML = `<div class="rr-cc-poll-q">📊 ${escapeHtml(p.question)}</div>${opts}
+      <div class="rr-cc-poll-meta">${total} vote${total === 1 ? "" : "s"}${p.closes_at ? (closed ? " · closed" : ` · closes ${new Date(p.closes_at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`) : ""}</div>`;
+    // Replace the plain body div (the "📊 question" text) with the block.
+    const bodyDiv = Array.from(bubble.children).find((c) => c.tagName === "DIV" && !c.className);
+    if (bodyDiv) bodyDiv.replaceWith(block);
+    else bubble.appendChild(block);
+  });
+}
+document.addEventListener("click", async (e) => {
+  const v = e.target.closest("[data-rr-poll-vote]");
+  if (!v) return;
+  const { error } = await sb.rpc("dispatch_poll_vote", {
+    p_poll_id: v.getAttribute("data-rr-poll-vote"),
+    p_option: +v.getAttribute("data-idx"),
+  }).then((r) => r, (err) => ({ error: err }));
+  if (error) { toast("Couldn't vote: " + (error.message || ""), "warn"); return; }
+  refreshChannelThread(false);
+});
+
+// Poll creation modal (#41).
+function _ccOpenPollCreate(channelId) {
+  _mcEnsureExtrasCss();
+  document.getElementById("rr-cc-poll-modal")?.remove();
+  const ov = document.createElement("div");
+  ov.className = "rr-mc-modal";
+  ov.id = "rr-cc-poll-modal";
+  ov.innerHTML = `
+    <div class="rr-mc-modal-back"></div>
+    <div class="rr-mc-modal-card" role="dialog" aria-modal="true" aria-label="Create poll">
+      <div class="rr-mc-modal-head">Create a poll<button type="button" class="rr-mc-modal-x" aria-label="Close">×</button></div>
+      <div class="rr-mc-modal-body">
+        <label class="rr-mc-f"><span>Question</span><input type="text" data-rr-pq maxlength="300" placeholder="Who can cover Saturday?"></label>
+        <div data-rr-popts>
+          <label class="rr-mc-f"><span>Option 1</span><input type="text" data-rr-po maxlength="80"></label>
+          <label class="rr-mc-f"><span>Option 2</span><input type="text" data-rr-po maxlength="80"></label>
+        </div>
+        <button type="button" class="btn btn-sm" data-rr-po-add>+ Add option</button>
+        <label class="rr-mc-f" style="margin-top:12px"><span>Closes (optional)</span><input type="datetime-local" data-rr-pc></label>
+      </div>
+      <div class="rr-mc-modal-foot">
+        <button type="button" class="btn btn-sm" data-rr-pp-cancel>Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary" data-rr-pp-go>Post poll</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelector(".rr-mc-modal-back").addEventListener("click", close);
+  ov.querySelector(".rr-mc-modal-x").addEventListener("click", close);
+  ov.querySelector("[data-rr-pp-cancel]").addEventListener("click", close);
+  ov.querySelector("[data-rr-po-add]").addEventListener("click", () => {
+    const box = ov.querySelector("[data-rr-popts]");
+    if (box.querySelectorAll("[data-rr-po]").length >= 8) return;
+    box.insertAdjacentHTML("beforeend", `<label class="rr-mc-f"><span>Option ${box.querySelectorAll("[data-rr-po]").length + 1}</span><input type="text" data-rr-po maxlength="80"></label>`);
+  });
+  ov.querySelector("[data-rr-pp-go]").addEventListener("click", async () => {
+    const q = ov.querySelector("[data-rr-pq]").value.trim();
+    const opts = Array.from(ov.querySelectorAll("[data-rr-po]")).map((i) => i.value.trim()).filter(Boolean);
+    const closesRaw = ov.querySelector("[data-rr-pc]").value;
+    if (!q || opts.length < 2) { toast("A question and at least two options are required", "warn"); return; }
+    const { error } = await sb.rpc("dispatch_poll_create", {
+      p_channel_id: channelId, p_question: q, p_options: opts,
+      p_closes_at: closesRaw ? new Date(closesRaw).toISOString() : null,
+    }).then((r) => r, (err) => ({ error: err }));
+    if (error) {
+      toast(_mcRpcMissing(error) ? "Polls unlock once migration 0506 is applied" : ("Couldn't create the poll: " + (error.message || "")), "warn");
+      return;
+    }
+    close();
+    refreshChannelThread(true);
+  });
+}
+
+// Delivery board (#37) + nudge unacknowledged (#38) for one broadcast.
+async function _ccOpenDeliveryBoard(messageId) {
+  _mcEnsureExtrasCss();
+  document.getElementById("rr-cc-board-modal")?.remove();
+  const channelId = _msgChannelSelectedId;
+  const m = (_ccLastChannelMsgs || []).find((x) => String(x.id) === String(messageId));
+  const [memberRes, readRes, ackRes] = await Promise.all([
+    sb.rpc("dispatch_channel_members", { p_channel_id: channelId }).then((r) => r, () => ({ data: null })),
+    sb.rpc("dispatch_channel_read_state", { p_channel_id: channelId }).then((r) => r, () => ({ data: null })),
+    sb.rpc("dispatch_channel_acks", { p_channel_id: channelId }).then((r) => r, () => ({ data: null })),
+  ]);
+  const members = memberRes?.data?.members || [];
+  const readers = new Map((readRes?.data?.readers || []).map((x) => [String(x.driver_id), x.last_read_at]));
+  const acks = new Map((ackRes?.data?.acks || []).filter((a) => a.message_id === messageId).map((a) => [String(a.driver_id), a.acked_at]));
+  const msgAt = m ? new Date(m.created_at).getTime() : 0;
+  const rows = members.map((mm) => {
+    const readAt = readers.get(String(mm.driver_id));
+    const seen = readAt && msgAt && new Date(readAt).getTime() >= msgAt;
+    const ackedAt = acks.get(String(mm.driver_id));
+    return { ...mm, seen, ackedAt };
+  }).sort((a, b) => (!!b.ackedAt - !!a.ackedAt) || (b.seen - a.seen) || String(a.full_name || "").localeCompare(String(b.full_name || "")));
+  const unacked = rows.filter((r) => !r.ackedAt);
+  const requiresAck = !!(m && m.requires_ack);
+  const ov = document.createElement("div");
+  ov.className = "rr-mc-modal";
+  ov.id = "rr-cc-board-modal";
+  ov.innerHTML = `
+    <div class="rr-mc-modal-back"></div>
+    <div class="rr-mc-modal-card" role="dialog" aria-modal="true" aria-label="Delivery board" style="width:min(560px,94vw)">
+      <div class="rr-mc-modal-head">Delivery board<button type="button" class="rr-mc-modal-x" aria-label="Close">×</button></div>
+      <div class="rr-mc-modal-body">
+        ${m ? `<div style="font-size:var(--fs-sm);color:var(--text-subtle);border:1px solid var(--border);border-radius:var(--r-md);padding:8px 10px;margin-bottom:10px;max-height:72px;overflow-y:auto;white-space:pre-wrap">${escapeHtml(m.body || (m.attachment_name ? "📎 " + m.attachment_name : ""))}</div>` : ""}
+        <div style="display:grid;grid-template-columns:1fr auto auto;gap:4px 14px;font-size:var(--fs-sm)">
+          <div class="rr-mc-emoji-head" style="padding:0">Member</div><div class="rr-mc-emoji-head" style="padding:0">Seen</div><div class="rr-mc-emoji-head" style="padding:0">${requiresAck ? "Acknowledged" : ""}</div>
+          ${rows.map((r) => `
+            <div style="color:var(--text);font-weight:560;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(r.full_name || "")}</div>
+            <div style="text-align:center">${r.seen ? "✓" : "—"}</div>
+            <div style="text-align:right;color:var(--text-subtle);font-size:var(--fs-xs)">${requiresAck ? (r.ackedAt ? "✓ " + new Date(r.ackedAt).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "—") : ""}</div>
+          `).join("")}
+        </div>
+      </div>
+      <div class="rr-mc-modal-foot">
+        ${requiresAck && unacked.length ? `<button type="button" class="btn btn-sm" data-rr-nudge>Nudge unacknowledged (${unacked.length})</button>` : ""}
+        <button type="button" class="btn btn-sm btn-primary" data-rr-board-done>Done</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelector(".rr-mc-modal-back").addEventListener("click", close);
+  ov.querySelector(".rr-mc-modal-x").addEventListener("click", close);
+  ov.querySelector("[data-rr-board-done]").addEventListener("click", close);
+  ov.querySelector("[data-rr-nudge]")?.addEventListener("click", async (ev) => {
+    const btn = ev.currentTarget;
+    const ok = await _rrConfirmDialog({
+      title: `Nudge ${unacked.length} driver${unacked.length === 1 ? "" : "s"}?`,
+      body: "Each gets a direct message asking them to open the room and acknowledge the notice.",
+      confirmLabel: "Send nudges",
+    });
+    if (!ok) return;
+    btn.disabled = true;
+    const meta = (_msgChannelList || []).find((c) => c.id === channelId) || {};
+    const note = `Please open #${meta.name || "the room"} and acknowledge the notice${m && m.body ? `: “${String(m.body).slice(0, 120)}”` : ""}.`;
+    let sent = 0;
+    for (const r of unacked) {
+      const { error } = await sb.rpc("dispatch_chat_send", { p_driver_id: r.driver_id, p_body: note, p_priority: "high", p_requires_ack: false });
+      if (!error) sent++;
+    }
+    toast(`Nudged ${sent} of ${unacked.length}`, sent === unacked.length ? "ok" : "warn");
+    btn.disabled = false;
+  });
+}
+
+// Thread view (#43): parent + its replies + a quick reply box.
+function _ccOpenThreadView(parentId) {
+  _mcEnsureExtrasCss();
+  document.getElementById("rr-cc-threadview")?.remove();
+  const parent = (_ccLastChannelMsgs || []).find((x) => String(x.id) === String(parentId));
+  if (!parent) return;
+  const replies = (_ccLastChannelMsgs || []).filter((x) => x.reply_to === parent.id);
+  const bubble = (m) => `
+    <div style="border:1px solid var(--border);border-radius:var(--r-md);padding:8px 10px;margin-bottom:7px">
+      <div style="font-size:10px;font-weight:700;color:var(--text-subtle);margin-bottom:2px">${escapeHtml(m.sender_kind === "dispatch" ? ("Dispatch" + (m.sender_name ? " · " + m.sender_name : "")) : (m.sender_name || "Driver"))} · ${escapeHtml(new Date(m.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }))}</div>
+      <div style="font-size:var(--fs-sm);color:var(--text);white-space:pre-wrap">${m.body ? _mdLite(linkifyEscaped(escapeHtml(m.body))) : (m.attachment_name ? "📎 " + escapeHtml(m.attachment_name) : "")}</div>
+    </div>`;
+  const ov = document.createElement("div");
+  ov.className = "rr-mc-modal";
+  ov.id = "rr-cc-threadview";
+  ov.innerHTML = `
+    <div class="rr-mc-modal-back"></div>
+    <div class="rr-mc-modal-card" role="dialog" aria-modal="true" aria-label="Thread">
+      <div class="rr-mc-modal-head">Thread<button type="button" class="rr-mc-modal-x" aria-label="Close">×</button></div>
+      <div class="rr-mc-modal-body">
+        ${bubble(parent)}
+        <div class="rr-mc-emoji-head" style="padding:4px 0 6px">${replies.length} repl${replies.length === 1 ? "y" : "ies"}</div>
+        ${replies.map(bubble).join("") || `<div class="u-subtle" style="font-size:var(--fs-sm)">No replies yet.</div>`}
+      </div>
+      <div class="rr-mc-modal-foot" style="gap:8px">
+        <input type="text" data-rr-tv-input placeholder="Reply in thread…" style="flex:1;border:1px solid var(--border);border-radius:var(--r-md);padding:8px 10px;font:inherit;font-size:var(--fs-sm)">
+        <button type="button" class="btn btn-sm btn-primary" data-rr-tv-send>Reply</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelector(".rr-mc-modal-back").addEventListener("click", close);
+  ov.querySelector(".rr-mc-modal-x").addEventListener("click", close);
+  const doSend = async () => {
+    const input = ov.querySelector("[data-rr-tv-input]");
+    const body = input.value.trim();
+    if (!body) return;
+    const params = { p_channel_id: _msgChannelSelectedId, p_body: _mcApplyShortcodes(body), p_reply_to: parent.id };
+    let res = await sb.rpc("dispatch_channel_post", params);
+    if (res.error && _mcRpcMissing(res.error)) {
+      delete params.p_reply_to;
+      res = await sb.rpc("dispatch_channel_post", params);
+    }
+    if (res.error) { toast("Couldn't reply: " + res.error.message, "warn"); return; }
+    close();
+    await refreshChannelThread(false);
+    _ccOpenThreadView(parentId);
+  };
+  ov.querySelector("[data-rr-tv-send]").addEventListener("click", doSend);
+  ov.querySelector("[data-rr-tv-input]").addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); doSend(); } });
+  ov.querySelector("[data-rr-tv-input]").focus();
+}
+
+// Room info panel (#44) in the right rail: description, announcement-only,
+// members, shared files, mute/archive shortcuts.
+async function _ccOpenRoomInfo(channelId) {
+  const panel = document.getElementById("rr-msg-details");
+  if (!panel) return;
+  const meta = (_msgChannelList || []).find((c) => c.id === channelId) || {};
+  const msgs = _ccLastChannelMsgs || [];
+  const files = msgs.filter((m) => m.attachment_path).slice(-12).reverse();
+  const isAnn = !!meta.announcement_only;
+  panel.dataset.rrDriverId = "ch-" + channelId; // non-empty so the rail opens
+  panel.innerHTML = `
+    <div class="dd-scroll">
+      <div class="dd-topbar">
+        <div class="dd-topbar-title">Room details</div>
+        <button type="button" class="dd-close" data-rr-details-close aria-label="Close details">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="dd-id">
+        <div class="dd-avatar avatar-sm" style="background:var(--accent-soft);color:var(--accent-text)">#</div>
+        <div class="dd-id-name">${escapeHtml(meta.name || "")}</div>
+        <div class="dd-id-role">${meta.member_count || 0} member${meta.member_count === 1 ? "" : "s"}${meta.station_code ? " · " + escapeHtml(meta.station_code) : ""}${isAnn ? " · announcement-only" : ""}</div>
+      </div>
+      <details class="dd-section" open>
+        <summary class="dd-sec-head"><span>About</span>${_RR_MC_ICONS.chevron}</summary>
+        <div class="dd-sec-body">
+          <textarea data-rr-ri-desc maxlength="280" placeholder="What is this room for?" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:var(--r-md);padding:7px 9px;font:inherit;font-size:var(--fs-sm);min-height:56px;background:var(--canvas)">${escapeHtml(meta.description || "")}</textarea>
+          <label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--text);margin-top:9px">
+            <input type="checkbox" data-rr-ri-ann ${isAnn ? "checked" : ""}> Announcement-only (drivers read, react &amp; acknowledge)
+          </label>
+          <button type="button" class="btn btn-sm btn-primary" data-rr-ri-save style="margin-top:10px">Save</button>
+        </div>
+      </details>
+      <details class="dd-section" open>
+        <summary class="dd-sec-head"><span>Members</span>${_RR_MC_ICONS.chevron}</summary>
+        <div class="dd-sec-body">
+          <button type="button" class="dd-link" data-rr-ri-members>Manage members ${_RR_MC_ICONS.chevron.replace('polyline points="6 9 12 15 18 9"', 'polyline points="9 18 15 12 9 6"')}</button>
+        </div>
+      </details>
+      <details class="dd-section">
+        <summary class="dd-sec-head"><span>Shared files</span>${_RR_MC_ICONS.chevron}</summary>
+        <div class="dd-sec-body">
+          ${files.length ? files.map((m) => `<a data-rr-mc-attach="${escapeHtml(m.attachment_path)}" target="_blank" rel="noopener" style="display:block;font-size:var(--fs-xs);font-weight:600;color:var(--accent-text);text-decoration:none;padding:4px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📎 ${escapeHtml(m.attachment_name || "File")}</a>`).join("") : `<div class="u-subtle" style="font-size:var(--fs-sm)">Nothing shared yet.</div>`}
+        </div>
+      </details>
+    </div>`;
+  _setMsgDetailsOpen(true);
+  setTimeout(() => _rrMcSignAttachments(), 0);
+  panel.querySelector("[data-rr-ri-members]")?.addEventListener("click", () => openChannelMembersModal(channelId));
+  panel.querySelector("[data-rr-ri-save]")?.addEventListener("click", async () => {
+    const desc = panel.querySelector("[data-rr-ri-desc]").value.trim();
+    const ann = panel.querySelector("[data-rr-ri-ann]").checked;
+    const { error } = await sb.rpc("dispatch_channel_update", {
+      p_channel_id: channelId, p_description: desc, p_announcement_only: ann,
+    }).then((r) => r, (err) => ({ error: err }));
+    if (error) {
+      toast(_mcRpcMissing(error) ? "Room settings unlock once migration 0506 is applied" : ("Couldn't save: " + (error.message || "")), "warn");
+      return;
+    }
+    toast("Room updated", "ok");
+    refreshChannelList(false);
+  });
+}
+
+// Dynamic-audience broadcast (#40): resolve the audience at send time and
+// deliver as individual DMs (same pipeline as roster bulk-message).
+async function _mcOpenBroadcastComposer() {
+  _mcEnsureExtrasCss();
+  document.getElementById("rr-mc-bcast-modal")?.remove();
+  const dspId = window.RR?.dsp?.id;
+  const ov = document.createElement("div");
+  ov.className = "rr-mc-modal";
+  ov.id = "rr-mc-bcast-modal";
+  ov.innerHTML = `
+    <div class="rr-mc-modal-back"></div>
+    <div class="rr-mc-modal-card" role="dialog" aria-modal="true" aria-label="New broadcast">
+      <div class="rr-mc-modal-head">New broadcast<button type="button" class="rr-mc-modal-x" aria-label="Close">×</button></div>
+      <div class="rr-mc-modal-body">
+        <label class="rr-mc-f"><span>Audience (resolved right now, at send time)</span>
+          <select data-rr-bc-aud style="width:100%;border:1px solid var(--border);border-radius:var(--r-md);padding:8px 10px;font:inherit;font-size:var(--fs-sm);background:var(--canvas)">
+            <option value="active">All active drivers</option>
+            <option value="today">Scheduled today</option>
+            <option value="tomorrow">Scheduled tomorrow</option>
+            <option value="not_tomorrow">NOT scheduled tomorrow</option>
+          </select>
+        </label>
+        <div data-rr-bc-preview class="u-subtle" style="font-size:var(--fs-xs);margin:-4px 0 10px">Resolving audience…</div>
+        <label class="rr-mc-f"><span>Message</span><textarea data-rr-bc-body maxlength="2000" placeholder="Type the broadcast…"></textarea></label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--text)"><input type="checkbox" data-rr-bc-ack> Require acknowledgement</label>
+      </div>
+      <div class="rr-mc-modal-foot">
+        <button type="button" class="btn btn-sm" data-rr-bc-cancel>Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary" data-rr-bc-send>Send broadcast</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelector(".rr-mc-modal-back").addEventListener("click", close);
+  ov.querySelector(".rr-mc-modal-x").addEventListener("click", close);
+  ov.querySelector("[data-rr-bc-cancel]").addEventListener("click", close);
+  const audSel = ov.querySelector("[data-rr-bc-aud]");
+  const preview = ov.querySelector("[data-rr-bc-preview]");
+  let audience = [];
+  const fmtD = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const resolve = async () => {
+    preview.textContent = "Resolving audience…";
+    const kind = audSel.value;
+    const { data: drivers } = await sb.from("drivers").select("id, full_name, status").eq("status", "active").order("full_name");
+    let list = drivers || [];
+    if (kind !== "active") {
+      const day = new Date();
+      if (kind !== "today") day.setDate(day.getDate() + 1);
+      const { data: shifts } = await sb.from("shifts")
+        .select("driver_id, status").eq("dsp_id", dspId).eq("date", fmtD(day));
+      const onDay = new Set((shifts || []).filter((s) => s.status !== "called_off" && s.status !== "no_show").map((s) => String(s.driver_id)));
+      list = kind === "not_tomorrow"
+        ? list.filter((d) => !onDay.has(String(d.id)))
+        : list.filter((d) => onDay.has(String(d.id)));
+    }
+    audience = list;
+    preview.textContent = audience.length
+      ? `${audience.length} driver${audience.length === 1 ? "" : "s"}: ${audience.slice(0, 6).map((d) => (d.full_name || "").split(/\s+/)[0]).join(", ")}${audience.length > 6 ? "…" : ""}`
+      : "No drivers match this audience right now.";
+  };
+  audSel.addEventListener("change", resolve);
+  resolve();
+  ov.querySelector("[data-rr-bc-send]").addEventListener("click", async (ev) => {
+    const btn = ev.currentTarget;
+    const body = _mcApplyShortcodes(ov.querySelector("[data-rr-bc-body]").value.trim());
+    const reqAck = ov.querySelector("[data-rr-bc-ack]").checked;
+    if (!body) { toast("Type the message first", "warn"); return; }
+    if (!audience.length) { toast("The audience is empty", "warn"); return; }
+    const ok = await _rrConfirmDialog({
+      title: `Send to ${audience.length} driver${audience.length === 1 ? "" : "s"}?`,
+      body: "Each gets it as a direct message.",
+      confirmLabel: "Send broadcast",
+    });
+    if (!ok) return;
+    btn.disabled = true;
+    let sent = 0;
+    for (const d of audience) {
+      const { error } = await sb.rpc("dispatch_chat_send", { p_driver_id: d.id, p_body: body, p_priority: "normal", p_requires_ack: reqAck });
+      if (!error) sent++;
+      btn.textContent = `Sending… ${sent}/${audience.length}`;
+    }
+    toast(`Broadcast sent to ${sent} of ${audience.length}`, sent === audience.length ? "ok" : "warn");
+    close();
+    refreshDriverChatList(false);
+  });
+}
+
 // ─── Edit / delete on dispatcher's own bubbles ───────────────────────────
 //
 // Hover actions on .rr-mc-bubble.dispatch trigger inline edit (a
@@ -44330,11 +44785,12 @@ async function refreshChannelList(autoSelect) {
     return new Date(iso).toLocaleDateString();
   };
   const headerBtn = `
-    <div style="padding:var(--s-2-5) var(--s-3);border-bottom:1px solid var(--border)">
-      <button class="btn btn-primary btn-sm" data-rr-channel-new style="width:100%">
+    <div style="padding:var(--s-2-5) var(--s-3);border-bottom:1px solid var(--border);display:flex;gap:6px">
+      <button class="btn btn-primary btn-sm" data-rr-channel-new style="flex:1">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;vertical-align:-2px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         ${newLabel}
       </button>
+      <button class="btn btn-sm" data-rr-broadcast-new title="Message a dynamic audience (station / scheduled tomorrow / …) as direct messages" style="flex:1">📣 Broadcast</button>
     </div>`;
   const kindList = _msgChannelList.filter(c => (c.kind || "broadcast") === _msgChannelKind);
   if (kindList.length === 0) {
@@ -44361,6 +44817,7 @@ async function refreshChannelList(autoSelect) {
     </div>`;
   }).join("");
   list.querySelector("[data-rr-channel-new]")?.addEventListener("click", openChannelCreateModal);
+  list.querySelector("[data-rr-broadcast-new]")?.addEventListener("click", _mcOpenBroadcastComposer);
   list.querySelectorAll("[data-rr-channel]").forEach((el) => {
     el.addEventListener("click", () => openChannelThread(el.dataset.rrChannel));
   });
@@ -44502,9 +44959,12 @@ function _ccWireMentionAutocomplete(ta) {
   const render = () => {
     const tok = currentToken();
     if (!tok) { close(); return; }
-    const matches = (_ccCurrentMembers || [])
+    let matches = (_ccCurrentMembers || [])
       .filter((mm) => mm.full_name.toLowerCase().includes(tok.q))
       .slice(0, 6);
+    // @everyone / @here (#42) — special audience mentions, confirmed at
+    // send time and rate-limited per channel.
+    if ("everyone".startsWith(tok.q) || tok.q === "") matches = [{ full_name: "everyone", special: true }, ...matches].slice(0, 7);
     if (!matches.length) { close(); return; }
     if (!menu) { menu = document.createElement("div"); menu.className = "rr-cc-mention-menu"; document.body.appendChild(menu); }
     menu.innerHTML = matches.map((mm, i) =>
@@ -44880,13 +45340,17 @@ async function refreshChannelThread(scrollToBottom) {
   // reactions, @mentions, and member read-state (0480 / 0481). Each is a
   // graceful no-op on servers where the migration isn't applied yet, so the
   // thread still renders if any RPC is missing.
-  const [msgRes, reactRes, mentionRes, readRes, memberRes] = await Promise.all([
+  const [msgRes, reactRes, mentionRes, readRes, memberRes, ackRes, pollRes] = await Promise.all([
     sb.rpc("dispatch_channel_messages", { p_channel_id: channelId, p_limit: _ccThreadLimit }),
     sb.rpc("dispatch_channel_reactions", { p_channel_id: channelId }).then((r) => r, () => ({ data: null })),
     sb.rpc("dispatch_channel_mentions",  { p_channel_id: channelId }).then((r) => r, () => ({ data: null })),
     sb.rpc("dispatch_channel_read_state",{ p_channel_id: channelId }).then((r) => r, () => ({ data: null })),
     sb.rpc("dispatch_channel_members",   { p_channel_id: channelId }).then((r) => r, () => ({ data: null })),
+    sb.rpc("dispatch_channel_acks",      { p_channel_id: channelId }).then((r) => r, () => ({ data: null })),
+    sb.rpc("dispatch_channel_polls",     { p_channel_id: channelId }).then((r) => r, () => ({ data: null })),
   ]);
+  _ccAcks = ackRes?.data?.acks || [];
+  _ccPolls = pollRes?.data?.polls || [];
   // Cache the member roster for @mention autocomplete + on-send resolution.
   _ccCurrentMembers = (memberRes?.data?.members || []).map((m) => ({ driver_id: m.driver_id, full_name: m.full_name })).filter((m) => m.full_name);
   const { data, error } = msgRes;
@@ -44895,6 +45359,7 @@ async function refreshChannelThread(scrollToBottom) {
     return;
   }
   const msgs = data?.messages || [];
+  _ccLastChannelMsgs = msgs;
   // Index reactions by message id: { messageId → [{emoji,count,mine}] }.
   const _ccReactByMsg = new Map();
   (reactRes?.data?.reactions || []).forEach((r) => {
@@ -44938,6 +45403,7 @@ async function refreshChannelThread(scrollToBottom) {
           <div class="rr-cc-head-actions">
             <button class="btn btn-sm rr-cc-mute-btn${_ccMutedIds.has(channelId) ? " muted" : ""}" data-rr-channel-mute="${escapeHtml(channelId)}" title="${_ccMutedIds.has(channelId) ? "Muted — click to unmute" : "Mute this channel"}" aria-label="${_ccMutedIds.has(channelId) ? "Unmute channel" : "Mute channel"}">${_ccMutedIds.has(channelId) ? "Muted" : "Mute"}</button>
             <button class="btn btn-sm" data-rr-channel-members="${escapeHtml(channelId)}">Members</button>
+            <button class="btn btn-sm" data-rr-cc-info="${escapeHtml(channelId)}" title="Room details">Info</button>
             <button class="btn btn-sm" data-rr-channel-archive="${escapeHtml(channelId)}">${meta.archived_at ? "Unarchive" : "Archive"}</button>
           </div>
         </div>
@@ -44997,6 +45463,27 @@ async function refreshChannelThread(scrollToBottom) {
       const body = _mcApplyShortcodes(rawBody);
       const staged = Array.isArray(window._rrCcPending) ? window._rrCcPending.slice() : [];
       if (!body && !staged.length) return;
+      const ccReplyTo = _ccReplyTo ? { ..._ccReplyTo } : null;
+      const ccReqAck = !!_ccRequireAck;
+      // @everyone / @here (#42): confirm + per-channel rate limit before
+      // anything leaves.
+      const isEveryone = /@everyone\b|@here\b/i.test(body);
+      if (isEveryone) {
+        const lastKey = "rr_cc_everyone_" + sendChannelId;
+        const last = parseInt(_mcPref(lastKey, "0"), 10) || 0;
+        if (Date.now() - last < 10 * 60 * 1000) {
+          toast("@everyone was used in this room less than 10 minutes ago — give it a moment", "warn");
+          return;
+        }
+        const total = _ccCurrentMembers.length;
+        const ok = await _rrConfirmDialog({
+          title: "Notify everyone?",
+          body: `@everyone pings all ${total} member${total === 1 ? "" : "s"} of this room.`,
+          confirmLabel: "Send to everyone",
+        });
+        if (!ok) return;
+        _mcSetPref(lastKey, String(Date.now()));
+      }
       const send = e.target.querySelector(".rr-cc-send");
       send.disabled = true;
 
@@ -45028,6 +45515,9 @@ async function refreshChannelThread(scrollToBottom) {
       }
       ta.value = ""; ta.style.height = "auto";
       _mcDraftClear("ch", sendChannelId);
+      _ccReplyTo = null;
+      _ccRequireAck = false;
+      _ccShowReplyBar();
       if (staged.length) attachCtl.clear();
 
       const _ccFail = (label, restoreFiles) => {
@@ -45061,6 +45551,8 @@ async function refreshChannelThread(scrollToBottom) {
           ta.dispatchEvent(new Event("input", { bubbles: true }));
           if (staged.length && attachCtl.stage) attachCtl.stage(staged.map((s) => s.file));
           _mcDraftSave("ch", sendChannelId, savedBody);
+          if (ccReplyTo) { _ccReplyTo = ccReplyTo; _ccShowReplyBar(); }
+          _ccRequireAck = ccReqAck;
           send.disabled = false;
           ta.focus();
           return;
@@ -45068,16 +45560,33 @@ async function refreshChannelThread(scrollToBottom) {
       }
 
       // Resolve @mentions from the draft against the member roster before we
-      // clear it, so we can attach them to the posted row.
-      const _mentionIds = _ccResolveMentions(body);
-      const postOne = (msgBody, attachment) => sb.rpc("dispatch_channel_post", {
-        p_channel_id:            sendChannelId,
-        p_body:                  msgBody || null,
-        p_attachment_path:       attachment?.path || null,
-        p_attachment_mime:       attachment?.mime || null,
-        p_attachment_name:       attachment?.name || null,
-        p_attachment_size_bytes: attachment?.size || null,
-      });
+      // clear it, so we can attach them to the posted row. @everyone (#42)
+      // mentions every member.
+      const _mentionIds = isEveryone
+        ? (_ccCurrentMembers || []).map((mm) => mm.driver_id)
+        : _ccResolveMentions(body);
+      const postOne = async (msgBody, attachment, replyToId, reqAck) => {
+        const params = {
+          p_channel_id:            sendChannelId,
+          p_body:                  msgBody || null,
+          p_attachment_path:       attachment?.path || null,
+          p_attachment_mime:       attachment?.mime || null,
+          p_attachment_name:       attachment?.name || null,
+          p_attachment_size_bytes: attachment?.size || null,
+        };
+        if (replyToId) params.p_reply_to = replyToId;
+        if (reqAck) params.p_requires_ack = true;
+        let res = await sb.rpc("dispatch_channel_post", params);
+        // Pre-0506 servers don't know the new params — retry plain rather
+        // than losing the post.
+        if (res.error && (replyToId || reqAck) && _mcRpcMissing(res.error)) {
+          delete params.p_reply_to;
+          delete params.p_requires_ack;
+          res = await sb.rpc("dispatch_channel_post", params);
+          if (!res.error) toast("Posted — threads & acknowledgements unlock once migration 0506 is applied", "info");
+        }
+        return res;
+      };
       // One post per attachment; the text body (and its mentions) rides the
       // first post.
       const uploads = staged.length ? staged : [null];
@@ -45097,7 +45606,10 @@ async function refreshChannelThread(scrollToBottom) {
           }
           attachment = { path, mime: f.type, name: f.name, size: f.size };
         }
-        const { data: postData, error } = await postOne(fi === 0 ? body : null, attachment);
+        const { data: postData, error } = await postOne(
+          fi === 0 ? body : null, attachment,
+          fi === 0 ? ccReplyTo?.id : null,
+          fi === 0 ? ccReqAck : false);
         if (error) {
           // Roll back the just-uploaded blob so a failed post doesn't orphan it.
           if (attachment?.path) {
@@ -45221,6 +45733,33 @@ async function refreshChannelThread(scrollToBottom) {
       const ccAttachOnly = (m.attachment_path && !m.body) ? " attach-only" : "";
       const reactsRow  = _ccReactionsRowHtml(m.id, _ccReactByMsg.get(m.id));
       const bookmarkBtn = _rrBookmarkBtnHtml("channel", m.id);
+      // Reply-quote (#43): quoted original above the body.
+      let ccQuote = "";
+      if (m.reply_to) {
+        const q = msgs.find((x) => x.id === m.reply_to);
+        const qWho = q ? (q.sender_kind === "dispatch" ? "Dispatch" : (q.sender_name || "Driver")) : "";
+        const qTxt = q ? (q.body || (q.attachment_name ? "📎 " + q.attachment_name : "Message")) : "Earlier message";
+        ccQuote = `<button type="button" class="rr-mc-quote" data-rr-cc-jumpto="${escapeHtml(m.reply_to)}" title="Go to the original message">
+          ${qWho ? `<span class="rr-mc-quote-who">${escapeHtml(qWho)}</span>` : ""}
+          <span class="rr-mc-quote-text">${escapeHtml(String(qTxt).slice(0, 120))}</span>
+        </button>`;
+      }
+      // Thread chip (#43): replies collapse under the parent.
+      const replyCount = msgs.reduce((n, x) => n + (x.reply_to === m.id ? 1 : 0), 0);
+      const threadChip = replyCount > 0
+        ? `<button type="button" class="rr-cc-thread-chip" data-rr-cc-thread-view="${escapeHtml(m.id)}">💬 ${replyCount} repl${replyCount === 1 ? "y" : "ies"} — view thread</button>`
+        : "";
+      // Ack summary chip (#37/#38) on requires-ack broadcasts.
+      let ackChipCc = "";
+      if (m.requires_ack && m.sender_kind === "dispatch") {
+        const acked = _ccAcks.filter((a) => a.message_id === m.id).length;
+        const total = _ccMemberCount || (_ccCurrentMembers || []).length;
+        ackChipCc = `<button type="button" class="rr-cc-ackchip${acked >= total && total > 0 ? " done" : ""}" data-rr-cc-ackboard="${escapeHtml(m.id)}" title="Open the delivery board">✓ ${acked} of ${total} acknowledged</button>`;
+      }
+      // Hover actions: reply (+ thread view when replies exist).
+      const ccActions = `<div class="rr-mc-bubble-actions rr-cc-actions">
+          <button type="button" data-rr-cc-reply="${escapeHtml(m.id)}" aria-label="Reply in thread" title="Reply"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg></button>
+        </div>`;
       // "Seen by N of M" — only on the latest dispatch broadcast, so the
       // operator can confirm the fleet actually saw an urgent notice.
       let seenPill = "";
@@ -45229,16 +45768,20 @@ async function refreshChannelThread(scrollToBottom) {
         seenPill = `<div class="rr-cc-seen" title="${seen} of ${_ccMemberCount} members have opened the channel since this message">Seen by ${seen} of ${_ccMemberCount}</div>`;
       }
       return `<div class="rr-cc-bubble ${m.sender_kind}${ccAttachOnly}" data-group-pos="${pos}" data-rr-cc-msg="${escapeHtml(m.id)}">
+        ${ccActions}
         ${showSender ? `<div class="rr-cc-sender">${escapeHtml(senderLabel)}</div>` : ""}
         ${bookmarkBtn}
-        ${attach}
+        ${ccQuote}${attach}
         ${bodyHtml}
+        ${ackChipCc}
         <div class="rr-cc-time">${escapeHtml(time)}</div>
         ${reactsRow}
+        ${threadChip}
       </div>${seenPill}`;
     }).join("");
   }
   thread.innerHTML = ccLoadOlderHtml + ccBody + ccLiveStubs + ccSentinelHtml;
+  _ccApplyPolls();
   if (msgs.some((m) => m.attachment_path)) setTimeout(() => _rrMcSignAttachments(), 0);
   // Wire "Load earlier" for channels — grow the page to 500 and re-fetch,
   // restoring scroll by the exact prepended height so the read position
@@ -45349,6 +45892,9 @@ function openChannelCreateModal() {
         <input id="rr-cc-new-name" class="form-input form-input-block" required maxlength="80" placeholder="${isHr ? "pto-requests" : "morning-wave"}">
         <label class="modal-field-label" for="rr-cc-new-desc">Description <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-subtle)">(optional)</span></label>
         <input id="rr-cc-new-desc" class="form-input form-input-block" maxlength="280" placeholder="What this channel is for">
+        <label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--text);margin-top:10px">
+          <input type="checkbox" id="rr-cc-new-ann"> Announcement-only — drivers read, react &amp; acknowledge, but can't post
+        </label>
         <label class="modal-field-label" for="rr-cc-new-station">Station scope</label>
         <select id="rr-cc-new-station" class="form-input form-input-block">
           <option value="">All stations · DSP-wide</option>
@@ -45390,6 +45936,12 @@ function openChannelCreateModal() {
     if (isHr) params.p_kind = "hr";
     const { data, error } = await sb.rpc("dispatch_channel_create", params);
     if (error) { toast("Create failed: " + error.message, "warn"); return; }
+    // Announcement-only (#36) is set post-create via the update RPC so
+    // creation still works against pre-0506 servers.
+    if (data?.id && document.getElementById("rr-cc-new-ann")?.checked) {
+      await sb.rpc("dispatch_channel_update", { p_channel_id: data.id, p_announcement_only: true })
+        .then((r) => r, () => ({}));
+    }
     wrap.remove();
     toast(isHr ? "HR group created" : "Channel created", "good");
     await refreshChannelList(false);
@@ -45420,6 +45972,11 @@ async function openChannelMembersModal(channelId) {
             <option value="">Add a driver…</option>
           </select>
           <button type="button" class="btn btn-primary" id="rr-cc-mem-add-btn">Add</button>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 4px">
+          <button type="button" class="btn btn-sm" data-rr-cc-bulk="active">+ All active</button>
+          <button type="button" class="btn btn-sm" data-rr-cc-bulk="today">+ Scheduled today</button>
+          <button type="button" class="btn btn-sm" data-rr-cc-bulk="tomorrow">+ Scheduled tomorrow</button>
         </div>
         <div id="rr-cc-mem-list" style="border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden">
           <div class="rr-loading">Loading</div>
@@ -45478,6 +46035,38 @@ async function openChannelMembersModal(channelId) {
     await paint();
     refreshChannelList(false);
   });
+
+  // Bulk membership (#35): add a whole audience at once.
+  wrap.querySelectorAll("[data-rr-cc-bulk]").forEach((btn) => btn.addEventListener("click", async () => {
+    const kind = btn.getAttribute("data-rr-cc-bulk");
+    btn.disabled = true;
+    const fmtD = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const [{ data: drvData }, { data: memData }] = await Promise.all([
+      sb.from("drivers").select("id, status").eq("status", "active"),
+      sb.rpc("dispatch_channel_members", { p_channel_id: channelId }).then((r) => r, () => ({ data: null })),
+    ]);
+    let ids = (drvData || []).map((d) => String(d.id));
+    if (kind !== "active") {
+      const day = new Date();
+      if (kind === "tomorrow") day.setDate(day.getDate() + 1);
+      const { data: shifts } = await sb.from("shifts")
+        .select("driver_id, status").eq("dsp_id", window.RR?.dsp?.id).eq("date", fmtD(day));
+      const onDay = new Set((shifts || []).filter((s) => s.status !== "called_off" && s.status !== "no_show").map((s) => String(s.driver_id)));
+      ids = ids.filter((id) => onDay.has(id));
+    }
+    const existing = new Set((memData?.members || []).map((m) => String(m.driver_id)));
+    const toAdd = ids.filter((id) => !existing.has(id));
+    if (!toAdd.length) { toast("Everyone in that audience is already a member", "info"); btn.disabled = false; return; }
+    let added = 0;
+    for (const id of toAdd) {
+      const { error } = await sb.rpc("dispatch_channel_add_member", { p_channel_id: channelId, p_driver_id: id });
+      if (!error) added++;
+    }
+    toast(`Added ${added} driver${added === 1 ? "" : "s"}`, "ok");
+    btn.disabled = false;
+    await paint();
+    refreshChannelList(false);
+  }));
 }
 
 function _coachSeverityChip(sev, level, topic, reason) {
