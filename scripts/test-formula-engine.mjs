@@ -1142,7 +1142,8 @@ await okA("xlsx round-trip: values, formula, date, escaping, merges, freeze, wid
   ]);
   const sheets = [
     { name: "Data", cells: s1, colWidths: { 0: 140 }, frozenRows: 1, frozenCols: 0, meta: { merges: [{ r0: 0, c0: 0, r1: 0, c1: 1 }] } },
-    { name: "Sheet Two", cells: new Map([["0,0", XC("second", "text")], ["0,1", XC("3.14", "number")]]), colWidths: {}, frozenRows: 0, frozenCols: 0, meta: {} },
+    // freeze-N panes survive the round trip (100-list #13)
+    { name: "Sheet Two", cells: new Map([["0,0", XC("second", "text")], ["0,1", XC("3.14", "number")]]), colWidths: {}, frozenRows: 3, frozenCols: 2, meta: {} },
   ];
   const parsed = await parseXlsxBytes(buildXlsxBytes(sheets));
   assert.deepEqual(parsed.sheets.map((s) => s.name), ["Data", "Sheet Two"]);
@@ -1157,6 +1158,8 @@ await okA("xlsx round-trip: values, formula, date, escaping, merges, freeze, wid
   assert.deepEqual(d.merges[0], { r0: 0, c0: 0, r1: 0, c1: 1 });
   assert.ok(d.colWidths[0] >= 130 && d.colWidths[0] <= 150);
   assert.equal(findCell(parsed.sheets[1], 0, 1).value, "3.14");
+  assert.equal(parsed.sheets[1].frozenRows, 3);
+  assert.equal(parsed.sheets[1].frozenCols, 2);
 });
 
 await okA("xlsx import: deflate + shared strings (rich-text runs) + date styles", async () => {

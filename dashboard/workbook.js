@@ -6919,6 +6919,55 @@ function confirmModal({ title, body, confirmLabel, danger, onConfirm }) {
   setTimeout(() => wrap.querySelector("[data-wb-confirm]")?.focus(), 30);
 }
 
+// Input twin of confirmModal: one labelled field + Cancel/Apply. Replaces
+// window.prompt call sites (100-list #17). kind:"number" clamps to min/max;
+// Enter applies, Escape closes. onSubmit gets the final value.
+function promptModal({ title, label, value, kind, min, max, placeholder, submitLabel, onSubmit }) {
+  document.getElementById("wb-prompt-modal")?.remove();
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-prompt-modal";
+  wrap.innerHTML = `
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="${esc(title)}" style="width:380px">
+      <div class="rr-modal-head">
+        <div class="rr-modal-head-content"><p class="rr-modal-title">${esc(title)}</p></div>
+        <button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button>
+      </div>
+      <div class="rr-modal-body"><label class="wb-field"><span class="wb-field-label">${esc(label || "")}</span>
+        <input class="wb-input" data-wb-prompt-input type="${kind === "number" ? "number" : "text"}"
+          ${kind === "number" && min != null ? `min="${min}"` : ""} ${kind === "number" && max != null ? `max="${max}"` : ""}
+          value="${esc(value == null ? "" : String(value))}" placeholder="${esc(placeholder || "")}"></label></div>
+      <div class="rr-modal-foot">
+        <button class="rr-modal-btn" type="button" data-wb-close>Cancel</button>
+        <button class="rr-modal-btn primary" type="button" data-wb-confirm>${esc(submitLabel || "Apply")}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  const input = wrap.querySelector("[data-wb-prompt-input]");
+  const submit = () => {
+    let v = input.value;
+    if (kind === "number") {
+      v = Number(v);
+      if (!isFinite(v)) { input.focus(); return; }
+      if (min != null) v = Math.max(min, v);
+      if (max != null) v = Math.min(max, v);
+      v = Math.round(v);
+    }
+    wrap.remove();
+    onSubmit(v);
+  };
+  wrap.addEventListener("click", (e) => {
+    if (e.target === wrap || e.target.closest("[data-wb-close]")) { wrap.remove(); return; }
+    if (e.target.closest("[data-wb-confirm]")) submit();
+  });
+  wrap.addEventListener("keydown", (e) => {
+    e.stopPropagation();
+    if (e.key === "Escape") wrap.remove();
+    else if (e.key === "Enter") { e.preventDefault(); submit(); }
+  });
+  setTimeout(() => { input.focus(); input.select(); }, 30);
+}
+
 // Help → Keyboard shortcuts: a compact reference rendered through the
 // shared confirm-modal shell (info-only, single dismiss button).
 function showShortcutsHelp() {
@@ -7245,6 +7294,7 @@ function mountSheetBlock(block, body) {
       <div class="wb-gr-rows" style="top:${HDR_ROW_H}px;width:${HDR_COL_W}px"><div class="wb-gr-rows-inner"></div></div>
       <div class="wb-gr-frozen-top" style="left:${HDR_COL_W}px;top:${HDR_ROW_H}px" hidden><div class="wb-gr-frozen-top-inner"></div></div>
       <div class="wb-gr-frozen-left" style="top:${HDR_ROW_H}px" hidden><div class="wb-gr-frozen-left-inner"></div></div>
+      <div class="wb-gr-frozen-corner" style="left:${HDR_COL_W}px;top:${HDR_ROW_H}px" hidden><div class="wb-gr-frozen-corner-inner"></div></div>
       <div class="wb-gr-scroll" style="left:${HDR_COL_W}px;top:${HDR_ROW_H}px">
         <div class="wb-gr-canvas">
           <div class="wb-gr-cells"></div>
@@ -7310,6 +7360,8 @@ function mountSheetBlock(block, body) {
       frozenTopInner: body.querySelector(".wb-gr-frozen-top-inner"),
       frozenLeft: body.querySelector(".wb-gr-frozen-left"),
       frozenLeftInner: body.querySelector(".wb-gr-frozen-left-inner"),
+      frozenCorner: body.querySelector(".wb-gr-frozen-corner"),
+      frozenCornerInner: body.querySelector(".wb-gr-frozen-corner-inner"),
       fbarRef: body.querySelector("[data-wb-fbar-ref]"),
       fbarInput: body.querySelector("[data-wb-fbar-input]"),
       fbarErr: body.querySelector("[data-wb-fbar-err]"),
@@ -8278,46 +8330,79 @@ function showDragSize(g, rows, cols) {
 
 function paintFrozen(g, sx, sy, c0, c1) {
   const sheet = g.sheet;
-  // frozen top row
-  if (sheet.frozenRows > 0 && g.rows.length) {
-    const r = g.rows[0];
-    const h = g.rowY[1] - g.rowY[0];
+  // any number of frozen rows/cols (100-list #13); bands are painted from
+  // the first N visible rows / first M columns so filters stay coherent
+  const nRows = Math.max(0, Math.min(sheet.frozenRows || 0, g.rows.length));
+  const nCols = Math.max(0, Math.min(sheet.frozenCols || 0, sheet.colCount));
+  const fzCell = (r, c, x, top, w, h) => {
+    const cell = sheet.cells.get(cellKey(r, c));
+    const fzFlt = r === 0 && g.filterMode && c <= (g.fltMaxC ?? -1)
+      ? `<button type="button" class="wb-flt-btn ${g.filters.has(c) ? "is-filtered" : ""}" data-wb-fltbtn="${c}" title="Filter column ${colLabel(c)}" aria-label="Filter column ${colLabel(c)}">${g.filters.has(c) ? "▼" : "▾"}</button>`
+      : "";
+    return `<div class="wb-cell" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${condStyleFor(sheet, r, c, cell)}">${condIconFor(sheet, r, c, cell)}${cell ? cellInnerHtml(cell, displayValue(sheet, r, c)) : ""}${fzFlt}</div>`;
+  };
+  // frozen top rows
+  if (nRows > 0) {
     let html = "";
-    for (let c = c0; c <= c1; c++) {
-      const cell = sheet.cells.get(cellKey(r, c));
-      const w = g.colX[c + 1] - g.colX[c];
-      const fzFlt = r === 0 && g.filterMode && c <= (g.fltMaxC ?? -1)
-        ? `<button type="button" class="wb-flt-btn ${g.filters.has(c) ? "is-filtered" : ""}" data-wb-fltbtn="${c}" title="Filter column ${colLabel(c)}" aria-label="Filter column ${colLabel(c)}">${g.filters.has(c) ? "▼" : "▾"}</button>`
-        : "";
-      html += `<div class="wb-cell" data-r="${r}" data-c="${c}" style="left:${g.colX[c]}px;top:0;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${condStyleFor(sheet, r, c, cell)}">${condIconFor(sheet, r, c, cell)}${cell ? cellInnerHtml(cell, displayValue(sheet, r, c)) : ""}${fzFlt}</div>`;
+    for (let di = 0; di < nRows; di++) {
+      const r = g.rows[di];
+      const top = g.rowY[di], h = g.rowY[di + 1] - top;
+      for (let c = c0; c <= c1; c++) {
+        const w = g.colX[c + 1] - g.colX[c];
+        if (w === 0) continue;
+        html += fzCell(r, c, g.colX[c], top, w, h);
+      }
     }
     g.els.frozenTop.hidden = false;
-    g.els.frozenTop.style.height = h + "px";
+    g.els.frozenTop.style.height = g.rowY[nRows] + "px";
     g.els.frozenTopInner.innerHTML = html;
     g.els.frozenTopInner.style.transform = `translateX(${-sx}px)`;
     g.els.frozenTop.classList.toggle("is-lifted", sy > 0);
   } else {
     g.els.frozenTop.hidden = true;
   }
-  // frozen first column
-  if (sheet.frozenCols > 0) {
-    const w = g.colX[1] - g.colX[0];
+  // frozen left columns
+  if (nCols > 0) {
     const d0 = dispRowAt(g, sy), d1 = Math.min(g.rows.length - 1, dispRowAt(g, sy + g.els.scroll.clientHeight) + 1);
     let html = "";
     for (let di = d0; di <= d1; di++) {
       const r = g.rows[di];
-      const cell = sheet.cells.get(cellKey(r, 0));
-      const h = g.rowY[di + 1] - g.rowY[di];
-      html += `<div class="wb-cell" data-r="${r}" data-c="0" style="left:0;top:${g.rowY[di]}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, 0, cell) : ""}${condStyleFor(sheet, r, 0, cell)}">${condIconFor(sheet, r, 0, cell)}${cell ? cellInnerHtml(cell, displayValue(sheet, r, 0)) : ""}</div>`;
+      const top = g.rowY[di], h = g.rowY[di + 1] - top;
+      for (let c = 0; c < nCols; c++) {
+        const w = g.colX[c + 1] - g.colX[c];
+        if (w === 0) continue;
+        html += fzCell(r, c, g.colX[c], top, w, h);
+      }
     }
     g.els.frozenLeft.hidden = false;
     g.els.frozenLeft.style.left = HDR_COL_W + "px";
-    g.els.frozenLeft.style.width = w + "px";
+    g.els.frozenLeft.style.width = g.colX[nCols] + "px";
     g.els.frozenLeftInner.innerHTML = html;
     g.els.frozenLeftInner.style.transform = `translateY(${-sy}px)`;
     g.els.frozenLeft.classList.toggle("is-lifted", sx > 0);
   } else {
     g.els.frozenLeft.hidden = true;
+  }
+  // fixed corner where both bands overlap — scrolls in neither direction
+  if (g.els.frozenCorner) {
+    if (nRows > 0 && nCols > 0) {
+      let html = "";
+      for (let di = 0; di < nRows; di++) {
+        const r = g.rows[di];
+        const top = g.rowY[di], h = g.rowY[di + 1] - top;
+        for (let c = 0; c < nCols; c++) {
+          const w = g.colX[c + 1] - g.colX[c];
+          if (w === 0) continue;
+          html += fzCell(r, c, g.colX[c], top, w, h);
+        }
+      }
+      g.els.frozenCorner.hidden = false;
+      g.els.frozenCorner.style.width = g.colX[nCols] + "px";
+      g.els.frozenCorner.style.height = g.rowY[nRows] + "px";
+      g.els.frozenCornerInner.innerHTML = html;
+    } else {
+      g.els.frozenCorner.hidden = true;
+    }
   }
 }
 
@@ -9873,12 +9958,23 @@ function scrollCellIntoView(g, r, c) {
   const di = dispIndexOfRow(g, r);
   if (di < 0) return;
   const scroll = g.els.scroll;
+  // frozen bands cover the top/left of the viewport — scroll targets
+  // outside the bands must land below/right of them, and cells inside
+  // a band are always visible (never scroll for them)
+  const nRows = Math.max(0, Math.min(g.sheet.frozenRows || 0, g.rows.length));
+  const nCols = Math.max(0, Math.min(g.sheet.frozenCols || 0, g.sheet.colCount));
+  const bandH = nRows > 0 ? g.rowY[nRows] : 0;
+  const bandW = nCols > 0 ? g.colX[nCols] : 0;
   const x = g.colX[c], x2 = g.colX[c + 1];
   const y = g.rowY[di], y2 = g.rowY[di + 1];
-  if (x < scroll.scrollLeft) scroll.scrollLeft = x;
-  else if (x2 > scroll.scrollLeft + scroll.clientWidth) scroll.scrollLeft = x2 - scroll.clientWidth;
-  if (y < scroll.scrollTop) scroll.scrollTop = y;
-  else if (y2 > scroll.scrollTop + scroll.clientHeight) scroll.scrollTop = y2 - scroll.clientHeight;
+  if (c >= nCols) {
+    if (x < scroll.scrollLeft + bandW) scroll.scrollLeft = Math.max(0, x - bandW);
+    else if (x2 > scroll.scrollLeft + scroll.clientWidth) scroll.scrollLeft = x2 - scroll.clientWidth;
+  }
+  if (di >= nRows) {
+    if (y < scroll.scrollTop + bandH) scroll.scrollTop = Math.max(0, y - bandH);
+    else if (y2 > scroll.scrollTop + scroll.clientHeight) scroll.scrollTop = y2 - scroll.clientHeight;
+  }
 }
 
 function moveActive(g, dr, dc, extend) {
@@ -12755,12 +12851,23 @@ function autofitColumns(g, c0, c1) {
 
 // ─── Freeze ──────────────────────────────────────────────────────────────────
 
+const WB_FREEZE_MAX = 50; // matches the workbook_sheets check constraint (0490)
+
 function setFreeze(g, what) {
   if (!WB.canEdit) return;
   const sheet = g.sheet;
   const before = structSnapshot(sheet);
   if (what === "row") sheet.frozenRows = sheet.frozenRows ? 0 : 1;
   else if (what === "col") sheet.frozenCols = sheet.frozenCols ? 0 : 1;
+  else if (what === "here") {
+    // Excel "Freeze Panes": everything above and left of the active cell
+    const di = dispIndexOfRow(g, g.active.r);
+    const rows = Math.max(0, Math.min(WB_FREEZE_MAX, di < 0 ? 0 : di));
+    const cols = Math.max(0, Math.min(WB_FREEZE_MAX, g.active.c));
+    if (!rows && !cols) { _toast("Click a cell below and right of what you want to keep frozen, then freeze", "info"); return; }
+    sheet.frozenRows = rows;
+    sheet.frozenCols = cols;
+  }
   else { sheet.frozenRows = 0; sheet.frozenCols = 0; }
   saveSheetMeta(sheet.id);
   pushStructUndo(g, before);
@@ -14643,7 +14750,7 @@ function buildXlsxBytes(sheets) {
       : "";
     let view = `<sheetViews><sheetView workbookViewId="0"/></sheetViews>`;
     if (sheet.frozenRows || sheet.frozenCols) {
-      const x = sheet.frozenCols ? 1 : 0, y = sheet.frozenRows ? 1 : 0;
+      const x = sheet.frozenCols || 0, y = sheet.frozenRows || 0; // real counts (100-list #13)
       view = `<sheetViews><sheetView workbookViewId="0"><pane${x ? ` xSplit="${x}"` : ""}${y ? ` ySplit="${y}"` : ""} topLeftCell="${colLabel(x) + (y + 1)}" state="frozen"/></sheetView></sheetViews>`;
     }
     const merges = Array.isArray(sheet.meta && sheet.meta.merges) ? sheet.meta.merges.filter((m) => m.r1 > m.r0 || m.c1 > m.c0) : [];
@@ -14985,8 +15092,8 @@ export async function parseXlsxBytes(buf) {
     if (pane) {
       const xs = /xSplit="([\d.]+)"/.exec(pane[0]);
       const ys = /ySplit="([\d.]+)"/.exec(pane[0]);
-      if (xs && +xs[1] > 0) out.frozenCols = 1;
-      if (ys && +ys[1] > 0) out.frozenRows = 1;
+      if (xs && +xs[1] > 0) out.frozenCols = Math.min(50, Math.round(+xs[1]));
+      if (ys && +ys[1] > 0) out.frozenRows = Math.min(50, Math.round(+ys[1]));
     }
     let cm;
     const colRe = /<col\b[^>]*\/>/g;
@@ -17417,7 +17524,7 @@ function bindGridEvents(g) {
       const stPoint = formulaPointState(g);
       if (stPoint) {
         e.preventDefault(); // keep focus in the formula editor
-        const fzPt = e.target.closest(".wb-gr-frozen-top .wb-cell, .wb-gr-frozen-left .wb-cell");
+        const fzPt = e.target.closest(".wb-gr-frozen-top .wb-cell, .wb-gr-frozen-left .wb-cell, .wb-gr-frozen-corner .wb-cell");
         if (fzPt) {
           insertPointRef(g, stPoint, colLabel(+fzPt.getAttribute("data-c")) + (+fzPt.getAttribute("data-r") + 1));
           return;
@@ -17598,7 +17705,7 @@ function bindGridEvents(g) {
       return;
     }
 
-    const fz = e.target.closest(".wb-gr-frozen-top .wb-cell, .wb-gr-frozen-left .wb-cell");
+    const fz = e.target.closest(".wb-gr-frozen-top .wb-cell, .wb-gr-frozen-left .wb-cell, .wb-gr-frozen-corner .wb-cell");
     if (fz) {
       e.preventDefault();
       if (g.editing) commitEdit(g, 0, 0, { refocus: false });
@@ -18577,8 +18684,8 @@ function openCellContextMenu(g, x, y, kind) {
     kind === "col" && hasHiddenCols ? item("unhide-cols", "Unhide columns in selection") : "",
     kind === "col" ? item("resize-col", "Resize column…") : "",
     kind === "row" ? item("resize-row", "Resize row…") : "",
-    kind === "col" ? item("freeze-col", g.sheet.frozenCols ? "Unfreeze first column" : "Freeze first column") : "",
-    kind === "row" ? item("freeze-row", g.sheet.frozenRows ? "Unfreeze top row" : "Freeze top row") : "",
+    kind === "col" ? item("freeze-col", g.sheet.frozenCols ? (g.sheet.frozenCols > 1 ? `Unfreeze ${g.sheet.frozenCols} columns` : "Unfreeze first column") : "Freeze first column") : "",
+    kind === "row" ? item("freeze-row", g.sheet.frozenRows ? (g.sheet.frozenRows > 1 ? `Unfreeze ${g.sheet.frozenRows} rows` : "Unfreeze top row") : "Freeze top row") : "",
     sep,
     item("delete-row", `Delete ${rowsLabel}`, true),
     item("delete-col", `Delete ${colsLabel}`, true),
@@ -18602,13 +18709,32 @@ function openCellContextMenu(g, x, y, kind) {
       case "comment": openCellComment(g, r, c); break;
       case "copy-ref": try { await navigator.clipboard.writeText(ref); _toast(`Copied ${ref}`, "success"); } catch (_) {} break;
       case "resize-col": {
-        const w = window.prompt(`Column ${colLabel(c)} width (px, ${MIN_COL_W}–${MAX_COL_W}):`, String(colW(g.sheet, c)));
-        if (w != null && isFinite(+w)) { g.sheet.colWidths[c] = Math.min(MAX_COL_W, Math.max(MIN_COL_W, Math.round(+w))); computeGeometry(g); repaintGrid(g); saveSheetMeta(g.sheet.id); }
+        // clicked inside the selection → resize every selected column
+        const inSel = c >= rect0.c0 && c <= rect0.c1;
+        const cc0 = inSel ? rect0.c0 : c, cc1 = inSel ? rect0.c1 : c;
+        promptModal({
+          title: cc1 > cc0 ? `Resize columns ${colLabel(cc0)}–${colLabel(cc1)}` : `Resize column ${colLabel(cc0)}`,
+          label: `Width (px, ${MIN_COL_W}–${MAX_COL_W})`, kind: "number", min: MIN_COL_W, max: MAX_COL_W,
+          value: colW(g.sheet, c), submitLabel: "Resize",
+          onSubmit: (w) => {
+            for (let ci = cc0; ci <= cc1; ci++) g.sheet.colWidths[ci] = w;
+            computeGeometry(g); repaintGrid(g); saveSheetMeta(g.sheet.id);
+          },
+        });
         break;
       }
       case "resize-row": {
-        const h2 = window.prompt(`Row ${r + 1} height (px, ${MIN_ROW_H}–${MAX_ROW_H}):`, String(rowH(g.sheet, r)));
-        if (h2 != null && isFinite(+h2)) { g.sheet.rowHeights[r] = Math.min(MAX_ROW_H, Math.max(MIN_ROW_H, Math.round(+h2))); computeGeometry(g); repaintGrid(g); saveSheetMeta(g.sheet.id); }
+        const inSel = r >= rect0.r0 && r <= rect0.r1;
+        const rr0 = inSel ? rect0.r0 : r, rr1 = inSel ? rect0.r1 : r;
+        promptModal({
+          title: rr1 > rr0 ? `Resize rows ${rr0 + 1}–${rr1 + 1}` : `Resize row ${rr0 + 1}`,
+          label: `Height (px, ${MIN_ROW_H}–${MAX_ROW_H})`, kind: "number", min: MIN_ROW_H, max: MAX_ROW_H,
+          value: rowH(g.sheet, r), submitLabel: "Resize",
+          onSubmit: (h2) => {
+            for (let ri = rr0; ri <= rr1; ri++) g.sheet.rowHeights[ri] = h2;
+            computeGeometry(g); repaintGrid(g); saveSheetMeta(g.sheet.id);
+          },
+        });
         break;
       }
       case "freeze-col": setFreeze(g, "col"); break;
@@ -19146,6 +19272,7 @@ function wbMenuItems(menu, g) {
       { label: "Freeze", sub: [
         { label: "Freeze top row", act: "view:freeze-row", disabled: !ed || !g },
         { label: "Freeze first column", act: "view:freeze-col", disabled: !ed || !g },
+        { label: "Freeze panes — up to current cell", act: "view:freeze-here", disabled: !ed || !g },
         { label: "Unfreeze", act: "view:unfreeze", disabled: !ed || !g },
       ] },
       { label: "Zoom", sub: [0.5, 0.75, 0.9, 1, 1.25, 1.5, 2].map((z) => ({ label: Math.round(z * 100) + "%", act: "view:zoom:" + z, disabled: !g })) },
@@ -19330,6 +19457,7 @@ function wbMenuAction(act, g) {
     case "view:noop": return;
     case "view:freeze-row": if (need()) { g.sheet.frozenRows = 1; saveSheetMeta(g.sheet.id); repaintGrid(g); } return;
     case "view:freeze-col": if (need()) { g.sheet.frozenCols = 1; saveSheetMeta(g.sheet.id); repaintGrid(g); } return;
+    case "view:freeze-here": if (need()) setFreeze(g, "here"); return;
     case "view:unfreeze": if (need()) setFreeze(g, "none"); return;
     case "view:unhide": if (need()) { g.sheet.hiddenRows.clear(); g.sheet.hiddenCols.clear(); saveSheetMeta(g.sheet.id); computeGeometry(g); repaintGrid(g); } return;
     case "view:comments": openPanelTab("comments"); return;

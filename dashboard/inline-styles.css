@@ -31163,14 +31163,15 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
   -moz-osx-font-smoothing:auto;
   text-rendering:optimizeSpeed;
 }
-#view-workbooks .wb-gr-frozen-top,#view-workbooks .wb-gr-frozen-left{
+#view-workbooks .wb-gr-frozen-top,#view-workbooks .wb-gr-frozen-left,#view-workbooks .wb-gr-frozen-corner{
   position:absolute;overflow:hidden;z-index:4;background:var(--surface);
 }
 #view-workbooks .wb-gr-frozen-top{right:0}
 #view-workbooks .wb-gr-frozen-top.is-lifted{box-shadow:0 3px 6px -2px rgba(15,23,42,.18)}
 #view-workbooks .wb-gr-frozen-left{bottom:0}
 #view-workbooks .wb-gr-frozen-left.is-lifted{box-shadow:3px 0 6px -2px rgba(15,23,42,.18)}
-#view-workbooks .wb-gr-frozen-top-inner,#view-workbooks .wb-gr-frozen-left-inner{position:relative;width:100%;height:100%;will-change:transform}
+#view-workbooks .wb-gr-frozen-corner{z-index:5}
+#view-workbooks .wb-gr-frozen-top-inner,#view-workbooks .wb-gr-frozen-left-inner,#view-workbooks .wb-gr-frozen-corner-inner{position:relative;width:100%;height:100%;will-change:transform}
 #view-workbooks .wb-gr-filterchip{
   position:absolute;left:50%;bottom:10px;transform:translateX(-50%);z-index:7;
   display:flex;align-items:center;gap:var(--s-2);
