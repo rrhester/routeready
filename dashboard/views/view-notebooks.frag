@@ -151,7 +151,8 @@
   border-radius:4px;outline:2px solid var(--accent);outline-offset:1px;background:var(--surface)}
 .rrnb-nbcurrent .chev{flex:0 0 auto;color:var(--text-subtle)}
 .rrnb-swatch{width:12px;height:12px;border-radius:3px;background:var(--accent)}
-.rrnb-menu{position:absolute;z-index:40;left:var(--s-2);right:var(--s-2);top:calc(100% - var(--s-1));
+.rrnb-menu{position:absolute;z-index:40;left:var(--s-2);right:auto;top:calc(100% - var(--s-1));
+  min-width:calc(100% - var(--s-2) * 2);width:max-content;max-width:min(360px,calc(100vw - 40px));
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
   box-shadow:var(--shadow-pop);padding:var(--s-1);max-height:60vh;overflow:auto}
 .rrnb-menu[hidden]{display:none}
@@ -337,6 +338,7 @@
 .rrnb-swb{width:24px;height:24px;border-radius:6px;border:1px solid var(--border);cursor:pointer;padding:0}
 .rrnb-swb:hover{transform:scale(1.08)}
 .rrnb-swb-clear{background:var(--surface)!important;color:var(--text-muted);font-size:11px;display:grid;place-items:center}
+.rrnb-swb.on{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--accent)}
 .rrnb-editor .rrnb-toc{border:1px solid var(--border);border-radius:var(--r-md);padding:10px 14px;margin:14px 0;
   background:var(--surface-secondary)}
 .rrnb-editor .rrnb-toc-hd{font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;
@@ -4254,8 +4256,15 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   function pageById(id) { return ((S.tree && S.tree.pages) || []).filter(function (x) { return x.id === id; })[0]; }
   function recolorSection(id) {
     var s = ((S.tree && S.tree.sections) || []).filter(function (x) { return x.id === id; })[0]; if (!s) return;
-    var cur = PALETTE.indexOf(s.color); var next = PALETTE[(cur + 1) % PALETTE.length];
-    S.be.rename("section", id, s.name, next).then(function () { s.color = next; renderSections(); });
+    var sw = PALETTE.map(function (c) { return '<button class="rrnb-swb' + (c === s.color ? " on" : "") + '" data-color="' + c + '" style="background:' + c + '" title="' + c + '"></button>'; }).join("");
+    var anchor = document.querySelector('#rrnb-sections [data-sec="' + id + '"]');
+    var pop = showPop('<label>Section color</label><div class="rrnb-swrow">' + sw + '</div>', anchor ? anchor.getBoundingClientRect() : selRect());
+    pop.onclick = function (e) {
+      var b = e.target.closest("[data-color]"); if (!b) return;
+      var col = b.getAttribute("data-color");
+      S.be.rename("section", id, s.name, col).then(function () { s.color = col; renderSections(); });
+      hidePop();
+    };
   }
   function renamePrompt(kind, id) {
     var cur = kind === "page" ? (pageById(id) || {}).title
