@@ -43,7 +43,7 @@ jobs:
       - name: Typecheck every function
         # One invocation = one module graph, so _shared/ and the esm.sh
         # deps are fetched/checked once. Failures name the exact file.
-        run: deno check supabase/functions/*/index.ts
+        run: deno check --node-modules-dir=auto supabase/functions/*/index.ts
 
       - name: Unit tests (signature verifiers, shared helpers)
         # No-ops cleanly while no *_test.ts files exist yet.
