@@ -8186,7 +8186,7 @@ function paintNow(g) {
       : isDv && dvStyle === "chip"
         ? `<span class="wb-dv-pill ${cell && disp ? "" : "is-empty"}" data-wb-dvchip="${r},${c}" style="${dvColor ? `background:${dvColor};` : ""}">${cell && disp ? esc(disp) : "Select"}<span class="wb-dv-pillarrow">▾</span></span>`
         : cell && disp ? cellInnerHtml(cell, disp) : isDv && dvStyle === "arrow" ? `<span class="wb-dv-chip-empty">Select</span>` : "";
-    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${cell && cell.spill ? "is-spill-origin" : ""} ${inval ? "is-invalid" : ""} ${isDv ? "is-dv" : ""} ${isDv && dvStyle === "arrow" ? "is-dvarrow" : ""} ${imgSrc || photoRef ? "is-img" : ""} ${receiptRef ? "is-receipt" : ""} ${linkUrl ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${dvFill ? `background:${dvFill};` : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : err ? `title="${esc(cell.err + " — " + errorHint(cell.err))}"` : linkUrl ? `title="${esc(linkUrl)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${condIconFor(sheet, r, c, cell)}${inner}${dvMark}${fltBtn(r, c)}</div>`;
+    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${cell && cell.spill ? "is-spill-origin" : ""} ${inval ? "is-invalid" : ""} ${inval && g.circleInvalid ? "is-circled" : ""} ${isDv ? "is-dv" : ""} ${isDv && dvStyle === "arrow" ? "is-dvarrow" : ""} ${imgSrc || photoRef ? "is-img" : ""} ${receiptRef ? "is-receipt" : ""} ${linkUrl ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${dvFill ? `background:${dvFill};` : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : err ? `title="${esc(cell.err + " — " + errorHint(cell.err))}"` : linkUrl ? `title="${esc(linkUrl)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${condIconFor(sheet, r, c, cell)}${inner}${dvMark}${fltBtn(r, c)}</div>`;
   };
   let html = "";
   const paintedMerges = new Set();
@@ -8769,7 +8769,7 @@ function fillWithinSelection(g, dir) {
     if (c1 <= c0) return;
     for (let r = r0; r <= r1; r++) { const src = g.sheet.cells.get(cellKey(r, c0)); for (let c = c0 + 1; c <= c1; c++) { let nx = src ? cloneCell(src) : null; if (nx && src.formula) { nx.formula = shiftFormulaRelative(src.formula, 0, c - c0); nx.computed = null; nx.err = null; } changes.push({ r, c, cell: nx }); } }
   }
-  if (changes.length) setCells(g, changes);
+  if (changes.length) setCells(g, changes, { validate: true });
 }
 
 // Double-click the fill handle → fill down to the extent of the adjacent
@@ -8801,7 +8801,7 @@ function fillSelectionWithActive(g) {
     if (nx && src.formula) { nx.formula = shiftFormulaRelative(src.formula, r - g.active.r, c - g.active.c); nx.computed = null; nx.err = null; }
     changes.push({ r, c, cell: nx });
   }
-  if (changes.length) setCells(g, changes);
+  if (changes.length) setCells(g, changes, { validate: true });
 }
 
 // Ctrl+; : insert today's date into the active cell.
@@ -8887,7 +8887,7 @@ function applyFill(g, src, ext) {
     }
   }
   if (!changes.length) return;
-  setCells(g, changes);
+  setCells(g, changes, { validate: true });
   if (vertical) g.sel = { r0: src.r0, c0: src.c0, r1: src.r1 + ext.count, c1: src.c1 };
   else g.sel = { r0: src.r0, c0: src.c0, r1: src.r1, c1: src.c1 + ext.count };
   paintSelection(g);
@@ -10169,6 +10169,21 @@ function setCells(g, changes, opts) {
     if (changes.length < before) _toast(changes.length ? "Some cells are in a protected range and weren’t changed" : "That range is protected — only an admin can edit it", "warn");
     if (!changes.length) return;
   }
+  // strict ("reject") data-validation rules also gate bulk writes when the
+  // caller asks — paste and fill (100-list #14). Warn-mode rules keep their
+  // passive red marker; formula cells are never blocked.
+  if (opts && opts.validate && Array.isArray(sheet.meta && sheet.meta.validation) && sheet.meta.validation.length) {
+    const before = changes.length;
+    changes = changes.filter((ch) => {
+      if (!ch.cell || ch.cell.formula || ch.cell.value == null || ch.cell.value === "") return true;
+      const rule = findValidationRule(sheet, ch.r, ch.c);
+      if (!rule || rule.mode === "warn") return true;
+      return valueSatisfiesRule(rule, ch.cell.value, sheet, ch.r, ch.c);
+    });
+    const dropped = before - changes.length;
+    if (dropped) _toast(`${dropped} value${dropped === 1 ? " was" : "s were"} rejected by data validation`, "warn");
+    if (!changes.length) return;
+  }
   const applied = [];
   for (const ch of changes) {
     if (ch.r < 0 || ch.c < 0 || ch.r >= sheet.rowCount || ch.c >= sheet.colCount) continue;
@@ -10627,7 +10642,7 @@ function pasteMatrix(g, matrix) {
     const clippedR = matrix.length - (maxR - g.active.r + 1);
     if (clippedR > 0) _toast(`Paste clipped: ${clippedR} row${clippedR === 1 ? "" : "s"} didn't fit the sheet`, "warn");
   }
-  setCells(g, changes);
+  setCells(g, changes, { validate: true });
 }
 
 async function pasteFromClipboard(g) {
@@ -10735,7 +10750,7 @@ function pasteRich(g, cb, opts) {
     cb.mode = "copy"; // a cut pastes once; further pastes behave as copy
     WB.march = null;  // the marching-ants marquee clears when a cut is placed (Excel)
   }
-  setCells(g, changes);
+  setCells(g, changes, { validate: true });
   g.sel = { r0: sel.r0, c0: sel.c0, r1: Math.min(sheet.rowCount - 1, sel.r0 + repR * outR - 1), c1: Math.min(sheet.colCount - 1, sel.c0 + repC * outC - 1) };
   g.active = { r: sel.r0, c: sel.c0 };
   paintSelection(g);
@@ -11429,7 +11444,7 @@ function dvDateSerial(v) {
 // The options a list/range dropdown offers. A range source reads distinct,
 // non-empty values from its cells (sheet-qualified refs and named ranges
 // both resolve through the shared eval ctx).
-function dvOptionList(rule, sheet) {
+function dvOptionList(rule, sheet, atR) {
   if (rule.type === "range" && rule.source && sheet) {
     try {
       const ctx = cfEvalCtx(sheet);
@@ -11437,6 +11452,23 @@ function dvOptionList(rule, sheet) {
       if (node.k === "name") node = bindNames(node, ctx.names);
       if (node.k !== "range" && node.k !== "ref") return [];
       const grid = argGrid(node, ctx);
+      // dependent dropdown (100-list #16): when the rule names a filter
+      // column, the source is a two-column (parent, option) mapping and
+      // only rows whose parent matches this row's value in that column
+      // are offered — pick a station, the routes dropdown narrows.
+      const rows = grid instanceof Arr ? grid.rows : grid;
+      if (rule.depend != null && atR != null && rows.length && rows[0].length >= 2) {
+        const parent = String(engineValue(sheet, atR, +rule.depend) ?? "").trim().toLowerCase();
+        const out = [], seen = new Set();
+        for (const row of rows) {
+          if (String(row[0] ?? "").trim().toLowerCase() !== parent) continue;
+          const v = row[1];
+          if (v == null || v === "") continue;
+          const s = String(v);
+          if (!seen.has(s)) { seen.add(s); out.push(s); }
+        }
+        return out;
+      }
       const out = [], seen = new Set();
       for (const v of grid.flat()) {
         if (v == null || v === "") continue;
@@ -11479,7 +11511,7 @@ function valueSatisfiesRule(rule, raw, sheet, r, c) {
   if (rule.type === "checkbox") { const s = String(raw).trim().toLowerCase(); return s === "true" || s === "false"; }
   if (rule.type === "list" || rule.type === "range") {
     const s = String(raw).trim().toLowerCase();
-    return dvOptionList(rule, sheet).some((it) => String(it).trim().toLowerCase() === s);
+    return dvOptionList(rule, sheet, r).some((it) => String(it).trim().toLowerCase() === s);
   }
   if (rule.type === "custom") return dvCustomHits(sheet, rule, r, c);
   if (rule.type === "textlen") return dvNumericCompare(rule.op, String(raw).length, +rule.v1, +rule.v2);
@@ -11541,7 +11573,7 @@ const WB_CF_STYLES = {
 const WB_CF_KINDS = {
   gt: "Greater than", lt: "Less than", between: "Between", eq: "Equal to",
   contains: "Text contains", notempty: "Is not empty", empty: "Is empty",
-  formula: "Custom formula is",
+  dup: "Is a duplicate", formula: "Custom formula is",
 };
 
 // Color-scale presets (Google Sheets' default gradient colors). Two- or
@@ -11571,7 +11603,28 @@ function cfScaleColor(stops, t) {
 // cell values change between repaints).
 let _cfScaleMemo = new WeakMap();
 let _cfCtxMemo = new WeakMap();
-function cfClearMemo() { _cfScaleMemo = new WeakMap(); _cfCtxMemo = new WeakMap(); }
+let _cfDupMemo = new WeakMap();
+function cfClearMemo() { _cfScaleMemo = new WeakMap(); _cfCtxMemo = new WeakMap(); _cfDupMemo = new WeakMap(); }
+
+// Value → occurrence count over a duplicate-rule's rectangle, memoized per
+// repaint (100-list #50). Case/whitespace-insensitive, like Excel's preset.
+function cfDupCounts(sheet, rule) {
+  let m = _cfDupMemo.get(rule);
+  if (m) return m;
+  m = new Map();
+  for (let r = rule.r0; r <= Math.min(rule.r1, sheet.rowCount - 1); r++) {
+    for (let c = rule.c0; c <= Math.min(rule.c1, sheet.colCount - 1); c++) {
+      const cl = sheet.cells.get(cellKey(r, c));
+      if (!cl) continue;
+      const raw = cl.formula ? (cl.err ? null : cl.computed) : cl.value;
+      if (raw == null || raw === "") continue;
+      const k = String(raw).trim().toLowerCase();
+      m.set(k, (m.get(k) || 0) + 1);
+    }
+  }
+  _cfDupMemo.set(rule, m);
+  return m;
+}
 function cfScaleStats(sheet, rule) {
   let s = _cfScaleMemo.get(rule);
   if (s) return s;
@@ -11705,6 +11758,15 @@ function condStyleFor(sheet, r, c, cell) {
       out = `background:${stf.bg};color:${stf.fg};`;
       continue;
     }
+    if (rule.kind === "dup") {
+      const raw = cell ? (cell.formula ? (cell.err ? null : cell.computed) : cell.value) : null;
+      if (raw == null || raw === "") continue;
+      if ((cfDupCounts(sheet, rule).get(String(raw).trim().toLowerCase()) || 0) > 1) {
+        const std = WB_CF_STYLES[rule.style] || WB_CF_STYLES.red;
+        out = `background:${std.bg};color:${std.fg};`;
+      }
+      continue;
+    }
     const raw = cell ? (cell.formula ? (cell.err ? null : cell.computed) : cell.value) : null;
     if (condRuleHits(rule, raw)) {
       const st = WB_CF_STYLES[rule.style] || WB_CF_STYLES.amber;
@@ -11754,7 +11816,7 @@ function openValidationPicker(g, btnEl) {
   const rule = findValidationRule(g.sheet, r, c);
   if (!rule || (rule.type !== "list" && rule.type !== "range") || !WB.canEdit) return;
   const rect = btnEl.getBoundingClientRect();
-  const m = ctxMenu(rect.left - 120, rect.bottom + 2, dvOptionList(rule, g.sheet).map((opt, i) => {
+  const m = ctxMenu(rect.left - 120, rect.bottom + 2, dvOptionList(rule, g.sheet, r).map((opt, i) => {
     const hex = Array.isArray(rule.colors) && rule.colors[i] && HEX_COLOR_RE.test(rule.colors[i]) ? rule.colors[i] : null;
     return `<button type="button" class="popover-item" data-dv-opt="${esc(String(opt))}" role="menuitem">${hex ? `<span class="wb-dv-menuswatch" style="background:${hex}"></span>` : `<span class="wb-dv-menuswatch is-none"></span>`}${esc(String(opt))}</button>`;
   }).join("") +
@@ -11824,6 +11886,9 @@ function openValidationDialog(g) {
           <label class="wb-field"><span class="wb-field-label">Options come from</span>
             <input type="text" class="wb-input" id="wb-dv-source" value="${esc(cur.source || "")}" placeholder="Sheet1!A2:A50 or a named range" spellcheck="false"></label>
           <p class="wb-dv-hint" style="margin-top:6px">Distinct, non-empty values from that range fill the dropdown.</p>
+          <label class="wb-field" style="margin-top:10px"><span class="wb-field-label">Depends on column (optional) — makes a cascading dropdown</span>
+            <input type="text" class="wb-input" id="wb-dv-depend" value="${cur.depend != null ? esc(colLabel(+cur.depend)) : ""}" placeholder="e.g. B" maxlength="3" spellcheck="false"></label>
+          <p class="wb-dv-hint" style="margin-top:6px">With a filter column, the source must be a two-column mapping (parent, option): only options whose parent matches this row's value in that column are offered.</p>
         </div>
         <div class="wb-field-row" id="wb-dv-num-row" hidden>
           <label class="wb-field"><span class="wb-field-label" id="wb-dv-op-label">Condition</span>
@@ -11839,7 +11904,7 @@ function openValidationDialog(g) {
           <label class="wb-field"><span class="wb-field-label">Custom formula — relative to the top-left cell, must return TRUE</span>
             <input type="text" class="wb-input" id="wb-dv-formula" value="${esc(cur.formula || "")}" placeholder='=AND(A1>0, A1<100)' spellcheck="false"></label>
         </div>
-        <p class="wb-dv-hint">Cells that break the rule get a red corner marker. Typed input is checked as you enter it; pasted data is only flagged.</p>
+        <p class="wb-dv-hint">Cells that break the rule get a red corner marker. Typed input is checked as you enter it; with “Reject the input”, pasted and filled values are checked too.</p>
       </div>
       <div class="rr-modal-foot">
         ${existing ? `<button class="rr-modal-btn" type="button" data-wb-dv-remove style="margin-right:auto">Remove rule</button>` : ""}
@@ -11930,6 +11995,11 @@ function openValidationDialog(g) {
           || (blockNamedRanges(findBlock(sheet.blockId)).some((d) => d.name.toLowerCase() === wrap.querySelector("#wb-dv-source").value.trim().toLowerCase()) ? wrap.querySelector("#wb-dv-source").value.trim() : null);
         if (!src) { _toast("Enter a range like A2:A50 or a named range", "warn"); return; }
         rule.source = src;
+        const dep = wrap.querySelector("#wb-dv-depend").value.trim().toUpperCase();
+        if (dep) {
+          if (!/^[A-Z]{1,3}$/.test(dep)) { _toast("Filter column should be a column letter like B", "warn"); return; }
+          rule.depend = colIndex(dep);
+        }
       } else if (type === "custom") {
         const formula = wrap.querySelector("#wb-dv-formula").value.trim();
         if (!formula.startsWith("=")) { _toast("Custom formula must start with =", "warn"); return; }
@@ -12131,7 +12201,7 @@ function openCondFormatDialog(g) {
             const st = WB_CF_STYLES[rule.style] || WB_CF_STYLES.amber;
             swatch = `<span class="wb-cf-swatch" style="background:${st.bg};color:${st.fg}">Aa</span>`;
             what = rule.kind === "formula" ? `Custom · ${rule.formula}`
-              : rule.kind === "empty" || rule.kind === "notempty" ? WB_CF_KINDS[rule.kind]
+              : rule.kind === "empty" || rule.kind === "notempty" || rule.kind === "dup" ? WB_CF_KINDS[rule.kind]
               : rule.kind === "between" ? `${WB_CF_KINDS.between} ${rule.v1} and ${rule.v2}`
               : `${WB_CF_KINDS[rule.kind] || rule.kind} ${rule.v1}`;
           }
@@ -12145,7 +12215,7 @@ function openCondFormatDialog(g) {
     const isFormula = isSingle && k === "formula";
     const show = (id, on) => { wrap.querySelector(id).style.display = on ? "" : "none"; };
     show("#wb-cf-kind-field", isSingle);
-    show("#wb-cf-v1-field", isSingle && !isFormula && k !== "empty" && k !== "notempty");
+    show("#wb-cf-v1-field", isSingle && !isFormula && k !== "empty" && k !== "notempty" && k !== "dup");
     show("#wb-cf-v2-field", isSingle && !isFormula && k === "between");
     show("#wb-cf-formula-field", isFormula);
     show("#wb-cf-scale-field", isScale);
@@ -12193,7 +12263,7 @@ function openCondFormatDialog(g) {
         } else {
           const v1 = wrap.querySelector("#wb-cf-v1").value.trim();
           const v2 = wrap.querySelector("#wb-cf-v2").value.trim();
-          if (kind !== "empty" && kind !== "notempty" && v1 === "") { _toast("Enter a value for the condition", "warn"); return; }
+          if (kind !== "empty" && kind !== "notempty" && kind !== "dup" && v1 === "") { _toast("Enter a value for the condition", "warn"); return; }
           if (kind === "between" && v2 === "") { _toast("Enter both limits", "warn"); return; }
           rules.push({ ...base, kind, v1, v2, style });
         }
@@ -14031,10 +14101,83 @@ function openMacrosPanel(g) {
 
 function splitTextToColumns(g) {
   if (!WB.canEdit) return;
+  // Delimiter picker with a live preview of the first matching cell
+  // (100-list #21) — replaces the bare window.prompt.
+  const col = g.active.c;
+  const sheet = g.sheet;
+  document.getElementById("wb-split-modal")?.remove();
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-split-modal";
+  wrap.innerHTML = `
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Split text to columns" style="width:420px">
+      <div class="rr-modal-head">
+        <div class="rr-modal-head-content"><p class="rr-modal-title">Split text to columns</p><p class="rr-modal-sub">Column ${esc(colLabel(col))} splits into the columns to its right.</p></div>
+        <button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button>
+      </div>
+      <div class="rr-modal-body">
+        <div class="wb-field-row">
+          <label class="wb-field"><span class="wb-field-label">Separator</span>
+            <select class="wb-input" id="wb-split-delim">
+              <option value=",">Comma ( , )</option>
+              <option value=";">Semicolon ( ; )</option>
+              <option value="\\t">Tab</option>
+              <option value=" ">Space</option>
+              <option value="custom">Custom…</option>
+            </select></label>
+          <label class="wb-field" style="flex:0 0 120px;display:none" id="wb-split-custom-field"><span class="wb-field-label">Custom</span>
+            <input type="text" class="wb-input" id="wb-split-custom" maxlength="8" placeholder="e.g. |"></label>
+        </div>
+        <span class="wb-field-label" style="margin-top:10px">Preview</span>
+        <p id="wb-split-preview" style="font-family:ui-monospace,monospace;font-size:12px;background:var(--surface-2,#f5f6f8);border-radius:6px;padding:8px 10px;min-height:34px;margin:4px 0 0"></p>
+      </div>
+      <div class="rr-modal-foot">
+        <button class="rr-modal-btn" type="button" data-wb-close>Cancel</button>
+        <button class="rr-modal-btn primary" type="button" data-wb-confirm>Split</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  const sel = wrap.querySelector("#wb-split-delim");
+  const customField = wrap.querySelector("#wb-split-custom-field");
+  const custom = wrap.querySelector("#wb-split-custom");
+  const preview = wrap.querySelector("#wb-split-preview");
+  const currentDelim = () => (sel.value === "custom" ? custom.value : sel.value === "\\t" ? "\t" : sel.value);
+  const firstSample = () => {
+    const d = currentDelim();
+    if (!d) return null;
+    let best = null, bestR = Infinity;
+    for (const [key, cell] of sheet.cells) {
+      const rc = keyRC(key);
+      if (rc.c !== col || cell.formula || cell.value == null) continue;
+      if (rc.r < bestR && String(cell.value).includes(d)) { best = String(cell.value); bestR = rc.r; }
+    }
+    return best;
+  };
+  const paintPreview = () => {
+    customField.style.display = sel.value === "custom" ? "" : "none";
+    const d = currentDelim();
+    const sample = d ? firstSample() : null;
+    preview.textContent = !d ? "Pick a separator"
+      : sample ? sample.split(d).map((x) => x.trim()).join("  |  ")
+      : `No cells in ${colLabel(col)} contain “${d}”`;
+  };
+  sel.addEventListener("change", paintPreview);
+  custom.addEventListener("input", paintPreview);
+  paintPreview();
+  wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") wrap.remove(); });
+  wrap.addEventListener("click", (e) => {
+    if (e.target === wrap || e.target.closest("[data-wb-close]")) { wrap.remove(); return; }
+    if (!e.target.closest("[data-wb-confirm]")) return;
+    const d = currentDelim();
+    if (!d) { _toast("Enter the custom separator", "warn"); return; }
+    wrap.remove();
+    doSplitTextToColumns(g, d);
+  });
+}
+
+function doSplitTextToColumns(g, delim) {
   const sheet = g.sheet;
   const col = g.active.c;
-  const delim = window.prompt(`Split column ${colLabel(col)} on which separator?`, ",");
-  if (delim == null || delim === "") return;
   const rect = selRect(g);
   const r0 = rect.r0 === rect.r1 ? 1 : rect.r0; // single cell → all data rows
   let r1 = rect.r0 === rect.r1 ? 0 : rect.r1;
@@ -14088,26 +14231,102 @@ function removeDuplicateRows(g) {
     if (maxR < 2) { _toast("Nothing to de-duplicate below the header", "info"); return; }
     rect = { r0: 1, r1: maxR, c0: 0, c1: maxC };
   }
-  const seen = new Set();
-  const dupRows = [];
-  for (let r = Math.max(1, rect.r0); r <= rect.r1; r++) {
-    const parts = [];
-    for (let c = rect.c0; c <= rect.c1; c++) parts.push(filterCellText(sheet, r, c).toLowerCase());
-    const k = parts.join("");
-    if (!parts.some((p) => p !== "")) continue; // fully empty rows don't count
-    if (seen.has(k)) dupRows.push(r);
-    else seen.add(k);
-  }
-  if (!dupRows.length) { _toast("No duplicate rows found", "success"); return; }
-  confirmModal({
-    title: `Remove ${dupRows.length} duplicate row${dupRows.length === 1 ? "" : "s"}?`,
-    body: `Rows with identical values in columns ${esc(colLabel(rect.c0))}–${esc(colLabel(rect.c1))} will be deleted; the first occurrence stays.`,
-    confirmLabel: "Remove duplicates", danger: true,
-    onConfirm: () => {
-      for (const r of dupRows.sort((a, b) => b - a)) restructure(g, "row", r, -1);
-      _toast(`Removed ${dupRows.length} duplicate row${dupRows.length === 1 ? "" : "s"}`, "success");
-    },
+  // column checklist (100-list #22): pick which columns define a duplicate.
+  // Headers label the checkboxes when row 0 sits above the range.
+  const colName = (c) => {
+    const hdr = sheet.cells.get(cellKey(0, c));
+    const t = hdr && !hdr.formula && hdr.value != null ? String(hdr.value).trim() : "";
+    return t && rect.r0 >= 1 ? `${colLabel(c)} — ${t.slice(0, 28)}` : colLabel(c);
+  };
+  document.getElementById("wb-dedupe-modal")?.remove();
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-dedupe-modal";
+  const cols = [];
+  for (let c = rect.c0; c <= rect.c1; c++) cols.push(c);
+  wrap.innerHTML = `
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Remove duplicates" style="width:420px">
+      <div class="rr-modal-head">
+        <div class="rr-modal-head-content"><p class="rr-modal-title">Remove duplicates</p><p class="rr-modal-sub">Rows ${rect.r0 + 1}–${rect.r1 + 1} · duplicates are decided by the checked columns; the first occurrence stays.</p></div>
+        <button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button>
+      </div>
+      <div class="rr-modal-body" style="max-height:300px;overflow:auto">
+        ${cols.map((c) => `<label style="display:flex;align-items:center;gap:8px;padding:5px 2px"><input type="checkbox" data-dd-col="${c}" checked> <span>${esc(colName(c))}</span></label>`).join("")}
+      </div>
+      <div class="rr-modal-foot">
+        <button class="rr-modal-btn" type="button" data-wb-close>Cancel</button>
+        <button class="rr-modal-btn primary" type="button" data-wb-confirm>Remove duplicates</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") wrap.remove(); });
+  wrap.addEventListener("click", (e) => {
+    if (e.target === wrap || e.target.closest("[data-wb-close]")) { wrap.remove(); return; }
+    if (!e.target.closest("[data-wb-confirm]")) return;
+    const picked = [...wrap.querySelectorAll("[data-dd-col]:checked")].map((el) => +el.getAttribute("data-dd-col"));
+    if (!picked.length) { _toast("Check at least one column", "warn"); return; }
+    wrap.remove();
+    const seen = new Set();
+    const dupRows = [];
+    for (let r = Math.max(1, rect.r0); r <= rect.r1; r++) {
+      const parts = picked.map((c) => filterCellText(sheet, r, c).toLowerCase());
+      const k = parts.join(" ");
+      if (!parts.some((p) => p !== "")) continue; // fully empty rows don't count
+      if (seen.has(k)) dupRows.push(r);
+      else seen.add(k);
+    }
+    if (!dupRows.length) { _toast("No duplicate rows found", "success"); return; }
+    confirmModal({
+      title: `Remove ${dupRows.length} duplicate row${dupRows.length === 1 ? "" : "s"}?`,
+      body: `Rows with identical values in ${picked.length === 1 ? "column " + esc(colLabel(picked[0])) : picked.length + " checked columns"} will be deleted; the first occurrence stays.`,
+      confirmLabel: "Remove duplicates", danger: true,
+      onConfirm: () => {
+        for (const r of dupRows.sort((a, b) => b - a)) restructure(g, "row", r, -1);
+        _toast(`Removed ${dupRows.length} duplicate row${dupRows.length === 1 ? "" : "s"}`, "success");
+      },
+    });
   });
+}
+
+// Data → Circle invalid data (100-list #15): toggles a loud red oval on every
+// cell that violates its validation rule — the passive corner marker is easy
+// to miss when auditing a sheet.
+function circleInvalidData(g) {
+  const sheet = g.sheet;
+  if (g.circleInvalid) { g.circleInvalid = false; repaintGrid(g); return; }
+  const rules = sheetRules(sheet, "validation");
+  if (!rules.length) { _toast("No data-validation rules on this sheet", "info"); return; }
+  let count = 0;
+  for (const rule of rules) {
+    for (let r = rule.r0; r <= Math.min(rule.r1, sheet.rowCount - 1); r++) {
+      for (let c = rule.c0; c <= Math.min(rule.c1, sheet.colCount - 1); c++) {
+        if (findValidationRule(sheet, r, c) !== rule) continue; // the last covering rule wins
+        if (cellInvalid(sheet, r, c, sheet.cells.get(cellKey(r, c)))) count++;
+      }
+    }
+  }
+  if (!count) { _toast("Every validated cell checks out", "success"); return; }
+  g.circleInvalid = true;
+  repaintGrid(g);
+  _toast(`${count} cell${count === 1 ? "" : "s"} break${count === 1 ? "s" : ""} validation — circled in red`, "warn");
+}
+
+// Data → Highlight duplicates (100-list #50): one click drops a duplicate-
+// values conditional format on the selection (or the used range).
+function highlightDuplicatesQuickRule(g) {
+  if (!WB.canEdit) return;
+  const sheet = g.sheet;
+  let rect = selRect(g);
+  if (rect.r0 === rect.r1 && rect.c0 === rect.c1) {
+    const { maxR, maxC } = usedRange(sheet);
+    rect = { r0: 0, r1: Math.max(0, maxR), c0: 0, c1: Math.max(0, maxC) };
+  }
+  const rules = sheetRules(sheet, "condFormat");
+  const rule = { id: "cf" + Math.random().toString(36).slice(2, 8), kind: "dup", style: "red", r0: rect.r0, c0: rect.c0, r1: rect.r1, c1: rect.c1 };
+  rules.push(rule);
+  setSheetRules(g, "condFormat", rules);
+  wbLog("sheet.condformat", `highlighted duplicate values in ${ruleRefText(rule)} on ${sheet.name}`, { target_type: "sheet", target_id: sheet.id });
+  _toast("Duplicates in the range are highlighted — manage the rule under Conditional formatting", "success");
 }
 
 function trimWhitespace(g) {
@@ -19369,7 +19588,9 @@ function wbMenuItems(menu, g) {
         { label: "Split text to columns…", act: "data:split", disabled: !ed || !g },
         { label: "Data cleanup", sub: [
           { label: "Remove duplicates…", act: "data:dedupe", disabled: !ed || !g },
+          { label: "Highlight duplicates", act: "data:highlight-dups", disabled: !ed || !g },
           { label: "Trim whitespace", act: "data:trim", disabled: !ed || !g },
+          { label: (g && g.circleInvalid) ? "Stop circling invalid data" : "Circle invalid data", act: "data:circle-invalid", disabled: !g },
         ] },
       ];
     }
@@ -19511,6 +19732,8 @@ function wbMenuAction(act, g) {
     case "data:validation": if (need()) openValidationDialog(g); return;
     case "data:split": if (need()) splitTextToColumns(g); return;
     case "data:dedupe": if (need()) removeDuplicateRows(g); return;
+    case "data:highlight-dups": if (need()) highlightDuplicatesQuickRule(g); return;
+    case "data:circle-invalid": if (need()) circleInvalidData(g); return;
     case "data:trim": if (need()) trimWhitespace(g); return;
     case "help:shortcuts": showShortcutsHelp(); return;
     case "help:functions": if (need()) {

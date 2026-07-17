@@ -923,6 +923,20 @@ ok("dv list: membership is case-insensitive", () => {
 ok("dv: an empty value always passes (blank is allowed)", () => {
   assert.equal(valueSatisfiesRule({ type: "number", op: ">", v1: "0" }, ""), true);
 });
+ok("dv range + depend: cascading dropdown filters by the parent column (100-list #16)", () => {
+  // A1:B3 is a (station, route) mapping; column C holds the picked station
+  const sh = mkSheet("Cascade", {
+    A1: { value: "DTW1", type: "text" }, B1: { value: "R1", type: "text" },
+    A2: { value: "DTW1", type: "text" }, B2: { value: "R2", type: "text" },
+    A3: { value: "DTW2", type: "text" }, B3: { value: "R9", type: "text" },
+    C6: { value: "DTW1", type: "text" },
+  });
+  const rule = { type: "range", source: "A1:B3", depend: 2 };
+  assert.equal(valueSatisfiesRule(rule, "R2", sh, 5, 4), true);   // row 6's station is DTW1
+  assert.equal(valueSatisfiesRule(rule, "R9", sh, 5, 4), false);  // R9 belongs to DTW2
+  const flat = { type: "range", source: "A1:B3" };                // no depend → any value in the range
+  assert.equal(valueSatisfiesRule(flat, "R9", sh, 5, 4), true);
+});
 ok("dvDateSerial handles ISO, m/d/y, and numeric serials", () => {
   assert.equal(dvDateSerial("2026-07-05"), dateToSerial(new Date(2026, 6, 5)));
   assert.equal(dvDateSerial(46208), 46208);

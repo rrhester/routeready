@@ -31171,6 +31171,11 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 #view-workbooks .wb-gr-frozen-left{bottom:0}
 #view-workbooks .wb-gr-frozen-left.is-lifted{box-shadow:3px 0 6px -2px rgba(15,23,42,.18)}
 #view-workbooks .wb-gr-frozen-corner{z-index:5}
+/* Data → Circle invalid data: a loud oval on validation-breaking cells */
+#view-workbooks .wb-cell.is-circled::after{
+  content:"";position:absolute;inset:1px;border:2px solid #DC2626;
+  border-radius:50% / 42%;pointer-events:none;
+}
 #view-workbooks .wb-gr-frozen-top-inner,#view-workbooks .wb-gr-frozen-left-inner,#view-workbooks .wb-gr-frozen-corner-inner{position:relative;width:100%;height:100%;will-change:transform}
 #view-workbooks .wb-gr-filterchip{
   position:absolute;left:50%;bottom:10px;transform:translateX(-50%);z-index:7;
