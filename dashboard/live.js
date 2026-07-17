@@ -25222,7 +25222,7 @@ function _ivcalMyCalendars() {
   const _linkIco = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`;
   const feedRow = `<button type="button" class="oc-cals-feed" data-ivcal-feedall title="Subscribe to this calendar from Google, Apple or Outlook">${_linkIco} Subscribe in another calendar app…</button>`;
   const otherBody = _ivSecOpen("othercals")
-    ? `<div class="oc-cals-grp">${_ivcalGoogleRow()}${feedRow}</div>`
+    ? `<div class="oc-cals-grp">${_ivcalGoogleRow()}${_ivcalOutlookRow()}${feedRow}</div>`
     : "";
   // (The "Interview booking" queue renders ABOVE the mini-month — it's the
   // work queue, so it leads the panel; see _ivcalRender's .oc-side assembly.
@@ -25277,11 +25277,12 @@ async function _ivcalFeedDialog(cal) {
   back.className = "rr-invite-confirm-back";
   back.innerHTML = `<div class="rr-invite-confirm" role="dialog" aria-modal="true" aria-label="Subscribe link" style="max-width:520px">
     <div class="rr-ic-title">Subscribe to ${escapeHtml(scope)}</div>
-    <div style="font-size:13px;color:var(--text-subtle);margin:6px 0 12px;line-height:1.5">Paste this URL into Google Calendar (Other calendars → From URL), Apple Calendar (File → New Calendar Subscription) or Outlook (Add calendar → Subscribe from web). Read-only; updates roll in on the app's refresh schedule. Anyone with the link can view.</div>
+    <div style="font-size:13px;color:var(--text-subtle);margin:6px 0 12px;line-height:1.5">Paste this URL into Google Calendar (Other calendars → From URL), Apple Calendar (File → New Calendar Subscription) or Outlook (Add calendar → Subscribe from web) — or tap “Open in Apple Calendar” on a Mac, iPhone or iPad to subscribe in one step. Read-only; updates roll in on the app's refresh schedule. Anyone with the link can view.</div>
     <input type="text" readonly value="${escapeHtml(httpsUrl)}" style="width:100%;font-size:12px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:10px" onclick="this.select()">
     <div class="rr-ic-acts" style="flex-wrap:wrap">
       <button type="button" class="rr-ic-btn rr-ic-link" data-fd="revoke" title="Kill this URL — a new one is minted next time">Revoke link</button>
       <span style="flex:1"></span>
+      <a class="rr-ic-btn rr-ic-link" href="${escapeHtml(webcalUrl)}" data-fd="apple" title="Opens your device's calendar app with a subscribe prompt">Open in Apple Calendar</a>
       <button type="button" class="rr-ic-btn rr-ic-link" data-fd="webcal">Copy webcal://</button>
       <button type="button" class="rr-ic-btn rr-ic-send" data-fd="copy">Copy link</button>
     </div>
@@ -25294,6 +25295,7 @@ async function _ivcalFeedDialog(cal) {
     const b = ev.target.closest("[data-fd]");
     if (!b) { if (ev.target === back) done(); return; }
     const act = b.getAttribute("data-fd");
+    if (act === "apple") { done(); return; }   // let the webcal: navigation proceed
     if (act === "copy" || act === "webcal") {
       try { await navigator.clipboard.writeText(act === "webcal" ? webcalUrl : httpsUrl); toast("Link copied", "success"); } catch (_) { toast("Copy failed — select the URL and copy manually", "warn"); }
     } else if (act === "revoke") {
@@ -25606,6 +25608,21 @@ function _ivcalSetGoogleColor(c) {
   try { localStorage.setItem("rr_ivcal_gcolor", c); } catch (_) {}
   _ivcalRender();
 }
+// Outlook (Microsoft 365) push connection (#63) — mirrors the Google row.
+// Config-gated: connecting without server credentials explains what's missing.
+function _ivcalOutlookRow() {
+  const m = _ivcalCache && _ivcalCache.ms;
+  const OUTLOOK_ICO = `<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><rect x="2" y="4" width="13" height="16" rx="2" fill="#0F6CBD"/><path d="M8.5 8.2c1.9 0 3.2 1.5 3.2 3.8s-1.3 3.8-3.2 3.8-3.2-1.5-3.2-3.8 1.3-3.8 3.2-3.8zm0 1.6c-.9 0-1.5.9-1.5 2.2s.6 2.2 1.5 2.2 1.5-.9 1.5-2.2-.6-2.2-1.5-2.2z" fill="#fff"/><path d="M15 8h7v10a2 2 0 0 1-2 2h-5V8z" fill="#28A8EA"/><path d="M15 8h7l-3.5 2.8L15 8z" fill="#0F6CBD"/></svg>`;
+  if (m && m.connected) {
+    const msFails = ((_ivcalCache && _ivcalCache.bookings) || []).filter(b => b && b.ms_sync_status === "error").length;
+    return `<div class="oc-cal-row oc-gcal-row">
+      <label class="oc-cal-lbl"><span class="oc-gcal-ico">${OUTLOOK_ICO}</span><span class="oc-gcal-main"><span class="oc-cal-name" title="${escapeHtml(m.email || "")}">Outlook Calendar</span><span class="oc-gcal-sub${msFails ? " is-warn" : ""}"><span class="oc-gcal-dot" aria-hidden="true"></span>${msFails ? "Sync issue" : "Connected"}${m.email ? ` · ${escapeHtml(m.email)}` : ""}</span></span></label>
+      <button class="oc-cal-menu" data-ivcal-mscal="disconnect" title="Disconnect Outlook" aria-label="Disconnect Outlook">×</button>
+    </div>`;
+  }
+  return `<button class="oc-gcal-connect" data-ivcal-mscal="connect"><span class="oc-gcal-ico">${OUTLOOK_ICO}</span>Connect Outlook Calendar</button>`;
+}
+
 function _ivcalGoogleRow() {
   const g = _ivcalCache && _ivcalCache.gcal;
   const connected = !!(g && g.connected);
@@ -25615,15 +25632,22 @@ function _ivcalGoogleRow() {
     // a failed sync is indistinguishable from a successful one from every screen.
     const syncFails = ((_ivcalCache && _ivcalCache.bookings) || []).filter(b => b && b.google_sync_status === "error").length;
     const syncNote = syncFails
-      ? `<div class="oc-gcal-err" title="These interviews didn't sync to Google. They'll retry automatically the next time they're edited.">⚠ ${syncFails} event${syncFails === 1 ? "" : "s"} didn't sync to Google</div>`
+      ? `<div class="oc-gcal-err" title="These interviews didn't sync to Google. They'll retry automatically the next time they're edited.">⚠ ${syncFails} event${syncFails === 1 ? "" : "s"} didn't sync to Google <button type="button" class="oc-gcal-retry" data-ivcal-gcal="retry">Retry now</button></div>`
       : "";
     const errNote = (on && _ivcalGoogleErr)
       ? `<div class="oc-gcal-err" title="${escapeHtml(_ivcalGoogleErr)}">⚠ Couldn't load Google events — is the google-calendar-events function deployed?</div>`
       : "";
     // Connection state below the name — green "Connected" normally; amber
     // "Sync issue" when any push failed (details in the note underneath).
+    // Sync health (#65): how fresh the inbound pull is, right on the row.
     const stCls = syncFails || (on && _ivcalGoogleErr) ? " is-warn" : "";
-    const stTxt = syncFails || (on && _ivcalGoogleErr) ? "Sync issue" : "Connected";
+    let pulled = "";
+    if (g.last_pulled_at) {
+      const mins = Math.max(0, Math.round((Date.now() - new Date(g.last_pulled_at).getTime()) / 60000));
+      pulled = mins < 2 ? " · pulled just now" : mins < 90 ? ` · pulled ${mins}m ago` : ` · pulled ${Math.round(mins / 60)}h ago`;
+      if (mins > 30 && !syncFails) pulled += " ⚠";
+    }
+    const stTxt = (syncFails || (on && _ivcalGoogleErr) ? "Sync issue" : "Connected") + pulled;
     return `<div class="oc-cal-row oc-gcal-row">
       <label class="oc-cal-lbl"><input type="checkbox" data-ivcal-cal="google"${on?" checked":""}><span class="oc-gcal-ico">${_IVCAL_GOOGLE_ICON}</span><span class="oc-gcal-main"><span class="oc-cal-name" title="${escapeHtml(g.email||"")}">Google Calendar</span><span class="oc-gcal-sub${stCls}"><span class="oc-gcal-dot" aria-hidden="true"></span>${stTxt}${g.email ? ` · ${escapeHtml(g.email)}` : ""}</span></span></label>
       <button class="oc-cal-menu" data-ivcal-gcal="menu" title="Calendar options" aria-label="Google calendar options">⋯</button>
@@ -25728,6 +25752,57 @@ async function _ivcalGoogleConnect() {
     toast("Could not start Google connect: " + (e.message || e), "warn");
   }
 }
+// Outlook connect/disconnect (#63) — same popup + message flow as Google;
+// the callback reuses the gcal-callback.html landing page.
+async function _ivcalMsConnect() {
+  try {
+    const { data, error } = await sb.functions.invoke("microsoft-oauth-start", { body: {} });
+    if (error || !data || !data.url) {
+      const status = error && error.context && error.context.status;
+      if (status === 501 || /not_configured/.test(JSON.stringify(data || error || ""))) {
+        toast("Outlook sync isn't configured yet — set MS_CLIENT_ID / MS_CLIENT_SECRET / MS_OAUTH_REDIRECT_URI on the edge functions and deploy microsoft-*.", "info");
+        return;
+      }
+      throw error || new Error("No authorization URL returned");
+    }
+    const popup = window.open(data.url, "rr-mscal", "width=520,height=640");
+    const onMsg = (ev) => {
+      if (!ev.data || ev.data.type !== "rr-gcal") return;   // shared landing page
+      window.removeEventListener("message", onMsg);
+      try { popup && popup.close(); } catch (_) {}
+      if (ev.data.ok) toast("Outlook Calendar connected", "success");
+      else toast("Connection failed: " + (ev.data.message || ""), "warn");
+      loadIvCalendar();
+    };
+    window.addEventListener("message", onMsg);
+    const poll = setInterval(() => {
+      if (popup && popup.closed) { clearInterval(poll); window.removeEventListener("message", onMsg); loadIvCalendar(); }
+    }, 800);
+  } catch (e) {
+    toast("Could not start Outlook connect: " + (e.message || e), "warn");
+  }
+}
+async function _ivcalMsDisconnect() {
+  if (!(await _rrConfirmDialog({ title: "Disconnect Outlook Calendar?", body: "Future interviews won't push to Outlook.", confirmLabel: "Disconnect", danger: true }))) return;
+  try {
+    const { error } = await sb.functions.invoke("microsoft-calendar-disconnect", { body: {} });
+    if (error) throw error;
+    toast("Outlook Calendar disconnected", "success");
+  } catch (e) { toast("Disconnect failed: " + (e.message || e), "warn"); }
+  loadIvCalendar();
+}
+// Re-kick failed Google pushes (#66): clearing the error status touches the
+// rows, and the sync trigger fires again on the update.
+async function _ivcalRetryGcal() {
+  const bad = ((_ivcalCache && _ivcalCache.bookings) || []).filter(b => b && b.google_sync_status === "error").map(b => b.id);
+  if (!bad.length) return;
+  try {
+    const { error } = await sb.from("cal_events").update({ google_sync_status: null, google_sync_error: null }).in("id", bad.slice(0, 50));
+    if (error) throw error;
+    toast(`Retrying ${bad.length} event${bad.length === 1 ? "" : "s"} — check back in a minute`, "success");
+    setTimeout(() => loadIvCalendar(), 4000);
+  } catch (e) { toast("Couldn't retry: " + (e.message || e), "warn"); }
+}
 async function _ivcalGoogleDisconnect() {
   if (!(await _rrConfirmDialog({ title: "Disconnect Google Calendar?", body: "Future interviews won't sync to Google.", confirmLabel: "Disconnect", danger: true }))) return;
   try {
@@ -25756,13 +25831,204 @@ function _ivcalGoogleMenu(e) {
   menu.className = "oc-menu";
   const sw = _IVCAL_PALETTE.map(c =>
     `<button type="button" class="oc-sw${c === _ivcalGoogleColor ? " on" : ""}" data-gcolor="${c}" style="background:${c}" aria-label="${c}"></button>`).join("");
-  menu.innerHTML = `<div class="oc-menu-lbl">Calendar color</div><div class="oc-menu-sw">${sw}</div><button data-gm="disconnect" class="danger">Disconnect Google Calendar</button>`;
+  menu.innerHTML = `<div class="oc-menu-lbl">Calendar color</div><div class="oc-menu-sw">${sw}</div><button data-gm="calendars">Choose overlay calendars…</button><button data-gm="disconnect" class="danger">Disconnect Google Calendar</button>`;
   document.body.appendChild(menu);
   _ivcalPlaceMenu(menu, (e.target && e.target.closest("[data-ivcal-gcal]")) || e.target);
   menu.querySelectorAll("[data-gcolor]").forEach(b => b.onclick = () => { _ivcalCloseMenus(); _ivcalSetGoogleColor(b.getAttribute("data-gcolor")); });
+  menu.querySelector('[data-gm="calendars"]').onclick = () => { _ivcalCloseMenus(); _ivcalOverlayDialog(); };
   menu.querySelector('[data-gm="disconnect"]').onclick = () => { _ivcalCloseMenus(); _ivcalGoogleDisconnect(); };
   const off = (ev) => { if (!menu.contains(ev.target)) { _ivcalCloseMenus(); document.removeEventListener("mousedown", off); } };
   setTimeout(() => document.addEventListener("mousedown", off), 0);
+}
+
+// Inline detail popover for a read-only Google overlay event (#67).
+function _ivcalGooglePeek(e, link) {
+  _ivcalCloseMenus();
+  const ge = ((_ivcalCache && _ivcalCache.googleEvents) || []).find(x => (x.htmlLink || "") === link) || null;
+  const menu = document.createElement("div");
+  menu.className = "oc-menu";
+  const tm = ge ? (ge.allDay
+    ? new Date(ge.sortAt).toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" }) + " · All day"
+    : `${new Date(ge.start).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}${ge.end ? " – " + new Date(ge.end).toLocaleTimeString([], _ivClockOpts()) : ""}`) : "";
+  menu.innerHTML =
+    `<div class="oc-menu-lbl" style="max-width:260px;white-space:normal">${escapeHtml((ge && ge.title) || "Google event")}</div>`
+    + (tm ? `<div class="oc-menu-lbl" style="font-weight:400">${escapeHtml(tm)}</div>` : "")
+    + `<div class="oc-menu-lbl" style="font-weight:400;color:var(--text-subtle)">From your Google Calendar (read-only)</div>`
+    + (link ? `<button data-gp="open">Open in Google Calendar ↗</button>` : "");
+  document.body.appendChild(menu);
+  menu.style.left = Math.min(e.clientX, window.innerWidth - menu.offsetWidth - 6) + "px";
+  menu.style.top = Math.min(e.clientY, window.innerHeight - menu.offsetHeight - 6) + "px";
+  menu.querySelector('[data-gp="open"]')?.addEventListener("click", () => { _ivcalCloseMenus(); window.open(link, "_blank", "noreferrer"); });
+  setTimeout(() => document.addEventListener("click", function off() { _ivcalCloseMenus(); document.removeEventListener("click", off); }, { once: true }), 0);
+}
+
+// Import events from an .ics file (#69) as free-form calendar events. A
+// tolerant, dependency-free parser: unfolds lines, reads VEVENT
+// SUMMARY/DTSTART/DTEND/LOCATION/DESCRIPTION in UTC/TZID/date forms.
+function _ivcalImportIcs() {
+  const inp = document.createElement("input");
+  inp.type = "file";
+  inp.accept = ".ics,text/calendar";
+  inp.onchange = async () => {
+    const f = inp.files && inp.files[0];
+    if (!f) return;
+    let text;
+    try { text = await f.text(); } catch (_) { toast("Couldn't read that file", "warn"); return; }
+    const unfolded = text.replace(/\r?\n[ \t]/g, "");
+    const vevents = unfolded.split(/BEGIN:VEVENT/).slice(1).map(b => b.split(/END:VEVENT/)[0]);
+    const unesc = (s) => String(s || "").replace(/\\n/gi, "\n").replace(/\\([,;\\])/g, "$1").trim();
+    const parseDt = (block, key) => {
+      const m = block.match(new RegExp("^" + key + "([^:\\r\\n]*):([^\\r\\n]+)", "m"));
+      if (!m) return null;
+      const params = m[1] || "", val = m[2].trim();
+      if (/VALUE=DATE(?!-)/i.test(params) || /^\d{8}$/.test(val)) {
+        const d = new Date(+val.slice(0, 4), +val.slice(4, 6) - 1, +val.slice(6, 8), 9, 0, 0);
+        return { at: d, allDay: true };
+      }
+      const dm = val.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/);
+      if (!dm) return null;
+      if (dm[7]) return { at: new Date(Date.UTC(+dm[1], +dm[2] - 1, +dm[3], +dm[4], +dm[5], +(dm[6] || 0))), allDay: false };
+      const tzm = params.match(/TZID=([^;:]+)/i);
+      if (tzm) {
+        try { return { at: new Date(_ivLocalToISO(`${dm[1]}-${dm[2]}-${dm[3]}`, `${dm[4]}:${dm[5]}`, tzm[1])), allDay: false }; } catch (_) {}
+      }
+      return { at: new Date(+dm[1], +dm[2] - 1, +dm[3], +dm[4], +dm[5], +(dm[6] || 0)), allDay: false };
+    };
+    const events = vevents.map(b => {
+      const s = parseDt(b, "DTSTART");
+      if (!s || isNaN(s.at)) return null;
+      const e2 = parseDt(b, "DTEND");
+      const get = (k) => { const m = b.match(new RegExp("^" + k + "(?:;[^:\\r\\n]*)?:([^\\r\\n]+)", "m")); return m ? unesc(m[1]) : ""; };
+      return {
+        title: get("SUMMARY") || "Imported event",
+        starts: s.at,
+        ends: (e2 && !isNaN(e2.at)) ? e2.at : new Date(s.at.getTime() + 60 * 60000),
+        location: get("LOCATION"),
+        note: get("DESCRIPTION"),
+      };
+    }).filter(Boolean).slice(0, 50);
+    if (!events.length) { toast("No events found in that file", "warn"); return; }
+    if (!(await _rrConfirmDialog({ title: `Import ${events.length} event${events.length === 1 ? "" : "s"}?`, body: "They're added as regular calendar events (no invites are sent).", confirmLabel: "Import" }))) return;
+    const tz = (_ivcalCache && _ivcalCache.tz) || "America/Chicago";
+    let made = 0;
+    for (const ev of events) {
+      try {
+        const { error } = await sb.rpc("create_calendar_event", {
+          p_title: ev.title.slice(0, 200), p_starts_at: ev.starts.toISOString(), p_ends_at: ev.ends.toISOString(),
+          p_invitees: [], p_note: ev.note ? ev.note.slice(0, 2000) : null, p_timezone: tz,
+          p_meeting_url: null, p_body_text: null, p_body_html: null, p_rsvp_token: null,
+        });
+        if (!error) made++;
+      } catch (_) {}
+    }
+    toast(`Imported ${made} of ${events.length} event${events.length === 1 ? "" : "s"}`, made ? "success" : "warn");
+    loadIvCalendar();
+  };
+  inp.click();
+}
+
+// Outbound webhooks manager (#70) — Zapier-style POSTs on booking events.
+async function _ivcalWebhooksDialog() {
+  document.getElementById("rr-ivcal-wh")?.remove();
+  const back = document.createElement("div");
+  back.id = "rr-ivcal-wh";
+  back.className = "oc-modal-back";
+  back.innerHTML = `<div class="oc-jump" role="dialog" aria-modal="true" aria-label="Webhooks" style="min-width:420px;max-width:560px">
+    <div class="oc-jump-h">Webhooks</div>
+    <p style="font-size:var(--fs-sm);color:var(--text-muted);margin:0 0 10px">POST booking events (created / rescheduled / cancelled / no-show) to any HTTPS endpoint — Zapier, Make, your own service. The shared secret rides the <code>x-rr-webhook-secret</code> header.</p>
+    <div id="rr-wh-list" style="display:flex;flex-direction:column;gap:6px;font-size:var(--fs-sm)">Loading…</div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <input id="rr-wh-url" type="url" placeholder="https://hooks.zapier.com/…" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font:inherit;font-size:var(--fs-sm)">
+      <button type="button" class="oc-btn oc-jump-go" data-wh-add>Add</button>
+    </div>
+    <div id="rr-wh-secret" style="font-size:var(--fs-xs);color:var(--text-muted);margin-top:8px"></div>
+    <div class="oc-jump-f"><button type="button" class="oc-btn" data-wh-close>Done</button></div>
+  </div>`;
+  document.body.appendChild(back);
+  back.addEventListener("click", (e) => { if (e.target === back || e.target.closest("[data-wh-close]")) back.remove(); });
+  const listEl = back.querySelector("#rr-wh-list");
+  async function paint() {
+    try {
+      const { data, error } = await sb.rpc("webhook_list");
+      if (error) throw error;
+      const rows = data || [];
+      listEl.innerHTML = rows.length ? rows.map(w =>
+        `<div style="display:flex;align-items:center;gap:8px"><span style="flex:1;word-break:break-all">${escapeHtml(w.url)}</span><button type="button" class="oc-btn" data-wh-del="${escapeHtml(w.id)}" style="font-size:var(--fs-xs);padding:3px 8px;color:var(--red)">Remove</button></div>`).join("")
+        : `<span style="color:var(--text-subtle)">No webhooks yet.</span>`;
+      listEl.querySelectorAll("[data-wh-del]").forEach(b => b.onclick = async () => {
+        await sb.rpc("webhook_remove", { p_id: b.getAttribute("data-wh-del") });
+        paint();
+      });
+    } catch (e) {
+      listEl.innerHTML = `<span class="rr-iv-err">${escapeHtml(/webhook_list|schema cache|PGRST202/i.test(String((e && e.message) || e)) ? "Webhooks need the latest Supabase migration (0496)." : "Couldn't load: " + ((e && e.message) || e))}</span>`;
+    }
+  }
+  paint();
+  back.querySelector("[data-wh-add]").addEventListener("click", async () => {
+    const url = (back.querySelector("#rr-wh-url").value || "").trim();
+    if (!/^https:\/\//i.test(url)) { toast("Webhook URLs must be https://", "warn"); return; }
+    try {
+      const { data, error } = await sb.rpc("webhook_add", { p_url: url });
+      if (error) throw error;
+      back.querySelector("#rr-wh-url").value = "";
+      back.querySelector("#rr-wh-secret").innerHTML = data && data.secret
+        ? `Secret for this endpoint (shown once): <code style="word-break:break-all">${escapeHtml(data.secret)}</code>`
+        : "";
+      paint();
+    } catch (e) {
+      toast(/webhook_limit/.test(String((e && e.message) || e)) ? "Limit of 5 active webhooks reached" : "Couldn't add: " + ((e && e.message) || e), "warn");
+    }
+  });
+}
+
+// Choose which of the connected Google account's calendars overlay (#68).
+async function _ivcalOverlayDialog() {
+  document.getElementById("rr-ivcal-ovl")?.remove();
+  const back = document.createElement("div");
+  back.id = "rr-ivcal-ovl";
+  back.className = "oc-modal-back";
+  back.innerHTML = `<div class="oc-jump" role="dialog" aria-modal="true" aria-label="Overlay calendars" style="min-width:320px">
+    <div class="oc-jump-h">Overlay these Google calendars</div>
+    <div id="rr-ovl-list" style="display:flex;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto;font-size:var(--fs-sm)">Loading your calendars…</div>
+    <div class="oc-jump-f"><button type="button" class="oc-btn" data-ovl-cancel>Cancel</button><button type="button" class="oc-btn oc-jump-go" data-ovl-save disabled>Save</button></div>
+  </div>`;
+  document.body.appendChild(back);
+  const close = () => back.remove();
+  back.addEventListener("click", (e) => { if (e.target === back || e.target.closest("[data-ovl-cancel]")) close(); });
+  const listEl = back.querySelector("#rr-ovl-list");
+  const saveBtn = back.querySelector("[data-ovl-save]");
+  try {
+    const { data, error } = await sb.functions.invoke("google-calendar-events", { body: { action: "list_calendars" } });
+    if (error || !data || !Array.isArray(data.calendars)) throw error || new Error((data && data.error) || "Couldn't list calendars");
+    const selected = new Set((data.selected || []).map(String));
+    listEl.innerHTML = data.calendars.map(c =>
+      `<label style="display:flex;align-items:center;gap:8px"><input type="checkbox" value="${escapeHtml(c.id)}"${selected.has(String(c.id)) || (c.primary && !data.selected?.length) ? " checked" : ""}><span class="oc-cal-dot" style="background:${escapeHtml(c.color || "#0B8043")}"></span>${escapeHtml(c.name)}${c.primary ? ` <span style="color:var(--text-subtle);font-size:var(--fs-xs)">· primary</span>` : ""}</label>`).join("")
+      || "No calendars found.";
+    saveBtn.disabled = false;
+  } catch (e) {
+    listEl.innerHTML = `<span class="rr-iv-err">${escapeHtml("Couldn't list calendars: " + ((e && e.message) || e))}</span>`;
+    return;
+  }
+  saveBtn.addEventListener("click", async () => {
+    const ids = Array.from(listEl.querySelectorAll("input:checked")).map(cb => cb.value).slice(0, 8);
+    if (!ids.length) { toast("Pick at least one calendar", "warn"); return; }
+    saveBtn.disabled = true;
+    try {
+      const { data, error } = await sb.rpc("google_calendar_set_overlays", { p_ids: ids });
+      if (error) throw error;
+      if (!data || data.ok === false) throw new Error((data && data.error) || "failed");
+      close();
+      toast("Overlay calendars updated", "success");
+      _ivcalGoogleAttempt = null;   // force a refetch with the new set
+      loadIvCalendar();
+    } catch (err) {
+      saveBtn.disabled = false;
+      const msg = /google_calendar_set_overlays|schema cache|PGRST202/i.test(String((err && err.message) || err))
+        ? "Overlay selection needs the latest Supabase migration (0496)."
+        : "Couldn't save: " + ((err && err.message) || err);
+      toast(msg, "warn");
+    }
+  });
 }
 
 // Per-calendar kebab menu (Edit / Delete).
@@ -25960,13 +26226,13 @@ async function loadIvCalendar() {
     _ivcalCache = {
       tz: (window.RR && window.RR.dsp && window.RR.dsp.timezone) || "America/Chicago",
       slot: 30, buffer: 0, windows: [], overrides: [], sessions: [], bookings: [],
-      calendars: [], awaiting: [], schedules: [], gcal: null, googleEvents: [],
+      calendars: [], awaiting: [], schedules: [], gcal: null, ms: null, googleEvents: [],
       stub: true, // replaced wholesale by the real fetch below
     };
     _ivcalRenderNow();
   }
   try {
-    const [a, s, b, c, g, w, sch, ovr] = await Promise.all([
+    const [a, s, b, c, g, w, sch, ovr, ms] = await Promise.all([
       sb.rpc("interview_availability_get"),
       sb.rpc("interview_sessions_list"),
       sb.from("cal_events")
@@ -26002,6 +26268,8 @@ async function loadIvCalendar() {
       // server's slot generation does (0407). Tolerated as empty until
       // that migration is applied.
       sb.rpc("interview_overrides_list"),
+      // Outlook connection state (0496) — tolerated as absent pre-migration.
+      sb.rpc("ms_calendar_status"),
     ]);
     if (a.error) throw a.error;
     let bookings = b.data || [];
@@ -26049,6 +26317,7 @@ async function loadIvCalendar() {
       awaiting: (w && !w.error && Array.isArray(w.data)) ? w.data : [],
       schedules: (sch && !sch.error && Array.isArray(sch.data)) ? sch.data : [],
       gcal: (g && !g.error && g.data) ? (Array.isArray(g.data) ? g.data[0] : g.data) : null,
+      ms: (ms && !ms.error && ms.data) ? (Array.isArray(ms.data) ? ms.data[0] : ms.data) : null,
       // Carry overlaid Google events across refreshes so minor reloads don't
       // refetch; _ivcalEnsureGoogle refetches only when the window/toggle changes.
       googleEvents: (_ivcalCache && _ivcalCache.googleEvents) || [],
@@ -26543,7 +26812,14 @@ function _ivcalRenderNow() {
     const act = b.getAttribute("data-ivcal-gcal");
     if (act === "connect") _ivcalGoogleConnect();
     else if (act === "menu") _ivcalGoogleMenu(e);
+    else if (act === "retry") _ivcalRetryGcal();
     else _ivcalGoogleDisconnect();
+  });
+  // Outlook connect/disconnect (#63).
+  host.querySelectorAll("[data-ivcal-mscal]").forEach(b => b.onclick = (e) => {
+    e.stopPropagation();
+    if (b.getAttribute("data-ivcal-mscal") === "connect") _ivcalMsConnect();
+    else _ivcalMsDisconnect();
   });
 
   // ── Drag-to-book (enterprise pass 2026-07-11) · drag a candidate from
@@ -26634,9 +26910,10 @@ function _ivcalRenderNow() {
       _ivcalEditEvent(kind, id);
     });
   });
-  // Read-only Google events open in Google Calendar.
+  // Read-only Google events: inline peek (#67) instead of bouncing straight
+  // out to Google — the link is still one click away inside the popover.
   host.querySelectorAll("[data-ivcal-glink]").forEach(el => {
-    el.addEventListener("click", (e) => { e.stopPropagation(); const u = el.getAttribute("data-ivcal-glink"); if (u) window.open(u, "_blank", "noreferrer"); });
+    el.addEventListener("click", (e) => { e.stopPropagation(); _ivcalGooglePeek(e, el.getAttribute("data-ivcal-glink")); });
   });
   // Day actions (#8/#9): right-click a day header (or month cell) → close the
   // day / overrides / new event.
@@ -30432,6 +30709,14 @@ function _ivcalSettingsMenu(btn) {
         <span class="oc-set-link-ico"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></span>
         <span class="oc-set-link-lbl">Print calendar…</span>
       </button>
+      <button type="button" class="oc-set-link" data-set-importics role="menuitem" title="Import events from an .ics file exported by another calendar app">
+        <span class="oc-set-link-ico"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>
+        <span class="oc-set-link-lbl">Import .ics file…</span>
+      </button>
+      <button type="button" class="oc-set-link" data-set-webhooks role="menuitem" title="Send booking events to Zapier or your own systems">
+        <span class="oc-set-link-ico"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></span>
+        <span class="oc-set-link-lbl">Webhooks (Zapier)…</span>
+      </button>
     </div>
     <div class="oc-set-sec" data-set-remsec hidden></div>
     <div class="oc-set-sec">
@@ -30504,6 +30789,12 @@ function _ivcalSettingsMenu(btn) {
     const done = () => { document.body.classList.remove("rr-print-cal"); window.removeEventListener("afterprint", done); };
     window.addEventListener("afterprint", done);
     setTimeout(() => window.print(), 50);
+  });
+  menu.querySelector("[data-set-importics]").addEventListener("click", () => {
+    closeMenu(); _ivcalImportIcs();
+  });
+  menu.querySelector("[data-set-webhooks]").addEventListener("click", () => {
+    closeMenu(); _ivcalWebhooksDialog();
   });
   const workRow = menu.querySelector("[data-set-workrow]");
   menu.querySelector("[data-set-workon]").addEventListener("change", (e) => {

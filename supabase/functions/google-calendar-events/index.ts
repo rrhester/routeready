@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
   if (!appUser?.dsp_id) return jsonResponse({ error: "no_dsp" }, { status: 403, headers: CORS });
 
   const { data: acct } = await supa.from("google_calendar_accounts")
-    .select("dsp_id, google_email, calendar_id, refresh_token_enc, refresh_token_iv, access_token_enc, access_token_iv, access_token_expires_at")
+    .select("dsp_id, google_email, calendar_id, refresh_token_enc, refresh_token_iv, access_token_enc, access_token_iv, access_token_expires_at, overlay_calendar_ids")
     .eq("dsp_id", appUser.dsp_id).maybeSingle();
   if (!acct) return jsonResponse({ connected: false, events: [] }, { headers: CORS });
 
@@ -38,12 +38,43 @@ Deno.serve(async (req) => {
 
   try {
     const token = await getAccessToken(supa, acct as GCalAccount);
-    let events = await gcalListEvents(token, acct.calendar_id || "primary", timeMin, timeMax);
+
+    // "Which calendars can we overlay?" (calendar 100-list #68) — the row's
+    // ⋯ menu lists them and stores the chosen ids on the account.
+    if (body.action === "list_calendars") {
+      const res = await fetch("https://www.googleapis.com/calendar/v3/users/me/calendarList?minAccessRole=reader", {
+        headers: { authorization: `Bearer ${token}` },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error?.message || String(res.status));
+      // deno-lint-ignore no-explicit-any
+      const calendars = ((json.items || []) as any[]).map((c) => ({
+        id: String(c.id), name: c.summaryOverride || c.summary || c.id,
+        primary: !!c.primary, color: c.backgroundColor || null,
+      }));
+      const selected = Array.isArray(acct.overlay_calendar_ids) && acct.overlay_calendar_ids.length
+        ? acct.overlay_calendar_ids
+        : [acct.calendar_id || "primary"];
+      return jsonResponse({ connected: true, calendars, selected }, { headers: CORS });
+    }
+
+    // Overlay across every selected calendar (default: the account's primary).
+    const calIds: string[] = Array.isArray(acct.overlay_calendar_ids) && acct.overlay_calendar_ids.length
+      ? acct.overlay_calendar_ids.slice(0, 8)
+      : [acct.calendar_id || "primary"];
+    let events: Awaited<ReturnType<typeof gcalListEvents>> = [];
+    for (const cid of calIds) {
+      try {
+        const list = await gcalListEvents(token, cid, timeMin, timeMax);
+        events = events.concat(list);
+      } catch (_) { /* one broken calendar shouldn't sink the overlay */ }
+    }
     // Drop events RouteReady pushed to Google (avoid duplicating interviews).
     const { data: mine } = await supa.from("cal_events")
       .select("google_event_id").eq("dsp_id", appUser.dsp_id).not("google_event_id", "is", null);
     const ours = new Set((mine || []).map((r) => r.google_event_id));
     events = events.filter((e) => !ours.has(e.id));
+    events.sort((a, b) => String(a.start || "").localeCompare(String(b.start || "")));
     return jsonResponse({ connected: true, email: acct.google_email, events }, { headers: CORS });
   } catch (e) {
     return jsonResponse(
