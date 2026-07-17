@@ -104,7 +104,7 @@ Deno.serve(async (req) => {
       {
         const { data: claim, error: claimErr } = await supa.from("cal_webhook_events")
           .upsert(
-            { provider_event_id: providerEventId, trigger_event: data.triggerEvent, starts_at: data.payload.startTime ?? null },
+            { provider_event_id: providerEventId, trigger_event: data.triggerEvent, starts_at: data.payload.startTime ?? "" },
             { onConflict: "provider_event_id,trigger_event,starts_at", ignoreDuplicates: true },
           )
           .select("provider_event_id");
