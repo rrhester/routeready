@@ -11,6 +11,7 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { planScheduleWeek } from "./scheduling-engine.js?v=b2ebeec00db5";
 import { assessPlan as rrAssessLaborPlan, driversNeeded as rrDriversNeeded, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=b2ebeec00db5";
 import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=b2ebeec00db5";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=b2ebeec00db5";
 import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=b2ebeec00db5";
 import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=b2ebeec00db5";
 
@@ -25519,7 +25520,7 @@ async function _ivcalFetchOpenSlots(applicantId) {
     const tt = new Date(); tt.setHours(hh, mi, 0, 0);
     const _slotMin = s.slot_end ? Math.max(5, Math.round((new Date(s.slot_end) - d) / 60000)) : ((_ivcalCache && _ivcalCache.slot) || 30);
     const _timeTxt = tt.toLocaleTimeString([], _ivClockOpts());
-    const _dayTxt = new Date(_date + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+    const _dayTxt = new Date(_date + "T00:00:00").toLocaleDateString(_ivDLocale(), { weekday: "long", month: "short", day: "numeric" });
     return { ...s, _date, _min: hh * 60 + mi, _slotMin, _timeTxt, _dayTxt, _whenTxt: _dayTxt + " at " + _timeTxt };
   });
   return { token: lk.token, slots };
@@ -25649,8 +25650,8 @@ function _ivcalNextSlotTxt(st) {
   const dayDiff = Math.round((new Date(st.getFullYear(), st.getMonth(), st.getDate()) - today) / 864e5);
   const day = dayDiff === 0 ? "Today"
     : dayDiff === 1 ? "Tomorrow"
-    : dayDiff < 7 ? st.toLocaleDateString(undefined, { weekday: "long" })
-    : st.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+    : dayDiff < 7 ? st.toLocaleDateString(_ivDLocale(), { weekday: "long" })
+    : st.toLocaleDateString(_ivDLocale(), { weekday: "short", month: "short", day: "numeric" });
   return `${day} at ${t}`;
 }
 
@@ -25953,8 +25954,8 @@ function _ivcalGooglePeek(e, link) {
   const menu = document.createElement("div");
   menu.className = "oc-menu";
   const tm = ge ? (ge.allDay
-    ? new Date(ge.sortAt).toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" }) + " · All day"
-    : `${new Date(ge.start).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}${ge.end ? " – " + new Date(ge.end).toLocaleTimeString([], _ivClockOpts()) : ""}`) : "";
+    ? new Date(ge.sortAt).toLocaleDateString(_ivDLocale(), { weekday: "long", month: "short", day: "numeric" }) + " · All day"
+    : `${new Date(ge.start).toLocaleString(_ivDLocale(), { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}${ge.end ? " – " + new Date(ge.end).toLocaleTimeString([], _ivClockOpts()) : ""}`) : "";
   menu.innerHTML =
     `<div class="oc-menu-lbl" style="max-width:260px;white-space:normal">${escapeHtml((ge && ge.title) || "Google event")}</div>`
     + (tm ? `<div class="oc-menu-lbl" style="font-weight:400">${escapeHtml(tm)}</div>` : "")
@@ -26443,28 +26444,61 @@ function _ivcalISODate(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).
 function _ivcalYpos(min) { const c = Math.max(_IVCAL_H0*60, Math.min(_IVCAL_H1*60, min)); return (c - _IVCAL_H0*60) / 60 * _IVCAL_RH; }
 function _ivcalHourLabel(h) { if (_ivClock24) return String(h).padStart(2,"0") + ":00"; const ampm = h>=12?"PM":"AM"; const h12=(h%12)||12; return `${h12} ${ampm}`; }
 
+// Secondary display timezone (#79) — per-browser pref; when set, the time
+// gutter shows both zones (Google's dual ruler).
+let _ivTz2 = (() => { try { return localStorage.getItem("rr_ivcal_tz2") || ""; } catch (_) { return ""; } })();
+function _ivSetTz2(z) { _ivTz2 = z || ""; try { localStorage.setItem("rr_ivcal_tz2", _ivTz2); } catch (_) {} _ivcalRender(); }
+// Date-format pref (#81): auto = browser locale; mdy/dmy force the order.
+let _ivDateFmt = (() => { try { return localStorage.getItem("rr_ivcal_datefmt") || "auto"; } catch (_) { return "auto"; } })();
+function _ivDLocale() { return _ivDateFmt === "mdy" ? "en-US" : _ivDateFmt === "dmy" ? "en-GB" : undefined; }
+function _ivSetDateFmt(v) { _ivDateFmt = v; try { localStorage.setItem("rr_ivcal_datefmt", v); } catch (_) {} _ivcalRender(); }
+
+// Time gutter for the week/day/split grids: one row per hour, with the
+// secondary zone's wall time underneath when a dual ruler is configured.
+function _ivcalGutterHtml(anchorDay) {
+  const tz = (_ivcalCache && _ivcalCache.tz) || "America/Chicago";
+  const iso = _ivcalISODate(anchorDay);
+  const dual = _ivTz2 && _ivTz2 !== tz;
+  let fmt2 = null;
+  if (dual) {
+    try { fmt2 = new Intl.DateTimeFormat(undefined, { timeZone: _ivTz2, hour12: !_ivClock24, hour: "numeric", minute: "2-digit" }); } catch (_) {}
+  }
+  let out = "";
+  for (let h = _IVCAL_H0; h < _IVCAL_H1; h++) {
+    let second = "";
+    if (fmt2) {
+      try {
+        const inst = new Date(_ivLocalToISO(iso, `${String(h).padStart(2, "0")}:00`, tz));
+        second = `<span class="oc-hr-tz2" title="${escapeHtml(_ivTz2)}">${escapeHtml(fmt2.format(inst))}</span>`;
+      } catch (_) {}
+    }
+    out += `<div class="oc-hr" style="height:${_IVCAL_RH}px"><span>${_ivcalHourLabel(h)}</span>${second}</div>`;
+  }
+  return out;
+}
+
 function _ivcalPeriodLabel() {
   const a = _ivcalAnchor;
   if (_ivcalView === "year") return String(a.getFullYear());
-  if (_ivcalView === "day" || _ivcalView === "split") return a.toLocaleDateString(undefined, { weekday:"long", month:"long", day:"numeric", year:"numeric" });
-  if (_ivcalView === "month") return a.toLocaleDateString(undefined, { month:"long", year:"numeric" });
+  if (_ivcalView === "day" || _ivcalView === "split") return a.toLocaleDateString(_ivDLocale(), { weekday:"long", month:"long", day:"numeric", year:"numeric" });
+  if (_ivcalView === "month") return a.toLocaleDateString(_ivDLocale(), { month:"long", year:"numeric" });
   if (_ivcalView === "agenda") {
     const s = new Date(a); s.setHours(0,0,0,0);
     const e = new Date(s); e.setDate(s.getDate() + _IVCAL_AGENDA_DAYS - 1);
-    const startStr = s.toLocaleDateString(undefined, { month:"short", day:"numeric" });
+    const startStr = s.toLocaleDateString(_ivDLocale(), { month:"short", day:"numeric" });
     const endStr = (s.getMonth() === e.getMonth() && s.getFullYear() === e.getFullYear())
       ? `${e.getDate()}, ${e.getFullYear()}`
-      : e.toLocaleDateString(undefined, { month:"short", day:"numeric", year:"numeric" });
+      : e.toLocaleDateString(_ivDLocale(), { month:"short", day:"numeric", year:"numeric" });
     return `${startStr} – ${endStr}`;
   }
   // Within the same month, show "Jun 8 – 12, 2026" — built by hand because
   // toLocaleDateString({day,year}) (day + year, no month) makes V8 emit a
   // literal "2026 (day: 12)" since there's no locale pattern for that combo.
   const range = (s, e) => {
-    const startStr = s.toLocaleDateString(undefined, { month:"short", day:"numeric" });
+    const startStr = s.toLocaleDateString(_ivDLocale(), { month:"short", day:"numeric" });
     const endStr = (s.getMonth() === e.getMonth())
       ? `${e.getDate()}, ${e.getFullYear()}`
-      : e.toLocaleDateString(undefined, { month:"short", day:"numeric", year:"numeric" });
+      : e.toLocaleDateString(_ivDLocale(), { month:"short", day:"numeric", year:"numeric" });
     return `${startStr} – ${endStr}`;
   };
   if (_ivcalView === "workweek") {
@@ -26549,7 +26583,7 @@ function _ivcalMiniMonths() {
   // Single clean month (Google-style), prev/next arrows in the header.
   const first = _ivcalMiniBase();
   const mo = first.getMonth();
-  const title = first.toLocaleDateString(undefined, { month:"long", year:"numeric" });
+  const title = first.toLocaleDateString(_ivDLocale(), { month:"long", year:"numeric" });
   const gridStart = _ivcalWeekStart(first); // honors the week-start pref
   const today = new Date(); today.setHours(0,0,0,0);
   const rng = _ivcalViewRange();
@@ -27334,7 +27368,7 @@ function _ivcalAutoScroll() {
 function _ivcalFmtWhen(ev) {
   const s = new Date(ev.starts_at);
   const e = ev.ends_at ? new Date(ev.ends_at) : null;
-  const dateStr = s.toLocaleDateString(undefined, { weekday:"long", month:"long", day:"numeric", year:"numeric" });
+  const dateStr = s.toLocaleDateString(_ivDLocale(), { weekday:"long", month:"long", day:"numeric", year:"numeric" });
   const timeStr = s.toLocaleTimeString([], _ivClockOpts())
     + (e ? " – " + e.toLocaleTimeString([], _ivClockOpts()) : "");
   return { dateStr, timeStr };
@@ -27753,7 +27787,7 @@ What to expect:
 
 Please use the Accept or Decline buttons below to confirm. We look forward to meeting you!`;
 
-  const fmtDate = (d) => new Date(d + "T00:00:00").toLocaleDateString(undefined, { weekday:"long", month:"long", day:"numeric", year:"numeric" });
+  const fmtDate = (d) => new Date(d + "T00:00:00").toLocaleDateString(_ivDLocale(), { weekday:"long", month:"long", day:"numeric", year:"numeric" });
   const fmtTime = (hhmm) => { const [h,mm] = String(hhmm||"").split(":").map(Number); const x = new Date(); x.setHours(h||0, mm||0, 0, 0); return x.toLocaleTimeString([], _ivClockOpts()); };
   const fmtRange = (sdate, stime, edate, etime, allDay) => {
     const sameDay = !edate || edate === sdate;
@@ -28297,7 +28331,7 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
     const wins = _ivcalDayWindows(d).sort((a, b) => a.start_min - b.start_min);
     if (!wins.length) {
       const closed = _slotIsClosedDate(dISO, (_ivcalCache && _ivcalCache.overrides) || []);
-      _availBox.innerHTML = `<div class="rr-ne-anone">${closed ? "Closed on this date (Holidays & date overrides)." : `No bookable times on ${d.toLocaleDateString(undefined, { weekday: "long" })}.`}</div>`;
+      _availBox.innerHTML = `<div class="rr-ne-anone">${closed ? "Closed on this date (Holidays & date overrides)." : `No bookable times on ${d.toLocaleDateString(_ivDLocale(), { weekday: "long" })}.`}</div>`;
       return;
     }
     // Slot start-minutes already filled by a booking or group session that day.
@@ -28305,7 +28339,7 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
     [].concat(_ivcalDayItems(d, _ivcalCache.bookings, "starts_at"), _ivcalDayItems(d, _ivcalCache.sessions, "starts_at"))
       .forEach(it => { const t = new Date(it.starts_at); taken.add(t.getHours() * 60 + t.getMinutes()); });
     const curStart = (() => { const v = (document.getElementById("rr-ne-stime") || {}).value; if (!v) return -1; const p = v.split(":"); return (+p[0]) * 60 + (+p[1]); })();
-    let chips = `<div class="rr-ne-aday">${d.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })} · ${slotMin}-min slots</div>`;
+    let chips = `<div class="rr-ne-aday">${d.toLocaleDateString(_ivDLocale(), { weekday: "long", month: "short", day: "numeric" })} · ${slotMin}-min slots</div>`;
     let any = false;
     for (const w of wins) {
       for (let mm = w.start_min; mm + slotMin <= w.end_min; mm += slotMin + buf) {
@@ -28390,7 +28424,7 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
     const slots = _ivFindOpenSlots(busy, durMin, fromDay, DAYS, 8 * 60, 18 * 60, Date.now(), 6);
     if (!slots.length) { _ftBox.innerHTML = warn + `<div class="rr-ne-anone">No open ${durMin}-min slot for everyone in the next ${DAYS} days (business hours).</div>`; return; }
     const chips = slots.map(s => {
-      const lbl = s.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) + " · " + s.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      const lbl = s.toLocaleDateString(_ivDLocale(), { weekday: "short", month: "short", day: "numeric" }) + " · " + s.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
       return `<button type="button" class="rr-ne-ftslot" data-iso="${_ivcalISODate(s)}" data-mm="${s.getHours() * 60 + s.getMinutes()}" data-dur="${durMin}">${escapeHtml(lbl)}</button>`;
     }).join("");
     _ftBox.innerHTML = warn + `<div class="rr-ne-aday">Everyone's free — pick a time:</div>` + chips;
@@ -28980,7 +29014,7 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
             const dsp = window.RR && window.RR.dsp && window.RR.dsp.id;
             if (dsp && confirm(`The time changed — email the new time to ${notifyEmails.length === 1 ? "the attendee" : notifyEmails.length + " attendees"}?`)) {
               const evTitle = ev0.kind === "event" ? (title || "Event") : (ev0.kind === "orientation" ? "Orientation" : "Interview");
-              const whenStr = new Date(startISO).toLocaleString(undefined, { weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" });
+              const whenStr = new Date(startISO).toLocaleString(_ivDLocale(), { weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" });
               const bodyTxt = `Hi,\n\nYour ${evTitle.toLowerCase()} has been rescheduled to:\n${whenStr}\n\n${roomUrl ? "Join the video meeting: " + roomUrl + "\n\n" : ""}Reply to this email if that time doesn't work.`;
               const rows = notifyEmails.map(em => ({ dsp_id: dsp, direction: "outbound", status: "queued", to_email: em, subject: "Updated time: " + evTitle, body_text: bodyTxt, body_html: bodyTxt.replace(/\n/g, "<br>"), cal_event_id: editEv.id, calendar_method: "request" }));
               const { error: mailErr } = await _rrQueueCalEmails(rows);
@@ -29219,7 +29253,7 @@ const _IVCAL_MSG_STATUS = {
 function _ivcalMsgWhen(ts) {
   if (!ts) return "";
   const d = new Date(ts);
-  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) +
+  return d.toLocaleDateString(_ivDLocale(), { month: "short", day: "numeric" }) +
     " · " + d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 async function _ivcalLoadEventMessages(eventId, host) {
@@ -29660,11 +29694,10 @@ function _ivcalTimeGrid(ndays) {
       : (n ? `${n} interview${n === 1 ? "" : "s"}` : "No interviews");
     const _wk = d.getDay() === 0 || d.getDay() === 6;
     const _hol = _rrUSHoliday(d);
-    return `<div class="oc-dh${isToday?" today":""}${_wk?" oc-wknd":""}" data-ivcal-dh="${_ivcalISODate(d)}" title="Right-click for day actions (close day, overrides)"><div class="dow">${d.toLocaleDateString(undefined,{weekday:"long"})}</div><div class="dn">${d.getDate()}</div><div class="oc-dh-meta${short ? " is-short" : ""}${closed && cap === 0 ? " is-closed" : ""}"${short ? ` title="${cap - n} open slot${cap - n === 1 ? "" : "s"} while candidates wait to book"` : (closed && cap === 0 ? ' title="Closed by a date override (Holidays & date overrides)"' : "")}>${meta}</div>${_hol ? `<div class="oc-dh-hol" title="US federal holiday">🎉 ${escapeHtml(_hol)}</div>` : ""}</div>`;
+    return `<div class="oc-dh${isToday?" today":""}${_wk?" oc-wknd":""}" data-ivcal-dh="${_ivcalISODate(d)}" title="Right-click for day actions (close day, overrides)"><div class="dow">${d.toLocaleDateString(_ivDLocale(),{weekday:"long"})}</div><div class="dn">${d.getDate()}</div><div class="oc-dh-meta${short ? " is-short" : ""}${closed && cap === 0 ? " is-closed" : ""}"${short ? ` title="${cap - n} open slot${cap - n === 1 ? "" : "s"} while candidates wait to book"` : (closed && cap === 0 ? ' title="Closed by a date override (Holidays & date overrides)"' : "")}>${meta}</div>${_hol ? `<div class="oc-dh-hol" title="US federal holiday">🎉 ${escapeHtml(_hol)}</div>` : ""}</div>`;
   }).join("");
 
-  let gutter = "";
-  for (let h=_IVCAL_H0; h<_IVCAL_H1; h++) gutter += `<div class="oc-hr" style="height:${_IVCAL_RH}px"><span>${_ivcalHourLabel(h)}</span></div>`;
+  const gutter = _ivcalGutterHtml(days[0] || new Date());
 
   const cols = days.map(d => {
     const isToday = d.getTime() === today.getTime();
@@ -29851,7 +29884,7 @@ function _ivcalAgenda() {
     if (diff === 0) return "Today";
     if (diff === 1) return "Tomorrow";
     if (diff === -1) return "Yesterday";
-    return d.toLocaleDateString(undefined, { weekday:"long" });
+    return d.toLocaleDateString(_ivDLocale(), { weekday:"long" });
   };
   let blocks = "";
   let shown = 0;
@@ -29868,7 +29901,7 @@ function _ivcalAgenda() {
     const rows = items.map(({ ev, type }) => _ivcalAgendaRow(ev, type)).join("");
     const isToday = d.getTime() === today.getTime();
     blocks += `<div class="oc-ag-day${isToday?" today":""}" data-ivcal-date="${_ivcalISODate(d)}">
-      <div class="oc-ag-date"><span class="oc-ag-dnum">${d.getDate()}</span><div class="oc-ag-dmeta"><span class="oc-ag-drel">${escapeHtml(relLabel(d))}</span><span class="oc-ag-dmon">${escapeHtml(d.toLocaleDateString(undefined,{month:"short",year:d.getFullYear()!==today.getFullYear()?"numeric":undefined}))}</span></div></div>
+      <div class="oc-ag-date"><span class="oc-ag-dnum">${d.getDate()}</span><div class="oc-ag-dmeta"><span class="oc-ag-drel">${escapeHtml(relLabel(d))}</span><span class="oc-ag-dmon">${escapeHtml(d.toLocaleDateString(_ivDLocale(),{month:"short",year:d.getFullYear()!==today.getFullYear()?"numeric":undefined}))}</span></div></div>
       <div class="oc-ag-rows">${rows}</div>
     </div>`;
     shown++;
@@ -29942,9 +29975,9 @@ function _ivcalYear() {
       const iso = _ivcalISODate(d);
       const isToday = !out && d.getTime() === today.getTime();
       const hasEv = !out && busy.has(iso);
-      cells += `<button type="button" class="oc-ycell${out ? " out" : ""}${isToday ? " today" : ""}${hasEv ? " has" : ""}" data-ivcal-yday="${iso}" title="${escapeHtml(d.toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"}))}">${d.getDate()}</button>`;
+      cells += `<button type="button" class="oc-ycell${out ? " out" : ""}${isToday ? " today" : ""}${hasEv ? " has" : ""}" data-ivcal-yday="${iso}" title="${escapeHtml(d.toLocaleDateString(_ivDLocale(),{weekday:"long",month:"long",day:"numeric"}))}">${d.getDate()}</button>`;
     }
-    const mname = first.toLocaleDateString(undefined, { month: "long" });
+    const mname = first.toLocaleDateString(_ivDLocale(), { month: "long" });
     months += `<div class="oc-ymonth"><button type="button" class="oc-ymname" data-ivcal-ymonth="${year}-${m + 1}">${escapeHtml(mname)}</button><div class="oc-ydow-row">${dow}</div><div class="oc-ygrid">${cells}</div></div>`;
   }
   return `<div class="oc-cal"><div class="oc-scroll" id="rr-ivcal-scroll"><div class="oc-year">${months}</div></div></div>`;
@@ -30018,7 +30051,7 @@ function _ivcalPaneHtml() {
     if (ev.status !== "cancelled" && ev.status !== "no_show" && new Date(ev.starts_at) > new Date()) {
       const _cAt = ev.metadata && ev.metadata.confirmed_at ? new Date(ev.metadata.confirmed_at) : null;
       rows += drow("✔", _cAt && !isNaN(_cAt)
-        ? `<span style="color:var(--green)">Candidate confirmed ${escapeHtml(_cAt.toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" }))}</span>`
+        ? `<span style="color:var(--green)">Candidate confirmed ${escapeHtml(_cAt.toLocaleString(_ivDLocale(), { weekday: "short", hour: "numeric", minute: "2-digit" }))}</span>`
         : `<span style="color:var(--oc-sub)">Candidate hasn't confirmed yet</span>`);
     }
   }
@@ -30072,7 +30105,7 @@ function _ivcalPaneHtml() {
       const t = new Date(p.starts_at);
       if (isNaN(t)) return "";
       const idx = _props.length - Math.min(4, _props.length) + i;
-      const lbl = t.toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+      const lbl = t.toLocaleString(_ivDLocale(), { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
       return `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span>${escapeHtml(lbl)}${p.email ? ` <span style="color:var(--text-subtle)">· ${escapeHtml(p.email)}</span>` : ""}${p.note ? `<br><span style="color:var(--text-subtle);font-size:var(--fs-xs)">${escapeHtml(p.note)}</span>` : ""}</span><button type="button" class="oc-btn" data-oc-prop="${idx}" data-oc-prop-dur="${durMs}" style="font-size:var(--fs-xs);padding:3px 8px">Accept &amp; reschedule</button></div>`;
     }).join("");
     rows += drow("🕓", `<div style="display:flex;flex-direction:column;gap:6px"><strong style="font-size:var(--fs-xs);color:var(--text-subtle);text-transform:uppercase;letter-spacing:.03em">Proposed new time${_props.length > 1 ? "s" : ""}</strong>${plist}</div>`);
@@ -30136,7 +30169,7 @@ function _ivcalWirePane(host) {
     const durMs = Math.max(5 * 60000, parseInt(b.getAttribute("data-oc-prop-dur"), 10) || 30 * 60000);
     const starts = new Date(p.starts_at);
     if (isNaN(starts)) return;
-    const whenTxt = starts.toLocaleString(undefined, { weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" });
+    const whenTxt = starts.toLocaleString(_ivDLocale(), { weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" });
     if (!(await _rrConfirmDialog({ title: "Accept proposed time?", body: `Move this event to ${whenTxt}.`, confirmLabel: "Reschedule" }))) return;
     try {
       const md = { ...(ev.metadata || {}) };
@@ -30759,9 +30792,10 @@ function _ivcalSettingsMenu(btn) {
   const gearIco = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
   const hoursIco = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>`;
   const curTz = (_ivcalCache && _ivcalCache.tz) || "America/Chicago";
-  const tzList = ["America/New_York","America/Chicago","America/Denver","America/Los_Angeles","America/Phoenix","America/Anchorage","Pacific/Honolulu"];
-  if (!tzList.includes(curTz)) tzList.unshift(curTz);   // keep an out-of-list zone visible & selected
-  const tzOpts = tzList.map(z => `<option value="${z}"${z===curTz?" selected":""}>${z.replace(/^(America|Pacific)\//,"").replace(/_/g," ")}</option>`).join("");
+  // Full IANA list with type-ahead search (#78) — datalist is shared by the
+  // primary picker and the dual-ruler second zone (#79).
+  const tzZones = _tzAllZones();
+  const tzDatalist = `<datalist id="rr-tzlist">${tzZones.map(z => `<option value="${escapeHtml(z)}"></option>`).join("")}</datalist>`;
   const scheds = (_ivcalCache && _ivcalCache.schedules) || [];
   const bpRows = scheds.length
     ? scheds.map(s =>
@@ -30779,7 +30813,10 @@ function _ivcalSettingsMenu(btn) {
   menu.innerHTML = `
     <div class="oc-set-sec">
       <div class="oc-set-h">Timezone</div>
-      <select class="oc-set-tz" data-set-tz aria-label="Calendar timezone">${tzOpts}</select>
+      <input class="oc-set-tz" data-set-tz list="rr-tzlist" value="${escapeHtml(curTz)}" spellcheck="false" autocomplete="off" aria-label="Calendar timezone" placeholder="Type to search zones…">
+      <div class="oc-set-h">Second time zone <span class="oc-set-hint">shown beside the hours</span></div>
+      <input class="oc-set-tz" data-set-tz2 list="rr-tzlist" value="${escapeHtml(_ivTz2)}" spellcheck="false" autocomplete="off" aria-label="Second display timezone" placeholder="None — type to add">
+      ${tzDatalist}
     </div>
     <div class="oc-set-sec">
       <div class="oc-set-h">Week starts on</div>
@@ -30793,6 +30830,14 @@ function _ivcalSettingsMenu(btn) {
       <div class="oc-set-seg" data-set-clock>
         <button class="${_ivClock24 ? "" : "on"}" data-ck="12">12-hour</button>
         <button class="${_ivClock24 ? "on" : ""}" data-ck="24">24-hour</button>
+      </div>
+    </div>
+    <div class="oc-set-sec">
+      <div class="oc-set-h">Date format</div>
+      <div class="oc-set-seg" data-set-datefmt title="How dates read across the calendar">
+        <button class="${_ivDateFmt === "auto" ? "on" : ""}" data-df="auto">Auto</button>
+        <button class="${_ivDateFmt === "mdy" ? "on" : ""}" data-df="mdy">Jul 17</button>
+        <button class="${_ivDateFmt === "dmy" ? "on" : ""}" data-df="dmy">17 Jul</button>
       </div>
     </div>
     <div class="oc-set-sec">
@@ -30854,8 +30899,16 @@ function _ivcalSettingsMenu(btn) {
   const rerender = () => { _ivSavePrefs(); _ivcalRender(); };
 
   // Timezone — persist server-side, optimistically update the grid label first.
+  // Free-text input backed by the full IANA datalist (#78): only a real zone
+  // is accepted; anything else reverts.
   menu.querySelector("[data-set-tz]").addEventListener("change", (e) => {
-    const tz = e.target.value;
+    const tz = e.target.value.trim();
+    if (tz === curTz) return;
+    if (!tzZones.includes(tz)) {
+      e.target.value = curTz;
+      toast("Pick a timezone from the list (type to search)", "warn");
+      return;
+    }
     const prev = _ivcalCache ? _ivcalCache.tz : tz;
     if (_ivcalCache) _ivcalCache.tz = tz;
     _ivcalRender();
@@ -30866,6 +30919,17 @@ function _ivcalSettingsMenu(btn) {
         _ivcalRender();
         toast("Couldn't change timezone: " + (err.message || err), "warn");
       });
+  });
+  // Second display zone (#79) — local pref, clears with an empty field.
+  menu.querySelector("[data-set-tz2]").addEventListener("change", (e) => {
+    const v = e.target.value.trim();
+    if (!v) { _ivSetTz2(""); return; }
+    if (!tzZones.includes(v)) {
+      e.target.value = _ivTz2;
+      toast("Pick a timezone from the list (type to search)", "warn");
+      return;
+    }
+    _ivSetTz2(v);
   });
 
   menu.querySelector("[data-set-weekstart]").addEventListener("click", (e) => {
@@ -30879,6 +30943,11 @@ function _ivcalSettingsMenu(btn) {
     _ivClock24 = b.getAttribute("data-ck") === "24";
     menu.querySelectorAll("[data-set-clock] button").forEach(x => x.classList.toggle("on", x === b));
     rerender();
+  });
+  menu.querySelector("[data-set-datefmt]").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-df]"); if (!b) return;
+    _ivSetDateFmt(b.getAttribute("data-df") || "auto");
+    menu.querySelectorAll("[data-set-datefmt] button").forEach(x => x.classList.toggle("on", x === b));
   });
   menu.querySelector("[data-set-snap]").addEventListener("click", (e) => {
     const b = e.target.closest("[data-sn]"); if (!b) return;
@@ -31015,7 +31084,7 @@ function _ivcalOpenSearch() {
   document.body.appendChild(back);
   const listEl = back.querySelector("#oc-search-list");
   const inp = back.querySelector("#oc-search-q");
-  const fmt = (iso) => { const d = new Date(iso); return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) + " · " + d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); };
+  const fmt = (iso) => { const d = new Date(iso); return d.toLocaleDateString(_ivDLocale(), { weekday: "short", month: "short", day: "numeric" }) + " · " + d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); };
   let results = [], active = -1;
   function render() {
     const q = (inp.value || "").toLowerCase().trim();
@@ -31095,7 +31164,7 @@ async function _rrOpenDateOverrides() {
   const timesEl = back.querySelector("#rr-ovr-times");
   modeSel.addEventListener("change", () => { timesEl.style.display = modeSel.value === "custom" ? "inline-flex" : "none"; });
 
-  const fmtDate = (d) => new Date(d + "T00:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+  const fmtDate = (d) => new Date(d + "T00:00:00").toLocaleDateString(_ivDLocale(), { weekday: "short", month: "short", day: "numeric", year: "numeric" });
   const fmtMin = (m) => { const h = Math.floor(m / 60), mn = m % 60, ap = h < 12 ? "AM" : "PM", h12 = ((h + 11) % 12) + 1; return `${h12}:${String(mn).padStart(2, "0")} ${ap}`; };
   const hhmmToMin = (s) => { const [h, m] = String(s || "").split(":").map(Number); return (h || 0) * 60 + (m || 0); };
 
@@ -31198,7 +31267,7 @@ function _ivcalQuickCreate(e, dateISO, startMin) {
   const t = (min) => { const x = new Date(); x.setHours(Math.floor(min/60), min%60, 0, 0); return x.toLocaleTimeString([], _ivClockOpts()); };
   q.innerHTML = `
     <input type="text" data-oc-q-title placeholder="Add a title" autofocus>
-    <div class="qt">${escapeHtml(new Date(dateISO+"T00:00:00").toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"}))} · ${escapeHtml(t(startMin))} – ${escapeHtml(t(startMin+30))}</div>
+    <div class="qt">${escapeHtml(new Date(dateISO+"T00:00:00").toLocaleDateString(_ivDLocale(),{weekday:"short",month:"short",day:"numeric"}))} · ${escapeHtml(t(startMin))} – ${escapeHtml(t(startMin+30))}</div>
     <div class="qa"><button class="oc-btn" data-oc-q="more">More options</button><button class="oc-btn pri" data-oc-q="create">Create</button></div>`;
   document.body.appendChild(q);
   const qw = q.offsetWidth;
@@ -31449,7 +31518,7 @@ function _ivcalDayClosableEvents(dateISO) {
 // peak"). One confirm, one summary toast.
 async function _ivcalCloseDay(dateISO, holidayName) {
   const evs = _ivcalDayClosableEvents(dateISO);
-  const dayTxt = new Date(dateISO + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+  const dayTxt = new Date(dateISO + "T00:00:00").toLocaleDateString(_ivDLocale(), { weekday: "long", month: "long", day: "numeric" });
   const ok = await _rrConfirmDialog({
     title: `Close ${dayTxt}?`,
     body: `${evs.length ? `Cancels ${evs.length} event${evs.length === 1 ? "" : "s"} (attendees are emailed) and marks` : "Marks"} the day closed on the booking page. Candidates can pick a new time from their booking link.`,
@@ -31618,8 +31687,7 @@ function _ivcalTimeGridSplit() {
   let head = `<div class="oc-corner"><span class="oc-corner-tz" title="All times shown in ${escapeHtml(_tzFull)}">${escapeHtml(_tzAbbr)}</span></div>`;
   head += lanes.map(l => `<div class="oc-dh oc-dh-lane${isToday ? " today" : ""}"><div class="dow">${escapeHtml(l.name)}</div></div>`).join("");
 
-  let gutter = "";
-  for (let h = _IVCAL_H0; h < _IVCAL_H1; h++) gutter += `<div class="oc-hr" style="height:${_IVCAL_RH}px"><span>${_ivcalHourLabel(h)}</span></div>`;
+  const gutter = _ivcalGutterHtml(day);
 
   const dayBookings = _ivcalDayItems(day, (_ivcalCache && _ivcalCache.bookings) || [], "starts_at");
   const daySessions = _ivcalDayItems(day, (_ivcalCache && _ivcalCache.sessions) || [], "starts_at");
@@ -31984,7 +32052,7 @@ function _ivcalInstallDrag() {
         const s = new Date(ev.starts_at), en = ev.ends_at ? new Date(ev.ends_at) : new Date(s.getTime()+30*60000);
         const hm = (x) => _ivMinToHHMM(x.getHours()*60 + x.getMinutes());
         const starts = _ivLocalToISO(d.to, hm(s), tz), ends = _ivLocalToISO(d.to, hm(en), tz);
-        const toTxt = new Date(d.to + "T00:00:00").toLocaleDateString(undefined, { weekday:"short", month:"short", day:"numeric" });
+        const toTxt = new Date(d.to + "T00:00:00").toLocaleDateString(_ivDLocale(), { weekday:"short", month:"short", day:"numeric" });
         if (alt) await _ivcalDuplicateAt(ev, starts, ends);
         else await _ivcalApplyTimePatch(ev, { starts_at: starts, ends_at: ends, ...detach }, "Moved to " + toTxt);
       } else if (d.mode === "create") {
@@ -32012,15 +32080,10 @@ const _IV_DAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","S
 const _ivMinToHHMM = (m) => { m = Math.max(0, Math.min(1440, m|0)); return String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0"); };
 const _ivHHMMToMin = (s) => { const [h,m] = String(s||"").split(":").map(Number); return (h||0)*60 + (m||0); };
 // Wall-clock date+time in a given IANA tz → absolute ISO instant (DST-aware).
-function _ivLocalToISO(date, time, tz) {
-  const [Y,M,D] = date.split("-").map(Number);
-  const [h,m] = time.split(":").map(Number);
-  const asUTC = Date.UTC(Y, M-1, D, h, m);
-  const p = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour12:false, year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit", second:"2-digit" })
-    .formatToParts(new Date(asUTC)).reduce((a,x)=>(a[x.type]=x.value,a),{});
-  const wall = Date.UTC(+p.year, +p.month-1, +p.day, +p.hour, +p.minute, +p.second);
-  return new Date(asUTC - (wall - asUTC)).toISOString();
-}
+// Delegates to cal-tz.mjs (unit-tested there, #80) — the old inline version
+// had a real DST edge bug: single-pass offset resolution landed an hour off
+// for wall times in the first hours after a transition.
+function _ivLocalToISO(date, time, tz) { return _tzLocalToISO(date, time, tz); }
 
 // "Copy times to other days" picker for the availability editor. srcWins are
 // {start,end,cap} in minutes; applyFn(targetDay, srcWins) writes them onto a day.

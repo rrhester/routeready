@@ -33159,3 +33159,10 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 .rr-notify-quiet input { font: inherit; font-size: var(--fs-sm); padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px; }
 .rr-notify-lbl { display: flex; flex-direction: column; gap: 4px; font-weight: 600; }
 .rr-notify-lbl input { font: inherit; font-size: var(--fs-sm); padding: 7px 9px; border: 1px solid var(--border); border-radius: 6px; width: 100%; }
+
+/* ═══ Calendar Wave 8 · timezones & localization (2026-07-17) ════════════ */
+/* Dual-zone ruler (#79): the second zone's wall time sits under the hour
+   label, quieter, so the primary zone still leads. */
+#rr-ivcal .oc-hr .oc-hr-tz2 { top: 5px; font-weight: 500; color: var(--text-subtle); }
+.oc-setmenu input.oc-set-tz { cursor: text; }
+.oc-setmenu .oc-set-hint { font-weight: 400; color: var(--text-subtle); font-size: var(--fs-xs); text-transform: none; letter-spacing: 0; }
