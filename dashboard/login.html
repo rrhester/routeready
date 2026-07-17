@@ -113,14 +113,25 @@
 
 <script src="./config.js"></script>
 <script type="module">
-  import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
+  import { createClient } from "/dashboard/vendor/supabase-js-2.45.4.mjs";
   const cfg = window.RR_CONFIG;
   const sb = createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, {
     auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
   });
 
   const params  = new URLSearchParams(location.search);
-  const next    = params.get("next") || "./index.html";
+  // `next` must stay on this origin — an unvalidated value made
+  // login.html?next=https://evil.example an open redirect that fired the
+  // instant a genuine sign-in completed (credible phishing hop).
+  const next = (() => {
+    const raw = params.get("next");
+    if (!raw) return "./index.html";
+    try {
+      const u = new URL(raw, location.href);
+      if (u.origin === location.origin) return u.pathname + u.search + u.hash;
+    } catch (_) {}
+    return "./index.html";
+  })();
   const errCode = params.get("err");
   const baseDir = location.origin + location.pathname.replace(/[^/]+$/, "");
   const indexUrl = baseDir + "index.html";
@@ -133,13 +144,19 @@
   // (after redeeming a routeready:// code) to sign THIS window in. It reuses
   // this page's own `sb` client — no second Supabase instance (a duplicate
   // client previously broke sign-in).
+  // One-shot: a session-injection primitive must not stay callable for the
+  // page's whole lifetime (any later same-origin script could silently swap
+  // the operator's session). The pairing flow only ever needs one call.
+  let __rrPairUsed = false;
   window.__rrApplySession = async (accessToken, refreshToken) => {
+    if (__rrPairUsed) { console.warn("[rr-pair] ignored repeat call"); return false; }
+    __rrPairUsed = true;
     try {
       const { error } = await sb.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
-      if (error) { console.warn("[rr-pair]", error.message); return false; }
+      if (error) { console.warn("[rr-pair]", error.message); __rrPairUsed = false; return false; }
       location.replace(next);
       return true;
-    } catch (e) { console.warn("[rr-pair] threw", e); return false; }
+    } catch (e) { console.warn("[rr-pair] threw", e); __rrPairUsed = false; return false; }
   };
 
   // ── Mode machine ────────────────────────────────────────────────────────

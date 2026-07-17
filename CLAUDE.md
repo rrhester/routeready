@@ -57,7 +57,28 @@ chunk). Wave plan and status:
   ~300 dead lines (recruiting footer/chooser cluster + LEGACY sched
   renderer) — kept _rrFitRulesPopover/_rrRightChromeEdge/
   _rrInstallRulesPopoverStyle which the live popovers still use.
-- **Wave B — security quick wins**: PR#1,2,3,4,6,7,8,13,22,26,27.
+- **Wave B — security quick wins**: PR#1,2,3,4,6,7,8,13,22,26,27 — DONE
+  pending CI/merge. Enforcing CSP shipped in BOTH _headers+netlify.toml
+  (identical values; scripts/check-headers-parity.mjs now part of
+  `npm run smoke`); supabase-js vendored at
+  dashboard/vendor/supabase-js-2.45.4.mjs (all 9 CDN import sites
+  rewritten; rewritten pages use absolute /dashboard/... paths);
+  immutable caching for tokened assets (NOT /app/*.js — SW-managed;
+  NOT config.js/desktop-connect.js — untokened refs); login next=
+  sanitized + __rrApplySession one-shot; postMessage origin checks x5 +
+  booking beacon targets referrer origin; _rrNtSanitize scheme
+  allowlist; verify.html checkRow escapes by default ({html} opt-in);
+  dtok moved to URL #fragment (app.js generators + meet.js reader w/
+  legacy ?dtok fallback + address-bar scrub) — SHELL_CACHE bumped v185;
+  header-bg.png deleted, Icon.png replaced by icons/icon-192/favicon-32/
+  apple-touch-icon everywhere incl. app precache; Google Fonts removed
+  from index/download/installed/coaching (local Inter var); terms+
+  privacy share /marketing.css?v= (was 2x ~51KB inline dup). PR#5
+  (localStorage tokens): compensating controls = CSP + vendoring; a
+  cookie-storage adapter deemed too risky for now. NOTE: PRs touching
+  .github/workflows/** from this tooling get NO Actions runs — ship
+  workflow changes in separate tiny PRs (like #3965) so code PRs keep
+  full CI.
 - **Wave C — edge functions**: PR#57–63,65–67,60,61,62.
 - **Wave D — DB migrations**: PR#45–56 (+#25 RPC). Next free ordinal
   0502; paste all SQL in chat; mind duplicate-ordinal rule (PR#45).

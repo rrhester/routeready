@@ -24,7 +24,7 @@ if (!cfg || !cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY) {
   if (app) {
     app.innerHTML = `
       <div class="login-screen">
-        <div class="brand"><div class="brand-icon"><img src="Icon.png" alt="RouteReady"></div></div>
+        <div class="brand"><div class="brand-icon"><img src="icons/icon-192.png" alt="RouteReady"></div></div>
         <div class="empty-state" style="max-width:280px;text-align:center;line-height:1.55">
           Couldn't start the app.<br><br>
           <span style="color:var(--text-subtle)">Check your connection, then try again. If this keeps happening, contact dispatch.</span><br><br>
@@ -1420,7 +1420,7 @@ function renderLogin(errorMsg) {
   if (_loginState.mode === "activate-loading") {
     root.innerHTML = `
       <div class="login-screen">
-        <div class="brand"><div class="brand-icon"><img src="Icon.png" alt="RouteReady"></div></div>
+        <div class="brand"><div class="brand-icon"><img src="icons/icon-192.png" alt="RouteReady"></div></div>
         <div style="text-align:center;color:var(--text-subtle);margin-top:8px">Opening your activation…</div>
         <div class="loader" style="margin:40px auto"></div>
       </div>`;
@@ -1430,7 +1430,7 @@ function renderLogin(errorMsg) {
   if (_loginState.mode === "chooser") {
     root.innerHTML = `
       <div class="login-screen">
-        <div class="brand"><div class="brand-icon"><img src="Icon.png" alt="RouteReady"></div></div>
+        <div class="brand"><div class="brand-icon"><img src="icons/icon-192.png" alt="RouteReady"></div></div>
         <div style="text-align:center;margin-bottom:32px">
           <div style="font-size:22px;font-weight:700;letter-spacing:-.02em">RouteReady</div>
           <div style="font-size:var(--fs-md);color:var(--text-subtle);margin-top:6px">Your driver hub.</div>
@@ -1455,7 +1455,7 @@ function renderLogin(errorMsg) {
   if (_loginState.mode === "code-entry") {
     root.innerHTML = `
       <div class="login-screen">
-        <div class="brand"><div class="brand-icon"><img src="Icon.png" alt="RouteReady"></div></div>
+        <div class="brand"><div class="brand-icon"><img src="icons/icon-192.png" alt="RouteReady"></div></div>
         <div style="text-align:center;margin-bottom:24px">
           <div style="font-size:20px;font-weight:700;letter-spacing:-.02em">Activate your driver profile</div>
           <div style="font-size:var(--fs-md);color:var(--text-subtle);margin-top:6px;line-height:1.5">Enter the activation code from your welcome message.</div>
@@ -1507,7 +1507,7 @@ function renderLogin(errorMsg) {
     if (lk.already_activated) {
       root.innerHTML = `
         <div class="login-screen">
-          <div class="brand"><div class="brand-icon"><img src="Icon.png" alt="RouteReady"></div></div>
+          <div class="brand"><div class="brand-icon"><img src="icons/icon-192.png" alt="RouteReady"></div></div>
           <div style="text-align:center;margin-bottom:22px;margin-top:24px">
             <div style="font-size:22px;font-weight:700;letter-spacing:-.02em">Welcome back${lk.name ? `, ${escapeHtml(lk.name)}` : ""}</div>
             <div style="font-size:var(--fs-md);color:var(--text-subtle);margin-top:8px;line-height:1.55">Your driver profile is ready. Tap below to sign in on this device.</div>
@@ -1557,7 +1557,7 @@ function renderLogin(errorMsg) {
     // chance to fat-finger something during onboarding.
     root.innerHTML = `
       <div class="login-screen">
-        <div class="brand"><div class="brand-icon"><img src="Icon.png" alt="RouteReady"></div></div>
+        <div class="brand"><div class="brand-icon"><img src="icons/icon-192.png" alt="RouteReady"></div></div>
         <div style="text-align:center;margin-bottom:22px">
           <div style="font-size:22px;font-weight:700;letter-spacing:-.02em">${escapeHtml(greet)}!</div>
           <div style="font-size:var(--fs-md);color:var(--text-subtle);margin-top:8px;line-height:1.55">We found your info from your ${lk.dsp_name ? escapeHtml(lk.dsp_name) + " " : ""}onboarding invite.${phoneHint ? ` Phone on file: ${escapeHtml(phoneHint)}.` : ""} Pick a 4–6 digit PIN — you'll use this to sign in when you install the app on your phone.</div>
@@ -1622,7 +1622,7 @@ function renderLogin(errorMsg) {
   if (_loginState.mode === "signin") {
     root.innerHTML = `
       <div class="login-screen">
-        <div class="brand"><div class="brand-icon"><img src="Icon.png" alt="RouteReady"></div></div>
+        <div class="brand"><div class="brand-icon"><img src="icons/icon-192.png" alt="RouteReady"></div></div>
         <div style="text-align:center;margin-bottom:24px">
           <div style="font-size:22px;font-weight:700;letter-spacing:-.02em">Welcome back</div>
           <div style="font-size:var(--fs-md);color:var(--text-subtle);margin-top:8px">Sign in with your number and PIN.</div>
@@ -1726,7 +1726,7 @@ function renderLogin(errorMsg) {
 function renderPreviewExpired() {
   document.getElementById("app").innerHTML = `
     <div class="login-screen">
-      <div class="brand"><div class="brand-icon"><img src="Icon.png" alt="RouteReady"></div></div>
+      <div class="brand"><div class="brand-icon"><img src="icons/icon-192.png" alt="RouteReady"></div></div>
       <div class="empty-state" style="max-width:280px;text-align:center;line-height:1.55">
         This preview has expired.<br><br>
         <span style="color:var(--text-subtle)">Close it and open the driver's app view again from the roster.</span>
@@ -6232,7 +6232,7 @@ async function _drvOpenRadio() {
     // connection).
     const url = "/dashboard/meet.html?m=" + encodeURIComponent(code) + "&ptt=1&cam=0&embed=1"
       + "&name=" + encodeURIComponent(me.name || "")
-      + "&dtok=" + encodeURIComponent(session.token);
+      + "#dtok=" + encodeURIComponent(session.token);
     _drvMountRadio(url);
   } catch {
     toast("Couldn't open the radio. Try again.", "warn");
@@ -6276,7 +6276,7 @@ function _drvCallOpenRoom(room, media, replace) {
   const url = "/dashboard/meet.html?m=" + encodeURIComponent(room) + "&call=1"
     + "&name=" + encodeURIComponent(me.name || "")
     + (media === "audio" ? "&cam=0" : "")
-    + (tok ? "&dtok=" + encodeURIComponent(tok) : "");
+    + (tok ? "#dtok=" + encodeURIComponent(tok) : "");
   // `replace` navigates the current window (used when answering from a push
   // cold-boot — a notification tap has no synchronous gesture for a popup).
   if (replace) { try { location.href = url; return; } catch {} }

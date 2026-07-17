@@ -46,6 +46,8 @@ export default [
     // Generated bundle — checked by engine-tests.yml freshness gate, not lint.
     ignores: [
       "node_modules/**",
+      "dashboard/vendor/**",  // vendored third-party bundles (supabase-js)
+      "app/vendor/**",
       "dashboard/scheduling-engine.js",
       "desktop/node_modules/**",
       "engine/**",        // TS packages have tsc, the stronger tool

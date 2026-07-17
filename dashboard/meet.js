@@ -35,7 +35,7 @@ import {
   sendPolicy, qualityLevel, pickActiveSpeaker,
 } from "/dashboard/meet-core.js?v=dev";
 
-const SUPABASE_ESM_URL = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
+const SUPABASE_ESM_URL = "./vendor/supabase-js-2.45.4.mjs";
 
 const DEFAULT_ICE = [
   { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
@@ -86,12 +86,31 @@ const PTT = new URLSearchParams(location.search).has("ptt");
 // get any of this.
 const CALL = new URLSearchParams(location.search).has("call") && !PTT;
 const mqCallPhone = matchMedia("(max-width: 760px)");
-// ?dtok=<driver session token> · the driver PWA embeds Meet as an anonymous
+// #dtok=<driver session token> · the driver PWA embeds Meet as an anonymous
 // guest (drivers aren't Supabase-authenticated), so it passes its opaque
 // session token here. It's used ONLY to mint the driver a TURN relay via the
 // anon-callable meet-turn-driver function — without it a driver on cellular
 // can't punch a direct path and the call never connects. Never logged / shown.
-const DTOK = new URLSearchParams(location.search).get("dtok") || "";
+// Carried in the URL FRAGMENT so it stays out of server/proxy logs and is
+// unreadable by same-page third-party scripts that inspect location.search;
+// legacy ?dtok= links are still accepted, and both forms are scrubbed from
+// the address bar immediately after reading.
+const DTOK = (() => {
+  let t = "";
+  try {
+    const h = new URLSearchParams((location.hash || "").replace(/^#/, ""));
+    t = h.get("dtok") || "";
+    const q = new URLSearchParams(location.search);
+    const legacy = q.get("dtok") || "";
+    if (!t) t = legacy;
+    if (t) {
+      h.delete("dtok"); q.delete("dtok");
+      const qs = q.toString(), hs = h.toString();
+      history.replaceState(null, "", location.pathname + (qs ? "?" + qs : "") + (hs ? "#" + hs : ""));
+    }
+  } catch (_) {}
+  return t;
+})();
 const dbg = { chan: "", status: "", err: "", presence: 0, authed: false, bcastRx: 0 };
 function renderDebug() {
   if (!DEBUG) return;
