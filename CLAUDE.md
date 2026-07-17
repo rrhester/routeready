@@ -8,16 +8,17 @@ A 100-item improvement list for the interview calendar
 #3932–#3941 in 11 waves. Item #42 (hover peek card) deliberately skipped
 (hover preview was removed earlier at the operator's request).
 
-Still on the USER's plate (SQL was pasted in chat 2026-07-17):
-- Apply migrations **0492–0499** in the Supabase SQL Editor, in order.
-  Gotchas already hit + fixed: 0496 originally assumed 0432's
-  `last_pulled_at` column (their DB skipped 0432 — 0496 now re-asserts
-  it); large migrations must be pasted as ONE block or `$$` bodies split.
-- Redeploy edge fns: `google-calendar-sync`, `google-calendar-events`,
-  `send-staff-push`. New fns to deploy as wanted: `microsoft-*` (4, need
-  MS_CLIENT_ID/MS_CLIENT_SECRET/MS_OAUTH_REDIRECT_URI), `booking-captcha`
-  (needs TURNSTILE_SECRET_KEY + `turnstile_site_key` in
-  private.integration_settings), `google-calendar-reconcile`.
+Migrations **0492–0499 APPLIED by the user 2026-07-17** (after two paste
+gotchas, both fixed: 0496 originally assumed 0432's `last_pulled_at`
+column — their DB skipped 0432, 0496 now re-asserts it; and large
+migrations must be pasted as ONE block or `$$` bodies split). Post-
+migration driver pass green (banner suppressed at v498, migrated RPC
+shapes render). Notes that remain true:
+- Edge fns to (re)deploy as wanted: `google-calendar-sync`,
+  `google-calendar-events`, `send-staff-push` (changed); `microsoft-*`
+  (4, need MS_CLIENT_ID/MS_CLIENT_SECRET/MS_OAUTH_REDIRECT_URI),
+  `booking-captcha` (needs TURNSTILE_SECRET_KEY + `turnstile_site_key`
+  in private.integration_settings), `google-calendar-reconcile` (new).
 - Their DB never applied 0432 (gcal two-way pull) — pull cron inactive,
   "pulled Xm ago" stays blank until they do.
 
@@ -36,8 +37,10 @@ improvements in themed batches, referenced as `#NN`. Progress (2026-07-17):
 - **Chunk A — MERGED (PR #3914)**: Batches 1–7, items #1–9, #12, #13–17,
   #18(existing), #19–32, #33–50, #93, #95–97, #100. Migrations 0489, 0490.
 - **0492**: hotfix for 0489 (`is_staff` needs `::public.app_role` cast).
-- **Chunk B — OPEN (PR #3922)**, branch `claude/excel-notebook-improvements-fzm3lj`:
+- **Chunk B — MERGED (PR #3922, 2026-07-17)**, was branch
+  `claude/excel-notebook-improvements-fzm3lj`:
   Batch 8 (#10, #11 live RR.* + IMPORTWB), Batch 9 (#51,52,54,55,56 pivots).
+  Follow-on work continues in other sessions (e.g. #3944 completed #86).
   Still TODO: Batch 10 charts (#57–64), Batch 11 import/export/print
   (#65–71), Batch 12 collab+history (#72–81, needs a migration), Batch 13
   automation+AI (#82–89), Batch 14 perf (#90–92), Batch 15 hardening/tests/
