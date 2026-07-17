@@ -13,6 +13,17 @@ import { assessPlan as rrAssessLaborPlan, driversNeeded as rrDriversNeeded, FORE
 import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=b2ebeec00db5";
 import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=b2ebeec00db5";
 import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=b2ebeec00db5";
+import {
+  mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
+  EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
+  fillTemplate as _mcFillTemplate, matchTemplates as _mcMatchTemplates,
+  BUILTIN_TEMPLATES as _MC_BUILTIN_TEMPLATES, fitDims as _mcFitDims,
+  shouldCompress as _mcShouldCompress, draftKey as _mcDraftKey,
+  parseSearchQuery as _mcParseSearch, hasSearchOps as _mcHasSearchOps,
+  msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
+  isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
+  scanMessageRisks as _mcScanRisks,
+} from "./msg-core.mjs?v=b2ebeec00db5";
 import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=b2ebeec00db5";
 import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=b2ebeec00db5";
 
@@ -39834,17 +39845,38 @@ function _rrWireMsgSearch() {
   const input = document.getElementById("rr-msg-search");
   if (!input || input.dataset.rrWired) return;
   input.dataset.rrWired = "1";
+  input.setAttribute("data-rr-mc-popanchor", "1");
   input.value = _msgSearchQuery;
   input.addEventListener("input", () => {
     _msgSearchQuery = (input.value || "").trim();
     _onMsgSearchChange();
   });
+  // Recent + saved searches dropdown on focus of an empty box (#34).
+  input.addEventListener("focus", () => {
+    if (!(input.value || "").trim()) _mcOpenSearchHistory(input);
+  });
+}
+// Wrap a case-insensitive match of `q` in <mark> inside an ESCAPED string.
+function _mcHighlightSnippet(escaped, q) {
+  const term = String(q || "").trim();
+  if (!term || term.length < 2) return escaped;
+  try {
+    const re = new RegExp("(" + escapeHtml(term).replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ")", "ig");
+    return escaped.replace(re, "<mark>$1</mark>");
+  } catch { return escaped; }
 }
 
 function _onMsgSearchChange() {
   const q = _msgSearchQuery;
   if (_msgSearchTimer) { clearTimeout(_msgSearchTimer); _msgSearchTimer = null; }
   const isDrivers = _msgInboxTab === "drivers";
+  // Operator queries (#25: from:, has:, before:/after:, label:) run their
+  // own filtered search path over the message history.
+  const ops = _mcParseSearch(q);
+  if (isDrivers && _mcHasSearchOps(ops)) {
+    _msgSearchTimer = setTimeout(() => _runOpsChatSearch(ops, q), 250);
+    return;
+  }
   // Drivers tab + ≥2 chars → debounced server search over full history.
   if (isDrivers && q.length >= 2) {
     _msgSearchTimer = setTimeout(() => _runServerChatSearch(q), 250);
@@ -39867,7 +39899,122 @@ async function _runServerChatSearch(q) {
   // Drop stale / superseded / cancelled responses.
   if (seq !== _msgSearchSeq || _msgSearchQuery !== q || _msgInboxTab !== "drivers") return;
   _msgSearchServerRows = error ? [] : (Array.isArray(data) ? data : []);
+  _mcPushRecentSearch(q);
   _renderMsgSearchResults(_msgSearchServerRows, q);
+}
+
+// Operator-filtered search (#25) — a direct RLS-scoped query over
+// driver_messages, so has:attachment / before: / after: / from: work even
+// though the FTS RPC only indexes text. label: filters the thread list by
+// the operator's labels instead.
+async function _runOpsChatSearch(ops, q) {
+  if (_msgInboxTab !== "drivers" || _msgSearchQuery !== q) return;
+  const seq = ++_msgSearchSeq;
+  // Pure label filter → filter the loaded thread rows, no message query.
+  if (ops.label && !ops.text && !ops.from && !ops.has && !ops.before && !ops.after) {
+    const rows = (_msgInboxList || [])
+      .filter((t) => ((_mcThreadPrefs.get(String(t.driver_id)) || {}).labels || [])
+        .some((l) => l.toLowerCase() === ops.label.toLowerCase()))
+      .map((t) => ({
+        driver_id: t.driver_id, name: t.name, station_code: t.station_code,
+        snippet: t.last_message?.body || "", message_at: t.last_at, sender_kind: t.last_message?.sender_kind,
+      }));
+    if (seq !== _msgSearchSeq) return;
+    _msgSearchServerRows = rows;
+    _renderMsgSearchResults(rows, q);
+    return;
+  }
+  let sel = sb.from("driver_messages")
+    .select("id, driver_id, body, created_at, sender_kind, attachment_name, attachment_mime, attachment_path, drivers(full_name, preferred_name)")
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false })
+    .limit(30);
+  if (ops.from) sel = sel.eq("sender_kind", ops.from);
+  if (ops.has === "attachment") sel = sel.not("attachment_path", "is", null);
+  if (ops.has === "image") sel = sel.like("attachment_mime", "image/%");
+  if (ops.has === "audio") sel = sel.like("attachment_mime", "audio/%");
+  if (ops.before) sel = sel.lt("created_at", ops.before.toISOString());
+  if (ops.after) sel = sel.gte("created_at", ops.after.toISOString());
+  if (ops.text) sel = sel.ilike("body", "%" + ops.text.replace(/[%_\\]/g, "\\$&") + "%");
+  const { data, error } = await sel.then((r) => r, (e) => ({ error: e }));
+  if (seq !== _msgSearchSeq || _msgSearchQuery !== q || _msgInboxTab !== "drivers") return;
+  let rows = error ? [] : (data || []).map((m) => ({
+    driver_id: m.driver_id,
+    name: (m.drivers && (m.drivers.preferred_name || m.drivers.full_name)) || "",
+    snippet: m.body || (m.attachment_name ? "📎 " + m.attachment_name : ""),
+    message_at: m.created_at,
+    message_id: m.id,
+    sender_kind: m.sender_kind,
+  }));
+  // Post-filter by thread label when combined with other operators.
+  if (ops.label) {
+    rows = rows.filter((r) => ((_mcThreadPrefs.get(String(r.driver_id)) || {}).labels || [])
+      .some((l) => l.toLowerCase() === ops.label.toLowerCase()));
+  }
+  _msgSearchServerRows = rows;
+  _mcPushRecentSearch(q);
+  _renderMsgSearchResults(rows, q);
+}
+
+// Recent + saved searches (#34).
+function _mcRecentSearches() {
+  try { return JSON.parse(localStorage.getItem("rr_msg_recent_searches") || "[]"); } catch { return []; }
+}
+function _mcPushRecentSearch(q) {
+  q = String(q || "").trim();
+  if (!q || q.length < 2) return;
+  try {
+    const cur = _mcRecentSearches().filter((x) => x !== q);
+    cur.unshift(q);
+    localStorage.setItem("rr_msg_recent_searches", JSON.stringify(cur.slice(0, 8)));
+  } catch {}
+}
+function _mcSavedSearches() {
+  try { return JSON.parse(localStorage.getItem("rr_msg_saved_searches") || "[]"); } catch { return []; }
+}
+function _mcOpenSearchHistory(input) {
+  _mcDismissPops();
+  _mcEnsureExtrasCss();
+  const recents = _mcRecentSearches();
+  const saved = _mcSavedSearches();
+  if (!recents.length && !saved.length) return;
+  const pop = document.createElement("div");
+  pop.className = "rr-mc-pop rr-mc-suggest";
+  pop.innerHTML =
+    (saved.length ? `<div class="rr-mc-emoji-head" style="padding:6px 10px 4px">Saved searches</div>`
+      + saved.map((s) => `<button type="button" data-rr-sh="${escapeHtml(s)}"><span class="rr-mc-sug-name">📌 ${escapeHtml(s)}</span><span data-rr-sh-del="${escapeHtml(s)}" title="Remove" style="margin-left:auto;color:var(--text-subtle)">×</span></button>`).join("") : "")
+    + (recents.length ? `<div class="rr-mc-emoji-head" style="padding:6px 10px 4px">Recent</div>`
+      + recents.map((s) => `<button type="button" data-rr-sh="${escapeHtml(s)}"><span class="rr-mc-sug-desc">${escapeHtml(s)}</span><span data-rr-sh-pin="${escapeHtml(s)}" title="Save this search" style="margin-left:auto;color:var(--text-subtle)">📌</span></button>`).join("") : "")
+    + `<div class="rr-mc-emoji-head" style="padding:7px 10px 6px;border-top:1px solid var(--border);margin-top:4px;text-transform:none;letter-spacing:0;font-weight:500">Tips: from:driver · has:attachment · before:2026-07-01 · label:VIP</div>`;
+  _mcPlacePop(pop, input);
+  pop.addEventListener("mousedown", (ev) => {
+    const del = ev.target.closest("[data-rr-sh-del]");
+    if (del) {
+      ev.preventDefault(); ev.stopPropagation();
+      try { localStorage.setItem("rr_msg_saved_searches", JSON.stringify(_mcSavedSearches().filter((x) => x !== del.getAttribute("data-rr-sh-del")))); } catch {}
+      _mcDismissPops(); _mcOpenSearchHistory(input);
+      return;
+    }
+    const pin = ev.target.closest("[data-rr-sh-pin]");
+    if (pin) {
+      ev.preventDefault(); ev.stopPropagation();
+      const s = pin.getAttribute("data-rr-sh-pin");
+      try {
+        const cur = _mcSavedSearches().filter((x) => x !== s);
+        cur.unshift(s);
+        localStorage.setItem("rr_msg_saved_searches", JSON.stringify(cur.slice(0, 8)));
+      } catch {}
+      _mcDismissPops(); _mcOpenSearchHistory(input);
+      return;
+    }
+    const b = ev.target.closest("[data-rr-sh]");
+    if (!b) return;
+    ev.preventDefault();
+    input.value = b.getAttribute("data-rr-sh");
+    _msgSearchQuery = input.value;
+    _mcDismissPops();
+    _onMsgSearchChange();
+  });
 }
 
 function _renderMsgSearchResults(rows, q) {
@@ -39888,9 +40035,11 @@ function _renderMsgSearchResults(rows, q) {
     // servers (pre-0450) omit message_id — the row still opens, just at
     // the bottom like before.
     const focusAttr = r.message_id ? ` data-rr-focus-msg="${escapeHtml(r.message_id)}" data-rr-focus-at="${escapeHtml(r.message_at || "")}"` : "";
+    // Highlight the matched term inside the (escaped) snippet (#27).
+    const hlTerm = (_mcParseSearch(q).text || q);
     return `<div class="msg-item ${isActive ? "active" : ""}" data-rr-thread="${escapeHtml(r.driver_id)}" data-rr-driver-id="${escapeHtml(r.driver_id)}"${focusAttr}>
       <div class="msg-item-avatar"><div class="avatar-sm">${escapeHtml(initials)}</div><span class="msg-item-presence"></span></div>
-      <div><div class="msg-item-name">${escapeHtml(r.name || "")}${r.station_code ? ` <span class="msg-item-station">· ${escapeHtml(r.station_code)}</span>` : ""}</div><div class="msg-item-preview">${escapeHtml(previewTrunc)}</div></div>
+      <div><div class="msg-item-name">${escapeHtml(r.name || "")}${r.station_code ? ` <span class="msg-item-station">· ${escapeHtml(r.station_code)}</span>` : ""}</div><div class="msg-item-preview">${_mcHighlightSnippet(escapeHtml(previewTrunc), hlTerm)}</div></div>
       <div><div class="msg-item-time">${escapeHtml(_fmtMsgRelative(r.message_at))}</div></div>
     </div>`;
   }).join("");
@@ -39955,7 +40104,7 @@ let _mcFocusMsgId = null;
 // so the operator's eye lands on the message the search matched.
 function _rrMcFlashBubble(el) {
   if (!el) return;
-  try { el.scrollIntoView({ block: "center", behavior: "smooth" }); }
+  try { el.scrollIntoView({ block: "center", behavior: _mcReducedMotion() ? "auto" : "smooth" }); }
   catch { el.scrollIntoView(false); }
   const prevShadow = el.style.boxShadow;
   const prevTrans  = el.style.transition;
@@ -40223,6 +40372,13 @@ async function loadDriverChatInbox() {
   // Kick a presence load in parallel so the chat head's App status /
   // Last active chips have data when the operator clicks into a thread.
   _ensureRosterAppStatusLoaded();
+  // Batch 5: digest bell, operator prefs (quiet hours/keywords/status),
+  // and the urgent-escalation watch.
+  _mcEnsureDigestBell();
+  _mcLoadOpPrefs().then(() => _mcPaintPresenceChip()).catch(() => {});
+  if (_mcEscTimer) clearInterval(_mcEscTimer);
+  _mcEscTimer = setInterval(() => { _mcEscalationTick().catch(() => {}); }, 120000);
+  setTimeout(() => { _mcEscalationTick().catch(() => {}); }, 4000);
   await refreshDriverChatList(true);
   if (_msgInboxListTimer) clearInterval(_msgInboxListTimer);
   _msgInboxListTimer = setInterval(() => {
@@ -40234,6 +40390,10 @@ async function loadDriverChatInbox() {
       document.getElementById("view-messages")?.classList.contains("active") &&
       _msgInboxMode === "direct"
     ) {
+      // #73/#76: with a healthy realtime socket the poll is only a safety
+      // net — stretch it to ~56s instead of hammering every 8s.
+      window._rrMcListTick = (window._rrMcListTick || 0) + 1;
+      if (window._rrChatRealtimeHealthy && (window._rrMcListTick % 7)) return;
       refreshDriverChatList(false);
     } else {
       clearInterval(_msgInboxListTimer); _msgInboxListTimer = null;
@@ -40368,6 +40528,631 @@ new MutationObserver(() => {
 })();
 
 
+// ─── Thread prefs + list organization (Batch 3 · #28–34) ─────────────────
+// Per-operator archive / mute / snooze / mark-unread / labels, stored in
+// dispatch_thread_prefs (migration 0508) with a localStorage fallback so
+// the features work (device-locally) before the migration is applied.
+let _mcThreadPrefs = new Map();   // driver_id → pref object
+let _mcPrefsServer = null;        // null unknown → probed on first load
+let _mcListFilter = (() => {
+  try { return { unreadOnly: false, sort: "recent", archived: false, label: null, ...(JSON.parse(localStorage.getItem("rr_msg_list_filter") || "{}")) }; }
+  catch { return { unreadOnly: false, sort: "recent", archived: false, label: null }; }
+})();
+function _mcSaveListFilter() {
+  try { localStorage.setItem("rr_msg_list_filter", JSON.stringify({ unreadOnly: _mcListFilter.unreadOnly, sort: _mcListFilter.sort, label: _mcListFilter.label })); } catch {}
+}
+function _mcLocalPrefsRead() {
+  try { return JSON.parse(localStorage.getItem("rr_thread_prefs_local") || "{}"); } catch { return {}; }
+}
+function _mcLocalPrefsWrite(obj) {
+  try { localStorage.setItem("rr_thread_prefs_local", JSON.stringify(obj)); } catch {}
+}
+async function _mcLoadThreadPrefs() {
+  if (_mcPrefsServer !== false) {
+    const res = await sb.rpc("dispatch_thread_prefs").then((r) => r, (e) => ({ error: e || { message: "network" } }));
+    if (!res.error) {
+      _mcPrefsServer = true;
+      _mcThreadPrefs = new Map((res.data?.prefs || []).map((p) => [String(p.driver_id), p]));
+      return;
+    }
+    if (_mcRpcMissing(res.error)) _mcPrefsServer = false;
+    else return; // transient — keep last known
+  }
+  _mcThreadPrefs = new Map(Object.entries(_mcLocalPrefsRead()));
+}
+async function _mcSetThreadPref(driverId, patch) {
+  const key = String(driverId);
+  const cur = { ..._mcThreadPrefs.get(key) };
+  // Optimistic local apply.
+  if ("archived" in patch) cur.archived = patch.archived;
+  if ("muted" in patch) cur.muted = patch.muted;
+  if ("snooze_until" in patch) cur.snooze_until = patch.snooze_until;
+  if ("mark_unread" in patch) cur.mark_unread = patch.mark_unread;
+  if ("labels" in patch) cur.labels = patch.labels;
+  cur.updated_at = new Date().toISOString();
+  _mcThreadPrefs.set(key, cur);
+  refreshDriverChatList(false);
+  if (_mcPrefsServer !== false) {
+    const { error } = await sb.rpc("dispatch_thread_pref_set", { p_driver_id: driverId, p_patch: patch })
+      .then((r) => r, (e) => ({ error: e || { message: "network" } }));
+    if (!error) return;
+    if (!_mcRpcMissing(error)) { toast("Couldn't save the change: " + (error.message || ""), "warn"); return; }
+    _mcPrefsServer = false;
+  }
+  // Device-local fallback until 0508 is applied.
+  const all = _mcLocalPrefsRead();
+  all[key] = cur;
+  _mcLocalPrefsWrite(all);
+}
+
+// Filter bar under the tab strip: unread-only, sort, labels, archived.
+function _mcAllLabels() {
+  const set = new Set();
+  _mcThreadPrefs.forEach((p) => (p.labels || []).forEach((l) => set.add(l)));
+  return [...set].sort((a, b) => a.localeCompare(b));
+}
+function _mcListFilterBarHtml(archivedCount) {
+  const f = _mcListFilter;
+  const sortLbl = { recent: "Recent", az: "A–Z", unread: "Unread first" }[f.sort] || "Recent";
+  return `<div class="msg-filterbar">
+      <button type="button" class="msg-fb-btn${f.unreadOnly ? " on" : ""}" data-rr-fb="unread" aria-pressed="${f.unreadOnly}">Unread</button>
+      <button type="button" class="msg-fb-btn" data-rr-fb="sort" title="Sort order">${sortLbl} ▾</button>
+      ${_mcAllLabels().length || f.label ? `<button type="button" class="msg-fb-btn${f.label ? " on" : ""}" data-rr-fb="label">${f.label ? escapeHtml(f.label) : "Label"} ▾</button>` : ""}
+      <button type="button" class="msg-fb-btn${f.archived ? " on" : ""}" data-rr-fb="archived" aria-pressed="${f.archived}" title="Show archived">Archived${archivedCount ? ` · ${archivedCount}` : ""}</button>
+    </div>`;
+}
+function _mcWireListFilterBar(list) {
+  list.querySelectorAll("[data-rr-fb]").forEach((b) => b.addEventListener("click", (e) => {
+    const act = b.getAttribute("data-rr-fb");
+    if (act === "unread") { _mcListFilter.unreadOnly = !_mcListFilter.unreadOnly; _mcSaveListFilter(); refreshDriverChatList(false); }
+    else if (act === "archived") { _mcListFilter.archived = !_mcListFilter.archived; refreshDriverChatList(false); }
+    else if (act === "sort") {
+      _mcDismissPops();
+      _mcEnsureExtrasCss();
+      const pop = document.createElement("div");
+      pop.className = "rr-mc-pop rr-mc-plus-menu";
+      pop.innerHTML = ["recent|Recent activity", "az|A–Z", "unread|Unread first"].map((o) => {
+        const [v, l] = o.split("|");
+        return `<button type="button" data-rr-sort="${v}">${_mcListFilter.sort === v ? "✓" : "&nbsp;&nbsp;"}<span>${l}</span></button>`;
+      }).join("");
+      _mcPlacePop(pop, b);
+      pop.addEventListener("click", (ev) => {
+        const s = ev.target.closest("[data-rr-sort]");
+        if (!s) return;
+        _mcListFilter.sort = s.getAttribute("data-rr-sort");
+        _mcSaveListFilter();
+        _mcDismissPops();
+        refreshDriverChatList(false);
+      });
+    } else if (act === "label") {
+      _mcDismissPops();
+      _mcEnsureExtrasCss();
+      const pop = document.createElement("div");
+      pop.className = "rr-mc-pop rr-mc-plus-menu";
+      pop.innerHTML = `<button type="button" data-rr-lf="">${!_mcListFilter.label ? "✓" : "&nbsp;&nbsp;"}<span>All labels</span></button>`
+        + _mcAllLabels().map((l) => `<button type="button" data-rr-lf="${escapeHtml(l)}">${_mcListFilter.label === l ? "✓" : "&nbsp;&nbsp;"}<span>${escapeHtml(l)}</span></button>`).join("");
+      _mcPlacePop(pop, b);
+      pop.addEventListener("click", (ev) => {
+        const s = ev.target.closest("[data-rr-lf]");
+        if (!s) return;
+        _mcListFilter.label = s.getAttribute("data-rr-lf") || null;
+        _mcSaveListFilter();
+        _mcDismissPops();
+        refreshDriverChatList(false);
+      });
+    }
+    e.stopPropagation();
+  }));
+}
+
+// Hover quick actions + right-click context menu on list rows (#33).
+function _mcWireRowQuickActions(list) {
+  list.querySelectorAll(".msg-item[data-rr-thread]").forEach((row) => {
+    const driverId = row.getAttribute("data-rr-thread");
+    row.querySelectorAll("[data-rr-qa]").forEach((b) => {
+      b.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const act = b.getAttribute("data-rr-qa");
+        const pref = _mcThreadPrefs.get(String(driverId)) || {};
+        if (act === "fav") {
+          const on = _rrToggleMsgFav(driverId);
+          _rrFavPending.add(String(driverId));
+          _rrPushFav(driverId, on).finally(() => _rrFavPending.delete(String(driverId)));
+          refreshDriverChatList(false);
+        } else if (act === "mute") {
+          _mcSetThreadPref(driverId, { muted: !pref.muted });
+        } else if (act === "archive") {
+          _mcSetThreadPref(driverId, { archived: !pref.archived });
+          toast(pref.archived ? "Unarchived" : "Archived — new messages bring it back automatically", "ok");
+        } else if (act === "unread") {
+          _mcSetThreadPref(driverId, { mark_unread: true });
+        }
+      });
+    });
+    row.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      _mcOpenRowContextMenu(row, driverId, { x: e.clientX, y: e.clientY });
+    });
+  });
+}
+function _mcOpenRowContextMenu(row, driverId, at) {
+  _mcDismissPops();
+  _mcEnsureExtrasCss();
+  const pref = _mcThreadPrefs.get(String(driverId)) || {};
+  const fav = _rrMsgFavs().has(String(driverId));
+  const pop = document.createElement("div");
+  pop.className = "rr-mc-pop rr-mc-plus-menu";
+  pop.setAttribute("role", "menu");
+  pop.innerHTML = `
+    <button type="button" data-rr-cm="open">💬<span>Open conversation</span></button>
+    <button type="button" data-rr-cm="fav">⭐<span>${fav ? "Remove from favorites" : "Add to favorites"}</span></button>
+    <button type="button" data-rr-cm="unread">●<span>Mark as unread</span></button>
+    <button type="button" data-rr-cm="snooze">💤<span>Snooze…</span></button>
+    <button type="button" data-rr-cm="label">🏷️<span>Labels…</span></button>
+    <button type="button" data-rr-cm="notif">🔔<span>Notifications</span><span class="rr-mc-plus-val">${{ all: "All", urgent: "Urgent only", off: "Off" }[pref.notify_level || "all"]}</span></button>
+    <div class="rr-mc-plus-sep"></div>
+    <button type="button" data-rr-cm="mute">${pref.muted ? "🔔" : "🔕"}<span>${pref.muted ? "Unmute" : "Mute"}</span></button>
+    <button type="button" data-rr-cm="archive">🗄️<span>${pref.archived ? "Unarchive" : "Archive"}</span></button>`;
+  document.body.appendChild(pop);
+  pop.style.left = Math.min(window.innerWidth - pop.offsetWidth - 8, at.x) + "px";
+  pop.style.top = Math.min(window.innerHeight - pop.offsetHeight - 8, at.y) + "px";
+  pop.addEventListener("click", (ev) => {
+    const b = ev.target.closest("[data-rr-cm]");
+    if (!b) return;
+    const act = b.getAttribute("data-rr-cm");
+    _mcDismissPops();
+    if (act === "open") openDriverChatThread(driverId);
+    else if (act === "fav") {
+      const on = _rrToggleMsgFav(driverId);
+      _rrFavPending.add(String(driverId));
+      _rrPushFav(driverId, on).finally(() => _rrFavPending.delete(String(driverId)));
+      refreshDriverChatList(false);
+    }
+    else if (act === "unread") _mcSetThreadPref(driverId, { mark_unread: true });
+    else if (act === "mute") _mcSetThreadPref(driverId, { muted: !pref.muted });
+    else if (act === "archive") _mcSetThreadPref(driverId, { archived: !pref.archived });
+    else if (act === "snooze") _mcOpenSnoozeMenu(driverId, at);
+    else if (act === "label") _mcOpenLabelEditor(driverId);
+    else if (act === "notif") {
+      // Cycle all → urgent-only → off (#45).
+      const order = ["all", "urgent", "off"];
+      const next = order[(order.indexOf(pref.notify_level || "all") + 1) % order.length];
+      _mcSetThreadPref(driverId, { notify_level: next });
+      toast(`Notifications: ${{ all: "all messages", urgent: "urgent + keywords only", off: "off" }[next]}`, "ok");
+    }
+  });
+}
+function _mcOpenSnoozeMenu(driverId, at) {
+  _mcEnsureExtrasCss();
+  const pop = document.createElement("div");
+  pop.className = "rr-mc-pop rr-mc-plus-menu";
+  const opts = [];
+  const in1h = new Date(Date.now() + 3600000);
+  const tonight = new Date(); tonight.setHours(18, 0, 0, 0);
+  const tom = new Date(); tom.setDate(tom.getDate() + 1); tom.setHours(6, 0, 0, 0);
+  const mon = new Date(); mon.setDate(mon.getDate() + ((8 - mon.getDay()) % 7 || 7)); mon.setHours(6, 0, 0, 0);
+  opts.push(["In 1 hour", in1h]);
+  if (tonight.getTime() > Date.now()) opts.push(["This evening 6 PM", tonight]);
+  opts.push(["Tomorrow 6 AM", tom], ["Monday 6 AM", mon]);
+  pop.innerHTML = `<div class="rr-mc-plus-note">Hide until… (a new message brings it back)</div>`
+    + opts.map(([l, d], i) => `<button type="button" data-rr-sn="${d.getTime()}">💤<span>${l}</span></button>`).join("")
+    + `<div class="rr-mc-plus-sep"></div><button type="button" data-rr-sn="0">✖️<span>Clear snooze</span></button>`;
+  document.body.appendChild(pop);
+  pop.style.left = Math.min(window.innerWidth - pop.offsetWidth - 8, at.x) + "px";
+  pop.style.top = Math.min(window.innerHeight - pop.offsetHeight - 8, at.y) + "px";
+  pop.addEventListener("click", (ev) => {
+    const b = ev.target.closest("[data-rr-sn]");
+    if (!b) return;
+    const ts = +b.getAttribute("data-rr-sn");
+    _mcDismissPops();
+    _mcSetThreadPref(driverId, { snooze_until: ts ? new Date(ts).toISOString() : null });
+    if (ts) toast(`Snoozed until ${new Date(ts).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })}`, "ok");
+  });
+}
+function _mcOpenLabelEditor(driverId) {
+  _mcEnsureExtrasCss();
+  document.getElementById("rr-mc-label-modal")?.remove();
+  const pref = _mcThreadPrefs.get(String(driverId)) || {};
+  const current = new Set(pref.labels || []);
+  const known = _mcAllLabels();
+  const ov = document.createElement("div");
+  ov.className = "rr-mc-modal";
+  ov.id = "rr-mc-label-modal";
+  const chip = (l) => `<button type="button" class="msg-fb-btn${current.has(l) ? " on" : ""}" data-rr-lb="${escapeHtml(l)}">${escapeHtml(l)}</button>`;
+  ov.innerHTML = `
+    <div class="rr-mc-modal-back"></div>
+    <div class="rr-mc-modal-card" role="dialog" aria-modal="true" aria-label="Thread labels" style="width:min(380px,94vw)">
+      <div class="rr-mc-modal-head">Labels<button type="button" class="rr-mc-modal-x" aria-label="Close">×</button></div>
+      <div class="rr-mc-modal-body">
+        <div data-rr-lb-chips style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">${known.map(chip).join("") || `<span class="u-subtle" style="font-size:var(--fs-sm)">No labels yet — add one below.</span>`}</div>
+        <label class="rr-mc-f"><span>New label</span><input type="text" data-rr-lb-new maxlength="32" placeholder="e.g. New hire, Payroll, Attendance"></label>
+      </div>
+      <div class="rr-mc-modal-foot">
+        <button type="button" class="btn btn-sm" data-rr-lb-cancel>Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary" data-rr-lb-save>Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelector(".rr-mc-modal-back").addEventListener("click", close);
+  ov.querySelector(".rr-mc-modal-x").addEventListener("click", close);
+  ov.querySelector("[data-rr-lb-cancel]").addEventListener("click", close);
+  const chipsEl = ov.querySelector("[data-rr-lb-chips]");
+  chipsEl.addEventListener("click", (ev) => {
+    const b = ev.target.closest("[data-rr-lb]");
+    if (!b) return;
+    const l = b.getAttribute("data-rr-lb");
+    if (current.has(l)) current.delete(l); else current.add(l);
+    b.classList.toggle("on", current.has(l));
+  });
+  const newInput = ov.querySelector("[data-rr-lb-new]");
+  newInput.addEventListener("keydown", (ev) => {
+    if (ev.key !== "Enter") return;
+    ev.preventDefault();
+    const v = newInput.value.trim().slice(0, 32);
+    if (!v) return;
+    current.add(v);
+    chipsEl.insertAdjacentHTML("beforeend", chip(v));
+    chipsEl.lastElementChild.classList.add("on");
+    newInput.value = "";
+  });
+  ov.querySelector("[data-rr-lb-save]").addEventListener("click", () => {
+    const v = newInput.value.trim().slice(0, 32);
+    if (v) current.add(v);
+    _mcSetThreadPref(driverId, { labels: [...current].slice(0, 12) });
+    close();
+  });
+}
+
+// ─── Notifications, presence & escalation (Batch 5 · #45–54) ─────────────
+// Operator-level prefs (quiet hours, keyword alerts, tones, presence)
+// from dispatch_operator_msg_prefs (0510), localStorage fallback before
+// the migration lands. The notify engine diffs unread counts on every
+// inbox refresh and fires tones + Web Notifications by the rules:
+// keyword hit > everything; muted/off threads stay silent; quiet hours
+// suppress non-keyword alerts (configurable); urgent-only thread level
+// keeps only urgent-priority messages (and keyword hits).
+let _mcOpPrefs = null;      // operator prefs object
+let _mcOpPrefsServer = null;
+let _mcPrevUnread = null;   // driver_id → unread count from the previous tick
+let _mcEscTimer = null;
+
+function _mcLocalOpPrefs() {
+  try { return JSON.parse(localStorage.getItem("rr_msg_op_prefs") || "{}"); } catch { return {}; }
+}
+async function _mcLoadOpPrefs(force) {
+  if (_mcOpPrefs && !force) return _mcOpPrefs;
+  if (_mcOpPrefsServer !== false) {
+    const res = await sb.rpc("dispatch_operator_msg_prefs_get").then((r) => r, (e) => ({ error: e || {} }));
+    if (!res.error) {
+      _mcOpPrefsServer = true;
+      _mcOpPrefs = res.data?.prefs || {};
+      return _mcOpPrefs;
+    }
+    if (_mcRpcMissing(res.error)) _mcOpPrefsServer = false;
+  }
+  _mcOpPrefs = _mcLocalOpPrefs();
+  return _mcOpPrefs;
+}
+async function _mcSaveOpPrefs(patch) {
+  _mcOpPrefs = { ...(_mcOpPrefs || {}), ...patch };
+  if (_mcOpPrefsServer !== false) {
+    const { error } = await sb.rpc("dispatch_operator_msg_prefs_set", { p_patch: patch })
+      .then((r) => r, (e) => ({ error: e || {} }));
+    if (!error) return;
+    if (!_mcRpcMissing(error)) { toast("Couldn't save settings: " + (error.message || ""), "warn"); return; }
+    _mcOpPrefsServer = false;
+  }
+  try { localStorage.setItem("rr_msg_op_prefs", JSON.stringify(_mcOpPrefs)); } catch {}
+}
+function _mcInQuietHours(prefs, d = new Date()) {
+  const s = prefs?.quiet_start_min, e = prefs?.quiet_end_min;
+  if (s == null || e == null || s === e) return false;
+  const m = d.getHours() * 60 + d.getMinutes();
+  return s < e ? (m >= s && m < e) : (m >= s || m < e); // overnight windows wrap
+}
+
+// Per-priority tones (#53) — synthesized, no audio assets.
+let _mcAudioCtx = null;
+function _mcPlayTone(kind) {
+  if (_mcOpPrefs && _mcOpPrefs.tones_enabled === false) return;
+  try {
+    _mcAudioCtx = _mcAudioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = _mcAudioCtx;
+    const beep = (t0, freq, dur, gainV) => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = "sine";
+      o.frequency.value = freq;
+      g.gain.setValueAtTime(0, t0);
+      g.gain.linearRampToValueAtTime(gainV, t0 + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      o.connect(g).connect(ctx.destination);
+      o.start(t0); o.stop(t0 + dur + 0.02);
+    };
+    const now = ctx.currentTime;
+    if (kind === "urgent") { beep(now, 880, 0.14, 0.16); beep(now + 0.17, 880, 0.14, 0.16); beep(now + 0.34, 1046, 0.2, 0.18); }
+    else if (kind === "keyword") { beep(now, 660, 0.12, 0.15); beep(now + 0.15, 990, 0.18, 0.15); }
+    else if (kind === "high") { beep(now, 740, 0.12, 0.12); beep(now + 0.15, 740, 0.12, 0.12); }
+    else { beep(now, 620, 0.11, 0.09); }
+  } catch {}
+}
+
+// Web Notification with click-through into the thread (#47).
+function _mcWebNotify(title, body, driverId, urgentish) {
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+  try {
+    const n = new Notification(title, {
+      body: String(body || "").slice(0, 140),
+      tag: "rr-msg-" + driverId,
+      renotify: !!urgentish,
+      silent: true, // tones are ours
+    });
+    n.onclick = () => {
+      try { window.focus(); } catch {}
+      try { if (typeof window.goto === "function") window.goto("messages"); } catch {}
+      setTimeout(() => { try { openDriverChatThread(driverId); } catch {} }, 250);
+      n.close();
+    };
+  } catch {}
+}
+
+// The engine: called after each inbox refresh with the fresh thread list.
+function _mcNotifyEngineTick(threads) {
+  const prev = _mcPrevUnread;
+  _mcPrevUnread = new Map((threads || []).map((t) => [String(t.driver_id), t.unread || 0]));
+  if (!prev) return; // first paint — establish the baseline silently
+  const prefs = _mcOpPrefs || {};
+  const kws = (prefs.keywords || []).map((k) => String(k).toLowerCase()).filter(Boolean);
+  const quiet = _mcInQuietHours(prefs);
+  for (const t of threads || []) {
+    const id = String(t.driver_id);
+    const before = prev.get(id) || 0;
+    if ((t.unread || 0) <= before) continue;
+    if (t.last_message?.sender_kind !== "driver") continue;
+    const body = String(t.last_message?.body || "");
+    const kwHit = kws.length && kws.some((k) => body.toLowerCase().includes(k));
+    const tp = _mcThreadPrefs.get(id) || {};
+    if (!kwHit) {
+      if (tp.muted || tp.notify_level === "off") continue;
+      // Thread-level "urgent only": driver messages carry no priority, so
+      // only keyword hits break through this level.
+      if (tp.notify_level === "urgent") continue;
+      if (quiet && prefs.quiet_urgent_only !== false) continue;
+      // Don't ping for the thread the operator is actively reading.
+      if (_msgInboxSelectedId === id && document.visibilityState === "visible"
+          && document.getElementById("view-messages")?.classList.contains("active")) continue;
+    }
+    if (kwHit) {
+      _mcPlayTone("keyword");
+      _mcAnnounce(`Keyword alert from ${t.name || "driver"}: ${body.slice(0, 80)}`, true);
+      _mcWebNotify(`⚠️ ${t.name || "Driver"} — keyword alert`, body, id, true);
+      toastAction(`⚠️ ${escapeHtml(t.name || "Driver")}: ${escapeHtml(body.slice(0, 80))}`, {
+        label: "Open", onConfirm: () => openDriverChatThread(id),
+      });
+    } else {
+      _mcPlayTone("normal");
+      _mcAnnounce(`New message from ${t.name || "driver"}`);
+      _mcWebNotify(`${t.name || "Driver"}`, body, id, false);
+    }
+  }
+}
+
+// Unread digest dropdown (#54) + notification settings entry.
+function _mcOpenDigest(anchor) {
+  _mcDismissPops();
+  _mcEnsureExtrasCss();
+  const unread = (_msgInboxList || []).filter((t) => (t.unread || 0) > 0);
+  const pop = document.createElement("div");
+  pop.className = "rr-mc-pop rr-mc-suggest";
+  pop.style.minWidth = "260px";
+  pop.innerHTML = `<div class="rr-mc-emoji-head" style="padding:7px 10px 5px">Unread conversations</div>`
+    + (unread.length ? unread.slice(0, 12).map((t) =>
+        `<button type="button" data-rr-dg="${escapeHtml(t.driver_id)}">
+          <span class="rr-mc-sug-name">${escapeHtml(t.name || "")}</span>
+          <span class="rr-mc-sug-desc">${escapeHtml(String(t.last_message?.body || "").slice(0, 40))}</span>
+          <span style="margin-left:auto;background:var(--accent);color:#fff;border-radius:999px;font-size:10px;font-weight:700;padding:1px 7px">${t.unread}</span>
+        </button>`).join("")
+      : `<div style="padding:6px 12px 10px;font-size:var(--fs-sm);color:var(--text-subtle)">You're all caught up 🎉</div>`)
+    + `<div class="rr-mc-plus-sep"></div>
+       <button type="button" data-rr-dg-settings>⚙️<span style="margin-left:8px">Notification settings…</span></button>`;
+  _mcPlacePop(pop, anchor);
+  pop.addEventListener("mousedown", (e) => {
+    const s = e.target.closest("[data-rr-dg-settings]");
+    if (s) { e.preventDefault(); _mcDismissPops(); _mcOpenNotifySettings(); return; }
+    const b = e.target.closest("[data-rr-dg]");
+    if (!b) return;
+    e.preventDefault();
+    _mcDismissPops();
+    openDriverChatThread(b.getAttribute("data-rr-dg"));
+  });
+}
+
+// Notification settings hub (#45–#48, #50, #51, #53).
+async function _mcOpenNotifySettings() {
+  _mcEnsureExtrasCss();
+  await _mcLoadOpPrefs(true);
+  const prefs = _mcOpPrefs || {};
+  const { data: dspSet } = await sb.from("dsp_msg_settings").select("autoreply_enabled, autoreply_text").maybeSingle()
+    .then((r) => r, () => ({ data: null }));
+  document.getElementById("rr-mc-notif-modal")?.remove();
+  const toTime = (min) => min == null ? "" : `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+  const ov = document.createElement("div");
+  ov.className = "rr-mc-modal";
+  ov.id = "rr-mc-notif-modal";
+  ov.innerHTML = `
+    <div class="rr-mc-modal-back"></div>
+    <div class="rr-mc-modal-card" role="dialog" aria-modal="true" aria-label="Message notification settings">
+      <div class="rr-mc-modal-head">Messages — notifications &amp; presence<button type="button" class="rr-mc-modal-x" aria-label="Close">×</button></div>
+      <div class="rr-mc-modal-body">
+        ${("Notification" in window && Notification.permission !== "granted")
+          ? `<button type="button" class="btn btn-sm" data-rr-nf-perm style="margin-bottom:12px">Enable desktop notifications</button>` : ""}
+        <div class="rr-mc-emoji-head" style="padding:0 0 6px">My status (#51)</div>
+        <select data-rr-nf-status style="width:100%;border:1px solid var(--border);border-radius:var(--r-md);padding:8px 10px;font:inherit;font-size:var(--fs-sm);background:var(--canvas);margin-bottom:12px">
+          <option value="">Available (default)</option>
+          <option value="busy" ${prefs.presence_status === "busy" ? "selected" : ""}>Busy — heads-down</option>
+          <option value="on_road" ${prefs.presence_status === "on_road" ? "selected" : ""}>On the road</option>
+        </select>
+        <div class="rr-mc-emoji-head" style="padding:0 0 6px">Quiet hours</div>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+          <input type="time" data-rr-nf-qs value="${toTime(prefs.quiet_start_min)}" style="border:1px solid var(--border);border-radius:var(--r-md);padding:6px 8px;font:inherit;font-size:var(--fs-sm)">
+          <span class="u-subtle" style="font-size:var(--fs-sm)">to</span>
+          <input type="time" data-rr-nf-qe value="${toTime(prefs.quiet_end_min)}" style="border:1px solid var(--border);border-radius:var(--r-md);padding:6px 8px;font:inherit;font-size:var(--fs-sm)">
+          <button type="button" class="btn btn-sm" data-rr-nf-qclear>Clear</button>
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--text);margin-bottom:14px">
+          <input type="checkbox" data-rr-nf-kwq ${prefs.quiet_urgent_only === false ? "" : "checked"}> During quiet hours, only keyword alerts break through
+        </label>
+        <div class="rr-mc-emoji-head" style="padding:0 0 6px">Keyword alerts (always break through)</div>
+        <input type="text" data-rr-nf-kw value="${escapeHtml((prefs.keywords || []).join(", "))}" placeholder="accident, injury, police, breakdown" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:var(--r-md);padding:8px 10px;font:inherit;font-size:var(--fs-sm);background:var(--canvas);margin-bottom:14px">
+        <label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--text);margin-bottom:14px">
+          <input type="checkbox" data-rr-nf-tones ${prefs.tones_enabled === false ? "" : "checked"}> Notification sounds <button type="button" class="btn btn-sm" data-rr-nf-test style="margin-left:auto">Test</button>
+        </label>
+        <div class="rr-mc-emoji-head" style="padding:0 0 6px">Auto-reply when dispatch is offline (whole team)</div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--text);margin-bottom:7px">
+          <input type="checkbox" data-rr-nf-ar ${dspSet?.autoreply_enabled ? "checked" : ""}> Auto-reply is on
+        </label>
+        <textarea data-rr-nf-artext maxlength="500" placeholder="Dispatch is offline until 4 AM — call the hotline if urgent." style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:var(--r-md);padding:8px 10px;font:inherit;font-size:var(--fs-sm);background:var(--canvas);min-height:60px">${escapeHtml(dspSet?.autoreply_text || "")}</textarea>
+        <div class="u-subtle" style="font-size:10px;margin-top:4px">Replies at most once per driver per 4 hours, marked as automated.</div>
+      </div>
+      <div class="rr-mc-modal-foot">
+        <button type="button" class="btn btn-sm" data-rr-nf-cancel>Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary" data-rr-nf-save>Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelector(".rr-mc-modal-back").addEventListener("click", close);
+  ov.querySelector(".rr-mc-modal-x").addEventListener("click", close);
+  ov.querySelector("[data-rr-nf-cancel]").addEventListener("click", close);
+  ov.querySelector("[data-rr-nf-perm]")?.addEventListener("click", (e) => {
+    Notification.requestPermission().then(() => e.target.remove());
+  });
+  ov.querySelector("[data-rr-nf-qclear]").addEventListener("click", () => {
+    ov.querySelector("[data-rr-nf-qs]").value = "";
+    ov.querySelector("[data-rr-nf-qe]").value = "";
+  });
+  ov.querySelector("[data-rr-nf-test]").addEventListener("click", () => _mcPlayTone("urgent"));
+  ov.querySelector("[data-rr-nf-save]").addEventListener("click", async () => {
+    const toMin = (v) => {
+      if (!v) return null;
+      const [h, m] = v.split(":").map((x) => parseInt(x, 10));
+      return isNaN(h) ? null : h * 60 + (m || 0);
+    };
+    await _mcSaveOpPrefs({
+      quiet_start_min: toMin(ov.querySelector("[data-rr-nf-qs]").value),
+      quiet_end_min: toMin(ov.querySelector("[data-rr-nf-qe]").value),
+      quiet_urgent_only: ov.querySelector("[data-rr-nf-kwq]").checked,
+      keywords: ov.querySelector("[data-rr-nf-kw]").value.split(",").map((s) => s.trim()).filter(Boolean).slice(0, 20),
+      tones_enabled: ov.querySelector("[data-rr-nf-tones]").checked,
+      presence_status: ov.querySelector("[data-rr-nf-status]").value || null,
+    });
+    const arOn = ov.querySelector("[data-rr-nf-ar]").checked;
+    const arText = ov.querySelector("[data-rr-nf-artext]").value.trim();
+    const { error: arErr } = await sb.rpc("dispatch_msg_settings_set", {
+      p_autoreply_enabled: arOn, p_autoreply_text: arText || null,
+    }).then((r) => r, (e) => ({ error: e || {} }));
+    if (arErr && !_mcRpcMissing(arErr)) toast("Auto-reply didn't save: " + (arErr.message || ""), "warn");
+    else if (arErr) toast("Auto-reply needs migration 0510 — other settings saved", "info");
+    else toast("Notification settings saved", "ok");
+    close();
+    _mcPaintPresenceChip();
+  });
+}
+
+// Small presence chip beside the Messages title (#51).
+function _mcPaintPresenceChip() {
+  const head = document.querySelector(".msg-list-head .msg-list-title");
+  if (!head) return;
+  document.getElementById("rr-mc-presence-chip")?.remove();
+  const st = _mcOpPrefs?.presence_status;
+  if (!st) return;
+  const lbl = st === "busy" ? "Busy" : st === "on_road" ? "On the road" : "";
+  if (!lbl) return;
+  head.insertAdjacentHTML("afterend",
+    `<span id="rr-mc-presence-chip" style="font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;background:var(--accent-soft);color:var(--accent-text);border-radius:999px;padding:2px 8px;margin-left:7px;vertical-align:2px;cursor:pointer" title="Your status — click to change">${escapeHtml(lbl)}</span>`);
+  document.getElementById("rr-mc-presence-chip").addEventListener("click", _mcOpenNotifySettings);
+}
+
+// Inject the digest bell into the static list-head action row (once).
+function _mcEnsureDigestBell() {
+  const actions = document.querySelector(".msg-head-actions");
+  if (!actions || document.getElementById("rr-mc-digest-bell")) return;
+  const btn = document.createElement("button");
+  btn.className = "msg-headbtn";
+  btn.id = "rr-mc-digest-bell";
+  btn.title = "Unread digest & notification settings";
+  btn.setAttribute("aria-label", "Unread digest and notification settings");
+  btn.setAttribute("data-rr-mc-popanchor", "1");
+  btn.style.position = "relative";
+  btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span id="rr-mc-digest-n" style="display:none;position:absolute;top:-3px;right:-3px;background:var(--accent);color:#fff;font-size:9px;font-weight:800;border-radius:999px;min-width:15px;height:15px;line-height:15px;text-align:center;padding:0 3px"></span>`;
+  btn.addEventListener("click", () => _mcOpenDigest(btn));
+  actions.insertBefore(btn, actions.firstElementChild);
+}
+function _mcPaintDigestBadge() {
+  const n = (_msgInboxList || []).reduce((a, t) => a + (t.unread || 0), 0);
+  const el = document.getElementById("rr-mc-digest-n");
+  if (!el) return;
+  el.style.display = n > 0 ? "" : "none";
+  el.textContent = n > 99 ? "99+" : String(n);
+}
+
+// ── Urgent escalation watch (#49) ──
+// Flags dispatch-sent urgent messages the driver hasn't read after 10
+// minutes: one-time tone + notification + an action toast offering an SMS
+// fallback (queued through the existing Twilio pipeline, 0510 RPC).
+function _mcEscSeen() {
+  try { return new Set(JSON.parse(localStorage.getItem("rr_esc_seen") || "[]")); } catch { return new Set(); }
+}
+function _mcEscMark(id) {
+  try {
+    const cur = [..._mcEscSeen()];
+    cur.push(id);
+    localStorage.setItem("rr_esc_seen", JSON.stringify(cur.slice(-200)));
+  } catch {}
+}
+async function _mcEscalationTick() {
+  if (!document.getElementById("view-messages")?.classList.contains("active")) return;
+  const since = new Date(Date.now() - 24 * 3600000).toISOString();
+  const cutoff = Date.now() - 10 * 60000;
+  const [{ data: urgents }, { data: convs }] = await Promise.all([
+    sb.from("driver_messages")
+      .select("id, driver_id, body, created_at")
+      .eq("sender_kind", "dispatch").eq("priority", "urgent")
+      .is("deleted_at", null).gte("created_at", since)
+      .order("created_at", { ascending: false }).limit(40)
+      .then((r) => r, () => ({ data: null })),
+    sb.from("driver_conversations").select("driver_id, driver_last_read_at")
+      .then((r) => r, () => ({ data: null })),
+  ]);
+  if (!urgents || !urgents.length) return;
+  const readAt = new Map((convs || []).map((c) => [String(c.driver_id), c.driver_last_read_at ? new Date(c.driver_last_read_at).getTime() : 0]));
+  const seen = _mcEscSeen();
+  for (const m of urgents) {
+    const t = new Date(m.created_at).getTime();
+    if (t > cutoff) continue;                                  // not old enough yet
+    if ((readAt.get(String(m.driver_id)) || 0) >= t) continue; // driver read it
+    if (seen.has(m.id)) continue;                              // already escalated
+    _mcEscMark(m.id);
+    const meta = (_msgInboxList || []).find((x) => String(x.driver_id) === String(m.driver_id)) || {};
+    const name = meta.name || "Driver";
+    const mins = Math.round((Date.now() - t) / 60000);
+    _mcPlayTone("urgent");
+    _mcWebNotify(`🚨 ${name} hasn't seen your urgent message`, `Sent ${mins}m ago — consider calling or an SMS fallback.`, m.driver_id, true);
+    toastAction(`🚨 ${escapeHtml(name)} hasn't seen your urgent message (${mins}m). Send an SMS fallback?`, {
+      label: "Send SMS",
+      onConfirm: async () => {
+        const { error } = await sb.rpc("dispatch_send_sms_fallback", {
+          p_driver_id: m.driver_id,
+          p_body: `URGENT from dispatch: ${String(m.body || "please check the RouteReady app").slice(0, 500)}`,
+        }).then((r) => r, (e) => ({ error: e || {} }));
+        if (error) toast(_mcRpcMissing(error) ? "SMS fallback needs migration 0510" : ("SMS failed: " + (error.message || "")), "warn");
+        else toast("SMS queued to " + name, "ok");
+      },
+    });
+  }
+}
+
 // One conversation per DSP with RouteReady Support — pinned at the top
 // of the Messages inbox so help is one click away without bolting on a
 // separate widget. Same chat surface, same patterns.
@@ -40379,11 +41164,12 @@ async function refreshDriverChatList(autoSelect) {
   if (!list) return;
   // Don't let the 8s inbox poll overwrite active server-search results.
   if (_msgSearchServerActive()) return;
-  // Fetch the driver inbox and the support thread in parallel — the
-  // support thread fuels the pinned "RouteReady Support" row at the top.
+  // Fetch the driver inbox, the support thread and the operator's thread
+  // prefs (archive/mute/snooze/labels, #28–31) in parallel.
   const [{ data, error }, supRes] = await Promise.all([
     sb.rpc("dispatch_chat_threads"),
     sb.rpc("support_thread").then((r) => r, () => ({ data: null })),
+    _mcLoadThreadPrefs(),
   ]);
   _msgSupportData = (supRes && supRes.data) || null;
   if (error) {
@@ -40406,14 +41192,9 @@ async function refreshDriverChatList(autoSelect) {
   _msgInboxList = (data || []).filter(t => t && t.status !== "onboarding");
   // (No early return on an empty driver list — the pinned RouteReady
   // Support row is still rendered below, so the inbox is never empty.)
-  // Sort: unread first, then most-recent activity, then alpha for inactive.
-  _msgInboxList.sort((a, b) => {
-    if ((b.unread > 0) !== (a.unread > 0)) return (b.unread > 0) - (a.unread > 0);
-    if (b.last_at && a.last_at) return new Date(b.last_at) - new Date(a.last_at);
-    if (b.last_at) return 1;
-    if (a.last_at) return -1;
-    return (a.name || "").localeCompare(b.name || "");
-  });
+  // Sort per the operator's preference (#32): unread-first recency by
+  // default, A–Z or strict unread-first when chosen.
+  _msgInboxList = sortThreadsCore(_msgInboxList, _mcListFilter.sort);
   // Favorites (persisted locally) float into their own pinned section.
   const _favSet = _rrMsgFavs();
   const fmtRelative = (iso) => {
@@ -40447,6 +41228,7 @@ async function refreshDriverChatList(autoSelect) {
     </div>`;
 
   const rowHtml = (t) => {
+    const pref = _mcThreadPrefs.get(String(t.driver_id)) || {};
     const initials = (t.name || "").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase() || "?";
     const lastBody = t.last_message?.body
       ? (t.last_message.sender_kind === "dispatch" ? "You: " : "") + t.last_message.body
@@ -40454,19 +41236,67 @@ async function refreshDriverChatList(autoSelect) {
     const lastBodyTrunc = lastBody.length > 60 ? lastBody.slice(0, 57) + "…" : lastBody;
     const isActive = _msgInboxSelectedId === t.driver_id;
     const favStar = _favSet.has(t.driver_id) ? `<span class="msg-item-fav" title="Favorite">${_rrStarSvg(true)}</span>` : "";
-    return `<div class="msg-item ${isActive ? "active" : ""}" data-rr-thread="${t.driver_id}" data-rr-driver-id="${t.driver_id}">
+    const mutedIco = pref.muted ? `<span class="msg-item-muted" title="Muted" aria-label="Muted">🔕</span>` : "";
+    const labelChips = (pref.labels || []).slice(0, 3).map((l) =>
+      `<span class="msg-item-label" data-rr-label-chip="${escapeHtml(l)}">${escapeHtml(l)}</span>`).join("");
+    // Badge: real unread count, or the manual mark-unread dot (#30).
+    const badge = t.unread > 0
+      ? `<div class="msg-item-unread${pref.muted ? " muted" : ""}">${t.unread}</div>`
+      : (pref.mark_unread ? `<div class="msg-item-unread manual" title="Marked unread">●</div>` : "");
+    const quick = `<div class="msg-item-quick">
+        <button type="button" data-rr-qa="fav" title="${_favSet.has(t.driver_id) ? "Unfavorite" : "Favorite"}">${_rrStarSvg(_favSet.has(t.driver_id))}</button>
+        <button type="button" data-rr-qa="unread" title="Mark unread">●</button>
+        <button type="button" data-rr-qa="mute" title="${pref.muted ? "Unmute" : "Mute"}">${pref.muted ? "🔔" : "🔕"}</button>
+        <button type="button" data-rr-qa="archive" title="${pref.archived ? "Unarchive" : "Archive"}">🗄️</button>
+      </div>`;
+    return `<div class="msg-item ${isActive ? "active" : ""}${pref.muted ? " is-muted" : ""}" data-rr-thread="${t.driver_id}" data-rr-driver-id="${t.driver_id}">
       <div class="msg-item-avatar"><div class="avatar-sm">${escapeHtml(initials)}</div><span class="msg-item-presence"></span></div>
-      <div><div class="msg-item-name">${escapeHtml(t.name)}${favStar}${t.station_code ? ` <span class="msg-item-station">· ${escapeHtml(t.station_code)}</span>` : ""}</div><div class="msg-item-preview">${escapeHtml(lastBodyTrunc)}</div></div>
-      <div><div class="msg-item-time">${escapeHtml(fmtRelative(t.last_at))}</div>${t.unread > 0 ? `<div class="msg-item-unread">${t.unread}</div>` : ""}</div>
+      <div><div class="msg-item-name">${escapeHtml(t.name)}${favStar}${mutedIco}${t.station_code ? ` <span class="msg-item-station">· ${escapeHtml(t.station_code)}</span>` : ""}</div><div class="msg-item-preview">${labelChips}${escapeHtml(lastBodyTrunc)}</div></div>
+      <div><div class="msg-item-time">${escapeHtml(fmtRelative(t.last_at))}</div>${badge}</div>
+      ${quick}
     </div>`;
   };
-  const favList = _msgInboxList.filter((t) => _favSet.has(t.driver_id));
-  const restList = _msgInboxList.filter((t) => !_favSet.has(t.driver_id));
+  // Pref-driven visibility (#28 archive, #30 snooze, #32 unread-only,
+  // #31 label filter).
+  const nowMs = Date.now();
+  const prefOf = (t) => _mcThreadPrefs.get(String(t.driver_id)) || {};
+  // Auto-unarchive (#28): a new unread message after the archive action
+  // brings the thread back into the main list.
+  const isArchived = (t) => {
+    const p = prefOf(t);
+    if (!p.archived) return false;
+    if (t.unread > 0 && t.last_at && p.updated_at
+        && new Date(t.last_at).getTime() > new Date(p.updated_at).getTime()) return false;
+    return true;
+  };
+  const archivedList = _msgInboxList.filter(isArchived);
+  let visible = _mcListFilter.archived
+    ? archivedList
+    : _msgInboxList.filter((t) => !isArchived(t) && !_mcIsSnoozed(prefOf(t), nowMs, t.last_at));
+  if (_mcListFilter.unreadOnly) visible = visible.filter((t) => t.unread > 0 || prefOf(t).mark_unread);
+  if (_mcListFilter.label) visible = visible.filter((t) => (prefOf(t).labels || []).some((l) => l.toLowerCase() === _mcListFilter.label.toLowerCase()));
+  const favList = visible.filter((t) => _favSet.has(t.driver_id));
+  const restList = visible.filter((t) => !_favSet.has(t.driver_id));
   const sectionLabel = (txt) => `<div class="msg-list-section">${txt}</div>`;
-  let listBody = "";
-  if (favList.length) listBody += sectionLabel("Favorites") + favList.map(rowHtml).join("");
-  if (restList.length) listBody += (favList.length ? sectionLabel("Recent") : "") + restList.map(rowHtml).join("");
-  list.innerHTML = supportRow + listBody;
+  let listBody = _mcListFilterBarHtml(archivedList.length);
+  if (_mcListFilter.archived) {
+    listBody += sectionLabel(`Archived · ${archivedList.length}`) + (archivedList.length ? visible.map(rowHtml).join("") : `<div class="rr-empty-inline">Nothing archived.</div>`);
+  } else {
+    if (favList.length) listBody += sectionLabel("Favorites") + favList.map(rowHtml).join("");
+    if (restList.length) listBody += (favList.length ? sectionLabel("Recent") : "") + restList.map(rowHtml).join("");
+    if (!favList.length && !restList.length && (_mcListFilter.unreadOnly || _mcListFilter.label)) {
+      listBody += `<div class="rr-empty-inline">No conversations match the current filter.</div>`;
+    }
+  }
+  list.innerHTML = (_mcListFilter.archived ? "" : supportRow) + listBody;
+  _mcWireListFilterBar(list);
+  _mcWireRowQuickActions(list);
+  // Notification engine + digest badge (#45–48, #53, #54).
+  _mcNotifyEngineTick(_msgInboxList);
+  _mcPaintDigestBadge();
+  // Connection banner + queued-send flush (#74/#75).
+  _mcPaintConnBanner();
+  _mcFlushOutbox().catch(() => {});
   // Paint the green dot after the rows mount.  Presence state may have
   // already populated by the time the list first renders.
   _presencePaintList();
@@ -40573,7 +41403,28 @@ function _renderDriverDetails(driverId, drv) {
           <button type="button" class="dd-link" onclick="if(window.goto)goto('drivers')">Open full profile ${_RR_MC_ICONS.chevron.replace('polyline points="6 9 12 15 18 9"','polyline points="9 18 15 12 9 6"')}</button>
         </div>
       </details>
+
+      <details class="dd-section">
+        <summary class="dd-sec-head" data-rr-shared-summary>${_RR_MC_ICONS.msg}<span>Shared in this chat</span>${_RR_MC_ICONS.chevron}</summary>
+        <div class="dd-sec-body">
+          <div class="msg-list-tabs" role="tablist" aria-label="Shared content" style="margin:0 0 8px">
+            <button type="button" class="msg-list-tab active" data-rr-shared-tab="media" role="tab" aria-selected="true">Media</button>
+            <button type="button" class="msg-list-tab" data-rr-shared-tab="files" role="tab" aria-selected="false">Files</button>
+            <button type="button" class="msg-list-tab" data-rr-shared-tab="links" role="tab" aria-selected="false">Links</button>
+          </div>
+          <div id="rr-dd-shared"></div>
+        </div>
+      </details>
     </div>`;
+  // Shared tab (#22) — painted lazily from the loaded thread window when
+  // the section opens or a tab is clicked.
+  panel.querySelector("[data-rr-shared-summary]")?.parentElement?.addEventListener("toggle", (ev) => {
+    if (ev.target.open) _mcPaintSharedTab(panel.querySelector(".msg-list-tab.active[data-rr-shared-tab]")?.getAttribute("data-rr-shared-tab") || "media");
+  });
+  panel.querySelectorAll("[data-rr-shared-tab]").forEach((b) => b.addEventListener("click", () => {
+    panel.querySelectorAll("[data-rr-shared-tab]").forEach((x) => { x.classList.toggle("active", x === b); x.setAttribute("aria-selected", x === b ? "true" : "false"); });
+    _mcPaintSharedTab(b.getAttribute("data-rr-shared-tab"));
+  }));
   _paintMsgHeadStats(driverId);
   _presencePaintList();
   // Mirror online state onto the panel avatar dot.
@@ -40608,7 +41459,12 @@ async function _loadMcContextSchedule(driverId) {
   };
   const todayShift = rows.find((r) => r.date === todayStr);
   setRow("rr-dd-today-v", "rr-dd-today-s", todayShift);
-  setRow("rr-dd-tom-v", "rr-dd-tom-s", rows.find((r) => r.date === tomStr));
+  const tomShift = rows.find((r) => r.date === tomStr);
+  setRow("rr-dd-tom-v", "rr-dd-tom-s", tomShift);
+  // Stash for template variables ({{next_shift}}, {{next_route}}, …),
+  // quick-insert chips (#68) and the thread-header shift context (#72).
+  _mcCtxSched = { driverId, today: todayShift || null, tomorrow: tomShift || null };
+  _mcPaintShiftCtx(driverId);
 
   // Shift-status badge — green "Scheduled today" when there's a live shift.
   const badge = document.getElementById("rr-dd-shift");
@@ -40677,6 +41533,9 @@ async function openDriverChatThread(driverId, focus) {
     if (!document.getElementById("view-messages")?.classList.contains("active") || _msgInboxSelectedId !== driverId) {
       clearInterval(_msgInboxThreadTimer); _msgInboxThreadTimer = null; return;
     }
+    // #73/#76: healthy realtime → stretch the safety poll to ~2 min.
+    window._rrMcThreadTick = (window._rrMcThreadTick || 0) + 1;
+    if (window._rrChatRealtimeHealthy && (window._rrMcThreadTick % 4)) return;
     refreshDriverChatThread(false);
   }, 30000);
 }
@@ -40728,7 +41587,7 @@ function _supBubblesHTML(msgs) {
     }
     const mine = m.sender_kind === "dsp";
     const time = dt ? dt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
-    const body = m.body ? linkifyEscaped(escapeHtml(m.body), mine) : "";
+    const body = m.body ? _mdLite(linkifyEscaped(escapeHtml(m.body), mine)) : "";
     const author = mine ? "" : `<div style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--accent-text);margin-bottom:3px">RouteReady Support</div>`;
     out += `<div style="display:flex;flex-direction:column;max-width:84%;${mine ? "align-self:flex-end;align-items:flex-end" : "align-self:flex-start;align-items:flex-start"}">${author}<div style="padding:var(--s-2) var(--s-3);border-radius:var(--r-xl);font-size:var(--fs-sm);line-height:1.45;word-break:break-word;white-space:pre-wrap;${mine ? "background:var(--accent-hover);color:#fff;border-bottom-right-radius:5px" : "background:var(--surface);color:var(--text);border:1px solid var(--border);border-bottom-left-radius:5px"}">${body}</div><div style="font-size:10px;color:var(--text-subtle);margin-top:3px;padding:0 4px">${escapeHtml(time)}</div></div>`;
   });
@@ -40994,7 +41853,7 @@ function _supAdmBubblesHTML(msgs) {
     }
     const mine = m.sender_kind === "support";
     const time = dt ? dt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
-    const body = m.body ? linkifyEscaped(escapeHtml(m.body), mine) : "";
+    const body = m.body ? _mdLite(linkifyEscaped(escapeHtml(m.body), mine)) : "";
     const author = `<div style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:3px">${escapeHtml((m.sender_name || (mine ? "RouteReady Support" : "DSP")))}${m.sender_role && !mine ? ` · ${escapeHtml(m.sender_role)}` : ""}</div>`;
     out += `<div style="display:flex;flex-direction:column;max-width:84%;${mine ? "align-self:flex-end;align-items:flex-end" : "align-self:flex-start;align-items:flex-start"}">${author}<div style="padding:var(--s-2) var(--s-3);border-radius:var(--r-xl);font-size:var(--fs-sm);line-height:1.45;word-break:break-word;white-space:pre-wrap;${mine ? "background:var(--accent-hover);color:#fff;border-bottom-right-radius:5px" : "background:var(--surface);color:var(--text);border:1px solid var(--border);border-bottom-left-radius:5px"}">${body}</div><div style="font-size:10px;color:var(--text-subtle);margin-top:3px;padding:0 4px">${escapeHtml(time)}</div></div>`;
   });
@@ -41026,47 +41885,88 @@ async function _supAdmSend() {
 // composer's submit handler reads it from (window._rrMcPending /
 // window._rrCcPending).
 function _rrWireComposerAttach({ ta, fileInput, previewEl, attachBtn, setPending }) {
+  // Staged files — up to 6 per message. Each entry: { file, hd } where hd
+  // means "send original, skip the image recompression pass".
+  let staged = [];
+  const push = () => setPending(staged.length ? staged.map((s) => s) : null);
   const clear = () => {
+    staged = [];
     fileInput.value = "";
-    setPending(null);
+    push();
     previewEl.style.display = "none";
     previewEl.innerHTML = "";
   };
-  const stage = (f) => {
-    if (!f) { clear(); return; }
-    if (f.size > 15 * 1024 * 1024) { toast("File too large (max 15 MB)", "warn"); fileInput.value = ""; return; }
-    setPending(f);
-    const isImg = f.type.startsWith("image/");
-    const sizeKb = Math.round(f.size / 1024);
+  const render = () => {
+    if (!staged.length) { previewEl.style.display = "none"; previewEl.innerHTML = ""; return; }
     previewEl.style.display = "";
-    previewEl.innerHTML = `
-      <div style="display:flex;align-items:center;gap:var(--s-2);background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:6px 8px;font-size:var(--fs-sm)">
+    previewEl.innerHTML = staged.map((s, i) => {
+      const f = s.file;
+      const isImg = f.type.startsWith("image/");
+      const willCompress = isImg && _mcShouldCompress(f.type, f.size) && !s.hd;
+      return `<div style="display:flex;align-items:center;gap:var(--s-2);background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:6px 8px;font-size:var(--fs-sm);margin-bottom:4px" data-rr-attach-row="${i}">
         ${isImg ? `<img src="${URL.createObjectURL(f)}" alt="" style="width:32px;height:32px;border-radius:var(--r-sm);object-fit:cover">`
                 : `<span style="font-size:var(--fs-lg)">📎</span>`}
         <div style="flex:1;min-width:0">
           <div style="font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(f.name)}</div>
-          <div class="u-subtle">${sizeKb} KB</div>
+          <div class="u-subtle">${_rrFmtBytes(f.size)}${willCompress ? " · will be optimized" : ""}</div>
         </div>
-        <button type="button" data-rr-attach-clear aria-label="Remove" style="background:none;border:0;color:var(--text-subtle);cursor:pointer;font-size:var(--fs-lg);line-height:1;padding:2px">×</button>
+        ${isImg && _mcShouldCompress(f.type, f.size) ? `<button type="button" data-rr-attach-hd="${i}" title="${s.hd ? "Sending original — click to optimize" : "Optimized for chat — click to send the original"}" aria-pressed="${s.hd ? "true" : "false"}" style="background:${s.hd ? "var(--accent-soft)" : "none"};border:1px solid var(--border);border-radius:var(--r-sm);color:${s.hd ? "var(--accent-text)" : "var(--text-subtle)"};cursor:pointer;font-size:10px;font-weight:700;padding:2px 6px">HD</button>` : ""}
+        <button type="button" data-rr-attach-clear="${i}" aria-label="Remove ${escapeHtml(f.name)}" style="background:none;border:0;color:var(--text-subtle);cursor:pointer;font-size:var(--fs-lg);line-height:1;padding:2px">×</button>
       </div>`;
-    previewEl.querySelector("[data-rr-attach-clear]").addEventListener("click", clear);
+    }).join("");
+    previewEl.querySelectorAll("[data-rr-attach-clear]").forEach((b) =>
+      b.addEventListener("click", () => { staged.splice(+b.getAttribute("data-rr-attach-clear"), 1); push(); render(); }));
+    previewEl.querySelectorAll("[data-rr-attach-hd]").forEach((b) =>
+      b.addEventListener("click", () => { const s = staged[+b.getAttribute("data-rr-attach-hd")]; if (s) s.hd = !s.hd; render(); }));
+  };
+  const stage = (files) => {
+    for (const f of files || []) {
+      if (!f) continue;
+      if (staged.length >= 6) { toast("Up to 6 attachments per message", "warn"); break; }
+      if (f.size > 15 * 1024 * 1024) { toast(`${f.name}: too large (max 15 MB)`, "warn"); continue; }
+      staged.push({ file: f, hd: false });
+    }
+    fileInput.value = "";
+    push();
+    render();
   };
   attachBtn.addEventListener("click", () => fileInput.click());
-  fileInput.addEventListener("change", () => stage(fileInput.files?.[0]));
+  fileInput.addEventListener("change", () => stage(Array.from(fileInput.files || [])));
   // Clipboard images arrive named "image.png" — rename with a timestamp
   // so back-to-back pastes don't all upload under the same name.
   ta.addEventListener("paste", (e) => {
-    const item = Array.from(e.clipboardData?.items || [])
-      .find((x) => x.kind === "file" && x.type.startsWith("image/"));
-    const f = item && item.getAsFile();
-    if (!f) return;               // plain text — let the browser paste it
+    const items = Array.from(e.clipboardData?.items || [])
+      .filter((x) => x.kind === "file" && x.type.startsWith("image/"));
+    const files = items.map((x) => x.getAsFile()).filter(Boolean);
+    if (!files.length) return;    // plain text — let the browser paste it
     e.preventDefault();
-    const ext = (f.type.split("/")[1] || "png").replace("jpeg", "jpg").replace(/[^a-z0-9]/gi, "") || "png";
-    const d = new Date(); const pad = (n) => String(n).padStart(2, "0");
-    const name = `pasted-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.${ext}`;
-    stage(new File([f], name, { type: f.type }));
+    stage(files.map((f, i) => {
+      const ext = (f.type.split("/")[1] || "png").replace("jpeg", "jpg").replace(/[^a-z0-9]/gi, "") || "png";
+      const d = new Date(); const pad = (n) => String(n).padStart(2, "0");
+      const name = `pasted-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}${files.length > 1 ? "-" + (i + 1) : ""}.${ext}`;
+      return new File([f], name, { type: f.type });
+    }));
   });
-  return { clear };
+  // Drag-and-drop onto the composer's form (or the thread) stages files
+  // the same way the picker does. The dragover class lights a drop hint.
+  const form = ta.closest("form");
+  const dropTargets = [form, form?.closest(".rr-mc-shell, .rr-cc-shell")].filter(Boolean);
+  dropTargets.forEach((t) => {
+    t.addEventListener("dragover", (e) => {
+      if (!Array.from(e.dataTransfer?.types || []).includes("Files")) return;
+      e.preventDefault();
+      t.classList.add("rr-mc-dragover");
+    });
+    t.addEventListener("dragleave", () => t.classList.remove("rr-mc-dragover"));
+    t.addEventListener("drop", (e) => {
+      if (!e.dataTransfer?.files?.length) return;
+      e.preventDefault();
+      t.classList.remove("rr-mc-dragover");
+      stage(Array.from(e.dataTransfer.files));
+      ta.focus();
+    });
+  });
+  return { clear, render, stage };
 }
 
 // Wire the composer mic → record a voice note and send it via
@@ -41079,6 +41979,29 @@ function _rrWireComposerMic({ micBtn, previewEl, getTargets }) {
   if (!canRecord) { micBtn.style.display = "none"; return; }
 
   let rec = null, chunks = [], stream = null, t0 = 0, timer = null, sendOnStop = false;
+  // Live transcript (#23): best-effort Web Speech running alongside the
+  // recorder, so the voice note lands with searchable text under the
+  // player. Chrome-only; silently absent elsewhere.
+  let sr = null, srText = "";
+  const startTranscript = () => {
+    srText = "";
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return;
+    try {
+      sr = new SR();
+      sr.continuous = true;
+      sr.interimResults = false;
+      sr.lang = navigator.language || "en-US";
+      sr.onresult = (e) => {
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          if (e.results[i].isFinal) srText += (srText ? " " : "") + e.results[i][0].transcript.trim();
+        }
+      };
+      sr.onerror = () => {};
+      sr.start();
+    } catch { sr = null; }
+  };
+  const stopTranscript = () => { try { sr && sr.stop(); } catch {} sr = null; };
   const pickMime = () => {
     const cands = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/aac", "audio/ogg;codecs=opus"];
     for (const m of cands) { try { if (MediaRecorder.isTypeSupported(m)) return m; } catch {} }
@@ -41089,6 +42012,8 @@ function _rrWireComposerMic({ micBtn, previewEl, getTargets }) {
     if (stream) { try { stream.getTracks().forEach((t) => t.stop()); } catch {} stream = null; }
     previewEl.style.display = "none"; previewEl.innerHTML = "";
     micBtn.classList.remove("recording");
+    // Re-paint any staged attachment chips the recording bar displaced.
+    try { window._rrMcAttachCtl?.render?.(); } catch {}
   };
   const stopAndSend = () => {
     if (!rec || rec.state === "inactive") return;
@@ -41117,7 +42042,7 @@ function _rrWireComposerMic({ micBtn, previewEl, getTargets }) {
     previewEl.querySelector("[data-rr-vcancel]").addEventListener("click", () => { sendOnStop = false; try { rec && rec.stop(); } catch { teardown(); } });
     previewEl.querySelector("[data-rr-vsend]").addEventListener("click", stopAndSend);
   };
-  const sendVoiceNote = async (blob, type) => {
+  const sendVoiceNote = async (blob, type, transcript) => {
     const { dspId, driverId } = getTargets() || {};
     if (!dspId || !driverId) { toast("Pick a driver first", "warn"); return; }
     const ext = type.includes("mp4") || type.includes("aac") ? "m4a" : type.includes("ogg") ? "ogg" : "webm";
@@ -41128,7 +42053,7 @@ function _rrWireComposerMic({ micBtn, previewEl, getTargets }) {
     if (upErr) { toast("Upload failed: " + upErr.message, "warn"); return; }
     const { error } = await sb.rpc("dispatch_chat_send", {
       p_driver_id:             driverId,
-      p_body:                  null,
+      p_body:                  (transcript || "").trim() ? (transcript.trim().slice(0, 1000)) : null,
       p_attachment_path:       path,
       p_attachment_mime:       type,
       p_attachment_name:       "Voice message",
@@ -41153,16 +42078,935 @@ function _rrWireComposerMic({ micBtn, previewEl, getTargets }) {
       const elapsed = Date.now() - t0;
       const blob = new Blob(chunks, { type });
       chunks = [];
+      stopTranscript();
       teardown();
       if (!send) return;
       if (!blob.size || elapsed < 700) { toast("Too short — hold to record a bit longer", "warn"); return; }
-      await sendVoiceNote(blob, type);
+      // Give the recognizer a beat to flush its final segment.
+      await new Promise((r) => setTimeout(r, 350));
+      await sendVoiceNote(blob, type, srText);
     });
     micBtn.classList.add("recording");
     renderBar();
     rec.start();
+    startTranscript();
   };
   micBtn.addEventListener("click", () => { if (rec && rec.state === "recording") stopAndSend(); else start(); });
+}
+
+// ─── Composer enhancements (Messages 100-list · Batch 1) ─────────────────
+// One enhancement layer shared by the 1:1 composer and the channel
+// composer: per-thread drafts, emoji picker + :shortcode: autocomplete,
+// /slash templates with variable fill, a "+" menu (templates, schedule
+// send, dictation, composer settings), configurable Enter behaviour and
+// an undo-send window. All pure logic lives in msg-core.mjs; this layer
+// is the DOM wiring only.
+
+function _mcPref(key, def) {
+  try { const v = localStorage.getItem(key); return v === null ? def : v; } catch { return def; }
+}
+function _mcSetPref(key, val) { try { localStorage.setItem(key, String(val)); } catch {} }
+function _mcEnterSends() { return _mcPref("rr_msg_enter_sends", "1") === "1"; }
+function _mcUndoSecs() { const n = parseInt(_mcPref("rr_msg_undo_secs", "5"), 10); return isNaN(n) ? 5 : n; }
+
+// One-shot CSS for the enhancement chrome.
+function _mcEnsureExtrasCss() {
+  if (document.getElementById("rr-mc-extras-css")) return;
+  const st = document.createElement("style");
+  st.id = "rr-mc-extras-css";
+  st.textContent = `
+    .rr-mc-iconbtn{background:transparent;border:0;color:var(--text-muted);cursor:pointer;width:34px;height:34px;border-radius:var(--r-2xl);display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+    .rr-mc-iconbtn:hover{background:var(--surface-hover,#f3f4f6);color:var(--text)}
+    .rr-mc-iconbtn.on{color:var(--accent-text);background:var(--accent-soft)}
+    .rr-mc-pop{position:fixed;z-index:9800;background:var(--surface,#fff);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:0 12px 34px rgba(15,23,42,.18);overflow:hidden}
+    .rr-mc-emoji-pop{width:296px}
+    .rr-mc-emoji-search{width:100%;box-sizing:border-box;border:0;border-bottom:1px solid var(--border);padding:9px 12px;font:inherit;font-size:var(--fs-sm);outline:none;background:transparent;color:var(--text)}
+    .rr-mc-emoji-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:2px;max-height:216px;overflow-y:auto;padding:8px}
+    .rr-mc-emoji-grid button{background:none;border:0;font-size:19px;line-height:1;padding:5px 0;cursor:pointer;border-radius:var(--r-sm)}
+    .rr-mc-emoji-grid button:hover,.rr-mc-emoji-grid button:focus-visible{background:var(--surface-hover,#f3f4f6)}
+    .rr-mc-emoji-head{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);padding:6px 12px 0}
+    .rr-mc-suggest{min-width:220px;max-width:340px;max-height:240px;overflow-y:auto;padding:4px}
+    .rr-mc-suggest button{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:none;border:0;padding:7px 10px;border-radius:var(--r-sm);cursor:pointer;font:inherit;font-size:var(--fs-sm);color:var(--text)}
+    .rr-mc-suggest button.sel,.rr-mc-suggest button:hover{background:var(--accent-soft);color:var(--accent-text)}
+    .rr-mc-suggest .rr-mc-sug-name{font-weight:600}
+    .rr-mc-suggest .rr-mc-sug-desc{color:var(--text-subtle);font-size:var(--fs-xs);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+    .rr-mc-plus-menu{min-width:230px;padding:5px}
+    .rr-mc-plus-menu button{display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:none;border:0;padding:8px 10px;border-radius:var(--r-sm);cursor:pointer;font:inherit;font-size:var(--fs-sm);color:var(--text)}
+    .rr-mc-plus-menu button:hover{background:var(--surface-hover,#f3f4f6)}
+    .rr-mc-plus-menu .rr-mc-plus-sep{height:1px;background:var(--border);margin:5px 2px}
+    .rr-mc-plus-menu .rr-mc-plus-note{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);padding:7px 10px 3px}
+    .rr-mc-plus-menu .rr-mc-plus-val{margin-left:auto;color:var(--text-subtle);font-size:var(--fs-xs);font-weight:600}
+    .rr-mc-dragover{outline:2px dashed var(--accent);outline-offset:-6px;border-radius:var(--r-lg)}
+    .rr-md-code{font-family:ui-monospace,Menlo,monospace;font-size:.92em;background:rgba(127,127,127,.16);border-radius:4px;padding:0 4px}
+    .rr-mc-bubble.dispatch .rr-md-code{background:rgba(255,255,255,.22)}
+    .rr-md-bullet{display:inline-block;width:1em;color:currentColor;opacity:.75}
+    .rr-mc-shell,.rr-cc-shell{position:relative}
+    .rr-mc-undo-pill{position:absolute;left:50%;transform:translateX(-50%);bottom:76px;z-index:60;display:flex;align-items:center;gap:10px;background:var(--text,#111827);color:#fff;border-radius:var(--r-pill,999px);padding:8px 8px 8px 16px;font-size:var(--fs-sm);box-shadow:0 10px 30px rgba(15,23,42,.3)}
+    .rr-mc-undo-pill button{background:rgba(255,255,255,.16);border:0;color:#fff;font:inherit;font-weight:700;border-radius:var(--r-pill,999px);padding:5px 14px;cursor:pointer}
+    .rr-mc-undo-pill button:hover{background:rgba(255,255,255,.28)}
+    .rr-mc-modal{position:fixed;inset:0;z-index:9700;display:flex;align-items:center;justify-content:center;padding:20px}
+    .rr-mc-modal .rr-mc-modal-back{position:absolute;inset:0;background:rgba(15,23,42,.35)}
+    .rr-mc-modal .rr-mc-modal-card{position:relative;background:var(--surface,#fff);border-radius:var(--r-xl);box-shadow:0 24px 70px rgba(15,23,42,.3);width:min(520px,94vw);max-height:86vh;display:flex;flex-direction:column;overflow:hidden}
+    .rr-mc-modal .rr-mc-modal-head{display:flex;align-items:center;gap:10px;padding:15px 18px;border-bottom:1px solid var(--border);font-weight:700;color:var(--text)}
+    .rr-mc-modal .rr-mc-modal-x{margin-left:auto;background:none;border:0;font-size:19px;line-height:1;cursor:pointer;color:var(--text-subtle);padding:2px 4px}
+    .rr-mc-modal .rr-mc-modal-body{padding:14px 18px;overflow-y:auto}
+    .rr-mc-modal .rr-mc-modal-foot{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid var(--border)}
+    .rr-mc-modal label.rr-mc-f{display:block;margin-bottom:11px;font-size:var(--fs-sm);color:var(--text)}
+    .rr-mc-modal label.rr-mc-f > span{display:block;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);margin-bottom:4px}
+    .rr-mc-modal input[type=text],.rr-mc-modal input[type=datetime-local],.rr-mc-modal textarea{width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:var(--r-md);padding:8px 10px;font:inherit;font-size:var(--fs-sm);background:var(--canvas,#fafafa);color:var(--text)}
+    .rr-mc-modal textarea{min-height:88px;resize:vertical}
+    .rr-mc-sched-chips{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 12px}
+    .rr-mc-sched-chips button{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-pill,999px);padding:5px 11px;font:inherit;font-size:var(--fs-xs);font-weight:600;color:var(--text);cursor:pointer}
+    .rr-mc-sched-chips button:hover{border-color:var(--accent);color:var(--accent-text)}
+    .rr-mc-tpl-row{display:flex;align-items:center;gap:9px;padding:9px 10px;border:1px solid var(--border);border-radius:var(--r-md);margin-bottom:7px}
+    .rr-mc-tpl-row .rr-mc-tpl-main{flex:1;min-width:0;cursor:pointer}
+    .rr-mc-tpl-row .rr-mc-tpl-name{font-weight:600;color:var(--text);font-size:var(--fs-sm)}
+    .rr-mc-tpl-row .rr-mc-tpl-body{color:var(--text-subtle);font-size:var(--fs-xs);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .rr-mc-tpl-row .rr-mc-tpl-sc{font-family:ui-monospace,Menlo,monospace;font-size:11px;background:var(--accent-soft);color:var(--accent-text);border-radius:4px;padding:1px 6px;flex:0 0 auto}
+    .rr-mc-tpl-row .rr-mc-tpl-act{background:none;border:0;cursor:pointer;color:var(--text-subtle);padding:3px;border-radius:var(--r-sm);flex:0 0 auto}
+    .rr-mc-tpl-row .rr-mc-tpl-act:hover{background:var(--surface-hover,#f3f4f6);color:var(--text)}
+    /* Batch 2 · bubbles & thread interactions */
+    .rr-mc-quote{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;text-align:left;background:rgba(127,127,127,.12);border:0;border-left:3px solid var(--accent,#2563eb);border-radius:6px;padding:5px 9px;margin-bottom:6px;cursor:pointer;font:inherit;color:inherit}
+    .rr-mc-bubble.dispatch .rr-mc-quote{background:rgba(255,255,255,.16);border-left-color:rgba(255,255,255,.65)}
+    .rr-mc-quote-who{font-size:10px;font-weight:700;opacity:.8}
+    .rr-mc-quote-text{font-size:var(--fs-xs);opacity:.85;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:280px}
+    .rr-mc-replybar{position:absolute;bottom:100%;left:0;right:0;display:flex;align-items:center;gap:8px;background:var(--surface,#fff);border:1px solid var(--border);border-bottom:0;border-radius:var(--r-md) var(--r-md) 0 0;padding:6px 10px;font-size:var(--fs-xs);color:var(--text-subtle);z-index:5}
+    .rr-mc-replybar-txt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .rr-mc-replybar b{color:var(--text)}
+    .rr-mc-replybar button{background:none;border:0;color:var(--text-subtle);cursor:pointer;font-size:15px;line-height:1;padding:2px}
+    .rr-mc-unread-divider{display:flex;align-items:center;gap:10px;margin:10px 0;color:var(--danger,#dc2626)}
+    .rr-mc-unread-divider::before,.rr-mc-unread-divider::after{content:"";flex:1;height:1px;background:var(--danger,#dc2626);opacity:.4}
+    .rr-mc-unread-divider span{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+    .rr-mc-reacts{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+    .rr-mc-react-chip{display:inline-flex;align-items:center;gap:4px;background:var(--surface,#fff);border:1px solid var(--border);border-radius:var(--r-pill,999px);padding:1px 8px;font-size:13px;cursor:pointer;color:var(--text)}
+    .rr-mc-react-chip span{font-size:11px;font-weight:700;color:var(--text-subtle)}
+    .rr-mc-react-chip.mine{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-text)}
+    .rr-mc-react-chip.mine span{color:var(--accent-text)}
+    .rr-mc-reactpick{display:flex;gap:2px;padding:6px}
+    .rr-mc-reactpick button{background:none;border:0;font-size:20px;line-height:1;padding:6px;border-radius:var(--r-sm);cursor:pointer}
+    .rr-mc-reactpick button:hover{background:var(--surface-hover,#f3f4f6)}
+    .rr-mc-reactpick button.on{background:var(--accent-soft)}
+    .rr-mc-pinsbar{position:sticky;top:0;z-index:8;display:flex;gap:6px;overflow-x:auto;padding:6px 4px;margin:-4px -4px 6px;background:linear-gradient(var(--canvas,#fafafa) 78%,transparent);scrollbar-width:none}
+    .rr-mc-pinsbar::-webkit-scrollbar{display:none}
+    .rr-mc-pin-chip{flex:0 0 auto;background:var(--surface,#fff);border:1px solid var(--border);border-radius:var(--r-pill,999px);padding:4px 11px;font:inherit;font-size:var(--fs-xs);font-weight:600;color:var(--text);cursor:pointer;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .rr-mc-pin-chip:hover{border-color:var(--accent);color:var(--accent-text)}
+    .rr-mc-pinned-tag{margin-right:4px;font-size:10px}
+    button.rr-mc-edited{background:none;border:0;padding:0;font:inherit;font-size:inherit;color:inherit;opacity:.8;cursor:pointer;text-decoration:underline dotted;margin-left:4px}
+    .rr-mc-fwd-row{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:none;border:0;border-radius:var(--r-md);padding:7px 8px;cursor:pointer;font:inherit;color:var(--text)}
+    .rr-mc-fwd-row:hover{background:var(--surface-hover,#f3f4f6)}
+    .rr-mc-fwd-av{width:28px;height:28px;border-radius:50%;background:var(--accent-soft);color:var(--accent-text);display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex:0 0 auto}
+    .rr-mc-fwd-name{font-weight:600;font-size:var(--fs-sm)}
+    .rr-mc-fwd-sub{margin-left:auto;color:var(--text-subtle);font-size:var(--fs-xs)}
+    .rr-mc-lightbox{position:fixed;inset:0;z-index:9900;background:rgba(8,10,18,.88);display:flex;align-items:center;justify-content:center;padding:40px}
+    .rr-mc-lightbox img{max-width:88vw;max-height:84vh;border-radius:10px;box-shadow:0 18px 60px rgba(0,0,0,.55);background:#000}
+    .rr-mc-lightbox .rr-lb-x{position:absolute;top:14px;right:18px;background:rgba(255,255,255,.14);border:0;color:#fff;font-size:22px;line-height:1;width:38px;height:38px;border-radius:50%;cursor:pointer}
+    .rr-mc-lightbox .rr-lb-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.14);border:0;color:#fff;font-size:28px;line-height:1;width:44px;height:44px;border-radius:50%;cursor:pointer}
+    .rr-mc-lightbox .rr-lb-nav:hover,.rr-mc-lightbox .rr-lb-x:hover{background:rgba(255,255,255,.28)}
+    .rr-mc-lightbox .rr-lb-prev{left:18px}
+    .rr-mc-lightbox .rr-lb-next{right:18px}
+    .rr-mc-lightbox .rr-lb-meta{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);display:flex;gap:14px;align-items:center;color:#cbd5e1;font-size:12px}
+    .rr-mc-lightbox .rr-lb-dl{color:#93c5fd}
+    .rr-mc-linkcard{display:block;border:1px solid var(--border);border-radius:var(--r-md);padding:7px 10px;margin-top:6px;text-decoration:none;background:var(--surface,#fff);max-width:300px}
+    .rr-mc-bubble.dispatch .rr-mc-linkcard{background:rgba(255,255,255,.94)}
+    .rr-mc-linkcard .rr-lc-title{font-size:var(--fs-xs);font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .rr-mc-linkcard .rr-lc-desc{font-size:11px;color:var(--text-subtle);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+    .rr-mc-linkcard .rr-lc-host{font-size:10px;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.04em;margin-top:2px}
+    /* Batch 3 · search & organization */
+    .msg-filterbar{display:flex;gap:5px;flex-wrap:wrap;padding:7px 10px 5px;border-bottom:1px solid var(--border)}
+    .msg-fb-btn{background:var(--surface,#fff);border:1px solid var(--border);border-radius:var(--r-pill,999px);padding:3px 10px;font:inherit;font-size:11px;font-weight:600;color:var(--text-subtle);cursor:pointer}
+    .msg-fb-btn:hover{border-color:var(--accent);color:var(--accent-text)}
+    .msg-fb-btn.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-text)}
+    .msg-item{position:relative}
+    .msg-item-quick{position:absolute;right:8px;top:50%;transform:translateY(-50%);display:none;gap:2px;background:var(--surface,#fff);border:1px solid var(--border);border-radius:var(--r-md);padding:2px;box-shadow:0 4px 14px rgba(15,23,42,.12);z-index:4}
+    .msg-item:hover .msg-item-quick,.msg-item:focus-within .msg-item-quick{display:flex}
+    .msg-item-quick button{background:none;border:0;cursor:pointer;font-size:12px;line-height:1;padding:5px 6px;border-radius:var(--r-sm);color:var(--text-subtle)}
+    .msg-item-quick button:hover{background:var(--surface-hover,#f3f4f6);color:var(--text)}
+    .msg-item-muted{margin-left:5px;font-size:10px;opacity:.7}
+    .msg-item.is-muted .msg-item-name,.msg-item.is-muted .msg-item-preview{opacity:.72}
+    .msg-item-unread.muted{background:var(--text-subtle,#94a3b8)}
+    .msg-item-unread.manual{background:var(--accent);font-size:8px;line-height:1;display:flex;align-items:center;justify-content:center}
+    .msg-item-label{display:inline-block;background:var(--accent-soft);color:var(--accent-text);border-radius:4px;font-size:9px;font-weight:700;padding:1px 5px;margin-right:5px;vertical-align:1px;text-transform:uppercase;letter-spacing:.03em}
+    .msg-item-preview mark{background:rgba(250,204,21,.45);color:inherit;border-radius:2px;padding:0 1px}
+    .rr-mc-threadsearch{position:absolute;top:58px;right:12px;left:auto;z-index:40;display:flex;align-items:center;gap:7px;background:var(--surface,#fff);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:0 10px 30px rgba(15,23,42,.16);padding:7px 10px;width:min(430px,calc(100% - 24px))}
+    .rr-mc-threadsearch input{flex:1;min-width:0;border:0;outline:none;font:inherit;font-size:var(--fs-sm);background:transparent;color:var(--text)}
+    .rr-mc-threadsearch button{background:none;border:0;cursor:pointer;color:var(--text-subtle);font-size:14px;line-height:1;padding:3px 5px;border-radius:var(--r-sm)}
+    .rr-mc-threadsearch button:hover{background:var(--surface-hover,#f3f4f6);color:var(--text)}
+    .rr-mc-bubble.search-hit{outline:2px solid rgba(250,204,21,.75);outline-offset:1px}
+    /* Batch 4 · rooms & broadcasts */
+    .rr-cc-bubble{position:relative}
+    .rr-cc-bubble .rr-cc-actions{position:absolute;top:-12px;right:8px;display:none;gap:2px;background:var(--surface,#fff);border:1px solid var(--border);border-radius:var(--r-md);padding:2px;box-shadow:0 4px 14px rgba(15,23,42,.12);z-index:4}
+    .rr-cc-bubble:hover .rr-cc-actions{display:flex}
+    .rr-cc-actions button{background:none;border:0;cursor:pointer;color:var(--text-subtle);padding:4px;border-radius:var(--r-sm);width:26px;height:26px;display:flex;align-items:center;justify-content:center}
+    .rr-cc-actions button:hover{background:var(--surface-hover,#f3f4f6);color:var(--text)}
+    .rr-cc-actions svg{width:14px;height:14px}
+    .rr-cc-thread-chip{display:inline-flex;align-items:center;gap:4px;background:none;border:0;color:var(--accent-text);font:inherit;font-size:var(--fs-xs);font-weight:600;cursor:pointer;padding:2px 0;margin-top:2px}
+    .rr-cc-thread-chip:hover{text-decoration:underline}
+    .rr-cc-ackchip{display:inline-flex;align-items:center;gap:5px;background:var(--surface,#fff);border:1px solid var(--border);border-radius:var(--r-pill,999px);color:var(--text-subtle);font:inherit;font-size:var(--fs-xs);font-weight:700;padding:2px 9px;margin:4px 0 2px;cursor:pointer}
+    .rr-cc-ackchip.done{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-text)}
+    .rr-cc-ackchip:hover{border-color:var(--accent)}
+    .rr-cc-poll{border:1px solid var(--border);border-radius:var(--r-md);padding:9px 10px;margin-top:4px;background:var(--surface,#fff);min-width:230px}
+    .rr-cc-poll-q{font-weight:700;font-size:var(--fs-sm);color:var(--text);margin-bottom:7px}
+    .rr-cc-poll-opt{position:relative;display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:var(--canvas,#fafafa);border:1px solid var(--border);border-radius:var(--r-sm);padding:6px 9px;margin-bottom:5px;cursor:pointer;font:inherit;font-size:var(--fs-sm);color:var(--text);overflow:hidden}
+    .rr-cc-poll-opt:disabled{cursor:default;opacity:.85}
+    .rr-cc-poll-opt.mine{border-color:var(--accent)}
+    .rr-cc-poll-bar{position:absolute;left:0;top:0;bottom:0;background:var(--accent-soft);z-index:0;transition:width .25s ease}
+    .rr-cc-poll-lbl{position:relative;z-index:1;flex:1}
+    .rr-cc-poll-n{position:relative;z-index:1;font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600}
+    .rr-cc-poll-meta{font-size:10px;color:var(--text-subtle);margin-top:2px}
+    /* Batch 6 · calls & voice */
+    .rr-mc-callchip{align-self:center;display:flex;align-items:center;gap:8px;background:var(--surface,#fff);border:1px solid var(--border);border-radius:var(--r-pill,999px);padding:4px 13px;margin:6px 0;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle)}
+    .rr-mc-callchip.missed{color:var(--danger,#dc2626);border-color:rgba(220,38,38,.35)}
+    .rr-mc-callchip button{background:none;border:0;color:var(--accent-text);font:inherit;font-weight:700;cursor:pointer;padding:0 2px}
+    .rr-mc-callchip button:hover{text-decoration:underline}
+    .rr-mc-incall{position:fixed;right:18px;bottom:18px;z-index:9500;width:min(300px,calc(100vw - 36px));background:var(--surface,#fff);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:0 14px 40px rgba(15,23,42,.22);overflow:hidden}
+    .rr-mc-incall-head{background:var(--accent);color:#fff;font-size:var(--fs-xs);font-weight:700;padding:7px 12px}
+    .rr-mc-incall-form{display:flex;gap:6px;padding:8px}
+    .rr-mc-incall-form input{flex:1;min-width:0;border:1px solid var(--border);border-radius:var(--r-md);padding:7px 9px;font:inherit;font-size:var(--fs-sm)}
+    .rr-mc-incall-form button{background:var(--accent);border:0;color:#fff;border-radius:var(--r-md);width:34px;cursor:pointer;font-size:14px}
+    .rr-tel{text-decoration:underline dotted;color:inherit;font-weight:600}
+    .rr-mc-bubble.dispatch .rr-tel{color:#fff}
+    /* Batch 7 · dispatch superpowers */
+    .rr-mc-shiftctx{color:var(--accent-text);font-weight:600}
+    .rr-mc-quickchips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:6px 10px}
+    .rr-mc-quickchips::-webkit-scrollbar{display:none}
+    /* Batch 8 · perf: browser-level virtualization for long threads and
+       big rosters (#77/#82) — offscreen bubbles/rows skip layout+paint. */
+    .rr-mc-bubble,.rr-cc-bubble{content-visibility:auto;contain-intrinsic-size:auto 64px}
+    .msg-item{content-visibility:auto;contain-intrinsic-size:auto 58px}
+    /* Batch 9 · a11y & polish */
+    .rr-mc-bubble-actions button:focus-visible,.rr-mc-react-chip:focus-visible,.msg-fb-btn:focus-visible,
+    .rr-mc-iconbtn:focus-visible,.msg-item:focus-visible,.rr-mc-pin-chip:focus-visible,
+    .rr-cc-poll-opt:focus-visible,.msg-item-quick button:focus-visible{outline:2px solid var(--accent,#2563eb);outline-offset:2px}
+    .rr-mc-translation{margin-top:5px;padding:6px 9px;border-left:3px solid var(--accent,#2563eb);background:rgba(127,127,127,.1);border-radius:6px;font-size:.94em;white-space:pre-wrap}
+    .rr-mc-bubble.dispatch .rr-mc-translation{background:rgba(255,255,255,.16);border-left-color:rgba(255,255,255,.6)}
+    .rr-mc-translation-tag{display:block;font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;opacity:.7;margin-bottom:2px}
+    @media (prefers-reduced-motion: reduce){
+      .rr-mc-pop,.rr-mc-modal-card,.rr-mc-bubble,.rr-cc-bubble,.rr-cc-poll-bar{animation:none !important;transition:none !important}
+    }
+  `;
+  document.head.appendChild(st);
+}
+
+// Insert text at the caret and keep focus + caret position sensible.
+function _mcInsertAtCaret(ta, text, replaceFrom) {
+  const start = replaceFrom != null ? replaceFrom : (ta.selectionStart ?? ta.value.length);
+  const end = ta.selectionEnd ?? ta.value.length;
+  ta.value = ta.value.slice(0, start) + text + ta.value.slice(end);
+  const pos = start + text.length;
+  ta.focus();
+  try { ta.setSelectionRange(pos, pos); } catch {}
+  ta.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+// ── Per-thread drafts ──
+const _mcDraftTimers = new Map();
+function _mcDraftLoad(kind, id) {
+  try { return localStorage.getItem(_mcDraftKey(kind, id)) || ""; } catch { return ""; }
+}
+function _mcDraftSave(kind, id, text) {
+  const key = _mcDraftKey(kind, id);
+  clearTimeout(_mcDraftTimers.get(key));
+  _mcDraftTimers.set(key, setTimeout(() => {
+    try {
+      if ((text || "").trim()) localStorage.setItem(key, text);
+      else localStorage.removeItem(key);
+    } catch {}
+  }, 300));
+}
+function _mcDraftClear(kind, id) {
+  const key = _mcDraftKey(kind, id);
+  clearTimeout(_mcDraftTimers.get(key));
+  try { localStorage.removeItem(key); } catch {}
+}
+
+// ── Floating popover positioning (anchored above a composer control) ──
+function _mcPlacePop(pop, anchor) {
+  document.body.appendChild(pop);
+  const r = anchor.getBoundingClientRect();
+  const w = pop.offsetWidth, h = pop.offsetHeight;
+  let left = Math.min(window.innerWidth - w - 8, Math.max(8, r.right - w));
+  let top = r.top - h - 8;
+  if (top < 8) top = Math.min(window.innerHeight - h - 8, r.bottom + 8);
+  pop.style.left = left + "px";
+  pop.style.top = top + "px";
+}
+function _mcDismissPops() {
+  document.querySelectorAll(".rr-mc-pop").forEach((p) => p.remove());
+}
+if (!window.__rrMcPopOutside) {
+  window.__rrMcPopOutside = true;
+  document.addEventListener("mousedown", (e) => {
+    if (e.target.closest(".rr-mc-pop") || e.target.closest("[data-rr-mc-popanchor]")) return;
+    _mcDismissPops();
+  });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") _mcDismissPops(); });
+}
+
+// ── Emoji picker ──
+function _mcEmojiRecents() {
+  try { return JSON.parse(localStorage.getItem("rr_mc_emoji_recent") || "[]"); } catch { return []; }
+}
+function _mcPushEmojiRecent(ch) {
+  try {
+    const cur = _mcEmojiRecents().filter((c) => c !== ch);
+    cur.unshift(ch);
+    localStorage.setItem("rr_mc_emoji_recent", JSON.stringify(cur.slice(0, 16)));
+  } catch {}
+}
+function _mcOpenEmojiPicker(anchor, ta) {
+  _mcDismissPops();
+  _mcEnsureExtrasCss();
+  const pop = document.createElement("div");
+  pop.className = "rr-mc-pop rr-mc-emoji-pop";
+  pop.setAttribute("role", "dialog");
+  pop.setAttribute("aria-label", "Emoji picker");
+  const renderGrid = (q) => {
+    const recents = !q ? _mcEmojiRecents() : [];
+    const hits = _mcSearchEmoji(q);
+    return (recents.length ? `<div class="rr-mc-emoji-head">Recent</div>
+      <div class="rr-mc-emoji-grid" style="max-height:none">${recents.map((c) => `<button type="button" data-rr-em="${escapeHtml(c)}">${c}</button>`).join("")}</div>
+      <div class="rr-mc-emoji-head">All</div>` : "")
+      + `<div class="rr-mc-emoji-grid">${hits.map(([c, name]) => `<button type="button" data-rr-em="${escapeHtml(c)}" title="${escapeHtml(name)}" aria-label="${escapeHtml(name)}">${c}</button>`).join("") || `<div style="grid-column:1/-1;color:var(--text-subtle);font-size:var(--fs-sm);padding:10px;text-align:center">No matches</div>`}</div>`;
+  };
+  pop.innerHTML = `<input type="search" class="rr-mc-emoji-search" placeholder="Search emoji…" aria-label="Search emoji"><div data-rr-em-body>${renderGrid("")}</div>`;
+  _mcPlacePop(pop, anchor);
+  const search = pop.querySelector(".rr-mc-emoji-search");
+  const body = pop.querySelector("[data-rr-em-body]");
+  search.addEventListener("input", () => { body.innerHTML = renderGrid(search.value.trim()); });
+  pop.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-rr-em]");
+    if (!b) return;
+    const ch = b.getAttribute("data-rr-em");
+    _mcPushEmojiRecent(ch);
+    _mcInsertAtCaret(ta, ch);
+  });
+  search.focus();
+}
+
+// ── :shortcode: autocomplete ──
+function _mcWireShortcodeSuggest(ta) {
+  let menu = null;
+  let sel = 0;
+  let current = null; // { start, query, items }
+  const close = () => { menu?.remove(); menu = null; current = null; };
+  const apply = (i) => {
+    if (!current || !current.items[i]) return;
+    const [ch] = current.items[i];
+    _mcPushEmojiRecent(ch);
+    _mcInsertAtCaret(ta, ch + " ", current.start);
+    close();
+  };
+  const render = () => {
+    if (!current || !current.items.length) { close(); return; }
+    if (!menu) {
+      menu = document.createElement("div");
+      menu.className = "rr-mc-pop rr-mc-suggest";
+      menu.setAttribute("role", "listbox");
+      menu.addEventListener("mousedown", (e) => {
+        const b = e.target.closest("[data-rr-sci]");
+        if (b) { e.preventDefault(); apply(+b.getAttribute("data-rr-sci")); }
+      });
+    }
+    menu.innerHTML = current.items.map(([ch, name], i) =>
+      `<button type="button" role="option" data-rr-sci="${i}" class="${i === sel ? "sel" : ""}" aria-selected="${i === sel}">${ch}<span class="rr-mc-sug-name">:${escapeHtml(name.replace(/\s+/g, "_"))}:</span></button>`).join("");
+    _mcPlacePop(menu, ta);
+  };
+  ta.addEventListener("input", () => {
+    const hit = _mcShortcodeAt(ta.value, ta.selectionStart ?? ta.value.length);
+    if (!hit) { close(); return; }
+    const items = _mcSearchEmoji(hit.query).slice(0, 8);
+    // Also match shortcode keys directly (e.g. "+1", "100").
+    if (!items.length) { close(); return; }
+    sel = 0;
+    current = { start: hit.start, query: hit.query, items };
+    render();
+  });
+  ta.addEventListener("keydown", (e) => {
+    if (!menu || !current) return;
+    if (e.key === "ArrowDown") { e.preventDefault(); sel = Math.min(current.items.length - 1, sel + 1); render(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); sel = Math.max(0, sel - 1); render(); }
+    else if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); apply(sel); }
+    else if (e.key === "Escape") { close(); }
+  }, true);
+  ta.addEventListener("blur", () => setTimeout(close, 150));
+  return { close, isOpen: () => !!menu };
+}
+
+// ── Message templates ──
+// Server-backed (dispatch_chat_templates, migration 0506) with a localStorage
+// fallback when the migration isn't applied yet. Built-ins always show.
+let _mcTemplates = null;         // cached merged list
+let _mcTemplatesServer = false;  // true once the RPC succeeded
+function _mcLocalTemplates() {
+  try { return JSON.parse(localStorage.getItem("rr_msg_templates_local") || "[]"); } catch { return []; }
+}
+function _mcWriteLocalTemplates(list) {
+  try { localStorage.setItem("rr_msg_templates_local", JSON.stringify(list)); } catch {}
+}
+async function _mcLoadTemplates(force) {
+  if (_mcTemplates && !force) return _mcTemplates;
+  let mine = [];
+  try {
+    const { data, error } = await sb.rpc("dispatch_templates_list");
+    if (!error && data) { mine = Array.isArray(data.templates) ? data.templates : []; _mcTemplatesServer = true; }
+    else if (error) { _mcTemplatesServer = false; mine = _mcLocalTemplates(); }
+  } catch { _mcTemplatesServer = false; mine = _mcLocalTemplates(); }
+  _mcTemplates = mine.concat(_MC_BUILTIN_TEMPLATES);
+  return _mcTemplates;
+}
+// Template variable context for the active 1:1 thread.
+let _mcCtxSched = null; // { driverId, today, tomorrow } — filled by _loadMcContextSchedule
+function _mcTemplateCtx(kind) {
+  const ctx = {
+    company: (window.RR?.dsp?.name) || "",
+    operator: (window.RR?.profile?.full_name || "").split(/\s+/)[0] || "",
+    today_date: new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" }),
+  };
+  if (kind === "dm" && _msgInboxSelectedId) {
+    const meta = (_msgInboxList || []).find((t) => String(t.driver_id) === String(_msgInboxSelectedId)) || {};
+    ctx.name = meta.name || "";
+    ctx.first_name = (meta.name || "").split(/\s+/)[0] || "";
+    ctx.station = meta.station_code || "";
+    if (_mcCtxSched && String(_mcCtxSched.driverId) === String(_msgInboxSelectedId)) {
+      const next = _mcCtxSched.today || _mcCtxSched.tomorrow;
+      if (next) {
+        ctx.next_shift = _mcCtxSched.today ? "today" : "tomorrow";
+        if (next.starts_at) ctx.next_shift_time = new Date(next.starts_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+        if (next.route_code) ctx.next_route = next.route_code;
+      }
+    }
+  }
+  return ctx;
+}
+
+// /slash template menu on the composer.
+function _mcWireSlashTemplates(ta, kind) {
+  let menu = null;
+  let sel = 0;
+  let items = [];
+  const close = () => { menu?.remove(); menu = null; items = []; };
+  const apply = (i) => {
+    const t = items[i];
+    if (!t) return;
+    const filled = _mcFillTemplate(t.body, _mcTemplateCtx(kind));
+    ta.value = filled;
+    ta.focus();
+    try { ta.setSelectionRange(filled.length, filled.length); } catch {}
+    close();
+    ta.dispatchEvent(new Event("input", { bubbles: true }));
+  };
+  const render = () => {
+    if (!items.length) { close(); return; }
+    if (!menu) {
+      menu = document.createElement("div");
+      menu.className = "rr-mc-pop rr-mc-suggest";
+      menu.setAttribute("role", "listbox");
+      menu.addEventListener("mousedown", (e) => {
+        const b = e.target.closest("[data-rr-tpi]");
+        if (b) { e.preventDefault(); apply(+b.getAttribute("data-rr-tpi")); }
+      });
+    }
+    menu.innerHTML = `<div class="rr-mc-emoji-head" style="padding:6px 10px 4px">Templates — ↑↓ then Enter</div>` +
+      items.map((t, i) =>
+        `<button type="button" role="option" data-rr-tpi="${i}" class="${i === sel ? "sel" : ""}" aria-selected="${i === sel}">
+          <span class="rr-mc-sug-name">/${escapeHtml(t.shortcut || t.name)}</span>
+          <span class="rr-mc-sug-desc">${escapeHtml(t.body.slice(0, 60))}</span>
+        </button>`).join("");
+    _mcPlacePop(menu, ta);
+  };
+  ta.addEventListener("input", async () => {
+    const v = ta.value;
+    if (!v.startsWith("/") || /\n/.test(v) || v.length > 40) { close(); return; }
+    const list = await _mcLoadTemplates();
+    if (ta.value !== v) return; // raced — a newer keystroke will rerun
+    items = _mcMatchTemplates(list, v.slice(1)).slice(0, 8);
+    sel = 0;
+    render();
+  });
+  ta.addEventListener("keydown", (e) => {
+    if (!menu) return;
+    if (e.key === "ArrowDown") { e.preventDefault(); sel = Math.min(items.length - 1, sel + 1); render(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); sel = Math.max(0, sel - 1); render(); }
+    else if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); apply(sel); }
+    else if (e.key === "Escape") close();
+  }, true);
+  ta.addEventListener("blur", () => setTimeout(close, 150));
+  return { isOpen: () => !!menu, close };
+}
+
+// Template manager modal (list + create/edit/delete).
+async function _mcOpenTemplateManager() {
+  _mcEnsureExtrasCss();
+  document.getElementById("rr-mc-tpl-modal")?.remove();
+  const ov = document.createElement("div");
+  ov.className = "rr-mc-modal";
+  ov.id = "rr-mc-tpl-modal";
+  ov.innerHTML = `
+    <div class="rr-mc-modal-back"></div>
+    <div class="rr-mc-modal-card" role="dialog" aria-modal="true" aria-label="Message templates">
+      <div class="rr-mc-modal-head">Message templates<button type="button" class="rr-mc-modal-x" aria-label="Close">×</button></div>
+      <div class="rr-mc-modal-body" data-rr-tpl-list><div class="u-subtle" style="font-size:var(--fs-sm)">Loading…</div></div>
+      <div class="rr-mc-modal-foot">
+        <button type="button" class="btn btn-sm" data-rr-tpl-new>New template</button>
+        <button type="button" class="btn btn-sm btn-primary" data-rr-tpl-done>Done</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelector(".rr-mc-modal-back").addEventListener("click", close);
+  ov.querySelector(".rr-mc-modal-x").addEventListener("click", close);
+  ov.querySelector("[data-rr-tpl-done]").addEventListener("click", close);
+
+  const listEl = ov.querySelector("[data-rr-tpl-list]");
+  const paint = async (force) => {
+    const list = await _mcLoadTemplates(force);
+    const mine = list.filter((t) => !String(t.id).startsWith("b-"));
+    const builtin = list.filter((t) => String(t.id).startsWith("b-"));
+    const row = (t, editable) => `
+      <div class="rr-mc-tpl-row" data-rr-tpl-id="${escapeHtml(String(t.id))}">
+        <div class="rr-mc-tpl-main" title="Click to edit">
+          <div class="rr-mc-tpl-name">${escapeHtml(t.name || "")}${t.shared === false ? ` <span class="u-subtle" style="font-weight:400">· only you</span>` : ""}</div>
+          <div class="rr-mc-tpl-body">${escapeHtml(t.body || "")}</div>
+        </div>
+        ${t.shortcut ? `<span class="rr-mc-tpl-sc">/${escapeHtml(t.shortcut)}</span>` : ""}
+        ${editable ? `<button type="button" class="rr-mc-tpl-act" data-rr-tpl-del title="Delete"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>` : `<span class="u-subtle" style="font-size:10px;flex:0 0 auto">built-in</span>`}
+      </div>`;
+    listEl.innerHTML =
+      (_mcTemplatesServer ? "" : `<div class="u-subtle" style="font-size:var(--fs-xs);margin-bottom:9px">Saved on this device for now — they'll move to your team library once the templates migration is applied.</div>`)
+      + (mine.length ? mine.map((t) => row(t, true)).join("") : `<div class="u-subtle" style="font-size:var(--fs-sm);margin-bottom:8px">No custom templates yet — create one, then type <b>/</b> in the composer to use it.</div>`)
+      + `<div class="rr-mc-emoji-head" style="padding:8px 0 6px">Built-in</div>` + builtin.map((t) => row(t, false)).join("")
+      + `<div class="u-subtle" style="font-size:var(--fs-xs);margin-top:8px">Variables: {{first_name}} {{name}} {{station}} {{next_shift}} {{next_shift_time}} {{next_route}} {{company}} {{operator}} {{today_date}} — add a fallback with {{var|fallback}}.</div>`;
+    listEl.querySelectorAll(".rr-mc-tpl-row").forEach((rowEl) => {
+      const id = rowEl.getAttribute("data-rr-tpl-id");
+      const t = list.find((x) => String(x.id) === id);
+      if (!t || String(t.id).startsWith("b-")) return;
+      rowEl.querySelector(".rr-mc-tpl-main").addEventListener("click", () => editForm(t));
+      rowEl.querySelector("[data-rr-tpl-del]")?.addEventListener("click", async () => {
+        if (!(await _rrConfirmDialog({ title: "Delete this template?", body: t.name, confirmLabel: "Delete", danger: true }))) return;
+        if (_mcTemplatesServer) {
+          const { error } = await sb.rpc("dispatch_template_delete", { p_id: t.id });
+          if (error) { toast("Couldn't delete: " + error.message, "warn"); return; }
+        } else {
+          _mcWriteLocalTemplates(_mcLocalTemplates().filter((x) => String(x.id) !== id));
+        }
+        paint(true);
+      });
+    });
+  };
+  const editForm = (t) => {
+    listEl.innerHTML = `
+      <label class="rr-mc-f"><span>Name</span><input type="text" data-rr-tf-name maxlength="80" value="${escapeHtml(t?.name || "")}"></label>
+      <label class="rr-mc-f"><span>Shortcut (type /shortcut in the composer)</span><input type="text" data-rr-tf-sc maxlength="24" value="${escapeHtml(t?.shortcut || "")}" placeholder="eta"></label>
+      <label class="rr-mc-f"><span>Message</span><textarea data-rr-tf-body maxlength="2000">${escapeHtml(t?.body || "")}</textarea></label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--text)"><input type="checkbox" data-rr-tf-shared ${t?.shared === false ? "" : "checked"}> Share with the whole team</label>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:13px">
+        <button type="button" class="btn btn-sm" data-rr-tf-cancel>Back</button>
+        <button type="button" class="btn btn-sm btn-primary" data-rr-tf-save>Save template</button>
+      </div>`;
+    listEl.querySelector("[data-rr-tf-cancel]").addEventListener("click", () => paint());
+    listEl.querySelector("[data-rr-tf-save]").addEventListener("click", async () => {
+      const name = listEl.querySelector("[data-rr-tf-name]").value.trim();
+      const shortcut = listEl.querySelector("[data-rr-tf-sc]").value.trim().replace(/^\//, "").toLowerCase();
+      const body = listEl.querySelector("[data-rr-tf-body]").value.trim();
+      const shared = listEl.querySelector("[data-rr-tf-shared]").checked;
+      if (!name || !body) { toast("Name and message are required", "warn"); return; }
+      if (_mcTemplatesServer) {
+        const { error } = await sb.rpc("dispatch_template_upsert", {
+          p_id: t?.id || null, p_name: name, p_shortcut: shortcut || null, p_body: body, p_shared: shared,
+        });
+        if (error) { toast("Couldn't save: " + error.message, "warn"); return; }
+      } else {
+        const cur = _mcLocalTemplates();
+        if (t?.id) {
+          const i = cur.findIndex((x) => String(x.id) === String(t.id));
+          if (i >= 0) cur[i] = { ...cur[i], name, shortcut, body, shared };
+        } else {
+          cur.push({ id: "l-" + Date.now(), name, shortcut, body, shared });
+        }
+        _mcWriteLocalTemplates(cur);
+      }
+      toast("Template saved", "ok");
+      paint(true);
+    });
+  };
+  ov.querySelector("[data-rr-tpl-new]").addEventListener("click", () => editForm(null));
+  paint(true);
+}
+
+// Template picker (from the + menu): pick → fill into the composer.
+async function _mcOpenTemplatePicker(ta, kind) {
+  const list = await _mcLoadTemplates();
+  _mcDismissPops();
+  _mcEnsureExtrasCss();
+  const pop = document.createElement("div");
+  pop.className = "rr-mc-pop rr-mc-suggest";
+  pop.style.maxHeight = "300px";
+  pop.innerHTML = `<div class="rr-mc-emoji-head" style="padding:6px 10px 4px">Insert a template</div>` +
+    list.map((t, i) => `<button type="button" data-rr-tpp="${i}"><span class="rr-mc-sug-name">${escapeHtml(t.name)}</span><span class="rr-mc-sug-desc">${escapeHtml(t.body.slice(0, 56))}</span></button>`).join("");
+  pop.addEventListener("mousedown", (e) => {
+    const b = e.target.closest("[data-rr-tpp]");
+    if (!b) return;
+    e.preventDefault();
+    const t = list[+b.getAttribute("data-rr-tpp")];
+    if (t) { ta.value = _mcFillTemplate(t.body, _mcTemplateCtx(kind)); ta.dispatchEvent(new Event("input", { bubbles: true })); ta.focus(); }
+    _mcDismissPops();
+  });
+  _mcPlacePop(pop, ta);
+}
+
+// ── Schedule-send modal (composer → dispatch_schedule_message) ──
+function _mcOpenScheduleSend({ kind, targetId, ta }) {
+  const body = (ta.value || "").trim();
+  if (!body) { toast("Type the message first, then pick when to send it", "info"); ta.focus(); return; }
+  _mcEnsureExtrasCss();
+  document.getElementById("rr-mc-sched-modal")?.remove();
+  const pad = (n) => String(n).padStart(2, "0");
+  const toLocalInput = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const defAt = new Date(Date.now() + 60 * 60 * 1000);
+  defAt.setMinutes(0, 0, 0);
+  const quick = [];
+  {
+    const inOneHour = new Date(Date.now() + 60 * 60 * 1000);
+    const tom6 = new Date(); tom6.setDate(tom6.getDate() + 1); tom6.setHours(6, 0, 0, 0);
+    const tom8 = new Date(); tom8.setDate(tom8.getDate() + 1); tom8.setHours(8, 0, 0, 0);
+    const mon6 = new Date(); mon6.setDate(mon6.getDate() + ((8 - mon6.getDay()) % 7 || 7)); mon6.setHours(6, 0, 0, 0);
+    quick.push(["In 1 hour", inOneHour], ["Tomorrow 6:00 AM", tom6], ["Tomorrow 8:00 AM", tom8], ["Monday 6:00 AM", mon6]);
+  }
+  const ov = document.createElement("div");
+  ov.className = "rr-mc-modal";
+  ov.id = "rr-mc-sched-modal";
+  ov.innerHTML = `
+    <div class="rr-mc-modal-back"></div>
+    <div class="rr-mc-modal-card" role="dialog" aria-modal="true" aria-label="Schedule send">
+      <div class="rr-mc-modal-head">Schedule send<button type="button" class="rr-mc-modal-x" aria-label="Close">×</button></div>
+      <div class="rr-mc-modal-body">
+        <div style="font-size:var(--fs-sm);color:var(--text-subtle);border:1px solid var(--border);border-radius:var(--r-md);padding:8px 10px;margin-bottom:12px;max-height:88px;overflow-y:auto;white-space:pre-wrap">${escapeHtml(body.length > 400 ? body.slice(0, 400) + "…" : body)}</div>
+        <div class="rr-mc-sched-chips">${quick.map(([lbl, d], i) => `<button type="button" data-rr-sch-q="${i}" data-at="${d.getTime()}">${lbl}</button>`).join("")}</div>
+        <label class="rr-mc-f"><span>Send at</span><input type="datetime-local" data-rr-sch-at value="${toLocalInput(defAt)}" min="${toLocalInput(new Date(Date.now() + 2 * 60000))}"></label>
+      </div>
+      <div class="rr-mc-modal-foot">
+        <button type="button" class="btn btn-sm" data-rr-sch-cancel>Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary" data-rr-sch-go>Schedule</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelector(".rr-mc-modal-back").addEventListener("click", close);
+  ov.querySelector(".rr-mc-modal-x").addEventListener("click", close);
+  ov.querySelector("[data-rr-sch-cancel]").addEventListener("click", close);
+  const atInput = ov.querySelector("[data-rr-sch-at]");
+  ov.querySelectorAll("[data-rr-sch-q]").forEach((b) =>
+    b.addEventListener("click", () => { atInput.value = toLocalInput(new Date(+b.getAttribute("data-at"))); }));
+  ov.querySelector("[data-rr-sch-go]").addEventListener("click", async () => {
+    const at = new Date(atInput.value);
+    if (!atInput.value || isNaN(at.getTime()) || at.getTime() <= Date.now() + 30000) { toast("Pick a time in the future", "warn"); return; }
+    const { error } = await sb.rpc("dispatch_schedule_message", {
+      p_target_kind: kind === "dm" ? "driver" : "channel",
+      p_send_at: at.toISOString(),
+      p_driver_id: kind === "dm" ? targetId : null,
+      p_channel_id: kind === "dm" ? null : targetId,
+      p_body: _mcApplyShortcodes(body),
+      p_priority: kind === "dm" ? _dispatchPriority : "normal",
+      p_requires_ack: kind === "dm" ? _dispatchRequiresAck : false,
+    });
+    if (error) { toast("Couldn't schedule: " + error.message, "warn"); return; }
+    close();
+    ta.value = "";
+    ta.dispatchEvent(new Event("input", { bubbles: true }));
+    _mcDraftClear(kind, targetId);
+    if (kind === "dm") { _dispatchRequiresAck = false; _setDispatchPriority("normal"); }
+    toastAction(`Scheduled for ${at.toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`, {
+      label: "View scheduled", onConfirm: () => { try { openScheduledPanel(); } catch {} },
+    });
+  });
+}
+
+// ── Dictation (speech-to-text into the composer) ──
+let _mcDictation = null; // { rec, ta } while active
+function _mcToggleDictation(ta) {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { toast("Dictation isn't supported in this browser", "warn"); return false; }
+  if (_mcDictation) {
+    try { _mcDictation.rec.stop(); } catch {}
+    _mcDictation = null;
+    return false;
+  }
+  const rec = new SR();
+  rec.continuous = true;
+  rec.interimResults = true;
+  rec.lang = navigator.language || "en-US";
+  rec.onresult = (e) => {
+    let t = "";
+    for (let i = e.resultIndex; i < e.results.length; i++) if (e.results[i].isFinal) t += e.results[i][0].transcript;
+    if (t) _mcInsertAtCaret(ta, (ta.value && !/\s$/.test(ta.value) ? " " : "") + t.trim());
+  };
+  rec.onend = () => { if (_mcDictation && _mcDictation.rec === rec) _mcDictation = null; document.querySelectorAll("[data-rr-mc-dict]").forEach((b) => b.classList.remove("on")); };
+  rec.onerror = rec.onend;
+  try { rec.start(); } catch { toast("Couldn't start dictation", "warn"); return false; }
+  _mcDictation = { rec, ta };
+  toast("Dictating — speak now, click Dictate again to stop", "info");
+  return true;
+}
+
+// ── "+" composer menu ──
+function _mcOpenPlusMenu(anchor, { ta, kind, targetId }) {
+  _mcDismissPops();
+  _mcEnsureExtrasCss();
+  const pop = document.createElement("div");
+  pop.className = "rr-mc-pop rr-mc-plus-menu";
+  pop.setAttribute("role", "menu");
+  const undoSecs = _mcUndoSecs();
+  const chExtras = kind === "ch" ? `
+    <button type="button" role="menuitem" data-rr-pm="poll">📊<span>Create poll…</span></button>
+    <button type="button" role="menuitemcheckbox" data-rr-pm="ccack" aria-checked="${_ccRequireAck}">🫡<span>Require acknowledgement</span><span class="rr-mc-plus-val">${_ccRequireAck ? "On for next post" : "Off"}</span></button>
+    <button type="button" role="menuitem" data-rr-pm="board">📋<span>Delivery board…</span></button>` : "";
+  const dmExtras = kind === "dm" ? `
+    <button type="button" role="menuitem" data-rr-pm="shareched">📅<span>Share schedule (7 days)</span></button>
+    <button type="button" role="menuitem" data-rr-pm="shareloc">📍<span>Share a location…</span></button>
+    <button type="button" role="menuitem" data-rr-pm="checkin">🫡<span>Request check-in</span></button>
+    <button type="button" role="menuitem" data-rr-pm="incident">🚨<span>Report incident…</span></button>
+    <div class="rr-mc-plus-sep"></div>
+    <div class="rr-mc-plus-note">AI assist</div>
+    <button type="button" role="menuitem" data-rr-pm="aisuggest">✨<span>Suggest replies</span></button>
+    <button type="button" role="menuitem" data-rr-pm="aicatchup">🧾<span>Catch me up (summary)</span></button>
+    <button type="button" role="menuitem" data-rr-pm="aitone">🎭<span>Check tone of draft</span></button>
+    <div class="rr-mc-plus-sep"></div>
+    <div class="rr-mc-plus-note">Transcript &amp; compliance</div>
+    <button type="button" role="menuitem" data-rr-pm="txprint">🖨️<span>Export transcript (print/PDF)</span></button>
+    <button type="button" role="menuitem" data-rr-pm="txcsv">📄<span>Export transcript (CSV)</span></button>
+    <button type="button" role="menuitem" data-rr-pm="txemail">✉️<span>Email transcript…</span></button>
+    ${_mcIsAdminRole() ? `<button type="button" role="menuitem" data-rr-pm="legalhold">⚖️<span>Legal hold…</span></button>
+    <button type="button" role="menuitem" data-rr-pm="admin">🛡️<span>Admin &amp; compliance…</span></button>` : ""}` : "";
+  pop.innerHTML = `
+    <button type="button" role="menuitem" data-rr-pm="tpl">📋<span>Insert template…</span></button>
+    <button type="button" role="menuitem" data-rr-pm="tplmgr">🗂️<span>Manage templates…</span></button>
+    <button type="button" role="menuitem" data-rr-pm="sched">🕐<span>Schedule send…</span></button>
+    <button type="button" role="menuitem" data-rr-pm="dict" data-rr-mc-dict class="${_mcDictation ? "on" : ""}">🎙️<span>${_mcDictation ? "Stop dictation" : "Dictate"}</span></button>${chExtras}${dmExtras}
+    <div class="rr-mc-plus-sep"></div>
+    <div class="rr-mc-plus-note">Composer settings</div>
+    <button type="button" role="menuitemcheckbox" data-rr-pm="enter" aria-checked="${_mcEnterSends()}">⏎<span>Enter sends the message</span><span class="rr-mc-plus-val">${_mcEnterSends() ? "On" : "Off — Ctrl+Enter sends"}</span></button>
+    <button type="button" role="menuitem" data-rr-pm="undo">↩️<span>Undo-send window</span><span class="rr-mc-plus-val">${undoSecs ? undoSecs + "s" : "Off"}</span></button>
+    <button type="button" role="menuitem" data-rr-pm="fsize">🔠<span>Message text size</span><span class="rr-mc-plus-val">${({ s: "Small", m: "Medium", l: "Large" })[_mcPref("rr_msg_text_size", "m")]}</span></button>
+    <button type="button" role="menuitem" data-rr-pm="clock">🕐<span>Clock</span><span class="rr-mc-plus-val">${({ auto: "Auto", "12": "12-hour", "24": "24-hour" })[_mcPref("rr_msg_hour12", "auto")]}</span></button>`;
+  _mcPlacePop(pop, anchor);
+  pop.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-rr-pm]");
+    if (!b) return;
+    const act = b.getAttribute("data-rr-pm");
+    if (act === "tpl") { _mcDismissPops(); _mcOpenTemplatePicker(ta, kind); return; }
+    if (act === "tplmgr") { _mcDismissPops(); _mcOpenTemplateManager(); return; }
+    if (act === "sched") { _mcDismissPops(); _mcOpenScheduleSend({ kind, targetId, ta }); return; }
+    if (act === "poll") { _mcDismissPops(); _ccOpenPollCreate(targetId); return; }
+    if (act === "ccack") {
+      _ccRequireAck = !_ccRequireAck;
+      b.setAttribute("aria-checked", String(_ccRequireAck));
+      b.querySelector(".rr-mc-plus-val").textContent = _ccRequireAck ? "On for next post" : "Off";
+      return;
+    }
+    if (act === "board") {
+      _mcDismissPops();
+      const lastAck = [..._ccLastChannelMsgs].reverse().find((m) => m.requires_ack && m.sender_kind === "dispatch")
+        || [..._ccLastChannelMsgs].reverse().find((m) => m.sender_kind === "dispatch");
+      if (lastAck) _ccOpenDeliveryBoard(lastAck.id);
+      else toast("Post a broadcast first — the board tracks who's seen and acknowledged it", "info");
+      return;
+    }
+    if (act === "shareched") { _mcDismissPops(); _mcInsertScheduleShare(ta); return; }
+    if (act === "shareloc") { _mcDismissPops(); _mcOpenShareLocation(ta); return; }
+    if (act === "checkin") { _mcDismissPops(); _mcSendCheckinRequest(); return; }
+    if (act === "incident") { _mcDismissPops(); _mcOpenIncidentIntake(); return; }
+    if (act === "aisuggest") { _mcDismissPops(); _mcAiSuggestReplies(ta, anchor); return; }
+    if (act === "aicatchup") { _mcDismissPops(); _mcAiCatchMeUp(); return; }
+    if (act === "aitone") { _mcDismissPops(); _mcAiToneCheck(ta); return; }
+    if (act === "txprint") { _mcDismissPops(); _mcExportTranscript("print"); return; }
+    if (act === "txcsv") { _mcDismissPops(); _mcExportTranscript("csv"); return; }
+    if (act === "txemail") { _mcDismissPops(); _mcOpenEmailTranscript(); return; }
+    if (act === "admin") { _mcDismissPops(); _mcOpenAdminPanel(); return; }
+    if (act === "legalhold") {
+      _mcDismissPops();
+      (async () => {
+        const driverId = _msgInboxSelectedId;
+        const { data: conv } = await sb.from("driver_conversations")
+          .select("legal_hold_at").eq("driver_id", driverId).maybeSingle()
+          .then((r) => r, () => ({ data: null }));
+        const on = !!conv?.legal_hold_at;
+        const ok = await _rrConfirmDialog({
+          title: on ? "Release legal hold?" : "Place this conversation on legal hold?",
+          body: on ? "Retention purges will apply to this conversation again."
+                   : "The conversation becomes exempt from retention purges until the hold is released.",
+          confirmLabel: on ? "Release hold" : "Place hold",
+        });
+        if (!ok) return;
+        const { error } = await sb.rpc("dispatch_thread_legal_hold", { p_driver_id: driverId, p_on: !on })
+          .then((r) => r, (e) => ({ error: e || {} }));
+        if (error) toast(_mcRpcMissing(error) ? "Legal hold unlocks once migration 0511 is applied" : ("Couldn't update: " + (error.message || "")), "warn");
+        else toast(on ? "Legal hold released" : "Legal hold placed", "ok");
+      })();
+      return;
+    }
+    if (act === "dict") { const on = _mcToggleDictation(ta); b.classList.toggle("on", on); b.querySelector("span").textContent = on ? "Stop dictation" : "Dictate"; return; }
+    if (act === "enter") {
+      _mcSetPref("rr_msg_enter_sends", _mcEnterSends() ? "0" : "1");
+      b.setAttribute("aria-checked", String(_mcEnterSends()));
+      b.querySelector(".rr-mc-plus-val").textContent = _mcEnterSends() ? "On" : "Off — Ctrl+Enter sends";
+      return;
+    }
+    if (act === "undo") {
+      const order = [0, 3, 5, 10];
+      const next = order[(order.indexOf(_mcUndoSecs()) + 1) % order.length];
+      _mcSetPref("rr_msg_undo_secs", String(next));
+      b.querySelector(".rr-mc-plus-val").textContent = next ? next + "s" : "Off";
+      return;
+    }
+    if (act === "fsize") {
+      const order = ["s", "m", "l"];
+      const next = order[(order.indexOf(_mcPref("rr_msg_text_size", "m")) + 1) % order.length];
+      _mcSetPref("rr_msg_text_size", next);
+      b.querySelector(".rr-mc-plus-val").textContent = ({ s: "Small", m: "Medium", l: "Large" })[next];
+      _mcApplyTextSize();
+      return;
+    }
+    if (act === "clock") {
+      const order = ["auto", "12", "24"];
+      const next = order[(order.indexOf(_mcPref("rr_msg_hour12", "auto")) + 1) % order.length];
+      _mcSetPref("rr_msg_hour12", next);
+      b.querySelector(".rr-mc-plus-val").textContent = ({ auto: "Auto", "12": "12-hour", "24": "24-hour" })[next];
+      if (typeof refreshDriverChatThread === "function" && _msgInboxSelectedId) refreshDriverChatThread(false);
+      return;
+    }
+  });
+}
+
+// ── Image compression before upload ──
+// Downscales big JPEG/PNG/WebP photos to ≤1600px JPEG(0.85). Returns the
+// original file untouched when compression isn't worthwhile (or fails —
+// never block a send on canvas quirks).
+async function _mcMaybeCompressImage(file, hd) {
+  try {
+    if (hd || !_mcShouldCompress(file.type, file.size)) return file;
+    const url = URL.createObjectURL(file);
+    const img = await new Promise((res, rej) => {
+      const i = new Image();
+      i.onload = () => res(i);
+      i.onerror = rej;
+      i.src = url;
+    });
+    const { w, h } = _mcFitDims(img.naturalWidth, img.naturalHeight, 1600);
+    const canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+    URL.revokeObjectURL(url);
+    const blob = await new Promise((res) => canvas.toBlob(res, "image/jpeg", 0.85));
+    if (!blob || blob.size >= file.size * 0.92) return file; // not worth it
+    const name = file.name.replace(/\.(png|webp|jpeg|jpg)$/i, "") + ".jpg";
+    return new File([blob], name, { type: "image/jpeg" });
+  } catch { return file; }
+}
+
+// ── Undo-send window ──
+// Shows a countdown pill over the thread; resolves true if the operator
+// clicked Undo before the window elapsed, false when the send may proceed.
+// The pending stub's time label ticks "sending in Ns · Undo" so the state
+// is legible even if the pill is missed.
+function _mcRunUndoWindow(secs, stubId) {
+  return new Promise((resolve) => {
+    _mcEnsureExtrasCss();
+    const shell = document.querySelector(".rr-mc-shell") || document.querySelector(".rr-cc-shell");
+    const pill = document.createElement("div");
+    pill.className = "rr-mc-undo-pill";
+    pill.setAttribute("role", "status");
+    pill.innerHTML = `<span data-rr-undo-label>Sending in ${secs}s…</span><button type="button" data-rr-undo>Undo</button>`;
+    (shell || document.body).appendChild(pill);
+    let left = secs;
+    const stubTime = () => document.querySelector(`[data-rr-stub="${stubId}"] .rr-mc-time, [data-rr-cc-stub="${stubId}"] .rr-cc-time`);
+    const paint = () => {
+      const lbl = pill.querySelector("[data-rr-undo-label]");
+      if (lbl) lbl.textContent = `Sending in ${left}s…`;
+      const t = stubTime();
+      if (t) t.textContent = `sending in ${left}s`;
+    };
+    paint();
+    const timer = setInterval(() => {
+      left -= 1;
+      if (left <= 0) { done(false); return; }
+      paint();
+    }, 1000);
+    const done = (undone) => {
+      clearInterval(timer);
+      pill.remove();
+      const t = stubTime();
+      if (t && !undone) t.textContent = new Date().toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) + " · sending";
+      resolve(undone);
+    };
+    pill.querySelector("[data-rr-undo]").addEventListener("click", () => done(true));
+  });
+}
+
+// ── Enhancement bootstrap (called from both composers' first paint) ──
+function _mcEnhanceComposer({ form, ta, kind, getTargetId }) {
+  if (!form || !ta || form.dataset.rrEnhanced) return;
+  form.dataset.rrEnhanced = "1";
+  _mcEnsureExtrasCss();
+
+  // Draft restore + persist. The draft key follows the ACTIVE target, so
+  // we resolve it lazily on every event.
+  const tid = () => String(getTargetId() || "");
+  const saved = _mcDraftLoad(kind, tid());
+  if (saved && !(ta.value || "").trim()) {
+    ta.value = saved;
+    ta.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+  ta.addEventListener("input", () => _mcDraftSave(kind, tid(), ta.value));
+
+  // Quick-insert chips (#68) — DM only, while the composer is empty.
+  if (kind === "dm") {
+    ta.addEventListener("focus", () => { try { _mcShowQuickChips(form, ta); } catch {} });
+    ta.addEventListener("input", () => { if ((ta.value || "").trim()) form.querySelector(".rr-mc-quickchips")?.remove(); });
+    ta.addEventListener("blur", () => setTimeout(() => form.querySelector(".rr-mc-quickchips")?.remove(), 200));
+  }
+
+  // Emoji button — sits right before the textarea's following sibling
+  // (priority dropdown in DMs, send button in channels).
+  const emojiBtn = document.createElement("button");
+  emojiBtn.type = "button";
+  emojiBtn.className = "rr-mc-iconbtn";
+  emojiBtn.title = "Emoji";
+  emojiBtn.setAttribute("aria-label", "Insert emoji");
+  emojiBtn.setAttribute("data-rr-mc-popanchor", "1");
+  emojiBtn.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>`;
+  emojiBtn.addEventListener("click", () => _mcOpenEmojiPicker(emojiBtn, ta));
+  // DM composer: textarea is a direct form child → drop the button right
+  // after it (before the priority dropdown). Channel composer: textarea
+  // lives in a nested column → put the button before the send control.
+  if (ta.parentElement === form) ta.insertAdjacentElement("afterend", emojiBtn);
+  else form.insertBefore(emojiBtn, form.querySelector(".rr-mc-send, .rr-cc-send"));
+
+  // "+" menu button — first control in the composer row.
+  const plusBtn = document.createElement("button");
+  plusBtn.type = "button";
+  plusBtn.className = "rr-mc-iconbtn";
+  plusBtn.title = "More composer tools";
+  plusBtn.setAttribute("aria-label", "More composer tools");
+  plusBtn.setAttribute("aria-haspopup", "menu");
+  plusBtn.setAttribute("data-rr-mc-popanchor", "1");
+  plusBtn.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>`;
+  plusBtn.addEventListener("click", () => _mcOpenPlusMenu(plusBtn, { ta, kind, targetId: getTargetId() }));
+  form.insertBefore(plusBtn, form.firstElementChild);
+
+  // Autocomplete layers.
+  const shortcodeCtl = _mcWireShortcodeSuggest(ta);
+  const slashCtl = _mcWireSlashTemplates(ta, kind);
+  // Warm the template cache so the first "/" is instant.
+  setTimeout(() => { _mcLoadTemplates().catch(() => {}); }, 1200);
+
+  return {
+    // Enter-key gate: submit only when Enter-sends is on AND no popup
+    // menu is currently capturing arrows/Enter.
+    enterShouldSend: (e) =>
+      !shortcodeCtl.isOpen() && !slashCtl.isOpen() &&
+      ((e.key === "Enter" && !e.shiftKey && _mcEnterSends()) ||
+       (e.key === "Enter" && (e.ctrlKey || e.metaKey))),
+  };
 }
 
 async function refreshDriverChatThread(scrollToBottom) {
@@ -41180,12 +43024,27 @@ async function refreshDriverChatThread(scrollToBottom) {
   // shell, so the skeleton only fires on initial open.
   const isFirstPaint = conv.dataset.rrDriverId !== driverId;
 
-  const [{ data, error }, _reactRes, _delivRes] = await Promise.all([
+  // Kick the fetch immediately but don't block first paint on it (#79):
+  // a brand-new thread gets a ghost paint from the local cache (or a
+  // skeleton) while the round trip is in flight.
+  const _fetchPromise = Promise.all([
     sb.rpc("dispatch_chat_thread", { p_driver_id: driverId, p_limit: _mcThreadLimit }),
-    sb.rpc("dispatch_chat_reactions", { p_driver_id: driverId }).then((r) => r, () => ({ data: null })),
+    _mcFetchReactions(driverId),
     sb.rpc("dispatch_chat_delivered", { p_driver_id: driverId }).then((r) => r, () => ({ data: null })),
+    sb.rpc("dispatch_chat_pins", { p_driver_id: driverId }).then((r) => r, () => ({ data: null })),
+    // Call events with this driver (#55/#56) — own rows only (RLS).
+    sb.from("calls").select("call_id, direction, media, status, started_at, ended_at")
+      .eq("peer_kind", "driver").eq("peer_id", String(driverId))
+      .order("started_at", { ascending: true }).limit(60)
+      .then((r) => r, () => ({ data: null })),
   ]);
-  const _reactions = _reactRes?.data?.reactions || [];
+  if (isFirstPaint) { try { _mcInstantPaint(conv, driverId); } catch {} }
+  const [{ data, error }, _reactions, _delivRes, _pinRes, _callRes] = await _fetchPromise;
+  // The operator may have moved on while we awaited — never paint a stale
+  // thread over the one they switched to.
+  if (_msgInboxSelectedId !== driverId) return;
+  const _callEvents = (_callRes?.data || []).filter((c) => c.status !== "ringing");
+  _mcPins = _pinRes?.data?.pins || [];
   const peerDeliveredAt = _delivRes?.data ? new Date(_delivRes.data).getTime() : 0;
   if (error) {
     if (_isAuthError(error)) {
@@ -41199,6 +43058,20 @@ async function refreshDriverChatThread(scrollToBottom) {
   const drv = data?.driver || {};
   const msgs = data?.messages || [];
   const peerReadAt = data?.peer_last_read_at ? new Date(data.peer_last_read_at).getTime() : 0;
+  // Cache the loaded window for the bubble menus (info/forward/copy), the
+  // details-rail "Shared" tab and reply-quote lookups — plus a slim local
+  // copy for instant reopen paints (#79).
+  _mcLastMsgs = msgs;
+  _mcLastReadState = { peerReadAt, peerDeliveredAt };
+  _mcThreadCachePut(driverId, msgs);
+  // Unread divider (#19): remember the FIRST unread driver message at the
+  // moment the thread is opened; the marker holds until the operator
+  // switches threads, so the "New messages" line doesn't vanish under
+  // them the instant mark-read fires.
+  if (isFirstPaint) {
+    const firstUnread = msgs.find((m) => m.sender_kind === "driver" && m.is_unread);
+    _mcUnreadMarkId = firstUnread ? firstUnread.id : null;
+  }
 
   // First render: build the shell. After that, only re-render the thread
   // body and leave the composer / textarea state alone.
@@ -41229,6 +43102,7 @@ async function refreshDriverChatThread(scrollToBottom) {
             <div class="rr-mc-sub">${_hSub}</div>
           </div>
           <div class="rr-mc-head-actions">
+            <button type="button" class="rr-mc-head-btn" data-rr-mc-search-toggle title="Search this conversation" aria-label="Search this conversation"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
             ${window.RR_RADIO_ENABLED ? `<button type="button" class="rr-mc-head-btn" data-rr-radio title="Dispatch radio (push-to-talk)" aria-label="Dispatch radio"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg></button>` : ""}
             <button type="button" class="rr-mc-head-btn" data-rr-call="audio" title="Voice call" aria-label="Voice call">${_RR_MC_ICONS.phone}</button>
             <button type="button" class="rr-mc-head-btn" data-rr-call="video" title="Video call" aria-label="Video call">${_RR_MC_ICONS.video}</button>
@@ -41249,7 +43123,7 @@ async function refreshDriverChatThread(scrollToBottom) {
           <div class="rr-mc-bottom-sentinel" id="rr-mc-bottom-sentinel" aria-hidden="true"></div>
         </div>
         <form class="rr-mc-composer" id="rr-mc-form">
-          <input type="file" id="rr-mc-file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" hidden>
+          <input type="file" id="rr-mc-file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" multiple hidden>
           <button type="button" id="rr-mc-attach" class="rr-mc-attach" title="Attach photo or document" aria-label="Attach photo or document">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
           </button>
@@ -41299,16 +43173,23 @@ async function refreshDriverChatThread(scrollToBottom) {
       // indicator alive while the operator is composing.
       if (_msgInboxSelectedId) _presenceBroadcastTyping(_msgInboxSelectedId);
     });
+    // Composer enhancement layer: drafts, emoji, :shortcodes:, /templates,
+    // + menu (schedule send, dictation, settings). Wired BEFORE the Enter
+    // handler so its popup state can gate submission.
+    const _mcEnh = _mcEnhanceComposer({
+      form: document.getElementById("rr-mc-form"), ta, kind: "dm",
+      getTargetId: () => _msgInboxSelectedId,
+    });
     ta.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
+      if (_mcEnh && _mcEnh.enterShouldSend(e)) {
         e.preventDefault();
         document.getElementById("rr-mc-form").requestSubmit();
       }
     });
 
-    // Attachment picker — paperclip opens the file input, and Ctrl+V
-    // pastes an image straight into the composer.  Pending file sits
-    // on window._rrMcPending until send.
+    // Attachment picker — paperclip opens the file input (multi-select),
+    // Ctrl+V pastes images, and drag-drop stages files too.  Pending
+    // files sit on window._rrMcPending (array) until send.
     const fileInput = document.getElementById("rr-mc-file");
     const previewEl = document.getElementById("rr-mc-attach-preview");
     const attachCtl = _rrWireComposerAttach({
@@ -41316,6 +43197,7 @@ async function refreshDriverChatThread(scrollToBottom) {
       attachBtn: document.getElementById("rr-mc-attach"),
       setPending: (f) => { window._rrMcPending = f; if (typeof _mcSyncSend === "function") _mcSyncSend(); },
     });
+    window._rrMcAttachCtl = attachCtl;
 
     // ── Voice notes (dispatch → driver) ─────────────────────────────────
     // Tap the mic to record; on send we upload to driver-chat-attachments and
@@ -41330,9 +43212,14 @@ async function refreshDriverChatThread(scrollToBottom) {
 
     document.getElementById("rr-mc-form").addEventListener("submit", async (e) => {
       e.preventDefault();
-      const body = (ta.value || "").trim();
-      const file = window._rrMcPending;
-      if (!body && !file) return;
+      const sendDriverId = _msgInboxSelectedId;
+      const rawBody = (ta.value || "").trim();
+      // Complete :shortcodes: at send time so what leaves matches what
+      // the suggestion layer promised (#2).
+      const body = _mcApplyShortcodes(rawBody);
+      const staged = Array.isArray(window._rrMcPending) ? window._rrMcPending.slice() : [];
+      if (!body && !staged.length) return;
+      const replyTo = _mcReplyTo ? { ..._mcReplyTo } : null;
       // Urgent messages get a confirmation before they leave — they fire an
       // immediate high-priority notification on the driver's device. Runs
       // BEFORE the optimistic stub so a cancel leaves the draft untouched.
@@ -41344,6 +43231,19 @@ async function refreshDriverChatThread(scrollToBottom) {
           danger: true,
         });
         if (!ok) return;
+      }
+      // Soft PII/profanity guard (#95) — warn, never hard-block.
+      {
+        const risks = _mcScanRisks(body);
+        if (risks.length) {
+          const ok = await _rrConfirmDialog({
+            title: "Double-check before sending",
+            body: `This message looks like it contains ${risks.join(" and ")}. Chat history is retained — send anyway?`,
+            confirmLabel: "Send anyway",
+            danger: true,
+          });
+          if (!ok) return;
+        }
       }
       const send = e.target.querySelector(".rr-mc-send");
       send.disabled = true;
@@ -41358,15 +43258,17 @@ async function refreshDriverChatThread(scrollToBottom) {
       const stubId = "rrmc-stub-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7);
       const stubAt = Date.now();
       const threadEl = document.getElementById("rr-mc-thread");
-      const stubBody = body ? `<div>${linkifyEscaped(escapeHtml(body).replace(/\n/g, "<br>"))}</div>` : "";
-      const stubAttach = file ? `<div style="font-size:var(--fs-xs);opacity:.85;margin-bottom:4px">📎 ${escapeHtml(file.name)} (uploading…)</div>` : "";
+      const stubBody = body ? `<div>${_mdLite(linkifyEscaped(escapeHtml(body).replace(/\n/g, "<br>")))}</div>` : "";
+      const stubAttach = staged.length
+        ? `<div style="font-size:var(--fs-xs);opacity:.85;margin-bottom:4px">📎 ${staged.length === 1 ? escapeHtml(staged[0].file.name) : staged.length + " attachments"} (uploading…)</div>`
+        : "";
       const nowTime = new Date().toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
       // data-rr-stub-body / -at / -attach let the next refresh reconcile
       // this stub against the server's echoed row by (normalised body +
       // queue time + attachment presence) instead of raw text equality —
       // so two identical sends, or an attachment-only send, don't ghost
       // or drop a bubble.  See the reconciliation block below.
-      const stubHtml = `<div class="rr-mc-bubble dispatch pending" data-rr-stub="${stubId}" data-rr-stub-body="${escapeHtml(_normStubBody(body))}" data-rr-stub-at="${stubAt}" data-rr-stub-attach="${file ? "1" : "0"}" data-group-pos="single">
+      const stubHtml = `<div class="rr-mc-bubble dispatch pending" data-rr-stub="${stubId}" data-rr-stub-body="${escapeHtml(_normStubBody(body))}" data-rr-stub-at="${stubAt}" data-rr-stub-attach="${staged.length ? "1" : "0"}" data-group-pos="single">
         ${stubAttach}${stubBody}
         <div class="rr-mc-time">${escapeHtml(nowTime)} · sending</div>
       </div>`;
@@ -41386,8 +43288,11 @@ async function refreshDriverChatThread(scrollToBottom) {
       //      sentinel.  We use scrollTop + scrollIntoView together so
       //      ANY one mechanism succeeding is sufficient.
       threadEl.dataset.rrAnchor = "1";
-      const savedBody = body;
+      const savedBody = rawBody;
       ta.value = ""; ta.style.height = "auto";
+      _mcDraftClear("dm", sendDriverId);
+      _mcReplyTo = null;
+      _mcShowReplyBar();
       if (typeof _mcSyncSend === "function") _mcSyncSend();
       // Direct scrollTop write — the cheap path.  The thread's bottom
       // edge sits just above the composer (grid layout), so scrollHeight
@@ -41423,60 +43328,152 @@ async function refreshDriverChatThread(scrollToBottom) {
           }
         }
       });
-      if (file) attachCtl.clear();
+      if (staged.length) attachCtl.clear();
 
-      let attachment = null;
-      if (file) {
-        const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80) || "file";
-        const dspId = window.RR?.dsp?.id || "unknown";
-        const path  = `${dspId}/${_msgInboxSelectedId}/${Date.now()}-${safe}`;
-        const { error: upErr } = await sb.storage
-          .from("driver-chat-attachments").upload(path, file, { contentType: file.type, upsert: false });
-        if (upErr) {
+      // ── Undo-send window (#6) ── a short beat to pull the message back
+      // before anything touches the network. 0 = off (see + menu).
+      const undoSecs = _mcUndoSecs();
+      if (undoSecs > 0) {
+        const undone = await _mcRunUndoWindow(undoSecs, stubId);
+        if (undone) {
+          threadEl.querySelector(`[data-rr-stub="${stubId}"]`)?.remove();
+          ta.value = savedBody;
+          ta.dispatchEvent(new Event("input", { bubbles: true }));
+          if (staged.length && attachCtl.stage) attachCtl.stage(staged.map((s) => s.file));
+          _mcDraftSave("dm", sendDriverId, savedBody);
+          if (replyTo) { _mcReplyTo = replyTo; _mcShowReplyBar(); }
           send.disabled = false;
-          const stub = threadEl.querySelector(`[data-rr-stub="${stubId}"]`);
-          if (stub) {
-            stub.classList.remove("pending");
-            stub.classList.add("failed");
-            stub.querySelector(".rr-mc-time").textContent = "upload failed";
-          }
-          ta.value = savedBody; // restore so they can retry
-          toast("Upload failed: " + upErr.message, "warn");
+          ta.focus();
           return;
         }
-        attachment = { path, mime: file.type, name: file.name, size: file.size };
       }
 
-      const { error } = await sb.rpc("dispatch_chat_send", {
-        p_driver_id:             _msgInboxSelectedId,
-        p_body:                  savedBody || null,
-        p_attachment_path:       attachment?.path || null,
-        p_attachment_mime:       attachment?.mime || null,
-        p_attachment_name:       attachment?.name || null,
-        p_attachment_size_bytes: attachment?.size || null,
-        p_priority:              _dispatchPriority,
-        p_requires_ack:          _dispatchRequiresAck,
-      });
-      send.disabled = false;
-      if (error) {
-        // The message never landed, so drop the blob we just uploaded —
-        // otherwise it lingers in the bucket forever with no row pointing
-        // at it.  Best-effort; a failed cleanup isn't worth surfacing.
-        if (attachment?.path) {
-          try { await sb.storage.from("driver-chat-attachments").remove([attachment.path]); } catch (_) {}
+      // ── Upload + send ── one RPC per attachment (the schema carries one
+      // attachment per row); the text body rides the first message and so
+      // do priority / requires-ack / reply-to.
+      const sendOne = async (msgBody, attachment, priority, requiresAck, replyToId) => {
+        const params = {
+          p_driver_id:             sendDriverId,
+          p_body:                  msgBody || null,
+          p_attachment_path:       attachment?.path || null,
+          p_attachment_mime:       attachment?.mime || null,
+          p_attachment_name:       attachment?.name || null,
+          p_attachment_size_bytes: attachment?.size || null,
+          p_priority:              priority,
+          p_requires_ack:          requiresAck,
+        };
+        if (replyToId) params.p_reply_to = replyToId;
+        let res = await sb.rpc("dispatch_chat_send", params);
+        // Pre-0507 servers don't know p_reply_to — retry as a plain send
+        // rather than losing the message.
+        if (res.error && replyToId && _mcRpcMissing(res.error)) {
+          delete params.p_reply_to;
+          res = await sb.rpc("dispatch_chat_send", params);
+          if (!res.error) toast("Sent — reply-quoting unlocks once migration 0507 is applied", "info");
         }
+        return res;
+      };
+      const failStub = (label, restoreFiles) => {
+        send.disabled = false;
         const stub = threadEl.querySelector(`[data-rr-stub="${stubId}"]`);
         if (stub) {
           stub.classList.remove("pending");
           stub.classList.add("failed");
-          stub.querySelector(".rr-mc-time").textContent = "send failed · click to retry";
+          stub.querySelector(".rr-mc-time").textContent = label;
           stub.style.cursor = "pointer";
-          stub.title = file ? "Click to restore your message — re-attach the file and resend" : "Click to restore and retry";
-          stub.addEventListener("click", () => { ta.value = savedBody; ta.focus(); stub.remove(); }, { once:true });
+          stub.title = "Click to restore and retry";
+          stub.addEventListener("click", () => {
+            ta.value = savedBody;
+            ta.dispatchEvent(new Event("input", { bubbles: true }));
+            if (restoreFiles?.length && attachCtl.stage) attachCtl.stage(restoreFiles.map((s) => s.file));
+            ta.focus();
+            stub.remove();
+          }, { once: true });
         }
         ta.value = savedBody;
-        toast("Couldn't send: " + error.message, "warn");
-        return;
+      };
+
+      if (!staged.length) {
+        const { error } = await sendOne(body, null, _dispatchPriority, _dispatchRequiresAck, replyTo?.id);
+        send.disabled = false;
+        if (error) {
+          // Offline / network death (#74): queue the text message and keep
+          // the stub as "queued" instead of failing it.
+          if (_mcIsNetworkError(error)) {
+            _mcQueueOutbox({
+              p_driver_id: sendDriverId, p_body: body,
+              p_priority: _dispatchPriority, p_requires_ack: _dispatchRequiresAck,
+            });
+            const stub = threadEl.querySelector(`[data-rr-stub="${stubId}"]`);
+            if (stub) {
+              stub.classList.remove("pending");
+              stub.querySelector(".rr-mc-time").textContent = "queued — sends when you're back online";
+            }
+            _dispatchRequiresAck = false;
+            _setDispatchPriority("normal");
+            toast("You're offline — the message is queued and will send automatically", "info");
+            return;
+          }
+          failStub("send failed · click to retry");
+          toast("Couldn't send: " + error.message, "warn");
+          return;
+        }
+      } else {
+        // Upload with live progress + click-to-cancel on the stub (#81).
+        let cancelled = false;
+        const stubEl = () => threadEl.querySelector(`[data-rr-stub="${stubId}"]`);
+        const cancelHandler = (ev) => {
+          if (!ev.target.closest("[data-rr-upcancel]")) return;
+          cancelled = true;
+        };
+        threadEl.addEventListener("click", cancelHandler);
+        const s0 = stubEl();
+        if (s0) {
+          const t0 = s0.querySelector(".rr-mc-time");
+          if (t0) t0.innerHTML = `uploading… <button type="button" data-rr-upcancel style="background:none;border:0;color:inherit;font:inherit;font-weight:700;text-decoration:underline;cursor:pointer;padding:0">Cancel</button>`;
+        }
+        for (let fi = 0; fi < staged.length; fi++) {
+          // Big photos get downscaled unless the operator flipped HD (#9).
+          const f = await _mcMaybeCompressImage(staged[fi].file, staged[fi].hd);
+          const safe = f.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80) || "file";
+          const dspId = window.RR?.dsp?.id || "unknown";
+          const path  = `${dspId}/${sendDriverId}/${Date.now()}-${fi}-${safe}`;
+          const { error: upErr } = await _mcUploadWithProgress(path, f, {
+            getCancelled: () => cancelled,
+            onProgress: (p) => {
+              const st = stubEl()?.querySelector(".rr-mc-time");
+              if (st && st.firstChild) st.firstChild.textContent = `uploading ${staged.length > 1 ? `${fi + 1}/${staged.length} ` : ""}${Math.round(p * 100)}% `;
+            },
+          });
+          if (cancelled) {
+            threadEl.removeEventListener("click", cancelHandler);
+            failStub("upload cancelled · click to restore", staged.slice(fi));
+            return;
+          }
+          if (upErr) {
+            threadEl.removeEventListener("click", cancelHandler);
+            failStub("upload failed · click to retry", staged.slice(fi));
+            toast("Upload failed: " + upErr.message, "warn");
+            return;
+          }
+          const attachment = { path, mime: f.type, name: f.name, size: f.size };
+          const { error } = await sendOne(
+            fi === 0 ? body : null, attachment,
+            fi === 0 ? _dispatchPriority : "normal",
+            fi === 0 ? _dispatchRequiresAck : false,
+            fi === 0 ? replyTo?.id : null);
+          if (error) {
+            // Drop the just-uploaded blob so a failed send doesn't orphan it.
+            try { await sb.storage.from("driver-chat-attachments").remove([path]); } catch (_) {}
+            threadEl.removeEventListener("click", cancelHandler);
+            failStub("send failed · click to retry", staged.slice(fi));
+            toast("Couldn't send: " + error.message, "warn");
+            return;
+          }
+        }
+        threadEl.removeEventListener("click", cancelHandler);
+        send.disabled = false;
+        ta.value = "";
       }
       // Reset priority/ack to defaults so the operator doesn't keep
       // accidentally sending urgent / requires-ack messages after one.
@@ -41494,6 +43491,23 @@ async function refreshDriverChatThread(scrollToBottom) {
 
   const thread = document.getElementById("rr-mc-thread");
   if (!thread) return;
+
+  // #76: if nothing visible changed since the last paint, skip the DOM
+  // rebuild entirely — the safety poll becomes almost free.
+  const _renderSig = msgs.map((m) => m.id + ":" + (m.edited_at || "") + ":" + (m.deleted_at || "") + ":" + (m.acked_at || "")).join("|")
+    + "#" + peerReadAt + "/" + peerDeliveredAt
+    + "#r" + (_reactions || []).map((e) => e.message_id + e.emoji + e.count + (e.mine ? 1 : 0)).join(",")
+    + "#p" + _mcPins.map((p) => p.message_id).join(",")
+    + "#c" + _callEvents.length;
+  if (!isFirstPaint && !scrollToBottom && !_mcFocusMsgId && thread.dataset.rrSig === _renderSig) {
+    if (msgs.some((m) => m.sender_kind === "driver" && m.is_unread)) {
+      sb.rpc("dispatch_chat_mark_read", { p_driver_id: driverId }).then(undefined, () => {});
+    }
+    _presencePaintThreadHead(driverId);
+    _paintMsgHeadStats(driverId);
+    return;
+  }
+  thread.dataset.rrSig = _renderSig;
 
   // ─── Smart scroll anchor ────────────────────────────────────────────
   // Capture whether the operator was pinned within ~120px of the bottom
@@ -41515,7 +43529,11 @@ async function refreshDriverChatThread(scrollToBottom) {
   //              the previous bubble (or on the first bubble of the
   //              thread, but only if that bubble isn't from today —
   //              "Today" without context above feels odd).
-  const renderEmpty = () => `<div class="rr-mc-empty">No messages yet. Start the thread below.</div>`;
+  const renderEmpty = () => `<div class="rr-mc-empty">No messages yet. Start the thread below.
+    <div style="display:flex;gap:6px;justify-content:center;margin-top:10px;flex-wrap:wrap">
+      <button type="button" class="msg-fb-btn" data-rr-empty-tpl="welcome">👋 Send the welcome template</button>
+      <button type="button" class="msg-fb-btn" data-rr-empty-sched>📅 Share their schedule</button>
+    </div></div>`;
   const dayLabel = (d) => {
     const today = new Date();
     today.setHours(0,0,0,0);
@@ -41584,16 +43602,34 @@ async function refreshDriverChatThread(scrollToBottom) {
   const _showDelivAt = (lastReadDispatchIdx < 0 && lastDeliveredDispatchIdx >= 0) ? lastDeliveredDispatchIdx : -1;
   const _showSentAt = (lastReadDispatchIdx < 0 && _showDelivAt < 0) ? lastDispatchIdx : -1;
 
+  // Call chips (#55/#56) interleave with bubbles by time. Only calls
+  // within the loaded window (or after its start) are shown.
+  let _callIdx = 0;
+  const _oldestMs = msgs.length ? new Date(msgs[0].created_at).getTime() : 0;
+  while (_callIdx < _callEvents.length
+         && new Date(_callEvents[_callIdx].started_at).getTime() < _oldestMs) _callIdx++;
+  const _emitCallsBefore = (untilMs) => {
+    let out = "";
+    while (_callIdx < _callEvents.length
+           && new Date(_callEvents[_callIdx].started_at).getTime() <= untilMs) {
+      out += _mcCallChipHtml(_callEvents[_callIdx]);
+      _callIdx++;
+    }
+    return out;
+  };
+
   let html = "";
   if (msgs.length === 0) {
     html = renderEmpty();
+    html += _emitCallsBefore(Infinity);
   } else {
     let lastSender = null;
     let lastTimeMs = 0;
     let lastDateKey = "";
     msgs.forEach((m, i) => {
       const t = new Date(m.created_at);
-      const time = t.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+      html += _emitCallsBefore(t.getTime());
+      const time = _mcFmtTime(t);
       const dateKey = t.toDateString();
       if (dateKey !== lastDateKey) {
         html += `<div class="rr-msg-day">${escapeHtml(dayLabel(t))}</div>`;
@@ -41632,28 +43668,56 @@ async function refreshDriverChatThread(scrollToBottom) {
           // own height once src lands, so there's nothing for the
           // browser's scroll-anchor algorithm to "preserve" (which is
           // what was yanking the operator UP to a fixed image position).
-          ? `<img data-rr-mc-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" width="240" height="240" loading="eager" decoding="async" style="max-width:240px;border-radius:var(--r-lg);margin-bottom:6px;cursor:zoom-in" onclick="window.open(this.src,'_blank')"/>`
+          ? `<img data-rr-mc-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" width="240" height="240" loading="lazy" decoding="async" style="max-width:240px;border-radius:var(--r-lg);margin-bottom:6px;cursor:zoom-in" data-rr-mc-lightbox="${escapeHtml(m.id)}"/>`
           : _rrMcAttachCard(m);
       }
       const isDeleted = !!m.deleted_at;
       const isMine    = m.sender_kind === "dispatch";
+      // "edited" is clickable → edit-history popover (#20).
       const editedTag = m.edited_at && !isDeleted
-        ? `<span class="rr-mc-edited" title="Edited ${new Date(m.edited_at).toLocaleString()}">edited</span>`
+        ? `<button type="button" class="rr-mc-edited" data-rr-mc-edithist="${escapeHtml(m.id)}" title="Edited ${new Date(m.edited_at).toLocaleString()} — click for history">edited</button>`
         : "";
+      // Unread divider (#19) — a "New messages" rule above the first
+      // driver message that was unread when the thread was opened.
+      if (_mcUnreadMarkId && m.id === _mcUnreadMarkId) {
+        html += `<div class="rr-mc-unread-divider" id="rr-mc-unread-divider"><span>New messages</span></div>`;
+      }
+      // Reply-quote block (#13) — renders the quoted message (if it's in
+      // the loaded window) above the body; click scrolls to the original.
+      let quoteHtml = "";
+      if (m.reply_to && !isDeleted) {
+        const q = msgs.find((x) => x.id === m.reply_to);
+        const qLabel = q ? (q.sender_kind === "dispatch" ? "You" : (drv.name || "Driver")) : "";
+        const qText = q
+          ? (q.deleted_at ? "Message deleted" : (q.body || (q.attachment_name ? "📎 " + q.attachment_name : "Message")))
+          : "Earlier message";
+        quoteHtml = `<button type="button" class="rr-mc-quote" data-rr-mc-jumpto="${escapeHtml(m.reply_to)}" title="Go to the original message">
+            ${qLabel ? `<span class="rr-mc-quote-who">${escapeHtml(qLabel)}</span>` : ""}
+            <span class="rr-mc-quote-text">${escapeHtml(String(qText).slice(0, 120))}</span>
+          </button>`;
+      }
       let bodyHtml = "";
       if (isDeleted) {
         bodyHtml = `<div class="rr-mc-deleted-body">Message deleted</div>`;
       } else if (m.body) {
-        bodyHtml = `<div>${linkifyEscaped(escapeHtml(m.body).replace(/\n/g, "<br>"))}</div>`;
+        // escape → linkify → markdown-lite (#10) → tel: links (#60); each
+        // pass only touches text runs between tags.
+        bodyHtml = `<div>${_mcLinkifyPhones(_mdLite(linkifyEscaped(escapeHtml(m.body).replace(/\n/g, "<br>"))))}</div>`;
       }
-      // Hover actions — only on the dispatcher's own non-deleted
-      // bubbles within the 15-minute edit window.  Visual affordance
-      // only; the RPCs re-check the window server-side.
+      // Hover actions — reply / react / more on every live bubble; edit +
+      // delete only on the dispatcher's own bubbles within the 15-minute
+      // window (visual affordance only; RPCs re-check server-side).
       const within = (Date.now() - t.getTime()) < 15 * 60 * 1000;
-      const actions = (isMine && !isDeleted && within)
+      const ownActions = (isMine && !isDeleted && within)
+        ? `<button type="button" data-rr-mc-edit="${escapeHtml(m.id)}" aria-label="Edit message" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+            <button type="button" data-rr-mc-delete="${escapeHtml(m.id)}" aria-label="Delete message" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button>`
+        : "";
+      const actions = !isDeleted
         ? `<div class="rr-mc-bubble-actions">
-            <button type="button" data-rr-mc-edit="${escapeHtml(m.id)}" aria-label="Edit message" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
-            <button type="button" data-rr-mc-delete="${escapeHtml(m.id)}" aria-label="Delete message" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button>
+            <button type="button" data-rr-mc-reply="${escapeHtml(m.id)}" aria-label="Reply" title="Reply"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg></button>
+            <button type="button" data-rr-mc-react="${escapeHtml(m.id)}" aria-label="Add reaction" title="React"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg></button>
+            ${ownActions}
+            <button type="button" data-rr-mc-more="${escapeHtml(m.id)}" aria-label="More actions" title="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
           </div>`
         : "";
       const deletedClass = isDeleted ? " is-deleted" : "";
@@ -41672,11 +43736,14 @@ async function refreshDriverChatThread(scrollToBottom) {
       // thumbnail reads as a standalone surface (enterprise register).
       const attachOnly = (m.attachment_path && !m.body && !isDeleted) ? " attach-only" : "";
       const bookmarkBtn = isDeleted ? "" : _rrBookmarkBtnHtml("driver", m.id);
+      const pinnedTag = _mcPins.some((p) => p.message_id === m.id)
+        ? `<span class="rr-mc-pinned-tag" title="Pinned">📌</span>` : "";
       html += `<div class="rr-mc-bubble ${m.sender_kind}${deletedClass}${priCls}${attachOnly}" data-group-pos="${pos}" data-rr-mc-msg="${escapeHtml(m.id)}">
         ${actions}
         ${bookmarkBtn}
-        ${priTag}${attach}${m.is_auto ? '<span class="rr-mc-auto" title="Automated message">Auto</span>' : ''}${bodyHtml}${ackChip}
-        <div class="rr-mc-time">${escapeHtml(time)}${editedTag}</div>
+        ${quoteHtml}${priTag}${attach}${m.is_auto ? '<span class="rr-mc-auto" title="Automated message">Auto</span>' : ''}${bodyHtml}${ackChip}
+        <div class="rr-mc-time" title="${escapeHtml(t.toLocaleString())}">${pinnedTag}${escapeHtml(time)}${editedTag}</div>
+        <div class="rr-mc-reacts" data-rr-mc-reacts="${escapeHtml(m.id)}"></div>
         ${likeBtn}
       </div>`;
       // Drop the read-receipt pill immediately after the last
@@ -41691,6 +43758,8 @@ async function refreshDriverChatThread(scrollToBottom) {
         html += `<div class="rr-mc-read-receipt sent">✓ Sent</div>`;
       }
     });
+    // Calls newer than the last message (#55).
+    html += _emitCallsBefore(Infinity);
   }
 
   // Preserve the jump pill + bottom sentinel across the re-render (both
@@ -41736,7 +43805,8 @@ async function refreshDriverChatThread(scrollToBottom) {
   // everything else) handles re-pinning across subsequent reflows
   // (image loads, padding changes, content additions) WITHOUT a
   // JS-driven re-pin — that is what eliminates the visible glitch.
-  thread.innerHTML = loadOlderHtml + html + liveStubs + jumpPillHtml + sentinelHtml;
+  thread.innerHTML = _mcPinsBarHtml() + loadOlderHtml + html + liveStubs + jumpPillHtml + sentinelHtml;
+  _mcApplyTextSize();
   _applyMcReactions(_reactions);
   // Wire "Load earlier" — grow the page and re-fetch, then restore the
   // operator's scroll by the exact height the prepended history added so
@@ -41763,6 +43833,8 @@ async function refreshDriverChatThread(scrollToBottom) {
   _rrMcInstallAnchorEnforcer(thread);
   // Sign attachment paths so they render — bucket is private.
   setTimeout(() => _rrMcSignAttachments(), 0);
+  // Link-preview cards under recent bubbles (#24) — async, cached.
+  setTimeout(() => { _mcHydrateLinkCards().catch(() => {}); }, 60);
 
   // Wire the jump pill (re-rendered each time, so we re-bind every poll).
   const jump = document.getElementById("rr-mc-jump");
@@ -41775,7 +43847,7 @@ async function refreshDriverChatThread(scrollToBottom) {
       // Smooth scroll on the THREAD only — never via scrollIntoView,
       // which animates ancestor scroll containers too and would jolt
       // the surrounding page chrome.
-      thread.scrollTo({ top: thread.scrollHeight, behavior: "smooth" });
+      thread.scrollTo({ top: thread.scrollHeight, behavior: _mcReducedMotion() ? "auto" : "smooth" });
     });
   }
 
@@ -41786,10 +43858,23 @@ async function refreshDriverChatThread(scrollToBottom) {
   if (typeof _syncComposerPos === "function") _syncComposerPos();
   if (typeof _ensureComposerResizeWatch === "function") _ensureComposerResizeWatch();
 
+  // Unread-divider landing (#19): when the thread opens with unread
+  // driver messages, land the operator ON the "New messages" rule rather
+  // than the very bottom, so nothing unread is above the fold unseen.
+  const unreadLanding = isFirstPaint && _mcUnreadMarkId && !_mcFocusMsgId
+    && thread.querySelector("#rr-mc-unread-divider");
+  if (unreadLanding) {
+    thread.dataset.rrAnchor = "0";
+    requestAnimationFrame(() => {
+      const dv = document.getElementById("rr-mc-unread-divider");
+      if (dv) dv.scrollIntoView({ block: "center" });
+    });
+  }
+
   // Smart-scroll: pin to bottom if the operator was already near it,
   // or if the caller forced it (e.g. opening a new thread).  Otherwise
   // surface the jump pill if the message count grew under their feet.
-  if (!_mcFocusMsgId && (scrollToBottom || wasNearBottom)) {
+  if (!unreadLanding && !_mcFocusMsgId && (scrollToBottom || wasNearBottom)) {
     thread.dataset.rrAnchor = "1";
     if (jump) jump.classList.remove("show");
     // Multi-pass pin to bottom.  Each pass uses scrollTop assignment
@@ -41885,10 +43970,61 @@ async function refreshDriverChatThread(scrollToBottom) {
   _paintMsgHeadStats(driverId);
 }
 
-// ─── Message likes (👍) ──────────────────────────────────────────────────
-// Two-way reactions on the 1:1 chat.  Counts come from a separate
-// reactions RPC (the message-fetch RPCs are untouched); the realtime
-// subscription on driver_message_reactions keeps both ends live.
+// ─── Message reactions (Batch 2 · #15) ───────────────────────────────────
+// Multi-emoji reactions on the 1:1 chat, grouped per emoji under each
+// bubble (chips), with the 👍 bubble button kept as a quick-toggle.
+// Server: dispatch_chat_reactions_v2 / dispatch_message_react_emoji
+// (migration 0507), falling back to the 0389 single-👍 RPCs until the
+// migration is applied.
+let _mcLastMsgs = [];              // loaded window, for menus/quotes/media tab
+let _mcLastReadState = {};         // { peerReadAt, peerDeliveredAt }
+let _mcUnreadMarkId = null;        // first-unread divider anchor (#19)
+let _mcPins = [];                  // pinned messages for the open thread (#18)
+let _mcReplyTo = null;             // { id, label, text } while composing a reply (#13)
+let _mcReactCache = [];            // normalized [{message_id, emoji, count, mine}]
+let _mcReactV2 = null;             // null=unknown, true/false once probed
+const _MC_DM_REACTIONS = ["👍", "👎", "❤️", "😂", "😮", "😢", "✅", "❌", "🔥", "🎉", "🙏"];
+const _mcRpcMissing = (err) => /PGRST202|does not exist|could not find|schema cache|404/i.test((err && (err.message || err.code)) || "");
+
+async function _mcFetchReactions(driverId) {
+  if (_mcReactV2 !== false) {
+    const res = await sb.rpc("dispatch_chat_reactions_v2", { p_driver_id: driverId })
+      .then((r) => r, (e) => ({ error: e || { message: "network" } }));
+    if (!res.error) {
+      _mcReactV2 = true;
+      _mcReactCache = res.data?.reactions || [];
+      return _mcReactCache;
+    }
+    if (_mcRpcMissing(res.error)) _mcReactV2 = false;
+    else return _mcReactCache; // transient — keep last known
+  }
+  const { data } = await sb.rpc("dispatch_chat_reactions", { p_driver_id: driverId })
+    .then((r) => r, () => ({ data: null }));
+  _mcReactCache = (data?.reactions || []).map((e) => ({
+    message_id: e.message_id, emoji: "👍", count: e.like_count || 0, mine: !!e.liked_by_me,
+  }));
+  return _mcReactCache;
+}
+async function _mcReact(messageId, emoji, on) {
+  if (_mcReactV2 !== false) {
+    const { data, error } = await sb.rpc("dispatch_message_react_emoji", { p_message_id: messageId, p_emoji: emoji, p_on: on });
+    if (!error) { _mcReactV2 = true; return data; }
+    if (!_mcRpcMissing(error)) throw error;
+    _mcReactV2 = false;
+  }
+  if (emoji !== "👍") { toast("More reactions unlock once migration 0507 is applied — 👍 works today", "info"); return null; }
+  const { data, error } = await sb.rpc("dispatch_message_react", { p_message_id: messageId, p_on: on });
+  if (error) throw error;
+  return { message_id: messageId, emoji: "👍", count: data?.like_count || 0, mine: !!data?.liked_by_me };
+}
+function _mcUpdateReactCache(res) {
+  if (!res) return;
+  const i = _mcReactCache.findIndex((e) => String(e.message_id) === String(res.message_id) && e.emoji === res.emoji);
+  if (i >= 0) { if ((res.count || 0) > 0) _mcReactCache[i] = res; else _mcReactCache.splice(i, 1); }
+  else if ((res.count || 0) > 0) _mcReactCache.push(res);
+  _applyMcReactions(_mcReactCache);
+}
+
 function _setMcLike(btn, count, mine) {
   if (!btn) return;
   btn.classList.toggle("on", !!mine);
@@ -41899,29 +44035,2186 @@ function _setMcLike(btn, count, mine) {
 function _applyMcReactions(entries) {
   const thread = document.getElementById("rr-mc-thread");
   if (!thread) return;
-  const map = new Map((entries || []).map((e) => [String(e.message_id), e]));
+  const byMsg = new Map();
+  (entries || []).forEach((e) => {
+    const k = String(e.message_id);
+    if (!byMsg.has(k)) byMsg.set(k, []);
+    byMsg.get(k).push(e);
+  });
+  // Per-emoji chip rows under each bubble.
+  thread.querySelectorAll("[data-rr-mc-reacts]").forEach((row) => {
+    const list = (byMsg.get(String(row.getAttribute("data-rr-mc-reacts"))) || []).filter((e) => (e.count || 0) > 0);
+    row.innerHTML = list.map((e) =>
+      `<button type="button" class="rr-mc-react-chip${e.mine ? " mine" : ""}" data-rr-mc-chip="${escapeHtml(String(e.message_id))}" data-emoji="${escapeHtml(e.emoji)}" aria-pressed="${e.mine ? "true" : "false"}" title="${e.count} reaction${e.count === 1 ? "" : "s"} — click to ${e.mine ? "remove yours" : "react too"}">${e.emoji}<span>${e.count}</span></button>`).join("");
+    row.style.display = list.length ? "" : "none";
+  });
+  // The 👍 quick button mirrors "did I 👍 this" (count lives on the chip).
   thread.querySelectorAll("[data-rr-mc-like]").forEach((btn) => {
-    const e = map.get(String(btn.getAttribute("data-rr-mc-like")));
-    _setMcLike(btn, e ? (e.like_count || 0) : 0, !!(e && e.liked_by_me));
+    const list = byMsg.get(String(btn.getAttribute("data-rr-mc-like"))) || [];
+    const up = list.find((e) => e.emoji === "👍");
+    _setMcLike(btn, 0, !!(up && up.mine));
   });
 }
-// Delegated so it survives the thread's re-render on every poll.
+// Delegated so they survive the thread's re-render on every poll.
 document.addEventListener("click", async (e) => {
   const btn = e.target.closest("[data-rr-mc-like]");
-  if (!btn) return;
-  const id = btn.getAttribute("data-rr-mc-like");
-  const turningOn = !btn.classList.contains("on");
-  const ns = btn.querySelector(".rr-mc-like-n");
-  const cur = parseInt((ns && ns.textContent) || "0", 10) || 0;
-  _setMcLike(btn, Math.max(0, cur + (turningOn ? 1 : -1)), turningOn); // optimistic
-  try {
-    const { data, error } = await sb.rpc("dispatch_message_react", { p_message_id: id, p_on: turningOn });
-    if (error) throw error;
-    if (data) _setMcLike(btn, data.like_count || 0, !!data.liked_by_me);
-  } catch (_) {
-    _setMcLike(btn, cur, !turningOn); // revert on failure
+  if (btn) {
+    const id = btn.getAttribute("data-rr-mc-like");
+    const turningOn = !btn.classList.contains("on");
+    btn.classList.toggle("on", turningOn); // optimistic
+    try { _mcUpdateReactCache(await _mcReact(id, "👍", turningOn)); }
+    catch { btn.classList.toggle("on", !turningOn); }
+    return;
+  }
+  const chip = e.target.closest("[data-rr-mc-chip]");
+  if (chip) {
+    const id = chip.getAttribute("data-rr-mc-chip");
+    const emoji = chip.getAttribute("data-emoji");
+    const turningOn = !chip.classList.contains("mine");
+    chip.classList.toggle("mine", turningOn); // optimistic
+    try { _mcUpdateReactCache(await _mcReact(id, emoji, turningOn)); }
+    catch { chip.classList.toggle("mine", !turningOn); }
+    return;
+  }
+  const reactBtn = e.target.closest("[data-rr-mc-react]");
+  if (reactBtn) {
+    e.preventDefault();
+    _mcOpenReactPicker(reactBtn, reactBtn.getAttribute("data-rr-mc-react"));
+    return;
   }
 });
+
+// Quick reaction picker for a bubble.
+function _mcOpenReactPicker(anchor, messageId) {
+  _mcDismissPops();
+  _mcEnsureExtrasCss();
+  const pop = document.createElement("div");
+  pop.className = "rr-mc-pop rr-mc-reactpick";
+  pop.setAttribute("role", "menu");
+  const mine = new Set(_mcReactCache.filter((e) => String(e.message_id) === String(messageId) && e.mine).map((e) => e.emoji));
+  pop.innerHTML = _MC_DM_REACTIONS.map((em) =>
+    `<button type="button" class="${mine.has(em) ? "on" : ""}" data-rr-rp="${escapeHtml(em)}" aria-label="React ${escapeHtml(em)}">${em}</button>`).join("");
+  _mcPlacePop(pop, anchor);
+  pop.addEventListener("click", async (ev) => {
+    const b = ev.target.closest("[data-rr-rp]");
+    if (!b) return;
+    const em = b.getAttribute("data-rr-rp");
+    const on = !b.classList.contains("on");
+    _mcDismissPops();
+    try { _mcUpdateReactCache(await _mcReact(messageId, em, on)); } catch {}
+  });
+}
+
+// ─── Bubble action handlers (Batch 2: reply / more / history / jump) ─────
+function _mcMsgById(id) { return (_mcLastMsgs || []).find((m) => String(m.id) === String(id)); }
+
+// Reply bar above a composer (#13 for DMs, #43 for rooms).
+function _mcRenderReplyBar(form, reply, onCancel) {
+  if (!form) return;
+  form.querySelector(".rr-mc-replybar")?.remove();
+  if (!reply) return;
+  _mcEnsureExtrasCss();
+  const bar = document.createElement("div");
+  bar.className = "rr-mc-replybar";
+  bar.innerHTML = `
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+    <span class="rr-mc-replybar-txt"><b>Replying to ${escapeHtml(reply.label)}</b> · ${escapeHtml(reply.text.slice(0, 80))}</span>
+    <button type="button" data-rr-reply-cancel aria-label="Cancel reply">×</button>`;
+  form.style.position = "relative";
+  form.appendChild(bar);
+  bar.querySelector("[data-rr-reply-cancel]").addEventListener("click", onCancel);
+}
+function _mcShowReplyBar() {
+  _mcRenderReplyBar(document.getElementById("rr-mc-form"), _mcReplyTo, () => { _mcReplyTo = null; _mcShowReplyBar(); });
+}
+let _ccReplyTo = null;     // channel reply state (#43)
+let _ccRequireAck = false; // next channel post requires ack (#38)
+let _ccAcks = [];          // acks for the open channel
+let _ccPolls = [];         // polls for the open channel
+function _ccShowReplyBar() {
+  _mcRenderReplyBar(document.getElementById("rr-cc-form"), _ccReplyTo, () => { _ccReplyTo = null; _ccShowReplyBar(); });
+}
+
+document.addEventListener("click", async (e) => {
+  // Reply (#13)
+  const replyBtn = e.target.closest("[data-rr-mc-reply]");
+  if (replyBtn) {
+    const m = _mcMsgById(replyBtn.getAttribute("data-rr-mc-reply"));
+    if (!m) return;
+    const drvName = (document.querySelector(".rr-mc-name")?.childNodes[0]?.textContent || "Driver").trim();
+    _mcReplyTo = {
+      id: m.id,
+      label: m.sender_kind === "dispatch" ? "yourself" : drvName,
+      text: m.body || (m.attachment_name ? "📎 " + m.attachment_name : "Message"),
+    };
+    _mcShowReplyBar();
+    document.getElementById("rr-mc-input")?.focus();
+    return;
+  }
+  // Jump to quoted original (#13)
+  const jumpBtn = e.target.closest("[data-rr-mc-jumpto]");
+  if (jumpBtn) {
+    const id = jumpBtn.getAttribute("data-rr-mc-jumpto");
+    const sel = (window.CSS && CSS.escape) ? CSS.escape(id) : id;
+    const bubble = document.querySelector(`#rr-mc-thread [data-rr-mc-msg="${sel}"]`);
+    if (bubble) _rrMcFlashBubble(bubble);
+    else toast("That message is further back in history — use Load earlier messages", "info");
+    return;
+  }
+  // Edit history (#20)
+  const histBtn = e.target.closest("[data-rr-mc-edithist]");
+  if (histBtn) {
+    e.preventDefault();
+    _mcOpenEditHistory(histBtn, histBtn.getAttribute("data-rr-mc-edithist"));
+    return;
+  }
+  // More menu (#14 #16 #17 #18)
+  const moreBtn = e.target.closest("[data-rr-mc-more]");
+  if (moreBtn) {
+    e.preventDefault();
+    _mcOpenMoreMenu(moreBtn, moreBtn.getAttribute("data-rr-mc-more"));
+    return;
+  }
+  // Lightbox (#21)
+  const lightImg = e.target.closest("[data-rr-mc-lightbox]");
+  if (lightImg && lightImg.tagName === "IMG") {
+    e.preventDefault();
+    _mcOpenLightbox(lightImg);
+    return;
+  }
+  // Pins bar interactions (#18)
+  const pinJump = e.target.closest("[data-rr-pin-jump]");
+  if (pinJump) {
+    const id = pinJump.getAttribute("data-rr-pin-jump");
+    const sel = (window.CSS && CSS.escape) ? CSS.escape(id) : id;
+    const bubble = document.querySelector(`#rr-mc-thread [data-rr-mc-msg="${sel}"]`);
+    if (bubble) _rrMcFlashBubble(bubble);
+    else toast("Pinned message is further back in history — use Load earlier messages", "info");
+    return;
+  }
+});
+
+async function _mcOpenEditHistory(anchor, messageId) {
+  _mcDismissPops();
+  _mcEnsureExtrasCss();
+  const pop = document.createElement("div");
+  pop.className = "rr-mc-pop rr-mc-suggest";
+  pop.style.maxWidth = "360px";
+  pop.innerHTML = `<div class="rr-mc-emoji-head" style="padding:8px 10px 6px">Edit history</div><div style="padding:4px 10px 10px;font-size:var(--fs-sm);color:var(--text-subtle)">Loading…</div>`;
+  _mcPlacePop(pop, anchor);
+  const { data, error } = await sb.rpc("dispatch_message_edit_history", { p_message_id: messageId })
+    .then((r) => r, (err) => ({ error: err }));
+  const bodyEl = pop.lastElementChild;
+  if (!bodyEl || !pop.isConnected) return;
+  if (error) {
+    bodyEl.textContent = _mcRpcMissing(error) ? "Edit history starts recording once migration 0507 is applied." : "Couldn't load history.";
+    return;
+  }
+  const hist = data?.history || [];
+  const cur = _mcMsgById(messageId);
+  bodyEl.innerHTML = (hist.length ? hist.map((h) =>
+      `<div style="margin-bottom:8px"><div style="font-size:10px;color:var(--text-subtle);font-weight:600">${escapeHtml(new Date(h.edited_at).toLocaleString())}</div><div style="font-size:var(--fs-sm);color:var(--text);white-space:pre-wrap">${escapeHtml(h.old_body || "")}</div></div>`).join("")
+    : `<div style="font-size:var(--fs-sm);color:var(--text-subtle)">No earlier versions recorded.</div>`)
+    + (cur ? `<div style="border-top:1px solid var(--border);padding-top:6px;margin-top:2px"><div style="font-size:10px;color:var(--text-subtle);font-weight:600">Current</div><div style="font-size:var(--fs-sm);color:var(--text);white-space:pre-wrap">${escapeHtml(cur.body || "")}</div></div>` : "");
+}
+
+// "More" menu on a bubble: copy, copy link, message info, pin, forward.
+function _mcOpenMoreMenu(anchor, messageId) {
+  _mcDismissPops();
+  _mcEnsureExtrasCss();
+  const m = _mcMsgById(messageId);
+  if (!m) return;
+  const pinned = _mcPins.some((p) => p.message_id === m.id);
+  const pop = document.createElement("div");
+  pop.className = "rr-mc-pop rr-mc-plus-menu";
+  pop.setAttribute("role", "menu");
+  pop.innerHTML = `
+    ${m.body ? `<button type="button" data-rr-mm="copy">📄<span>Copy text</span></button>` : ""}
+    <button type="button" data-rr-mm="link">🔗<span>Copy link to message</span></button>
+    <button type="button" data-rr-mm="info">ℹ️<span>Message info</span></button>
+    <button type="button" data-rr-mm="pin">📌<span>${pinned ? "Unpin from conversation" : "Pin to conversation"}</span></button>
+    <button type="button" data-rr-mm="fwd">↪️<span>Forward…</span></button>
+    ${m.body ? `<button type="button" data-rr-mm="translate">🌐<span>Translate</span></button>` : ""}
+    <div class="rr-mc-plus-sep"></div>
+    <button type="button" data-rr-mm="task">☑️<span>Create a task…</span></button>
+    <button type="button" data-rr-mm="coach">📋<span>Coaching entry…</span></button>
+    <button type="button" data-rr-mm="record">🗂️<span>Save to driver record…</span></button>`;
+  _mcPlacePop(pop, anchor);
+  pop.addEventListener("click", async (ev) => {
+    const b = ev.target.closest("[data-rr-mm]");
+    if (!b) return;
+    const act = b.getAttribute("data-rr-mm");
+    _mcDismissPops();
+    if (act === "copy") {
+      try { await navigator.clipboard.writeText(m.body || ""); toast("Copied", "ok"); }
+      catch { toast("Couldn't access the clipboard", "warn"); }
+    } else if (act === "link") {
+      const url = `${location.origin}${location.pathname}#msg-driver-${_msgInboxSelectedId}-${m.id}`;
+      try { await navigator.clipboard.writeText(url); toast("Link copied — opens this conversation at this message", "ok"); }
+      catch { toast("Couldn't access the clipboard", "warn"); }
+    } else if (act === "info") {
+      _mcOpenMsgInfo(m);
+    } else if (act === "pin") {
+      const { error } = await sb.rpc("dispatch_pin_message", { p_message_id: m.id, p_on: !pinned })
+        .then((r) => r, (err) => ({ error: err }));
+      if (error) {
+        toast(_mcRpcMissing(error) ? "Pinning unlocks once migration 0507 is applied" : ("Couldn't pin: " + (error.message || "")), "warn");
+        return;
+      }
+      toast(pinned ? "Unpinned" : "Pinned to the top of this conversation", "ok");
+      refreshDriverChatThread(false);
+    } else if (act === "fwd") {
+      _mcOpenForwardModal(m);
+    } else if (act === "translate") {
+      _mcTranslateMessage(m);
+    } else if (act === "task") {
+      _mcOpenTaskFromMessage(m);
+    } else if (act === "coach") {
+      _mcOpenCoachingFromMessage(m, false);
+    } else if (act === "record") {
+      _mcOpenCoachingFromMessage(m, true);
+    }
+  });
+}
+
+// Message info (#17): timestamps + delivery state + priority/ack.
+function _mcOpenMsgInfo(m) {
+  _mcEnsureExtrasCss();
+  document.getElementById("rr-mc-info-modal")?.remove();
+  const t = new Date(m.created_at).getTime();
+  const { peerReadAt = 0, peerDeliveredAt = 0 } = _mcLastReadState || {};
+  const isMine = m.sender_kind === "dispatch";
+  let state = "—";
+  if (isMine) {
+    state = (peerReadAt >= t) ? `Read` : (peerDeliveredAt >= t) ? "Delivered — device received it, not opened yet" : "Sent";
+  } else {
+    state = "Received";
+  }
+  const row = (k, v) => v ? `<div style="display:flex;justify-content:space-between;gap:14px;padding:5px 0;border-bottom:1px solid var(--border);font-size:var(--fs-sm)"><span style="color:var(--text-subtle)">${k}</span><span style="color:var(--text);text-align:right">${v}</span></div>` : "";
+  const ov = document.createElement("div");
+  ov.className = "rr-mc-modal";
+  ov.id = "rr-mc-info-modal";
+  ov.innerHTML = `
+    <div class="rr-mc-modal-back"></div>
+    <div class="rr-mc-modal-card" role="dialog" aria-modal="true" aria-label="Message info" style="width:min(400px,94vw)">
+      <div class="rr-mc-modal-head">Message info<button type="button" class="rr-mc-modal-x" aria-label="Close">×</button></div>
+      <div class="rr-mc-modal-body">
+        ${m.body ? `<div style="font-size:var(--fs-sm);color:var(--text);white-space:pre-wrap;border:1px solid var(--border);border-radius:var(--r-md);padding:8px 10px;margin-bottom:10px;max-height:120px;overflow-y:auto">${escapeHtml(m.body)}</div>` : ""}
+        ${row("Sent", escapeHtml(new Date(m.created_at).toLocaleString()))}
+        ${row("From", isMine ? (m.is_auto ? "RouteReady (automated)" : "Dispatch") : "Driver")}
+        ${row("Status", escapeHtml(state))}
+        ${row("Priority", m.priority && m.priority !== "normal" ? escapeHtml(m.priority.charAt(0).toUpperCase() + m.priority.slice(1)) : "")}
+        ${row("Acknowledgement", m.requires_ack ? (m.acked_at ? "Acknowledged " + escapeHtml(new Date(m.acked_at).toLocaleString()) : "Awaiting acknowledgement") : "")}
+        ${row("Edited", m.edited_at ? escapeHtml(new Date(m.edited_at).toLocaleString()) : "")}
+        ${row("Attachment", m.attachment_name ? escapeHtml(m.attachment_name) + (m.attachment_size_bytes ? " · " + _rrFmtBytes(m.attachment_size_bytes) : "") : "")}
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelector(".rr-mc-modal-back").addEventListener("click", close);
+  ov.querySelector(".rr-mc-modal-x").addEventListener("click", close);
+}
+
+// Forward a message to another driver or a channel (#14).
+function _mcOpenForwardModal(m) {
+  _mcEnsureExtrasCss();
+  document.getElementById("rr-mc-fwd-modal")?.remove();
+  const drivers = (_msgInboxList || []).filter((t) => String(t.driver_id) !== String(_msgInboxSelectedId));
+  const channels = (typeof _msgChannelList !== "undefined" ? _msgChannelList : []).filter((c) => !c.archived_at);
+  const ov = document.createElement("div");
+  ov.className = "rr-mc-modal";
+  ov.id = "rr-mc-fwd-modal";
+  const rowHtml = (kind, id, name, sub) => `
+    <button type="button" class="rr-mc-fwd-row" data-rr-fwd-kind="${kind}" data-rr-fwd-id="${escapeHtml(String(id))}">
+      <span class="rr-mc-fwd-av">${kind === "ch" ? "#" : escapeHtml((name || "?").split(/\s+/).map((p) => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase())}</span>
+      <span class="rr-mc-fwd-name">${escapeHtml(name || "")}</span>
+      ${sub ? `<span class="rr-mc-fwd-sub">${escapeHtml(sub)}</span>` : ""}
+    </button>`;
+  ov.innerHTML = `
+    <div class="rr-mc-modal-back"></div>
+    <div class="rr-mc-modal-card" role="dialog" aria-modal="true" aria-label="Forward message">
+      <div class="rr-mc-modal-head">Forward message<button type="button" class="rr-mc-modal-x" aria-label="Close">×</button></div>
+      <div class="rr-mc-modal-body">
+        <div style="font-size:var(--fs-sm);color:var(--text-subtle);border:1px solid var(--border);border-radius:var(--r-md);padding:8px 10px;margin-bottom:10px;max-height:88px;overflow-y:auto;white-space:pre-wrap">${escapeHtml(m.body || "")}${m.attachment_name ? `${m.body ? "\n" : ""}📎 ${escapeHtml(m.attachment_name)}` : ""}</div>
+        <input type="text" data-rr-fwd-q placeholder="Search drivers and rooms…" aria-label="Search forward targets" style="margin-bottom:10px">
+        <div data-rr-fwd-list style="max-height:300px;overflow-y:auto"></div>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelector(".rr-mc-modal-back").addEventListener("click", close);
+  ov.querySelector(".rr-mc-modal-x").addEventListener("click", close);
+  const listEl = ov.querySelector("[data-rr-fwd-list]");
+  const paint = (q) => {
+    const s = (q || "").toLowerCase();
+    const dRows = drivers.filter((d) => !s || (d.name || "").toLowerCase().includes(s))
+      .slice(0, 30).map((d) => rowHtml("dm", d.driver_id, d.name, d.station_code));
+    const cRows = channels.filter((c) => !s || (c.name || "").toLowerCase().includes(s))
+      .slice(0, 15).map((c) => rowHtml("ch", c.id, c.name, `${c.member_count || 0} members`));
+    listEl.innerHTML =
+      (dRows.length ? `<div class="rr-mc-emoji-head" style="padding:2px 0 5px">Drivers</div>` + dRows.join("") : "")
+      + (cRows.length ? `<div class="rr-mc-emoji-head" style="padding:8px 0 5px">Rooms</div>` + cRows.join("") : "")
+      || `<div class="u-subtle" style="font-size:var(--fs-sm)">No matches.</div>`;
+  };
+  paint("");
+  ov.querySelector("[data-rr-fwd-q]").addEventListener("input", (ev) => paint(ev.target.value));
+  listEl.addEventListener("click", async (ev) => {
+    const btn = ev.target.closest("[data-rr-fwd-id]");
+    if (!btn) return;
+    btn.disabled = true;
+    const kind = btn.getAttribute("data-rr-fwd-kind");
+    const targetId = btn.getAttribute("data-rr-fwd-id");
+    const ok = await _mcForwardMessage(m, kind, targetId);
+    if (ok) { close(); toast("Forwarded", "ok"); }
+    else btn.disabled = false;
+  });
+}
+async function _mcForwardMessage(m, kind, targetId) {
+  let attachment = null;
+  if (m.attachment_path) {
+    // Copy the blob to a path owned by the destination conversation, so
+    // the original can be deleted without breaking the forward.
+    const dspId = window.RR?.dsp?.id || "unknown";
+    const base = String(m.attachment_path).split("/").pop() || "file";
+    const toPath = kind === "ch"
+      ? `${dspId}/channels/${targetId}/${Date.now()}-fwd-${base}`
+      : `${dspId}/${targetId}/${Date.now()}-fwd-${base}`;
+    let copied = false;
+    try {
+      const { error } = await sb.storage.from("driver-chat-attachments").copy(m.attachment_path, toPath);
+      copied = !error;
+    } catch { copied = false; }
+    if (!copied) {
+      // Fallback: download + re-upload (older storage-js or cross-checks).
+      try {
+        const { data: blob, error: dErr } = await sb.storage.from("driver-chat-attachments").download(m.attachment_path);
+        if (dErr || !blob) throw dErr || new Error("download failed");
+        const { error: uErr } = await sb.storage.from("driver-chat-attachments").upload(toPath, blob, { contentType: m.attachment_mime || undefined, upsert: false });
+        if (uErr) throw uErr;
+        copied = true;
+      } catch (err) {
+        toast("Couldn't copy the attachment: " + ((err && err.message) || ""), "warn");
+        return false;
+      }
+    }
+    attachment = { path: toPath, mime: m.attachment_mime, name: m.attachment_name, size: m.attachment_size_bytes };
+  }
+  const res = kind === "ch"
+    ? await sb.rpc("dispatch_channel_post", {
+        p_channel_id: targetId, p_body: m.body || null,
+        p_attachment_path: attachment?.path || null, p_attachment_mime: attachment?.mime || null,
+        p_attachment_name: attachment?.name || null, p_attachment_size_bytes: attachment?.size || null,
+      })
+    : await sb.rpc("dispatch_chat_send", {
+        p_driver_id: targetId, p_body: m.body || null,
+        p_attachment_path: attachment?.path || null, p_attachment_mime: attachment?.mime || null,
+        p_attachment_name: attachment?.name || null, p_attachment_size_bytes: attachment?.size || null,
+        p_priority: "normal", p_requires_ack: false,
+      });
+  if (res.error) {
+    if (attachment?.path) { try { await sb.storage.from("driver-chat-attachments").remove([attachment.path]); } catch {} }
+    toast("Couldn't forward: " + res.error.message, "warn");
+    return false;
+  }
+  refreshDriverChatList(false);
+  return true;
+}
+
+// Pinned-messages strip (#18) — sticky at the top of the thread.
+function _mcPinsBarHtml() {
+  if (!_mcPins || !_mcPins.length) return "";
+  const chips = _mcPins.slice(0, 8).map((p) => {
+    const txt = p.body || (p.attachment_name ? "📎 " + p.attachment_name : "Message");
+    return `<button type="button" class="rr-mc-pin-chip" data-rr-pin-jump="${escapeHtml(p.message_id)}" title="${escapeHtml(String(txt).slice(0, 200))}">📌 ${escapeHtml(String(txt).slice(0, 42))}${String(txt).length > 42 ? "…" : ""}</button>`;
+  }).join("");
+  return `<div class="rr-mc-pinsbar" aria-label="Pinned messages">${chips}</div>`;
+}
+
+// ── "Shared in this chat" tab in the details rail (#22) ─────────────────
+// Media / files / links pulled from the loaded thread window (up to the
+// current page size). Signing reuses the [data-rr-mc-attach] resolver.
+function _mcPaintSharedTab(tab) {
+  const host = document.getElementById("rr-dd-shared");
+  if (!host) return;
+  const msgs = (_mcLastMsgs || []).filter((m) => !m.deleted_at);
+  const note = `<div class="u-subtle" style="font-size:10px;margin-top:7px">From the loaded portion of this conversation${msgs.length >= _mcThreadLimit ? " — use Load earlier messages to reach older items" : ""}.</div>`;
+  if (tab === "media") {
+    const media = msgs.filter((m) => (m.attachment_mime || "").startsWith("image/")).reverse();
+    host.innerHTML = media.length
+      ? `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px">${media.slice(0, 30).map((m) =>
+          `<img data-rr-mc-attach="${escapeHtml(m.attachment_path)}" data-rr-mc-lightbox="${escapeHtml(m.id)}" alt="${escapeHtml(m.attachment_name || "Image")}" loading="lazy" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:var(--r-sm);cursor:zoom-in;background:var(--surface-hover,#f3f4f6)">`).join("")}</div>${note}`
+      : `<div class="u-subtle" style="font-size:var(--fs-sm)">No photos shared yet.</div>`;
+    setTimeout(() => _rrMcSignAttachments(), 0);
+  } else if (tab === "files") {
+    const files = msgs.filter((m) => m.attachment_path && !(m.attachment_mime || "").startsWith("image/") && !(m.attachment_mime || "").startsWith("audio/")).reverse();
+    host.innerHTML = files.length
+      ? files.slice(0, 30).map((m) => {
+          const kind = _rrMcFileKind(m.attachment_name, m.attachment_mime);
+          return `<a data-rr-mc-attach="${escapeHtml(m.attachment_path)}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-md);margin-bottom:5px;text-decoration:none">
+            <span style="font-size:9px;font-weight:800;background:var(--accent-soft);color:var(--accent-text);border-radius:4px;padding:2px 5px">${escapeHtml(kind.badge)}</span>
+            <span style="flex:1;min-width:0;font-size:var(--fs-xs);font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(m.attachment_name || "File")}</span>
+            <span class="u-subtle" style="font-size:10px">${_rrFmtBytes(m.attachment_size_bytes)}</span>
+          </a>`;
+        }).join("") + note
+      : `<div class="u-subtle" style="font-size:var(--fs-sm)">No files shared yet.</div>`;
+    setTimeout(() => _rrMcSignAttachments(), 0);
+  } else {
+    const links = [];
+    msgs.forEach((m) => {
+      (String(m.body || "").match(/https?:\/\/[^\s<>"']+/g) || []).forEach((u) => links.push({ url: u, at: m.created_at, id: m.id }));
+    });
+    links.reverse();
+    host.innerHTML = links.length
+      ? links.slice(0, 30).map((l) => {
+          let hostLbl = l.url;
+          try { hostLbl = new URL(l.url).hostname; } catch {}
+          return `<a href="${escapeHtml(l.url)}" target="_blank" rel="noopener" style="display:block;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-md);margin-bottom:5px;text-decoration:none">
+            <span style="display:block;font-size:var(--fs-xs);font-weight:600;color:var(--accent-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(l.url)}</span>
+            <span class="u-subtle" style="font-size:10px">${escapeHtml(hostLbl)} · ${escapeHtml(_fmtMsgRelative(l.at))}</span>
+          </a>`;
+        }).join("") + note
+      : `<div class="u-subtle" style="font-size:var(--fs-sm)">No links shared yet.</div>`;
+  }
+}
+
+// ── Link unfurls (#24) ───────────────────────────────────────────────────
+// A small preview card under the first URL of recent bubbles. Metadata
+// comes from the link-preview edge function (CORS blocks fetching pages
+// straight from the browser); results are cached per URL for a week.
+const _mcLinkPrevMem = new Map();
+function _mcLinkPrevCacheGet(url) {
+  if (_mcLinkPrevMem.has(url)) return _mcLinkPrevMem.get(url);
+  try {
+    const all = JSON.parse(localStorage.getItem("rr_linkprev_cache") || "{}");
+    const hit = all[url];
+    if (hit && (Date.now() - hit.at) < 7 * 86400000) { _mcLinkPrevMem.set(url, hit.v); return hit.v; }
+  } catch {}
+  return undefined;
+}
+function _mcLinkPrevCachePut(url, v) {
+  _mcLinkPrevMem.set(url, v);
+  try {
+    const all = JSON.parse(localStorage.getItem("rr_linkprev_cache") || "{}");
+    all[url] = { v, at: Date.now() };
+    const keys = Object.keys(all);
+    if (keys.length > 120) keys.sort((a, b) => all[a].at - all[b].at).slice(0, keys.length - 120).forEach((k) => delete all[k]);
+    localStorage.setItem("rr_linkprev_cache", JSON.stringify(all));
+  } catch {}
+}
+let _mcLinkPrevDisabled = false; // edge function absent → stop asking
+async function _mcHydrateLinkCards() {
+  if (_mcLinkPrevDisabled) return;
+  const thread = document.getElementById("rr-mc-thread");
+  if (!thread) return;
+  const bubbles = Array.from(thread.querySelectorAll(".rr-mc-bubble:not([data-rr-lc-done])")).slice(-30);
+  for (const bubble of bubbles) {
+    bubble.setAttribute("data-rr-lc-done", "1");
+    const a = bubble.querySelector("div > a[href^='http']");
+    if (!a || bubble.querySelector(".rr-mc-linkcard")) continue;
+    const url = a.href;
+    let meta = _mcLinkPrevCacheGet(url);
+    if (meta === undefined) {
+      try {
+        const { data, error } = await sb.functions.invoke("link-preview", { body: { url } });
+        if (error) {
+          // Function not deployed / blocked — stop trying this session.
+          _mcLinkPrevDisabled = true;
+          return;
+        }
+        meta = (data && data.title) ? { title: data.title, desc: data.description || "", host: data.host || "" } : null;
+        _mcLinkPrevCachePut(url, meta);
+      } catch { _mcLinkPrevDisabled = true; return; }
+    }
+    if (!meta || !meta.title) continue;
+    if (!bubble.isConnected || bubble.querySelector(".rr-mc-linkcard")) continue;
+    const card = document.createElement("a");
+    card.className = "rr-mc-linkcard";
+    card.href = url;
+    card.target = "_blank";
+    card.rel = "noopener";
+    card.innerHTML = `<span class="rr-lc-title">${escapeHtml(meta.title)}</span>
+      ${meta.desc ? `<span class="rr-lc-desc">${escapeHtml(meta.desc)}</span>` : ""}
+      <span class="rr-lc-host">${escapeHtml(meta.host || (() => { try { return new URL(url).hostname; } catch { return ""; } })())}</span>`;
+    a.closest("div")?.insertAdjacentElement("afterend", card);
+  }
+}
+
+// Image lightbox with gallery arrows (#21).
+function _mcOpenLightbox(imgEl) {
+  _mcEnsureExtrasCss();
+  const thread = document.getElementById("rr-mc-thread") || document.getElementById("rr-cc-thread");
+  let imgs = thread ? Array.from(thread.querySelectorAll("img[data-rr-mc-lightbox]")).filter((i) => i.src) : [];
+  // Opened from outside the thread (e.g. the details-rail Shared tab) —
+  // gallery over that container instead.
+  if (!imgs.includes(imgEl)) {
+    const host = imgEl.closest("#rr-dd-shared");
+    imgs = host ? Array.from(host.querySelectorAll("img[data-rr-mc-lightbox]")).filter((i) => i.src) : [imgEl];
+    if (!imgs.includes(imgEl)) imgs = [imgEl];
+  }
+  let idx = Math.max(0, imgs.indexOf(imgEl));
+  document.getElementById("rr-mc-lightbox")?.remove();
+  const ov = document.createElement("div");
+  ov.id = "rr-mc-lightbox";
+  ov.className = "rr-mc-lightbox";
+  ov.innerHTML = `
+    <button type="button" class="rr-lb-x" aria-label="Close">×</button>
+    <button type="button" class="rr-lb-nav rr-lb-prev" aria-label="Previous image">‹</button>
+    <img alt="">
+    <button type="button" class="rr-lb-nav rr-lb-next" aria-label="Next image">›</button>
+    <div class="rr-lb-meta"><span class="rr-lb-count"></span><a class="rr-lb-dl" target="_blank" rel="noopener">Open original</a></div>`;
+  document.body.appendChild(ov);
+  const img = ov.querySelector("img");
+  const paint = () => {
+    const cur = imgs[idx];
+    img.src = cur.src;
+    img.alt = cur.alt || "";
+    ov.querySelector(".rr-lb-count").textContent = imgs.length > 1 ? `${idx + 1} of ${imgs.length}` : "";
+    ov.querySelector(".rr-lb-dl").href = cur.src;
+    // Bubbles carry 480px thumbnails (#78) — swap in the full-resolution
+    // signed URL once it resolves.
+    const fullPath = cur.getAttribute("data-rr-mc-attach");
+    if (fullPath) {
+      sb.storage.from("driver-chat-attachments").createSignedUrl(fullPath, 3600).then(({ data }) => {
+        if (data?.signedUrl && imgs[idx] === cur && ov.isConnected) {
+          img.src = data.signedUrl;
+          ov.querySelector(".rr-lb-dl").href = data.signedUrl;
+        }
+      }, () => {});
+    }
+    ov.querySelector(".rr-lb-prev").style.visibility = imgs.length > 1 ? "" : "hidden";
+    ov.querySelector(".rr-lb-next").style.visibility = imgs.length > 1 ? "" : "hidden";
+  };
+  const close = () => { ov.remove(); document.removeEventListener("keydown", onKey); };
+  const step = (d) => { idx = (idx + d + imgs.length) % imgs.length; paint(); };
+  const onKey = (ev) => {
+    if (ev.key === "Escape") close();
+    else if (ev.key === "ArrowLeft") step(-1);
+    else if (ev.key === "ArrowRight") step(1);
+  };
+  ov.addEventListener("click", (ev) => { if (ev.target === ov || ev.target.classList.contains("rr-lb-x")) close(); });
+  ov.querySelector(".rr-lb-prev").addEventListener("click", () => step(-1));
+  ov.querySelector(".rr-lb-next").addEventListener("click", () => step(1));
+  document.addEventListener("keydown", onKey);
+  paint();
+}
+
+// Deep links (#16): #msg-driver-<driverId>-<messageId> opens Messages at
+// that bubble. Runs on load + every hash change.
+function _mcHandleMsgHash() {
+  const m = (location.hash || "").match(/^#msg-driver-([0-9a-f-]{36})-([0-9a-f-]{36})$/i);
+  if (!m) return;
+  history.replaceState(null, "", location.pathname + location.search); // consume
+  const [, driverId, msgId] = m;
+  try { if (typeof window.goto === "function") window.goto("messages"); } catch {}
+  setTimeout(() => {
+    try { openDriverChatThread(driverId, { id: msgId }); } catch {}
+  }, 350);
+}
+window.addEventListener("hashchange", _mcHandleMsgHash);
+setTimeout(_mcHandleMsgHash, 1500);
+
+// ─── In-thread search (#26) ──────────────────────────────────────────────
+// A find-in-conversation bar over the open thread: searches the loaded
+// message window (operators from msg-core work here too), steps through
+// hits with highlight + flash, shows "n of m".
+let _mcThreadSearch = null; // { hits: [ids], idx } while the bar is open
+function _mcCloseThreadSearch() {
+  document.getElementById("rr-mc-threadsearch")?.remove();
+  document.querySelectorAll(".rr-mc-bubble.search-hit").forEach((b) => b.classList.remove("search-hit"));
+  _mcThreadSearch = null;
+}
+function _mcThreadSearchGo(delta) {
+  if (!_mcThreadSearch || !_mcThreadSearch.hits.length) return;
+  const n = _mcThreadSearch.hits.length;
+  _mcThreadSearch.idx = ((_mcThreadSearch.idx + delta) % n + n) % n;
+  const id = _mcThreadSearch.hits[_mcThreadSearch.idx];
+  const sel = (window.CSS && CSS.escape) ? CSS.escape(id) : id;
+  const bubble = document.querySelector(`#rr-mc-thread [data-rr-mc-msg="${sel}"]`);
+  const countEl = document.querySelector("#rr-mc-threadsearch [data-rr-ts-count]");
+  if (countEl) countEl.textContent = `${_mcThreadSearch.idx + 1} of ${n}`;
+  if (bubble) {
+    const thread = document.getElementById("rr-mc-thread");
+    if (thread) thread.dataset.rrAnchor = "0";
+    _rrMcFlashBubble(bubble);
+  }
+}
+function _mcRunThreadSearch(q) {
+  document.querySelectorAll(".rr-mc-bubble.search-hit").forEach((b) => b.classList.remove("search-hit"));
+  const countEl = document.querySelector("#rr-mc-threadsearch [data-rr-ts-count]");
+  if (!q || q.length < 2) { _mcThreadSearch = { hits: [], idx: -1 }; if (countEl) countEl.textContent = ""; return; }
+  const ops = _mcParseSearch(q);
+  const hits = (_mcLastMsgs || []).filter((m) => !m.deleted_at && _mcMsgMatchesOps(m, ops)).map((m) => m.id);
+  _mcThreadSearch = { hits, idx: -1 };
+  hits.forEach((id) => {
+    const sel = (window.CSS && CSS.escape) ? CSS.escape(id) : id;
+    document.querySelector(`#rr-mc-thread [data-rr-mc-msg="${sel}"]`)?.classList.add("search-hit");
+  });
+  if (countEl) {
+    countEl.textContent = hits.length
+      ? `${hits.length} hit${hits.length === 1 ? "" : "s"}${(_mcLastMsgs || []).length >= _mcThreadLimit ? " in loaded history" : ""}`
+      : "No matches in loaded history";
+  }
+  if (hits.length) _mcThreadSearchGo(1);
+}
+document.addEventListener("click", (e) => {
+  const tsBtn = e.target.closest("[data-rr-mc-search-toggle]");
+  if (!tsBtn) return;
+  e.preventDefault();
+  if (document.getElementById("rr-mc-threadsearch")) { _mcCloseThreadSearch(); return; }
+  _mcEnsureExtrasCss();
+  const shell = document.querySelector(".rr-mc-shell");
+  if (!shell) return;
+  const bar = document.createElement("div");
+  bar.id = "rr-mc-threadsearch";
+  bar.className = "rr-mc-threadsearch";
+  bar.innerHTML = `
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input type="search" placeholder="Find in conversation… (operators work: from:driver has:image)" aria-label="Find in conversation">
+    <span class="u-subtle" data-rr-ts-count style="font-size:var(--fs-xs);white-space:nowrap"></span>
+    <button type="button" data-rr-ts-prev title="Previous match" aria-label="Previous match">↑</button>
+    <button type="button" data-rr-ts-next title="Next match" aria-label="Next match">↓</button>
+    <button type="button" data-rr-ts-x title="Close" aria-label="Close search">×</button>`;
+  shell.appendChild(bar);
+  const input = bar.querySelector("input");
+  let t = null;
+  input.addEventListener("input", () => { clearTimeout(t); t = setTimeout(() => _mcRunThreadSearch(input.value.trim()), 200); });
+  input.addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter") { ev.preventDefault(); _mcThreadSearchGo(ev.shiftKey ? -1 : 1); }
+    if (ev.key === "Escape") { ev.preventDefault(); _mcCloseThreadSearch(); }
+  });
+  bar.querySelector("[data-rr-ts-prev]").addEventListener("click", () => _mcThreadSearchGo(-1));
+  bar.querySelector("[data-rr-ts-next]").addEventListener("click", () => _mcThreadSearchGo(1));
+  bar.querySelector("[data-rr-ts-x]").addEventListener("click", _mcCloseThreadSearch);
+  input.focus();
+});
+
+// ─── Calls & voice (Batch 6 · #55–61) ────────────────────────────────────
+
+// System chip for a call event in the DM timeline (#55/#56).
+function _mcCallChipHtml(c) {
+  const t = new Date(c.started_at);
+  const time = t.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  const mediaLbl = c.media === "audio" ? "Voice call" : "Video call";
+  const missed = ["missed", "declined", "cancelled"].includes(c.status);
+  let label;
+  if (missed) {
+    label = c.direction === "outgoing"
+      ? `${mediaLbl} — no answer`
+      : `Missed ${mediaLbl.toLowerCase()}`;
+  } else {
+    let dur = "";
+    if (c.ended_at) {
+      const s = Math.max(0, Math.round((new Date(c.ended_at) - t) / 1000));
+      dur = ` · ${Math.floor(s / 60)}m ${s % 60}s`;
+    }
+    label = `${mediaLbl}${dur}`;
+  }
+  return `<div class="rr-mc-callchip${missed ? " missed" : ""}" data-rr-anchor-skip>
+      <span class="rr-mc-callchip-ic">${c.media === "audio" ? "📞" : "📹"}</span>
+      <span>${escapeHtml(label)} · ${escapeHtml(time)}</span>
+      ${missed ? `<button type="button" data-rr-callback="${escapeHtml(c.media || "video")}">Call back</button>` : ""}
+    </div>`;
+}
+document.addEventListener("click", (e) => {
+  const cb = e.target.closest("[data-rr-callback]");
+  if (!cb) return;
+  const id = _msgInboxSelectedId;
+  if (!id || id === "__support__") return;
+  const meta = (_msgInboxList || []).find((t) => String(t.driver_id) === String(id)) || {};
+  rrPlaceCall({ kind: "driver", id, name: meta.name || "Driver" }, cb.getAttribute("data-rr-callback"));
+});
+
+// Watch a live call window (#56 outcome note, #59 in-call quick messages,
+// #61 operator-side transcript). Polls the popup for closure; while open,
+// a floating mini-composer sends DMs to the driver without leaving the
+// call.
+let _mcCallWatch = null;
+function _mcCallSessionWatch(win, peer, media) {
+  if (!win || !peer || peer.kind !== "driver") return;
+  _mcEnsureExtrasCss();
+  if (_mcCallWatch) { try { _mcCallWatch.stop(); } catch {} }
+  const startedAt = Date.now();
+  // Operator-side transcript, best-effort (#61). May be unavailable while
+  // another window holds the mic — fails silently.
+  let srText = "";
+  let sr = null;
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (SR) {
+    try {
+      sr = new SR();
+      sr.continuous = true;
+      sr.interimResults = false;
+      sr.lang = navigator.language || "en-US";
+      sr.onresult = (ev) => {
+        for (let i = ev.resultIndex; i < ev.results.length; i++) {
+          if (ev.results[i].isFinal) srText += (srText ? " " : "") + ev.results[i][0].transcript.trim();
+        }
+      };
+      sr.onerror = () => {};
+      sr.start();
+    } catch { sr = null; }
+  }
+  // Floating in-call quick-message widget (#59).
+  const widget = document.createElement("div");
+  widget.id = "rr-mc-incall";
+  widget.className = "rr-mc-incall";
+  widget.innerHTML = `
+    <div class="rr-mc-incall-head">${media === "audio" ? "📞" : "📹"} On a call with ${escapeHtml(peer.name || "driver")}</div>
+    <form class="rr-mc-incall-form">
+      <input type="text" maxlength="500" placeholder="Send a quick message…" aria-label="Message during call">
+      <button type="submit" aria-label="Send">➤</button>
+    </form>`;
+  document.body.appendChild(widget);
+  widget.querySelector("form").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const input = widget.querySelector("input");
+    const body = input.value.trim();
+    if (!body) return;
+    input.value = "";
+    const { error } = await sb.rpc("dispatch_chat_send", { p_driver_id: peer.id, p_body: _mcApplyShortcodes(body), p_priority: "normal", p_requires_ack: false });
+    if (error) { toast("Couldn't send: " + error.message, "warn"); input.value = body; }
+    else if (_msgInboxSelectedId === peer.id) refreshDriverChatThread(false);
+  });
+  const timer = setInterval(() => {
+    let closed = false;
+    try { closed = !!win.closed; } catch { closed = true; }
+    if (!closed) return;
+    stop();
+    const secs = Math.round((Date.now() - startedAt) / 1000);
+    const durLbl = `${Math.floor(secs / 60)}m ${secs % 60}s`;
+    // Refresh the thread so the call chip appears, then offer the note.
+    if (_msgInboxSelectedId === peer.id) refreshDriverChatThread(false);
+    toastAction(`Call with ${escapeHtml(peer.name || "driver")} ended (${durLbl}) — add a note to the thread?`, {
+      label: "Add note",
+      onConfirm: () => _mcOpenCallNoteModal(peer, durLbl, srText),
+    });
+  }, 2000);
+  const stop = () => {
+    clearInterval(timer);
+    widget.remove();
+    try { sr && sr.stop(); } catch {}
+    _mcCallWatch = null;
+  };
+  _mcCallWatch = { stop };
+}
+function _mcOpenCallNoteModal(peer, durLbl, transcript) {
+  _mcEnsureExtrasCss();
+  document.getElementById("rr-mc-callnote")?.remove();
+  const ov = document.createElement("div");
+  ov.className = "rr-mc-modal";
+  ov.id = "rr-mc-callnote";
+  ov.innerHTML = `
+    <div class="rr-mc-modal-back"></div>
+    <div class="rr-mc-modal-card" role="dialog" aria-modal="true" aria-label="Call note">
+      <div class="rr-mc-modal-head">Call note — ${escapeHtml(peer.name || "driver")} (${escapeHtml(durLbl)})<button type="button" class="rr-mc-modal-x" aria-label="Close">×</button></div>
+      <div class="rr-mc-modal-body">
+        <label class="rr-mc-f"><span>Note (lands in the conversation)</span><textarea data-rr-cn-text maxlength="1500">${escapeHtml(transcript ? transcript.slice(0, 1200) : "")}</textarea></label>
+        ${transcript ? `<div class="u-subtle" style="font-size:10px">Pre-filled from your side of the call (best-effort dictation) — edit before saving.</div>` : ""}
+      </div>
+      <div class="rr-mc-modal-foot">
+        <button type="button" class="btn btn-sm" data-rr-cn-cancel>Discard</button>
+        <button type="button" class="btn btn-sm btn-primary" data-rr-cn-save>Save to thread</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelector(".rr-mc-modal-back").addEventListener("click", close);
+  ov.querySelector(".rr-mc-modal-x").addEventListener("click", close);
+  ov.querySelector("[data-rr-cn-cancel]").addEventListener("click", close);
+  ov.querySelector("[data-rr-cn-save]").addEventListener("click", async () => {
+    const note = ov.querySelector("[data-rr-cn-text]").value.trim();
+    if (!note) { close(); return; }
+    const { error } = await sb.rpc("dispatch_chat_send", {
+      p_driver_id: peer.id,
+      p_body: `📞 Call note (${durLbl}): ${note}`.slice(0, 2000),
+      p_priority: "normal", p_requires_ack: false,
+    });
+    if (error) { toast("Couldn't save: " + error.message, "warn"); return; }
+    close();
+    toast("Call note saved to the thread", "ok");
+    if (_msgInboxSelectedId === peer.id) refreshDriverChatThread(false);
+  });
+}
+
+// ─── Admin, compliance & integrations (Batch 10 · #92–100) ───────────────
+
+// Role gate (#96): the admin surfaces (retention, audit, webhooks, legal
+// hold) are for owner/ops; everyday messaging stays open to all staff.
+function _mcIsAdminRole() {
+  const r = window.RR?.profile?.role || (typeof profile !== "undefined" && profile?.role) || "";
+  return ["owner", "ops", "admin", "platform_admin"].includes(r);
+}
+
+// Transcript export (#92): CSV download + printable view from a full
+// (1000-row) fetch of the open thread.
+async function _mcExportTranscript(mode) {
+  const driverId = _msgInboxSelectedId;
+  if (!driverId || driverId === "__support__") { toast("Open a driver conversation first", "info"); return; }
+  const meta = (_msgInboxList || []).find((t) => String(t.driver_id) === String(driverId)) || {};
+  const { data, error } = await sb.rpc("dispatch_chat_thread", { p_driver_id: driverId, p_limit: 1000 });
+  if (error) { toast("Couldn't load the thread: " + error.message, "warn"); return; }
+  const msgs = (data?.messages || []).filter((m) => !m.deleted_at);
+  const name = meta.name || data?.driver?.name || "driver";
+  if (mode === "csv") {
+    const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const rows = [["time", "sender", "message", "attachment", "priority", "acknowledged_at"]]
+      .concat(msgs.map((m) => [
+        new Date(m.created_at).toISOString(),
+        m.sender_kind === "dispatch" ? "Dispatch" : name,
+        m.body || "", m.attachment_name || "", m.priority || "", m.acked_at || "",
+      ]));
+    const blob = new Blob([rows.map((r) => r.map(esc).join(",")).join("\r\n")], { type: "text/csv" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `transcript-${String(name).replace(/\W+/g, "-").toLowerCase()}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  } else {
+    // Printable view → the browser's PDF path.
+    const w = window.open("", "_blank");
+    if (!w) { toast("Pop-up blocked — allow pop-ups to print", "warn"); return; }
+    const line = (m) => `<div style="margin-bottom:9px"><b>${m.sender_kind === "dispatch" ? "Dispatch" : escapeHtml(name)}</b>
+      <span style="color:#666;font-size:11px">${escapeHtml(new Date(m.created_at).toLocaleString())}${m.priority && m.priority !== "normal" ? " · " + escapeHtml(m.priority.toUpperCase()) : ""}</span>
+      <div style="white-space:pre-wrap">${escapeHtml(m.body || "")}${m.attachment_name ? `<i>[attachment: ${escapeHtml(m.attachment_name)}]</i>` : ""}</div>
+      ${m.requires_ack ? `<div style="font-size:11px;color:#666">${m.acked_at ? "Acknowledged " + escapeHtml(new Date(m.acked_at).toLocaleString()) : "Acknowledgement pending"}</div>` : ""}</div>`;
+    w.document.write(`<!doctype html><title>Transcript — ${escapeHtml(name)}</title>
+      <body style="font:13px/1.5 system-ui,sans-serif;max-width:720px;margin:24px auto;padding:0 16px">
+      <h2 style="font-size:17px">Message transcript — ${escapeHtml(name)}</h2>
+      <div style="color:#666;font-size:12px;margin-bottom:16px">Exported ${escapeHtml(new Date().toLocaleString())} · ${msgs.length} messages (up to the last 1000)</div>
+      ${msgs.map(line).join("")}
+      <script>window.print()<\/script></body>`);
+    w.document.close();
+  }
+}
+function _mcOpenEmailTranscript() {
+  const driverId = _msgInboxSelectedId;
+  if (!driverId || driverId === "__support__") return;
+  _mcEnsureExtrasCss();
+  document.getElementById("rr-mc-emailtx")?.remove();
+  const ov = document.createElement("div");
+  ov.className = "rr-mc-modal";
+  ov.id = "rr-mc-emailtx";
+  ov.innerHTML = `
+    <div class="rr-mc-modal-back"></div>
+    <div class="rr-mc-modal-card" role="dialog" aria-modal="true" aria-label="Email transcript" style="width:min(400px,94vw)">
+      <div class="rr-mc-modal-head">Email this transcript<button type="button" class="rr-mc-modal-x" aria-label="Close">×</button></div>
+      <div class="rr-mc-modal-body">
+        <label class="rr-mc-f"><span>Send to</span><input type="email" data-rr-et-to value="${escapeHtml(window.RR?.user?.email || "")}"></label>
+        <div class="u-subtle" style="font-size:10px">Sends the last 500 messages as plain text through the RouteReady mail pipeline.</div>
+      </div>
+      <div class="rr-mc-modal-foot">
+        <button type="button" class="btn btn-sm" data-rr-et-cancel>Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary" data-rr-et-go>Email transcript</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelector(".rr-mc-modal-back").addEventListener("click", close);
+  ov.querySelector(".rr-mc-modal-x").addEventListener("click", close);
+  ov.querySelector("[data-rr-et-cancel]").addEventListener("click", close);
+  ov.querySelector("[data-rr-et-go]").addEventListener("click", async () => {
+    const to = ov.querySelector("[data-rr-et-to]").value.trim();
+    const { error } = await sb.rpc("dispatch_email_transcript", { p_driver_id: driverId, p_to_email: to })
+      .then((r) => r, (e) => ({ error: e || {} }));
+    if (error) {
+      toast(_mcRpcMissing(error) ? "Email transcripts unlock once migration 0511 is applied" : ("Couldn't queue the email: " + (error.message || "")), "warn");
+      return;
+    }
+    toast("Transcript queued to " + to, "ok");
+    close();
+  });
+}
+
+// Admin panel (#93/#94/#99) — retention, audit log, webhook.
+async function _mcOpenAdminPanel() {
+  if (!_mcIsAdminRole()) { toast("Retention, audit and webhooks are owner/ops surfaces", "info"); return; }
+  _mcEnsureExtrasCss();
+  const [{ data: setRow }, { data: hookRow }] = await Promise.all([
+    sb.from("dsp_msg_settings").select("retention_days").maybeSingle().then((r) => r, () => ({ data: null })),
+    sb.from("dsp_msg_webhooks").select("url, active").maybeSingle().then((r) => r, () => ({ data: null })),
+  ]);
+  document.getElementById("rr-mc-admin-modal")?.remove();
+  const ov = document.createElement("div");
+  ov.className = "rr-mc-modal";
+  ov.id = "rr-mc-admin-modal";
+  ov.innerHTML = `
+    <div class="rr-mc-modal-back"></div>
+    <div class="rr-mc-modal-card" role="dialog" aria-modal="true" aria-label="Messages admin">
+      <div class="rr-mc-modal-head">Messages — admin &amp; compliance<button type="button" class="rr-mc-modal-x" aria-label="Close">×</button></div>
+      <div class="rr-mc-modal-body">
+        <div class="rr-mc-emoji-head" style="padding:0 0 6px">Retention (#93)</div>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+          <input type="number" data-rr-ad-ret min="30" max="3650" value="${setRow?.retention_days || ""}" placeholder="off" style="width:90px;border:1px solid var(--border);border-radius:var(--r-md);padding:7px 9px;font:inherit;font-size:var(--fs-sm)">
+          <span class="u-subtle" style="font-size:var(--fs-sm)">days (30–3650, blank = keep forever)</span>
+          <button type="button" class="btn btn-sm" data-rr-ad-runret style="margin-left:auto">Run purge now</button>
+        </div>
+        <div class="u-subtle" style="font-size:10px;margin-bottom:14px">Purges nightly. Legal-hold conversations and pinned messages are never purged; attachment files stay in storage for manual cleanup.</div>
+        <div class="rr-mc-emoji-head" style="padding:0 0 6px">Outbound webhook (#99)</div>
+        <input type="url" data-rr-ad-hook value="${escapeHtml(hookRow?.url || "")}" placeholder="https://example.com/routeready-hook" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:var(--r-md);padding:7px 9px;font:inherit;font-size:var(--fs-sm);margin-bottom:6px">
+        <input type="text" data-rr-ad-secret placeholder="Shared secret (sent as X-RouteReady-Secret)" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:var(--r-md);padding:7px 9px;font:inherit;font-size:var(--fs-sm);margin-bottom:6px">
+        <div class="u-subtle" style="font-size:10px;margin-bottom:14px">POSTs message.created events (ids + a 140-char preview). Clear the URL to remove.</div>
+        <div class="rr-mc-emoji-head" style="padding:0 0 6px">Audit log (#94)</div>
+        <div data-rr-ad-audit style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r-md);padding:8px 10px;font-size:var(--fs-xs)">Loading…</div>
+      </div>
+      <div class="rr-mc-modal-foot">
+        <button type="button" class="btn btn-sm" data-rr-ad-cancel>Close</button>
+        <button type="button" class="btn btn-sm btn-primary" data-rr-ad-save>Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelector(".rr-mc-modal-back").addEventListener("click", close);
+  ov.querySelector(".rr-mc-modal-x").addEventListener("click", close);
+  ov.querySelector("[data-rr-ad-cancel]").addEventListener("click", close);
+  // Audit paint.
+  sb.rpc("dispatch_msg_audit", { p_limit: 100 }).then(({ data, error }) => {
+    const el = ov.querySelector("[data-rr-ad-audit]");
+    if (!el) return;
+    if (error) { el.textContent = _mcRpcMissing(error) ? "The audit log unlocks once migration 0511 is applied." : "Couldn't load."; return; }
+    const evs = data?.events || [];
+    const lbl = { edit: "✏️ Edited", delete: "🗑️ Deleted", urgent: "🚨 Urgent" };
+    el.innerHTML = evs.length ? evs.map((ev) => {
+      const meta = (_msgInboxList || []).find((t) => String(t.driver_id) === String(ev.driver_id)) || {};
+      return `<div style="padding:3px 0;border-bottom:1px solid var(--border)"><b>${lbl[ev.kind] || ev.kind}</b> · ${escapeHtml(meta.name || "driver")} · ${escapeHtml(new Date(ev.at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }))}${ev.actor ? ` · by ${escapeHtml(ev.actor)}` : ""}${ev.detail ? `<div class="u-subtle">${escapeHtml(ev.detail)}</div>` : ""}</div>`;
+    }).join("") : "Nothing sensitive in the last 30 days.";
+  }, () => {});
+  ov.querySelector("[data-rr-ad-runret]").addEventListener("click", async (ev) => {
+    ev.target.disabled = true;
+    const { data, error } = await sb.rpc("dispatch_run_retention").then((r) => r, (e) => ({ error: e || {} }));
+    ev.target.disabled = false;
+    if (error) { toast(_mcRpcMissing(error) ? "Needs migration 0511" : ("Purge failed: " + (error.message || "")), "warn"); return; }
+    toast(`Purge complete — ${data?.purged ?? 0} old message${(data?.purged ?? 0) === 1 ? "" : "s"} removed`, "ok");
+  });
+  ov.querySelector("[data-rr-ad-save]").addEventListener("click", async () => {
+    const retRaw = ov.querySelector("[data-rr-ad-ret]").value.trim();
+    const ret = retRaw ? parseInt(retRaw, 10) : null;
+    const { error: setErr } = await sb.rpc("dispatch_msg_settings_set", {
+      p_retention_days: ret, p_clear_retention: !retRaw,
+    }).then((r) => r, (e) => ({ error: e || {} }));
+    const hookUrl = ov.querySelector("[data-rr-ad-hook]").value.trim();
+    const hookSecret = ov.querySelector("[data-rr-ad-secret]").value.trim();
+    const { error: hookErr } = await sb.rpc("dispatch_msg_webhook_set",
+      hookUrl ? { p_url: hookUrl, p_secret: hookSecret || null, p_active: true } : { p_delete: true }
+    ).then((r) => r, (e) => ({ error: e || {} }));
+    if ((setErr && !_mcRpcMissing(setErr)) || (hookErr && !_mcRpcMissing(hookErr))) {
+      toast("Some settings failed: " + ((setErr || hookErr).message || ""), "warn");
+      return;
+    }
+    if ((setErr && _mcRpcMissing(setErr)) || (hookErr && _mcRpcMissing(hookErr))) {
+      toast("These controls activate once migration 0511 is applied", "info");
+    } else {
+      toast("Admin settings saved", "ok");
+    }
+    close();
+  });
+}
+
+// ── AI assist (#100) via notebook-ai chat actions ──
+async function _mcAiInvoke(action, text) {
+  const { data, error } = await sb.functions.invoke("notebook-ai", { body: { action, text } })
+    .then((r) => r, (e) => ({ error: e || {} }));
+  if (error || !data?.result) throw new Error((error && error.message) || data?.detail || "AI unavailable");
+  return String(data.result).trim();
+}
+function _mcTranscriptTail(n) {
+  const meta = (_msgInboxList || []).find((t) => String(t.driver_id) === String(_msgInboxSelectedId)) || {};
+  return (_mcLastMsgs || []).filter((m) => !m.deleted_at && (m.body || m.attachment_name)).slice(-(n || 14)).map((m) =>
+    `${m.sender_kind === "dispatch" ? "Dispatch" : "Driver"} (${new Date(m.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}): ${m.body || "[" + (m.attachment_name || "attachment") + "]"}`
+  ).join("\n") + (meta.name ? `\n(Driver's name: ${meta.name})` : "");
+}
+async function _mcAiSuggestReplies(ta, anchor) {
+  if (!(_mcLastMsgs || []).length) { toast("Nothing to reply to yet", "info"); return; }
+  toast("Thinking…", "info");
+  let out;
+  try { out = await _mcAiInvoke("chat_suggest_replies", _mcTranscriptTail(14)); }
+  catch (e) { toast("AI assist isn't reachable: " + e.message, "warn"); return; }
+  const options = out.split(/\n+/).map((s) => s.replace(/^[-•\d.\s]+/, "").trim()).filter(Boolean).slice(0, 3);
+  if (!options.length) { toast("No suggestions came back", "warn"); return; }
+  _mcDismissPops();
+  const pop = document.createElement("div");
+  pop.className = "rr-mc-pop rr-mc-suggest";
+  pop.style.maxWidth = "380px";
+  pop.innerHTML = `<div class="rr-mc-emoji-head" style="padding:6px 10px 4px">Suggested replies — click to insert</div>`
+    + options.map((o, i) => `<button type="button" data-rr-ai-s="${i}"><span class="rr-mc-sug-desc" style="white-space:normal">${escapeHtml(o)}</span></button>`).join("");
+  _mcPlacePop(pop, anchor || ta);
+  pop.addEventListener("mousedown", (ev) => {
+    const b = ev.target.closest("[data-rr-ai-s]");
+    if (!b) return;
+    ev.preventDefault();
+    ta.value = options[+b.getAttribute("data-rr-ai-s")];
+    ta.dispatchEvent(new Event("input", { bubbles: true }));
+    ta.focus();
+    _mcDismissPops();
+  });
+}
+async function _mcAiCatchMeUp() {
+  if (!(_mcLastMsgs || []).length) { toast("Nothing to summarize yet", "info"); return; }
+  toast("Summarizing…", "info");
+  let out;
+  try { out = await _mcAiInvoke("chat_summarize", _mcTranscriptTail(60)); }
+  catch (e) { toast("AI assist isn't reachable: " + e.message, "warn"); return; }
+  _mcEnsureExtrasCss();
+  document.getElementById("rr-mc-ai-summary")?.remove();
+  const ov = document.createElement("div");
+  ov.className = "rr-mc-modal";
+  ov.id = "rr-mc-ai-summary";
+  ov.innerHTML = `
+    <div class="rr-mc-modal-back"></div>
+    <div class="rr-mc-modal-card" role="dialog" aria-modal="true" aria-label="Conversation summary">
+      <div class="rr-mc-modal-head">🧾 Catch me up<button type="button" class="rr-mc-modal-x" aria-label="Close">×</button></div>
+      <div class="rr-mc-modal-body" style="font-size:var(--fs-sm);color:var(--text)">${_mdLite(linkifyEscaped(escapeHtml(out).replace(/\n/g, "<br>")))}</div>
+      <div class="rr-mc-modal-foot"><button type="button" class="btn btn-sm btn-primary" data-rr-ai-done>Done</button></div>
+    </div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelector(".rr-mc-modal-back").addEventListener("click", close);
+  ov.querySelector(".rr-mc-modal-x").addEventListener("click", close);
+  ov.querySelector("[data-rr-ai-done]").addEventListener("click", close);
+}
+async function _mcAiToneCheck(ta) {
+  const draft = (ta.value || "").trim();
+  if (!draft) { toast("Type the draft first", "info"); return; }
+  toast("Checking tone…", "info");
+  let out;
+  try { out = await _mcAiInvoke("chat_tone", draft); }
+  catch (e) { toast("AI assist isn't reachable: " + e.message, "warn"); return; }
+  if (/^OK\b/i.test(out)) { toast("Tone reads fine 👍", "ok"); return; }
+  const revised = out.replace(/^REVISE:\s*/i, "").trim();
+  if (!revised) { toast("Tone reads fine 👍", "ok"); return; }
+  const ok = await _rrConfirmDialog({
+    title: "Softer wording suggested",
+    body: revised.slice(0, 400),
+    confirmLabel: "Use this wording",
+  });
+  if (ok) {
+    ta.value = revised;
+    ta.dispatchEvent(new Event("input", { bubbles: true }));
+    ta.focus();
+  }
+}
+
+// ─── Accessibility & UX polish (Batch 9 · #83–91) ────────────────────────
+
+// ARIA live regions (#84): polite for normal traffic, assertive for
+// urgent/keyword alerts. Created once, reused forever.
+function _mcAnnounce(text, assertive) {
+  const id = assertive ? "rr-mc-live-assertive" : "rr-mc-live-polite";
+  let el = document.getElementById(id);
+  if (!el) {
+    el = document.createElement("div");
+    el.id = id;
+    el.setAttribute("aria-live", assertive ? "assertive" : "polite");
+    el.setAttribute("role", assertive ? "alert" : "status");
+    el.style.cssText = "position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%)";
+    document.body.appendChild(el);
+  }
+  el.textContent = "";
+  setTimeout(() => { el.textContent = String(text || ""); }, 30);
+}
+
+// Reduced motion (#88): one switch for every scripted scroll/animation.
+function _mcReducedMotion() {
+  try { return window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { return false; }
+}
+
+// Message text size (#86): s / m / l applied to both thread surfaces.
+function _mcApplyTextSize() {
+  const size = _mcPref("rr_msg_text_size", "m");
+  const px = size === "s" ? "12.5px" : size === "l" ? "16px" : "";
+  document.documentElement.style.setProperty("--rr-mc-msg-fs", px || "");
+  document.querySelectorAll(".rr-mc-thread, .rr-cc-thread").forEach((t) => {
+    t.style.fontSize = px;
+  });
+}
+
+// Time formatting with a 12/24-hour preference (#89); every timestamp
+// gets an exact-datetime tooltip at render time via _mcTimeTitle.
+function _mcFmtTime(d) {
+  const pref = _mcPref("rr_msg_hour12", "auto");
+  const opts = { hour: "numeric", minute: "2-digit" };
+  if (pref === "12") opts.hour12 = true;
+  else if (pref === "24") opts.hour12 = false;
+  return new Date(d).toLocaleTimeString(undefined, opts);
+}
+
+// Keyboard navigation inside Messages (#83): / focuses search, ↑/↓ move
+// through conversations, Enter opens, Esc backs out. Skipped while any
+// input/textarea/modal has focus.
+if (!window.__rrMsgKeysWired) {
+  window.__rrMsgKeysWired = true;
+  document.addEventListener("keydown", (e) => {
+    if (!document.getElementById("view-messages")?.classList.contains("active")) return;
+    const tag = (document.activeElement?.tagName || "").toLowerCase();
+    const typing = tag === "input" || tag === "textarea" || tag === "select" || document.activeElement?.isContentEditable;
+    if (document.querySelector(".rr-mc-modal")) return;
+    if (e.key === "/" && !typing) {
+      e.preventDefault();
+      document.getElementById("rr-msg-search")?.focus();
+      return;
+    }
+    if (typing) return;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      const rows = Array.from(document.querySelectorAll("#rr-msg-driver-list .msg-item"));
+      if (!rows.length) return;
+      e.preventDefault();
+      const curIdx = rows.findIndex((r) => r.classList.contains("active"));
+      const next = rows[Math.min(rows.length - 1, Math.max(0, curIdx + (e.key === "ArrowDown" ? 1 : -1)))];
+      if (!next || next === rows[curIdx]) return;
+      next.scrollIntoView({ block: "nearest" });
+      next.click();
+      _mcAnnounce(`Opened conversation with ${next.querySelector(".msg-item-name")?.textContent || "contact"}`);
+    } else if (e.key === "Enter") {
+      document.getElementById("rr-mc-input")?.focus();
+    }
+  });
+}
+
+// Bubble translation (#90) via the notebook-ai `translate` action —
+// EN↔ES both directions, cached per message.
+const _mcTranslateCache = new Map();
+async function _mcTranslateMessage(m) {
+  const sel = (window.CSS && CSS.escape) ? CSS.escape(m.id) : m.id;
+  const bubble = document.querySelector(`[data-rr-mc-msg="${sel}"], [data-rr-cc-msg="${sel}"]`);
+  if (!bubble || !m.body) return;
+  const existing = bubble.querySelector(".rr-mc-translation");
+  if (existing) { existing.remove(); return; } // toggle off
+  let text = _mcTranslateCache.get(m.id);
+  if (!text) {
+    const note = document.createElement("div");
+    note.className = "rr-mc-translation";
+    note.textContent = "Translating…";
+    bubble.appendChild(note);
+    const { data, error } = await sb.functions.invoke("notebook-ai", { body: { action: "translate", text: m.body.slice(0, 1500) } })
+      .then((r) => r, (e) => ({ error: e || {} }));
+    note.remove();
+    if (error || !data?.result) { toast("Couldn't translate — the AI helper isn't reachable", "warn"); return; }
+    text = String(data.result).trim();
+    _mcTranslateCache.set(m.id, text);
+  }
+  if (!bubble.isConnected) return;
+  const block = document.createElement("div");
+  block.className = "rr-mc-translation";
+  block.innerHTML = `<span class="rr-mc-translation-tag">Translated</span>${escapeHtml(text)}`;
+  bubble.appendChild(block);
+}
+
+// Empty-state suggestions (#91).
+document.addEventListener("click", (e) => {
+  const w = e.target.closest("[data-rr-empty-tpl]");
+  if (w) {
+    const ta = document.getElementById("rr-mc-input");
+    if (!ta) return;
+    const tpl = _MC_BUILTIN_TEMPLATES.find((t) => t.shortcut === w.getAttribute("data-rr-empty-tpl"));
+    if (tpl) {
+      ta.value = _mcFillTemplate(tpl.body, _mcTemplateCtx("dm"));
+      ta.dispatchEvent(new Event("input", { bubbles: true }));
+      ta.focus();
+    }
+    return;
+  }
+  if (e.target.closest("[data-rr-empty-sched]")) {
+    const ta = document.getElementById("rr-mc-input");
+    if (ta) _mcInsertScheduleShare(ta);
+  }
+});
+
+// ─── Reliability, realtime & perf (Batch 8 · #73–82) ─────────────────────
+
+// Connection banner (#75) — shown over the conversation list whenever the
+// browser is offline or the realtime socket dropped.
+function _mcPaintConnBanner() {
+  const list = document.getElementById("rr-msg-driver-list");
+  document.getElementById("rr-mc-connbanner")?.remove();
+  if (!list) return;
+  const offline = !navigator.onLine;
+  const rtDown = navigator.onLine && window._rrChatRealtimeHealthy === false;
+  if (!offline && !rtDown) return;
+  const el = document.createElement("div");
+  el.id = "rr-mc-connbanner";
+  el.setAttribute("role", "status");
+  el.style.cssText = "position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:8px;background:" + (offline ? "var(--danger,#dc2626)" : "#b45309") + ";color:#fff;font-size:11px;font-weight:700;padding:6px 12px";
+  el.textContent = offline
+    ? "Offline — messages you send will be queued and delivered when you're back."
+    : "Reconnecting live updates… messages may arrive with a short delay.";
+  list.prepend(el);
+}
+window.addEventListener("online", () => { _mcPaintConnBanner(); _mcFlushOutbox(); });
+window.addEventListener("offline", _mcPaintConnBanner);
+
+// Offline send queue (#74) — text-only DMs survive a dead network in
+// localStorage and flush on reconnect (attachment sends fail visibly
+// instead; blobs don't belong in localStorage).
+function _mcOutboxRead() {
+  try { return JSON.parse(localStorage.getItem("rr_msg_outbox") || "[]"); } catch { return []; }
+}
+function _mcOutboxWrite(list) {
+  try { localStorage.setItem("rr_msg_outbox", JSON.stringify(list.slice(-50))); } catch {}
+}
+function _mcQueueOutbox(params) {
+  const list = _mcOutboxRead();
+  list.push({ params, ts: Date.now() });
+  _mcOutboxWrite(list);
+}
+let _mcFlushing = false;
+async function _mcFlushOutbox() {
+  if (_mcFlushing || !navigator.onLine) return;
+  const list = _mcOutboxRead();
+  if (!list.length) return;
+  _mcFlushing = true;
+  let sent = 0;
+  const remaining = [];
+  for (const item of list) {
+    // Stale queue entries (>24h) are dropped rather than surprising a
+    // driver with a day-old "on my way".
+    if (Date.now() - item.ts > 24 * 3600000) continue;
+    const { error } = await sb.rpc("dispatch_chat_send", item.params).then((r) => r, (e) => ({ error: e || {} }));
+    if (error && /fetch|network|failed|timeout/i.test(error.message || "")) { remaining.push(item); continue; }
+    if (!error) sent++;
+    // Non-network errors (bad driver, too long) are dropped — retrying
+    // forever can't fix them.
+  }
+  _mcOutboxWrite(remaining);
+  _mcFlushing = false;
+  if (sent) {
+    toast(`Sent ${sent} queued message${sent === 1 ? "" : "s"}`, "ok");
+    refreshDriverChatList(false);
+    if (_msgInboxSelectedId) refreshDriverChatThread(false);
+  }
+}
+const _mcIsNetworkError = (error) =>
+  !navigator.onLine || /fetch|network|failed to|timeout|abort/i.test((error && error.message) || "");
+
+// Thread cache (#79) — a slim copy of the last 40 messages per thread so
+// reopening paints instantly, then reconciles against the server.
+function _mcThreadCacheGet(driverId) {
+  try {
+    const all = JSON.parse(localStorage.getItem("rr_thread_cache") || "{}");
+    return all[String(driverId)]?.msgs || null;
+  } catch { return null; }
+}
+function _mcThreadCachePut(driverId, msgs) {
+  try {
+    const all = JSON.parse(localStorage.getItem("rr_thread_cache") || "{}");
+    all[String(driverId)] = {
+      at: Date.now(),
+      msgs: (msgs || []).slice(-40).map((m) => ({
+        id: m.id, sender_kind: m.sender_kind,
+        body: m.deleted_at ? null : (m.body ? String(m.body).slice(0, 500) : null),
+        attachment_name: m.attachment_name || null,
+        deleted_at: m.deleted_at || null,
+        created_at: m.created_at,
+      })),
+    };
+    const keys = Object.keys(all);
+    if (keys.length > 20) keys.sort((a, b) => all[a].at - all[b].at).slice(0, keys.length - 20).forEach((k) => delete all[k]);
+    localStorage.setItem("rr_thread_cache", JSON.stringify(all));
+  } catch {}
+}
+// Ghost paint while the real fetch is in flight — a lightweight shell the
+// real renderer replaces wholesale a beat later.
+function _mcInstantPaint(conv, driverId) {
+  const cached = _mcThreadCacheGet(driverId);
+  const meta = (_msgInboxList || []).find((t) => String(t.driver_id) === String(driverId)) || {};
+  const name = meta.name || "";
+  const initials = (name || "?").split(/\s+/).map((p) => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
+  const ghost = (cached && cached.length)
+    ? cached.map((m) => {
+        const mine = m.sender_kind === "dispatch";
+        const body = m.deleted_at ? "Message deleted" : (m.body || (m.attachment_name ? "📎 " + m.attachment_name : ""));
+        return `<div class="rr-mc-bubble ${mine ? "dispatch" : "driver"}" data-group-pos="single" style="opacity:.75"><div>${escapeHtml(body)}</div><div class="rr-mc-time">${escapeHtml(new Date(m.created_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }))}</div></div>`;
+      }).join("")
+    : `<div class="rr-msg-skeleton">
+        <div class="rr-msg-skeleton-row"><div class="rr-msg-skeleton-bubble" style="width:62%"></div></div>
+        <div class="rr-msg-skeleton-row right"><div class="rr-msg-skeleton-bubble" style="width:48%"></div></div>
+        <div class="rr-msg-skeleton-row"><div class="rr-msg-skeleton-bubble" style="width:38%"></div></div>
+      </div>`;
+  conv.innerHTML = `
+    <div class="rr-mc-shell">
+      <div class="rr-mc-head">
+        <div class="rr-mc-head-avatar avatar-sm">${escapeHtml(initials)}</div>
+        <div class="rr-mc-head-id"><div class="rr-mc-name">${escapeHtml(name)}</div><div class="rr-mc-sub">Loading…</div></div>
+      </div>
+      <div class="rr-mc-thread" style="overflow-y:auto">${ghost}</div>
+      <div style="height:58px"></div>
+    </div>`;
+  const th = conv.querySelector(".rr-mc-thread");
+  if (th) th.scrollTop = th.scrollHeight;
+}
+
+// Upload with progress + cancel (#81): signed upload URL + XHR so we get
+// progress events; falls back to the plain SDK upload when unavailable.
+async function _mcUploadWithProgress(path, file, { onProgress, getCancelled } = {}) {
+  try {
+    const { data, error } = await sb.storage.from("driver-chat-attachments").createSignedUploadUrl(path);
+    if (error || !data?.signedUrl) throw error || new Error("no signed url");
+    await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("PUT", data.signedUrl);
+      xhr.setRequestHeader("content-type", file.type || "application/octet-stream");
+      xhr.setRequestHeader("x-upsert", "false");
+      xhr.upload.onprogress = (ev) => {
+        if (getCancelled && getCancelled()) { try { xhr.abort(); } catch {} return; }
+        if (onProgress && ev.lengthComputable) onProgress(ev.loaded / ev.total);
+      };
+      xhr.onload = () => (xhr.status >= 200 && xhr.status < 300) ? resolve() : reject(new Error("upload " + xhr.status));
+      xhr.onerror = () => reject(new Error("upload failed"));
+      xhr.onabort = () => reject(new Error("cancelled"));
+      xhr.send(file);
+    });
+    return { error: null };
+  } catch (err) {
+    if (getCancelled && getCancelled()) return { error: { message: "cancelled" } };
+    // Fallback: plain upload (no progress).
+    return sb.storage.from("driver-chat-attachments").upload(path, file, { contentType: file.type, upsert: false });
+  }
+}
+
+// ─── Dispatch-domain superpowers (Batch 7 · #62–72) ──────────────────────
+
+// Build the "share schedule" text for the active driver (#62) — inserted
+// into the composer so the operator can edit before sending.
+async function _mcInsertScheduleShare(ta) {
+  const driverId = _msgInboxSelectedId;
+  const dspId = window.RR?.dsp?.id;
+  if (!driverId || !dspId) return;
+  const fmtD = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const end = new Date(today); end.setDate(end.getDate() + 6);
+  const { data, error } = await sb.from("shifts")
+    .select("date, starts_at, route_code, status")
+    .eq("dsp_id", dspId).eq("driver_id", driverId)
+    .gte("date", fmtD(today)).lte("date", fmtD(end))
+    .order("date");
+  if (error) { toast("Couldn't load the schedule", "warn"); return; }
+  const byDate = new Map((data || []).map((r) => [r.date, r]));
+  const lines = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(today); d.setDate(d.getDate() + i);
+    const key = fmtD(d);
+    const day = d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+    const s = byDate.get(key);
+    if (!s || s.status === "called_off" || s.status === "no_show") {
+      lines.push(`• ${day} — OFF`);
+    } else {
+      const t = s.starts_at ? new Date(s.starts_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
+      lines.push(`• ${day} — ${s.route_code ? "Route " + s.route_code : "Scheduled"}${t ? ", starts " + t : ""}`);
+    }
+  }
+  _mcInsertAtCaret(ta, `📅 Your schedule this week:\n${lines.join("\n")}`);
+}
+
+// Share an address as a map link (#63).
+function _mcOpenShareLocation(ta) {
+  _mcEnsureExtrasCss();
+  document.getElementById("rr-mc-loc-modal")?.remove();
+  const ov = document.createElement("div");
+  ov.className = "rr-mc-modal";
+  ov.id = "rr-mc-loc-modal";
+  ov.innerHTML = `
+    <div class="rr-mc-modal-back"></div>
+    <div class="rr-mc-modal-card" role="dialog" aria-modal="true" aria-label="Share a location" style="width:min(420px,94vw)">
+      <div class="rr-mc-modal-head">Share a location<button type="button" class="rr-mc-modal-x" aria-label="Close">×</button></div>
+      <div class="rr-mc-modal-body">
+        <label class="rr-mc-f"><span>Label (optional)</span><input type="text" data-rr-loc-label maxlength="60" placeholder="Station / customer / staging lot"></label>
+        <label class="rr-mc-f"><span>Address</span><input type="text" data-rr-loc-addr maxlength="200" placeholder="123 Main St, Springfield"></label>
+      </div>
+      <div class="rr-mc-modal-foot">
+        <button type="button" class="btn btn-sm" data-rr-loc-cancel>Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary" data-rr-loc-go>Insert</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelector(".rr-mc-modal-back").addEventListener("click", close);
+  ov.querySelector(".rr-mc-modal-x").addEventListener("click", close);
+  ov.querySelector("[data-rr-loc-cancel]").addEventListener("click", close);
+  ov.querySelector("[data-rr-loc-go]").addEventListener("click", () => {
+    const label = ov.querySelector("[data-rr-loc-label]").value.trim();
+    const addr = ov.querySelector("[data-rr-loc-addr]").value.trim();
+    if (!addr) { toast("Type the address", "warn"); return; }
+    const url = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(addr);
+    _mcInsertAtCaret(ta, `📍 ${label ? label + ": " : ""}${addr}\nNavigate: ${url}`);
+    close();
+  });
+  ov.querySelector("[data-rr-loc-addr]").focus();
+}
+
+// Request a check-in (#64): rides the requires-ack rail — the driver's
+// acknowledgement (timestamped) IS the "I'm here".
+async function _mcSendCheckinRequest() {
+  const driverId = _msgInboxSelectedId;
+  if (!driverId || driverId === "__support__") return;
+  const meta = (_msgInboxList || []).find((t) => String(t.driver_id) === String(driverId)) || {};
+  const ok = await _rrConfirmDialog({
+    title: `Request a check-in from ${meta.name || "this driver"}?`,
+    body: "They get a message asking them to acknowledge when they've arrived — the acknowledgement is timestamped in the thread.",
+    confirmLabel: "Request check-in",
+  });
+  if (!ok) return;
+  const { error } = await sb.rpc("dispatch_chat_send", {
+    p_driver_id: driverId,
+    p_body: "📍 Check-in request from dispatch — tap Acknowledge when you've arrived.",
+    p_priority: "high",
+    p_requires_ack: true,
+  });
+  if (error) { toast("Couldn't send: " + error.message, "warn"); return; }
+  refreshDriverChatThread(false);
+}
+
+// Create a team task from a message (#65).
+async function _mcOpenTaskFromMessage(m) {
+  _mcEnsureExtrasCss();
+  document.getElementById("rr-mc-task-modal")?.remove();
+  const meta = (_msgInboxList || []).find((t) => String(t.driver_id) === String(_msgInboxSelectedId)) || {};
+  const snippet = String(m.body || m.attachment_name || "message").slice(0, 70);
+  const { data: members } = await sb.rpc("team_task_members").then((r) => r, () => ({ data: null }));
+  const ov = document.createElement("div");
+  ov.className = "rr-mc-modal";
+  ov.id = "rr-mc-task-modal";
+  ov.innerHTML = `
+    <div class="rr-mc-modal-back"></div>
+    <div class="rr-mc-modal-card" role="dialog" aria-modal="true" aria-label="Create task from message">
+      <div class="rr-mc-modal-head">Create a task<button type="button" class="rr-mc-modal-x" aria-label="Close">×</button></div>
+      <div class="rr-mc-modal-body">
+        <label class="rr-mc-f"><span>Task</span><input type="text" data-rr-tk-title maxlength="200" value="${escapeHtml(`Follow up with ${meta.name || "driver"}: “${snippet}”`)}"></label>
+        <label class="rr-mc-f"><span>Due</span><input type="datetime-local" data-rr-tk-due></label>
+        <label class="rr-mc-f"><span>Assign to</span>
+          <select data-rr-tk-who style="width:100%;border:1px solid var(--border);border-radius:var(--r-md);padding:8px 10px;font:inherit;font-size:var(--fs-sm);background:var(--canvas)">
+            <option value="">Me</option>
+            ${((members && (members.members || members)) || []).map((mm) => `<option value="${escapeHtml(mm.id || mm.user_id || "")}">${escapeHtml(mm.name || mm.full_name || mm.email || "")}</option>`).join("")}
+          </select>
+        </label>
+      </div>
+      <div class="rr-mc-modal-foot">
+        <button type="button" class="btn btn-sm" data-rr-tk-cancel>Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary" data-rr-tk-go>Create task</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelector(".rr-mc-modal-back").addEventListener("click", close);
+  ov.querySelector(".rr-mc-modal-x").addEventListener("click", close);
+  ov.querySelector("[data-rr-tk-cancel]").addEventListener("click", close);
+  ov.querySelector("[data-rr-tk-go]").addEventListener("click", async () => {
+    const title = ov.querySelector("[data-rr-tk-title]").value.trim();
+    if (!title) return;
+    const dueRaw = ov.querySelector("[data-rr-tk-due]").value;
+    try {
+      const made = await _rrTaskCreate({
+        title,
+        due: dueRaw ? new Date(dueRaw).toISOString() : null,
+        assigneeId: ov.querySelector("[data-rr-tk-who]").value || null,
+        kind: "chat_followup",
+        driverId: _msgInboxSelectedId,
+      });
+      if (!made) throw new Error("not created");
+      toast("Task created", "ok");
+      close();
+    } catch (err) {
+      toast("Couldn't create the task: " + ((err && err.message) || ""), "warn");
+    }
+  });
+}
+
+// Create a coaching entry from a message (#66) / save to record (#67).
+async function _mcOpenCoachingFromMessage(m, asNote) {
+  _mcEnsureExtrasCss();
+  document.getElementById("rr-mc-coach-modal")?.remove();
+  const driverId = _msgInboxSelectedId;
+  const meta = (_msgInboxList || []).find((t) => String(t.driver_id) === String(driverId)) || {};
+  const when = new Date(m.created_at);
+  const quoted = `From chat ${when.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}: “${String(m.body || m.attachment_name || "").slice(0, 400)}”`;
+  const ov = document.createElement("div");
+  ov.className = "rr-mc-modal";
+  ov.id = "rr-mc-coach-modal";
+  ov.innerHTML = `
+    <div class="rr-mc-modal-back"></div>
+    <div class="rr-mc-modal-card" role="dialog" aria-modal="true" aria-label="${asNote ? "Save to driver record" : "Create coaching entry"}">
+      <div class="rr-mc-modal-head">${asNote ? "Save to " : "Coaching entry for "}${escapeHtml(meta.name || "driver")}${asNote ? "'s record" : ""}<button type="button" class="rr-mc-modal-x" aria-label="Close">×</button></div>
+      <div class="rr-mc-modal-body">
+        ${asNote ? "" : `
+        <label class="rr-mc-f"><span>Topic</span>
+          <select data-rr-co-topic style="width:100%;border:1px solid var(--border);border-radius:var(--r-md);padding:8px 10px;font:inherit;font-size:var(--fs-sm);background:var(--canvas)">
+            <option value="attendance">Attendance</option>
+            <option value="safety">Safety</option>
+            <option value="performance">Performance</option>
+            <option value="other" selected>Other</option>
+          </select>
+        </label>`}
+        <label class="rr-mc-f"><span>Summary</span><input type="text" data-rr-co-summary maxlength="200" value="${escapeHtml(asNote ? "Note saved from the chat thread" : "Conversation from the chat thread")}"></label>
+        <label class="rr-mc-f"><span>Notes</span><textarea data-rr-co-notes maxlength="2000">${escapeHtml(quoted)}</textarea></label>
+        <div class="u-subtle" style="font-size:10px">Saved as an internal ${asNote ? "record note" : "verbal-level coaching log"} — not visible to the driver.</div>
+      </div>
+      <div class="rr-mc-modal-foot">
+        <button type="button" class="btn btn-sm" data-rr-co-cancel>Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary" data-rr-co-go>Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelector(".rr-mc-modal-back").addEventListener("click", close);
+  ov.querySelector(".rr-mc-modal-x").addEventListener("click", close);
+  ov.querySelector("[data-rr-co-cancel]").addEventListener("click", close);
+  ov.querySelector("[data-rr-co-go]").addEventListener("click", async () => {
+    const { error } = await sb.from("coachings").insert({
+      dsp_id: window.RR?.dsp?.id,
+      driver_id: driverId,
+      coach_user_id: window.RR?.user?.id,
+      topic: asNote ? "other" : (ov.querySelector("[data-rr-co-topic]")?.value || "other"),
+      type: "in_person",
+      severity: "concern",
+      metadata: { level: "verbal", source: "chat", message_id: m.id },
+      summary: ov.querySelector("[data-rr-co-summary]").value.trim() || null,
+      notes: ov.querySelector("[data-rr-co-notes]").value.trim() || null,
+      driver_visible: false,
+      privacy_tier: "standard",
+    });
+    if (error) { toast("Couldn't save: " + error.message, "warn"); return; }
+    toast(asNote ? "Saved to the driver's record" : "Coaching entry logged", "ok");
+    close();
+  });
+}
+
+// Incident intake (#69): structured record message + follow-up task.
+function _mcOpenIncidentIntake() {
+  _mcEnsureExtrasCss();
+  const driverId = _msgInboxSelectedId;
+  if (!driverId || driverId === "__support__") { toast("Open a driver conversation first", "info"); return; }
+  const meta = (_msgInboxList || []).find((t) => String(t.driver_id) === String(driverId)) || {};
+  document.getElementById("rr-mc-incident-modal")?.remove();
+  const pad = (n) => String(n).padStart(2, "0");
+  const now = new Date();
+  const nowLocal = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const ov = document.createElement("div");
+  ov.className = "rr-mc-modal";
+  ov.id = "rr-mc-incident-modal";
+  ov.innerHTML = `
+    <div class="rr-mc-modal-back"></div>
+    <div class="rr-mc-modal-card" role="dialog" aria-modal="true" aria-label="Report incident">
+      <div class="rr-mc-modal-head">🚨 Incident — ${escapeHtml(meta.name || "driver")}<button type="button" class="rr-mc-modal-x" aria-label="Close">×</button></div>
+      <div class="rr-mc-modal-body">
+        <label class="rr-mc-f"><span>What happened</span><textarea data-rr-in-what maxlength="1200" placeholder="Brief factual description…"></textarea></label>
+        <label class="rr-mc-f"><span>Where</span><input type="text" data-rr-in-where maxlength="200" placeholder="Address / stop / area"></label>
+        <label class="rr-mc-f"><span>When</span><input type="datetime-local" data-rr-in-when value="${nowLocal}"></label>
+        <label class="rr-mc-f"><span>Severity</span>
+          <select data-rr-in-sev style="width:100%;border:1px solid var(--border);border-radius:var(--r-md);padding:8px 10px;font:inherit;font-size:var(--fs-sm);background:var(--canvas)">
+            <option value="minor">Minor — no injury / no damage</option>
+            <option value="moderate">Moderate — damage, no injury</option>
+            <option value="serious">Serious — injury or major damage</option>
+          </select>
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--text)"><input type="checkbox" data-rr-in-task checked> Create a follow-up task for me</label>
+        <div class="u-subtle" style="font-size:10px;margin-top:6px">The report lands in this conversation as a timestamped record. Attach photos with the 📎 in the composer after filing.</div>
+      </div>
+      <div class="rr-mc-modal-foot">
+        <button type="button" class="btn btn-sm" data-rr-in-cancel>Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary" data-rr-in-go>File incident</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelector(".rr-mc-modal-back").addEventListener("click", close);
+  ov.querySelector(".rr-mc-modal-x").addEventListener("click", close);
+  ov.querySelector("[data-rr-in-cancel]").addEventListener("click", close);
+  ov.querySelector("[data-rr-in-go]").addEventListener("click", async () => {
+    const what = ov.querySelector("[data-rr-in-what]").value.trim();
+    const where = ov.querySelector("[data-rr-in-where]").value.trim();
+    const whenRaw = ov.querySelector("[data-rr-in-when]").value;
+    const sev = ov.querySelector("[data-rr-in-sev]").value;
+    if (!what) { toast("Describe what happened", "warn"); return; }
+    const whenLbl = whenRaw ? new Date(whenRaw).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "now";
+    const body = `🚨 INCIDENT REPORT (${sev})\nWhen: ${whenLbl}\nWhere: ${where || "—"}\nWhat: ${what}`;
+    const { error } = await sb.rpc("dispatch_chat_send", {
+      p_driver_id: driverId, p_body: body.slice(0, 2000), p_priority: "high", p_requires_ack: false,
+    });
+    if (error) { toast("Couldn't file: " + error.message, "warn"); return; }
+    if (ov.querySelector("[data-rr-in-task]").checked) {
+      try { await _rrTaskCreate({ title: `Incident follow-up — ${meta.name || "driver"}: ${what.slice(0, 60)}`, kind: "incident", driverId }); } catch {}
+    }
+    toast("Incident filed to the thread", "ok");
+    close();
+    refreshDriverChatThread(false);
+  });
+}
+
+// Quick-insert chips (#68): shown in the reply-bar slot while the DM
+// composer is focused and empty.
+function _mcShowQuickChips(form, ta) {
+  form.querySelector(".rr-mc-quickchips")?.remove();
+  if (_mcReplyTo || (ta.value || "").trim()) return;
+  const driverId = _msgInboxSelectedId;
+  if (!driverId || driverId === "__support__") return;
+  const meta = (_msgInboxList || []).find((t) => String(t.driver_id) === String(driverId)) || {};
+  const chips = [];
+  if (_mcCtxSched && String(_mcCtxSched.driverId) === String(driverId)) {
+    const next = _mcCtxSched.today || _mcCtxSched.tomorrow;
+    if (next) {
+      const t = next.starts_at ? new Date(next.starts_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
+      chips.push([`⏰ Next shift`, `your next shift is ${_mcCtxSched.today ? "today" : "tomorrow"}${t ? " starting " + t : ""}${next.route_code ? " on Route " + next.route_code : ""}`]);
+      if (next.route_code) chips.push([`🚐 Route`, `Route ${next.route_code}`]);
+    }
+  }
+  if (meta.station_code) chips.push([`🏢 Station`, `station ${meta.station_code}`]);
+  chips.push([`📅 Share schedule`, "__schedule__"]);
+  if (!chips.length) return;
+  _mcEnsureExtrasCss();
+  const bar = document.createElement("div");
+  bar.className = "rr-mc-replybar rr-mc-quickchips";
+  bar.setAttribute("aria-label", "Quick inserts");
+  bar.innerHTML = chips.map(([lbl], i) => `<button type="button" class="msg-fb-btn" data-rr-qc="${i}">${escapeHtml(lbl)}</button>`).join("");
+  form.style.position = "relative";
+  form.appendChild(bar);
+  bar.addEventListener("mousedown", (e) => {
+    const b = e.target.closest("[data-rr-qc]");
+    if (!b) return;
+    e.preventDefault();
+    const val = chips[+b.getAttribute("data-rr-qc")][1];
+    bar.remove();
+    if (val === "__schedule__") _mcInsertScheduleShare(ta);
+    else _mcInsertAtCaret(ta, val);
+  });
+}
+
+// Shift context in the thread header (#72) — painted once the schedule
+// cache lands for the open driver.
+function _mcPaintShiftCtx(driverId) {
+  if (!_mcCtxSched || String(_mcCtxSched.driverId) !== String(driverId)) return;
+  const sub = document.querySelector(`.rr-mc-head[data-rr-driver-id="${(window.CSS && CSS.escape) ? CSS.escape(driverId) : driverId}"] .rr-mc-sub`);
+  if (!sub) return;
+  sub.querySelector(".rr-mc-shiftctx")?.remove();
+  const s = _mcCtxSched.today;
+  if (!s || s.status === "called_off" || s.status === "no_show") return;
+  const t = s.starts_at ? new Date(s.starts_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
+  const started = s.starts_at && new Date(s.starts_at).getTime() < Date.now();
+  sub.insertAdjacentHTML("beforeend",
+    ` <span class="rr-mc-shiftctx" title="Today's shift">· ${s.route_code ? "Route " + escapeHtml(s.route_code) : "On shift"}${t ? (started ? " since " : " starts ") + escapeHtml(t) : ""}</span>`);
+}
+
+// ─── Rooms & broadcasts (Batch 4 · #35–44) ───────────────────────────────
+let _ccLastChannelMsgs = []; // loaded channel window (thread view, quotes)
+
+// Delegated channel-bubble handlers: reply, jump-to-quote, thread view,
+// ack board, room info.
+document.addEventListener("click", (e) => {
+  const replyBtn = e.target.closest("[data-rr-cc-reply]");
+  if (replyBtn) {
+    const id = replyBtn.getAttribute("data-rr-cc-reply");
+    const m = (_ccLastChannelMsgs || []).find((x) => String(x.id) === String(id));
+    if (!m) return;
+    _ccReplyTo = {
+      id: m.id,
+      label: m.sender_kind === "dispatch" ? (m.sender_name || "Dispatch") : (m.sender_name || "Driver"),
+      text: m.body || (m.attachment_name ? "📎 " + m.attachment_name : "Message"),
+    };
+    _ccShowReplyBar();
+    document.getElementById("rr-cc-input")?.focus();
+    return;
+  }
+  const ccJump = e.target.closest("[data-rr-cc-jumpto]");
+  if (ccJump) {
+    const id = ccJump.getAttribute("data-rr-cc-jumpto");
+    const sel = (window.CSS && CSS.escape) ? CSS.escape(id) : id;
+    const bubble = document.querySelector(`#rr-cc-thread [data-rr-cc-msg="${sel}"]`);
+    if (bubble) _rrMcFlashBubble(bubble);
+    else toast("That message is further back in history", "info");
+    return;
+  }
+  const tv = e.target.closest("[data-rr-cc-thread-view]");
+  if (tv) { _ccOpenThreadView(tv.getAttribute("data-rr-cc-thread-view")); return; }
+  const ab = e.target.closest("[data-rr-cc-ackboard]");
+  if (ab) { _ccOpenDeliveryBoard(ab.getAttribute("data-rr-cc-ackboard")); return; }
+  const info = e.target.closest("[data-rr-cc-info]");
+  if (info) { _ccOpenRoomInfo(info.getAttribute("data-rr-cc-info")); return; }
+  // Group call from a room (#58): mint a Meet room, post the join link to
+  // the channel, open the meeting window.
+  const meet = e.target.closest("[data-rr-cc-meet]");
+  if (meet) {
+    (async () => {
+      meet.disabled = true;
+      const channelId = meet.getAttribute("data-rr-cc-meet");
+      const { data, error } = await sb.rpc("meet_create", { p_title: null }).then((r) => r, (err) => ({ error: err }));
+      meet.disabled = false;
+      if (error || !data?.code) { toast("Couldn't start the meeting: " + (error?.message || ""), "warn"); return; }
+      const link = new URL("meet.html?m=" + encodeURIComponent(data.code), location.href).href;
+      await sb.rpc("dispatch_channel_post", {
+        p_channel_id: channelId,
+        p_body: `📹 Group call started — join here: ${link}`,
+      }).then((r) => r, () => ({}));
+      refreshChannelThread(false);
+      rrOpenMeetWindow("meet.html?m=" + encodeURIComponent(data.code));
+    })();
+    return;
+  }
+});
+
+// Poll rendering (#41): swap the "📊 question" body for a live poll block.
+function _ccApplyPolls() {
+  const thread = document.getElementById("rr-cc-thread");
+  if (!thread || !_ccPolls.length) return;
+  _ccPolls.forEach((p) => {
+    if (!p.message_id) return;
+    const sel = (window.CSS && CSS.escape) ? CSS.escape(p.message_id) : p.message_id;
+    const bubble = thread.querySelector(`[data-rr-cc-msg="${sel}"]`);
+    if (!bubble || bubble.querySelector(".rr-cc-poll")) return;
+    const counts = Array.isArray(p.counts) ? p.counts : [];
+    const total = counts.reduce((a, b) => a + (b || 0), 0);
+    const closed = p.closes_at && new Date(p.closes_at).getTime() < Date.now();
+    const opts = (p.options || []).map((opt, i) => {
+      const n = counts[i] || 0;
+      const pct = total ? Math.round((n / total) * 100) : 0;
+      const mine = p.my_vote === i;
+      return `<button type="button" class="rr-cc-poll-opt${mine ? " mine" : ""}" data-rr-poll-vote="${escapeHtml(String(p.poll_id))}" data-idx="${i}" ${closed ? "disabled" : ""} aria-pressed="${mine}">
+          <span class="rr-cc-poll-bar" style="width:${pct}%"></span>
+          <span class="rr-cc-poll-lbl">${escapeHtml(String(opt))}</span>
+          <span class="rr-cc-poll-n">${n} · ${pct}%</span>
+        </button>`;
+    }).join("");
+    const block = document.createElement("div");
+    block.className = "rr-cc-poll";
+    block.innerHTML = `<div class="rr-cc-poll-q">📊 ${escapeHtml(p.question)}</div>${opts}
+      <div class="rr-cc-poll-meta">${total} vote${total === 1 ? "" : "s"}${p.closes_at ? (closed ? " · closed" : ` · closes ${new Date(p.closes_at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`) : ""}</div>`;
+    // Replace the plain body div (the "📊 question" text) with the block.
+    const bodyDiv = Array.from(bubble.children).find((c) => c.tagName === "DIV" && !c.className);
+    if (bodyDiv) bodyDiv.replaceWith(block);
+    else bubble.appendChild(block);
+  });
+}
+document.addEventListener("click", async (e) => {
+  const v = e.target.closest("[data-rr-poll-vote]");
+  if (!v) return;
+  const { error } = await sb.rpc("dispatch_poll_vote", {
+    p_poll_id: v.getAttribute("data-rr-poll-vote"),
+    p_option: +v.getAttribute("data-idx"),
+  }).then((r) => r, (err) => ({ error: err }));
+  if (error) { toast("Couldn't vote: " + (error.message || ""), "warn"); return; }
+  refreshChannelThread(false);
+});
+
+// Poll creation modal (#41).
+function _ccOpenPollCreate(channelId) {
+  _mcEnsureExtrasCss();
+  document.getElementById("rr-cc-poll-modal")?.remove();
+  const ov = document.createElement("div");
+  ov.className = "rr-mc-modal";
+  ov.id = "rr-cc-poll-modal";
+  ov.innerHTML = `
+    <div class="rr-mc-modal-back"></div>
+    <div class="rr-mc-modal-card" role="dialog" aria-modal="true" aria-label="Create poll">
+      <div class="rr-mc-modal-head">Create a poll<button type="button" class="rr-mc-modal-x" aria-label="Close">×</button></div>
+      <div class="rr-mc-modal-body">
+        <label class="rr-mc-f"><span>Question</span><input type="text" data-rr-pq maxlength="300" placeholder="Who can cover Saturday?"></label>
+        <div data-rr-popts>
+          <label class="rr-mc-f"><span>Option 1</span><input type="text" data-rr-po maxlength="80"></label>
+          <label class="rr-mc-f"><span>Option 2</span><input type="text" data-rr-po maxlength="80"></label>
+        </div>
+        <button type="button" class="btn btn-sm" data-rr-po-add>+ Add option</button>
+        <label class="rr-mc-f" style="margin-top:12px"><span>Closes (optional)</span><input type="datetime-local" data-rr-pc></label>
+      </div>
+      <div class="rr-mc-modal-foot">
+        <button type="button" class="btn btn-sm" data-rr-pp-cancel>Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary" data-rr-pp-go>Post poll</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelector(".rr-mc-modal-back").addEventListener("click", close);
+  ov.querySelector(".rr-mc-modal-x").addEventListener("click", close);
+  ov.querySelector("[data-rr-pp-cancel]").addEventListener("click", close);
+  ov.querySelector("[data-rr-po-add]").addEventListener("click", () => {
+    const box = ov.querySelector("[data-rr-popts]");
+    if (box.querySelectorAll("[data-rr-po]").length >= 8) return;
+    box.insertAdjacentHTML("beforeend", `<label class="rr-mc-f"><span>Option ${box.querySelectorAll("[data-rr-po]").length + 1}</span><input type="text" data-rr-po maxlength="80"></label>`);
+  });
+  ov.querySelector("[data-rr-pp-go]").addEventListener("click", async () => {
+    const q = ov.querySelector("[data-rr-pq]").value.trim();
+    const opts = Array.from(ov.querySelectorAll("[data-rr-po]")).map((i) => i.value.trim()).filter(Boolean);
+    const closesRaw = ov.querySelector("[data-rr-pc]").value;
+    if (!q || opts.length < 2) { toast("A question and at least two options are required", "warn"); return; }
+    const { error } = await sb.rpc("dispatch_poll_create", {
+      p_channel_id: channelId, p_question: q, p_options: opts,
+      p_closes_at: closesRaw ? new Date(closesRaw).toISOString() : null,
+    }).then((r) => r, (err) => ({ error: err }));
+    if (error) {
+      toast(_mcRpcMissing(error) ? "Polls unlock once migration 0509 is applied" : ("Couldn't create the poll: " + (error.message || "")), "warn");
+      return;
+    }
+    close();
+    refreshChannelThread(true);
+  });
+}
+
+// Delivery board (#37) + nudge unacknowledged (#38) for one broadcast.
+async function _ccOpenDeliveryBoard(messageId) {
+  _mcEnsureExtrasCss();
+  document.getElementById("rr-cc-board-modal")?.remove();
+  const channelId = _msgChannelSelectedId;
+  const m = (_ccLastChannelMsgs || []).find((x) => String(x.id) === String(messageId));
+  const [memberRes, readRes, ackRes] = await Promise.all([
+    sb.rpc("dispatch_channel_members", { p_channel_id: channelId }).then((r) => r, () => ({ data: null })),
+    sb.rpc("dispatch_channel_read_state", { p_channel_id: channelId }).then((r) => r, () => ({ data: null })),
+    sb.rpc("dispatch_channel_acks", { p_channel_id: channelId }).then((r) => r, () => ({ data: null })),
+  ]);
+  const members = memberRes?.data?.members || [];
+  const readers = new Map((readRes?.data?.readers || []).map((x) => [String(x.driver_id), x.last_read_at]));
+  const acks = new Map((ackRes?.data?.acks || []).filter((a) => a.message_id === messageId).map((a) => [String(a.driver_id), a.acked_at]));
+  const msgAt = m ? new Date(m.created_at).getTime() : 0;
+  const rows = members.map((mm) => {
+    const readAt = readers.get(String(mm.driver_id));
+    const seen = readAt && msgAt && new Date(readAt).getTime() >= msgAt;
+    const ackedAt = acks.get(String(mm.driver_id));
+    return { ...mm, seen, ackedAt };
+  }).sort((a, b) => (!!b.ackedAt - !!a.ackedAt) || (b.seen - a.seen) || String(a.full_name || "").localeCompare(String(b.full_name || "")));
+  const unacked = rows.filter((r) => !r.ackedAt);
+  const requiresAck = !!(m && m.requires_ack);
+  const ov = document.createElement("div");
+  ov.className = "rr-mc-modal";
+  ov.id = "rr-cc-board-modal";
+  ov.innerHTML = `
+    <div class="rr-mc-modal-back"></div>
+    <div class="rr-mc-modal-card" role="dialog" aria-modal="true" aria-label="Delivery board" style="width:min(560px,94vw)">
+      <div class="rr-mc-modal-head">Delivery board<button type="button" class="rr-mc-modal-x" aria-label="Close">×</button></div>
+      <div class="rr-mc-modal-body">
+        ${m ? `<div style="font-size:var(--fs-sm);color:var(--text-subtle);border:1px solid var(--border);border-radius:var(--r-md);padding:8px 10px;margin-bottom:10px;max-height:72px;overflow-y:auto;white-space:pre-wrap">${escapeHtml(m.body || (m.attachment_name ? "📎 " + m.attachment_name : ""))}</div>` : ""}
+        <div style="display:grid;grid-template-columns:1fr auto auto;gap:4px 14px;font-size:var(--fs-sm)">
+          <div class="rr-mc-emoji-head" style="padding:0">Member</div><div class="rr-mc-emoji-head" style="padding:0">Seen</div><div class="rr-mc-emoji-head" style="padding:0">${requiresAck ? "Acknowledged" : ""}</div>
+          ${rows.map((r) => `
+            <div style="color:var(--text);font-weight:560;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(r.full_name || "")}</div>
+            <div style="text-align:center">${r.seen ? "✓" : "—"}</div>
+            <div style="text-align:right;color:var(--text-subtle);font-size:var(--fs-xs)">${requiresAck ? (r.ackedAt ? "✓ " + new Date(r.ackedAt).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "—") : ""}</div>
+          `).join("")}
+        </div>
+      </div>
+      <div class="rr-mc-modal-foot">
+        ${requiresAck && unacked.length ? `<button type="button" class="btn btn-sm" data-rr-nudge>Nudge unacknowledged (${unacked.length})</button>` : ""}
+        <button type="button" class="btn btn-sm btn-primary" data-rr-board-done>Done</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelector(".rr-mc-modal-back").addEventListener("click", close);
+  ov.querySelector(".rr-mc-modal-x").addEventListener("click", close);
+  ov.querySelector("[data-rr-board-done]").addEventListener("click", close);
+  ov.querySelector("[data-rr-nudge]")?.addEventListener("click", async (ev) => {
+    const btn = ev.currentTarget;
+    const ok = await _rrConfirmDialog({
+      title: `Nudge ${unacked.length} driver${unacked.length === 1 ? "" : "s"}?`,
+      body: "Each gets a direct message asking them to open the room and acknowledge the notice.",
+      confirmLabel: "Send nudges",
+    });
+    if (!ok) return;
+    btn.disabled = true;
+    const meta = (_msgChannelList || []).find((c) => c.id === channelId) || {};
+    const note = `Please open #${meta.name || "the room"} and acknowledge the notice${m && m.body ? `: “${String(m.body).slice(0, 120)}”` : ""}.`;
+    let sent = 0;
+    for (const r of unacked) {
+      const { error } = await sb.rpc("dispatch_chat_send", { p_driver_id: r.driver_id, p_body: note, p_priority: "high", p_requires_ack: false });
+      if (!error) sent++;
+    }
+    toast(`Nudged ${sent} of ${unacked.length}`, sent === unacked.length ? "ok" : "warn");
+    btn.disabled = false;
+  });
+}
+
+// Thread view (#43): parent + its replies + a quick reply box.
+function _ccOpenThreadView(parentId) {
+  _mcEnsureExtrasCss();
+  document.getElementById("rr-cc-threadview")?.remove();
+  const parent = (_ccLastChannelMsgs || []).find((x) => String(x.id) === String(parentId));
+  if (!parent) return;
+  const replies = (_ccLastChannelMsgs || []).filter((x) => x.reply_to === parent.id);
+  const bubble = (m) => `
+    <div style="border:1px solid var(--border);border-radius:var(--r-md);padding:8px 10px;margin-bottom:7px">
+      <div style="font-size:10px;font-weight:700;color:var(--text-subtle);margin-bottom:2px">${escapeHtml(m.sender_kind === "dispatch" ? ("Dispatch" + (m.sender_name ? " · " + m.sender_name : "")) : (m.sender_name || "Driver"))} · ${escapeHtml(new Date(m.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }))}</div>
+      <div style="font-size:var(--fs-sm);color:var(--text);white-space:pre-wrap">${m.body ? _mdLite(linkifyEscaped(escapeHtml(m.body))) : (m.attachment_name ? "📎 " + escapeHtml(m.attachment_name) : "")}</div>
+    </div>`;
+  const ov = document.createElement("div");
+  ov.className = "rr-mc-modal";
+  ov.id = "rr-cc-threadview";
+  ov.innerHTML = `
+    <div class="rr-mc-modal-back"></div>
+    <div class="rr-mc-modal-card" role="dialog" aria-modal="true" aria-label="Thread">
+      <div class="rr-mc-modal-head">Thread<button type="button" class="rr-mc-modal-x" aria-label="Close">×</button></div>
+      <div class="rr-mc-modal-body">
+        ${bubble(parent)}
+        <div class="rr-mc-emoji-head" style="padding:4px 0 6px">${replies.length} repl${replies.length === 1 ? "y" : "ies"}</div>
+        ${replies.map(bubble).join("") || `<div class="u-subtle" style="font-size:var(--fs-sm)">No replies yet.</div>`}
+      </div>
+      <div class="rr-mc-modal-foot" style="gap:8px">
+        <input type="text" data-rr-tv-input placeholder="Reply in thread…" style="flex:1;border:1px solid var(--border);border-radius:var(--r-md);padding:8px 10px;font:inherit;font-size:var(--fs-sm)">
+        <button type="button" class="btn btn-sm btn-primary" data-rr-tv-send>Reply</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelector(".rr-mc-modal-back").addEventListener("click", close);
+  ov.querySelector(".rr-mc-modal-x").addEventListener("click", close);
+  const doSend = async () => {
+    const input = ov.querySelector("[data-rr-tv-input]");
+    const body = input.value.trim();
+    if (!body) return;
+    const params = { p_channel_id: _msgChannelSelectedId, p_body: _mcApplyShortcodes(body), p_reply_to: parent.id };
+    let res = await sb.rpc("dispatch_channel_post", params);
+    if (res.error && _mcRpcMissing(res.error)) {
+      delete params.p_reply_to;
+      res = await sb.rpc("dispatch_channel_post", params);
+    }
+    if (res.error) { toast("Couldn't reply: " + res.error.message, "warn"); return; }
+    close();
+    await refreshChannelThread(false);
+    _ccOpenThreadView(parentId);
+  };
+  ov.querySelector("[data-rr-tv-send]").addEventListener("click", doSend);
+  ov.querySelector("[data-rr-tv-input]").addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); doSend(); } });
+  ov.querySelector("[data-rr-tv-input]").focus();
+}
+
+// Room info panel (#44) in the right rail: description, announcement-only,
+// members, shared files, mute/archive shortcuts.
+async function _ccOpenRoomInfo(channelId) {
+  const panel = document.getElementById("rr-msg-details");
+  if (!panel) return;
+  const meta = (_msgChannelList || []).find((c) => c.id === channelId) || {};
+  const msgs = _ccLastChannelMsgs || [];
+  const files = msgs.filter((m) => m.attachment_path).slice(-12).reverse();
+  const isAnn = !!meta.announcement_only;
+  panel.dataset.rrDriverId = "ch-" + channelId; // non-empty so the rail opens
+  panel.innerHTML = `
+    <div class="dd-scroll">
+      <div class="dd-topbar">
+        <div class="dd-topbar-title">Room details</div>
+        <button type="button" class="dd-close" data-rr-details-close aria-label="Close details">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="dd-id">
+        <div class="dd-avatar avatar-sm" style="background:var(--accent-soft);color:var(--accent-text)">#</div>
+        <div class="dd-id-name">${escapeHtml(meta.name || "")}</div>
+        <div class="dd-id-role">${meta.member_count || 0} member${meta.member_count === 1 ? "" : "s"}${meta.station_code ? " · " + escapeHtml(meta.station_code) : ""}${isAnn ? " · announcement-only" : ""}</div>
+      </div>
+      <details class="dd-section" open>
+        <summary class="dd-sec-head"><span>About</span>${_RR_MC_ICONS.chevron}</summary>
+        <div class="dd-sec-body">
+          <textarea data-rr-ri-desc maxlength="280" placeholder="What is this room for?" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:var(--r-md);padding:7px 9px;font:inherit;font-size:var(--fs-sm);min-height:56px;background:var(--canvas)">${escapeHtml(meta.description || "")}</textarea>
+          <label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--text);margin-top:9px">
+            <input type="checkbox" data-rr-ri-ann ${isAnn ? "checked" : ""}> Announcement-only (drivers read, react &amp; acknowledge)
+          </label>
+          <button type="button" class="btn btn-sm btn-primary" data-rr-ri-save style="margin-top:10px">Save</button>
+        </div>
+      </details>
+      <details class="dd-section" open>
+        <summary class="dd-sec-head"><span>Members</span>${_RR_MC_ICONS.chevron}</summary>
+        <div class="dd-sec-body">
+          <button type="button" class="dd-link" data-rr-ri-members>Manage members ${_RR_MC_ICONS.chevron.replace('polyline points="6 9 12 15 18 9"', 'polyline points="9 18 15 12 9 6"')}</button>
+        </div>
+      </details>
+      <details class="dd-section">
+        <summary class="dd-sec-head"><span>Shared files</span>${_RR_MC_ICONS.chevron}</summary>
+        <div class="dd-sec-body">
+          ${files.length ? files.map((m) => `<a data-rr-mc-attach="${escapeHtml(m.attachment_path)}" target="_blank" rel="noopener" style="display:block;font-size:var(--fs-xs);font-weight:600;color:var(--accent-text);text-decoration:none;padding:4px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📎 ${escapeHtml(m.attachment_name || "File")}</a>`).join("") : `<div class="u-subtle" style="font-size:var(--fs-sm)">Nothing shared yet.</div>`}
+        </div>
+      </details>
+    </div>`;
+  _setMsgDetailsOpen(true);
+  setTimeout(() => _rrMcSignAttachments(), 0);
+  panel.querySelector("[data-rr-ri-members]")?.addEventListener("click", () => openChannelMembersModal(channelId));
+  panel.querySelector("[data-rr-ri-save]")?.addEventListener("click", async () => {
+    const desc = panel.querySelector("[data-rr-ri-desc]").value.trim();
+    const ann = panel.querySelector("[data-rr-ri-ann]").checked;
+    const { error } = await sb.rpc("dispatch_channel_update", {
+      p_channel_id: channelId, p_description: desc, p_announcement_only: ann,
+    }).then((r) => r, (err) => ({ error: err }));
+    if (error) {
+      toast(_mcRpcMissing(error) ? "Room settings unlock once migration 0509 is applied" : ("Couldn't save: " + (error.message || "")), "warn");
+      return;
+    }
+    toast("Room updated", "ok");
+    refreshChannelList(false);
+  });
+}
+
+// Dynamic-audience broadcast (#40): resolve the audience at send time and
+// deliver as individual DMs (same pipeline as roster bulk-message).
+async function _mcOpenBroadcastComposer() {
+  _mcEnsureExtrasCss();
+  document.getElementById("rr-mc-bcast-modal")?.remove();
+  const dspId = window.RR?.dsp?.id;
+  const ov = document.createElement("div");
+  ov.className = "rr-mc-modal";
+  ov.id = "rr-mc-bcast-modal";
+  ov.innerHTML = `
+    <div class="rr-mc-modal-back"></div>
+    <div class="rr-mc-modal-card" role="dialog" aria-modal="true" aria-label="New broadcast">
+      <div class="rr-mc-modal-head">New broadcast<button type="button" class="rr-mc-modal-x" aria-label="Close">×</button></div>
+      <div class="rr-mc-modal-body">
+        <label class="rr-mc-f"><span>Audience (resolved right now, at send time)</span>
+          <select data-rr-bc-aud style="width:100%;border:1px solid var(--border);border-radius:var(--r-md);padding:8px 10px;font:inherit;font-size:var(--fs-sm);background:var(--canvas)">
+            <option value="active">All active drivers</option>
+            <option value="today">Scheduled today</option>
+            <option value="tomorrow">Scheduled tomorrow</option>
+            <option value="not_tomorrow">NOT scheduled tomorrow</option>
+            <option value="noshow_today">Today's no-shows / call-offs</option>
+          </select>
+        </label>
+        <label class="rr-mc-f"><span>Template (optional)</span>
+          <select data-rr-bc-tpl style="width:100%;border:1px solid var(--border);border-radius:var(--r-md);padding:8px 10px;font:inherit;font-size:var(--fs-sm);background:var(--canvas)">
+            <option value="">— none —</option>
+            <option value="weather">Weather advisory</option>
+            <option value="closure">Station closure / delay</option>
+            <option value="system">System notice</option>
+            <option value="noshow">No-show check-in</option>
+          </select>
+        </label>
+        <div data-rr-bc-preview class="u-subtle" style="font-size:var(--fs-xs);margin:-4px 0 10px">Resolving audience…</div>
+        <div class="msg-list-tabs" role="tablist" aria-label="Broadcast type" style="margin:0 0 10px">
+          <button type="button" class="msg-list-tab active" data-rr-bc-mode="text" role="tab" aria-selected="true">Text</button>
+          <button type="button" class="msg-list-tab" data-rr-bc-mode="voice" role="tab" aria-selected="false">Voice message</button>
+        </div>
+        <label class="rr-mc-f"><span>Message</span><textarea data-rr-bc-body maxlength="2000" placeholder="Type the broadcast…"></textarea></label>
+        <div data-rr-bc-voice style="display:none;margin-bottom:11px">
+          <div style="display:flex;align-items:center;gap:9px">
+            <button type="button" class="btn btn-sm" data-rr-bc-rec>🎤 Record</button>
+            <span class="u-subtle" data-rr-bc-rec-t style="font-size:var(--fs-sm)"></span>
+          </div>
+          <audio data-rr-bc-audio controls style="display:none;width:100%;margin-top:8px"></audio>
+          <div class="u-subtle" style="font-size:10px;margin-top:4px">Record once — every driver in the audience gets it as a voice message (voicemail drop).</div>
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--text)"><input type="checkbox" data-rr-bc-ack> Require acknowledgement</label>
+      </div>
+      <div class="rr-mc-modal-foot">
+        <button type="button" class="btn btn-sm" data-rr-bc-cancel>Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary" data-rr-bc-send>Send broadcast</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelector(".rr-mc-modal-back").addEventListener("click", close);
+  ov.querySelector(".rr-mc-modal-x").addEventListener("click", close);
+  ov.querySelector("[data-rr-bc-cancel]").addEventListener("click", close);
+  const audSel = ov.querySelector("[data-rr-bc-aud]");
+  const preview = ov.querySelector("[data-rr-bc-preview]");
+  let audience = [];
+  const fmtD = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const resolve = async () => {
+    preview.textContent = "Resolving audience…";
+    const kind = audSel.value;
+    const { data: drivers } = await sb.from("drivers").select("id, full_name, status").eq("status", "active").order("full_name");
+    let list = drivers || [];
+    if (kind !== "active") {
+      const day = new Date();
+      if (kind !== "today" && kind !== "noshow_today") day.setDate(day.getDate() + 1);
+      const { data: shifts } = await sb.from("shifts")
+        .select("driver_id, status").eq("dsp_id", dspId).eq("date", fmtD(day));
+      if (kind === "noshow_today") {
+        // #71: exactly the drivers who no-showed or called off today.
+        const bad = new Set((shifts || []).filter((s) => s.status === "called_off" || s.status === "no_show").map((s) => String(s.driver_id)));
+        list = list.filter((d) => bad.has(String(d.id)));
+      } else {
+        const onDay = new Set((shifts || []).filter((s) => s.status !== "called_off" && s.status !== "no_show").map((s) => String(s.driver_id)));
+        list = kind === "not_tomorrow"
+          ? list.filter((d) => !onDay.has(String(d.id)))
+          : list.filter((d) => onDay.has(String(d.id)));
+      }
+    }
+    audience = list;
+    preview.textContent = audience.length
+      ? `${audience.length} driver${audience.length === 1 ? "" : "s"}: ${audience.slice(0, 6).map((d) => (d.full_name || "").split(/\s+/)[0]).join(", ")}${audience.length > 6 ? "…" : ""}`
+      : "No drivers match this audience right now.";
+  };
+  audSel.addEventListener("change", resolve);
+  resolve();
+
+  // Advisory templates (#70) — prefill the body, still fully editable.
+  const dateLbl = new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+  const BC_TEMPLATES = {
+    weather: `🌩️ Weather advisory (${dateLbl}): conditions on today's routes may be rough — slow down, increase following distance, and message dispatch if a road is impassable. Safety over speed, always.`,
+    closure: `🏢 Station notice (${dateLbl}): [station] is [closed / delayed until HH:MM]. Do not head in until further notice — we'll update you here.`,
+    system: `📣 Notice from dispatch (${dateLbl}): [what changed]. Questions — reply here.`,
+    noshow: `We missed you today — you're marked as a no-show/call-off for ${dateLbl}. Reply here or call dispatch so we can sort out what happened.`,
+  };
+  ov.querySelector("[data-rr-bc-tpl]").addEventListener("change", (ev2) => {
+    const t = BC_TEMPLATES[ev2.target.value];
+    if (t) ov.querySelector("[data-rr-bc-body]").value = t;
+  });
+
+  // Voice mode (#57): record once, deliver as a voice note to everyone.
+  let bcMode = "text";
+  let bcBlob = null, bcMime = "", bcRec = null, bcStream = null, bcT0 = 0, bcTimer = null;
+  const recBtn = ov.querySelector("[data-rr-bc-rec]");
+  const recT = ov.querySelector("[data-rr-bc-rec-t]");
+  const audioEl = ov.querySelector("[data-rr-bc-audio]");
+  ov.querySelectorAll("[data-rr-bc-mode]").forEach((b) => b.addEventListener("click", () => {
+    bcMode = b.getAttribute("data-rr-bc-mode");
+    ov.querySelectorAll("[data-rr-bc-mode]").forEach((x) => { x.classList.toggle("active", x === b); x.setAttribute("aria-selected", x === b ? "true" : "false"); });
+    ov.querySelector("[data-rr-bc-voice]").style.display = bcMode === "voice" ? "" : "none";
+  }));
+  recBtn?.addEventListener("click", async () => {
+    if (bcRec && bcRec.state === "recording") { try { bcRec.stop(); } catch {} return; }
+    try { bcStream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch { toast("Microphone permission is needed", "warn"); return; }
+    const chunks = [];
+    try { bcRec = new MediaRecorder(bcStream); } catch { toast("Recording isn't supported here", "warn"); return; }
+    bcRec.addEventListener("dataavailable", (e2) => { if (e2.data?.size) chunks.push(e2.data); });
+    bcRec.addEventListener("stop", () => {
+      clearInterval(bcTimer);
+      try { bcStream.getTracks().forEach((t) => t.stop()); } catch {}
+      bcMime = bcRec.mimeType || "audio/webm";
+      bcBlob = new Blob(chunks, { type: bcMime });
+      recBtn.textContent = "🎤 Re-record";
+      recT.textContent = "";
+      audioEl.src = URL.createObjectURL(bcBlob);
+      audioEl.style.display = "";
+    });
+    bcBlob = null;
+    audioEl.style.display = "none";
+    recBtn.textContent = "⏹ Stop";
+    bcT0 = Date.now();
+    bcTimer = setInterval(() => {
+      const s = Math.floor((Date.now() - bcT0) / 1000);
+      recT.textContent = `Recording ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+      if (s >= 180) { try { bcRec.stop(); } catch {} }
+    }, 250);
+    bcRec.start();
+  });
+
+  ov.querySelector("[data-rr-bc-send]").addEventListener("click", async (ev) => {
+    const btn = ev.currentTarget;
+    const body = _mcApplyShortcodes(ov.querySelector("[data-rr-bc-body]").value.trim());
+    const reqAck = ov.querySelector("[data-rr-bc-ack]").checked;
+    if (bcMode === "voice" && !bcBlob) { toast("Record the voice message first", "warn"); return; }
+    if (bcMode === "text" && !body) { toast("Type the message first", "warn"); return; }
+    if (!audience.length) { toast("The audience is empty", "warn"); return; }
+    const ok = await _rrConfirmDialog({
+      title: `Send to ${audience.length} driver${audience.length === 1 ? "" : "s"}?`,
+      body: bcMode === "voice" ? "Each gets it as a voice message in their chat." : "Each gets it as a direct message.",
+      confirmLabel: "Send broadcast",
+    });
+    if (!ok) return;
+    btn.disabled = true;
+    const ext = bcMime.includes("mp4") || bcMime.includes("aac") ? "m4a" : bcMime.includes("ogg") ? "ogg" : "webm";
+    let sent = 0;
+    for (const d of audience) {
+      let attachment = null;
+      if (bcMode === "voice") {
+        const path = `${dspId}/${d.id}/${Date.now()}-vbcast.${ext}`;
+        const { error: upErr } = await sb.storage.from("driver-chat-attachments")
+          .upload(path, bcBlob, { contentType: bcMime, upsert: false });
+        if (upErr) { btn.textContent = `Sending… ${sent}/${audience.length}`; continue; }
+        attachment = { path, mime: bcMime, name: "Voice message", size: bcBlob.size };
+      }
+      const { error } = await sb.rpc("dispatch_chat_send", {
+        p_driver_id: d.id, p_body: body || null,
+        p_attachment_path: attachment?.path || null, p_attachment_mime: attachment?.mime || null,
+        p_attachment_name: attachment?.name || null, p_attachment_size_bytes: attachment?.size || null,
+        p_priority: "normal", p_requires_ack: reqAck,
+      });
+      if (!error) sent++;
+      btn.textContent = `Sending… ${sent}/${audience.length}`;
+    }
+    toast(`Broadcast sent to ${sent} of ${audience.length}`, sent === audience.length ? "ok" : "warn");
+    close();
+    refreshDriverChatList(false);
+  });
+}
 
 // ─── Edit / delete on dispatcher's own bubbles ───────────────────────────
 //
@@ -41963,9 +46256,17 @@ document.addEventListener("click", async (e) => {
     root.querySelector("[data-rr-mc-edit-save]").addEventListener("click", async () => {
       const next = ta.value.trim();
       if (!next || next === current) { close(); return; }
-      const { error } = await sb.rpc("dispatch_chat_edit", { p_message_id: id, p_body: next });
-      if (error) { toast("Edit failed: " + error.message, "warn"); return; }
+      // Optimistic apply (#80) — paint the new text immediately, revert on
+      // failure.
+      const prevHtml = bodyEl ? bodyEl.innerHTML : null;
+      if (bodyEl) bodyEl.innerHTML = _mcLinkifyPhones(_mdLite(linkifyEscaped(escapeHtml(next).replace(/\n/g, "<br>"))));
       close();
+      const { error } = await sb.rpc("dispatch_chat_edit", { p_message_id: id, p_body: next });
+      if (error) {
+        if (bodyEl && prevHtml !== null) bodyEl.innerHTML = prevHtml;
+        toast("Edit failed: " + error.message, "warn");
+        return;
+      }
       refreshDriverChatThread(false);
     });
     ta.addEventListener("keydown", (ev) => {
@@ -42023,7 +46324,14 @@ function _rrMcWireVoicePlayer(audio) {
   const timeEl  = box.querySelector("[data-rr-vn-time]");
   const speedBtn = box.querySelector("[data-rr-vn-speed]");
   const fmt = (s) => { s = Math.max(0, Math.floor(s || 0)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
-  const showDur = () => { if (timeEl && isFinite(audio.duration)) timeEl.textContent = fmt(audio.duration); };
+  const showDur = () => {
+    if (timeEl && isFinite(audio.duration)) timeEl.textContent = fmt(audio.duration);
+    // SR-friendly container label (#85).
+    if (isFinite(audio.duration)) {
+      box.setAttribute("role", "group");
+      box.setAttribute("aria-label", `Voice message, ${Math.round(audio.duration)} seconds`);
+    }
+  };
   audio.addEventListener("loadedmetadata", showDur);
   audio.addEventListener("timeupdate", () => {
     const d = audio.duration;
@@ -42117,9 +46425,22 @@ async function _rrMcSignAttachments() {
     const path = el.getAttribute("data-rr-mc-attach");
     el.setAttribute("data-rr-mc-resolved", "1");
     try {
-      const { data, error } = await sb.storage
-        .from("driver-chat-attachments")
-        .createSignedUrl(path, 60 * 60 * 8);
+      let data = null, error = null;
+      // Thumbnail pipeline (#78): bubble images ask for a 480px transform
+      // (storage image transformation). Projects without transforms just
+      // error → fall through to the plain signed URL.
+      if (el.tagName === "IMG" && !window._rrNoImgTransform) {
+        const t = await sb.storage.from("driver-chat-attachments")
+          .createSignedUrl(path, 60 * 60 * 8, { transform: { width: 480, quality: 75 } })
+          .then((r) => r, (e) => ({ error: e || {} }));
+        if (!t.error && t.data?.signedUrl) data = t.data;
+        else window._rrNoImgTransform = true; // stop asking this session
+      }
+      if (!data) {
+        ({ data, error } = await sb.storage
+          .from("driver-chat-attachments")
+          .createSignedUrl(path, 60 * 60 * 8));
+      }
       if (error || !data?.signedUrl) continue;
       if (el.tagName === "IMG") {
         // Bind load/error BEFORE setting src so we never miss the
@@ -42318,11 +46639,12 @@ async function refreshChannelList(autoSelect) {
     return new Date(iso).toLocaleDateString();
   };
   const headerBtn = `
-    <div style="padding:var(--s-2-5) var(--s-3);border-bottom:1px solid var(--border)">
-      <button class="btn btn-primary btn-sm" data-rr-channel-new style="width:100%">
+    <div style="padding:var(--s-2-5) var(--s-3);border-bottom:1px solid var(--border);display:flex;gap:6px">
+      <button class="btn btn-primary btn-sm" data-rr-channel-new style="flex:1">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;vertical-align:-2px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         ${newLabel}
       </button>
+      <button class="btn btn-sm" data-rr-broadcast-new title="Message a dynamic audience (station / scheduled tomorrow / …) as direct messages" style="flex:1">📣 Broadcast</button>
     </div>`;
   const kindList = _msgChannelList.filter(c => (c.kind || "broadcast") === _msgChannelKind);
   if (kindList.length === 0) {
@@ -42349,6 +46671,7 @@ async function refreshChannelList(autoSelect) {
     </div>`;
   }).join("");
   list.querySelector("[data-rr-channel-new]")?.addEventListener("click", openChannelCreateModal);
+  list.querySelector("[data-rr-broadcast-new]")?.addEventListener("click", _mcOpenBroadcastComposer);
   list.querySelectorAll("[data-rr-channel]").forEach((el) => {
     el.addEventListener("click", () => openChannelThread(el.dataset.rrChannel));
   });
@@ -42490,9 +46813,12 @@ function _ccWireMentionAutocomplete(ta) {
   const render = () => {
     const tok = currentToken();
     if (!tok) { close(); return; }
-    const matches = (_ccCurrentMembers || [])
+    let matches = (_ccCurrentMembers || [])
       .filter((mm) => mm.full_name.toLowerCase().includes(tok.q))
       .slice(0, 6);
+    // @everyone / @here (#42) — special audience mentions, confirmed at
+    // send time and rate-limited per channel.
+    if ("everyone".startsWith(tok.q) || tok.q === "") matches = [{ full_name: "everyone", special: true }, ...matches].slice(0, 7);
     if (!matches.length) { close(); return; }
     if (!menu) { menu = document.createElement("div"); menu.className = "rr-cc-mention-menu"; document.body.appendChild(menu); }
     menu.innerHTML = matches.map((mm, i) =>
@@ -42552,7 +46878,9 @@ function _ccRenderBody(raw, mentioned) {
     html = html.split(nm).join(`<span class="rr-cc-mention">${nm}</span>`);
   });
   html = html.replace(/\n/g, "<br>");
-  return linkifyEscaped(html);
+  // escape → mentions → linkify → markdown-lite (#10) → tel: links (#60);
+  // each pass only touches text runs between tags.
+  return _mcLinkifyPhones(_mdLite(linkifyEscaped(html)));
 }
 
 // Bookmark toggle button for a bubble (kind = 'driver' | 'channel').
@@ -42866,13 +47194,17 @@ async function refreshChannelThread(scrollToBottom) {
   // reactions, @mentions, and member read-state (0480 / 0481). Each is a
   // graceful no-op on servers where the migration isn't applied yet, so the
   // thread still renders if any RPC is missing.
-  const [msgRes, reactRes, mentionRes, readRes, memberRes] = await Promise.all([
+  const [msgRes, reactRes, mentionRes, readRes, memberRes, ackRes, pollRes] = await Promise.all([
     sb.rpc("dispatch_channel_messages", { p_channel_id: channelId, p_limit: _ccThreadLimit }),
     sb.rpc("dispatch_channel_reactions", { p_channel_id: channelId }).then((r) => r, () => ({ data: null })),
     sb.rpc("dispatch_channel_mentions",  { p_channel_id: channelId }).then((r) => r, () => ({ data: null })),
     sb.rpc("dispatch_channel_read_state",{ p_channel_id: channelId }).then((r) => r, () => ({ data: null })),
     sb.rpc("dispatch_channel_members",   { p_channel_id: channelId }).then((r) => r, () => ({ data: null })),
+    sb.rpc("dispatch_channel_acks",      { p_channel_id: channelId }).then((r) => r, () => ({ data: null })),
+    sb.rpc("dispatch_channel_polls",     { p_channel_id: channelId }).then((r) => r, () => ({ data: null })),
   ]);
+  _ccAcks = ackRes?.data?.acks || [];
+  _ccPolls = pollRes?.data?.polls || [];
   // Cache the member roster for @mention autocomplete + on-send resolution.
   _ccCurrentMembers = (memberRes?.data?.members || []).map((m) => ({ driver_id: m.driver_id, full_name: m.full_name })).filter((m) => m.full_name);
   const { data, error } = msgRes;
@@ -42881,6 +47213,7 @@ async function refreshChannelThread(scrollToBottom) {
     return;
   }
   const msgs = data?.messages || [];
+  _ccLastChannelMsgs = msgs;
   // Index reactions by message id: { messageId → [{emoji,count,mine}] }.
   const _ccReactByMsg = new Map();
   (reactRes?.data?.reactions || []).forEach((r) => {
@@ -42922,14 +47255,16 @@ async function refreshChannelThread(scrollToBottom) {
             <div class="rr-cc-sub">${memberCount} member${memberCount === 1 ? "" : "s"}${stationLine}${meta.archived_at ? " · archived" : ""}</div>
           </div>
           <div class="rr-cc-head-actions">
+            <button class="btn btn-sm" data-rr-cc-meet="${escapeHtml(channelId)}" title="Start a group call — the join link is posted to the room">📹 Meet</button>
             <button class="btn btn-sm rr-cc-mute-btn${_ccMutedIds.has(channelId) ? " muted" : ""}" data-rr-channel-mute="${escapeHtml(channelId)}" title="${_ccMutedIds.has(channelId) ? "Muted — click to unmute" : "Mute this channel"}" aria-label="${_ccMutedIds.has(channelId) ? "Unmute channel" : "Mute channel"}">${_ccMutedIds.has(channelId) ? "Muted" : "Mute"}</button>
             <button class="btn btn-sm" data-rr-channel-members="${escapeHtml(channelId)}">Members</button>
+            <button class="btn btn-sm" data-rr-cc-info="${escapeHtml(channelId)}" title="Room details">Info</button>
             <button class="btn btn-sm" data-rr-channel-archive="${escapeHtml(channelId)}">${meta.archived_at ? "Unarchive" : "Archive"}</button>
           </div>
         </div>
         <div class="rr-cc-thread" id="rr-cc-thread" role="region" aria-label="Channel messages"></div>
         <form class="rr-cc-composer" id="rr-cc-form" style="${meta.archived_at ? "opacity:.5;pointer-events:none" : ""}">
-          <input type="file" id="rr-cc-file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" hidden>
+          <input type="file" id="rr-cc-file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" multiple hidden>
           <button type="button" id="rr-cc-attach" title="Attach photo or document" aria-label="Attach photo or document"
                   style="background:transparent;border:0;color:var(--text-muted);cursor:pointer;width:36px;height:36px;border-radius:var(--r-2xl);display:flex;align-items:center;justify-content:center">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
@@ -42952,8 +47287,14 @@ async function refreshChannelThread(scrollToBottom) {
       ta.scrollTop = ta.scrollHeight;
       if (typeof _syncComposerPos === "function") _syncComposerPos();
     });
+    // Composer enhancement layer (drafts, emoji, :shortcodes:, /templates,
+    // + menu) — wired BEFORE the Enter handler so popup state gates submit.
+    const _ccEnh = _mcEnhanceComposer({
+      form: document.getElementById("rr-cc-form"), ta, kind: "ch",
+      getTargetId: () => _msgChannelSelectedId,
+    });
     ta.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
+      if (_ccEnh && _ccEnh.enterShouldSend(e)) {
         // Don't submit while the @mention menu is open — let a pick happen.
         if (document.querySelector(".rr-cc-mention-menu")) return;
         e.preventDefault();
@@ -42972,9 +47313,45 @@ async function refreshChannelThread(scrollToBottom) {
 
     document.getElementById("rr-cc-form").addEventListener("submit", async (e) => {
       e.preventDefault();
-      const body = (ta.value || "").trim();
-      const file = window._rrCcPending;
-      if (!body && !file) return;
+      const sendChannelId = _msgChannelSelectedId;
+      const rawBody = (ta.value || "").trim();
+      const body = _mcApplyShortcodes(rawBody);
+      const staged = Array.isArray(window._rrCcPending) ? window._rrCcPending.slice() : [];
+      if (!body && !staged.length) return;
+      const ccReplyTo = _ccReplyTo ? { ..._ccReplyTo } : null;
+      const ccReqAck = !!_ccRequireAck;
+      // @everyone / @here (#42): confirm + per-channel rate limit before
+      // anything leaves.
+      const isEveryone = /@everyone\b|@here\b/i.test(body);
+      if (isEveryone) {
+        const lastKey = "rr_cc_everyone_" + sendChannelId;
+        const last = parseInt(_mcPref(lastKey, "0"), 10) || 0;
+        if (Date.now() - last < 10 * 60 * 1000) {
+          toast("@everyone was used in this room less than 10 minutes ago — give it a moment", "warn");
+          return;
+        }
+        const total = _ccCurrentMembers.length;
+        const ok = await _rrConfirmDialog({
+          title: "Notify everyone?",
+          body: `@everyone pings all ${total} member${total === 1 ? "" : "s"} of this room.`,
+          confirmLabel: "Send to everyone",
+        });
+        if (!ok) return;
+        _mcSetPref(lastKey, String(Date.now()));
+      }
+      // Soft PII/profanity guard (#95).
+      {
+        const risks = _mcScanRisks(body);
+        if (risks.length) {
+          const ok2 = await _rrConfirmDialog({
+            title: "Double-check before posting",
+            body: `This post looks like it contains ${risks.join(" and ")}. The whole room will see it — post anyway?`,
+            confirmLabel: "Post anyway",
+            danger: true,
+          });
+          if (!ok2) return;
+        }
+      }
       const send = e.target.querySelector(".rr-cc-send");
       send.disabled = true;
 
@@ -42985,15 +47362,17 @@ async function refreshChannelThread(scrollToBottom) {
       const threadEl = document.getElementById("rr-cc-thread");
       const stubId = "rrcc-stub-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7);
       const stubAt = Date.now();
-      const stubBody = body ? `<div>${linkifyEscaped(escapeHtml(body).replace(/\n/g, "<br>"))}</div>` : "";
-      const stubAttach = file ? `<div style="font-size:var(--fs-xs);opacity:.85;margin-bottom:4px">📎 ${escapeHtml(file.name)} (uploading…)</div>` : "";
+      const stubBody = body ? `<div>${_mdLite(linkifyEscaped(escapeHtml(body).replace(/\n/g, "<br>")))}</div>` : "";
+      const stubAttach = staged.length
+        ? `<div style="font-size:var(--fs-xs);opacity:.85;margin-bottom:4px">📎 ${staged.length === 1 ? escapeHtml(staged[0].file.name) : staged.length + " attachments"} (uploading…)</div>`
+        : "";
       const nowTime = new Date().toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-      const stubHtml = `<div class="rr-cc-bubble dispatch pending" data-rr-cc-stub="${stubId}" data-rr-stub-body="${escapeHtml(_normStubBody(body))}" data-rr-stub-at="${stubAt}" data-rr-stub-attach="${file ? "1" : "0"}" data-group-pos="single">
+      const stubHtml = `<div class="rr-cc-bubble dispatch pending" data-rr-cc-stub="${stubId}" data-rr-stub-body="${escapeHtml(_normStubBody(body))}" data-rr-stub-at="${stubAt}" data-rr-stub-attach="${staged.length ? "1" : "0"}" data-group-pos="single">
         <div class="rr-cc-sender">Dispatch</div>
         ${stubAttach}${stubBody}
         <div class="rr-cc-time">${escapeHtml(nowTime)} · sending</div>
       </div>`;
-      const savedBody = body;
+      const savedBody = rawBody;
       if (threadEl) {
         threadEl.querySelector(".rr-cc-empty")?.remove();
         const ccSentinel = threadEl.querySelector("#rr-cc-bottom-sentinel");
@@ -43003,9 +47382,13 @@ async function refreshChannelThread(scrollToBottom) {
         threadEl.scrollTop = threadEl.scrollHeight;
       }
       ta.value = ""; ta.style.height = "auto";
-      if (file) attachCtl.clear();
+      _mcDraftClear("ch", sendChannelId);
+      _ccReplyTo = null;
+      _ccRequireAck = false;
+      _ccShowReplyBar();
+      if (staged.length) attachCtl.clear();
 
-      const _ccFail = (label) => {
+      const _ccFail = (label, restoreFiles) => {
         send.disabled = false;
         const stub = threadEl?.querySelector(`[data-rr-cc-stub="${stubId}"]`);
         if (stub) {
@@ -43014,54 +47397,104 @@ async function refreshChannelThread(scrollToBottom) {
           const timeEl = stub.querySelector(".rr-cc-time");
           if (timeEl) timeEl.textContent = label;
           stub.style.cursor = "pointer";
-          stub.title = file ? "Click to restore your message — re-attach the file and resend" : "Click to restore and retry";
-          stub.addEventListener("click", () => { ta.value = savedBody; ta.focus(); stub.remove(); }, { once: true });
+          stub.title = "Click to restore and retry";
+          stub.addEventListener("click", () => {
+            ta.value = savedBody;
+            ta.dispatchEvent(new Event("input", { bubbles: true }));
+            if (restoreFiles?.length && attachCtl.stage) attachCtl.stage(restoreFiles.map((s) => s.file));
+            ta.focus();
+            stub.remove();
+          }, { once: true });
         }
         ta.value = savedBody;
       };
 
-      let attachment = null;
-      if (file) {
-        const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80) || "file";
-        const dspId = window.RR?.dsp?.id || "unknown";
-        const path  = `${dspId}/channels/${_msgChannelSelectedId}/${Date.now()}-${safe}`;
-        const { error: upErr } = await sb.storage
-          .from("driver-chat-attachments").upload(path, file, { contentType: file.type, upsert: false });
-        if (upErr) {
-          _ccFail("upload failed · click to retry");
-          toast("Upload failed: " + upErr.message, "warn");
+      // ── Undo-send window (#6) — same contract as 1:1 chat.
+      const undoSecs = _mcUndoSecs();
+      if (undoSecs > 0) {
+        const undone = await _mcRunUndoWindow(undoSecs, stubId);
+        if (undone) {
+          threadEl?.querySelector(`[data-rr-cc-stub="${stubId}"]`)?.remove();
+          ta.value = savedBody;
+          ta.dispatchEvent(new Event("input", { bubbles: true }));
+          if (staged.length && attachCtl.stage) attachCtl.stage(staged.map((s) => s.file));
+          _mcDraftSave("ch", sendChannelId, savedBody);
+          if (ccReplyTo) { _ccReplyTo = ccReplyTo; _ccShowReplyBar(); }
+          _ccRequireAck = ccReqAck;
+          send.disabled = false;
+          ta.focus();
           return;
         }
-        attachment = { path, mime: file.type, name: file.name, size: file.size };
       }
 
       // Resolve @mentions from the draft against the member roster before we
-      // clear it, so we can attach them to the posted row.
-      const _mentionIds = _ccResolveMentions(savedBody);
-      const { data: postData, error } = await sb.rpc("dispatch_channel_post", {
-        p_channel_id:            _msgChannelSelectedId,
-        p_body:                  savedBody || null,
-        p_attachment_path:       attachment?.path || null,
-        p_attachment_mime:       attachment?.mime || null,
-        p_attachment_name:       attachment?.name || null,
-        p_attachment_size_bytes: attachment?.size || null,
-      });
-      send.disabled = false;
-      if (error) {
-        // Roll back the just-uploaded blob so a failed post doesn't orphan it.
-        if (attachment?.path) {
-          try { await sb.storage.from("driver-chat-attachments").remove([attachment.path]); } catch (_) {}
+      // clear it, so we can attach them to the posted row. @everyone (#42)
+      // mentions every member.
+      const _mentionIds = isEveryone
+        ? (_ccCurrentMembers || []).map((mm) => mm.driver_id)
+        : _ccResolveMentions(body);
+      const postOne = async (msgBody, attachment, replyToId, reqAck) => {
+        const params = {
+          p_channel_id:            sendChannelId,
+          p_body:                  msgBody || null,
+          p_attachment_path:       attachment?.path || null,
+          p_attachment_mime:       attachment?.mime || null,
+          p_attachment_name:       attachment?.name || null,
+          p_attachment_size_bytes: attachment?.size || null,
+        };
+        if (replyToId) params.p_reply_to = replyToId;
+        if (reqAck) params.p_requires_ack = true;
+        let res = await sb.rpc("dispatch_channel_post", params);
+        // Pre-0509 servers don't know the new params — retry plain rather
+        // than losing the post.
+        if (res.error && (replyToId || reqAck) && _mcRpcMissing(res.error)) {
+          delete params.p_reply_to;
+          delete params.p_requires_ack;
+          res = await sb.rpc("dispatch_channel_post", params);
+          if (!res.error) toast("Posted — threads & acknowledgements unlock once migration 0509 is applied", "info");
         }
-        _ccFail("post failed · click to retry");
-        toast("Couldn't post: " + error.message, "warn");
-        return;
+        return res;
+      };
+      // One post per attachment; the text body (and its mentions) rides the
+      // first post.
+      const uploads = staged.length ? staged : [null];
+      for (let fi = 0; fi < uploads.length; fi++) {
+        let attachment = null;
+        if (uploads[fi]) {
+          const f = await _mcMaybeCompressImage(uploads[fi].file, uploads[fi].hd);
+          const safe = f.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80) || "file";
+          const dspId = window.RR?.dsp?.id || "unknown";
+          const path  = `${dspId}/channels/${sendChannelId}/${Date.now()}-${fi}-${safe}`;
+          const { error: upErr } = await sb.storage
+            .from("driver-chat-attachments").upload(path, f, { contentType: f.type, upsert: false });
+          if (upErr) {
+            _ccFail("upload failed · click to retry", staged.slice(fi));
+            toast("Upload failed: " + upErr.message, "warn");
+            return;
+          }
+          attachment = { path, mime: f.type, name: f.name, size: f.size };
+        }
+        const { data: postData, error } = await postOne(
+          fi === 0 ? body : null, attachment,
+          fi === 0 ? ccReplyTo?.id : null,
+          fi === 0 ? ccReqAck : false);
+        if (error) {
+          // Roll back the just-uploaded blob so a failed post doesn't orphan it.
+          if (attachment?.path) {
+            try { await sb.storage.from("driver-chat-attachments").remove([attachment.path]); } catch (_) {}
+          }
+          _ccFail("post failed · click to retry", staged.slice(fi));
+          toast("Couldn't post: " + error.message, "warn");
+          return;
+        }
+        // Record @mentions on the freshly-posted message (best-effort — a
+        // missing RPC on an un-migrated server just no-ops).
+        if (fi === 0 && _mentionIds.length && postData?.id) {
+          sb.rpc("dispatch_channel_set_mentions", { p_message_id: postData.id, p_driver_ids: _mentionIds })
+            .then(undefined, () => {});
+        }
       }
-      // Record @mentions on the freshly-posted message (best-effort — a
-      // missing RPC on an un-migrated server just no-ops).
-      if (_mentionIds.length && postData?.id) {
-        sb.rpc("dispatch_channel_set_mentions", { p_message_id: postData.id, p_driver_ids: _mentionIds })
-          .then(undefined, () => {});
-      }
+      send.disabled = false;
       ta.value = ""; ta.style.height = "auto";
       // Composer is a regular grid child now — track sizing handles
       // the height shrink mechanically.  The call below is a no-op
@@ -43124,7 +47557,7 @@ async function refreshChannelThread(scrollToBottom) {
     let lastSenderId = null;
     ccBody = msgs.map((m, i) => {
       const t = new Date(m.created_at);
-      const time = t.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+      const time = _mcFmtTime(t);
       const senderKey = m.sender_kind + "|" + (m.sender_id || m.sender_user_id || m.sender_name || "");
       const sameAsPrev = senderKey === lastSenderId && (t.getTime() - lastTimeMs) < 5 * 60 * 1000;
       const next = msgs[i + 1];
@@ -43156,7 +47589,7 @@ async function refreshChannelThread(scrollToBottom) {
           // BEFORE any image data lands, so the bubble cannot grow on
           // image load and the scroll-anchor algorithm has nothing to
           // walk up to preserve.
-          ? `<img data-rr-mc-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" width="240" height="240" loading="eager" decoding="async" style="max-width:240px;border-radius:8px;margin-bottom:6px;cursor:zoom-in" onclick="window.open(this.src,'_blank')"/>`
+          ? `<img data-rr-mc-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" width="240" height="240" loading="lazy" decoding="async" style="max-width:240px;border-radius:8px;margin-bottom:6px;cursor:zoom-in" onclick="window.open(this.src,'_blank')"/>`
           : _rrMcAttachCard(m);
       }
       const senderLabel = m.sender_kind === "dispatch"
@@ -43168,6 +47601,33 @@ async function refreshChannelThread(scrollToBottom) {
       const ccAttachOnly = (m.attachment_path && !m.body) ? " attach-only" : "";
       const reactsRow  = _ccReactionsRowHtml(m.id, _ccReactByMsg.get(m.id));
       const bookmarkBtn = _rrBookmarkBtnHtml("channel", m.id);
+      // Reply-quote (#43): quoted original above the body.
+      let ccQuote = "";
+      if (m.reply_to) {
+        const q = msgs.find((x) => x.id === m.reply_to);
+        const qWho = q ? (q.sender_kind === "dispatch" ? "Dispatch" : (q.sender_name || "Driver")) : "";
+        const qTxt = q ? (q.body || (q.attachment_name ? "📎 " + q.attachment_name : "Message")) : "Earlier message";
+        ccQuote = `<button type="button" class="rr-mc-quote" data-rr-cc-jumpto="${escapeHtml(m.reply_to)}" title="Go to the original message">
+          ${qWho ? `<span class="rr-mc-quote-who">${escapeHtml(qWho)}</span>` : ""}
+          <span class="rr-mc-quote-text">${escapeHtml(String(qTxt).slice(0, 120))}</span>
+        </button>`;
+      }
+      // Thread chip (#43): replies collapse under the parent.
+      const replyCount = msgs.reduce((n, x) => n + (x.reply_to === m.id ? 1 : 0), 0);
+      const threadChip = replyCount > 0
+        ? `<button type="button" class="rr-cc-thread-chip" data-rr-cc-thread-view="${escapeHtml(m.id)}">💬 ${replyCount} repl${replyCount === 1 ? "y" : "ies"} — view thread</button>`
+        : "";
+      // Ack summary chip (#37/#38) on requires-ack broadcasts.
+      let ackChipCc = "";
+      if (m.requires_ack && m.sender_kind === "dispatch") {
+        const acked = _ccAcks.filter((a) => a.message_id === m.id).length;
+        const total = _ccMemberCount || (_ccCurrentMembers || []).length;
+        ackChipCc = `<button type="button" class="rr-cc-ackchip${acked >= total && total > 0 ? " done" : ""}" data-rr-cc-ackboard="${escapeHtml(m.id)}" title="Open the delivery board">✓ ${acked} of ${total} acknowledged</button>`;
+      }
+      // Hover actions: reply (+ thread view when replies exist).
+      const ccActions = `<div class="rr-mc-bubble-actions rr-cc-actions">
+          <button type="button" data-rr-cc-reply="${escapeHtml(m.id)}" aria-label="Reply in thread" title="Reply"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg></button>
+        </div>`;
       // "Seen by N of M" — only on the latest dispatch broadcast, so the
       // operator can confirm the fleet actually saw an urgent notice.
       let seenPill = "";
@@ -43176,16 +47636,21 @@ async function refreshChannelThread(scrollToBottom) {
         seenPill = `<div class="rr-cc-seen" title="${seen} of ${_ccMemberCount} members have opened the channel since this message">Seen by ${seen} of ${_ccMemberCount}</div>`;
       }
       return `<div class="rr-cc-bubble ${m.sender_kind}${ccAttachOnly}" data-group-pos="${pos}" data-rr-cc-msg="${escapeHtml(m.id)}">
+        ${ccActions}
         ${showSender ? `<div class="rr-cc-sender">${escapeHtml(senderLabel)}</div>` : ""}
         ${bookmarkBtn}
-        ${attach}
+        ${ccQuote}${attach}
         ${bodyHtml}
-        <div class="rr-cc-time">${escapeHtml(time)}</div>
+        ${ackChipCc}
+        <div class="rr-cc-time" title="${escapeHtml(t.toLocaleString())}">${escapeHtml(time)}</div>
         ${reactsRow}
+        ${threadChip}
       </div>${seenPill}`;
     }).join("");
   }
   thread.innerHTML = ccLoadOlderHtml + ccBody + ccLiveStubs + ccSentinelHtml;
+  _mcApplyTextSize();
+  _ccApplyPolls();
   if (msgs.some((m) => m.attachment_path)) setTimeout(() => _rrMcSignAttachments(), 0);
   // Wire "Load earlier" for channels — grow the page to 500 and re-fetch,
   // restoring scroll by the exact prepended height so the read position
@@ -43296,6 +47761,9 @@ function openChannelCreateModal() {
         <input id="rr-cc-new-name" class="form-input form-input-block" required maxlength="80" placeholder="${isHr ? "pto-requests" : "morning-wave"}">
         <label class="modal-field-label" for="rr-cc-new-desc">Description <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-subtle)">(optional)</span></label>
         <input id="rr-cc-new-desc" class="form-input form-input-block" maxlength="280" placeholder="What this channel is for">
+        <label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--text);margin-top:10px">
+          <input type="checkbox" id="rr-cc-new-ann"> Announcement-only — drivers read, react &amp; acknowledge, but can't post
+        </label>
         <label class="modal-field-label" for="rr-cc-new-station">Station scope</label>
         <select id="rr-cc-new-station" class="form-input form-input-block">
           <option value="">All stations · DSP-wide</option>
@@ -43337,6 +47805,12 @@ function openChannelCreateModal() {
     if (isHr) params.p_kind = "hr";
     const { data, error } = await sb.rpc("dispatch_channel_create", params);
     if (error) { toast("Create failed: " + error.message, "warn"); return; }
+    // Announcement-only (#36) is set post-create via the update RPC so
+    // creation still works against pre-0509 servers.
+    if (data?.id && document.getElementById("rr-cc-new-ann")?.checked) {
+      await sb.rpc("dispatch_channel_update", { p_channel_id: data.id, p_announcement_only: true })
+        .then((r) => r, () => ({}));
+    }
     wrap.remove();
     toast(isHr ? "HR group created" : "Channel created", "good");
     await refreshChannelList(false);
@@ -43367,6 +47841,11 @@ async function openChannelMembersModal(channelId) {
             <option value="">Add a driver…</option>
           </select>
           <button type="button" class="btn btn-primary" id="rr-cc-mem-add-btn">Add</button>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 4px">
+          <button type="button" class="btn btn-sm" data-rr-cc-bulk="active">+ All active</button>
+          <button type="button" class="btn btn-sm" data-rr-cc-bulk="today">+ Scheduled today</button>
+          <button type="button" class="btn btn-sm" data-rr-cc-bulk="tomorrow">+ Scheduled tomorrow</button>
         </div>
         <div id="rr-cc-mem-list" style="border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden">
           <div class="rr-loading">Loading</div>
@@ -43425,6 +47904,38 @@ async function openChannelMembersModal(channelId) {
     await paint();
     refreshChannelList(false);
   });
+
+  // Bulk membership (#35): add a whole audience at once.
+  wrap.querySelectorAll("[data-rr-cc-bulk]").forEach((btn) => btn.addEventListener("click", async () => {
+    const kind = btn.getAttribute("data-rr-cc-bulk");
+    btn.disabled = true;
+    const fmtD = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const [{ data: drvData }, { data: memData }] = await Promise.all([
+      sb.from("drivers").select("id, status").eq("status", "active"),
+      sb.rpc("dispatch_channel_members", { p_channel_id: channelId }).then((r) => r, () => ({ data: null })),
+    ]);
+    let ids = (drvData || []).map((d) => String(d.id));
+    if (kind !== "active") {
+      const day = new Date();
+      if (kind === "tomorrow") day.setDate(day.getDate() + 1);
+      const { data: shifts } = await sb.from("shifts")
+        .select("driver_id, status").eq("dsp_id", window.RR?.dsp?.id).eq("date", fmtD(day));
+      const onDay = new Set((shifts || []).filter((s) => s.status !== "called_off" && s.status !== "no_show").map((s) => String(s.driver_id)));
+      ids = ids.filter((id) => onDay.has(id));
+    }
+    const existing = new Set((memData?.members || []).map((m) => String(m.driver_id)));
+    const toAdd = ids.filter((id) => !existing.has(id));
+    if (!toAdd.length) { toast("Everyone in that audience is already a member", "info"); btn.disabled = false; return; }
+    let added = 0;
+    for (const id of toAdd) {
+      const { error } = await sb.rpc("dispatch_channel_add_member", { p_channel_id: channelId, p_driver_id: id });
+      if (!error) added++;
+    }
+    toast(`Added ${added} driver${added === 1 ? "" : "s"}`, "ok");
+    btn.disabled = false;
+    await paint();
+    refreshChannelList(false);
+  }));
 }
 
 function _coachSeverityChip(sev, level, topic, reason) {
@@ -46545,7 +51056,13 @@ function _rrCallOpenRoom(room, media, replace) {
   if (replace) { try { location.href = url; return; } catch {} }
   // Desktop calls open the traditional meeting-sized window (the
   // FaceTime treatment is phone-only, operator request 2026-07-13).
-  rrOpenMeetWindow(url);
+  // Capture the peer BEFORE teardown clears it, and watch the popup for
+  // the in-call quick-message widget + end-of-call note (#56/#59/#61).
+  const _peer = _rrCall.peer;
+  const _win = rrOpenMeetWindow(url);
+  if (_win && _peer && typeof _mcCallSessionWatch === "function") {
+    _mcCallSessionWatch(_win, _peer, media);
+  }
 }
 
 // base64url → Uint8Array (VAPID application server key).
@@ -47133,9 +51650,20 @@ sb.channel("rr-dashboard")
   .on("postgres_changes", { event: "UPDATE", schema: "public", table: "driver_messages" },         scheduleChatRealtime)
   .on("postgres_changes", { event: "INSERT", schema: "public", table: "driver_channel_messages" }, scheduleChatRealtime)
   .on("postgres_changes", { event: "*",      schema: "public", table: "driver_message_reactions" }, scheduleChatRealtime)
+  // Batch 8 (#73): the newer chat surfaces ride realtime too — pins,
+  // channel acks and poll votes repaint without waiting for a poll.
+  .on("postgres_changes", { event: "*",      schema: "public", table: "driver_message_pins" },        scheduleChatRealtime)
+  .on("postgres_changes", { event: "*",      schema: "public", table: "driver_channel_message_acks" }, scheduleChatRealtime)
+  .on("postgres_changes", { event: "*",      schema: "public", table: "channel_poll_votes" },          scheduleChatRealtime)
   // Checklist submissions — flag alerts + live Responses refresh.
   .on("postgres_changes", { event: "*", schema: "public", table: "checklist_submissions" }, _clfRealtimeSubmission)
-  .subscribe();
+  .subscribe((status) => {
+    // Track socket health (#73/#75): healthy realtime lets the chat polls
+    // stretch way out (they're only a safety net), and the connection
+    // banner reflects drops.
+    window._rrChatRealtimeHealthy = status === "SUBSCRIBED";
+    if (typeof _mcPaintConnBanner === "function") _mcPaintConnBanner();
+  });
 
 window.addEventListener("focus", refreshActiveView);
 setInterval(refreshActiveView, 30 * 1000);

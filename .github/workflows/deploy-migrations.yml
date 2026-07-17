@@ -64,7 +64,7 @@ jobs:
         finch-oauth-callback repair-shop-portal repair-quote-extract
         booking-captcha vin-decode parts-search vehicle-document-fetch
         explain-optimization-run google-calendar-reconcile
-        microsoft-oauth-callback microsoft-calendar-sync
+        microsoft-oauth-callback microsoft-calendar-sync link-preview
       # Functions deliberately excluded from auto-deploy (deployed by
       # hand). Keep empty unless a function truly must not ship from CI.
       MANUAL_ONLY_FUNCS: ''

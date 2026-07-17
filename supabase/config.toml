@@ -147,6 +147,13 @@ verify_jwt = false
 [functions.health]
 verify_jwt = false
 
+# Chat link-unfurl metadata fetch. Gateway verify_jwt off so the browser CORS
+# preflight succeeds; the function validates the caller's JWT in-code and the
+# outbound fetch is SSRF-constrained (http/https only, private hosts blocked,
+# manual redirects, 5s timeout, 256 KB read cap).
+[functions.link-preview]
+verify_jwt = false
+
 # Owner-only document-file export (data portability / DSR). verify_jwt off so
 # the browser CORS preflight succeeds; the function validates the caller's JWT +
 # requires role='owner' and scopes to their dsp_id in-code.
