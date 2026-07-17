@@ -29,6 +29,7 @@
 //
 // Deployed --no-verify-jwt; gated by the x-rr-sync-token shared secret.
 import { serviceClient, jsonResponse } from "../_shared/supabase.ts";
+import { timingSafeEqual } from "../_shared/http.ts";
 import { getAccessToken, gcalSyncList, type GCalAccount } from "../_shared/google_calendar.ts";
 
 const FULL_WINDOW_PAST_DAYS = 7;
@@ -64,7 +65,9 @@ const sameInstant = (a: string | null, b: string | null) => {
 };
 
 Deno.serve(async (req) => {
-  if (req.headers.get("x-rr-sync-token") !== Deno.env.get("GOOGLE_SYNC_TRIGGER_TOKEN")) {
+  // Timing-safe compare; an unset env token must REJECT (never match empty).
+  const _syncTok = Deno.env.get("GOOGLE_SYNC_TRIGGER_TOKEN") || "";
+  if (!_syncTok || !timingSafeEqual(req.headers.get("x-rr-sync-token") || "", _syncTok)) {
     return jsonResponse({ error: "unauthorized" }, { status: 401 });
   }
   const supa = serviceClient();

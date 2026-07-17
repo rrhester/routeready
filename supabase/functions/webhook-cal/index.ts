@@ -10,6 +10,7 @@
 //   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 //   CAL_WEBHOOK_SECRET   (Cal sends X-Cal-Signature-256 = HMAC-SHA256 of body)
 import { serviceClient, jsonResponse, badRequest } from "../_shared/supabase.ts";
+import { timingSafeEqual } from "../_shared/http.ts";
 
 async function verifySignature(secret: string, sig: string | null, body: string): Promise<boolean> {
   if (!sig) return false;
@@ -19,7 +20,7 @@ async function verifySignature(secret: string, sig: string | null, body: string)
   );
   const mac = await crypto.subtle.sign("HMAC", key, enc.encode(body));
   const hex = [...new Uint8Array(mac)].map(b => b.toString(16).padStart(2, "0")).join("");
-  return hex === sig;
+  return timingSafeEqual(hex, sig);
 }
 
 interface CalPayload {
@@ -92,6 +93,25 @@ Deno.serve(async (req) => {
       // an array shape just in case) — we pass its id so the confirmation
       // message is linked to the event and shows in the calendar detail.
       const calEventId = Array.isArray(booked) ? booked?.[0]?.id ?? null : (booked as { id?: string } | null)?.id ?? null;
+      // Idempotency (project-review PR#63): Cal.com RETRIES failed webhook
+      // deliveries, and send_booking_confirmation used to fire on every
+      // delivery — duplicate email+SMS to the applicant. Claim
+      // (provider_event_id, trigger) first; a conflict means we already
+      // confirmed this exact delivery. Table lands in migration 0502 —
+      // until then the insert errors and we send (legacy behaviour) rather
+      // than drop confirmations.
+      let alreadyConfirmed = false;
+      {
+        const { data: claim, error: claimErr } = await supa.from("cal_webhook_events")
+          .upsert(
+            { provider_event_id: providerEventId, trigger_event: data.triggerEvent, starts_at: data.payload.startTime ?? "" },
+            { onConflict: "provider_event_id,trigger_event,starts_at", ignoreDuplicates: true },
+          )
+          .select("provider_event_id");
+        if (!claimErr && Array.isArray(claim) && claim.length === 0) alreadyConfirmed = true;
+        if (claimErr) console.error("cal_webhook_events claim failed (migration 0502 pending?):", claimErr.message);
+      }
+      if (alreadyConfirmed) return jsonResponse({ ok: true, deduped: true });
       // Replace cal.com's "interview between RouteReady and …" email
       // with our DSP-branded booking_confirmed template. Operator
       // disables cal.com's outgoing confirmation in event-type

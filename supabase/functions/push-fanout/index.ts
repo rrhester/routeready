@@ -20,6 +20,7 @@
 //            APNS_BUNDLE_ID, APNS_ENV ('production' | 'sandbox', default prod)
 //   FCM    · FCM_SERVICE_ACCOUNT (the service-account JSON string)
 import { serviceClient, jsonResponse, badRequest, requireServiceKey } from "../_shared/supabase.ts";
+import { fetchWithTimeout } from "../_shared/http.ts";
 
 // ── crypto helpers (Web Crypto, no external deps) ────────────────────────
 function b64url(bytes: Uint8Array): string {
@@ -51,7 +52,7 @@ async function apnsJwt(): Promise<string | null> {
   if (_apnsJwt && now - _apnsJwt.at < 3000) return _apnsJwt.token;
   try {
     const key = await crypto.subtle.importKey(
-      "pkcs8", pemToBytes(p8),
+      "pkcs8", pemToBytes(p8) as BufferSource,
       { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"],
     );
     const header = b64urlStr(JSON.stringify({ alg: "ES256", kid }));
@@ -88,7 +89,7 @@ async function fcmAccessToken(): Promise<string | null> {
       iat: now, exp: now + 3600,
     }));
     const key = await crypto.subtle.importKey(
-      "pkcs8", pemToBytes(sa.private_key),
+      "pkcs8", pemToBytes(sa.private_key) as BufferSource,
       { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"],
     );
     const sig = new Uint8Array(await crypto.subtle.sign(
@@ -128,7 +129,7 @@ async function sendApns(token: string, note: Note, jwt: string): Promise<"ok" | 
     ...note.data,
   };
   try {
-    const res = await fetch(`https://${host}/3/device/${token}`, {
+    const res = await fetchWithTimeout(`https://${host}/3/device/${token}`, {
       method: "POST",
       headers: {
         "authorization": `bearer ${jwt}`,
@@ -161,7 +162,7 @@ async function sendFcm(token: string, note: Note, accessToken: string): Promise<
     },
   };
   try {
-    const res = await fetch(`https://fcm.googleapis.com/v1/projects/${project}/messages:send`, {
+    const res = await fetchWithTimeout(`https://fcm.googleapis.com/v1/projects/${project}/messages:send`, {
       method: "POST",
       headers: { "authorization": `Bearer ${accessToken}`, "content-type": "application/json" },
       body: JSON.stringify(message),
@@ -243,18 +244,38 @@ Deno.serve(async (req) => {
   let sent = 0, gone = 0, failed = 0, skipped = 0;
   const deadIds: string[] = [];
 
+  const failures: { token_id: string; kind: string }[] = [];
   for (const t of toks) {
     let r: "ok" | "gone" | "fail";
-    if (t.kind === "apns") {
-      if (!jwt) { skipped++; continue; }
-      r = await sendApns(t.token, note, jwt);
-    } else {
-      if (!fcmTok) { skipped++; continue; }
-      r = await sendFcm(t.token, note, fcmTok);
+    const attempt = () => t.kind === "apns" ? sendApns(t.token, note, jwt!) : sendFcm(t.token, note, fcmTok!);
+    if (t.kind === "apns" && !jwt) { skipped++; continue; }
+    if (t.kind === "fcm" && !fcmTok) { skipped++; continue; }
+    r = await attempt();
+    if (r === "fail") {
+      // One retry with a short backoff absorbs transient provider blips —
+      // previously a single failed attempt just dropped the notification.
+      await new Promise((res) => setTimeout(res, 750));
+      r = await attempt();
     }
     if (r === "ok") sent++;
     else if (r === "gone") { gone++; deadIds.push(t.id); }
-    else failed++;
+    else { failed++; failures.push({ token_id: t.id, kind: t.kind }); }
+  }
+
+  // Persist terminal failures so an outage is visible and replayable
+  // (project-review PR#65). Table lands in migration 0502; until then this
+  // logs structured JSON instead of silently returning counts.
+  if (failures.length) {
+    const rows = failures.map((f) => ({
+      driver_id: driverId ?? null,
+      token_id: f.token_id,
+      kind: f.kind,
+      title: note.title,
+      body: note.body,
+      data: note.data,
+    }));
+    const { error: dlqErr } = await supa.from("push_delivery_failures").insert(rows);
+    if (dlqErr) console.error("push_delivery_failures insert failed (migration 0502 pending?):", dlqErr.message, JSON.stringify(rows).slice(0, 500));
   }
 
   // Prune tokens the OS reported as dead so we stop paying to retry them.

@@ -14,6 +14,7 @@
 //   - no body: drain up to 50 oldest queued for any tenant
 //   - applicant_id: drain only that applicant's queue (used after RPC)
 import { serviceClient, jsonResponse, badRequest, isWithinQuietHours, signMessageAttachment, requireServiceKey } from "../_shared/supabase.ts";
+import { fetchWithTimeout, safeJson } from "../_shared/http.ts";
 
 // Standard TCPA opt-out keywords. A recipient is opted out when an inbound
 // message body, once trimmed / lower-cased / stripped of trailing
@@ -92,18 +93,31 @@ Deno.serve(async (req) => {
       continue; // leave row queued; will be retried after quiet hours
     }
 
-    // Check opt-out: any prior inbound row whose body IS a STOP keyword
-    // (exact match after normalization) for this phone number disables
-    // future sends. Pull recent inbound rows and evaluate in-app so a
-    // message merely containing the substring "stop" no longer suppresses.
-    const { data: inbound } = await supa.from("sms_messages")
-      .select("body")
-      .eq("dsp_id", row.dsp_id)
-      .eq("direction", "inbound")
-      .or(`to_phone.eq.${row.to_phone},from_phone.eq.${row.to_phone}`)
-      .order("created_at", { ascending: false })
-      .limit(200);
-    const optedOut = (inbound ?? []).some((m) => isStopKeyword((m as { body?: string }).body));
+    // Check opt-out. Durable path (project-review PR#58): the sms_optouts
+    // table, written by webhook-twilio on STOP and CLEARED on START — the
+    // old history scan ignored a later START ("Reply START to opt back in"
+    // was a lie) and a chatty thread could push the STOP out of its
+    // 200-row window, silently resuming sends. Until migration 0502 is
+    // applied the table doesn't exist; fall back to the legacy scan so
+    // opt-outs are never dropped in the gap.
+    let optedOut = false;
+    let optoutTableMissing = false;
+    {
+      const { data: oo, error: ooErr } = await supa.from("sms_optouts")
+        .select("phone").eq("phone", row.to_phone).maybeSingle();
+      if (ooErr) optoutTableMissing = true;
+      else optedOut = !!oo;
+    }
+    if (optoutTableMissing) {
+      const { data: inbound } = await supa.from("sms_messages")
+        .select("body")
+        .eq("dsp_id", row.dsp_id)
+        .eq("direction", "inbound")
+        .or(`to_phone.eq.${row.to_phone},from_phone.eq.${row.to_phone}`)
+        .order("created_at", { ascending: false })
+        .limit(200);
+      optedOut = (inbound ?? []).some((m) => isStopKeyword((m as { body?: string }).body));
+    }
     if (optedOut) {
       await supa.from("sms_messages").update({
         status: "failed", error_code: "opted_out",
@@ -144,15 +158,27 @@ Deno.serve(async (req) => {
       if (url) form.append("MediaUrl", url);
     }
 
-    const resp = await fetch(`${TWILIO_BASE}/Accounts/${sid}/Messages.json`, {
-      method: "POST",
-      headers: {
-        "Authorization": "Basic " + btoa(`${sid}:${token}`),
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: form.toString(),
-    });
-    const body = await resp.json();
+    // Timeout + tolerant parse: a hung Twilio call used to stall the whole
+    // drain, and a non-JSON body from resp.json() threw AFTER the row was
+    // claimed — stranding it in 'sending' forever (no sweeper existed).
+    let resp: Response;
+    try {
+      resp = await fetchWithTimeout(`${TWILIO_BASE}/Accounts/${sid}/Messages.json`, {
+        method: "POST",
+        headers: {
+          "Authorization": "Basic " + btoa(`${sid}:${token}`),
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: form.toString(),
+      }, 25_000);
+    } catch (e) {
+      // Network/timeout failure — requeue so the next drain retries.
+      await supa.from("sms_messages").update({ status: "queued" }).eq("id", row.id);
+      console.error("twilio fetch failed:", (e as Error)?.message);
+      skipped++;
+      continue;
+    }
+    const body = (await safeJson(resp) ?? {}) as { code?: unknown; message?: string; sid?: string; from?: string };
 
     if (!resp.ok) {
       await supa.from("sms_messages").update({

@@ -39,6 +39,9 @@ Deno.serve(async (req) => {
   // A driver hailing the push-to-talk radio (no ring/answer handshake — just
   // "someone needs you on the radio").
   const radio = parsed?.radio as { caller_name?: string } | undefined;
+  // Captured before the kill-switch early-return below narrows `radio` to
+  // never in the dormant payload branch (kept for when radio returns).
+  const radioName = radio?.caller_name || "";
   // Generic staff notification (calendar reminders, unconfirmed escalations —
   // migration 0497). Optionally targeted to specific staff by email.
   const notify = parsed?.notify as
@@ -91,10 +94,10 @@ Deno.serve(async (req) => {
   } else if (radio) {
     payload = JSON.stringify({
       title: "📻 Driver on the radio",
-      body:  `${radio.caller_name || "A driver"} needs you on the radio`,
+      body:  `${radioName || "A driver"} needs you on the radio`,
       // from rides along so the dashboard's boot-time ?rrradio consumer can
       // name the caller in the Join banner it surfaces.
-      url:   "/dashboard/?rrradio=1&from=" + encodeURIComponent(radio.caller_name || ""),
+      url:   "/dashboard/?rrradio=1&from=" + encodeURIComponent(radioName),
       type:  "radio",
     });
   } else {

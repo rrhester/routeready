@@ -80,17 +80,10 @@ Deno.serve(async (req) => {
       details: (viewErr as { details?: string }).details,
       hint:    (viewErr as { hint?: string }).hint,
     });
-    // Echo the full PostgREST error fields back so the driver sees
-    // something actionable, not a vague "unauthorized".
-    return jsonResponse(
-      {
-        error:   viewErr.message || "view_failed",
-        code:    (viewErr as { code?: string }).code   ?? null,
-        details: (viewErr as { details?: string }).details ?? null,
-        hint:    (viewErr as { hint?: string }).hint   ?? null,
-      },
-      { status: 400 },
-    );
+    // Stable error code only — the full PostgREST fields above go to logs.
+    // Echoing code/details/hint to a token-authenticated public caller was
+    // an internals leak (table names, constraint text).
+    return jsonResponse({ error: "view_failed" }, { status: 400 });
   }
 
   const envelope = (viewResult as Record<string, unknown>)?.envelope as Record<string, unknown> | undefined;

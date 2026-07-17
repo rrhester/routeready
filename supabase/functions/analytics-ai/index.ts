@@ -671,7 +671,7 @@ async function runAgent(prompt: string, conversation: any[], ctx: ToolContext, a
         }
         toolResults.push({ type: "tool_result", tool_use_id: u.id, content: JSON.stringify(out).slice(0, 24_000) });
       } catch (e) {
-        toolResults.push({ type: "tool_result", tool_use_id: u.id, content: JSON.stringify({ error: String(e?.message || e) }) });
+        toolResults.push({ type: "tool_result", tool_use_id: u.id, content: JSON.stringify({ error: String((e as Error)?.message || e) }) });
       }
     }
     messages.push({ role: "user", content: toolResults });
@@ -720,11 +720,36 @@ Deno.serve(async (req) => {
     return json({ error: "forbidden" }, 403);
   }
 
+  // DB-backed daily cap shared with ai-proxy (project-review PR#62) — this
+  // endpoint runs up to 10 tool iterations per request on the shared
+  // Anthropic key and previously had no limiter at all.
+  try {
+    const { data: quota, error: qErr } = await supa.rpc("ai_proxy_note_request", {
+      p_dsp_id: appUser.dsp_id,
+      p_default_cap: 200,
+    });
+    if (!qErr && quota && (quota as { allowed?: boolean }).allowed === false) {
+      return json({ error: "rate_limited", detail: "Daily AI request cap reached. Resets at midnight UTC." }, 429);
+    }
+    if (qErr) console.error("ai_proxy_note_request error:", qErr.message);
+  } catch (e) { console.error("ai_proxy_note_request threw:", (e as Error)?.message); }
+
   let body: any;
   try { body = await req.json(); } catch { return json({ error: "invalid_json" }, 400); }
-  const prompt = String(body?.prompt || "").trim();
+  const prompt = String(body?.prompt || "").trim().slice(0, 4000);
   if (!prompt) return json({ error: "prompt_required" }, 400);
-  const conversation = Array.isArray(body?.conversation) ? body.conversation : [];
+  // Bound + sanitize the client-supplied conversation: cap turns, and strip
+  // any content blocks that would let the CLIENT forge tool_results (the
+  // model must only ever see tool output this function itself produced).
+  const rawConv = Array.isArray(body?.conversation) ? body.conversation : [];
+  const conversation = rawConv.slice(-12).map((m: any) => ({
+    role: m?.role === "assistant" ? "assistant" : "user",
+    content: typeof m?.content === "string"
+      ? m.content.slice(0, 8000)
+      : Array.isArray(m?.content)
+        ? m.content.filter((b: any) => b && (b.type === "text")).map((b: any) => ({ type: "text", text: String(b.text || "").slice(0, 8000) }))
+        : "",
+  })).filter((m: any) => (typeof m.content === "string" ? m.content : m.content.length));
 
   try {
     const { result, tool_calls } = await runAgent(
@@ -744,6 +769,7 @@ Deno.serve(async (req) => {
       },
     });
   } catch (e) {
-    return json({ error: "agent_failed", detail: String(e?.message || e) }, 500);
+    console.error("analytics-ai agent failed:", String((e as Error)?.message || e));
+    return json({ error: "agent_failed" }, 500);
   }
 });

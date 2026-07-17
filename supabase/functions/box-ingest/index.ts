@@ -17,7 +17,7 @@
 // applicants land in the pipeline quietly; staff trigger screening as usual.
 //
 // Env: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY (auto-injected).
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { createClient } from "@supabase/supabase-js";
 import { serviceClient, jsonResponse, badRequest } from "../_shared/supabase.ts";
 
 const CORS = {
@@ -72,7 +72,8 @@ Deno.serve(async (req) => {
 
   const { data: applicant, error } = await supa.rpc("intake_applicant", { p_payload: payload });
   if (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
+    console.error("box-ingest intake_applicant failed:", error.message);
+    return new Response(JSON.stringify({ error: "intake_failed" }), {
       status: 400, headers: { "content-type": "application/json", ...CORS },
     });
   }

@@ -3,7 +3,7 @@
 // delete events. Mirrors _shared/google_calendar.ts; tokens are encrypted at
 // rest with the same AES key helpers (google_crypto.ts — the key is a
 // runtime-wide secret, not a Google-specific one).
-import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { SupabaseClient } from "@supabase/supabase-js";
 import { encryptSecret, decryptSecret } from "./google_crypto.ts";
 
 const TOKEN_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/token";

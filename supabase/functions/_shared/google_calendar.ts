@@ -1,6 +1,6 @@
 // Google Calendar API helpers: keep a valid (refreshed, cached) access token
 // and create/update/delete events. All server-side, service-role only.
-import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { SupabaseClient } from "@supabase/supabase-js";
 import { encryptSecret, decryptSecret } from "./google_crypto.ts";
 
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
