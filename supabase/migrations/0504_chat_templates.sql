@@ -14,7 +14,7 @@
 -- Idempotent: create table if not exists + create or replace function.
 -- ─────────────────────────────────────────────────────────────────────────
 
-create table if not exists public.message_templates (
+create table if not exists public.dispatch_chat_templates (
   id          uuid primary key default gen_random_uuid(),
   dsp_id      uuid not null references public.dsps(id) on delete cascade,
   created_by  uuid references auth.users(id),
@@ -25,15 +25,15 @@ create table if not exists public.message_templates (
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
-create index if not exists message_templates_dsp_idx
-  on public.message_templates (dsp_id, shared, name);
+create index if not exists dispatch_chat_templates_dsp_idx
+  on public.dispatch_chat_templates (dsp_id, shared, name);
 
-alter table public.message_templates enable row level security;
-drop policy if exists "message_templates_tenant_r" on public.message_templates;
-create policy "message_templates_tenant_r"
-  on public.message_templates for select
+alter table public.dispatch_chat_templates enable row level security;
+drop policy if exists "dispatch_chat_templates_tenant_r" on public.dispatch_chat_templates;
+create policy "dispatch_chat_templates_tenant_r"
+  on public.dispatch_chat_templates for select
   using (dsp_id = private.current_dsp_id() and (shared or created_by = auth.uid()));
-grant select on public.message_templates to authenticated;
+grant select on public.dispatch_chat_templates to authenticated;
 
 -- List: shared templates + the caller's private ones.
 create or replace function public.dispatch_templates_list()
@@ -55,7 +55,7 @@ begin
            'shared', t.shared, 'mine', (t.created_by = v_uid)
          ) order by t.name), '[]'::jsonb)
     into v_out
-    from public.message_templates t
+    from public.dispatch_chat_templates t
    where t.dsp_id = v_dsp and (t.shared or t.created_by = v_uid);
   return jsonb_build_object('templates', v_out);
 end;
@@ -83,7 +83,7 @@ declare
   v_body text := trim(coalesce(p_body, ''));
   v_sc   text := nullif(lower(trim(coalesce(p_shortcut, ''))), '');
   v_id   uuid;
-  v_row  public.message_templates;
+  v_row  public.dispatch_chat_templates;
 begin
   if v_dsp is null then raise exception 'unauthorized' using errcode = '42501'; end if;
   if not private.is_staff(v_dsp, 'dispatcher') then raise exception 'forbidden' using errcode = '42501'; end if;
@@ -92,16 +92,16 @@ begin
   if v_sc is not null and v_sc !~ '^[a-z0-9_-]{1,24}$' then raise exception 'bad_shortcut' using errcode = '22023'; end if;
 
   if p_id is null then
-    insert into public.message_templates (dsp_id, created_by, name, shortcut, body, shared)
+    insert into public.dispatch_chat_templates (dsp_id, created_by, name, shortcut, body, shared)
     values (v_dsp, v_uid, v_name, v_sc, v_body, coalesce(p_shared, true))
     returning id into v_id;
   else
-    select * into v_row from public.message_templates where id = p_id and dsp_id = v_dsp;
+    select * into v_row from public.dispatch_chat_templates where id = p_id and dsp_id = v_dsp;
     if not found then raise exception 'not_found' using errcode = 'P0002'; end if;
     if not v_row.shared and v_row.created_by is distinct from v_uid then
       raise exception 'forbidden' using errcode = '42501';
     end if;
-    update public.message_templates
+    update public.dispatch_chat_templates
        set name = v_name, shortcut = v_sc, body = v_body,
            shared = coalesce(p_shared, shared), updated_at = now()
      where id = p_id;
@@ -122,16 +122,16 @@ as $$
 declare
   v_dsp uuid := private.current_dsp_id();
   v_uid uuid := auth.uid();
-  v_row public.message_templates;
+  v_row public.dispatch_chat_templates;
 begin
   if v_dsp is null then raise exception 'unauthorized' using errcode = '42501'; end if;
   if not private.is_staff(v_dsp, 'dispatcher') then raise exception 'forbidden' using errcode = '42501'; end if;
-  select * into v_row from public.message_templates where id = p_id and dsp_id = v_dsp;
+  select * into v_row from public.dispatch_chat_templates where id = p_id and dsp_id = v_dsp;
   if not found then raise exception 'not_found' using errcode = 'P0002'; end if;
   if not v_row.shared and v_row.created_by is distinct from v_uid then
     raise exception 'forbidden' using errcode = '42501';
   end if;
-  delete from public.message_templates where id = p_id;
+  delete from public.dispatch_chat_templates where id = p_id;
   return jsonb_build_object('ok', true);
 end;
 $$;

@@ -42411,7 +42411,7 @@ function _mcWireShortcodeSuggest(ta) {
 }
 
 // ── Message templates ──
-// Server-backed (message_templates, migration 0504) with a localStorage
+// Server-backed (dispatch_chat_templates, migration 0504) with a localStorage
 // fallback when the migration isn't applied yet. Built-ins always show.
 let _mcTemplates = null;         // cached merged list
 let _mcTemplatesServer = false;  // true once the RPC succeeded
