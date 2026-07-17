@@ -25555,6 +25555,7 @@ function _ivcalAwaiting() {
       ${ageChip}
       <button type="button" class="oc-await-book" data-ivcal-await-book="${escapeHtml(a.id)}" data-ivcal-await-book-name="${escapeHtml(name)}" title="Book ${escapeHtml(name)} onto an open slot">Book</button>
       <button type="button" class="oc-await-copy" data-ivcal-await-copy="${escapeHtml(a.id)}" title="Copy ${escapeHtml(name)}'s booking link" aria-label="Copy booking link">${linkIco}</button>
+      <button type="button" class="oc-await-copy" data-ivcal-await-qr="${escapeHtml(a.id)}" data-ivcal-await-qr-name="${escapeHtml(name)}" title="QR code for ${escapeHtml(name)}'s booking link — great for handing over in person" aria-label="Show booking QR code"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM21 14v.01M14 21v.01M21 21v.01M17.5 17.5v.01"/></svg></button>
       <button type="button" class="oc-await-send" data-ivcal-await-send="${escapeHtml(a.id)}"${ago ? " disabled" : ""} title="${ago ? `Link sent ${escapeHtml(ago)} — resend from the candidate's profile if needed` : `Resend booking link to ${escapeHtml(name)}`}">${ago ? "Sent ✓" : "Send link"}</button>
     </div>`;
   }).join("");
@@ -26498,6 +26499,19 @@ function _ivcalRenderNow() {
   });
   host.querySelector("[data-ivcal-await-more]")?.addEventListener("click", () => {
     if (typeof window.obSub === "function") window.obSub("funnel");
+  });
+  // QR code for a candidate's booking link (mints/reuses the stable link).
+  host.querySelectorAll("[data-ivcal-await-qr]").forEach(b => b.onclick = async (e) => {
+    e.stopPropagation();
+    try {
+      const { data, error } = await sb.rpc("booking_link_get", { p_id: b.getAttribute("data-ivcal-await-qr") });
+      if (error) throw error;
+      const link = (data && data.link) || "";
+      if (!link) throw new Error("No link returned");
+      _ivcalShowQr(link, `Booking link — ${b.getAttribute("data-ivcal-await-qr-name") || "candidate"}`);
+    } catch (err) {
+      toast("Couldn't get the link: " + ((err && err.message) || err), "warn");
+    }
   });
   // "Next available slot" → jump the main calendar to that date.
   host.querySelector("[data-ivcal-nextslot]")?.addEventListener("click", (e) => {
@@ -28874,13 +28888,19 @@ function _ivcalEventBlock(ev, type, lay, conflict) {
   // Explicit status word: mapped to a compact chip on cards tall enough to
   // carry one; folded into the time row on medium cards; always present in
   // the tooltip and accessible name.
+  // "Running late" (0493 candidate one-tap) outranks the RSVP word while the
+  // appointment is current — that's the operational signal in the moment.
+  const _lateAt = ev.metadata && ev.metadata.running_late && ev.metadata.running_late.at ? new Date(ev.metadata.running_late.at) : null;
+  const _lateLive = _lateAt && !isNaN(_lateAt) && (Date.now() - _lateAt.getTime()) < 12 * 3600 * 1000
+    && ev.status !== "cancelled" && ev.status !== "no_show";
   const _stWord = type === "session" ? ""
+    : _lateLive ? "Running late"
     : (ev.status === "no_show") ? "No-show"
     : (ev.status === "cancelled") ? "Canceled"
     : (ev.status === "rescheduled") ? "Rescheduled"
     : (rsvp === "declined") ? "Declined"
     : (rsvp === "pending") ? "Awaiting reply" : "Confirmed";
-  const _stClass = { "Confirmed": "st-ok", "Awaiting reply": "st-pend", "Canceled": "st-cancel", "No-show": "st-noshow", "Declined": "st-decl", "Rescheduled": "st-resched" }[_stWord] || "st-ok";
+  const _stClass = { "Confirmed": "st-ok", "Awaiting reply": "st-pend", "Canceled": "st-cancel", "No-show": "st-noshow", "Declined": "st-decl", "Rescheduled": "st-resched", "Running late": "st-pend" }[_stWord] || "st-ok";
   // Duration in plain minutes/hours next to the start time (Outlook-style).
   const durMin = Math.max(0, Math.round((e - s) / 60000));
   const durTxt = durMin >= 60
@@ -29619,6 +29639,62 @@ function _ivcalWirePane(host) {
   });
 }
 
+// QR code modal — the generator loads on demand from the same CDN the app
+// already trusts for supabase-js; nothing is bundled into the page weight.
+async function _ivcalShowQr(link, title) {
+  document.getElementById("rr-ivcal-qr")?.remove();
+  const back = document.createElement("div");
+  back.id = "rr-ivcal-qr";
+  back.className = "oc-modal-back";
+  back.innerHTML = `<div class="oc-jump" role="dialog" aria-modal="true" aria-label="QR code" style="text-align:center">
+    <div class="oc-jump-h">${escapeHtml(title || "Scan to open")}</div>
+    <canvas id="rr-qr-canvas" width="232" height="232" style="border-radius:8px;background:#fff"></canvas>
+    <div style="font-size:var(--fs-xs);color:var(--text-subtle);word-break:break-all;max-width:260px;margin:8px auto 0">${escapeHtml(link)}</div>
+    <div class="oc-jump-f"><button type="button" class="oc-btn" data-qr-print>Print</button><button type="button" class="oc-btn oc-jump-go" data-qr-close>Done</button></div>
+  </div>`;
+  document.body.appendChild(back);
+  back.addEventListener("click", (e) => { if (e.target === back || e.target.closest("[data-qr-close]")) back.remove(); });
+  back.querySelector("[data-qr-print]")?.addEventListener("click", () => {
+    const c = document.getElementById("rr-qr-canvas");
+    if (!c) return;
+    const w = window.open("", "_blank", "width=420,height=520");
+    if (!w) return;
+    w.document.write(`<title>${escapeHtml(title || "QR code")}</title><div style="text-align:center;font-family:sans-serif"><h3>${escapeHtml(title || "")}</h3><img src="${c.toDataURL("image/png")}" style="width:300px;height:300px"><p style="word-break:break-all;font-size:12px">${escapeHtml(link)}</p></div>`);
+    w.document.close(); w.focus(); w.print();
+  });
+  try {
+    const QR = await import("https://cdn.jsdelivr.net/npm/qrcode@1.5.3/+esm");
+    await QR.toCanvas(document.getElementById("rr-qr-canvas"), link, { width: 232, margin: 1 });
+  } catch (_) {
+    const c = document.getElementById("rr-qr-canvas");
+    if (c) c.outerHTML = `<div class="rr-iv-err">Couldn't load the QR generator — copy the link instead.</div>`;
+  }
+}
+
+// Embed-snippet dialog for a booking page: a display-only availability widget
+// (preview mode — actual booking always happens on the candidate's own link).
+function _ivcalEmbedDialog(schedId, name) {
+  const base = ((window.RR_CONFIG && window.RR_CONFIG.PUBLIC_BASE_URL) || "https://gorouteready.com").replace(/\/+$/, "");
+  const src = `${base}/dashboard/booking.html?preview=${encodeURIComponent(schedId)}&embed=1`;
+  const snippet = `<iframe src="${src}" style="width:100%;max-width:860px;height:640px;border:1px solid #e4e4e9;border-radius:12px" title="Interview availability"></iframe>`;
+  document.getElementById("rr-ivcal-embed")?.remove();
+  const back = document.createElement("div");
+  back.id = "rr-ivcal-embed";
+  back.className = "oc-modal-back";
+  back.innerHTML = `<div class="oc-jump" role="dialog" aria-modal="true" aria-label="Embed booking page" style="max-width:560px">
+    <div class="oc-jump-h">Embed “${escapeHtml(name || "Booking page")}” on your site</div>
+    <p style="font-size:var(--fs-sm);color:var(--text-muted);margin:0 0 10px">Shows your live availability as a widget. Candidates still book from their own personal link — this is a display of your open times with your branding.</p>
+    <textarea readonly rows="4" style="width:100%;font-family:monospace;font-size:12px;padding:8px;border:1px solid var(--border);border-radius:8px">${escapeHtml(snippet)}</textarea>
+    <div class="oc-jump-f"><button type="button" class="oc-btn" data-em-close>Close</button><button type="button" class="oc-btn oc-jump-go" data-em-copy>Copy snippet</button></div>
+  </div>`;
+  document.body.appendChild(back);
+  back.addEventListener("click", (e) => { if (e.target === back || e.target.closest("[data-em-close]")) back.remove(); });
+  back.querySelector("[data-em-copy]")?.addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(snippet); toast("Embed snippet copied", "success"); }
+    catch (_) { back.querySelector("textarea").select(); document.execCommand("copy"); toast("Embed snippet copied", "success"); }
+  });
+}
+
 // Lock / unlock a RouteReady Meet room from the event pane (0492). Locked
 // rooms hold guests at the door (meet.js) while the host and staff still join.
 async function _ivcalToggleRoomLock(ev) {
@@ -30102,6 +30178,7 @@ function _ivcalSettingsMenu(btn) {
           `<span class="oc-set-link-lbl">${escapeHtml(s.name)}</span>` +
           `${s.is_active ? `<span class="oc-set-bp-active" title="Active booking schedule">active</span>` : ""}` +
           `<button type="button" class="oc-set-bp-eye" data-set-bp-preview="${escapeHtml(s.id)}" title="Preview what applicants see" aria-label="Preview booking page">${eyeIco}</button>` +
+          `<button type="button" class="oc-set-bp-eye" data-set-bp-embed="${escapeHtml(s.id)}" title="Embed on your website" aria-label="Embed booking page"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></button>` +
         `</div>`).join("")
     : `<div class="oc-set-bp-empty">No booking pages yet.</div>`;
   const menu = document.createElement("div");
@@ -30283,9 +30360,11 @@ function _ivcalSettingsMenu(btn) {
   menu.querySelectorAll("[data-set-bp]").forEach(row => {
     row.addEventListener("click", (e) => {
       const eye = e.target.closest("[data-set-bp-preview]");
+      const emb = e.target.closest("[data-set-bp-embed]");
       const id = row.getAttribute("data-set-bp");
       const name = row.querySelector(".oc-set-link-lbl")?.textContent || "";
       closeMenu();
+      if (emb) { _ivcalEmbedDialog(id, name); return; }
       if (eye) { if (typeof _ivcalBookingPreview === "function") _ivcalBookingPreview(id, name); return; }
       _ivCurSchedId = id;
       setTimeout(() => { if (typeof _ivToggleRules === "function") _ivToggleRules(true); }, 0);
@@ -31305,6 +31384,25 @@ async function loadInterviewAvailabilityEditor() {
       <label>Window <input type="number" min="1" class="rr-iv-window" value="${windowDays}"> days</label>
       <label>Buffer <input type="number" min="0" class="rr-iv-buffer" value="${buffer}"> min</label>
     </div>
+    ${_ivLegacyMode ? "" : (() => {
+      // Booking-page extras (0493): what the candidate sees and is asked.
+      const br = (cfg.branding && typeof cfg.branding === "object") ? cfg.branding : {};
+      const iqLines = (Array.isArray(cfg.intake_questions) ? cfg.intake_questions : []).map(q =>
+        `${q.label || ""}${q.required ? " *" : ""}${(q.type === "choice" && Array.isArray(q.options) && q.options.length) ? " | " + q.options.join(" / ") : ""}`).join("\n");
+      return `<details class="rr-iv-extras" ${(br.welcome || br.accent || cfg.arrival_notes || iqLines || cfg.require_phone_verify || cfg.offer_public) ? "open" : ""}>
+      <summary>Booking page extras — branding, directions, questions</summary>
+      <div class="rr-iv-extras-b">
+        <label style="display:block">Welcome message (shown under the header)
+          <textarea class="rr-iv-welcome" rows="2" placeholder="We're excited to meet you! Park in the visitor lot and ask for Sam.">${escapeHtml(br.welcome || "")}</textarea></label>
+        <label>Accent color <input type="color" class="rr-iv-accent" value="${escapeHtml(/^#[0-9a-fA-F]{6}$/.test(br.accent || "") ? br.accent : "#2563EB")}"></label>
+        <label style="display:block">Getting here — directions, parking, what to bring
+          <textarea class="rr-iv-arrival" rows="3" placeholder="Enter through the side door by the loading dock. Bring your driver's license.">${escapeHtml(cfg.arrival_notes || "")}</textarea></label>
+        <label style="display:block">Questions asked at booking <span class="rr-iv-hint">(one per line · add&nbsp;<code>*</code> for required · <code>Label | option / option</code> for a choice)</span>
+          <textarea class="rr-iv-intake" rows="3" placeholder="Do you have a valid CDL? *&#10;How did you hear about us? | Indeed / Referral / Other">${escapeHtml(iqLines)}</textarea></label>
+        <label><input type="checkbox" class="rr-iv-verify" ${cfg.require_phone_verify ? "checked" : ""}> Require SMS code verification before booking</label>
+        <label><input type="checkbox" class="rr-iv-public" ${cfg.offer_public ? "checked" : ""}> Offer this schedule as a pickable option on the booking page</label>
+      </div>
+    </details>`; })()}
     <div class="rr-iv-days">${rows}</div>
     <div class="rr-iv-foot"><span class="rr-iv-save-status" id="rr-iv-save-status"></span><button class="rr-iv-btn" id="rr-iv-save">Save availability</button></div>
     <div class="rr-iv-subh">One-off group sessions</div>
@@ -31428,12 +31526,44 @@ async function _ivSave(body) {
       if (error) throw error;
     } else {
       const makeActive = !!(body.querySelector(".rr-iv-active-cb") && body.querySelector(".rr-iv-active-cb").checked);
-      const { data: savedId, error } = await sb.rpc("interview_schedule_save", {
+      // Booking-page extras (0493): parsed from the extras section when present.
+      let extra = null;
+      if (body.querySelector(".rr-iv-extras")) {
+        const iq = (body.querySelector(".rr-iv-intake")?.value || "").split("\n")
+          .map(l => l.trim()).filter(Boolean).slice(0, 8).map(l => {
+            let [labelPart, optPart] = l.split("|").map(x => (x || "").trim());
+            const required = /\*\s*$/.test(labelPart);
+            labelPart = labelPart.replace(/\*\s*$/, "").trim();
+            const options = optPart ? optPart.split("/").map(o => o.trim()).filter(Boolean).slice(0, 12) : null;
+            return { label: labelPart.slice(0, 200), required, type: options && options.length ? "choice" : "text", ...(options && options.length ? { options } : {}) };
+          }).filter(q => q.label);
+        const accent = body.querySelector(".rr-iv-accent")?.value || "";
+        extra = {
+          branding: {
+            welcome: (body.querySelector(".rr-iv-welcome")?.value || "").trim().slice(0, 600) || undefined,
+            accent: (/^#[0-9a-fA-F]{6}$/.test(accent) && accent.toLowerCase() !== "#2563eb") ? accent : undefined,
+          },
+          arrival_notes: (body.querySelector(".rr-iv-arrival")?.value || "").trim().slice(0, 1000),
+          intake_questions: iq,
+          require_phone_verify: !!body.querySelector(".rr-iv-verify")?.checked,
+          offer_public: !!body.querySelector(".rr-iv-public")?.checked,
+        };
+      }
+      const args = {
         ...common,
         p_id: (_ivCurSchedId === "__new" ? null : _ivCurSchedId),
         p_name: (body.querySelector(".rr-iv-sched-name")?.value || "").trim() || "Interview",
         p_make_active: makeActive,
-      });
+      };
+      if (extra) args.p_extra = extra;
+      let r = await sb.rpc("interview_schedule_save", args);
+      // Pre-0493 fallback: save the core schedule even when p_extra isn't known.
+      if (r.error && args.p_extra && /interview_schedule_save|schema cache|PGRST202/i.test(String(r.error.message || ""))) {
+        const { p_extra: _drop, ...rest } = args;
+        r = await sb.rpc("interview_schedule_save", rest);
+        if (!r.error) toast("Saved — booking-page extras need the latest Supabase migration (0493)", "info");
+      }
+      const { data: savedId, error } = r;
       if (error) throw error;
       if (savedId) _ivCurSchedId = savedId;
     }

@@ -6,6 +6,11 @@
 <meta name="theme-color" content="#FFFFFF">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
+<meta property="og:title" content="Schedule your interview">
+<meta property="og:description" content="Pick a time that works for you — it takes less than a minute.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="RouteReady">
+<meta name="twitter:card" content="summary">
 <title>Schedule your interview</title>
 <style>
     @font-face{font-family:'Inter';font-style:normal;font-weight:400 700;font-display:swap;src:url(../app/fonts/inter-var-latin.woff2) format('woff2')}
@@ -120,6 +125,32 @@
     .host-id{min-width:0}
     .host-title{font-size:22px}
   }
+  /* Language toggle (EN/ES) */
+  .langtog{position:absolute;top:14px;right:16px;appearance:none;border:1px solid var(--border);background:#fff;color:var(--muted);
+    font:inherit;font-size:12px;font-weight:700;border-radius:999px;padding:5px 12px;cursor:pointer}
+  .langtog:hover{background:#F1F3F4}
+  /* Appointment-type options (multiple schedules offered publicly) */
+  .opts{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px}
+  .opt{appearance:none;cursor:pointer;font:inherit;font-size:14px;font-weight:600;border-radius:999px;
+    padding:9px 16px;border:1px solid var(--border);background:#fff;color:var(--text)}
+  .opt.sel{background:var(--availbg);border-color:var(--accent);color:var(--accent-d)}
+  /* Intake questions on the confirm panel */
+  .iq{display:flex;flex-direction:column;gap:4px;margin-top:14px;text-align:left}
+  .iq label{font-size:13px;font-weight:600}
+  .iq label .req{color:var(--red)}
+  .iq input,.iq select,.iq textarea{font:inherit;padding:10px;border:1px solid var(--border);border-radius:8px;width:100%}
+  /* Arrival notes block */
+  .arrive{background:#F8F9FA;border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-size:14px;
+    color:var(--muted);margin-top:16px;text-align:left;white-space:pre-wrap}
+  .arrive strong{display:block;color:var(--text);font-size:12px;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+  /* Welcome message from the DSP */
+  .welcome{background:var(--availbg);border-radius:10px;padding:12px 14px;font-size:14px;color:var(--accent-d);margin:0 0 14px;white-space:pre-wrap}
+  /* SMS verify */
+  .verify{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap}
+  .verify input{font:inherit;font-size:18px;letter-spacing:.3em;text-align:center;width:130px;padding:9px;border:1px solid var(--border);border-radius:8px}
+  /* Embed mode (?embed=1): the page is an iframe widget — chrome off. */
+  body.embed .host,body.embed .foot,body.embed .langtog{display:none}
+  body.embed .wrap{padding:8px 10px 20px;max-width:none}
 </style>
 </head>
 <body>
@@ -152,6 +183,69 @@ const params = new URLSearchParams(location.search);
 const pathMatch = location.pathname.match(/^\/b\/([^/?#]+)/);
 const token = params.get("t") || params.get("token") || (pathMatch && pathMatch[1]) || "";
 
+// ── Language (EN/ES) · remembered per browser; ?lang= wins on first visit ──
+const I18N = {
+  en: {
+    pick: "Select an appointment time", minApts: "min appointments",
+    video: "Video conference details added after booking",
+    booked: "You're booked!", alreadyTitle: "You're already scheduled",
+    alreadyBody: "Your interview is booked. Check your email for the details.",
+    emailDetails: "We'll email you the interview details.",
+    addCal: "Add to calendar", addIcs: "Download .ics (Apple/Outlook)", joinVideo: "Join the video meeting",
+    reschedule: "Reschedule", cancelIv: "Cancel interview", back: "Back",
+    confirm: "Confirm booking", booking: "Booking…", minutes: "minutes",
+    bookingAs: "Booking as", notYou: "— if this isn't you, please use your own link.",
+    noTimes: "No open times right now", checkBack: "Please check back soon, or reply to the email we sent.",
+    cancelled: "Your interview is cancelled", cancelledBody: "If you'd like to book a new time, reply to the email or text we sent you.",
+    runningLate: "I'm running late", lateSent: "Thanks — we've let the team know you're running a few minutes behind.",
+    arriveTitle: "Getting here", welcomeDefault: "",
+    whyCancel: "Mind telling us why? (optional)",
+    reasons: ["Found another job", "Time doesn't work", "Transportation issue", "Other"],
+    verifyTitle: "Verify your phone", verifySend: "Text me a code", verifySent: "Code sent to your phone ending in",
+    verifyPlaceholder: "6-digit code", verifyBad: "That code doesn't match — try again.",
+    verifyNeeded: "Enter the code we texted you to confirm this booking.",
+    required: "required", confirmHint: "Tap Confirm to lock in this time.",
+  },
+  es: {
+    pick: "Elige una hora para tu cita", minApts: "min por cita",
+    video: "Los detalles de la videollamada se envían después de reservar",
+    booked: "¡Reservado!", alreadyTitle: "Ya tienes una cita",
+    alreadyBody: "Tu entrevista está reservada. Revisa tu correo para los detalles.",
+    emailDetails: "Te enviaremos los detalles de la entrevista por correo.",
+    addCal: "Añadir al calendario", addIcs: "Descargar .ics (Apple/Outlook)", joinVideo: "Unirse a la videollamada",
+    reschedule: "Reprogramar", cancelIv: "Cancelar entrevista", back: "Atrás",
+    confirm: "Confirmar reserva", booking: "Reservando…", minutes: "minutos",
+    bookingAs: "Reservando como", notYou: "— si no eres tú, usa tu propio enlace.",
+    noTimes: "No hay horarios disponibles ahora", checkBack: "Vuelve pronto o responde al correo que te enviamos.",
+    cancelled: "Tu entrevista está cancelada", cancelledBody: "Si quieres reservar otra hora, responde al correo o mensaje que te enviamos.",
+    runningLate: "Voy con retraso", lateSent: "Gracias — le avisamos al equipo que llegas unos minutos tarde.",
+    arriveTitle: "Cómo llegar", welcomeDefault: "",
+    whyCancel: "¿Nos dices por qué? (opcional)",
+    reasons: ["Encontré otro trabajo", "El horario no me sirve", "Problema de transporte", "Otro"],
+    verifyTitle: "Verifica tu teléfono", verifySend: "Enviarme un código", verifySent: "Código enviado al teléfono que termina en",
+    verifyPlaceholder: "código de 6 dígitos", verifyBad: "Ese código no coincide — inténtalo de nuevo.",
+    verifyNeeded: "Escribe el código que te enviamos por SMS para confirmar.",
+    required: "obligatorio", confirmHint: "Toca Confirmar para asegurar esta hora.",
+  },
+};
+let LANG = (() => {
+  const q = (params.get("lang") || "").toLowerCase();
+  if (q === "es" || q === "en") { try { localStorage.setItem("rr_bk_lang", q); } catch (_) {} return q; }
+  try { const s = localStorage.getItem("rr_bk_lang"); if (s === "es" || s === "en") return s; } catch (_) {}
+  return (navigator.language || "").toLowerCase().startsWith("es") ? "es" : "en";
+})();
+const T = (k) => (I18N[LANG] && I18N[LANG][k]) ?? I18N.en[k] ?? k;
+const LOCALE = () => (LANG === "es" ? "es" : undefined);
+
+// Embed mode (?embed=1): iframe widget — hide page chrome, report height.
+const EMBED = params.get("embed") === "1";
+if (EMBED) document.body.classList.add("embed");
+function postHeight() {
+  if (!EMBED) return;
+  try { parent.postMessage({ rr: "booking-height", height: document.documentElement.scrollHeight }, "*"); } catch (_) {}
+}
+new ResizeObserver(() => postHeight()).observe(document.body);
+
 let TZ = "America/Chicago";      // the host/DSP timezone (slots are anchored here)
 let DUR = 30;
 let APPLICANT = "";               // whose link this is (shown so forwarded links are obvious)
@@ -179,8 +273,8 @@ const domNum = (key) => String(keyToUTC(key).getUTCDate());
 const firstOfMonth = (key) => key.slice(0, 8) + "01";
 const monthLabel = (key) => new Intl.DateTimeFormat(undefined, { timeZone: "UTC", month: "long", year: "numeric" }).format(keyToUTC(key));
 
-function fmtTime(iso) { return new Intl.DateTimeFormat(undefined, { timeZone: DISPTZ, hour: "numeric", minute: "2-digit" }).format(new Date(iso)).toLowerCase().replace(/\s/g, ""); }
-function fmtDay(iso) { return new Intl.DateTimeFormat(undefined, { timeZone: DISPTZ, weekday: "long", month: "short", day: "numeric" }).format(new Date(iso)); }
+function fmtTime(iso) { return new Intl.DateTimeFormat(LOCALE(), { timeZone: DISPTZ, hour: "numeric", minute: "2-digit" }).format(new Date(iso)).toLowerCase().replace(/\s/g, ""); }
+function fmtDay(iso) { return new Intl.DateTimeFormat(LOCALE(), { timeZone: DISPTZ, weekday: "long", month: "short", day: "numeric" }).format(new Date(iso)); }
 function fmtRange(startIso, endIso) {
   const t1 = fmtTime(startIso);
   const t2 = endIso ? fmtTime(endIso) : "";
@@ -196,6 +290,9 @@ function bookErrorCopy(raw) {
   if (s.includes("slot_too_soon")) return "That time is too soon to book — please choose a later one.";
   if (s.includes("slot_unavailable")) return "That time isn't available — please pick another.";
   if (s.includes("invalid_or_expired_token")) return "This scheduling link is no longer valid. Please reply to the email or text we sent you for a new one.";
+  if (s.includes("verify_bad_code")) return T("verifyBad");
+  if (s.includes("verify_required")) return T("verifyNeeded");
+  if (s.includes("no_phone")) return "We don't have a phone number on file — reply to the email we sent you instead.";
   if (s.includes("failed to fetch") || s.includes("network")) return "Network hiccup — check your connection and try that time again.";
   return "Couldn't book that time — please pick another.";
 }
@@ -245,6 +342,15 @@ let MAXDAY = null;       // last day with availability
 let viewStart = null;    // leftmost column of the 7-day strip
 let selKey = null;       // currently highlighted day
 let miniAnchor = null;   // first-of-month shown in the mini calendar
+// Booking-page v2 (0493): offered schedule options + candidate-facing extras.
+let OPTIONS = [];        // [{id, name, slot_minutes, is_active, intake_questions, arrival_notes, require_phone_verify}]
+let SCHED = null;        // chosen non-active schedule id (null = the active one)
+let INTAKE = [];         // intake questions for the chosen option
+let ARRIVAL = "";        // arrival notes for the chosen option
+let VERIFY_REQ = false;  // the chosen option requires an SMS code
+let PHONE_HINT = "";     // last 2 digits of the phone the code goes to
+let VERIFY_SENT = false; // a code has been requested this session
+let INFO = null;         // booking_load payload
 
 async function init() {
   if (!PREVIEW && !token) return showError("This scheduling link looks invalid. Please use the link we sent you.");
@@ -263,6 +369,7 @@ async function init() {
   } catch (e) {
     return showError((e && e.message) || "Could not load this scheduling link.");
   }
+  INFO = info;
   TZ = info.timezone || TZ;
   DISPTZ = TZ;
   DUR = info.slot_minutes || DUR;
@@ -272,43 +379,148 @@ async function init() {
   document.getElementById("host-name").textContent = dspName;
   document.getElementById("host-av").textContent = (dspName[0] || "R").toUpperCase();
   document.getElementById("host-title").textContent = schedName || `${DUR}-minute interview`;
+  document.title = (schedName ? schedName + " · " : "") + dspName;
+
+  // Booking-page v2 extras (absent pre-0493 → sensible defaults).
+  OPTIONS = Array.isArray(info.options) ? info.options : [];
+  const activeOpt = OPTIONS.find(o => o.is_active) || null;
+  INTAKE = (activeOpt && Array.isArray(activeOpt.intake_questions)) ? activeOpt.intake_questions
+    : (Array.isArray(info.intake_questions) ? info.intake_questions : []);
+  ARRIVAL = (activeOpt && activeOpt.arrival_notes) || info.arrival_notes || "";
+  VERIFY_REQ = !!((activeOpt && activeOpt.require_phone_verify) ?? info.require_phone_verify);
+  PHONE_HINT = info.phone_hint || "";
+  // DSP branding: accent color + welcome message + logo.
+  const br = info.branding || {};
+  if (br.accent && /^#[0-9a-fA-F]{6}$/.test(br.accent)) {
+    document.documentElement.style.setProperty("--accent", br.accent);
+    document.documentElement.style.setProperty("--accent-d", br.accent);
+  }
+  if (br.logo_url && /^https:\/\//i.test(br.logo_url)) {
+    document.getElementById("host-av").innerHTML = `<img src="${esc(br.logo_url)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
+  }
+  // Language toggle (EN ⇄ ES), once.
+  if (!document.querySelector(".langtog") && !EMBED) {
+    const bt = document.createElement("button");
+    bt.className = "langtog"; bt.type = "button";
+    bt.textContent = LANG === "es" ? "English" : "Español";
+    bt.addEventListener("click", () => {
+      LANG = LANG === "es" ? "en" : "es";
+      try { localStorage.setItem("rr_bk_lang", LANG); } catch (_) {}
+      location.reload();
+    });
+    document.body.appendChild(bt);
+  }
 
   const clockIco = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>`;
   const camIco = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="13" height="12" rx="2"/><path d="M22 8l-5 4 5 4z"/></svg>`;
   document.getElementById("host-meta").innerHTML =
-    `<div class="host-mrow">${clockIco}<span>${DUR} min appointments</span></div>
-     <div class="host-mrow">${camIco}<span>Video conference details added after booking</span></div>`;
+    `<div class="host-mrow">${clockIco}<span>${DUR} ${esc(T("minApts"))}</span></div>
+     <div class="host-mrow">${camIco}<span>${esc(T("video"))}</span></div>
+     ${(br.welcome && String(br.welcome).trim()) ? `<div class="welcome">${esc(String(br.welcome).trim())}</div>` : ""}`;
 
   if (!PREVIEW && info.already_booked) {
     const bk = info.booking || null;
-    let detail = "Your interview is booked. Check your email for the details.";
+    let detail = esc(T("alreadyBody"));
     let extras = "";
     if (bk && bk.starts_at) {
       detail = `${esc(fmtDay(bk.starts_at))}<br>${esc(fmtRange(bk.starts_at, bk.ends_at))} · ${esc(tzPretty(DISPTZ))}`;
       if (bk.meeting_url && /^https:\/\//i.test(bk.meeting_url)) {
-        extras += `<div style="margin-top:14px"><a class="addcal" href="${esc(bk.meeting_url)}" target="_blank" rel="noreferrer noopener">🎥 Join the video meeting</a></div>`;
+        extras += `<div style="margin-top:14px"><a class="addcal" href="${esc(bk.meeting_url)}" target="_blank" rel="noreferrer noopener">🎥 ${esc(T("joinVideo"))}</a></div>`;
       }
-      extras += `<div style="margin-top:6px"><a class="addcal" href="${esc(gcalUrl(bk.starts_at, bk.ends_at, bk.meeting_url, bk.location))}" target="_blank" rel="noreferrer noopener">📅 Add to calendar</a></div>`;
+      extras += `<div style="margin-top:6px"><a class="addcal" href="${esc(gcalUrl(bk.starts_at, bk.ends_at, bk.meeting_url, bk.location))}" target="_blank" rel="noreferrer noopener">📅 ${esc(T("addCal"))}</a>
+        &nbsp;·&nbsp; <a class="addcal" href="${icsHref(bk.starts_at, bk.ends_at, document.getElementById("host-title").textContent, bk.location, bk.meeting_url)}" download="interview.ics">${esc(T("addIcs"))}</a></div>`;
     }
+    const lateAlready = bk && bk.running_late;
+    const arriveBlock = ARRIVAL ? `<div class="arrive"><strong>${esc(T("arriveTitle"))}</strong>${esc(ARRIVAL)}</div>` : "";
     root.innerHTML = `<div class="card"><div class="msg">
       <div class="ok-ico"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
-      <strong>You're already scheduled</strong>
+      <strong>${esc(T("alreadyTitle"))}</strong>
       <span>${detail}</span>${extras}
-      <div class="cbtns" style="justify-content:center"><button class="btn" data-ab="reschedule">Reschedule</button><button class="btn" data-ab="cancel" style="color:var(--red);border-color:#E6C3C0">Cancel interview</button></div>
-      <div id="ab-err" class="err" style="font-size:13px;margin-top:10px"></div></div></div>`;
+      ${arriveBlock}
+      <div class="cbtns" style="justify-content:center;flex-wrap:wrap">
+        <button class="btn" data-ab="reschedule">${esc(T("reschedule"))}</button>
+        <button class="btn" data-ab="cancel" style="color:var(--red);border-color:#E6C3C0">${esc(T("cancelIv"))}</button>
+        ${lateAlready ? "" : `<button class="btn" data-ab="late">⏱ ${esc(T("runningLate"))}</button>`}
+      </div>
+      <div id="ab-err" class="err" style="font-size:13px;margin-top:10px"></div>
+      <div id="ab-note" style="font-size:13px;color:var(--green);font-weight:600;margin-top:8px">${lateAlready ? esc(T("lateSent")) : ""}</div></div></div>`;
     root.querySelector('[data-ab="reschedule"]').addEventListener("click", () => changeBooking("reschedule"));
     root.querySelector('[data-ab="cancel"]').addEventListener("click", () => changeBooking("cancel"));
+    root.querySelector('[data-ab="late"]')?.addEventListener("click", async (e) => {
+      e.target.disabled = true;
+      try {
+        const { data, error } = await sb.rpc("booking_running_late", { p_token: token });
+        if (error) throw error;
+        if (!data?.ok) throw new Error(data?.error || "failed");
+        document.getElementById("ab-note").textContent = T("lateSent");
+      } catch (err) {
+        e.target.disabled = false;
+        document.getElementById("ab-err").textContent = bookErrorCopy(err && err.message);
+      }
+    });
+    postHeight();
     return;
   }
 
   const pvBanner = PREVIEW ? `<div class="pv-banner"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg><span><strong>Preview</strong> — this is what applicants see. Times aren't bookable here.</span></div>` : "";
+  // Appointment-type chips when the DSP offers more than one schedule (0493).
+  const optChips = (!PREVIEW && OPTIONS.length > 1)
+    ? `<div class="opts" id="opts">${OPTIONS.map(o =>
+        `<button type="button" class="opt${(SCHED ? o.id === SCHED : o.is_active) ? " sel" : ""}" data-opt="${esc(o.id)}" data-active="${o.is_active ? "1" : ""}">${esc(o.name)} · ${esc(o.slot_minutes)} min</button>`).join("")}</div>`
+    : "";
   root.innerHTML = `${pvBanner}<hr class="div">
     <div class="bcard">
-      <div class="bcard-h"><h2>Select an appointment time</h2><span class="tz" id="tz-label">${tzLabelHTML()}</span></div>
+      ${optChips}
+      <div class="bcard-h"><h2>${esc(T("pick"))}</h2><span class="tz" id="tz-label">${tzLabelHTML()}</span></div>
       <div id="cal-host"><div class="spin"></div></div>
     </div>`;
   wireTz();
+  document.querySelectorAll("[data-opt]").forEach(b => b.addEventListener("click", () => selectOption(b)));
   await loadAndRender();
+  postHeight();
+}
+
+// Switch the offered appointment type: swaps duration / intake / arrival /
+// verify to that schedule and reloads its slots. The active schedule keeps
+// SCHED=null so pre-0493 servers still resolve.
+async function selectOption(btn) {
+  const id = btn.getAttribute("data-opt");
+  const opt = OPTIONS.find(o => String(o.id) === String(id));
+  if (!opt) return;
+  SCHED = btn.getAttribute("data-active") ? null : id;
+  DUR = opt.slot_minutes || DUR;
+  INTAKE = Array.isArray(opt.intake_questions) ? opt.intake_questions : [];
+  ARRIVAL = opt.arrival_notes || "";
+  VERIFY_REQ = !!opt.require_phone_verify;
+  VERIFY_SENT = false;
+  document.querySelectorAll("[data-opt]").forEach(x => x.classList.toggle("sel", x === btn));
+  document.getElementById("host-title").textContent = opt.name || document.getElementById("host-title").textContent;
+  const mrow = document.querySelector("#host-meta .host-mrow span");
+  if (mrow) mrow.textContent = `${DUR} ${T("minApts")}`;
+  const host = document.getElementById("cal-host");
+  if (host) host.innerHTML = `<div class="spin"></div>`;
+  PENDING = null;
+  await loadAndRender();
+}
+
+// RFC 5545 .ics as a data href — Apple/Outlook users get a real file, no
+// backend involved.
+function icsHref(startIso, endIso, title, location, meetingUrl) {
+  const fmt = (iso) => new Date(iso).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+  const end = endIso || new Date(new Date(startIso).getTime() + DUR * 60000).toISOString();
+  const escT = (s) => String(s || "").replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
+  const lines = [
+    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//RouteReady//Booking//EN", "BEGIN:VEVENT",
+    "UID:" + fmt(startIso) + "-" + Math.random().toString(36).slice(2) + "@gorouteready.com",
+    "DTSTAMP:" + fmt(new Date().toISOString()),
+    "DTSTART:" + fmt(startIso),
+    "DTEND:" + fmt(end),
+    "SUMMARY:" + escT(title || "Interview"),
+    location ? "LOCATION:" + escT(location) : "",
+    (meetingUrl && /^https:\/\//i.test(meetingUrl)) ? "DESCRIPTION:" + escT("Join the video meeting: " + meetingUrl) : "",
+    "END:VEVENT", "END:VCALENDAR",
+  ].filter(Boolean);
+  return "data:text/calendar;charset=utf-8," + encodeURIComponent(lines.join("\r\n"));
 }
 
 // Bind the timezone switch (lives in the persistent header, so bound once and
@@ -327,12 +539,26 @@ function wireTz() {
 // Cancel (and optionally re-book) the existing interview. Reschedule = cancel
 // then re-enter the picker; the server frees the slot and lets them book again.
 async function changeBooking(mode) {
-  if (mode === "cancel" && !confirm("Cancel your interview? This frees your time slot.")) return;
+  let reason = null;
+  if (mode === "cancel") {
+    if (!confirm("Cancel your interview? This frees your time slot.")) return;
+    // Optional reason (0493): a picked chip or free text; never blocks the cancel.
+    const rs = T("reasons");
+    const raw = prompt(`${T("whyCancel")}\n1) ${rs[0]}\n2) ${rs[1]}\n3) ${rs[2]}\n4) ${rs[3]}`, "");
+    if (raw != null && raw.trim()) {
+      const n = parseInt(raw.trim(), 10);
+      reason = (n >= 1 && n <= 4) ? rs[n - 1] : raw.trim().slice(0, 300);
+    }
+  }
   const errEl = document.getElementById("ab-err");
   document.querySelectorAll("[data-ab]").forEach(b => b.disabled = true);
   if (errEl) errEl.textContent = "";
   try {
-    const { data, error } = await sb.rpc("cancel_interview_booking", { p_token: token });
+    let r = await sb.rpc("cancel_interview_booking", reason ? { p_token: token, p_reason: reason } : { p_token: token });
+    if (r.error && reason && /cancel_interview_booking|schema cache|PGRST202/i.test(String(r.error.message || ""))) {
+      r = await sb.rpc("cancel_interview_booking", { p_token: token });   // pre-0493
+    }
+    const { data, error } = r;
     if (error) throw error;
     if (!data?.ok) throw new Error("Could not update your booking.");
     if (mode === "reschedule") {
@@ -340,8 +566,8 @@ async function changeBooking(mode) {
       await init();   // reloads booking_load (now unbooked) → shows the picker
     } else {
       root.innerHTML = `<div class="card"><div class="msg">
-        <strong>Your interview is cancelled</strong>
-        <span>If you'd like to book a new time, reply to the email or text we sent you.</span></div></div>`;
+        <strong>${esc(T("cancelled"))}</strong>
+        <span>${esc(T("cancelledBody"))}</span></div></div>`;
     }
   } catch (e) {
     console.warn("change booking failed:", e && (e.message || e));
@@ -357,7 +583,10 @@ async function loadAndRender() {
     slots = PREVIEW_SLOTS;
   } else {
     try {
-      const { data, error } = await sb.rpc("interview_open_slots", { p_token: token });
+      // A chosen non-active schedule (0493) is passed through; the active one
+      // keeps the bare call so pre-0493 servers resolve the RPC.
+      const args = SCHED ? { p_token: token, p_schedule_id: SCHED } : { p_token: token };
+      const { data, error } = await sb.rpc("interview_open_slots", args);
       if (error) throw error;
       slots = data || [];
     } catch (e) {
@@ -375,7 +604,7 @@ async function loadAndRender() {
   TODAY = dayKey(new Date().toISOString());
   const availKeys = [...AVAIL].sort();
   if (!availKeys.length) {
-    host.innerHTML = `<div class="msg"><strong>No open times right now</strong><span>Please check back soon, or reply to the email we sent.</span></div>`;
+    host.innerHTML = `<div class="msg"><strong>${esc(T("noTimes"))}</strong><span>${esc(T("checkBack"))}</span></div>`;
     return;
   }
   MAXDAY = availKeys[availKeys.length - 1];
@@ -506,41 +735,110 @@ function renderConfirm() {
   if (!host || !PENDING) return;
   const clockIco = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>`;
   const tzIco = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M2 12h20M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg>`;
-  const who = APPLICANT ? `<div class="who">Booking as <strong>${esc(APPLICANT)}</strong> — if this isn't you, please use your own link.</div>` : "";
+  const who = APPLICANT ? `<div class="who">${esc(T("bookingAs"))} <strong>${esc(APPLICANT)}</strong> ${esc(T("notYou"))}</div>` : "";
+  // Intake questions (0493): text or choice, per the schedule's editor config.
+  const qs = (INTAKE || []).slice(0, 8).map((q, i) => {
+    const lbl = String(q.label || "").slice(0, 200);
+    if (!lbl) return "";
+    const req = q.required ? `<span class="req">*</span>` : "";
+    const field = (q.type === "choice" && Array.isArray(q.options) && q.options.length)
+      ? `<select data-iq="${i}" data-iq-req="${q.required ? 1 : ""}"><option value="">—</option>${q.options.slice(0, 12).map(o => `<option>${esc(String(o).slice(0, 100))}</option>`).join("")}</select>`
+      : `<input type="text" maxlength="300" data-iq="${i}" data-iq-req="${q.required ? 1 : ""}">`;
+    return `<div class="iq"><label>${esc(lbl)} ${req}</label>${field}</div>`;
+  }).join("");
+  // SMS verification (0493): request a code, then enter it to book.
+  const verify = VERIFY_REQ ? `<div class="iq" style="margin-top:16px"><label>${esc(T("verifyTitle"))} <span class="req">*</span></label>
+      <div class="verify">
+        <button type="button" class="btn" data-cx="sendcode">${esc(T("verifySend"))}</button>
+        <input type="text" inputmode="numeric" maxlength="8" id="vcode" placeholder="${esc(T("verifyPlaceholder"))}">
+      </div>
+      <div id="vnote" style="font-size:12px;color:var(--muted)">${VERIFY_SENT && PHONE_HINT ? esc(T("verifySent") + " " + PHONE_HINT) : ""}</div>
+    </div>` : "";
+  const arriveBlock = ARRIVAL ? `<div class="arrive"><strong>${esc(T("arriveTitle"))}</strong>${esc(ARRIVAL)}</div>` : "";
   host.innerHTML = `<div class="confirm">
     ${who}
     <div class="cw-when">${esc(fmtDay(PENDING.start))}</div>
     <div class="cw-sub">${esc(fmtRange(PENDING.start, PENDING.end))}</div>
-    <div class="cw-row">${clockIco}<span>${DUR} minutes</span></div>
+    <div class="cw-row">${clockIco}<span>${DUR} ${esc(T("minutes"))}</span></div>
     <div class="cw-row">${tzIco}<span>${esc(tzPretty(DISPTZ))}</span></div>
+    ${qs}
+    ${verify}
+    ${arriveBlock}
     <div class="cbtns">
-      <button class="btn" data-cx="back">Back</button>
-      <button class="btn btn-p" data-cx="confirm">Confirm booking</button>
+      <button class="btn" data-cx="back">${esc(T("back"))}</button>
+      <button class="btn btn-p" data-cx="confirm">${esc(T("confirm"))}</button>
     </div>
     <div id="confirm-err" class="err" style="font-size:13px;margin-top:12px"></div>
   </div>`;
   host.querySelector('[data-cx="back"]').addEventListener("click", () => { PENDING = null; renderBooking(); });
   host.querySelector('[data-cx="confirm"]').addEventListener("click", () => doBook(host.querySelector('[data-cx="confirm"]')));
+  host.querySelector('[data-cx="sendcode"]')?.addEventListener("click", async (e) => {
+    e.target.disabled = true;
+    const note = document.getElementById("vnote");
+    try {
+      const { data, error } = await sb.rpc("booking_verify_start", { p_token: token });
+      if (error) throw error;
+      if (!data?.ok) throw new Error(data?.error || "failed");
+      VERIFY_SENT = true;
+      PHONE_HINT = data.phone_hint || PHONE_HINT;
+      if (note) note.textContent = T("verifySent") + (PHONE_HINT ? " " + PHONE_HINT : "");
+      setTimeout(() => { e.target.disabled = false; }, 60000);   // resend cool-down
+    } catch (err) {
+      e.target.disabled = false;
+      const m = String((err && err.message) || err);
+      if (note) note.textContent = /too_soon/.test(m) ? "Code already sent — wait a minute before resending." : bookErrorCopy(m);
+    }
+  });
+  postHeight();
 }
 
 async function doBook(confirmBtn) {
   if (!PENDING) return;
   const { start, end, session } = PENDING;
-  confirmBtn.disabled = true; confirmBtn.textContent = "Booking…";
+  // Intake answers: required fields must be filled before the RPC round-trip.
+  const answers = {};
+  let missing = false;
+  document.querySelectorAll("[data-iq]").forEach(el => {
+    const i = +el.getAttribute("data-iq");
+    const q = (INTAKE || [])[i] || {};
+    const v = (el.value || "").trim();
+    if (el.getAttribute("data-iq-req") && !v) { missing = true; el.style.borderColor = "var(--red)"; }
+    else el.style.borderColor = "";
+    if (v) answers[String(q.label || "q" + i).slice(0, 200)] = v.slice(0, 300);
+  });
   const errEl = document.getElementById("confirm-err");
+  if (missing) { if (errEl) errEl.textContent = LANG === "es" ? "Completa los campos obligatorios." : "Please fill in the required fields."; return; }
+  const vcode = (document.getElementById("vcode") || {}).value || "";
+  if (VERIFY_REQ && !vcode.trim()) { if (errEl) errEl.textContent = T("verifyNeeded"); return; }
+  confirmBtn.disabled = true; confirmBtn.textContent = T("booking");
   if (errEl) errEl.textContent = "";
   try {
-    const { data, error } = await sb.rpc("book_interview_slot", { p_token: token, p_slot_start: start, p_session_id: session });
+    const baseArgs = { p_token: token, p_slot_start: start, p_session_id: session };
+    const extArgs = { ...baseArgs };
+    if (SCHED) extArgs.p_schedule_id = SCHED;
+    if (Object.keys(answers).length) extArgs.p_answers = answers;
+    if (VERIFY_REQ && vcode.trim()) extArgs.p_verify_code = vcode.trim();
+    let r = await sb.rpc("book_interview_slot", extArgs);
+    // Pre-0493 fallback: retry bare when the widened signature isn't there —
+    // but never silently drop a REQUIRED verification or schedule choice.
+    if (r.error && Object.keys(extArgs).length > 3 && !SCHED && !VERIFY_REQ
+        && /book_interview_slot|schema cache|PGRST202/i.test(String(r.error.message || ""))) {
+      r = await sb.rpc("book_interview_slot", baseArgs);
+    }
+    const { data, error } = r;
     if (error) throw error;
     if (!data?.ok) throw new Error("Could not book that time.");
     PENDING = null;
-    const joinRow = "";  // meeting link is created a beat later; the email carries it
+    const title = document.getElementById("host-title").textContent;
+    const arriveBlock = ARRIVAL ? `<div class="arrive"><strong>${esc(T("arriveTitle"))}</strong>${esc(ARRIVAL)}</div>` : "";
     root.innerHTML = `<div class="card"><div class="msg">
       <div class="ok-ico"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
-      <strong>You're booked!</strong>
-      <span>${esc(fmtDay(start))}<br>${esc(fmtRange(start, end))} · ${esc(tzPretty(DISPTZ))}<br>We'll email you the interview details.</span>
-      <div style="margin-top:16px"><a class="addcal" href="${esc(gcalUrl(start, end, null, null))}" target="_blank" rel="noreferrer noopener">📅 Add to calendar</a></div>
-      ${joinRow}</div></div>`;
+      <strong>${esc(T("booked"))}</strong>
+      <span>${esc(fmtDay(start))}<br>${esc(fmtRange(start, end))} · ${esc(tzPretty(DISPTZ))}<br>${esc(T("emailDetails"))}</span>
+      <div style="margin-top:16px"><a class="addcal" href="${esc(gcalUrl(start, end, null, null))}" target="_blank" rel="noreferrer noopener">📅 ${esc(T("addCal"))}</a>
+        &nbsp;·&nbsp; <a class="addcal" href="${icsHref(start, end, title, null, null)}" download="interview.ics">${esc(T("addIcs"))}</a></div>
+      ${arriveBlock}</div></div>`;
+    postHeight();
   } catch (e) {
     console.warn("book failed:", e && (e.message || e));
     const msg = bookErrorCopy(e && e.message);
@@ -553,7 +851,7 @@ async function doBook(confirmBtn) {
       return;
     }
     if (errEl) { errEl.textContent = msg; }
-    confirmBtn.disabled = false; confirmBtn.textContent = "Confirm booking";
+    confirmBtn.disabled = false; confirmBtn.textContent = T("confirm");
     // Refresh availability in the background so a re-pick reflects the truth.
     try {
       const { data } = await sb.rpc("interview_open_slots", { p_token: token });
