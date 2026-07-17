@@ -5019,11 +5019,12 @@ window.goto = function (view) {
   if (view === "onboarding-ops") {
     if (_pipeSub) { loadOnboardingOps({ keepTab: true }); if (typeof window.obSub === "function") window.obSub(_pipeSub); }
     else {
-      // Opening the Onboarding page lands on the Calendar in Work Week view.
-      // Re-assert across the next ticks so a late default (Funnel) can't win
-      // the sub-view race on first paint.
+      // Opening the Onboarding page lands on the Calendar in Work Week view —
+      // except on phones, where a 5-column time grid is unreadable and the
+      // agenda list is the useful landing (#97). Re-assert across the next
+      // ticks so a late default (Funnel) can't win the sub-view race.
       loadOnboardingOps({ keepTab: true });
-      _ivcalView = "workweek";
+      _ivcalView = (window.matchMedia && window.matchMedia("(max-width: 640px)").matches) ? "agenda" : "workweek";
       const _openCal = () => { try { if (typeof window.obSub === "function") window.obSub("calendar"); } catch (_) {} };
       _openCal();
       requestAnimationFrame(_openCal);
@@ -25122,7 +25123,14 @@ async function loadCalendarTab() {
 // Last-used view is remembered per browser (falls back to Work Week).
 const _IVCAL_VIEWS = ["day", "week", "workweek", "month", "year", "agenda", "split"];
 let _ivcalView = (() => {
-  try { const v = localStorage.getItem("rr_ivcal_view"); return _IVCAL_VIEWS.includes(v) ? v : "workweek"; } catch (_) { return "workweek"; }
+  try {
+    const v = localStorage.getItem("rr_ivcal_view");
+    if (_IVCAL_VIEWS.includes(v)) return v;
+    // Mobile-first default (#97): with no stored choice, a phone gets the
+    // agenda list — a 7-column time grid is unreadable at 390px.
+    if (window.matchMedia && window.matchMedia("(max-width: 640px)").matches) return "agenda";
+    return "workweek";
+  } catch (_) { return "workweek"; }
 })();
 function _ivcalPersistView() { try { localStorage.setItem("rr_ivcal_view", _ivcalView); } catch (_) {} }
 let _ivcalAnchor = new Date();
@@ -26852,7 +26860,7 @@ function _ivcalRenderNow() {
   if (!_ivcalNowTimer) _ivcalNowTimer = setInterval(_ivcalTickNow, 60000);
   _rrInstallReminderTick();
 
-  host.querySelectorAll("[data-ivcal-view]").forEach(btn => btn.onclick = () => { _ivcalView = btn.getAttribute("data-ivcal-view"); _ivcalPersistView(); _ivcalRender(); });
+  host.querySelectorAll("[data-ivcal-view]").forEach(btn => btn.onclick = () => { _ivcalView = btn.getAttribute("data-ivcal-view"); _ivcalPersistView(); _ivcalAnnounce(`${_ivcalView} view`); _ivcalRender(); });
   host.querySelector("[data-ivcal-bulk-cancel]")?.addEventListener("click", () => _ivcalBulkCancel());
   host.querySelector("[data-ivcal-bulk-clear]")?.addEventListener("click", () => _ivcalMSelClear());
   host.querySelectorAll("[data-ivcal-side]").forEach(btn => btn.onclick = (e) => { e.stopPropagation(); _ivcalToggleSide(); });
@@ -27280,6 +27288,7 @@ function _ivcalOnCalendar() { const el = document.querySelector("#rr-ivcal .oc")
 window.rrIvcalSetView = function (v) {
   _ivcalView = v;
   _ivcalPersistView();
+  _ivcalAnnounce(`${v === "workweek" ? "work week" : v} view`);
   if (_ivcalOnCalendar() && _ivcalCache) _ivcalRender();
   else if (typeof window.obSub === "function") window.obSub("calendar");
   else _ivcalRender();
@@ -30520,6 +30529,88 @@ async function _ivcalTrashDialog() {
   paint();
 }
 
+// Calendar insights (#99/#100): utilization + the booking funnel, computed
+// client-side from the last 8 weeks of cal_events. No chart library —
+// plain CSS bars.
+async function _ivcalInsightsDialog() {
+  document.getElementById("rr-ivcal-ins")?.remove();
+  const back = document.createElement("div");
+  back.id = "rr-ivcal-ins";
+  back.className = "oc-modal-back";
+  back.innerHTML = `<div class="oc-jump rr-ins" role="dialog" aria-modal="true" aria-label="Calendar insights">
+    <div class="oc-jump-h">Calendar insights — last 8 weeks</div>
+    <div id="rr-ins-body" class="rr-ins-b">Crunching…</div>
+    <div class="oc-jump-f"><button type="button" class="oc-btn" data-ins-close>Close</button></div>
+  </div>`;
+  document.body.appendChild(back);
+  back.addEventListener("click", (e) => { if (e.target === back || e.target.closest("[data-ins-close]")) back.remove(); });
+  const body = back.querySelector("#rr-ins-body");
+  try {
+    const since = new Date(Date.now() - 56 * 864e5).toISOString();
+    const { data, error } = await sb.from("cal_events")
+      .select("id, kind, status, starts_at, metadata")
+      .in("kind", ["interview", "orientation"])
+      .gte("starts_at", since).lt("starts_at", new Date().toISOString())
+      .limit(2000);
+    if (error) throw error;
+    const rows = (data || []).filter(r => !(r.metadata && r.metadata.is_task));
+    const n = rows.length;
+    const confirmed = rows.filter(r => r.metadata && r.metadata.confirmed_at).length;
+    const noShow = rows.filter(r => r.status === "no_show").length;
+    const cancelled = rows.filter(r => r.status === "cancelled").length;
+    const held = rows.filter(r => ["scheduled", "rescheduled"].includes(r.status)).length;
+    const pct = (x) => n ? Math.round(x / n * 100) : 0;
+    const bar = (label, val, denom, cls) => {
+      const p = denom ? Math.min(100, Math.round(val / denom * 100)) : 0;
+      return `<div class="rr-ins-row"><span class="rr-ins-l">${escapeHtml(label)}</span><span class="rr-ins-bar"><span class="rr-ins-fill${cls ? " " + cls : ""}" style="width:${p}%"></span></span><span class="rr-ins-v">${val}${denom && denom !== val ? ` · ${p}%` : ""}</span></div>`;
+    };
+
+    // Funnel (#100).
+    let html = `<div class="rr-ins-h">Booking funnel <span class="rr-iv-hint">interviews & orientations with a start time in the window</span></div>`;
+    html += bar("Booked", n, n);
+    html += bar("Confirmed by candidate", confirmed, n);
+    html += bar("Held (not cancelled)", held, n);
+    html += bar("No-show", noShow, n, "is-bad");
+    html += bar("Cancelled", cancelled, n, "is-bad");
+    if (!n) html += `<div class="rr-ins-empty">No interviews in the last 8 weeks yet.</div>`;
+
+    // Utilization by weekday (#99) — booked vs the CURRENT weekly hours.
+    const slot = (_ivcalCache && _ivcalCache.slot) || 30, buf = (_ivcalCache && _ivcalCache.buffer) || 0;
+    const weekly = (_ivcalCache && _ivcalCache.windows) || [];
+    const names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const byDow = [0, 0, 0, 0, 0, 0, 0];
+    const byHour = new Map();
+    for (const r of rows) {
+      if (!["scheduled", "rescheduled", "no_show"].includes(r.status)) continue;
+      const d = new Date(r.starts_at);
+      byDow[d.getDay()]++;
+      byHour.set(d.getHours(), (byHour.get(d.getHours()) || 0) + 1);
+    }
+    html += `<div class="rr-ins-h">Utilization by weekday <span class="rr-iv-hint">booked vs. today's weekly hours × 8 weeks</span></div>`;
+    let anyCap = false;
+    for (let dow = 0; dow < 7; dow++) {
+      const capDay = _slotDayCapacity(weekly.filter(w => w.weekday === dow), slot, buf) * 8;
+      if (!capDay && !byDow[dow]) continue;
+      anyCap = true;
+      html += bar(names[dow], byDow[dow], Math.max(capDay, byDow[dow]));
+    }
+    if (!anyCap) html += `<div class="rr-ins-empty">No weekly hours configured yet.</div>`;
+
+    // Peak hours.
+    const topHours = [...byHour.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+    if (topHours.length) {
+      const maxH = topHours[0][1];
+      html += `<div class="rr-ins-h">Peak booking hours</div>`;
+      for (const [h, c] of topHours.sort((a, b) => a[0] - b[0])) {
+        html += bar(_ivcalHourLabel(h), c, maxH);
+      }
+    }
+    body.innerHTML = html;
+  } catch (e) {
+    body.innerHTML = `<span class="rr-iv-err">${escapeHtml("Couldn't load insights: " + ((e && e.message) || e))}</span>`;
+  }
+}
+
 function _ivcalContextMenu(e, kind, id) {
   _ivcalCloseMenus();
   const ev = _ivcalFindEv(kind, id); if (!ev) return;
@@ -31074,6 +31165,10 @@ function _ivcalSettingsMenu(btn) {
         <span class="oc-set-link-ico"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></span>
         <span class="oc-set-link-lbl">Trash — restore cancelled…</span>
       </button>
+      <button type="button" class="oc-set-link" data-set-insights role="menuitem" title="Utilization, no-show rate and the booking funnel">
+        <span class="oc-set-link-ico"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
+        <span class="oc-set-link-lbl">Calendar insights…</span>
+      </button>
     </div>
     <div class="oc-set-sec" data-set-remsec hidden></div>
     <div class="oc-set-sec">
@@ -31179,6 +31274,9 @@ function _ivcalSettingsMenu(btn) {
   });
   menu.querySelector("[data-set-trash]").addEventListener("click", () => {
     closeMenu(); _ivcalTrashDialog();
+  });
+  menu.querySelector("[data-set-insights]").addEventListener("click", () => {
+    closeMenu(); _ivcalInsightsDialog();
   });
   const workRow = menu.querySelector("[data-set-workrow]");
   menu.querySelector("[data-set-workon]").addEventListener("change", (e) => {
@@ -31999,11 +32097,31 @@ function _ivcalTryOpenPending() {
   if (hit === "booking") _ivcalEditEvent(hit, id); else _ivcalSelect(hit, id);
 }
 
+// Screen-reader announcements (#96): drag/resize outcomes, view changes and
+// bulk actions land in one polite live region — a keyboard or SR operator
+// hears "Moved to 10:30 AM" instead of silence after every grid gesture.
+function _ivcalAnnounce(msg) {
+  if (!msg) return;
+  let el = document.getElementById("rr-ivcal-announce");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "rr-ivcal-announce";
+    el.className = "rr-visually-hidden";
+    el.setAttribute("aria-live", "polite");
+    el.setAttribute("role", "status");
+    document.body.appendChild(el);
+  }
+  // Clear-then-set so repeating the same message re-announces.
+  el.textContent = "";
+  setTimeout(() => { el.textContent = String(msg); }, 30);
+}
+
 // ── Undo (single-slot) · the last move / resize / cancel can be taken back
 // from an action toast. Restores go through the same plain cal_events write
 // path the action used, so RLS, triggers and realtime behave identically.
 let _ivcalUndoTimer = null;
 function _ivcalUndoToast(msg, undoFn) {
+  _ivcalAnnounce(msg + ". Press the Undo button to take it back.");
   document.getElementById("rr-ivcal-undo")?.remove();
   clearTimeout(_ivcalUndoTimer);
   const el = document.createElement("div");
