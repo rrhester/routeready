@@ -33227,3 +33227,6 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
   .oc-peek { animation: rr-peek-in 120ms ease-out; }
   @keyframes rr-peek-in { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
 }
+
+/* ═══ Calendar round 2, wave 1 (2026-07-17) ══════════════════════════════ */
+.rr-ins-note { color: var(--text-muted); font-size: var(--fs-sm); margin-top: 6px; }

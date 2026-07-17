@@ -25964,6 +25964,7 @@ function _ivcalGoogleMenu(e) {
 // the card shows so the two never stack.
 let _ivHoverPeek = (() => { try { return localStorage.getItem("rr_ivcal_hoverpeek") === "1"; } catch (_) { return false; } })();
 let _ivPeekTimer = null;
+let _ivPeekFocusAt = 0;   // focus() auto-scrolls; that scroll must not cancel the focus peek
 function _ivcalClosePeek() {
   clearTimeout(_ivPeekTimer); _ivPeekTimer = null;
   const el = document.getElementById("rr-ivcal-peek");
@@ -26048,7 +26049,53 @@ function _ivcalInstallHoverPeek(host) {
     _ivcalClosePeek();
   });
   host.addEventListener("mousedown", () => _ivcalClosePeek(), true);
-  host.addEventListener("scroll", () => _ivcalClosePeek(), true);
+  // Scrolling dismisses a peek — EXCEPT the scroll the browser itself makes
+  // to bring a freshly-focused block into view, which lands right after
+  // focusin and would otherwise cancel every keyboard-initiated peek.
+  host.addEventListener("scroll", () => {
+    if (Date.now() - _ivPeekFocusAt < 600) return;
+    _ivcalClosePeek();
+  }, true);
+  // Keyboard parity: tabbing onto an event block peeks too (same opt-in
+  // pref) — sighted keyboard users get what mouse users get.
+  host.addEventListener("focusin", (e) => {
+    if (!_ivHoverPeek) return;
+    const block = e.target.closest ? e.target.closest("[data-ivcal-kind][data-ivcal-id]") : null;
+    if (!block) return;
+    _ivPeekFocusAt = Date.now();
+    clearTimeout(_ivPeekTimer);
+    _ivPeekTimer = setTimeout(() => { if (block.isConnected) _ivcalShowPeek(block); }, 150);
+  });
+  host.addEventListener("focusout", (e) => {
+    const open = document.getElementById("rr-ivcal-peek");
+    const to = e.relatedTarget;
+    if (to && open && (open.contains(to) || (open._srcEl && open._srcEl.contains(to)))) return;
+    _ivcalClosePeek();
+  });
+}
+
+// Mobile swipe navigation: a quick horizontal swipe on the grid background
+// moves a period back/forward — the touch counterpart of the ‹ › buttons.
+// Event chips are excluded (long-press there arms a drag), and mostly-
+// vertical gestures stay native scrolls.
+function _ivcalInstallSwipeNav(host) {
+  if (host._rrSwipeWired) return;
+  host._rrSwipeWired = true;
+  let sw = null;
+  host.addEventListener("touchstart", (e) => {
+    if (e.touches.length !== 1) { sw = null; return; }
+    if (e.target.closest && e.target.closest("[data-ivcal-id]")) { sw = null; return; }
+    sw = { x: e.touches[0].clientX, y: e.touches[0].clientY, at: Date.now() };
+  }, { passive: true });
+  host.addEventListener("touchend", (e) => {
+    if (!sw || _ivcalDrag) { sw = null; return; }
+    const t = e.changedTouches && e.changedTouches[0];
+    if (!t) { sw = null; return; }
+    const dx = t.clientX - sw.x, dy = t.clientY - sw.y, dt = Date.now() - sw.at;
+    sw = null;
+    if (dt > 600 || Math.abs(dx) < 70 || Math.abs(dy) > 45) return;
+    _ivcalNav(dx < 0 ? 1 : -1);
+  }, { passive: true });
 }
 
 // Inline detail popover for a read-only Google overlay event (#67).
@@ -26135,6 +26182,45 @@ function _ivcalImportIcs() {
     loadIvCalendar();
   };
   inp.click();
+}
+
+// Export the visible range as a one-shot .ics download — the counterpart of
+// the subscribe feed (live) and the .ics import (inbound). Private events
+// export as "Private" with no details.
+function _ivcalExportIcs() {
+  const vr = _ivcalViewRange();
+  const from = vr.start.getTime(), to = vr.end.getTime() + 864e5;
+  const fmt = (iso) => new Date(iso).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+  const escT = (s) => String(s || "").replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
+  const rows = ((_ivcalCache && _ivcalCache.bookings) || []).filter(b => {
+    if (!b || !["scheduled", "rescheduled"].includes(b.status || "scheduled")) return false;
+    if (b.metadata && b.metadata.is_task) return false;
+    const t = new Date(b.starts_at).getTime();
+    return t >= from && t <= to;
+  });
+  if (!rows.length) { toast("No events in the current view to export", "info"); return; }
+  const vevents = rows.map(b => {
+    const priv = _ivcalPrivMasked(b);
+    const title = priv ? "Private"
+      : b.kind === "event" ? ((b.title || "").trim() || "Event")
+      : `${b.kind === "orientation" ? "Orientation" : "Interview"} · ${(b.applicants && b.applicants.full_name) || "Applicant"}`;
+    const end = b.ends_at || new Date(new Date(b.starts_at).getTime() + 30 * 60000).toISOString();
+    return ["BEGIN:VEVENT",
+      "UID:rr-" + b.id + "@gorouteready.com",
+      "DTSTAMP:" + fmt(new Date().toISOString()),
+      "DTSTART:" + fmt(b.starts_at),
+      "DTEND:" + fmt(end),
+      "SUMMARY:" + escT(title),
+      (!priv && b.location) ? "LOCATION:" + escT(b.location) : "",
+      (!priv && b.meeting_url && /^https:\/\//i.test(b.meeting_url)) ? "DESCRIPTION:" + escT("Join: " + b.meeting_url) : "",
+      "END:VEVENT"].filter(Boolean).join("\r\n");
+  });
+  const ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//RouteReady//Calendar Export//EN", ...vevents, "END:VCALENDAR"].join("\r\n");
+  const a = document.createElement("a");
+  a.href = "data:text/calendar;charset=utf-8," + encodeURIComponent(ics);
+  a.download = `calendar-${_ivcalISODate(vr.start)}-to-${_ivcalISODate(vr.end)}.ics`;
+  document.body.appendChild(a); a.click(); a.remove();
+  toast(`Exported ${rows.length} event${rows.length === 1 ? "" : "s"}`, "success");
 }
 
 // Outbound webhooks manager (#70) — Zapier-style POSTs on booking events.
@@ -26873,6 +26959,7 @@ function _ivcalRenderNow() {
   _ivcalCloseMenus();
   _ivcalClosePeek();
   _ivcalInstallHoverPeek(host);
+  _ivcalInstallSwipeNav(host);
   const _hadOc = !!host.querySelector(".oc"); // grid already on screen → this is a repaint
   const _prevScroll = document.getElementById("rr-ivcal-scroll") ? document.getElementById("rr-ivcal-scroll").scrollTop : null;
   const seg = (v, t) => `<button class="${_ivcalView===v?"on":""}" data-ivcal-view="${v}">${t}</button>`;
@@ -30269,6 +30356,15 @@ function _ivcalPaneHtml() {
   if (ev.metadata && ev.metadata.prep_notes) {
     rows += drow("📋", `<span style="white-space:pre-wrap;color:#3a3a45"><strong style="font-size:var(--fs-xs);color:var(--text-subtle);text-transform:uppercase;letter-spacing:.03em">Prep notes (internal)</strong><br>${escapeHtml(String(ev.metadata.prep_notes))}</span>`);
   }
+  // Candidate's booking-form answers (0493). They were stored on every booking
+  // but never shown to the operator — the interviewer should walk in knowing
+  // what the candidate already told them.
+  const _ia = ev.metadata && ev.metadata.intake_answers;
+  if (type !== "session" && _ia && typeof _ia === "object" && !Array.isArray(_ia) && Object.keys(_ia).length) {
+    const qa = Object.entries(_ia).slice(0, 8).map(([q, a]) =>
+      `<div style="margin-top:4px"><span style="color:var(--text-subtle);font-size:var(--fs-xs)">${escapeHtml(String(q))}</span><br>${escapeHtml(String(a))}</div>`).join("");
+    rows += drow("📝", `<div><strong style="font-size:var(--fs-xs);color:var(--text-subtle);text-transform:uppercase;letter-spacing:.03em">Booking answers</strong>${qa}</div>`);
+  }
   // Per-guest RSVP rollup (0492): ✓ accepted · ✗ declined · ? awaiting.
   if (type !== "session" && ev.metadata && ev.metadata.invitee_tokens && Array.isArray(ev.metadata.invitees) && ev.metadata.invitees.length > 1) {
     const by = ev.metadata.rsvp_by || {};
@@ -30645,7 +30741,7 @@ async function _ivcalInsightsDialog() {
   try {
     const since = new Date(Date.now() - 56 * 864e5).toISOString();
     const { data, error } = await sb.from("cal_events")
-      .select("id, kind, status, starts_at, metadata")
+      .select("id, kind, status, starts_at, created_at, metadata")
       .in("kind", ["interview", "orientation"])
       .gte("starts_at", since).lt("starts_at", new Date().toISOString())
       .limit(2000);
@@ -30670,6 +30766,18 @@ async function _ivcalInsightsDialog() {
     html += bar("No-show", noShow, n, "is-bad");
     html += bar("Cancelled", cancelled, n, "is-bad");
     if (!n) html += `<div class="rr-ins-empty">No interviews in the last 8 weeks yet.</div>`;
+    // How far ahead candidates book — the median gap between booking time
+    // and the interview itself. Short leads mean tight staffing windows.
+    const leads = rows
+      .filter(r => r.created_at && r.starts_at)
+      .map(r => new Date(r.starts_at) - new Date(r.created_at))
+      .filter(ms => ms > 0)
+      .sort((a, b) => a - b);
+    if (leads.length) {
+      const med = leads[Math.floor(leads.length / 2)];
+      const txt = med >= 2 * 864e5 ? `${(med / 864e5).toFixed(1)} days` : `${Math.max(1, Math.round(med / 36e5))} hours`;
+      html += `<div class="rr-ins-note">Median booking lead time: <strong>${escapeHtml(txt)}</strong> — how far ahead candidates book.</div>`;
+    }
 
     // Utilization by weekday (#99) — booked vs the CURRENT weekly hours.
     const slot = (_ivcalCache && _ivcalCache.slot) || 30, buf = (_ivcalCache && _ivcalCache.buffer) || 0;
@@ -31255,6 +31363,10 @@ function _ivcalSettingsMenu(btn) {
         <span class="oc-set-link-ico"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>
         <span class="oc-set-link-lbl">Import .ics file…</span>
       </button>
+      <button type="button" class="oc-set-link" data-set-exportics role="menuitem" title="Download everything in the current view as an .ics file">
+        <span class="oc-set-link-ico"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></span>
+        <span class="oc-set-link-lbl">Export .ics (current view)</span>
+      </button>
       <button type="button" class="oc-set-link" data-set-webhooks role="menuitem" title="Send booking events to Zapier or your own systems">
         <span class="oc-set-link-ico"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></span>
         <span class="oc-set-link-lbl">Webhooks (Zapier)…</span>
@@ -31371,6 +31483,9 @@ function _ivcalSettingsMenu(btn) {
   });
   menu.querySelector("[data-set-importics]").addEventListener("click", () => {
     closeMenu(); _ivcalImportIcs();
+  });
+  menu.querySelector("[data-set-exportics]").addEventListener("click", () => {
+    closeMenu(); _ivcalExportIcs();
   });
   menu.querySelector("[data-set-webhooks]").addEventListener("click", () => {
     closeMenu(); _ivcalWebhooksDialog();
