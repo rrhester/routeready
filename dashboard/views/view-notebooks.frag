@@ -221,6 +221,22 @@
   text-overflow:ellipsis;margin-top:1px}
 .rrnb-page .sub mark,.rrnb-page .ttl mark{background:var(--accent-soft-strong,rgba(37,99,235,.16));color:var(--accent-text);
   border-radius:2px;padding:0 1px}
+.rrnb-secdot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;vertical-align:middle}
+.rrnb-find{position:fixed;z-index:70;top:74px;right:30px;display:flex;align-items:center;gap:6px;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-pop);padding:5px 8px}
+.rrnb-find[hidden]{display:none}
+.rrnb-find input{border:none;outline:none;background:transparent;font-size:var(--fs-sm);color:var(--text);width:150px}
+.rrnb-find-count{font-size:var(--fs-xs);color:var(--text-subtle);min-width:36px;text-align:center;font-variant-numeric:tabular-nums}
+.rrnb-find-btn{border:none;background:transparent;cursor:pointer;color:var(--text-subtle);width:22px;height:22px;border-radius:6px;font-size:10px;line-height:1}
+.rrnb-find-btn:hover{background:var(--surface-hover);color:var(--text)}
+::highlight(rrnb-find){background:rgba(250,204,21,.35)}
+::highlight(rrnb-find-cur){background:rgba(249,115,22,.55);color:#111}
+.rrnb-stickytitle{position:fixed;z-index:9;box-sizing:border-box;padding:8px var(--s-8);
+  font-size:15px;font-weight:600;color:var(--text);background:var(--surface);
+  border-bottom:1px solid var(--border);cursor:pointer;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;box-shadow:0 4px 10px -8px rgba(0,0,0,.35)}
+.rrnb-stickytitle[hidden]{display:none}
+.rrnb-stickytitle:hover{color:var(--accent)}
 .rrnb-page .pin{flex:0 0 auto;color:var(--amber);opacity:0}
 .rrnb-page.pinned .pin{opacity:1}
 .rrnb-page .kebab{opacity:0;flex:0 0 auto}
@@ -1440,7 +1456,9 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       '<button class="rrnb-iconbtn kebab" data-menu="page" data-id="' + p.id + '" title="Page options">⋯</button></div>';
   }
   function pageRowSub(p) {
-    return '<span class="rrnb-pt" title="' + esc(absTime(p.updated_at)) + '">' + esc(relTime(p.updated_at)) + '</span>' +
+    var s = ((S.tree && S.tree.sections) || []).filter(function (x) { return x.id === p.section_id; })[0] || {};
+    var dot = s.color ? '<span class="rrnb-secdot" style="background:' + esc(s.color) + '" title="Section: ' + esc(s.name || "") + '"></span>' : "";
+    return dot + '<span class="rrnb-pt" title="' + esc(absTime(p.updated_at)) + '">' + esc(relTime(p.updated_at)) + '</span>' +
       (p.tags && p.tags.length ? '  ·  ' + p.tags.map(esc).join(", ") : "");
   }
   // Patch just one page's row in place (title + meta) instead of rebuilding the
@@ -1522,6 +1540,8 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   function openPage(id) {
     // flush any pending save of the previous page first
     flushSave();
+    if (FIND.open) closeFind();     // stale matches point at the old page's nodes
+    var _st = $id("rrnb-stickytitle"); if (_st) _st.hidden = true;
     if (_dict) toggleDictation();
     S.be.getPage(id).then(function (p) {
       if (!p) { showBlank(); return; }
@@ -1593,7 +1613,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     title.addEventListener("keydown", stopTypingLeak);
     title.addEventListener("keyup", stopTypingLeak);
     title.addEventListener("keypress", stopTypingLeak);
-    ed.addEventListener("input", function () { mdInline(); slashScan(); scheduleSave(); autoLinkify(); positionImgResize(); scheduleCtxRefresh(); updateWordCount(); });
+    ed.addEventListener("input", function () { mdInline(); slashScan(); scheduleSave(); autoLinkify(); positionImgResize(); scheduleCtxRefresh(); updateWordCount(); if (FIND.open) runFind(FIND.q); });
     ed.addEventListener("keydown", onEditorKey);
     ed.addEventListener("click", onEditorClick);
     ed.addEventListener("contextmenu", onEditorCtx);
@@ -2641,8 +2661,94 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     else { var next = blk.nextElementSibling; if (next && next !== DH.el && next !== DH.line) ed.insertBefore(next, blk); else return; }
     scheduleSave();
   }
+  // ── Find in this page (#81) ──────────────────────────────────────
+  // Ctrl/⌘+F opens a note-scoped find bar. Matches are shown with the CSS
+  // Custom Highlight API so the editor DOM is never mutated (no autosave, no
+  // saved artifacts). Degrades to count + scroll on browsers without it.
+  var FIND = { open: false, q: "", ranges: [], idx: 0, el: null };
+  function findEl() {
+    if (FIND.el) return FIND.el;
+    var d = document.createElement("div"); d.className = "rrnb-find"; d.id = "rrnb-find"; d.hidden = true;
+    d.innerHTML = '<input type="text" id="rrnb-find-input" placeholder="Find in page" autocomplete="off" spellcheck="false">' +
+      '<span class="rrnb-find-count" id="rrnb-find-count">0/0</span>' +
+      '<button class="rrnb-find-btn" data-find="prev" title="Previous (Shift+Enter)" type="button">▲</button>' +
+      '<button class="rrnb-find-btn" data-find="next" title="Next (Enter)" type="button">▼</button>' +
+      '<button class="rrnb-find-btn" data-find="close" title="Close (Esc)" type="button">✕</button>';
+    document.body.appendChild(d);
+    var inp = d.querySelector("#rrnb-find-input");
+    inp.addEventListener("input", function () { runFind(inp.value); });
+    inp.addEventListener("keydown", function (e) {
+      e.stopPropagation();
+      if (e.key === "Enter") { e.preventDefault(); findStep(e.shiftKey ? -1 : 1); }
+      else if (e.key === "Escape") { e.preventDefault(); closeFind(); }
+    });
+    d.addEventListener("click", function (e) { var b = e.target.closest("[data-find]"); if (!b) return; var a = b.getAttribute("data-find"); if (a === "close") closeFind(); else findStep(a === "next" ? 1 : -1); });
+    FIND.el = d; return d;
+  }
+  function openFind() {
+    var d = findEl(); d.hidden = false; FIND.open = true;
+    var inp = d.querySelector("#rrnb-find-input");
+    var sel = String(window.getSelection() || ""); if (sel && sel.length < 80 && sel.indexOf("\n") < 0) inp.value = sel;
+    inp.focus(); inp.select();
+    runFind(inp.value);
+  }
+  function closeFind() { FIND.open = false; if (FIND.el) FIND.el.hidden = true; clearFindHighlights(); var ed = $id("rrnb-editor"); if (ed) ed.focus(); }
+  function clearFindHighlights() { try { if (window.CSS && CSS.highlights) { CSS.highlights.delete("rrnb-find"); CSS.highlights.delete("rrnb-find-cur"); } } catch (e) {} }
+  function collectFindRanges(q) {
+    var ed = $id("rrnb-editor"), out = []; if (!ed || !q) return out;
+    var needle = q.toLowerCase();
+    var tw = document.createTreeWalker(ed, NodeFilter.SHOW_TEXT, null);
+    var node;
+    while ((node = tw.nextNode())) {
+      var text = node.nodeValue; if (!text) continue;
+      var hay = text.toLowerCase(), from = 0, i;
+      while ((i = hay.indexOf(needle, from)) !== -1) {
+        var r = document.createRange(); r.setStart(node, i); r.setEnd(node, i + needle.length);
+        out.push(r); from = i + needle.length;
+      }
+    }
+    return out;
+  }
+  function runFind(q) {
+    FIND.q = q || ""; clearFindHighlights();
+    FIND.ranges = collectFindRanges(FIND.q); FIND.idx = 0;
+    paintFind(); updateFindCount();
+    if (FIND.ranges.length) scrollToFind();
+  }
+  function paintFind() {
+    if (!(window.CSS && CSS.highlights && window.Highlight)) return;
+    clearFindHighlights(); if (!FIND.ranges.length) return;
+    var all = new Highlight(); FIND.ranges.forEach(function (r, i) { if (i !== FIND.idx) all.add(r); });
+    CSS.highlights.set("rrnb-find", all);
+    var cur = new Highlight(); if (FIND.ranges[FIND.idx]) cur.add(FIND.ranges[FIND.idx]);
+    CSS.highlights.set("rrnb-find-cur", cur);
+  }
+  function updateFindCount() { var c = FIND.el && FIND.el.querySelector("#rrnb-find-count"); if (c) c.textContent = (FIND.ranges.length ? FIND.idx + 1 : 0) + "/" + FIND.ranges.length; }
+  function findStep(dir) { if (!FIND.ranges.length) return; FIND.idx = (FIND.idx + dir + FIND.ranges.length) % FIND.ranges.length; paintFind(); updateFindCount(); scrollToFind(); }
+  function scrollToFind() { var r = FIND.ranges[FIND.idx]; if (!r) return; try { var el = r.startContainer.parentElement; if (el) el.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (e) {} }
+  // ── Sticky mini page-title on scroll (#72) ───────────────────────
+  function stickyTitleEl() {
+    var d = $id("rrnb-stickytitle"); if (d) return d;
+    d = document.createElement("div"); d.className = "rrnb-stickytitle"; d.id = "rrnb-stickytitle"; d.hidden = true;
+    d.title = "Back to top";
+    d.addEventListener("click", function () { var cw = $id("rrnb-canvas-wrap"); if (cw) cw.scrollTo({ top: 0, behavior: "smooth" }); });
+    document.body.appendChild(d); return d;
+  }
+  function updateStickyTitle() {
+    var cw = $id("rrnb-canvas-wrap"), title = $id("rrnb-title"), tb = $id("rrnb-toolbar"), bar = stickyTitleEl();
+    if (!cw || !title || S.mode !== "notebook" || S.editorKind === "tiptap") { bar.hidden = true; return; }
+    var tRect = title.getBoundingClientRect(), tbRect = tb ? tb.getBoundingClientRect() : cw.getBoundingClientRect();
+    if (tRect.bottom < tbRect.bottom + 2) {
+      bar.textContent = title.value || "Untitled Page";
+      bar.style.left = Math.round(tbRect.left) + "px";
+      bar.style.top = Math.round(tbRect.bottom) + "px";
+      bar.style.width = Math.round(tbRect.width) + "px";
+      bar.hidden = false;
+    } else { bar.hidden = true; }
+  }
   function onEditorKey(e) {
     var mod = e.ctrlKey || e.metaKey;
+    if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "f") { e.preventDefault(); openFind(); return; }
     if (slashKey(e)) return;                       // slash menu owns arrows/enter/esc while open
     if (mdKey(e)) return;                           // markdown shortcuts / smart quotes
     if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "d") { e.preventDefault(); duplicateBlock(); return; }
@@ -4490,6 +4596,10 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       var at = e.target.closest("#rrnb-addtag"); if (at) return openTagPicker(at);
       var bl = e.target.closest("[data-goto-page]"); if (bl) { var nb = bl.getAttribute("data-goto-nb"), pg = bl.getAttribute("data-goto-page"); if (nb !== S.nbId) { S.activeSection = null; return selectNotebook(nb, pg); } return openPage(pg); }
     });
+    // #72 sticky mini-title: once the big title scrolls out of view, pin a
+    // compact bar with the page title just under the toolbar. Click to scroll up.
+    if (cw) cw.addEventListener("scroll", updateStickyTitle, { passive: true });
+    window.addEventListener("resize", function () { if (!stickyTitleEl() || stickyTitleEl().hidden) return; updateStickyTitle(); });
 
     // context menu dispatch + dismissers
     var ctx = $id("rrnb-ctx");
