@@ -489,6 +489,12 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   line-height:1;font-size:var(--fs-sm)}
 .rrnb-tag.done{background:var(--green-soft,rgba(22,163,74,.12));color:var(--green)}
 .rrnb-tag.important{background:var(--amber-soft,rgba(217,119,6,.14));color:var(--amber)}
+.rrnb-tag-lbl{cursor:pointer}
+.rrnb-tag-lbl:hover{text-decoration:underline;text-underline-offset:2px}
+.rrnb-rs-head{cursor:default;justify-content:space-between}
+.rrnb-rs-head .nm{flex:1;font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600}
+.rrnb-rs-head:hover{background:transparent}
+.rrnb-rs-clear{border:0;background:transparent;color:var(--accent);cursor:pointer;font-size:var(--fs-xs);padding:0 4px}
 .rrnb-addtag{height:24px;border:1px dashed var(--border-strong);border-radius:var(--r-pill);
   background:transparent;color:var(--text-subtle);font-size:var(--fs-xs);padding:0 var(--s-2);cursor:pointer}
 .rrnb-addtag:hover{color:var(--accent);border-color:var(--accent)}
@@ -1909,6 +1915,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       case "now": insertHTMLAtCursor(esc(new Date().toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })) + "&nbsp;"); break;
       case "toc": insertTOC(); break;
       case "todo": insertTodo(); break;
+      case "template": openSnippetPicker(); break;
       case "table": openTablePicker(); break;
       case "image": pickFile("image/*", true); break;
       case "attach": pickFile("*/*", false); break;
@@ -3052,11 +3059,18 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
 
   // ── tags ─────────────────────────────────────────────────────────
   var TAG_PRESETS = ["important", "to-do", "question", "follow-up", "decision", "idea"];
+  // #78 a stable color per tag (hashed into a small palette) so the same tag
+  // always reads the same everywhere, without needing to store a color.
+  var TAG_HUES = ["#2563eb", "#7c3aed", "#db2777", "#0891b2", "#16a34a", "#d97706", "#dc2626", "#475569"];
+  function tagColor(t) { var h = 0; t = String(t || ""); for (var i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) >>> 0; return TAG_HUES[h % TAG_HUES.length]; }
   function renderTags(tags) {
     var host = $id("rrnb-tagbar"); if (!host) return;
     var html = (tags || []).map(function (t) {
       var cls = t === "important" ? " important" : (t === "to-do" || t === "follow-up") ? " done" : "";
-      return '<span class="rrnb-tag' + cls + '" data-tag="' + esc(t) + '">' + esc(t) + ' <button data-remove-tag="' + esc(t) + '" title="Remove">×</button></span>';
+      var style = cls ? "" : ' style="color:' + tagColor(t) + ';background:' + tagColor(t) + '22"';
+      return '<span class="rrnb-tag' + cls + '" data-tag="' + esc(t) + '"' + style + '>' +
+        '<span class="rrnb-tag-lbl" data-tag-goto="' + esc(t) + '" title="Show all pages tagged ' + esc(t) + '">' + esc(t) + '</span> ' +
+        '<button data-remove-tag="' + esc(t) + '" title="Remove">×</button></span>';
     }).join("");
     html += '<button class="rrnb-addtag" id="rrnb-addtag">＋ Tag</button>';
     host.innerHTML = html;
@@ -4146,7 +4160,8 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     { cmd: "smartlink", label: "Link records (drivers, vehicles, routes)", kw: "record driver vehicle route smart link connect", ic: "⚡" },
     { cmd: "toc", label: "Table of contents", kw: "toc contents outline headings", ic: "☰" },
     { cmd: "date", label: "Date (today)", kw: "date today calendar", ic: "📅" },
-    { cmd: "now", label: "Timestamp (now)", kw: "time now timestamp clock", ic: "🕒" }
+    { cmd: "now", label: "Timestamp (now)", kw: "time now timestamp clock", ic: "🕒" },
+    { cmd: "template", label: "Template / snippet", kw: "template snippet standup incident handoff meeting tpl", ic: "▤" }
   ];
   var SL = { open: false, node: null, at: 0, items: [], sel: 0, el: null };
   function slashEl() {
@@ -4501,6 +4516,29 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   // ══════════════════════════════════════════════════════════════════
   //  SEARCH
   // ══════════════════════════════════════════════════════════════════
+  // #79 recent searches — kept per workspace in localStorage, shown as a
+  // dropdown when the search box is focused and empty.
+  function recentSearchKey() { return "rrnb-recent-search:" + (((window.RR && window.RR.dsp && window.RR.dsp.id) || "local")); }
+  function recentSearches() { try { return JSON.parse(localStorage.getItem(recentSearchKey()) || "[]"); } catch (e) { return []; } }
+  function pushRecentSearch(q) { q = (q || "").trim(); if (!q) return; var list = recentSearches().filter(function (x) { return x !== q; }); list.unshift(q); try { localStorage.setItem(recentSearchKey(), JSON.stringify(list.slice(0, 8))); } catch (e) {} }
+  function showRecentSearches() {
+    var si = $id("rrnb-search-input"); if (!si) return;
+    var list = recentSearches(); if (!list.length) return hideRecentSearches();
+    var d = $id("rrnb-recent-search");
+    if (!d) {
+      d = document.createElement("div"); d.id = "rrnb-recent-search"; d.className = "rrnb-menu"; d.hidden = true; document.body.appendChild(d);
+      d.addEventListener("mousedown", function (e) {
+        var clr = e.target.closest("[data-rs-clear]"); if (clr) { e.preventDefault(); try { localStorage.removeItem(recentSearchKey()); } catch (er) {} hideRecentSearches(); return; }
+        var it = e.target.closest("[data-rs]"); if (it) { e.preventDefault(); var q = it.getAttribute("data-rs"); si.value = q; runSearch(q); hideRecentSearches(); }
+      });
+    }
+    d.innerHTML = '<div class="rrnb-menu-item rrnb-rs-head"><span class="nm">Recent searches</span><button class="rrnb-rs-clear" data-rs-clear="1" type="button">Clear</button></div>' +
+      list.map(function (q) { return '<div class="rrnb-menu-item" data-rs="' + esc(q) + '"><span class="nm">' + esc(q) + '</span></div>'; }).join("");
+    var r = si.getBoundingClientRect();
+    d.style.position = "fixed"; d.style.left = Math.round(r.left) + "px"; d.style.top = Math.round(r.bottom + 4) + "px"; d.style.minWidth = Math.round(r.width) + "px";
+    d.hidden = false;
+  }
+  function hideRecentSearches() { var d = $id("rrnb-recent-search"); if (d) d.hidden = true; }
   var runSearch = debounce(function (q) {
     var host = $id("rrnb-pagelist"); if (!host) return;
     // "#tag" tokens filter by tag; the rest is the text query
@@ -4775,7 +4813,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
         var exr = e.target.closest("[data-exit-recent]"); if (exr) { S.mode = "notebook"; return renderPageList(); }
         var rp = e.target.closest("[data-recent-page]"); if (rp) { var rnb = rp.getAttribute("data-recent-nb"), rpg = rp.getAttribute("data-recent-page"); if (rnb && rnb !== S.nbId) { S.activeSection = null; return selectNotebook(rnb, rpg); } S.mode = "notebook"; return openPage(rpg); }
         var rb = e.target.closest("[data-restore-btn]"); if (rb) { return S.be.restoreItem("page", rb.getAttribute("data-restore-btn")).then(function () { return selectNotebook(S.nbId, null); }); }
-        var sr = e.target.closest("[data-search-page]"); if (sr) { var nb = sr.getAttribute("data-search-nb"), pg = sr.getAttribute("data-search-page"); var si = $id("rrnb-search-input"); if (si) si.value = ""; if (nb !== S.nbId) { S.activeSection = null; return selectNotebook(nb, pg); } S.mode = "notebook"; return openPage(pg); }
+        var sr = e.target.closest("[data-search-page]"); if (sr) { var nb = sr.getAttribute("data-search-nb"), pg = sr.getAttribute("data-search-page"); var si = $id("rrnb-search-input"); if (si) { pushRecentSearch(si.value); si.value = ""; } if (nb !== S.nbId) { S.activeSection = null; return selectNotebook(nb, pg); } S.mode = "notebook"; return openPage(pg); }
         var pg2 = e.target.closest("[data-page]"); if (pg2) { S.mode = "notebook"; openPage(pg2.getAttribute("data-page")); }
       });
       plHost.addEventListener("contextmenu", function (e) { var pg = e.target.closest("[data-page]"); if (pg && pg.getAttribute("data-page")) { e.preventDefault(); pageMenu(pg.getAttribute("data-page"), e.clientX, e.clientY); } });
@@ -4814,12 +4852,18 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
 
     // search
     var si = $id("rrnb-search-input");
-    if (si) si.addEventListener("input", function () { var q = si.value.trim(); if (!q) { S.mode = "notebook"; renderPageList(); } else runSearch(q); });
+    if (si) {
+      si.addEventListener("input", function () { var q = si.value.trim(); if (!q) { S.mode = "notebook"; renderPageList(); showRecentSearches(); } else { hideRecentSearches(); runSearch(q); } });
+      si.addEventListener("focus", function () { if (!si.value.trim()) showRecentSearches(); });
+      si.addEventListener("keydown", function (e) { if (e.key === "Enter") { pushRecentSearch(si.value); hideRecentSearches(); } else if (e.key === "Escape") { hideRecentSearches(); } });
+      si.addEventListener("blur", function () { setTimeout(hideRecentSearches, 150); });
+    }
 
     // canvas delegated (tags, backlinks, add-tag)
     var cw = $id("rrnb-canvas-wrap");
     if (cw) cw.addEventListener("click", function (e) {
       var rm = e.target.closest("[data-remove-tag]"); if (rm) return removeTag(rm.getAttribute("data-remove-tag"));
+      var tgo = e.target.closest("[data-tag-goto]"); if (tgo) { var tag = tgo.getAttribute("data-tag-goto"); var si0 = $id("rrnb-search-input"); if (si0) { si0.value = "#" + tag; runSearch("#" + tag); } return; }
       var at = e.target.closest("#rrnb-addtag"); if (at) return openTagPicker(at);
       var bl = e.target.closest("[data-goto-page]"); if (bl) { var nb = bl.getAttribute("data-goto-nb"), pg = bl.getAttribute("data-goto-page"); if (nb !== S.nbId) { S.activeSection = null; return selectNotebook(nb, pg); } return openPage(pg); }
     });
@@ -4999,6 +5043,22 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       try { localStorage.setItem(tplKey(), JSON.stringify(list.slice(-30))); } catch (e) {}
       notify('Saved — find it under "New page from template"');
     }).catch(fail);
+  }
+  // #30 /template — insert a saved snippet's content at the caret (as opposed
+  // to openTemplateMenu, which creates a whole new page from a template).
+  function openSnippetPicker() {
+    var customs = customTemplates();
+    var builtins = TEMPLATES.filter(function (t) { return t.id !== "blank" && t.html; });
+    var pop = showPop('<label>Insert a snippet</label><div class="rrnb-pop-list">' +
+      builtins.map(function (t) { return '<div class="rrnb-pop-opt" data-snip="' + esc(t.id) + '">' + esc(t.name) + '</div>'; }).join("") +
+      (customs.length ? '<div class="rrnb-menu-sep"></div>' + customs.map(function (t) { return '<div class="rrnb-pop-opt" data-csnip="' + esc(t.id) + '">' + esc(t.name) + '</div>'; }).join("") : "") +
+      '</div>', selRect());
+    pop.addEventListener("click", function (e) {
+      var b = e.target.closest("[data-snip]");
+      if (b) { var t = TEMPLATES.filter(function (x) { return x.id === b.getAttribute("data-snip"); })[0]; hidePop(); if (t && t.html) { insertHTMLAtCursor(t.html); scheduleSave(); } return; }
+      var c = e.target.closest("[data-csnip]");
+      if (c) { var ct = customTemplates().filter(function (x) { return x.id === c.getAttribute("data-csnip"); })[0]; hidePop(); if (ct && ct.html) { insertHTMLAtCursor(ct.html); scheduleSave(); } return; }
+    });
   }
   function openTemplateMenu(anchor) {
     var r = anchor.getBoundingClientRect();
