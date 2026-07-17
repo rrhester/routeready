@@ -467,3 +467,43 @@ snapshot (an invoice pinned to an older superseded authorization
 settles against its pinned one server-side); no payment tracking (out
 of MVP scope per §9); line-item dispute granularity is via the note,
 not per-line flags.
+
+## 16 · Phase 9 — what shipped
+
+- `supabase/migrations/0492_repair_center_reporting.sql` —
+  `repair_center_report(p_from, p_to)`: every number derived at query
+  time from raw timestamps + integer cents (nothing pre-aggregated):
+  fleet summary (cases opened/closed, avg downtime report→return,
+  settled spend, over-authorization variance + count, open now) and a
+  per-shop table (completed/open, requests sent, quotes submitted,
+  avg response hours, quotes won, promises kept measured against the
+  ORIGINAL promise — a revision is a delay, not a reset — avg days
+  late, settled spend, over-authorization variance, disputes). Plus
+  the "Repair Spend" Workbook ledger cloning the Receipt Ledger
+  projection (0436/0438): ensure/sync/BEFORE-trigger/open-RPC,
+  rr.ledger_sync guard, per-DSP singleton via partial unique index —
+  deliberately ONE-WAY (no reverse trigger; money cells are read-only
+  projections). Drafts are never projected; a row appears when a human
+  records the invoice. NB: the ensure function's OUT params are
+  out_-prefixed, deviating from 0436 — PostgreSQL 16's PL/pgSQL flags
+  bare `on conflict (sheet_id, …)` as ambiguous against a same-named
+  variable (caught by the local harness).
+- Dashboard — fourth Repair Center tab "Reports": period picker
+  (30/90/365d), KPI pills, shop-performance table (promise-kept pills
+  earn their tone: ≥80% green, ≥50% amber, else red; over-authorization
+  money in red), "Open spend ledger" deep link. workbook.js gains the
+  repair-spend-ledger template (gallery + quick-start +
+  openOrCreateRepairSpendLedger + window.rrOpenRepairSpendLedger),
+  mirroring the receipt-ledger wiring; smoke AST + 317 formula-engine
+  tests still green.
+- Verified: 0486→0492 from scratch + 0492 double-applied on local
+  Postgres 16 with all seven assertion suites (ledger cells incl.
+  money/variance/status/notes, superseded projection, drafts excluded,
+  record-projects, report numbers over the full exercise history,
+  window discipline, non-staff refusal); Playwright Reports-tab drive
+  (KPIs, pills, period refetch, ledger button) with zero console
+  errors.
+
+Phase 9 limits: report is on-demand (no scheduled email digest); the
+spend ledger projects invoices only (not estimates); per-shop downtime
+attribution uses case closure, not per-visit apportioning.

@@ -51,6 +51,7 @@ import {
     vehicles: [],          // fleet roster cache for the new-case picker
     shops: [],             // vendor directory cache
     shopsLoaded: false,
+    reportLoaded: false,
     filters: { search: "", stage: "", station: "", grounded: false, overdue: false, openOnly: true },
     drawerCase: null,
     drawerQuotes: null,    // last repair_case_quotes payload for the open drawer
@@ -373,6 +374,79 @@ import {
       d.classList.toggle("active", d.id === `rp-sub-${name}`);
     });
     if (name === "shops" && !S.shopsLoaded) loadShops();
+    if (name === "reports" && !S.reportLoaded) loadReport();
+  }
+
+  // ── reports (Phase 9) ────────────────────────────────────────────────
+  // Every number arrives pre-derived from repair_center_report() — raw
+  // timestamps and integer cents aggregated at query time, nothing
+  // stored, nothing to drift. This renderer only formats.
+  async function loadReport() {
+    const tbody = el("rr-repair-rep-tbody");
+    if (!tbody) return;
+    const days = parseInt(el("rr-repair-rep-period")?.value || "30", 10);
+    const { data, error } = await sb().rpc("repair_center_report", {
+      p_from: new Date(Date.now() - days * 24 * 3600e3).toISOString(),
+      p_to: new Date().toISOString(),
+    });
+    if (error || !data) {
+      tbody.innerHTML = `<tr><td colspan="10" class="rp-table-empty rp-error">Couldn't load the report · ${esc(error?.message || "try again")}</td></tr>`;
+      return;
+    }
+    S.reportLoaded = true;
+    renderReport(data);
+  }
+
+  function renderReport(rep) {
+    const s = rep.summary || {};
+    const kpis = el("rr-repair-rep-kpis");
+    if (kpis) {
+      const pill = (val, label, tone, sub2) => `
+        <div class="rp-kpi-pill" role="listitem">
+          ${tone ? `<span class="rp-kpi-dot rp-kpi-dot-${tone}"></span>` : ""}
+          <span class="rp-kpi-value">${esc(val)}</span>
+          <span class="rp-kpi-name">${esc(label)}</span>
+          ${sub2 ? `<span class="rp-kpi-sub">${esc(sub2)}</span>` : ""}
+        </div>`;
+      kpis.innerHTML =
+        pill(s.cases_closed ?? 0, "Cases completed", "b", `${s.cases_opened ?? 0} opened`)
+        + pill(s.avg_downtime_days != null ? `${s.avg_downtime_days}d` : "—", "Avg downtime", "", "report → back in service")
+        + pill(formatCents(Number(s.settled_total_cents ?? 0)), "Repair spend", "", `${s.settled_invoices ?? 0} settled invoices`)
+        + pill(formatCents(Number(s.variance_over_cents ?? 0)), "Over authorization",
+               Number(s.variance_over_cents) > 0 ? "r" : "g",
+               s.over_authorization_count ? `${s.over_authorization_count} invoice${s.over_authorization_count > 1 ? "s" : ""}` : "none")
+        + pill(s.open_now ?? 0, "Open now", "");
+      kpis.hidden = false;
+    }
+    const tbody = el("rr-repair-rep-tbody");
+    if (!tbody) return;
+    const shops = rep.shops || [];
+    if (!shops.length) {
+      tbody.innerHTML = `<tr><td colspan="10" class="rp-table-empty">No shop activity in this period yet.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = shops.map((r) => {
+      const kept = r.promises_measured > 0
+        ? Math.round((r.promises_on_time / r.promises_measured) * 100) : null;
+      const keptTone = kept == null ? "" : kept >= 80 ? "ok" : kept >= 50 ? "warn" : "bad";
+      const winRate = r.quotes_submitted > 0 && r.quotes_won != null
+        ? ` · ${Math.round((r.quotes_won / r.quotes_submitted) * 100)}%` : "";
+      const over = Number(r.variance_over_cents ?? 0);
+      return `<tr>
+        <td><span class="rp-strong">${esc(r.name)}</span><span class="rp-cell-sub">${esc(SHOP_CLASS_LABEL[r.preferred_status] || "")}</span></td>
+        <td class="num">${esc(String(r.cases_completed ?? 0))}</td>
+        <td class="num">${esc(String(r.open_cases ?? 0))}</td>
+        <td class="num">${r.avg_response_hours != null ? `~${esc(String(r.avg_response_hours))}h` : `<span class="rp-muted">—</span>`}</td>
+        <td class="num">${esc(String(r.quotes_won ?? 0))}<span class="rp-cell-sub">${esc(`${r.quotes_submitted ?? 0} quoted${winRate}`)}</span></td>
+        <td>${kept != null
+          ? `<span class="status-pill rp-pill-${keptTone}">${kept}%</span><span class="rp-cell-sub">${esc(`${r.promises_on_time}/${r.promises_measured} on time`)}</span>`
+          : `<span class="rp-muted">—</span>`}</td>
+        <td class="num">${r.avg_days_late != null && Number(r.avg_days_late) > 0 ? `${esc(String(r.avg_days_late))}d` : `<span class="rp-muted">—</span>`}</td>
+        <td class="num rp-strong">${esc(formatCents(Number(r.settled_total_cents ?? 0)))}</td>
+        <td class="num">${over > 0 ? `<span class="rp-money-over">${esc(formatCents(over))}</span>` : `<span class="rp-muted">—</span>`}</td>
+        <td class="num">${r.disputes ? esc(String(r.disputes)) : `<span class="rp-muted">—</span>`}</td>
+      </tr>`;
+    }).join("");
   }
 
   // ── shop directory ───────────────────────────────────────────────────
@@ -2254,6 +2328,20 @@ import {
     bind("rr-repair-f-stage", "stage");
     bind("rr-repair-f-station", "station");
     bind("rr-repair-f-grounded", "grounded", true);
+    const repPeriod = el("rr-repair-rep-period");
+    if (repPeriod) repPeriod.addEventListener("change", () => loadReport());
+    const repLedger = el("rr-repair-rep-ledger");
+    if (repLedger) repLedger.addEventListener("click", () => {
+      // goto loads the workbooks module lazily; the deep-link hook opens
+      // (or provisions) the singleton Repair Spend ledger once it's up.
+      if (typeof window.goto === "function") window.goto("workbooks");
+      let tries = 0;
+      const kick = () => {
+        if (typeof window.rrOpenRepairSpendLedger === "function") { window.rrOpenRepairSpendLedger(); return; }
+        if (++tries < 40) setTimeout(kick, 250);
+      };
+      kick();
+    });
     bind("rr-repair-f-overdue", "overdue", true);
     const openSel = el("rr-repair-f-open");
     if (openSel) openSel.addEventListener("change", async () => {

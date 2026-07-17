@@ -4556,12 +4556,35 @@ const WB_TEMPLATES = [
       ],
     }),
   },
+  {
+    // Same live-ledger pattern as the Receipt Ledger: picking this opens the
+    // DSP's single Repair Spend ledger (provisioned via
+    // repair_spend_ledger_ensure, migration 0492), which the Repair Center
+    // projects reviewed invoices into — invoice vs authorized with variance.
+    // Read-only by design: edits happen in the Repair Center, not the grid.
+    key: "repair-spend-ledger",
+    name: "Repair Spend",
+    category: "Finance",
+    desc: "Reviewed repair invoices land here automatically — invoice vs authorized amount with variance, straight from the Repair Center.",
+    build: () => ({
+      title: "Repair Spend",
+      description: "Every reviewed repair invoice, projected live from the Repair Center.",
+      blocks: [
+        { type: "sheet", title: "Repair Spend", sheets: [{
+          name: "Repair Spend",
+          cols: ["Date", "Case #", "Vehicle", "Shop", "Invoice #", "Status", "Invoice $", "Authorized $", "Variance $", "Variance Note", "Notes"],
+          colWidths: { 3: 160, 9: 220, 10: 220 },
+          rows: [],
+        }] },
+      ],
+    }),
+  },
 ];
 
 // Which templates the "New workbook" gallery offers. The full WB_TEMPLATES set
 // stays defined (so existing workbooks keep their template badge), but for now
 // the gallery shows only the Receipt Ledger.
-const WB_GALLERY_TEMPLATES = ["receipt-ledger"];
+const WB_GALLERY_TEMPLATES = ["receipt-ledger", "repair-spend-ledger"];
 
 // ─── Module state ────────────────────────────────────────────────────────────
 // One workbook open at a time. Sheet cell data lives in sparse Maps
@@ -6711,6 +6734,11 @@ async function submitCreate(wrap) {
       await openOrCreateReceiptLedger(wrap);
       return;
     }
+    // The Repair Spend ledger is the same singleton pattern (migration 0492).
+    if (tplKey === "repair-spend-ledger") {
+      await openOrCreateRepairSpendLedger(wrap);
+      return;
+    }
     const wb = await createWorkbook({ title, description: desc, visibility: vis, templateKey: tplKey || null });
     wrap.remove();
     await openWorkbook(wb.id);
@@ -6760,6 +6788,36 @@ async function openOrCreateReceiptLedger(wrap) {
 // the operator hunting for its card.
 try {
   window.rrOpenReceiptLedger = () => { try { return openOrCreateReceiptLedger(null); } catch (_) {} };
+} catch (_) {}
+
+// Open the DSP's single Repair Spend ledger — the projection the Repair
+// Center feeds (migration 0492). Same order as the Receipt Ledger: provision
+// via the shared server function → open an existing one → plain fallback
+// build when the repair migrations aren't applied yet.
+async function openOrCreateRepairSpendLedger(wrap) {
+  const s = _sb();
+  const dsp = _dsp();
+  try {
+    const res = await s.rpc("repair_spend_ledger_ensure");
+    if (!res.error && res.data) {
+      const id = res.data.workbook_id || res.data.id || res.data;
+      if (id) { if (wrap) wrap.remove(); await openWorkbook(id); return; }
+    }
+  } catch (_) { /* fall through */ }
+
+  const ex = await s.from("workbooks").select("id")
+    .eq("dsp_id", dsp.id).eq("template_key", "repair-spend-ledger")
+    .is("archived_at", null).maybeSingle();
+  if (ex.data && ex.data.id) { if (wrap) wrap.remove(); await openWorkbook(ex.data.id); return; }
+
+  const wb = await createWorkbook({ title: "Repair Spend", description: "", visibility: "org", templateKey: "repair-spend-ledger" });
+  if (wrap) wrap.remove();
+  await openWorkbook(wb.id);
+}
+
+// Deep-link hook · the Repair Center's Reports tab ("Open spend ledger").
+try {
+  window.rrOpenRepairSpendLedger = () => { try { return openOrCreateRepairSpendLedger(null); } catch (_) {} };
 } catch (_) {}
 
 // Whenever the Receipt Ledger is opened — any way, and regardless of migration
