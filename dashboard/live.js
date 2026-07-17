@@ -7,7 +7,7 @@
 //
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
-import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
+import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
 import { planScheduleWeek } from "./scheduling-engine.js?v=b2ebeec00db5";
 import { assessPlan as rrAssessLaborPlan, driversNeeded as rrDriversNeeded, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=b2ebeec00db5";
 import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=b2ebeec00db5";
@@ -11809,8 +11809,17 @@ function _rrNtSanitize(html) {
       if (!ok.has(c.tagName)) { c.replaceWith(document.createTextNode(c.textContent || "")); return; }
       Array.from(c.attributes).forEach((a) => {
         const nm = a.name.toLowerCase();
-        if (nm === "href" && c.tagName === "A" && !/^\s*javascript:/i.test(a.value)) return;
-        if (nm === "src"  && c.tagName === "IMG" && !/^\s*javascript:/i.test(a.value)) return;
+        // Scheme ALLOWLIST, not a javascript:-only blocklist: the old check
+        // let data:/vbscript:/etc through, and remote http(s) <img> in pasted
+        // note HTML doubles as a tracking/exfil beacon that fires on every
+        // render. Links stay clickable for the web; images must be inline
+        // data/blob (pasted screenshots) or same-origin.
+        if (nm === "href" && c.tagName === "A" && /^\s*(https?:|mailto:|tel:)/i.test(a.value)) return;
+        if (nm === "src" && c.tagName === "IMG") {
+          const v = a.value || "";
+          if (/^\s*(data:image\/|blob:)/i.test(v)) return;
+          try { if (new URL(v, location.href).origin === location.origin) return; } catch (_) {}
+        }
         c.removeAttribute(a.name);
       });
       if (c.tagName === "A") { c.setAttribute("target", "_blank"); c.setAttribute("rel", "noopener noreferrer"); }
@@ -25725,6 +25734,7 @@ async function _ivcalGoogleConnect() {
     if (error || !data || !data.url) throw error || new Error("No authorization URL returned");
     const popup = window.open(data.url, "rr-gcal", "width=520,height=640");
     const onMsg = (ev) => {
+      if (ev.origin !== location.origin) return; // callback pages post with location.origin target
       if (!ev.data || ev.data.type !== "rr-gcal") return;
       window.removeEventListener("message", onMsg);
       try { popup && popup.close(); } catch (_) {}
@@ -25755,6 +25765,7 @@ async function _ivcalMsConnect() {
     }
     const popup = window.open(data.url, "rr-mscal", "width=520,height=640");
     const onMsg = (ev) => {
+      if (ev.origin !== location.origin) return; // callback pages post with location.origin target
       if (!ev.data || ev.data.type !== "rr-gcal") return;   // shared landing page
       window.removeEventListener("message", onMsg);
       try { popup && popup.close(); } catch (_) {}
@@ -33038,6 +33049,7 @@ async function connectGoogleCalendar() {
     if (error || !data?.url) throw error || new Error("No authorization URL returned");
     const popup = window.open(data.url, "rr-gcal", "width=520,height=640");
     const onMsg = (ev) => {
+      if (ev.origin !== location.origin) return; // callback pages post with location.origin target
       if (!ev.data || ev.data.type !== "rr-gcal") return;
       window.removeEventListener("message", onMsg);
       try { popup && popup.close(); } catch (_) {}
@@ -89276,6 +89288,7 @@ async function _driveConnectGoogle(triggerBtn) {
     if (error || !data?.url) throw error || new Error("No authorization URL returned");
     const popup = window.open(data.url, "rr-gw", "width=520,height=660");
     const onMsg = (ev) => {
+      if (ev.origin !== location.origin) return; // callback pages post with location.origin target
       if (!ev.data || ev.data.type !== "rr-gcal") return;
       window.removeEventListener("message", onMsg);
       try { popup && popup.close(); } catch (_) {}
@@ -91255,6 +91268,7 @@ async function _rrAdpConnect() {
     }
     const popup = window.open(data.url, "rr-finch", "width=560,height=680");
     const onMsg = async (ev) => {
+      if (ev.origin !== location.origin) return; // callback pages post with location.origin target
       if (!ev.data || ev.data.type !== "rr-finch") return;
       window.removeEventListener("message", onMsg);
       try { popup && popup.close(); } catch (_) {}

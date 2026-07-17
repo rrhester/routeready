@@ -268,7 +268,10 @@
 // every foreground (iOS kills the realtime socket while backgrounded), so
 // incoming calls reach the driver on any page after reopening — not only
 // on the Messages page. Ring reuses one gesture-unlocked AudioContext.
-const SHELL_CACHE = "rr-app-shell-v184";
+// v185 · Security wave: Meet links carry the driver session token in the
+// URL #fragment (out of server logs); login brand tile + precache use the
+// 26 KB icons/icon-192.png instead of the 347 KB Icon.png.
+const SHELL_CACHE = "rr-app-shell-v185";
 const SHELL_FILES = [
   "./",
   "index.html",
@@ -280,7 +283,7 @@ const SHELL_FILES = [
   "vendor/supabase-js.mjs",
   "manifest.webmanifest",
   "icon.svg",
-  "Icon.png",
+  "icons/icon-192.png",
   "icons/favicon-32.png",
   "fonts/inter-var-latin.woff2",
   "../dashboard/config.js",

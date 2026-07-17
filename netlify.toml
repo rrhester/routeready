@@ -132,7 +132,12 @@
 # X-Frame-Options SAMEORIGIN (was DENY): the dashboard's interview room
 # embeds our own meet.html in an iframe. SAMEORIGIN still blocks every
 # cross-origin framing attempt (the clickjacking case DENY guarded).
-# CSP: deferred — inline scripts/styles need nonce/hash refactor first.
+# CSP: enforcing baseline (project-review PR#1) — script-src keeps
+# 'unsafe-inline' (inline handlers everywhere; nonce refactor is its own
+# project) but pins script ORIGIN to self + the three CDNs actually used.
+# The origin-by-origin rationale is documented in _headers. KEEP THE CSP
+# VALUE IDENTICAL to _headers — scripts/check-headers-parity.mjs fails
+# `npm run smoke` when the two host configs drift.
 [[headers]]
   for = "/*"
   [headers.values]
@@ -142,6 +147,7 @@
     Strict-Transport-Security = "max-age=63072000; includeSubDomains; preload"
     Permissions-Policy        = "geolocation=(self), camera=(self), microphone=(self), display-capture=(self), payment=()"
     X-XSS-Protection          = "0"
+    Content-Security-Policy   = "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://esm.sh https://unpkg.com https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://esm.sh https://unpkg.com https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: data: https://doiwrhkirgblcvuskhno.supabase.co; connect-src 'self' https://doiwrhkirgblcvuskhno.supabase.co wss://doiwrhkirgblcvuskhno.supabase.co https://*.livekit.cloud wss://*.livekit.cloud https://cdn.jsdelivr.net https://esm.sh https://unpkg.com https://docs.google.com https://*.googleusercontent.com https://api.weather.gov https://archive-api.open-meteo.com https://api.sunrise-sunset.org https://api.rainviewer.com https://vpic.nhtsa.dot.gov https://storage.googleapis.com https://tessdata.projectnaptha.com https://challenges.cloudflare.com; worker-src 'self' blob: https://cdn.jsdelivr.net; frame-src 'self' blob: https://challenges.cloudflare.com https://calendar.google.com https://doiwrhkirgblcvuskhno.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; upgrade-insecure-requests"
 
 [[headers]]
   for = "/dashboard/*.html"
@@ -187,3 +193,109 @@
   [headers.values]
     Cache-Control = "no-cache, no-store, must-revalidate"
     Content-Type  = "application/manifest+json"
+
+# ── Immutable long-cache for ?v=-tokened assets (project-review PR#22) ──
+# Every reference to these carries a deploy-unique ?v= token
+# (bust-cache.mjs), so a deploy changes the URL and the year-long cache
+# can never pin an operator on stale code. Previously these ~8 MB of
+# JS/CSS were revalidated on every load. Deliberately EXCLUDED:
+# /dashboard/sw.js + manifests (no-cache above), /dashboard/config.js +
+# desktop-connect.js (referenced WITHOUT tokens from login.html), and
+# /app/*.js (driver shell is service-worker-precached via bare URLs — an
+# immutable HTTP cache would feed the SW stale bytes on SHELL_CACHE
+# bumps). Keep this list in sync with _headers (parity-checked).
+
+[[headers]]
+  for = "/dashboard/views/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/dashboard/vendor/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/dashboard/parts/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/dashboard/repair/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/dashboard/*.css"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/app/fonts/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/marketing.css"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/dashboard/live.js"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/dashboard/workbook.js"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/dashboard/reports.js"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/dashboard/meet.js"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/dashboard/meet-core.js"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/dashboard/scheduling-engine.js"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/dashboard/mock-wiring.js"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/dashboard/fleet-sync.js"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/dashboard/forecast-core.js"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/dashboard/ivcal-layout.js"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/dashboard/ivcal-slots.js"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/dashboard/cal-tz.mjs"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

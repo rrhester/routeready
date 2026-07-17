@@ -55,6 +55,8 @@ const FILES = [
   "dashboard/repair/repair-ui.js",
   "dashboard/shop.html",
   "app/index.html",
+  "terms.html",
+  "privacy.html",
 ];
 
 // Match any local asset reference with a ?v=... cache-bust. The

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
   <title>RouteReady · Verify a signed document</title>
-  <link rel="icon" type="image/png" href="/header-bg.png">
+  <link rel="icon" type="image/png" href="/app/icons/favicon-32.png">
   <script src="/dashboard/config.js"></script>
   <style>
       @font-face{font-family:'Inter';font-style:normal;font-weight:400 700;font-display:swap;src:url(app/fonts/inter-var-latin.woff2) format('woff2')}
@@ -109,7 +109,13 @@ function checkRow(state, title, detail){
              : state==="bad"?'<span class="icon bad">✕</span>'
              : state==="warn"?'<span class="icon warn">!</span>'
              : '<span class="icon pend">·</span>';
-  return `<div class="check">${icon}<div class="body"><div class="title">${esc(title)}</div>${detail?`<div class="detail">${detail}</div>`:""}</div></div>`;
+  // `detail` is ESCAPED by default on this public page. Callers that need
+  // markup opt in with {html:"…"} and are responsible for esc()-ing every
+  // interpolated value themselves — escape-by-convention on the raw string
+  // was one forgotten esc() away from XSS.
+  const d = (detail && typeof detail === "object" && "html" in detail) ? detail.html
+          : detail ? esc(String(detail)) : "";
+  return `<div class="check">${icon}<div class="body"><div class="title">${esc(title)}</div>${d?`<div class="detail">${d}</div>`:""}</div></div>`;
 }
 
 function statusPill(s){
@@ -179,7 +185,7 @@ async function verify(token){
     checks += `<div id="chk-sig">${checkRow("pend","Verifying the ECDSA signature…","")}</div>`;
     if (seal.tst_b64){
       checks += checkRow("ok","RFC 3161 trusted timestamp present",
-        `Attested time: <span class="mono">${esc(seal.tsa_gen_time || "(see token)")}</span>${seal.tsa_url?` · authority: <span class="mono">${esc(seal.tsa_url)}</span>`:""}. The TimeStampToken is in the seal sidecar; verify with <code>openssl ts -verify</code>.`);
+        { html: `Attested time: <span class="mono">${esc(seal.tsa_gen_time || "(see token)")}</span>${seal.tsa_url?` · authority: <span class="mono">${esc(seal.tsa_url)}</span>`:""}. The TimeStampToken is in the seal sidecar; verify with <code>openssl ts -verify</code>.` });
     } else {
       checks += checkRow("warn","No trusted timestamp on this seal","The seal still proves file integrity; “when” rests on the audit-chain timestamps.");
     }
@@ -240,7 +246,7 @@ async function verify(token){
       const pdfEl = document.getElementById("chk-pdf");
       if (pdfEl) pdfEl.innerHTML = checkRow(pdfMatch?"ok":"bad",
         pdfMatch ? "Sealed PDF matches the seal digest" : "Sealed PDF does NOT match the seal digest",
-        `<span class="mono">SHA-256 ${esc(digestHex)}</span>${pdfMatch?"":" — the file differs from what was sealed."}`);
+        { html: `<span class="mono">SHA-256 ${esc(digestHex)}</span>${pdfMatch?"":" — the file differs from what was sealed."}` });
 
       // Verify the ECDSA signature over the SHA-256 digest with the
       // seal's public key. (The worker signs the digest bytes with
@@ -255,7 +261,7 @@ async function verify(token){
           okSig ? "ECDSA signature valid" : "ECDSA signature INVALID",
           okSig ? "The seal was produced by the holder of the RouteReady signing key, over this exact PDF." : "The signature does not validate against the seal's public key.");
       } catch (e2){
-        if (sigEl) sigEl.innerHTML = checkRow("warn","Couldn't verify the signature", esc(e2.message||e2));
+        if (sigEl) sigEl.innerHTML = checkRow("warn","Couldn't verify the signature", String(e2.message||e2));
       }
     } catch (e){
       const pdfEl = document.getElementById("chk-pdf"), sigEl = document.getElementById("chk-sig");

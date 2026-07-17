@@ -78,7 +78,7 @@
 
 <script src="/dashboard/config.js"></script>
 <script type="module">
-import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
+import { createClient } from "/dashboard/vendor/supabase-js-2.45.4.mjs";
 const cfg = window.RR_CONFIG;
 const sb = createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, { auth: { persistSession: false } });
 
