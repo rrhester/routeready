@@ -64,6 +64,7 @@
               </button>
               <div class="rr-ab-menu" data-wb-split-menu role="menu" aria-label="Templates" hidden>
                 <button type="button" role="menuitem" data-wb-act="new-from-template" data-tpl="receipt-ledger">Receipt ledger</button>
+                <button type="button" role="menuitem" data-wb-act="new-from-template" data-tpl="repair-spend-ledger">Repair spend ledger</button>
                 <button type="button" role="menuitem" data-wb-act="browse-templates">Browse all templates…</button>
               </div>
             </div>

@@ -30,6 +30,11 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/></svg>
             <span class="rr-viewseg-label">Shop Directory</span>
           </button>
+          <button type="button" class="rr-viewseg-btn" role="tab" aria-selected="false" data-sub="reports"
+                  onclick="if(window.RRRepair)RRRepair.sub('reports')" aria-label="Reports" title="Reports — downtime, spend, variance &amp; shop performance">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="20" x2="4" y2="10"/><line x1="10" y1="20" x2="10" y2="4"/><line x1="16" y1="20" x2="16" y2="14"/><line x1="22" y1="20" x2="2" y2="20"/></svg>
+            <span class="rr-viewseg-label">Reports</span>
+          </button>
         </div>
 
         <!-- Row 2 · action bar (.rr-ab twin). -->
@@ -125,6 +130,48 @@
                 <tbody id="rr-repair-tbody">
                   <tr class="rp-skel-row"><td colspan="10"><span class="rr-skel rr-skel-md"></span></td></tr>
                   <tr class="rp-skel-row"><td colspan="10"><span class="rr-skel rr-skel-md"></span></td></tr>
+                  <tr class="rp-skel-row"><td colspan="10"><span class="rr-skel rr-skel-md"></span></td></tr>
+                  <tr class="rp-skel-row"><td colspan="10"><span class="rr-skel rr-skel-md"></span></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- REPORTS sub-view · downtime / spend / variance / shop table -->
+        <div class="rp-sub" id="rp-sub-reports">
+          <div class="table-wrap">
+            <div class="rp-toolbar">
+              <select id="rr-repair-rep-period" class="rp-filter" aria-label="Report period">
+                <option value="30" selected>Last 30 days</option>
+                <option value="90">Last 90 days</option>
+                <option value="365">Last 12 months</option>
+              </select>
+              <div class="rp-bar-spacer"></div>
+              <button type="button" class="rp-btn" id="rr-repair-rep-ledger"
+                      title="The Repair Spend workbook — every reviewed invoice, projected live">Open spend ledger</button>
+            </div>
+            <div class="rp-kpi-pills" id="rr-repair-rep-kpis" style="padding:var(--s-3) var(--s-3) 0" hidden></div>
+            <div class="rp-card-head" style="padding-top:var(--s-3)">
+              <span class="rp-card-title">Shop performance</span>
+            </div>
+            <div class="rp-table-scroll">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Shop</th>
+                    <th class="num">Done</th>
+                    <th class="num">Open</th>
+                    <th class="num">Response</th>
+                    <th class="num">Quotes won</th>
+                    <th>Promises kept</th>
+                    <th class="num">Avg late</th>
+                    <th class="num">Spend</th>
+                    <th class="num">Over auth.</th>
+                    <th class="num">Disputes</th>
+                  </tr>
+                </thead>
+                <tbody id="rr-repair-rep-tbody">
                   <tr class="rp-skel-row"><td colspan="10"><span class="rr-skel rr-skel-md"></span></td></tr>
                   <tr class="rp-skel-row"><td colspan="10"><span class="rr-skel rr-skel-md"></span></td></tr>
                 </tbody>
