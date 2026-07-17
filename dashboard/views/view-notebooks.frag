@@ -36,9 +36,15 @@
    internally — no page overflow. */
 #view-notebooks.active{display:block;height:100vh;box-sizing:border-box;padding-top:44px;
   overflow:hidden;background:var(--canvas)}
-.rrnb-shell{height:100%;display:grid;
-  grid-template-columns:176px 208px 1fr;min-height:0;min-width:0}
-.rrnb-shell.ctx-on{grid-template-columns:176px 208px 1fr minmax(280px,320px)}
+.rrnb-shell{height:100%;display:grid;--rrnb-rail-w:176px;--rrnb-pages-w:208px;position:relative;
+  grid-template-columns:var(--rrnb-rail-w) var(--rrnb-pages-w) 1fr;min-height:0;min-width:0}
+.rrnb-shell.ctx-on{grid-template-columns:var(--rrnb-rail-w) var(--rrnb-pages-w) 1fr minmax(280px,320px)}
+/* #74 drag-to-resize divider between the pages pane and the canvas */
+.rrnb-resizer{position:absolute;top:0;bottom:0;width:7px;transform:translateX(-3px);z-index:30;cursor:col-resize;
+  left:calc(var(--rrnb-rail-w) + var(--rrnb-pages-w))}
+.rrnb-resizer::after{content:"";position:absolute;top:0;bottom:0;left:3px;width:1px;background:transparent}
+.rrnb-resizer:hover::after,.rrnb-resizer.rrnb-dragging::after{background:var(--accent)}
+@media (max-width:820px){.rrnb-resizer{display:none}}
 .rrnb-pane{min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden;
   border-right:1px solid var(--border);background:var(--surface)}
 .rrnb-pane--canvas{border-right:0;background:var(--canvas)}
@@ -745,7 +751,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
    while the page column left-aligns below it so it uses the canvas width
    instead of leaving a big centered margin. */
 #view-notebooks .rrnb-canvas-wrap{flex-direction:column;justify-content:flex-start;align-items:stretch}
-#view-notebooks .rrnb-doc{align-self:flex-start;width:100%;max-width:1100px;padding:var(--s-6) var(--s-8) 40vh}
+#view-notebooks .rrnb-doc{align-self:flex-start;width:100%;max-width:var(--rrnb-doc-w,1100px);padding:var(--s-6) var(--s-8) 40vh}
 #view-notebooks .rrnb-breadcrumb{color:#8A93A2}
 #view-notebooks .rrnb-title{font-size:30px;font-weight:600;letter-spacing:-.02em;color:#2A3340;line-height:1.15}
 #view-notebooks .rrnb-pdate{font-size:12.5px;color:#AEB6C2;margin:2px 0 4px}
@@ -855,6 +861,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   </div>
 
   <!-- ── Pane 3: page canvas / editor ─────────────────────────────── -->
+  <div class="rrnb-resizer" id="rrnb-resizer" title="Drag to resize · double-click to reset"></div>
   <div class="rrnb-pane rrnb-pane--canvas">
     <div class="rrnb-mobilebar" id="rrnb-mobilebar">
       <button type="button" id="rrnb-mb-rail" title="Notebook &amp; sections">☰ Sections</button>
@@ -1536,6 +1543,43 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   function emptyStateHTML(icon, title, hint) {
     return '<div class="rrnb-estate"><div class="ico" aria-hidden="true">' + icon + '</div><div class="ttl">' + esc(title) + '</div>' + (hint ? '<div class="hint">' + hint + '</div>' : '') + '</div>';
   }
+  // #73 reading width — narrow/wide/full, persisted, applied via a CSS var on
+  // the shell that .rrnb-doc's max-width reads (custom props inherit).
+  var READING_WIDTHS = { narrow: "720px", wide: "1000px", full: "100%" };
+  function applyReadingWidth() {
+    var sh = $id("rrnb-shell"); if (!sh) return;
+    var k; try { k = localStorage.getItem("rrnb-reading-width"); } catch (e) {}
+    sh.style.setProperty("--rrnb-doc-w", READING_WIDTHS[k] || "1100px");
+  }
+  function openReadingWidth(anchor) {
+    var cur; try { cur = localStorage.getItem("rrnb-reading-width") || "default"; } catch (e) { cur = "default"; }
+    var opts = [["default", "Default"], ["narrow", "Narrow"], ["wide", "Wide"], ["full", "Full width"]];
+    var pop = showPop('<label>Reading width</label><div class="rrnb-pop-list">' + opts.map(function (o) { return '<div class="rrnb-pop-opt' + (o[0] === cur ? " sel" : "") + '" data-rw="' + o[0] + '">' + o[1] + '</div>'; }).join("") + '</div>', anchor.getBoundingClientRect());
+    pop.addEventListener("click", function (e) { var b = e.target.closest("[data-rw]"); if (!b) return; var v = b.getAttribute("data-rw"); try { if (v === "default") localStorage.removeItem("rrnb-reading-width"); else localStorage.setItem("rrnb-reading-width", v); } catch (er) {} applyReadingWidth(); hidePop(); });
+  }
+  // #74 drag-to-resize the pages pane (widen the canvas). Persisted; double-click resets.
+  function applyPaneWidth() {
+    var sh = $id("rrnb-shell"); if (!sh) return;
+    var w; try { w = parseInt(localStorage.getItem("rrnb-pages-w"), 10); } catch (e) {}
+    if (w && w >= 140 && w <= 420) sh.style.setProperty("--rrnb-pages-w", w + "px");
+  }
+  function bindPaneResizer() {
+    var sh = $id("rrnb-shell"), rz = $id("rrnb-resizer"); if (!sh || !rz || rz._bound) return; rz._bound = true;
+    rz.addEventListener("mousedown", function (e) {
+      e.preventDefault(); rz.classList.add("rrnb-dragging");
+      document.body.style.cursor = "col-resize"; document.body.style.userSelect = "none";
+      var shRect = sh.getBoundingClientRect();
+      var railW = parseInt(getComputedStyle(sh).getPropertyValue("--rrnb-rail-w"), 10) || 176;
+      function move(ev) { var w = Math.max(140, Math.min(420, Math.round(ev.clientX - shRect.left - railW))); sh.style.setProperty("--rrnb-pages-w", w + "px"); }
+      function up() {
+        rz.classList.remove("rrnb-dragging"); document.body.style.cursor = ""; document.body.style.userSelect = "";
+        document.removeEventListener("mousemove", move); document.removeEventListener("mouseup", up);
+        try { localStorage.setItem("rrnb-pages-w", parseInt(getComputedStyle(sh).getPropertyValue("--rrnb-pages-w"), 10)); } catch (er) {}
+      }
+      document.addEventListener("mousemove", move); document.addEventListener("mouseup", up);
+    });
+    rz.addEventListener("dblclick", function () { sh.style.setProperty("--rrnb-pages-w", "208px"); try { localStorage.removeItem("rrnb-pages-w"); } catch (e) {} });
+  }
   // Compact vs comfortable page list — persisted per browser.
   function applyDensity() {
     if (S.density == null) { try { S.density = localStorage.getItem("rrnb-density") || "comfortable"; } catch (e) { S.density = "comfortable"; } }
@@ -1691,6 +1735,8 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
           '<span class="rrnb-presence" id="rrnb-presence" hidden><span class="pdot"></span><span id="rrnb-presence-txt"></span></span>' +
           '<button class="rrnb-metabtn" id="rrnb-history-btn" type="button" title="Page version history">' +
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 8v4l3 2"/></svg>History</button>' +
+          '<button class="rrnb-metabtn" id="rrnb-width-btn" type="button" title="Reading width">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 6h18M3 18h18"/><path d="M8 10v4M16 10v4"/></svg>Width</button>' +
           '<button class="rrnb-metabtn" id="rrnb-ctx-toggle" type="button" title="Toggle the context panel (linked records, outline, backlinks)">' +
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg>Context</button></div>' +
         '<div class="rrnb-editor" id="rrnb-editor" contenteditable="true" spellcheck="true" data-ph="Type anywhere. Everything autosaves.">' + (p.content_html || "") + '</div>' +
@@ -1715,6 +1761,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     ed.addEventListener("click", onEditorClick);
     ed.addEventListener("contextmenu", onEditorCtx);
     var hb = $id("rrnb-history-btn"); if (hb) hb.addEventListener("click", openHistory);
+    var wb = $id("rrnb-width-btn"); if (wb) wb.addEventListener("click", function () { openReadingWidth(wb); });
     var ctb = $id("rrnb-ctx-toggle"); if (ctb) ctb.addEventListener("click", function () { ctxToggle(); });
     var dictBtn = $id("rrnb-toolbar") && $id("rrnb-toolbar").querySelector('[data-cmd="dictate"]');
     if (dictBtn && (window.SpeechRecognition || window.webkitSpeechRecognition)) dictBtn.hidden = false;
@@ -4842,6 +4889,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   function bindOnce() {
     if (_bound) return; _bound = true;
     var root = ROOT(); if (!root) return;
+    applyReadingWidth(); applyPaneWidth(); bindPaneResizer();   // #73/#74 restore + wire layout controls
 
     // notebook picker
     var cur = $id("rrnb-nb-current");
