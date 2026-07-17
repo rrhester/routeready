@@ -95,6 +95,23 @@ against HEAD before implementing; rebase before each PR. Decision items
 resolve minimally (PR#95: delete stray dark block; PR#44: ticket list in
 docs/). Update this tracker every wave.
 
+## DONE: Messages 100-list (message-tool improvements)
+
+A 100-item improvement list for the Messages tool (`dashboard/live.js`
+`_mc*`/`_cc*` families, `dashboard/msg-core.mjs`, `view-messages.frag`)
+— COMPLETE (100/100) as of 2026-07-17, shipped on PR #3963 in 10 themed
+batches (one commit each), branch `claude/message-tool-improvements-nzuo5s`.
+Pure logic lives in `msg-core.mjs` (tested via `scripts/test-msg-core.mjs`
+in `npm test`). New edge functions: `link-preview` (unfurls, SSRF-
+constrained); `notebook-ai` gained translate/chat_suggest_replies/
+chat_summarize/chat_tone actions. Migrations **0504–0509** (renumbered
+after main took 0503): templates, replies/reactions/pins/edit-history,
+thread prefs, channel upgrades (announcement-only/acks/polls/recurrence),
+notifications (operator prefs/SMS fallback/auto-reply), admin (retention/
+legal hold/audit/SMS bridge/email transcript/webhooks). Everything
+degrades gracefully pre-migration (local fallback or "needs migration
+NNNN" toast). #52 verified pre-existing (0475 delivery pills).
+
 ## Active task: Workbook 100-list (Excel-parity improvements)
 
 Working through a 100-item list of Workbook (`dashboard/workbook.js`)
