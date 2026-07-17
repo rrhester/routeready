@@ -4,11 +4,16 @@ on:
   pull_request:
     paths:
       - "engine/**"
+      - "solver-service/rr_solver/**"
+      - "tests/conformance/**"
+      - "scripts/test-conformance.mjs"
       - ".github/workflows/engine-tests.yml"
   push:
     branches: [main]
     paths:
       - "engine/**"
+      - "solver-service/rr_solver/**"
+      - "tests/conformance/**"
 
 jobs:
   test:
@@ -27,3 +32,20 @@ jobs:
       - run: npm run build:dashboard
       - name: Verify dashboard bundle is up to date
         run: git diff --exit-code ../dashboard/scheduling-engine.js
+
+  # The static hard gates exist twice — engine/src (TS, in-browser
+  # preview) and rr_solver/eligibility.py (CP-SAT server) — hand-synced
+  # with no shared code. This job runs both on the same fixtures and
+  # fails when they disagree, so drift can't ship silently (plan #4).
+  conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pydantic
+      - run: node scripts/test-conformance.mjs

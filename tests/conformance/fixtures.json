@@ -1,0 +1,32 @@
+{
+  "_comment": [
+    "TS ↔ Python eligibility conformance fixtures (plan item #4).",
+    "Each driver deviates from 'ok' in exactly ONE gate so blocked pairs",
+    "have a single unambiguous first-failure — except drivers tagged",
+    "multi:true, where the two engines legitimately differ on WHICH gate",
+    "fires first (documented order difference: TS checks license→cert→",
+    "pto→availability, Python checks pto→availability→cert→license), so",
+    "only the eligible/blocked boolean is compared for those.",
+    "Week: 2026-05-24 (Sun) .. 2026-05-30. Mon=2026-05-25, Fri=2026-05-29."
+  ],
+  "week_start": "2026-05-24",
+  "eligible_driver_status": "active_and_onboarding",
+  "drivers": [
+    { "id": "ok",          "status": "active",     "dl_expires_on": "2030-01-01", "dot_certified": true,  "xl_certified": true,  "edv_certified": true,  "available_dows": null },
+    { "id": "onboarding",  "status": "onboarding", "dl_expires_on": "2030-01-01", "dot_certified": true,  "xl_certified": true,  "edv_certified": true,  "available_dows": null },
+    { "id": "terminated",  "status": "terminated", "dl_expires_on": "2030-01-01", "dot_certified": true,  "xl_certified": true,  "edv_certified": true,  "available_dows": null },
+    { "id": "expired-dl",  "status": "active",     "dl_expires_on": "2026-05-26", "dot_certified": true,  "xl_certified": true,  "edv_certified": true,  "available_dows": null },
+    { "id": "no-certs",    "status": "active",     "dl_expires_on": "2030-01-01", "dot_certified": false, "xl_certified": false, "edv_certified": false, "available_dows": null },
+    { "id": "mon-tue-wed", "status": "active",     "dl_expires_on": "2030-01-01", "dot_certified": true,  "xl_certified": true,  "edv_certified": true,  "available_dows": [1, 2, 3] },
+    { "id": "no-avail",    "status": "active",     "dl_expires_on": "2030-01-01", "dot_certified": true,  "xl_certified": true,  "edv_certified": true,  "available_dows": [] },
+    { "id": "pto-monday",  "status": "active",     "dl_expires_on": "2030-01-01", "dot_certified": true,  "xl_certified": true,  "edv_certified": true,  "available_dows": null, "pto": ["2026-05-25"] },
+    { "id": "dl-and-pto",  "status": "active",     "dl_expires_on": "2026-05-24", "dot_certified": true,  "xl_certified": true,  "edv_certified": true,  "available_dows": null, "pto": ["2026-05-29"], "multi": true }
+  ],
+  "shifts": [
+    { "id": "std-mon", "date": "2026-05-25", "route_type": "standard" },
+    { "id": "van-mon", "date": "2026-05-25", "route_type": "step_van" },
+    { "id": "xl-mon",  "date": "2026-05-25", "route_type": "xl" },
+    { "id": "edv-mon", "date": "2026-05-25", "route_type": "edv" },
+    { "id": "std-fri", "date": "2026-05-29", "route_type": "standard" }
+  ]
+}

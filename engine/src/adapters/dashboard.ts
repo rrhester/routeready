@@ -156,6 +156,13 @@ export interface PlanPayload {
   schedule_week_start: string;
   max_days: number;
   weekly_hour_cap?: number;
+  /** IANA timezone of the DSP (e.g. "America/Chicago"). When set, shift
+   *  timestamps that carry a zone (Postgres timestamptz serializations)
+   *  are converted to DSP-local WALL-CLOCK time before the engine sees
+   *  them, so time-of-day semantics (rest gaps, future availability
+   *  windows) match how the operator reads the schedule. Zone-less
+   *  strings are assumed to already be wall clock and pass through. */
+  dsp_timezone?: string | null;
   blackout_dates?: string[];
   rules?: DashboardRules;
   drivers: DashboardDriver[];
@@ -250,12 +257,49 @@ function mapDriver(
   };
 }
 
-function mapShift(raw: DashboardShift): ShiftInput {
-  const start = raw.starts_at ?? `${raw.date}T00:00:00`;
+// Convert a zone-carrying ISO timestamp to DSP-local wall clock
+// ("YYYY-MM-DDTHH:MM:SS"). The engine's date math is deliberately
+// timezone-naive, so what we feed it defines the semantics: with this
+// conversion, rest gaps are WALL-CLOCK hours — the way dispatchers and
+// drivers read a schedule. (On the two DST nights a year wall-clock and
+// elapsed hours differ by 1h; the server-side compliance gate (0500)
+// checks the absolute timestamps, so the regulatory floor still holds.)
+// Zone-less inputs are already wall clock — converting them through
+// Date would REINTERPRET them in the runtime's zone — so they pass
+// through untouched, as does anything Intl can't make sense of.
+function toLocalWallClock(
+  iso: string | null | undefined,
+  tz: string | null | undefined,
+): string | null {
+  if (!iso) return null;
+  if (!tz || !/(?:[zZ]|[+-]\d{2}:?\d{2})$/.test(iso)) return iso;
+  const t = new Date(iso);
+  if (isNaN(t.getTime())) return iso;
+  try {
+    const parts: Record<string, string> = {};
+    for (const p of new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz,
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+      hour12: false,
+    }).formatToParts(t)) {
+      parts[p.type] = p.value;
+    }
+    const hh = parts.hour === "24" ? "00" : parts.hour;
+    return `${parts.year}-${parts.month}-${parts.day}T${hh}:${parts.minute}:${parts.second}`;
+  } catch {
+    return iso;
+  }
+}
+
+function mapShift(raw: DashboardShift, tz: string | null): ShiftInput {
+  const startLocal = toLocalWallClock(raw.starts_at, tz);
+  const endLocal = toLocalWallClock(raw.ends_at, tz);
+  const start = startLocal ?? `${raw.date}T00:00:00`;
   // Only pass end_time when it post-dates the start (guards bad rows).
   const end =
-    raw.ends_at && raw.starts_at && raw.ends_at > raw.starts_at
-      ? raw.ends_at
+    endLocal && startLocal && endLocal > startLocal
+      ? endLocal
       : null;
   return {
     shift_id: String(raw.id),
@@ -560,9 +604,12 @@ export function planScheduleWeek(payload: PlanPayload): ScheduleResult {
   const drivers = eligibleRaw.map((d) => mapDriver(d, ptoByDriver));
 
   const settings = buildSettings(payload);
+  const tz = typeof payload.dsp_timezone === "string" && payload.dsp_timezone
+    ? payload.dsp_timezone
+    : null;
   const input: EngineInput = {
     schedule_week_start: payload.schedule_week_start,
-    shifts: payload.shifts.map(mapShift),
+    shifts: payload.shifts.map((s) => mapShift(s, tz)),
     drivers,
     dsp: { dsp_blackout_dates: payload.blackout_dates ?? [] },
     settings,

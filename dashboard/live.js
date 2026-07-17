@@ -36319,7 +36319,7 @@ async function _sawSmartFill() {
     const availDows = Array.isArray(av.days) && av.days.length ? av.days.map(c => DOW.indexOf(String(c).slice(0, 3).toLowerCase())).filter(i => i >= 0) : null;
     const prefDows = Array.isArray(av.preferred_days) ? av.preferred_days.map(c => DOW.indexOf(String(c).slice(0, 3).toLowerCase())).filter(i => i >= 0) : null;
     const payload = {
-      schedule_week_start: weekStart, max_days: st.maxDays, weekly_hour_cap: st.weeklyCap, time_budget_ms: 8000,
+      schedule_week_start: weekStart, dsp_timezone: window.RR?.dsp?.timezone || null, max_days: st.maxDays, weekly_hour_cap: st.weeklyCap, time_budget_ms: 8000,
       rules: { availability: true, pto_block: true, preserve_locked_assignments: true, manual_mode: false, assign_vans: false, weekly_hour_cap_enforcement: true, consecutive_working_days: true, min_rest: true, min_rest_hours: st.minRest, same_day_multi_shift: "block" },
       drivers: [{ id: st.driver.id, full_name: st.driver.full_name, status: st.driver.status, hire_date: st.driver.hire_date, dl_expires_on: st.driver.dl_expires_on || null, dot_certified: !!st.driver.dot_certified, xl_certified: !!st.driver.xl_certified, edv_certified: !!st.driver.edv_certified, employment_type: st.driver.employment_type ?? st.driver.metadata?.employment_type ?? null, available_dows: availDows, preferred_dows: prefDows, final_corrective_action: false, weekday_affinity: null, fifth_day_ok: av.fifth_day_ok === true }],
       shifts: engineShifts, pto: [], ad_hoc_constraints: [],
@@ -61697,6 +61697,9 @@ async function autoAssignDriversForWeek() {
     const _sfVansAssign = !(sfRules && sfRules.vans && sfRules.vans.assign === false);
     const sfPayload = {
       schedule_week_start: _schedStart,
+      // DSP timezone → the engine adapter converts zoned shift timestamps
+      // to local wall clock, so rest gaps read the way the operator does.
+      dsp_timezone: window.RR?.dsp?.timezone || null,
       max_days: _maxDaysOut,
       weekly_hour_cap: _weeklyHourOut,
       time_budget_ms: _sfSolveTime,
@@ -62230,6 +62233,40 @@ async function autoAssignDriversForWeek() {
       if (recErr) console.warn("record_optimization_result failed:", recErr);
     }
   } catch (e) { console.warn("optimization audit · record:", e); }
+
+  // Smart Fill undo (0502): stash the pre-run snapshot (who held each
+  // shift before this run's writes — toWrite carries expectedDriverId
+  // from the pre-write grid) and push a one-click revert onto the
+  // shared undo stack. Server-side revert is optimistic per shift:
+  // anything a dispatcher changed AFTER the run is kept, not clobbered.
+  // Best-effort — never disrupts the operator's flow.
+  try {
+    const runId = window._rrLastOptimizationRunId;
+    if (runId && !_rrWhatIfOptions && toWrite.length > 0 && wr.assigned > 0) {
+      const snap = toWrite.map(it => ({
+        shift_id:  it.id,
+        driver_id: ("expectedDriverId" in it) ? (it.expectedDriverId ?? null) : null,
+      }));
+      sb.rpc("optimization_run_set_snapshot", { p_run_id: runId, p_snapshot: snap })
+        .then(r => { if (r && r.error) console.warn("smartfill snapshot save:", r.error.message); });
+      if (typeof _rrPushUndo === "function") {
+        _rrPushUndo({
+          label: `Smart Fill run · ${wr.assigned} assignment${wr.assigned === 1 ? "" : "s"}`,
+          undo: async () => {
+            const { data, error } = await sb.rpc("revert_optimization_run", { p_run_id: runId });
+            if (error) throw new Error(error.message || "revert failed");
+            const d = data || {};
+            const bits = [`${d.restored || 0} restored`];
+            if (d.skipped)    bits.push(`${d.skipped} kept (changed since the run)`);
+            if (d.conflicted) bits.push(`${d.conflicted} blocked by newer same-day shifts`);
+            if (d.missing)    bits.push(`${d.missing} no longer exist`);
+            toast("Smart Fill reverted · " + bits.join(" · "), "success");
+            if (typeof renderScheduleWeek === "function") { try { await renderScheduleWeek(); } catch (_) {} }
+          },
+        });
+      }
+    }
+  } catch (e) { console.warn("smartfill undo wiring:", e); }
 
   // Post-run "solve summary" — turns the invisible CP-SAT solve into a
   // visible recap so Smart Fill reads as the optimization engine it is.

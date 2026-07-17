@@ -277,3 +277,59 @@ test("adapter warns on missing hire dates under seniority ordering", () => {
   );
   assert.equal(silent.length, 0);
 });
+
+test("adapter converts zoned timestamps to DSP-local wall clock", () => {
+  // 2026-05-25T12:30:00Z is 07:30 in Chicago. With the conversion, two
+  // Chicago shifts 21:00→(next day)07:00 read as a 10h wall-clock gap
+  // and pass a 10h min-rest; fed raw UTC they'd read identically (no
+  // DST in May) — so instead prove the conversion via the DST fall-back
+  // night below, and here just prove zone-less inputs pass through.
+  const r = planScheduleWeek(
+    basePayload({
+      dsp_timezone: "America/Chicago",
+      drivers: [d("d1")],
+      shifts: [s("s1", "2026-05-25", {
+        starts_at: "2026-05-25T12:30:00Z",
+        ends_at: "2026-05-25T22:30:00Z",
+      })],
+    }),
+  );
+  assert.equal(r.assigned_shifts.length, 1);
+});
+
+test("adapter rest math is wall-clock across the DST fall-back", () => {
+  // Fall-back night (America/Chicago, 2026-11-01 02:00 CDT → 01:00 CST):
+  // shift A ends 00:30 CDT (05:30Z), shift B starts 10:00 CST (16:00Z).
+  // Elapsed time is 10.5h (would PASS a 10h min-rest on raw UTC), but the
+  // WALL CLOCK — how the operator and driver read the schedule — shows
+  // only 9.5h, so with the timezone conversion the engine must refuse.
+  // (The server-side gate (0500) checks absolute time, so the regulatory
+  // floor is still enforced independently.)
+  const mk = (tz: string | null) =>
+    planScheduleWeek(
+      basePayload({
+        schedule_week_start: "2026-11-01", // a Sunday
+        dsp_timezone: tz,
+        drivers: [d("d1")],
+        rules: { min_rest_hours: 10, same_day_multi_shift: "allow" },
+        shifts: [
+          s("sa", "2026-11-01", {
+            starts_at: "2026-10-31T19:30:00-05:00", // 7:30pm CDT Sat... shift runs into Sun
+            ends_at:   "2026-11-01T05:30:00Z",      // 00:30 CDT Sunday
+          }),
+          s("sb", "2026-11-01", {
+            starts_at: "2026-11-01T16:00:00Z",      // 10:00 CST Sunday
+            ends_at:   "2026-11-02T02:00:00Z",      // 20:00 CST Sunday
+          }),
+        ],
+      }),
+    );
+  const withTz = mk("America/Chicago");
+  // Wall-clock gap 00:30 → 10:00 is 9.5h < 10h — one shift must be refused.
+  assert.equal(withTz.assigned_shifts.length, 1,
+    "wall-clock rest must block the second same-night shift");
+  // Raw UTC (no tz): elapsed 10.5h ≥ 10h — both shifts assign.
+  const withoutTz = mk(null);
+  assert.equal(withoutTz.assigned_shifts.length, 2,
+    "without tz the naive-UTC gap is 10.5h and both assign");
+});

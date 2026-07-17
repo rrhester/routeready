@@ -2543,9 +2543,36 @@ function mapDriver(raw, ptoByDriver) {
     fifth_day_ok: raw.fifth_day_ok === true
   };
 }
-function mapShift(raw) {
-  const start = raw.starts_at ?? `${raw.date}T00:00:00`;
-  const end = raw.ends_at && raw.starts_at && raw.ends_at > raw.starts_at ? raw.ends_at : null;
+function toLocalWallClock(iso, tz) {
+  if (!iso) return null;
+  if (!tz || !/(?:[zZ]|[+-]\d{2}:?\d{2})$/.test(iso)) return iso;
+  const t = new Date(iso);
+  if (isNaN(t.getTime())) return iso;
+  try {
+    const parts = {};
+    for (const p of new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false
+    }).formatToParts(t)) {
+      parts[p.type] = p.value;
+    }
+    const hh = parts.hour === "24" ? "00" : parts.hour;
+    return `${parts.year}-${parts.month}-${parts.day}T${hh}:${parts.minute}:${parts.second}`;
+  } catch {
+    return iso;
+  }
+}
+function mapShift(raw, tz) {
+  const startLocal = toLocalWallClock(raw.starts_at, tz);
+  const endLocal = toLocalWallClock(raw.ends_at, tz);
+  const start = startLocal ?? `${raw.date}T00:00:00`;
+  const end = endLocal && startLocal && endLocal > startLocal ? endLocal : null;
   return {
     shift_id: String(raw.id),
     date: raw.date,
@@ -2741,9 +2768,10 @@ function planScheduleWeek(payload) {
   });
   const drivers = eligibleRaw.map((d) => mapDriver(d, ptoByDriver));
   const settings = buildSettings(payload);
+  const tz = typeof payload.dsp_timezone === "string" && payload.dsp_timezone ? payload.dsp_timezone : null;
   const input = {
     schedule_week_start: payload.schedule_week_start,
-    shifts: payload.shifts.map(mapShift),
+    shifts: payload.shifts.map((s) => mapShift(s, tz)),
     drivers,
     dsp: { dsp_blackout_dates: payload.blackout_dates ?? [] },
     settings,
