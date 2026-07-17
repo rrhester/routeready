@@ -118,9 +118,17 @@ chunk). Wave plan and status:
   apply-migrations.sh: ledger → private schema (migrates+drops public
   one), BASELINE 0373→0503, 0432 note. live.js banner generalized to
   rr_schema_version (expect 504; legacy calendar fallback kept).
-  seeds/seed_demo.sql + tests/anon_rpc_inventory_test.sql (112-name
-  frozen allowlist from real grants). migration-check additions merged
-  via #3969. REMEMBER: paste 0504+0505 SQL in chat for the user.
+  seeds/seed_demo.sql. PR#53 pivoted: the from-scratch run showed
+  Supabase DEFAULT PRIVILEGES make every public function anon-executable
+  (~500 staff RPCs, in-body gates only), so the frozen-allowlist test was
+  unmaintainable — replaced with 0504's
+  `alter default privileges in schema public revoke execute on functions
+  from anon;` → NEW anon-facing RPCs (driver app/public pages) MUST now
+  add an explicit `grant execute ... to anon;` in their migration or
+  anon calls 401. migration-check additions merged via #3969 (its anon
+  test step self-skips; pg_dump artifact step currently produces nothing
+  — client/server version mismatch, fix queued). REMEMBER: paste
+  0504+0505 SQL in chat for the user.
 - **Wave E — dashboard correctness**: PR#9,10,11,12,14,15,16(start),
   17,18,19,20.
 - **Wave F — perf**: PR#21,23,24,28,29,30,31,32.
