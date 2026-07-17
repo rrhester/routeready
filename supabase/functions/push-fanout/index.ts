@@ -52,7 +52,7 @@ async function apnsJwt(): Promise<string | null> {
   if (_apnsJwt && now - _apnsJwt.at < 3000) return _apnsJwt.token;
   try {
     const key = await crypto.subtle.importKey(
-      "pkcs8", pemToBytes(p8),
+      "pkcs8", pemToBytes(p8) as BufferSource,
       { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"],
     );
     const header = b64urlStr(JSON.stringify({ alg: "ES256", kid }));
@@ -89,7 +89,7 @@ async function fcmAccessToken(): Promise<string | null> {
       iat: now, exp: now + 3600,
     }));
     const key = await crypto.subtle.importKey(
-      "pkcs8", pemToBytes(sa.private_key),
+      "pkcs8", pemToBytes(sa.private_key) as BufferSource,
       { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"],
     );
     const sig = new Uint8Array(await crypto.subtle.sign(

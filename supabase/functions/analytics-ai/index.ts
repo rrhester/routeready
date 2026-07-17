@@ -671,7 +671,7 @@ async function runAgent(prompt: string, conversation: any[], ctx: ToolContext, a
         }
         toolResults.push({ type: "tool_result", tool_use_id: u.id, content: JSON.stringify(out).slice(0, 24_000) });
       } catch (e) {
-        toolResults.push({ type: "tool_result", tool_use_id: u.id, content: JSON.stringify({ error: String(e?.message || e) }) });
+        toolResults.push({ type: "tool_result", tool_use_id: u.id, content: JSON.stringify({ error: String((e as Error)?.message || e) }) });
       }
     }
     messages.push({ role: "user", content: toolResults });
@@ -769,7 +769,7 @@ Deno.serve(async (req) => {
       },
     });
   } catch (e) {
-    console.error("analytics-ai agent failed:", String(e?.message || e));
+    console.error("analytics-ai agent failed:", String((e as Error)?.message || e));
     return json({ error: "agent_failed" }, 500);
   }
 });

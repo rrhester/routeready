@@ -180,7 +180,7 @@ async function verifySvix(
   let key: CryptoKey;
   try {
     key = await crypto.subtle.importKey(
-      "raw", b64decode(keyMaterial),
+      "raw", b64decode(keyMaterial) as BufferSource,
       { name: "HMAC", hash: "SHA-256" }, false, ["sign"],
     );
   } catch {
