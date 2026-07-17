@@ -200,6 +200,17 @@
   padding-left:var(--s-1)}
 .rrnb-section .kebab{opacity:0;flex:0 0 auto}
 .rrnb-section:hover .kebab,.rrnb-section.active .kebab{opacity:1}
+/* #68 a page being dropped onto this section */
+.rrnb-section.rrnb-secdrop{background:var(--accent-soft);box-shadow:inset 0 0 0 1.5px var(--accent)}
+/* #94 page-load skeleton */
+.rrnb-skel .sk{background:linear-gradient(90deg,var(--surface-secondary) 25%,var(--surface-hover) 37%,var(--surface-secondary) 63%);
+  background-size:400% 100%;animation:rrnb-shimmer 1.2s ease-in-out infinite;border-radius:6px}
+.rrnb-skel .sk-title{height:30px;width:52%;margin:6px 0 14px}
+.rrnb-skel .sk-meta{height:12px;width:30%;margin-bottom:26px}
+.rrnb-skel .sk-line{height:14px;width:100%;margin:11px 0}
+.rrnb-skel .sk-short{width:64%}
+@keyframes rrnb-shimmer{0%{background-position:100% 0}100%{background-position:0 0}}
+@media (prefers-reduced-motion:reduce){.rrnb-skel .sk{animation:none}}
 .rrnb-railfoot{flex:0 0 auto;border-top:1px solid var(--border);padding:var(--s-2)}
 .rrnb-railfoot .rrnb-linkbtn{display:flex;align-items:center;gap:var(--s-2);width:100%;
   padding:var(--s-2) var(--s-2-5);border:0;background:transparent;border-radius:var(--r-md);
@@ -1633,6 +1644,15 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   // ══════════════════════════════════════════════════════════════════
   //  EDITOR / CANVAS
   // ══════════════════════════════════════════════════════════════════
+  // #94 a skeleton placeholder while a page's content loads (beats a blank flash
+  // or a spinner). renderCanvas replaces it as soon as the page resolves.
+  function showPageSkeleton() {
+    var wrap = $id("rrnb-canvas-wrap"); if (!wrap) return;
+    wrap.innerHTML = '<div class="rrnb-doc rrnb-skel" aria-hidden="true">' +
+      '<div class="sk sk-title"></div><div class="sk sk-meta"></div>' +
+      '<div class="sk sk-line"></div><div class="sk sk-line"></div><div class="sk sk-line sk-short"></div>' +
+      '<div class="sk sk-line"></div><div class="sk sk-line sk-short"></div></div>';
+  }
   function showBlank() {
     var wrap = $id("rrnb-canvas-wrap"); if (!wrap) return;
     wrap.innerHTML = '<div class="rrnb-blank"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 4h11l5 5v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M14 4v6h6"/></svg><div>Select a page, or press <b>Alt+N</b> to create one.</div></div>';
@@ -1684,6 +1704,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     if (FIND.open) closeFind();     // stale matches point at the old page's nodes
     var _st = $id("rrnb-stickytitle"); if (_st) _st.hidden = true;
     if (_dict) toggleDictation();
+    showPageSkeleton();             // #94 skeleton while the page content loads
     S.be.getPage(id).then(function (p) {
       if (!p) { showBlank(); return; }
       S.pageId = id; S.page = p; S.mode = "notebook"; S.savedAt = p.updated_at;
@@ -4928,6 +4949,23 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
 
     // sections rail (delegated)
     var secHost = $id("rrnb-sections");
+    // #68 drop a dragged page onto a section to move it there
+    if (secHost) {
+      secHost.addEventListener("dragover", function (e) {
+        if (!S._dragPage) return; var row = e.target.closest("[data-sec]"); if (!row) return;
+        e.preventDefault();
+        secHost.querySelectorAll(".rrnb-secdrop").forEach(function (x) { x.classList.remove("rrnb-secdrop"); });
+        if (row.getAttribute("data-sec") !== S.activeSection) row.classList.add("rrnb-secdrop");
+      });
+      secHost.addEventListener("dragleave", function (e) { var row = e.target.closest("[data-sec]"); if (row && !row.contains(e.relatedTarget)) row.classList.remove("rrnb-secdrop"); });
+      secHost.addEventListener("drop", function (e) {
+        if (!S._dragPage) return; var row = e.target.closest("[data-sec]"); if (!row) return;
+        e.preventDefault();
+        var sid = row.getAttribute("data-sec"), drag = S._dragPage; S._dragPage = null;
+        secHost.querySelectorAll(".rrnb-secdrop").forEach(function (x) { x.classList.remove("rrnb-secdrop"); });
+        movePageToSection(drag, sid);
+      });
+    }
     if (secHost) secHost.addEventListener("dblclick", function (e) {
       var gh = e.target.closest(".rrnb-group-hd"); if (gh && e.target.closest(".gnm")) { e.preventDefault(); return editGroupTitle(gh.getAttribute("data-toggle")); }
       var srow = e.target.closest("[data-sec]"); if (srow && e.target.closest(".nm")) { e.preventDefault(); return editSectionTitle(srow.getAttribute("data-sec")); }
@@ -4985,7 +5023,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       plHost.addEventListener("keydown", function (e) { if (e.key === "Tab" && S.pageId) { e.preventDefault(); indentPage(S.pageId, e.shiftKey ? -1 : 1); } });
       // drag-to-reorder pages
       plHost.addEventListener("dragstart", function (e) { var row = e.target.closest("[data-page]"); if (row) { S._dragPage = row.getAttribute("data-page"); row.classList.add("rrnb-dragging"); try { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", S._dragPage); } catch (x) {} } });
-      plHost.addEventListener("dragend", function () { S._dragPage = null; plHost.querySelectorAll(".rrnb-dragging,.rrnb-dragover").forEach(function (x) { x.classList.remove("rrnb-dragging", "rrnb-dragover"); }); });
+      plHost.addEventListener("dragend", function () { S._dragPage = null; plHost.querySelectorAll(".rrnb-dragging,.rrnb-dragover").forEach(function (x) { x.classList.remove("rrnb-dragging", "rrnb-dragover"); }); var sh = $id("rrnb-sections"); if (sh) sh.querySelectorAll(".rrnb-secdrop").forEach(function (x) { x.classList.remove("rrnb-secdrop"); }); });
       plHost.addEventListener("dragover", function (e) { if (!S._dragPage) return; var row = e.target.closest("[data-page]"); if (!row) return; e.preventDefault(); plHost.querySelectorAll(".rrnb-dragover").forEach(function (x) { x.classList.remove("rrnb-dragover"); }); if (row.getAttribute("data-page") !== S._dragPage) row.classList.add("rrnb-dragover"); });
       plHost.addEventListener("drop", function (e) { if (!S._dragPage) return; var row = e.target.closest("[data-page]"); if (!row) return; e.preventDefault(); var tgt = row.getAttribute("data-page"); var drag = S._dragPage; S._dragPage = null; reorderPage(drag, tgt); });
     }
@@ -5543,6 +5581,20 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     d.position = newPos;
     renderPageList();
     S.be.movePage(dragId, { section_id: d.section_id, parent_page_id: d.parent_page_id, level: d.level, position: newPos }).catch(fail);
+  }
+  // #68 move a page to a different section (dropped on a section row). It lands
+  // at the end of that section's top-level list and loses any parent nesting.
+  function movePageToSection(pageId, sectionId) {
+    if (!S.tree || !pageId || !sectionId) return;
+    var d = S.tree.pages.filter(function (x) { return x.id === pageId; })[0];
+    if (!d || d.section_id === sectionId) return;
+    d.section_id = sectionId; d.parent_page_id = null; d.level = 0;
+    var maxPos = S.tree.pages.filter(function (x) { return x.section_id === sectionId && !x.parent_page_id; })
+      .reduce(function (m, x) { return Math.max(m, x.position || 0); }, 0);
+    d.position = maxPos + 1;
+    renderPageList();
+    S.be.movePage(pageId, { section_id: sectionId, parent_page_id: null, level: 0, position: d.position })
+      .then(function () { notify("Page moved"); }).catch(fail);
   }
   function typingContext() {
     var a = document.activeElement;
