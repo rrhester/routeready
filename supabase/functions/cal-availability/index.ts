@@ -10,7 +10,8 @@
 //   CAL_USERNAME         Cal username, e.g. "Routeready"  (defaults to that)
 //   CAL_INTERVIEW_SLUG   slug of the event type to manage (defaults to "interview")
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { createClient } from "@supabase/supabase-js";
+import { fetchWithTimeout } from "../_shared/http.ts";
 
 const CAL_API_BASE = "https://api.cal.com/v2";
 const CAL_API_VERSION = "2024-06-14";
@@ -88,7 +89,7 @@ async function callCal(path: string, init: RequestInit = {}) {
   const apiKey = Deno.env.get("CAL_API_KEY");
   if (!apiKey) throw new Error("CAL_API_KEY not configured on the project");
 
-  const res = await fetch(`${CAL_API_BASE}${path}`, {
+  const res = await fetchWithTimeout(`${CAL_API_BASE}${path}`, {
     ...init,
     headers: {
       ...(init.headers || {}),
@@ -148,10 +149,12 @@ Deno.serve(async (req) => {
         .map((e: any) => `"${e.slug}" (${e.title})`)
         .slice(0, 8)
         .join(", ");
+      // Staff-facing config diagnostic; 404 so monitoring sees the failure
+      // (this endpoint used to wrap every error as HTTP 200).
       return cors({
         error: `Cal event type "${interviewSlug}" not found. Cal returned ${evtArray.length} event type(s)${found ? ": " + found : ""}.`,
         found_slugs: (Array.isArray(evtArray) ? evtArray : []).map((e: any) => e.slug),
-      });
+      }, 404);
     }
 
     // Resolve which schedule backs this event-type. Used by both GET
@@ -244,10 +247,14 @@ Deno.serve(async (req) => {
       return cors({ ok: true });
     }
 
-    return cors({ error: "method_not_allowed" });
+    return cors({ error: "method_not_allowed" }, 405);
   } catch (e: any) {
-    // Always 200 so the frontend can read the error body.
-    return cors({ error: String(e?.message ?? e) });
+    // Real status codes (the dashboard reads the body via error.context now);
+    // 200-wrapping every failure made upstream outages invisible to
+    // monitoring. Message is truncated — full detail goes to logs.
+    const msg = String(e?.message ?? e);
+    console.error("cal-availability error:", msg);
+    return cors({ error: msg.slice(0, 300) }, /^Cal API /.test(msg) ? 502 : 500);
   }
 });
 

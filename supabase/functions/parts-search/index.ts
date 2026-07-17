@@ -18,7 +18,7 @@
 // user-supplied URLs → no SSRF). All provider text is untrusted — returned
 // verbatim as data, never executed. Caller JWT is validated in-function;
 // gateway verify_jwt is off (config.toml). Deploy with --no-verify-jwt.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { createClient } from "@supabase/supabase-js";
 
 const CORS = {
   "access-control-allow-origin": "*",

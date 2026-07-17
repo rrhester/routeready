@@ -24,7 +24,7 @@
 // Env: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY (auto-injected)
 // + ANTHROPIC_API_KEY (set once via `supabase secrets set …`).
 // Optional: AI_PROXY_DAILY_CAP (default 5000 requests/DSP/day).
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { createClient } from "@supabase/supabase-js";
 
 const CORS = {
   "access-control-allow-origin": "*",

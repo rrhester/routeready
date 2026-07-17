@@ -33081,6 +33081,16 @@ async function disconnectGoogleCalendar() {
 }
 window.loadGoogleCalendar = loadGoogleCalendar;
 
+// supabase-js functions.invoke wraps non-2xx responses in FunctionsHttpError
+// with the Response on error.context — without this, operators saw the
+// generic "non-2xx status code" instead of the function's actual message.
+async function _rrFnErrBody(error) {
+  try {
+    if (!error || !error.context || typeof error.context.json !== "function") return "";
+    const b = await error.context.json();
+    return (b && (b.error || b.message)) || "";
+  } catch (_) { return ""; }
+}
 async function loadCalAvailabilityEditor() {
   const card = document.getElementById("cal-edit-card");
   const meta = document.getElementById("cal-edit-meta");
@@ -33094,7 +33104,7 @@ async function loadCalAvailabilityEditor() {
   });
 
   if (error || data?.error) {
-    const msg = error?.message || data?.error || "Couldn't load availability";
+    const msg = (await _rrFnErrBody(error)) || data?.error || error?.message || "Couldn't load availability";
     card.innerHTML = `
       <div style="padding:var(--s-6)">
         <div style="font-size:var(--fs-md);color:var(--red);font-weight:600;margin-bottom:var(--s-2)">Couldn't load availability</div>
@@ -33344,7 +33354,7 @@ async function saveCalAvailability() {
   });
 
   if (error || data?.error) {
-    const msg = error?.message || data?.error || "Save failed";
+    const msg = (await _rrFnErrBody(error)) || data?.error || error?.message || "Save failed";
     status.className = "cal-edit-status err";
     status.textContent = msg;
     return;

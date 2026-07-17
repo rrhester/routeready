@@ -30,7 +30,7 @@
 //     member (would orphan that admin)
 
 import { serviceClient, jsonResponse, badRequest } from "../_shared/supabase.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { createClient } from "@supabase/supabase-js";
 
 const CORS = {
   "access-control-allow-origin": "*",

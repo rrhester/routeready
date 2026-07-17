@@ -79,7 +79,30 @@ chunk). Wave plan and status:
   .github/workflows/** from this tooling get NO Actions runs — ship
   workflow changes in separate tiny PRs (like #3965) so code PRs keep
   full CI.
-- **Wave C — edge functions**: PR#57–63,65–67,60,61,62.
+- **Wave C — edge functions**: PR#57–67 — DONE pending CI/merge.
+  _shared/http.ts (corsHeaders/timingSafeEqual/fetchWithTimeout/safeJson)
+  + http_test.ts (5 deno tests, run offline). webhook-apply: secret
+  timing-safe if set, per-phone 24h dedupe, per-DSP hourly autosend cap.
+  send-sms/send-email: fetchWithTimeout + safeJson + requeue-on-network-
+  fail (stuck-'sending' fix); send-sms reads sms_optouts w/ legacy-scan
+  fallback; webhook-twilio writes sms_optouts on STOP, clears on
+  START/UNSTOP/YES. push-fanout: timeouts + 1 retry + failures →
+  push_delivery_failures. webhook-cal: idempotency claim via
+  cal_webhook_events upsert (sends anyway if table missing).
+  Timing-safe compares: twilio/cal/svix x2/bearer/x-rr-sync-token x5
+  (empty env token now REJECTS)/solver hmac.compare_digest/sealing
+  worker. cal-availability: real statuses (404/405/502) + timeout;
+  live.js reads fn error bodies via _rrFnErrBody(error.context).
+  health/driver-document-fetch/box-ingest: stable error codes, detail
+  to logs. analytics-ai+notebook-ai: ai_proxy_note_request daily cap
+  (200) + analytics-ai conversation capped 12 turns, text-blocks-only
+  (client can no longer forge tool_results). upload-applicant-video:
+  max 3 uploads/applicant + metadata.video_path stored for re-signing.
+  deno.json import map (14 files swept to bare specifier). NEEDS
+  MIGRATION 0502 (Wave D): sms_optouts, cal_webhook_events,
+  push_delivery_failures, stuck-'sending' requeue cron — all coded with
+  graceful fallbacks until then. Workflow tweaks shipped separately:
+  #3965, #3967.
 - **Wave D — DB migrations**: PR#45–56 (+#25 RPC). Next free ordinal
   0502; paste all SQL in chat; mind duplicate-ordinal rule (PR#45).
 - **Wave E — dashboard correctness**: PR#9,10,11,12,14,15,16(start),

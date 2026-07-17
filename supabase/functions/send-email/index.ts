@@ -6,6 +6,7 @@
 //   RESEND_FROM_EMAIL          e.g. "RouteReady <hello@gorouteready.com>"
 //   RESEND_REPLY_TO            (optional)
 import { serviceClient, jsonResponse, badRequest, signMessageAttachment, requireServiceKey } from "../_shared/supabase.ts";
+import { fetchWithTimeout, safeJson } from "../_shared/http.ts";
 import { buildIcsRequest } from "../_shared/ics.ts";
 import { encodeBase64 } from "https://deno.land/std@0.208.0/encoding/base64.ts";
 
@@ -285,15 +286,26 @@ Deno.serve(async (req) => {
 
     if (outAtts.length > 0) body.attachments = outAtts;
 
-    const resp = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
-    const data = await resp.json();
+    // Timeout + tolerant parse: a hung Resend call used to stall the drain,
+    // and resp.json() throwing on a non-JSON body stranded the claimed row
+    // in 'sending' forever.
+    let resp: Response;
+    try {
+      resp = await fetchWithTimeout("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      }, 25_000);
+    } catch (e) {
+      await supa.from("email_messages").update({ status: "queued" }).eq("id", row.id);
+      console.error("resend fetch failed:", (e as Error)?.message);
+      skipped++;
+      continue;
+    }
+    const data = (await safeJson(resp) ?? {}) as { statusCode?: unknown; message?: string; id?: string };
 
     if (!resp.ok) {
       await supa.from("email_messages").update({

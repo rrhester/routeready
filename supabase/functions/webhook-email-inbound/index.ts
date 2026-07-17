@@ -31,6 +31,7 @@
 // code) picks the tenant; the sender address picks the applicant inside
 // it. If either lookup fails we still 200 so the upstream doesn't retry.
 import { serviceClient, jsonResponse, badRequest } from "../_shared/supabase.ts";
+import { timingSafeEqual } from "../_shared/http.ts";
 import { parseIcsReply } from "../_shared/ics.ts";
 import { decodeBase64 } from "https://deno.land/std@0.208.0/encoding/base64.ts";
 
@@ -194,7 +195,7 @@ async function verifySvix(
     .split(" ")
     .map((part) => part.split(",")[1])
     .filter(Boolean)
-    .some((sig) => sig === expected);
+    .some((sig) => timingSafeEqual(sig, expected));
 }
 
 Deno.serve(async (req) => {
@@ -217,7 +218,7 @@ Deno.serve(async (req) => {
   if (!authed && bearerSecret) {
     const auth = req.headers.get("authorization") || "";
     const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
-    authed = token === bearerSecret;
+    authed = !!token && timingSafeEqual(token, bearerSecret);
   }
   if (!authed) return badRequest("unauthorized", 401);
 

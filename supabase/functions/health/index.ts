@@ -32,10 +32,11 @@ Deno.serve(async (req) => {
       .from("dsps")
       .select("id", { count: "exact", head: true })
       .limit(1);
-    if (error) dbError = error.message;
+    if (error) { dbError = "db_error"; console.error("health db check:", error.message); }
     else dbOk = true;
   } catch (e) {
-    dbError = (e as Error)?.message || "db_unreachable";
+    dbError = "db_unreachable";
+    console.error("health db check threw:", (e as Error)?.message);
   }
 
   const body = {

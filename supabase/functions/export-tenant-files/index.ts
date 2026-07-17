@@ -10,7 +10,7 @@
 // row with role='owner', and scopes strictly to that owner's dsp_id — it can
 // never reach another tenant's files. Gateway verify_jwt off (config.toml); the
 // check happens in-code so the browser CORS preflight succeeds.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { createClient } from "@supabase/supabase-js";
 import { serviceClient, jsonResponse } from "../_shared/supabase.ts";
 
 const CORS = {
