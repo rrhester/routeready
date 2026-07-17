@@ -1097,6 +1097,15 @@ const skey = (ref) => { const rc = parseCellRef(ref); return rc.row + "," + rc.c
 const scell = (sh, ref) => sh.cells.get(skey(ref));
 const sspill = (sh, ref) => { const e = sh.spill.get(skey(ref)); return e ? e.value : undefined; };
 
+ok("rrSelect: picks columns by header name for RR.* live formulas (100-list #11)", () => {
+  const { rrSelect, Arr } = __engine;
+  const grid = new Arr([["Name", "Phone", "Status"], ["Sam", "555", "Active"], ["Ada", "556", "Grounded"]]);
+  assert.deepEqual(rrSelect(grid, ["Status", "Name"]).rows, [["Status", "Name"], ["Active", "Sam"], ["Grounded", "Ada"]]);
+  assert.deepEqual(rrSelect(grid, []).rows, grid.rows);                 // no names → all columns
+  assert.deepEqual(rrSelect(grid, ["Nonexistent"]).rows, grid.rows);   // unknown names → all columns
+  assert.deepEqual(rrSelect(grid, ["phone"]).rows, [["Phone"], ["555"], ["556"]]); // case-insensitive
+});
+
 ok("iterative calc: a circular sum converges instead of #CIRCULAR (100-list #1)", () => {
   // B1 = A1 + B1*0 ... use a damped convergence: X = (10 + X)/2 → X→10
   const sh = spillSheet({ A1: "=(10 + A1) / 2" });

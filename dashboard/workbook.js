@@ -2678,7 +2678,60 @@ function runQuery(grid, queryStr, headerRows) {
 
 const WB_SPARK_MARK = "\u2063SPARK\u2063"; // invisible-separator marker; cellInnerHtml renders it as an inline chart
 
+// \u2500\u2500 RouteReady live-data formulas (100-list #11) + workbook imports (#10) \u2500\u2500\u2500\u2500
+// The formula engine is synchronous and pure, but these read live rows over
+// the network. The pattern is the one Sheets uses for IMPORTRANGE/
+// GOOGLEFINANCE: results are cached; a cold read throws #N/A and queues a
+// background load that recalcs + repaints when it lands. RR_CACHE holds
+// each dataset as a 2-D array (header row + data rows); WB_IMPORT_CACHE
+// holds cross-workbook ranges keyed by "workbook|ref".
+const RR_CACHE = new Map();          // name -> { grid: any[][], at: number }
+const RR_PENDING = new Set();        // names currently loading
+const WB_IMPORT_CACHE = new Map();   // "wb|ref" -> { grid, at }
+const WB_IMPORT_PENDING = new Set();
+const RR_TTL_MS = 5 * 60_000;        // treated as fresh for 5 minutes
+
+function rrGridArr(name) {
+  const hit = RR_CACHE.get(name);
+  if (hit && Date.now() - hit.at < RR_TTL_MS) return new Arr(hit.grid.length ? hit.grid : [[""]]);
+  queueRrLoad(name);
+  if (hit) return new Arr(hit.grid.length ? hit.grid : [[""]]); // stale-while-revalidate
+  throw new FormulaError("#N/A", `loading RouteReady ${name}\u2026`);
+}
+
+// Optional column subset by header name: RR.DRIVERS("Name","Status")
+function rrSelect(grid, names) {
+  if (!names.length || !grid.rows.length) return grid;
+  const header = grid.rows[0].map((h) => String(h ?? "").trim().toLowerCase());
+  const idxs = names.map((n) => header.indexOf(String(n).trim().toLowerCase())).filter((i) => i >= 0);
+  if (!idxs.length) return grid;
+  return new Arr(grid.rows.map((row) => idxs.map((i) => row[i])));
+}
+
 const FUNCS_RAW = {
+  // RR.DRIVERS([col\u2026]) / RR.VANS([col\u2026]) \u2014 the DSP's live roster/fleet as a
+  // spilling array (100-list #11). Optional args pick columns by header name.
+  "RR.DRIVERS": (args, ctx) => rrSelect(rrGridArr("drivers"), args.map((a) => fmtScalar(deArr(evalNode(a, ctx))))),
+  "RR.VANS": (args, ctx) => rrSelect(rrGridArr("vans"), args.map((a) => fmtScalar(deArr(evalNode(a, ctx))))),
+  // RR.ROUTES([weekStartISO]) / RR.SCHEDULE \u2014 the scheduled shifts for a week
+  "RR.ROUTES": (args, ctx) => rrGridArr("schedule:" + (args.length ? fmtScalar(deArr(evalNode(args[0], ctx))) : fillNextWeekStart())),
+  "RR.SCHEDULE": (args, ctx) => rrGridArr("schedule:" + (args.length ? fmtScalar(deArr(evalNode(args[0], ctx))) : fillNextWeekStart())),
+  // RR.SCORECARD() \u2014 the latest weekly scorecard rows
+  "RR.SCORECARD": () => rrGridArr("scorecard"),
+  // IMPORTWB("Workbook title or id", "Sheet!A1:C9") \u2014 read a range from
+  // another RouteReady workbook in this DSP (100-list #10).
+  IMPORTWB: (args, ctx) => {
+    if (args.length < 2) throw new FormulaError("#ERROR", "IMPORTWB takes a workbook and a range");
+    const wb = fmtScalar(deArr(evalNode(args[0], ctx)));
+    const ref = fmtScalar(deArr(evalNode(args[1], ctx)));
+    const key = wb + "|" + ref;
+    const hit = WB_IMPORT_CACHE.get(key);
+    if (hit && Date.now() - hit.at < RR_TTL_MS) return new Arr(hit.grid.length ? hit.grid : [[""]]);
+    queueWbImport(wb, ref);
+    if (hit) return new Arr(hit.grid.length ? hit.grid : [[""]]);
+    throw new FormulaError("#N/A", `loading ${wb}\u2026`);
+  },
+
   // In-cell sparkline (100-list #9): =SPARKLINE(B2:M2, "column"). The cell
   // computes to a marked JSON string the painter turns into an inline SVG.
   SPARKLINE: (args, ctx) => {
@@ -10079,6 +10132,12 @@ const FUNCTION_META = [
   { n: "ARRAYFORMULA", sig: "ARRAYFORMULA(array_expression)", d: "Evaluate as an array" },
   { n: "FILTER", sig: "FILTER(range, condition, …)", d: "Keep rows meeting conditions" },
   { n: "QUERY", sig: "QUERY(data, query, [headers])", d: "Run a query (select/where/group by/order by) over a range" },
+  { n: "RR.DRIVERS", sig: "RR.DRIVERS([col…])", d: "Live: this DSP's active drivers as a spilling table" },
+  { n: "RR.VANS", sig: "RR.VANS([col…])", d: "Live: this DSP's fleet as a spilling table" },
+  { n: "RR.SCHEDULE", sig: "RR.SCHEDULE([weekStart])", d: "Live: scheduled shifts for a week (Mon date)" },
+  { n: "RR.ROUTES", sig: "RR.ROUTES([weekStart])", d: "Live: scheduled routes for a week (alias of RR.SCHEDULE)" },
+  { n: "RR.SCORECARD", sig: "RR.SCORECARD()", d: "Live: recent weekly scorecards" },
+  { n: "IMPORTWB", sig: "IMPORTWB(workbook, \"Sheet!A1:C9\")", d: "Import a range from another RouteReady workbook" },
   { n: "SORT", sig: "SORT(range, [sort_column], [ascending], …)", d: "Sort a range" },
   { n: "SORTN", sig: "SORTN(range, [n], [ties_mode], [sort_column], [ascending], …)", d: "Top-N rows, sorted" },
   { n: "UNIQUE", sig: "UNIQUE(range, [by_column], [exactly_once])", d: "Distinct rows" },
@@ -20892,6 +20951,12 @@ function wbMenuItems(menu, g) {
           { label: "Vans", act: "data:fill-vans", disabled: !ed || !g },
           { label: "Schedule (this week)", act: "data:fill-schedule", disabled: !ed || !g },
           { label: "Time off / PTO", act: "data:fill-pto", disabled: !ed || !g },
+          sep,
+          { label: "Live formulas — insert =RR.DRIVERS()", act: "data:rr-formula:RR.DRIVERS", disabled: !ed || !g },
+          { label: "Live formulas — insert =RR.VANS()", act: "data:rr-formula:RR.VANS", disabled: !ed || !g },
+          { label: "Live formulas — insert =RR.SCHEDULE()", act: "data:rr-formula:RR.SCHEDULE", disabled: !ed || !g },
+          { label: "Live formulas — insert =RR.SCORECARD()", act: "data:rr-formula:RR.SCORECARD", disabled: !ed || !g },
+          { label: "Import from another workbook…", act: "data:importwb", disabled: !ed || !g },
         ] },
         { label: "Build Schedule from Sheet…", act: "data:fill-build", disabled: !ed || !g },
         { label: "Send selection as checklist to Driver App…", act: "data:checklist-send", disabled: !ed || !g },
@@ -21050,6 +21115,26 @@ function wbMenuAction(act, g) {
     case "fmt:cells": if (need()) openFormatCellsDialog(g); return;
     case "fmt:clear": if (need()) clearFormatting(g); return;
     case "data:fill-people": if (need()) openPeoplePicker(g); return;
+    case "data:importwb": if (need()) {
+      // 100-list #10: prompt for a workbook + range, drop an IMPORTWB formula
+      promptModal({
+        title: "Import from another workbook", label: "Workbook title (or id)",
+        value: "", placeholder: "e.g. Q3 Roster", submitLabel: "Next",
+        onSubmit: (wbName) => {
+          if (!String(wbName).trim()) return;
+          promptModal({
+            title: "Which range?", label: "Range (Sheet!A1:C20)",
+            value: "Sheet 1!A1:D20", submitLabel: "Insert",
+            onSubmit: (ref) => {
+              const wbEsc = String(wbName).replace(/"/g, '""');
+              const refEsc = String(ref).replace(/"/g, '""');
+              startEdit(g, g.active.r, g.active.c, `=IMPORTWB("${wbEsc}", "${refEsc}")`);
+              commitEdit(g, 1, 0);
+            },
+          });
+        },
+      });
+    } return;
     case "data:fill-vans": if (need()) fillLoadVans(g); return;
     case "data:fill-schedule": if (need()) fillLoadSchedule(g); return;
     case "data:fill-pto": if (need()) fillLoadPto(g); return;
@@ -21139,6 +21224,12 @@ function wbMenuAction(act, g) {
   else if (ns === "fmt" && verb === "fs") formatSelection(g, { fs: +arg });
   else if (ns === "data" && verb === "fv") applyFilterView(g, arg);
   else if (ns === "data" && verb === "fv-del") { deleteFilterView(g, arg); _toast("Filter view deleted", "success"); }
+  else if (ns === "data" && verb === "rr-formula" && g) {
+    // 100-list #11: drop a live RR.* array formula into the active cell
+    startEdit(g, g.active.r, g.active.c, `=${arg}()`);
+    commitEdit(g, 1, 0);
+    _toast("Live formula inserted — data loads in the background", "info");
+  }
 }
 
 function openWbMenu(name, btn) {
@@ -22016,6 +22107,126 @@ function fillWriteTable(g, headers, rows, meta) {
   saveSheetMeta(sheet.id);
   repaintGrid(g);
   renderLiveBar(g);
+}
+
+// ── RR.* / IMPORTWB backing loaders (100-list #10, #11) ──────────────────────
+// Populate RR_CACHE / WB_IMPORT_CACHE from Supabase, then recalc every open
+// grid so the formulas that were waiting on #N/A resolve and repaint.
+function recalcAllGridsAndRepaint() {
+  for (const g of GRIDS.values()) {
+    recalcSheet(g.sheet);
+    computeGeometry(g);
+    repaintGrid(g);
+    scheduleChartRender(g);
+  }
+}
+
+async function queueRrLoad(name) {
+  if (RR_PENDING.has(name)) return;
+  RR_PENDING.add(name);
+  try {
+    const dsp = _dsp();
+    const sb = _sb();
+    if (!dsp || !sb) return;
+    let grid = [];
+    if (name === "drivers") {
+      const res = await sb.from("drivers").select("first_name, last_name, phone, status, transporter_id")
+        .eq("dsp_id", dsp.id).is("archived_at", null).order("last_name").limit(2000);
+      if (res.error) throw res.error;
+      grid = [["Name", "Phone", "Status", "Transporter ID"],
+        ...(res.data || []).map((d) => [[d.first_name, d.last_name].filter(Boolean).join(" "), d.phone || "", d.status || "", d.transporter_id || ""])];
+    } else if (name === "vans") {
+      const res = await sb.from("vehicles").select("name, van_type, operational_status, status, mileage")
+        .eq("dsp_id", dsp.id).is("archived_at", null).order("name").limit(2000);
+      if (res.error) throw res.error;
+      grid = [["Van", "Type", "Status", "Mileage"],
+        ...(res.data || []).map((v) => [v.name || "", v.van_type || "", (v.operational_status === "grounded" || v.status === "out_of_service") ? "Grounded" : "Active", v.mileage ?? ""])];
+    } else if (name.startsWith("schedule:")) {
+      const weekStart = name.slice("schedule:".length) || fillNextWeekStart();
+      const dates = fillWeekDates(weekStart);
+      const res = await sb.from("shifts").select("date, route_code, driver_id, status")
+        .eq("dsp_id", dsp.id).gte("date", dates[0]).lte("date", dates[6]).order("date").order("route_code").limit(5000);
+      if (res.error) throw res.error;
+      const names = await fillDriverNames(dsp);
+      grid = [["Date", "Route", "Driver", "Status"],
+        ...(res.data || []).map((s) => [s.date || "", s.route_code || "", s.driver_id ? (names.get(s.driver_id) || "") : "(open)", s.status || ""])];
+    } else if (name === "scorecard") {
+      const res = await sb.from("scorecards").select("week_start, overall_tier, dcr, dnr_dpmo, pod, cc")
+        .eq("dsp_id", dsp.id).order("week_start", { ascending: false }).limit(52);
+      if (res.error) {
+        // scorecards table may not exist for every DSP — cache an empty grid
+        grid = [["Week", "Tier", "DCR", "DNR DPMO", "POD", "CC"]];
+      } else {
+        grid = [["Week", "Tier", "DCR", "DNR DPMO", "POD", "CC"],
+          ...(res.data || []).map((s) => [s.week_start || "", s.overall_tier || "", s.dcr ?? "", s.dnr_dpmo ?? "", s.pod ?? "", s.cc ?? ""])];
+      }
+    }
+    RR_CACHE.set(name, { grid, at: Date.now() });
+    recalcAllGridsAndRepaint();
+  } catch (e) {
+    console.warn("RR load", name, e && e.message);
+    RR_CACHE.set(name, { grid: [["(couldn't load " + name + ")"]], at: Date.now() });
+    recalcAllGridsAndRepaint();
+  } finally {
+    RR_PENDING.delete(name);
+  }
+}
+
+async function queueWbImport(wbRef, ref) {
+  const key = wbRef + "|" + ref;
+  if (WB_IMPORT_PENDING.has(key)) return;
+  WB_IMPORT_PENDING.add(key);
+  try {
+    const dsp = _dsp();
+    const sb = _sb();
+    if (!dsp || !sb) return;
+    // resolve the workbook by id or (case-insensitive) title, in this DSP
+    let wbRow = null;
+    if (/^[0-9a-f-]{36}$/i.test(wbRef)) {
+      const r = await sb.from("workbooks").select("id, title, dsp_id").eq("id", wbRef).maybeSingle();
+      wbRow = r.data && r.data.dsp_id === dsp.id ? r.data : null;
+    }
+    if (!wbRow) {
+      const r = await sb.from("workbooks").select("id, title, dsp_id").eq("dsp_id", dsp.id).ilike("title", wbRef).limit(1);
+      wbRow = r.data && r.data[0] ? r.data[0] : null;
+    }
+    if (!wbRow) { WB_IMPORT_CACHE.set(key, { grid: [["#REF — no workbook “" + wbRef + "”"]], at: Date.now() }); recalcAllGridsAndRepaint(); return; }
+    // ref is Sheet!A1:C9 or A1:C9 (first sheet); resolve the sheet + rect
+    const bang = ref.indexOf("!");
+    const sheetName = bang >= 0 ? ref.slice(0, bang).replace(/^'|'$/g, "") : null;
+    const a1 = bang >= 0 ? ref.slice(bang + 1) : ref;
+    const shRes = await sb.from("workbook_sheets").select("id, name, position").eq("workbook_id", wbRow.id).order("position");
+    const sheets = shRes.data || [];
+    const target = sheetName ? sheets.find((s) => s.name.trim().toLowerCase() === sheetName.trim().toLowerCase()) : sheets[0];
+    if (!target) { WB_IMPORT_CACHE.set(key, { grid: [["#REF — no sheet"]], at: Date.now() }); recalcAllGridsAndRepaint(); return; }
+    let node;
+    try { node = parseFormula("=" + a1); } catch (_) { node = null; }
+    if (!node || (node.k !== "range" && node.k !== "ref")) { WB_IMPORT_CACHE.set(key, { grid: [["#REF — bad range"]], at: Date.now() }); recalcAllGridsAndRepaint(); return; }
+    const a = node.k === "ref" ? { row: node.row, col: node.col } : node.a;
+    const b = node.k === "ref" ? { row: node.row, col: node.col } : node.b;
+    const r0 = Math.min(a.row, b.row), r1 = Math.min(Math.max(a.row, b.row), r0 + 200);
+    const c0 = Math.min(a.col, b.col), c1 = Math.min(Math.max(a.col, b.col), c0 + 50);
+    const cellRes = await sb.from("workbook_cells").select("row_index, col_index, value, computed, formula")
+      .eq("sheet_id", target.id).gte("row_index", r0).lte("row_index", r1).gte("col_index", c0).lte("col_index", c1);
+    const byKey = new Map((cellRes.data || []).map((row) => [row.row_index + "," + row.col_index, row]));
+    const grid = [];
+    for (let r = r0; r <= r1; r++) {
+      const line = [];
+      for (let c = c0; c <= c1; c++) {
+        const cc = byKey.get(r + "," + c);
+        line.push(cc ? (cc.formula ? (cc.computed ?? "") : (cc.value ?? "")) : "");
+      }
+      grid.push(line);
+    }
+    WB_IMPORT_CACHE.set(key, { grid, at: Date.now() });
+    recalcAllGridsAndRepaint();
+  } catch (e) {
+    console.warn("IMPORTWB", key, e && e.message);
+    WB_IMPORT_CACHE.set(key, { grid: [["(couldn't import)"]], at: Date.now() });
+    recalcAllGridsAndRepaint();
+  } finally {
+    WB_IMPORT_PENDING.delete(key);
+  }
 }
 
 // ── Live data: refreshable operational datasets ──────────────────────────────
@@ -23029,7 +23240,7 @@ function fillDriverAction(g, driverId, act) {
 // not part of the app surface; live.js imports only the view loaders.
 
 export const __engine = {
-  parseFormula, evalFormula, evalAst, extractRefs, bindNames, isValidRangeName, cfScaleColor, buildPasteCell, pasteValueParts, valueSatisfiesRule, dvDateSerial, matchesCriterion, FormulaError, Arr,
+  parseFormula, evalFormula, evalAst, extractRefs, bindNames, isValidRangeName, cfScaleColor, buildPasteCell, pasteValueParts, valueSatisfiesRule, dvDateSerial, matchesCriterion, FormulaError, Arr, rrSelect,
   fillSeries, cycleRefAnchor, errorHint, columnSuggestion, snapshotSheet, applySheetSnapshot,
   colLabel, colIndex, cellRef, parseCellRef,
   dateToSerial, serialToDate, isoDate, parseDateLoose,
