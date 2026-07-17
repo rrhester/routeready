@@ -103,8 +103,24 @@ chunk). Wave plan and status:
   push_delivery_failures, stuck-'sending' requeue cron — all coded with
   graceful fallbacks until then. Workflow tweaks shipped separately:
   #3965, #3967.
-- **Wave D — DB migrations**: PR#45–56 (+#25 RPC). Next free ordinal
-  0502; paste all SQL in chat; mind duplicate-ordinal rule (PR#45).
+- **Wave D — DB migrations**: PR#45–56 (+#25 RPC) — DONE pending
+  CI/merge. Shipped as 0504_reliability_and_hardening.sql (renumbered
+  from 0502 after other sessions took 0502/0503 — the new ordinal gate
+  caught it) + 0505_gcal_two_way_reassert.sql (0432 content verbatim).
+  0504: sms_optouts, cal_webhook_events, push_delivery_failures,
+  sending_at stamp triggers + requeue-stuck-sends cron (+one-time legacy
+  requeue), cal_event_reminders RLS, client_errors bind/clamp/retention,
+  public.ai_proxy_note_request wrapper (private.* was NEVER PostgREST-
+  callable — the AI cap silently never enforced!), private.rr_migrations
+  ledger (UNIFIED with apply-migrations.sh's) + rr_schema_version() +
+  rr_cron_health(), roster_attendance_counts RPC + index, 5 FK indexes,
+  initplan policy rewrites (shifts/cal_events/driver_messages).
+  apply-migrations.sh: ledger → private schema (migrates+drops public
+  one), BASELINE 0373→0503, 0432 note. live.js banner generalized to
+  rr_schema_version (expect 504; legacy calendar fallback kept).
+  seeds/seed_demo.sql + tests/anon_rpc_inventory_test.sql (112-name
+  frozen allowlist from real grants). migration-check additions merged
+  via #3969. REMEMBER: paste 0504+0505 SQL in chat for the user.
 - **Wave E — dashboard correctness**: PR#9,10,11,12,14,15,16(start),
   17,18,19,20.
 - **Wave F — perf**: PR#21,23,24,28,29,30,31,32.
