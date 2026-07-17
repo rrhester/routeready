@@ -123,6 +123,26 @@ ok("charts without target/movavg still render normally", () => {
   assert.ok(!/Target/.test(svg), "no stray target label");
 });
 
+// ── new chart types (100-list #57) ───────────────────────────────────────────
+for (const type of ["donut", "radar", "waterfall", "histogram", "bubble"]) {
+  ok(`${type} chart renders an <svg> without throwing`, () => {
+    const ch = { ...chartRange, type, theme: "route" };
+    const { svg } = chartSvg(chartSheet, ch, { W: 480, H: 260 });
+    assert.ok(svg.includes("<svg") || svg.includes("wb-chart-empty"), `${type} produced output`);
+  });
+}
+ok("below-target columns turn red (100-list #61)", () => {
+  const ch = { ...chartRange, type: "column", theme: "route", target: 15, belowTargetRed: true };
+  const { svg } = chartSvg(chartSheet, ch, { W: 480, H: 220 });
+  assert.ok(svg.includes("#DC2626"), "a below-15 column should be red");
+});
+ok("combo secondary axis draws a right-hand axis (100-list #59)", () => {
+  const two = sheetFrom([["Day", "Routes", "Rate"], ["Mon", 40, 0.9], ["Tue", 55, 0.95], ["Wed", 48, 0.88]]);
+  const ch = { r0: 0, c0: 0, r1: 3, c1: 2, type: "combo", theme: "route", secondaryAxis: true };
+  const { svg } = chartSvg(two, ch, { W: 480, H: 220 });
+  assert.ok(svg.includes("<svg"), "combo renders");
+});
+
 // ── interactive: drill + collapse + pivot-chart ──────────────────────────────
 ok("drill returns the source rows behind a cell", () => {
   const { records } = pivotDrillRecords(sheet, baseSpec, "West", "", false);

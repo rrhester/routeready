@@ -7703,6 +7703,7 @@ function mountSheetBlock(block, body) {
     const item = sheetEmbeds(g.sheet, key).find((x) => x.id === card.getAttribute("data-wb-embed-id"));
     if (!item) return;
     const action = act.getAttribute("data-wb-embed-act");
+    if (action === "png") { downloadChartPng(card, item); return; }
     if (action === "edit") openEmbedEditor(g, key, item);
     else if (action === "dup") duplicateEmbed(g, key, item);
     else {
@@ -16625,7 +16626,7 @@ const WB_CHART_PALETTES = {
 };
 const WB_CHART_THEMES = { route: "RouteReady", vibrant: "Vibrant", ocean: "Ocean", sunset: "Sunset", forest: "Forest", berry: "Berry", mono: "Monochrome blue" };
 function chartPalette(ch) { return WB_CHART_PALETTES[ch && ch.theme] || WB_CHART_COLORS; }
-const WB_CHART_TYPES = { column: "Column", bar: "Bar", stackcol: "Stacked column", stackbar: "Stacked bar", line: "Line", area: "Area", combo: "Combo (columns + line)", scatter: "Scatter", pie: "Pie" };
+const WB_CHART_TYPES = { column: "Column", bar: "Bar", stackcol: "Stacked column", stackbar: "Stacked bar", line: "Line", area: "Area", combo: "Combo (columns + line)", scatter: "Scatter", bubble: "Bubble", pie: "Pie", donut: "Donut", radar: "Radar", waterfall: "Waterfall", histogram: "Histogram" };
 
 function sheetCharts(sheet) {
   const v = sheet.meta && sheet.meta.charts;
@@ -16735,7 +16736,8 @@ function chartSvg(sheet, ch, opts = {}) {
   const wrap = (inner, label) => `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${t(ch.title || label)}">${defs ? `<defs>${defs}</defs>` : ""}${inner}</svg>`;
   const dlabel = (x, y, s, cls) => showLabels ? `<text x="${x}" y="${y}" text-anchor="middle" class="wb-chart-dlabel${cls ? " " + cls : ""}">${t(s)}</text>` : "";
 
-  if (ch.type === "pie") {
+  if (ch.type === "pie" || ch.type === "donut") {
+    const donut = ch.type === "donut";
     const s0 = series[0];
     let entries = categories.map((label, i) => ({ label, v: Math.max(0, s0.values[i] ?? 0) })).filter((e) => e.v > 0);
     if (entries.length > 8) {
@@ -16744,7 +16746,7 @@ function chartSvg(sheet, ch, opts = {}) {
     }
     const total = entries.reduce((a, e) => a + e.v, 0);
     if (!total) return { svg: `<div class="wb-chart-empty">Nothing to chart in ${esc(chartRefText(ch))}.</div>`, legend: "" };
-    const CX = W / 2, CY = H / 2, R = Math.min(W, H) * 0.42;
+    const CX = W / 2, CY = H / 2, R = Math.min(W, H) * 0.42, RI = donut ? R * 0.58 : 0;
     let a0 = -Math.PI / 2;
     let paths = "", labels = "";
     entries.forEach((e, i) => {
@@ -16753,47 +16755,144 @@ function chartSvg(sheet, ch, opts = {}) {
       const large = a1 - a0 > Math.PI ? 1 : 0;
       const x0 = CX + R * Math.cos(a0), y0 = CY + R * Math.sin(a0);
       const x1 = CX + R * Math.cos(a1), y1 = CY + R * Math.sin(a1);
-      paths += frac >= 0.999
-        ? `<circle cx="${CX}" cy="${CY}" r="${R}" fill="${color(i)}"><title>${t(e.label)} — ${chartFmt(e.v)} (${Math.round(frac * 100)}%)</title></circle>`
-        : `<path d="M${CX},${CY} L${x0},${y0} A${R},${R} 0 ${large} 1 ${x1},${y1} Z" fill="${color(i)}" stroke="var(--surface)" stroke-width="2"><title>${t(e.label)} — ${chartFmt(e.v)} (${Math.round(frac * 100)}%)</title></path>`;
+      if (donut) {
+        // annular segment (100-list #57)
+        const ix0 = CX + RI * Math.cos(a0), iy0 = CY + RI * Math.sin(a0);
+        const ix1 = CX + RI * Math.cos(a1), iy1 = CY + RI * Math.sin(a1);
+        paths += frac >= 0.999
+          ? `<circle cx="${CX}" cy="${CY}" r="${(R + RI) / 2}" fill="none" stroke="${color(i)}" stroke-width="${R - RI}"><title>${t(e.label)} — ${chartFmt(e.v)} (${Math.round(frac * 100)}%)</title></circle>`
+          : `<path d="M${x0},${y0} A${R},${R} 0 ${large} 1 ${x1},${y1} L${ix1},${iy1} A${RI},${RI} 0 ${large} 0 ${ix0},${iy0} Z" fill="${color(i)}" stroke="var(--surface)" stroke-width="1.5"><title>${t(e.label)} — ${chartFmt(e.v)} (${Math.round(frac * 100)}%)</title></path>`;
+      } else {
+        paths += frac >= 0.999
+          ? `<circle cx="${CX}" cy="${CY}" r="${R}" fill="${color(i)}"><title>${t(e.label)} — ${chartFmt(e.v)} (${Math.round(frac * 100)}%)</title></circle>`
+          : `<path d="M${CX},${CY} L${x0},${y0} A${R},${R} 0 ${large} 1 ${x1},${y1} Z" fill="${color(i)}" stroke="var(--surface)" stroke-width="2"><title>${t(e.label)} — ${chartFmt(e.v)} (${Math.round(frac * 100)}%)</title></path>`;
+      }
       if (showLabels && frac >= 0.05) {
-        const am = (a0 + a1) / 2, lr = R * 0.62;
+        const am = (a0 + a1) / 2, lr = donut ? (R + RI) / 2 : R * 0.62;
         labels += dlabel(CX + lr * Math.cos(am), CY + lr * Math.sin(am) + 3, Math.round(frac * 100) + "%", "on-fill");
       }
       a0 = a1;
     });
+    if (donut) labels += `<text x="${CX}" y="${CY + 4}" text-anchor="middle" class="wb-chart-donut-total">${t(chartFmt(total))}</text>`;
     const legend = entries.map((e, i) =>
       `<span class="wb-chart-key"><span class="wb-chart-swatch" style="background:${color(i)}"></span>${t(e.label)} <span class="wb-chart-keyv">${Math.round((e.v / total) * 100)}%</span></span>`).join("");
-    return { svg: wrap(paths + labels, "Pie chart"), legend };
+    return { svg: wrap(paths + labels, donut ? "Donut chart" : "Pie chart"), legend };
   }
 
-  if (ch.type === "scatter") {
+  if (ch.type === "radar") {
+    // one polygon per series over the categories arranged radially (100-list #57)
+    const CX = W / 2, CY = H / 2 + 4, R = Math.min(W, H) * 0.38;
+    const nAx = categories.length;
+    if (nAx < 3) return { svg: `<div class="wb-chart-empty">Radar charts need at least 3 categories.</div>`, legend: "" };
+    const allV = series.flatMap((s) => s.values).filter((v) => v != null);
+    const maxV = Math.max(1, ...allV.map((v) => Math.abs(v)));
+    const ang = (i) => -Math.PI / 2 + (i / nAx) * Math.PI * 2;
+    const pt = (i, v) => [CX + R * (v / maxV) * Math.cos(ang(i)), CY + R * (v / maxV) * Math.sin(ang(i))];
+    let out = "";
+    for (let ring = 1; ring <= 4; ring++) {
+      const rr = (R * ring) / 4;
+      const pts = categories.map((_, i) => `${(CX + rr * Math.cos(ang(i))).toFixed(1)},${(CY + rr * Math.sin(ang(i))).toFixed(1)}`).join(" ");
+      out += `<polygon points="${pts}" fill="none" stroke="var(--border-subtle)" stroke-width="1"/>`;
+    }
+    categories.forEach((lb, i) => {
+      const [ex, ey] = [CX + R * Math.cos(ang(i)), CY + R * Math.sin(ang(i))];
+      out += `<line x1="${CX}" y1="${CY}" x2="${ex.toFixed(1)}" y2="${ey.toFixed(1)}" stroke="var(--border-subtle)" stroke-width="1"/>`;
+      out += `<text x="${(CX + (R + 12) * Math.cos(ang(i))).toFixed(1)}" y="${(CY + (R + 12) * Math.sin(ang(i))).toFixed(1)}" text-anchor="middle" class="wb-chart-tick">${t(String(lb).slice(0, 8))}</text>`;
+    });
+    series.forEach((s, si) => {
+      const pts = categories.map((_, i) => pt(i, s.values[i] ?? 0));
+      out += `<polygon points="${pts.map((p) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ")}" fill="${color(si)}" fill-opacity="0.16" stroke="${color(si)}" stroke-width="2"/>`;
+    });
+    const legend = series.length > 1 ? series.map((s, si) => `<span class="wb-chart-key"><span class="wb-chart-swatch" style="background:${color(si)}"></span>${t(s.name)}</span>`).join("") : "";
+    return { svg: wrap(out, "Radar chart"), legend };
+  }
+
+  if (ch.type === "histogram") {
+    // auto-bin the first numeric series (Sturges) into frequency columns (#57)
+    const vals = series[0].values.filter((v) => typeof v === "number" && isFinite(v));
+    if (vals.length < 2) return { svg: `<div class="wb-chart-empty">Histogram needs at least 2 numbers.</div>`, legend: "" };
+    const mn = Math.min(...vals), mx = Math.max(...vals);
+    const nBins = Math.max(3, Math.min(20, Math.ceil(Math.log2(vals.length) + 1)));
+    const bw = (mx - mn) / nBins || 1;
+    const bins = new Array(nBins).fill(0);
+    for (const v of vals) { let b = Math.floor((v - mn) / bw); if (b >= nBins) b = nBins - 1; if (b < 0) b = 0; bins[b]++; }
+    const padL = 40, padR = 10, padT = 12, padB = 26;
+    const plotW = W - padL - padR, plotH = H - padT - padB;
+    const maxC = Math.max(...bins);
+    let out = "";
+    for (let gl = 0; gl <= 4; gl++) { const y = padT + plotH - (gl / 4) * plotH; out += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="var(--border-subtle)" stroke-width="1"/><text x="${padL - 6}" y="${y + 3}" text-anchor="end" class="wb-chart-tick">${Math.round((maxC * gl) / 4)}</text>`; }
+    bins.forEach((c, i) => {
+      const x = padL + (i / nBins) * plotW, w = (plotW / nBins) * 0.92;
+      const h = maxC ? (c / maxC) * plotH : 0;
+      out += `<rect x="${x.toFixed(1)}" y="${(padT + plotH - h).toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" fill="${grad(0, "v")}"><title>${chartFmt(mn + i * bw)}–${chartFmt(mn + (i + 1) * bw)}: ${c}</title></rect>`;
+      if (i % Math.ceil(nBins / 6) === 0) out += `<text x="${(x).toFixed(1)}" y="${padT + plotH + 16}" text-anchor="middle" class="wb-chart-tick">${chartFmt(mn + i * bw)}</text>`;
+    });
+    out += `<line x1="${padL}" y1="${padT + plotH}" x2="${W - padR}" y2="${padT + plotH}" stroke="var(--border-strong)" stroke-width="1"/>`;
+    return { svg: wrap(out, "Histogram"), legend: "" };
+  }
+
+  if (ch.type === "waterfall") {
+    // running-total bars: each category adds/subtracts from the prior cumulative
+    // (100-list #57). The last category is treated as a total anchor.
+    const vals = series[0].values.map((v) => (typeof v === "number" ? v : 0));
+    const padL = 46, padR = 10, padT = 12, padB = 30;
+    const plotW = W - padL - padR, plotH = H - padT - padB;
+    let cum = 0; const steps = vals.map((v) => { const start = cum; cum += v; return { start, end: cum, v }; });
+    const lo2 = Math.min(0, ...steps.map((s) => Math.min(s.start, s.end)));
+    const hi2 = Math.max(0, ...steps.map((s) => Math.max(s.start, s.end)));
+    const tk2 = chartNiceTicks(lo2, hi2), yLo = tk2[0], yHi = tk2[tk2.length - 1];
+    const py = (v) => padT + plotH - ((v - yLo) / ((yHi - yLo) || 1)) * plotH;
+    let out = "";
+    for (const tk of tk2) { if (showGrid) out += `<line x1="${padL}" y1="${py(tk)}" x2="${W - padR}" y2="${py(tk)}" stroke="var(--border-subtle)" stroke-width="1"/>`; out += `<text x="${padL - 6}" y="${py(tk) + 3}" text-anchor="end" class="wb-chart-tick">${chartFmt(tk)}</text>`; }
+    const band = plotW / vals.length, bw = band * 0.66;
+    steps.forEach((s, i) => {
+      const x = padL + i * band + (band - bw) / 2;
+      const y0 = py(s.start), y1 = py(s.end);
+      const up = s.v >= 0;
+      const fill = up ? "#16A34A" : "#DC2626";
+      out += `<rect x="${x.toFixed(1)}" y="${Math.min(y0, y1).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1, Math.abs(y1 - y0)).toFixed(1)}" fill="${fill}" fill-opacity="0.85"><title>${t(categories[i])}: ${up ? "+" : ""}${chartFmt(s.v)} → ${chartFmt(s.end)}</title></rect>`;
+      if (i < steps.length - 1) out += `<line x1="${x.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${(x + band).toFixed(1)}" y2="${y1.toFixed(1)}" stroke="var(--border-strong)" stroke-width="1" stroke-dasharray="2 2"/>`;
+      if (showLabels) out += dlabel(x + bw / 2, Math.min(y0, y1) - 4, chartFmt(s.v));
+      out += `<text x="${(x + bw / 2).toFixed(1)}" y="${padT + plotH + 16}" text-anchor="middle" class="wb-chart-tick">${t(String(categories[i]).slice(0, 8))}</text>`;
+    });
+    out += `<line x1="${padL}" y1="${py(0)}" x2="${W - padR}" y2="${py(0)}" stroke="var(--border-strong)" stroke-width="1"/>`;
+    return { svg: wrap(out, "Waterfall chart"), legend: "" };
+  }
+
+  if (ch.type === "scatter" || ch.type === "bubble") {
     // first data column = X (numeric), each further column = a Y series;
-    // if X isn't numeric, fall back to the row index
+    // bubble: the LAST series is the bubble size, not a Y series (100-list #57)
+    const bubble = ch.type === "bubble" && series.length >= 2;
+    const ySeries = bubble ? series.slice(0, -1) : series;
+    const sizeS = bubble ? series[series.length - 1] : null;
     const xs = categories.map((lb, i) => { const n = Number(lb); return isFinite(n) && lb !== "" ? n : i; });
     const padL = 46 + (yTitle ? 16 : 0), padR = 12, padT = 10, padB = 26 + (xTitle ? 16 : 0);
     const plotW = W - padL - padR, plotH = H - padT - padB;
-    const ys = series.flatMap((s) => s.values).filter((v) => v != null);
+    const ys = ySeries.flatMap((s) => s.values).filter((v) => v != null);
     if (!ys.length) return { svg: `<div class="wb-chart-empty">No numeric data in ${esc(chartRefText(ch))} yet.</div>`, legend: "" };
     const xt = chartNiceTicks(Math.min(...xs), Math.max(...xs));
     const yt = chartNiceTicks(Math.min(0, ...ys), Math.max(...ys));
     const xLo = xt[0], xHi = xt[xt.length - 1], yLo = yt[0], yHi = yt[yt.length - 1];
     const px = (v) => padL + ((v - xLo) / (xHi - xLo || 1)) * plotW;
     const py = (v) => padT + plotH - ((v - yLo) / (yHi - yLo || 1)) * plotH;
+    const sizeMax = sizeS ? Math.max(1, ...sizeS.values.map((v) => Math.abs(v) || 0)) : 1;
+    const radiusOf = (i) => sizeS ? 3 + 12 * Math.sqrt(Math.max(0, sizeS.values[i] || 0) / sizeMax) : 3.5;
     let out = "";
     for (const tk of yt) { if (showGrid) out += `<line x1="${padL}" y1="${py(tk)}" x2="${W - padR}" y2="${py(tk)}" stroke="var(--border-subtle)" stroke-width="1"/>`; out += `<text x="${padL - 6}" y="${py(tk) + 3}" text-anchor="end" class="wb-chart-tick">${chartFmt(tk)}</text>`; }
     for (const tk of xt) { out += `<text x="${px(tk)}" y="${padT + plotH + 16}" text-anchor="middle" class="wb-chart-tick">${chartFmt(tk)}</text>`; }
-    series.forEach((s, si) => {
+    ySeries.forEach((s, si) => {
       s.values.forEach((v, i) => {
         if (v == null) return;
-        out += `<circle cx="${px(xs[i])}" cy="${py(v)}" r="3.5" fill="${color(si)}" fill-opacity="0.85"><title>(${chartFmt(xs[i])}, ${chartFmt(v)}) · ${t(s.name)}</title></circle>`;
+        const r = radiusOf(i);
+        out += `<circle cx="${px(xs[i])}" cy="${py(v)}" r="${r.toFixed(1)}" fill="${color(si)}" fill-opacity="${bubble ? 0.55 : 0.85}"><title>(${chartFmt(xs[i])}, ${chartFmt(v)})${bubble ? " · size " + chartFmt(sizeS.values[i] ?? 0) : ""} · ${t(s.name)}</title></circle>`;
       });
     });
+    const series2 = ySeries; // for the legend below
     out += `<line x1="${padL}" y1="${padT + plotH}" x2="${W - padR}" y2="${padT + plotH}" stroke="var(--border-strong)" stroke-width="1"/>`;
     if (xTitle) out += `<text x="${padL + plotW / 2}" y="${H - 5}" text-anchor="middle" class="wb-chart-axt">${t(xTitle)}</text>`;
     if (yTitle) out += `<text x="13" y="${padT + plotH / 2}" text-anchor="middle" transform="rotate(-90 13 ${padT + plotH / 2})" class="wb-chart-axt">${t(yTitle)}</text>`;
-    const legend = series.length > 1 ? series.map((s, si) => `<span class="wb-chart-key"><span class="wb-chart-swatch" style="background:${color(si)}"></span>${t(s.name)}</span>`).join("") : "";
-    return { svg: wrap(out, "Scatter chart"), legend };
+    const legend = series2.length > 1 ? series2.map((s, si) => `<span class="wb-chart-key"><span class="wb-chart-swatch" style="background:${color(si)}"></span>${t(s.name)}</span>`).join("") : "";
+    return { svg: wrap(out, bubble ? "Bubble chart" : "Scatter chart"), legend };
   }
 
   // shared cartesian frame
@@ -16904,7 +17003,9 @@ function chartSvg(sheet, ch, opts = {}) {
           if (showLabels) { const ex = v >= 0 ? x1 + 4 : x0 - 4; out += `<text x="${ex}" y="${off + bw / 2 + 3}" text-anchor="${v >= 0 ? "start" : "end"}" class="wb-chart-dlabel">${t(chartFmt(v))}</text>`; }
         } else {
           const y0 = vy(Math.max(0, v)), y1 = vy(Math.min(0, v));
-          out += chartBarPath(off, y0, bw, Math.max(1, y1 - y0), v >= 0, grad(si, "v"), title);
+          // conditional point color (100-list #61): below-target bars go red
+          const paint = (ch.belowTargetRed && targetV != null && v < targetV) ? "#DC2626" : grad(si, "v");
+          out += chartBarPath(off, y0, bw, Math.max(1, y1 - y0), v >= 0, paint, title);
           if (showLabels) out += dlabel(off + bw / 2, v >= 0 ? y0 - 4 : y1 + 11, chartFmt(v));
         }
       });
@@ -16913,8 +17014,22 @@ function chartSvg(sheet, ch, opts = {}) {
     if (combo && series.length > 1) {
       const s = series[series.length - 1], si = series.length - 1;
       const cx = (i) => padL + ((i + 0.5) / xN) * plotW;
+      // secondary Y-axis (100-list #59): scale the line to its own min/max and
+      // draw a right-hand axis, so a count vs. percentage combo reads correctly
+      const sec = !!ch.secondaryAxis;
+      let vy2 = vy;
+      if (sec) {
+        const lv = s.values.filter((v) => v != null);
+        if (lv.length) {
+          const st2 = chartNiceTicks(Math.min(0, ...lv), Math.max(...lv));
+          const lo2 = st2[0], hi2 = st2[st2.length - 1], sp2 = (hi2 - lo2) || 1;
+          vy2 = (v) => padT + plotH - ((v - lo2) / sp2) * plotH;
+          for (const tk of st2) out += `<text x="${W - padR + 4}" y="${vy2(tk) + 3}" text-anchor="start" class="wb-chart-tick" style="fill:${color(si)}">${chartFmt(tk)}</text>`;
+          out += `<line x1="${W - padR}" y1="${padT}" x2="${W - padR}" y2="${padT + plotH}" stroke="${color(si)}" stroke-width="1" opacity="0.5"/>`;
+        }
+      }
       const pts = [];
-      s.values.forEach((v, i) => { if (v != null) pts.push([cx(i), vy(v), i, v]); });
+      s.values.forEach((v, i) => { if (v != null) pts.push([cx(i), vy2(v), i, v]); });
       if (pts.length) {
         out += `<path d="${pts.map((p, k) => `${k ? "L" : "M"}${p[0]},${p[1]}`).join(" ")}" fill="none" stroke="${color(si)}" stroke-width="2.5" stroke-linejoin="round"/>`;
         for (const [x, y, i, v] of pts) { out += `<circle cx="${x}" cy="${y}" r="3" fill="${color(si)}"><title>${t(categories[i])} · ${t(s.name)}: ${chartFmt(v)}</title></circle>`; if (showLabels && nCat <= 14) out += dlabel(x, y - 6, chartFmt(v)); }
@@ -17315,6 +17430,41 @@ function pivotEmbedInner(g, item, L, src) {
   return { title: esc(item.title || `Pivot · ${pivotRefText(item)}`), body: `${toolbar}${chart}${table}`, cls: "wb-embed-pivot" };
 }
 
+// Download a chart embed's SVG as a PNG (100-list #62): serialize the live
+// <svg>, draw it onto a 2× canvas, and save. Pure client-side, no deps.
+function downloadChartPng(card, item) {
+  const svg = card.querySelector("svg");
+  if (!svg) { _toast("Nothing to export in this widget", "info"); return; }
+  const clone = svg.cloneNode(true);
+  // inline the computed tick/label colors so the detached SVG renders on its own
+  clone.querySelectorAll("text").forEach((el) => { if (!el.getAttribute("fill")) el.setAttribute("fill", "#334155"); });
+  clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  const vb = (svg.getAttribute("viewBox") || "0 0 480 260").split(/\s+/).map(Number);
+  const w = vb[2] || svg.clientWidth || 480, h = vb[3] || svg.clientHeight || 260;
+  const scale = 2;
+  const xml = new XMLSerializer().serializeToString(clone);
+  const svg64 = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(xml)));
+  const img = new Image();
+  img.onload = () => {
+    const cv = document.createElement("canvas");
+    cv.width = w * scale; cv.height = h * scale;
+    const ctx = cv.getContext("2d");
+    ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, cv.width, cv.height);
+    ctx.drawImage(img, 0, 0, cv.width, cv.height);
+    cv.toBlob((blob) => {
+      if (!blob) { _toast("Couldn't render the PNG", "error"); return; }
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = ((item && item.title) || "chart").replace(/[^\w.-]+/g, "-").slice(0, 60) + ".png";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      _toast("Chart downloaded", "success");
+    }, "image/png");
+  };
+  img.onerror = () => _toast("Couldn't render the chart image", "error");
+  img.src = svg64;
+}
+
 function renderCharts(g) {                    // renders every embed kind
   const host = g.els.charts;
   if (!host) return;
@@ -17335,6 +17485,7 @@ function renderCharts(g) {                    // renders every embed kind
     return `<div class="wb-embed wb-embed-${key}${inner.cls ? " " + inner.cls : ""}" data-wb-embed-kind="${key}" data-wb-embed-id="${esc(item.id)}" style="${style}">
       <div class="wb-embed-head" ${WB.canEdit ? 'data-wb-embed-drag title="Drag to move"' : ""}>
         <span class="wb-embed-title">${inner.title}</span>
+        ${key === "charts" ? `<button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-embed-act="png" title="Download as PNG" aria-label="Download chart as PNG"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>` : ""}
         ${WB.canEdit ? `<button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-embed-act="edit" title="Edit" aria-label="Edit"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
         <button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-embed-act="dup" title="Duplicate" aria-label="Duplicate"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
         <button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-embed-act="delete" title="Delete" aria-label="Delete">×</button>` : ""}
@@ -17715,6 +17866,13 @@ function openChartDialog(g, existing) {
           <label class="wb-field"><span class="wb-field-label">Target line <span class="wb-field-opt">optional</span></span>
             <input type="number" class="wb-input" id="wb-chart-target" step="any" value="${existing && existing.target != null && existing.target !== "" ? esc(String(existing.target)) : ""}" placeholder="e.g. 40"></label>
         </div>
+        <div class="wb-field-row">
+          <div class="wb-field"><span class="wb-field-label">Combo / target options</span>
+            <div class="wb-chart-opts">
+              <label class="wb-check"><input type="checkbox" id="wb-chart-secondary" ${existing && existing.secondaryAxis ? "checked" : ""}><span>Secondary Y-axis for the combo line</span></label>
+              <label class="wb-check"><input type="checkbox" id="wb-chart-belowred" ${existing && existing.belowTargetRed ? "checked" : ""}><span>Color below-target columns red</span></label>
+            </div></div>
+        </div>
       </div>
       <div class="rr-modal-foot">
         <button class="rr-modal-btn" type="button" data-wb-close>Cancel</button>
@@ -17744,6 +17902,8 @@ function openChartDialog(g, existing) {
       forecast: Math.max(0, Math.min(24, +wrap.querySelector("#wb-chart-forecast").value || 0)),
       movavg: Math.max(0, Math.min(52, Math.round(+wrap.querySelector("#wb-chart-movavg").value || 0))),
       target: (() => { const raw = String(wrap.querySelector("#wb-chart-target").value).trim(); return raw === "" || !isFinite(+raw) ? null : +raw; })(),
+      secondaryAxis: wrap.querySelector("#wb-chart-secondary").checked,
+      belowTargetRed: wrap.querySelector("#wb-chart-belowred").checked,
       srcSheetId: (wrap.querySelector("#wb-chart-src") && wrap.querySelector("#wb-chart-src").value) || (existing && existing.srcSheetId) || "",
       ...range,
       // keep the on-grid position/size across edits; new charts get placed on render
