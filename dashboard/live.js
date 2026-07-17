@@ -36436,7 +36436,7 @@ async function _sawSmartFill() {
     const payload = {
       schedule_week_start: weekStart, dsp_timezone: window.RR?.dsp?.timezone || null, max_days: st.maxDays, weekly_hour_cap: st.weeklyCap, time_budget_ms: 8000,
       rules: { availability: true, pto_block: true, preserve_locked_assignments: true, manual_mode: false, assign_vans: false, weekly_hour_cap_enforcement: true, consecutive_working_days: true, min_rest: true, min_rest_hours: st.minRest, same_day_multi_shift: "block" },
-      drivers: [{ id: st.driver.id, full_name: st.driver.full_name, status: st.driver.status, hire_date: st.driver.hire_date, dl_expires_on: st.driver.dl_expires_on || null, dot_certified: !!st.driver.dot_certified, xl_certified: !!st.driver.xl_certified, edv_certified: !!st.driver.edv_certified, employment_type: st.driver.employment_type ?? st.driver.metadata?.employment_type ?? null, available_dows: availDows, preferred_dows: prefDows, final_corrective_action: false, weekday_affinity: null, fifth_day_ok: av.fifth_day_ok === true }],
+      drivers: [{ id: st.driver.id, full_name: st.driver.full_name, status: st.driver.status, hire_date: st.driver.hire_date, dl_expires_on: st.driver.dl_expires_on || null, dot_certified: !!st.driver.dot_certified, xl_certified: !!st.driver.xl_certified, edv_certified: !!st.driver.edv_certified, employment_type: st.driver.employment_type ?? st.driver.metadata?.employment_type ?? null, attendance_score: typeof st.driver.score === "number" ? st.driver.score : null, available_dows: availDows, preferred_dows: prefDows, final_corrective_action: false, weekday_affinity: null, fifth_day_ok: av.fifth_day_ok === true }],
       shifts: engineShifts, pto: [], ad_hoc_constraints: [],
     };
     // IDs of the real eligible open shifts we offered the engine, so we can
@@ -61306,7 +61306,7 @@ async function autoAssignDriversForWeek() {
   // and any approved PTO inside the week.
   const [driversRes, ptoRes, shiftsRes, svcRes, pairRes] = await Promise.all([
     sb.from("drivers")
-      .select("id, full_name, hire_date, metadata, dl_expires_on, dot_certified, xl_certified, edv_certified, status, role")
+      .select("id, full_name, hire_date, metadata, dl_expires_on, dot_certified, xl_certified, edv_certified, status, role, score")
       .eq("dsp_id", dspId)
       .order("full_name"),
     sb.from("time_off_requests")
@@ -61871,6 +61871,10 @@ async function autoAssignDriversForWeek() {
         // home. Missing/unknown → the engine adapter defaults full_time,
         // so this is a pure pass-through until the roster captures it.
         employment_type: d.employment_type ?? d.metadata?.employment_type ?? null,
+        // Roster reliability score (drivers.score, <70 = at-risk) →
+        // engine attendance_score: powers attendance_priority ordering
+        // and R013 smooth attendance weighting (100-list #11).
+        attendance_score: typeof d.score === "number" ? d.score : null,
         available_dows: availableDowsOf(d),
         preferred_dows: preferredDowsOf(d),
         final_corrective_action: finalDrivers.has(d.id),

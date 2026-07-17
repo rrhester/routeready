@@ -2537,7 +2537,9 @@ function mapDriver(raw, ptoByDriver) {
       date,
       hours: null
     })),
-    attendance_score: null,
+    // Clamped — the engine's normalizer THROWS outside 0-100, which
+    // would drop the driver entirely over a bad score value.
+    attendance_score: typeof raw.attendance_score === "number" && isFinite(raw.attendance_score) ? Math.max(0, Math.min(100, raw.attendance_score)) : null,
     attendance_final: raw.final_corrective_action === true,
     weekday_affinity: Array.isArray(raw.weekday_affinity) && raw.weekday_affinity.length === 7 ? raw.weekday_affinity : null,
     fifth_day_ok: raw.fifth_day_ok === true

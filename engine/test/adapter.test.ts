@@ -333,3 +333,20 @@ test("adapter rest math is wall-clock across the DST fall-back", () => {
   assert.equal(withoutTz.assigned_shifts.length, 2,
     "without tz the naive-UTC gap is 10.5h and both assign");
 });
+
+test("adapter passes attendance_score through for attendance_priority", () => {
+  // Higher attendance score wins the single shift under
+  // attendance_priority; the out-of-range value clamps instead of
+  // throwing (the normalizer would otherwise drop the driver).
+  const r = planScheduleWeek(
+    basePayload({
+      drivers: [
+        d("a-low",  { attendance_score: 30 }),
+        d("b-high", { attendance_score: 250 }), // clamps to 100
+      ],
+      shifts: [s("s1", "2026-05-25")],
+      rules: { scheduling_method: "attendance_priority" },
+    }),
+  );
+  assert.equal(r.assigned_shifts[0]?.driver_id, "b-high");
+});
