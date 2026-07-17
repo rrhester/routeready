@@ -710,6 +710,15 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
 /* callouts — de-boxed: a soft left rule, content breathing, no card */
 #view-notebooks .rrnb-editor .rrnb-callout{background:transparent;border:0;border-left:2px solid var(--amber-bright,#d97706);
   border-radius:0;padding:2px 0 2px 16px;margin:6px 0 18px}
+/* callout variants (right-click a callout to switch) */
+#view-notebooks .rrnb-editor .rrnb-callout[data-variant="info"]{border-left-color:#2563eb;background:rgba(37,99,235,.05)}
+#view-notebooks .rrnb-editor .rrnb-callout[data-variant="warn"]{border-left-color:#d97706;background:rgba(217,119,6,.06)}
+#view-notebooks .rrnb-editor .rrnb-callout[data-variant="ok"]{border-left-color:#16a34a;background:rgba(22,163,74,.06)}
+#view-notebooks .rrnb-editor .rrnb-callout[data-variant]{border-radius:6px;padding:8px 12px}
+/* divider styles */
+#view-notebooks .rrnb-editor hr[data-style="dotted"]{border-top-style:dotted;border-top-width:2px}
+#view-notebooks .rrnb-editor hr[data-style="thick"]{border-top-width:3px}
+#view-notebooks .rrnb-editor hr[data-style="solid"]{border-top-style:solid;border-top-width:1px}
 
 /* tables — airy: hairline underlines only, quiet uppercase headers, no fills */
 #view-notebooks .rrnb-editor table{min-width:60%;width:100%;margin:8px 0 20px}
@@ -1884,6 +1893,26 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   }
   function insertCodeBlock() { insertHTMLAtCursor('<pre><code>' + (esc(window.getSelection().toString()) || "​") + '</code></pre><p><br></p>'); }
   function insertCallout() { insertHTMLAtCursor('<div class="rrnb-callout"><span class="ico">💡</span><div>' + (esc(window.getSelection().toString()) || "Note…") + '</div></div><p><br></p>'); }
+  function setCalloutVariant(el, v) {
+    el.setAttribute("data-variant", v);
+    var icons = { note: "💡", info: "ℹ️", warn: "⚠️", ok: "✅" };
+    var ico = el.querySelector(".ico"); if (ico) ico.textContent = icons[v] || "💡";
+    scheduleSave();
+  }
+  // #21 — turn selected lines into a table (tab- or comma-delimited into columns)
+  function linesToTable(range, text) {
+    var lines = String(text || "").split(/\r?\n/).filter(function (l) { return l.trim() !== ""; });
+    if (!lines.length) return;
+    var delim = /\t/.test(text) ? "\t" : (/,/.test(text) ? "," : null);
+    var rows = lines.map(function (l) { return delim ? l.split(delim) : [l]; });
+    var maxc = rows.reduce(function (m, r) { return Math.max(m, r.length); }, 1);
+    var html = "<table><tbody>";
+    rows.forEach(function (r, ri) { html += "<tr>"; for (var c = 0; c < maxc; c++) { var tag = ri === 0 ? "th" : "td"; html += "<" + tag + ">" + (esc((r[c] || "").trim()) || "<br>") + "</" + tag + ">"; } html += "</tr>"; });
+    html += "</tbody></table><p><br></p>";
+    var ed = $id("rrnb-editor"); if (ed) ed.focus();
+    try { var s = window.getSelection(); s.removeAllRanges(); s.addRange(range); range.deleteContents(); } catch (e) {}
+    insertHTMLAtCursor(html); scheduleSave();
+  }
   // Table of contents built from the page's current headings; links scroll to them.
   function insertTOC() {
     var ed = $id("rrnb-editor"); if (!ed) return;
@@ -3419,15 +3448,27 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       $id("rrnb-ctx")._target = { kind: "link", el: link };
       return;
     }
-    // block objects: right-click any of them to delete it
+    // multi-line text selection: offer to turn it into a table
+    var selc = window.getSelection();
+    if (selc && !selc.isCollapsed && selc.rangeCount && ed && ed.contains(selc.anchorNode) && /\n/.test(selc.toString())) {
+      e.preventDefault();
+      showCtx(e.clientX, e.clientY, [{ act: "totable", label: "Convert lines to a table" }]);
+      $id("rrnb-ctx")._target = { kind: "seltable", range: selc.getRangeAt(0).cloneRange(), text: selc.toString() };
+      return;
+    }
+    // block objects: right-click for type-specific actions + delete
     var node = e.target.closest && e.target.closest("figure.rrnb-fig,.rrnb-file,.rrnb-callout,.rrnb-todo,hr");
     if (node && ed && ed.contains(node)) {
       e.preventDefault();
+      var isCallout = node.classList.contains("rrnb-callout"), isHr = node.tagName === "HR";
       var label = node.classList.contains("rrnb-fig") ? "picture"
         : node.classList.contains("rrnb-file") ? "attachment"
-        : node.classList.contains("rrnb-callout") ? "callout"
-        : node.classList.contains("rrnb-todo") ? "to-do" : "divider";
-      showCtx(e.clientX, e.clientY, [{ act: "del", label: "Delete " + label, danger: true }]);
+        : isCallout ? "callout" : node.classList.contains("rrnb-todo") ? "to-do" : "divider";
+      var items = [];
+      if (isCallout) items.push({ act: "cv-note", label: "💡 Note" }, { act: "cv-info", label: "ℹ️ Info" }, { act: "cv-warn", label: "⚠️ Warning" }, { act: "cv-ok", label: "✅ Success" }, { sep: 1 });
+      else if (isHr) items.push({ act: "dv-solid", label: "Solid line" }, { act: "dv-dotted", label: "Dotted line" }, { act: "dv-thick", label: "Thick line" }, { sep: 1 });
+      items.push({ act: "del", label: "Delete " + label, danger: true });
+      showCtx(e.clientX, e.clientY, items);
       $id("rrnb-ctx")._target = { kind: "ednode", el: node };
     }
   }
@@ -4160,9 +4201,12 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       if (act === "del") return S.be.deleteItem("group", t.id).then(function () { notify("Group deleted — its sections were kept"); return selectNotebook(S.nbId, S.pageId); });
     }
     if (t.kind === "ednode") {
-      if (act === "del" && t.el) { t.el.remove(); scheduleSave(); }
+      if (act === "del" && t.el) { t.el.remove(); scheduleSave(); return; }
+      if (act.indexOf("cv-") === 0 && t.el) { setCalloutVariant(t.el, act.slice(3)); return; }
+      if (act.indexOf("dv-") === 0 && t.el) { t.el.setAttribute("data-style", act.slice(3)); scheduleSave(); return; }
       return;
     }
+    if (t.kind === "seltable") { if (act === "totable") linesToTable(t.range, t.text); return; }
     if (t.kind === "link") {
       var a = t.el; if (!a) return;
       if (act === "edit") return editLinkPopover(a);
