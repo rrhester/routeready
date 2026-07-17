@@ -394,6 +394,10 @@ Deno.serve(async (req) => {
           });
         }
       }
+      // Repair Center matching is idempotent (event-guarded in SQL),
+      // so redeliveries are safe to re-run — they backfill attachments
+      // captured above onto the case.
+      await _repairMatch(supa, row.id as string);
       return jsonResponse({ ok: true, deduped: true, applicant_id: applicantId ?? row.applicant_id ?? null });
     }
   }
@@ -429,6 +433,16 @@ Deno.serve(async (req) => {
     });
   }
 
+  // 7. Repair Center · match this email to a repair case (sender ↔
+  // vendor, case-number token, or single-open-case — migration 0490).
+  // On match the SQL side logs the timeline event and files the
+  // attachments onto the case; matched PDF/image attachments then get
+  // a fire-and-forget estimate extraction. Best-effort — matching
+  // failures never block the inbound pipeline.
+  if (insertedEmail?.id) {
+    await _repairMatch(supa, insertedEmail.id as string);
+  }
+
   return jsonResponse({
     ok: true,
     applicant_id: applicantId,
@@ -436,6 +450,50 @@ Deno.serve(async (req) => {
     attachments_captured: attachments.length,
   });
 });
+
+// ── Repair Center matching (Phase 7) ────────────────────────────────
+// deno-lint-ignore no-explicit-any
+async function _repairMatch(supa: any, emailId: string): Promise<void> {
+  try {
+    const { data, error } = await supa.rpc("repair_inbound_email_match", {
+      p_email_id: emailId,
+    });
+    if (error) {
+      console.warn("repair match failed", { emailId, error: error.message });
+      return;
+    }
+    if (!data?.matched) return;
+    const atts: Array<{ id?: string; mime_type?: string }> =
+      Array.isArray(data.attachments) ? data.attachments : [];
+    for (const a of atts) {
+      const mt = (a.mime_type || "").toLowerCase();
+      if (!a.id) continue;
+      if (mt !== "application/pdf" && !mt.startsWith("image/")) continue;
+      _kickoffExtract(a.id).catch((e) =>
+        console.warn("extract kickoff failed", { id: a.id, error: (e as Error)?.message }));
+    }
+  } catch (e) {
+    console.warn("repair match exception", { emailId, error: (e as Error)?.message });
+  }
+}
+
+async function _kickoffExtract(attachmentId: string): Promise<void> {
+  const base = Deno.env.get("SUPABASE_URL");
+  const key  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!base || !key) return;
+  const url = `${base}/functions/v1/repair-quote-extract`;
+  // Fire-and-forget, same as _kickoffClassify — the email pipeline
+  // never blocks on an Anthropic round-trip.
+  await fetch(url, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "authorization": `Bearer ${key}`,
+      "apikey": key,
+    },
+    body: JSON.stringify({ attachment_id: attachmentId }),
+  }).catch(() => { /* swallowed */ });
+}
 
 
 // ── Attachment capture ──────────────────────────────────────────────

@@ -105,6 +105,19 @@ verify_jwt = false
 [functions.repair-shop-portal]
 verify_jwt = false
 
+# Resend deliverability events (delivered / bounced / complained) —
+# Svix-signed like webhook-email-inbound; the signature IS the auth,
+# so gateway JWT verification must stay off (migration 0490).
+[functions.webhook-email-events]
+verify_jwt = false
+
+# Repair Center estimate extraction. Called server-to-server by the
+# inbound-email pipeline (service-role bearer) AND from the dashboard
+# with a user JWT it validates in-function (RLS check) — gateway
+# verify_jwt off so both paths and the browser CORS preflight work.
+[functions.repair-quote-extract]
+verify_jwt = false
+
 # Workforce Optimization Engine functions. Both do their own JWT check
 # internally (auth.getUser + app_users role gate); gateway verify_jwt
 # must stay off so the browser CORS preflight gets a 2xx response. With

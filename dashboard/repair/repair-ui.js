@@ -280,7 +280,7 @@ import {
     host.innerHTML = `<div class="rp-tl">` + S.activity.map((e) => {
       const c = byCase.get(e.repair_case_id);
       const who = c ? `${c.case_number} · ${c.vehicle_nickname || c.vehicle_name || ""}` : "";
-      const tone = e.kind === "grounded" ? "r"
+      const tone = (e.kind === "grounded" || e.kind === "email_bounced") ? "r"
         : (e.kind === "returned_to_service" || e.kind === "ungrounded"
            || e.kind === "authorization_acknowledged" || e.kind === "vehicle_picked_up") ? "g"
         : (e.kind === "stage_changed" || e.kind === "created"
@@ -536,7 +536,7 @@ import {
     const events = c.events || [];
     if (!events.length) return `<div class="rp-table-empty">No activity yet.</div>`;
     return `<div class="rp-tl">` + events.map((e) => {
-      const tone = e.kind === "grounded" ? "r"
+      const tone = (e.kind === "grounded" || e.kind === "email_bounced") ? "r"
         : (e.kind === "returned_to_service" || e.kind === "ungrounded"
            || e.kind === "authorization_acknowledged" || e.kind === "vehicle_picked_up") ? "g"
         : (e.kind === "stage_changed" || e.kind === "created" || e.kind === "ro_linked"
@@ -558,10 +558,12 @@ import {
 
   function drawerAttachments(c) {
     const list = c.attachments || [];
+    const extractable = (a) => a.mime_type === "application/pdf" || /^image\//.test(a.mime_type || "");
     const items = list.map((a) => `
       <div class="rp-att" data-rp-att-path="${esc(a.storage_path)}" data-rp-att-bucket="${esc(a.storage_bucket)}" role="button" tabindex="0" title="Open ${esc(a.file_name)}">
         <span class="rp-att-name">${esc(a.file_name)}</span>
         <span class="rp-att-sub">${esc([a.attachment_type.replace(/_/g, " "), formatDay(a.created_at)].join(" · "))}</span>
+        ${extractable(a) ? `<button type="button" class="rp-btn rp-btn-sm rp-att-extract" data-rp-extract="${esc(a.id)}" title="Read this document into a draft quote for review">Extract quote</button>` : ""}
       </div>`).join("");
     return `${items || `<div class="rp-table-empty rp-att-none">No attachments yet.</div>`}
       <label class="rp-att-add">
@@ -715,6 +717,12 @@ import {
         if (items) items.hidden = !items.hidden;
         return;
       }
+      const reviewBtn = e.target.closest("[data-rp-review]");
+      if (reviewBtn) {
+        const quote = (S.drawerQuotes?.quotes || []).find((q) => q.id === reviewBtn.getAttribute("data-rp-review"));
+        if (quote) openExtractReviewModal(c, quote);
+        return;
+      }
       const reqAct = e.target.closest("[data-rp-req-action]");
       if (reqAct) {
         await doRequestAction(c, reqAct.getAttribute("data-rp-req-id"), reqAct.getAttribute("data-rp-req-action"));
@@ -726,6 +734,8 @@ import {
         if (items) items.hidden = !items.hidden;
         return;
       }
+      const extractBtn = e.target.closest("[data-rp-extract]");
+      if (extractBtn) { await doExtractAttachment(c, extractBtn); return; }
       const att = e.target.closest("[data-rp-att-path]");
       if (att) { await openAttachment(att.getAttribute("data-rp-att-bucket"), att.getAttribute("data-rp-att-path")); return; }
       if (e.target.closest(".rp-att-add .rp-link-btn")) { el("rr-rp-att-input")?.click(); }
@@ -812,11 +822,41 @@ import {
     return `<div class="rp-qhead">Authorization</div>${html}`;
   }
 
+  // Extracted drafts awaiting human review (Phase 7). Money shown here
+  // is the server-recomputed total of the TRANSCRIBED lines — accepting
+  // never changes a number, it only makes the quote count.
+  function extractedDraftRows(drafts) {
+    if (!drafts.length) return "";
+    const rows = drafts.map((q) => {
+      const conf = q.extraction_confidence != null
+        ? `${Math.round(Number(q.extraction_confidence) * 100)}% confidence` : "";
+      const sub = [
+        q.vendor_name || "shop not identified",
+        conf,
+        q.quote_number ? `#${q.quote_number}` : null,
+      ].filter(Boolean).join(" · ");
+      return `
+      <div class="rp-qrow">
+        <div class="rp-qrow-main">
+          <span class="rp-strong">Extracted estimate
+            ${q.totals_mismatch ? `<span class="status-pill rp-pill-warn" title="The document's printed total doesn't match its own line items">Totals differ</span>` : ""}
+          </span>
+          <span class="rp-cell-sub">${esc(sub)}</span>
+        </div>
+        <span class="rp-strong rp-qamt">${esc(formatCents(q.grand_total_cents ?? q.shop_reported_total_cents))}</span>
+        <button type="button" class="rp-btn rp-btn-sm rp-btn-primary" data-rp-review="${esc(q.id)}">Review…</button>
+      </div>`;
+    }).join("");
+    return `<div class="rp-qhead">Needs review <span class="status-pill rp-pill-warn">extracted, unconfirmed</span></div>${rows}`;
+  }
+
   function renderDrawerQuotes(host, data) {
     const requests = data.requests || [];
-    const quotes = data.quotes || [];
+    const allQuotes = data.quotes || [];
+    const drafts = allQuotes.filter((q) => q.status === "draft" && q.extracted_at);
+    const quotes = allQuotes.filter((q) => !(q.status === "draft"));
     const auths = data.authorizations || [];
-    if (!requests.length && !quotes.length && !auths.length) {
+    if (!requests.length && !allQuotes.length && !auths.length) {
       host.innerHTML = `<div class="rp-table-empty" style="padding:var(--s-3) 0;text-align:left">No quotes yet — send this case to your shops, or log a phone quote.</div>`;
       return;
     }
@@ -887,6 +927,7 @@ import {
       ? `<button type="button" class="rp-link-btn" data-rp-compare>Compare side by side →</button>`
       : "";
     host.innerHTML = `
+      ${extractedDraftRows(drafts)}
       ${authSection(auths)}
       ${quotes.length ? `<div class="rp-qhead rp-qhead-row"><span>Quotes received</span>${compareBtn}</div>${quoteRows}` : ""}
       ${requests.length ? `<div class="rp-qhead">Requests</div>${reqRows}` : ""}`;
@@ -1330,6 +1371,116 @@ import {
       say("Authorization revoked");
       await refreshDrawer(c.id);
     }
+  }
+
+  // ── extracted-quote review (Phase 7) ─────────────────────────────────
+  async function doExtractAttachment(c, btn) {
+    const attachmentId = btn.getAttribute("data-rp-extract");
+    btn.disabled = true;
+    btn.textContent = "Reading…";
+    const { data, error } = await sb().functions.invoke("repair-quote-extract", {
+      body: { attachment_id: attachmentId },
+    });
+    btn.disabled = false;
+    btn.textContent = "Extract quote";
+    if (error || !data?.ok) {
+      fail("Couldn't read the document", error || { message: data?.error || "try again" });
+      return;
+    }
+    if (data.kind === "estimate" && data.quote_id) {
+      say("Estimate extracted — review it under Quotes & shops", "warn");
+    } else if (data.kind === "invoice") {
+      say("That's an invoice — saved for reconciliation (coming in the next phase)", "warn");
+    } else {
+      say("Document read — no estimate found in it", "warn");
+    }
+    loadDrawerQuotes(c.id);
+  }
+
+  // Human confirmation of an extracted draft. The modal never edits the
+  // transcribed numbers — accept/discard only, with the source document
+  // one click away for eyeball verification.
+  async function openExtractReviewModal(c, q) {
+    injectCss();
+    el("rr-rp-modal")?.remove();
+    const shops = q.vendor_id ? [] : await loadShops();
+    const wrap = document.createElement("div");
+    wrap.id = "rr-rp-modal";
+    const shopOpts = shops.filter((s) => s.preferred_status !== "blocked")
+      .map((s) => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join("");
+    const srcAtt = (c.attachments || []).find((a) => a.id === q.extracted_from_attachment_id);
+    const conf = q.extraction_confidence != null
+      ? `${Math.round(Number(q.extraction_confidence) * 100)}%` : "—";
+    const items = (q.line_items || []).map((li) => `
+      <div class="rp-qli">
+        <span class="rp-qli-desc">${esc(li.description)}${li.part_number ? ` <span class="rp-cell-sub" style="display:inline">· ${esc(li.part_number)}</span>` : ""}</span>
+        <span class="rp-qli-amt">${esc(formatCents(li.line_total_cents))}</span>
+      </div>`).join("");
+    wrap.innerHTML = `
+      <div class="rp-modal-scrim" data-rp-mclose></div>
+      <div class="rp-modal-card rp-modal-wide" role="dialog" aria-modal="true" aria-label="Review extracted estimate">
+        <header class="rp-modal-head"><h3>Review extracted estimate — ${esc(c.case_number)}</h3><button type="button" class="rp-drawer-x" data-rp-mclose aria-label="Close">✕</button></header>
+        <div class="rp-modal-body">
+          <div class="rp-callout rp-callout-warn" style="margin:0 0 var(--s-3)">Read by AI from the document — <strong>check the numbers against the original before accepting</strong>. Accepting never changes an amount; it only lets this estimate count as a quote.</div>
+          <div class="rp-qrow" style="padding-top:0">
+            <div class="rp-qrow-main">
+              <span class="rp-strong">${esc(q.vendor_name || "Shop not identified")}</span>
+              <span class="rp-cell-sub">${esc([q.quote_number ? `#${q.quote_number}` : null, `${(q.line_items || []).length} lines`, `${conf} confidence`].filter(Boolean).join(" · "))}</span>
+            </div>
+            ${srcAtt ? `<button type="button" class="rp-btn rp-btn-sm" data-rp-att-path="${esc(srcAtt.storage_path)}" data-rp-att-bucket="${esc(srcAtt.storage_bucket)}">Open document</button>` : ""}
+          </div>
+          ${q.vendor_id ? "" : `<label class="rp-field" style="margin-bottom:var(--s-3)"><span>Which shop sent this? <em>*</em></span><select id="rr-rp-rv-shop" class="rp-input">${shopOpts || `<option value="">No shops yet</option>`}</select></label>`}
+          <div class="rp-qitems" style="margin:0">${items || `<div class="rp-cell-sub">No line detail was readable.</div>`}</div>
+          <div class="rp-qrow" style="border-bottom:none">
+            <div class="rp-qrow-main"><span class="rp-strong">Computed total</span><span class="rp-cell-sub">recomputed from the lines by the server</span></div>
+            <span class="rp-strong rp-qamt">${esc(formatCents(q.grand_total_cents))}</span>
+          </div>
+          ${q.shop_reported_total_cents != null && q.shop_reported_total_cents !== q.grand_total_cents ? `
+          <div class="rp-qrow" style="border-bottom:none;padding-top:0">
+            <div class="rp-qrow-main"><span>Document's printed total</span></div>
+            <span class="rp-qamt">${esc(formatCents(q.shop_reported_total_cents))}</span>
+          </div>` : ""}
+          ${q.totals_mismatch ? `<div class="rp-callout rp-callout-warn" style="margin:var(--s-2) 0 0">The document's printed total doesn't match its own line items — flagged, not corrected. Check the original.</div>` : ""}
+        </div>
+        <footer class="rp-modal-foot">
+          <button type="button" class="rp-btn rp-btn-danger" data-rp-rv-discard>Discard</button>
+          <span style="flex:1"></span>
+          <button type="button" class="rp-btn" data-rp-mclose>Cancel</button>
+          <button type="button" class="rp-btn rp-btn-primary" data-rp-rv-accept>Accept as submitted quote</button>
+        </footer>
+      </div>`;
+    document.body.appendChild(wrap);
+    wrap.addEventListener("click", async (e) => {
+      if (e.target.closest("[data-rp-mclose]")) { wrap.remove(); return; }
+      const openDoc = e.target.closest("[data-rp-att-path]");
+      if (openDoc) { await openAttachment(openDoc.getAttribute("data-rp-att-bucket"), openDoc.getAttribute("data-rp-att-path")); return; }
+      const accept = e.target.closest("[data-rp-rv-accept]");
+      const discard = e.target.closest("[data-rp-rv-discard]");
+      if (!accept && !discard) return;
+      let vendorId = null;
+      if (accept && !q.vendor_id) {
+        vendorId = wrap.querySelector("#rr-rp-rv-shop")?.value || null;
+        if (!vendorId) { say("Pick the shop this estimate came from", "warn"); return; }
+      }
+      if (discard) {
+        const ok = typeof window._rrConfirmDialog === "function"
+          ? await window._rrConfirmDialog({ title: "Discard this extraction?", body: "The draft is deleted; the source document stays on the case and can be re-extracted any time.", confirmLabel: "Discard" })
+          : window.confirm("Discard this extracted draft?");
+        if (!ok) return;
+      }
+      const btn = accept || discard;
+      btn.disabled = true;
+      const { error } = await sb().rpc("repair_quote_review", {
+        p_quote_id: q.id,
+        p_action: accept ? "accept" : "discard",
+        p_vendor_id: vendorId,
+      });
+      btn.disabled = false;
+      if (error) { fail("Couldn't save the review", error); return; }
+      wrap.remove();
+      say(accept ? "Quote accepted — it now counts alongside the others" : "Extraction discarded");
+      await refreshDrawer(c.id);
+    });
   }
 
   // ── In-Shop Tracker modals (Phase 6) ─────────────────────────────────
@@ -1840,6 +1991,7 @@ import {
 #rr-rp-drawer .rp-att-name{display:block;font-size:var(--fs-sm);font-weight:600;color:var(--text)}
 #rr-rp-drawer .rp-att-sub{display:block;font-size:var(--fs-xs);color:var(--text-muted)}
 #rr-rp-drawer .rp-att-none{padding:var(--s-2) 0}
+#rr-rp-drawer .rp-att-extract{margin-top:var(--s-1)}
 #rr-rp-modal{position:fixed;inset:0;z-index:var(--z-modal,10000);display:flex;align-items:flex-start;justify-content:center;padding:6vh var(--s-4)}
 #rr-rp-modal .rp-modal-scrim{position:absolute;inset:0;background:var(--overlay,rgba(15,23,42,.45))}
 #rr-rp-modal .rp-modal-card{position:relative;background:var(--surface);border-radius:var(--r-xl);box-shadow:var(--shadow-xl);width:100%;max-width:460px;max-height:88vh;display:flex;flex-direction:column}
