@@ -13,6 +13,13 @@ import { assessPlan as rrAssessLaborPlan, driversNeeded as rrDriversNeeded, FORE
 import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=b2ebeec00db5";
 import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=b2ebeec00db5";
 import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=b2ebeec00db5";
+import {
+  mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
+  EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
+  fillTemplate as _mcFillTemplate, matchTemplates as _mcMatchTemplates,
+  BUILTIN_TEMPLATES as _MC_BUILTIN_TEMPLATES, fitDims as _mcFitDims,
+  shouldCompress as _mcShouldCompress, draftKey as _mcDraftKey,
+} from "./msg-core.mjs?v=b2ebeec00db5";
 import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=b2ebeec00db5";
 import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=b2ebeec00db5";
 
@@ -40524,7 +40531,10 @@ async function _loadMcContextSchedule(driverId) {
   };
   const todayShift = rows.find((r) => r.date === todayStr);
   setRow("rr-dd-today-v", "rr-dd-today-s", todayShift);
-  setRow("rr-dd-tom-v", "rr-dd-tom-s", rows.find((r) => r.date === tomStr));
+  const tomShift = rows.find((r) => r.date === tomStr);
+  setRow("rr-dd-tom-v", "rr-dd-tom-s", tomShift);
+  // Stash for template variables ({{next_shift}}, {{next_route}}, …).
+  _mcCtxSched = { driverId, today: todayShift || null, tomorrow: tomShift || null };
 
   // Shift-status badge — green "Scheduled today" when there's a live shift.
   const badge = document.getElementById("rr-dd-shift");
@@ -40644,7 +40654,7 @@ function _supBubblesHTML(msgs) {
     }
     const mine = m.sender_kind === "dsp";
     const time = dt ? dt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
-    const body = m.body ? linkifyEscaped(escapeHtml(m.body), mine) : "";
+    const body = m.body ? _mdLite(linkifyEscaped(escapeHtml(m.body), mine)) : "";
     const author = mine ? "" : `<div style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--accent-text);margin-bottom:3px">RouteReady Support</div>`;
     out += `<div style="display:flex;flex-direction:column;max-width:84%;${mine ? "align-self:flex-end;align-items:flex-end" : "align-self:flex-start;align-items:flex-start"}">${author}<div style="padding:var(--s-2) var(--s-3);border-radius:var(--r-xl);font-size:var(--fs-sm);line-height:1.45;word-break:break-word;white-space:pre-wrap;${mine ? "background:var(--accent-hover);color:#fff;border-bottom-right-radius:5px" : "background:var(--surface);color:var(--text);border:1px solid var(--border);border-bottom-left-radius:5px"}">${body}</div><div style="font-size:10px;color:var(--text-subtle);margin-top:3px;padding:0 4px">${escapeHtml(time)}</div></div>`;
   });
@@ -40910,7 +40920,7 @@ function _supAdmBubblesHTML(msgs) {
     }
     const mine = m.sender_kind === "support";
     const time = dt ? dt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
-    const body = m.body ? linkifyEscaped(escapeHtml(m.body), mine) : "";
+    const body = m.body ? _mdLite(linkifyEscaped(escapeHtml(m.body), mine)) : "";
     const author = `<div style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:3px">${escapeHtml((m.sender_name || (mine ? "RouteReady Support" : "DSP")))}${m.sender_role && !mine ? ` · ${escapeHtml(m.sender_role)}` : ""}</div>`;
     out += `<div style="display:flex;flex-direction:column;max-width:84%;${mine ? "align-self:flex-end;align-items:flex-end" : "align-self:flex-start;align-items:flex-start"}">${author}<div style="padding:var(--s-2) var(--s-3);border-radius:var(--r-xl);font-size:var(--fs-sm);line-height:1.45;word-break:break-word;white-space:pre-wrap;${mine ? "background:var(--accent-hover);color:#fff;border-bottom-right-radius:5px" : "background:var(--surface);color:var(--text);border:1px solid var(--border);border-bottom-left-radius:5px"}">${body}</div><div style="font-size:10px;color:var(--text-subtle);margin-top:3px;padding:0 4px">${escapeHtml(time)}</div></div>`;
   });
@@ -40942,47 +40952,88 @@ async function _supAdmSend() {
 // composer's submit handler reads it from (window._rrMcPending /
 // window._rrCcPending).
 function _rrWireComposerAttach({ ta, fileInput, previewEl, attachBtn, setPending }) {
+  // Staged files — up to 6 per message. Each entry: { file, hd } where hd
+  // means "send original, skip the image recompression pass".
+  let staged = [];
+  const push = () => setPending(staged.length ? staged.map((s) => s) : null);
   const clear = () => {
+    staged = [];
     fileInput.value = "";
-    setPending(null);
+    push();
     previewEl.style.display = "none";
     previewEl.innerHTML = "";
   };
-  const stage = (f) => {
-    if (!f) { clear(); return; }
-    if (f.size > 15 * 1024 * 1024) { toast("File too large (max 15 MB)", "warn"); fileInput.value = ""; return; }
-    setPending(f);
-    const isImg = f.type.startsWith("image/");
-    const sizeKb = Math.round(f.size / 1024);
+  const render = () => {
+    if (!staged.length) { previewEl.style.display = "none"; previewEl.innerHTML = ""; return; }
     previewEl.style.display = "";
-    previewEl.innerHTML = `
-      <div style="display:flex;align-items:center;gap:var(--s-2);background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:6px 8px;font-size:var(--fs-sm)">
+    previewEl.innerHTML = staged.map((s, i) => {
+      const f = s.file;
+      const isImg = f.type.startsWith("image/");
+      const willCompress = isImg && _mcShouldCompress(f.type, f.size) && !s.hd;
+      return `<div style="display:flex;align-items:center;gap:var(--s-2);background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:6px 8px;font-size:var(--fs-sm);margin-bottom:4px" data-rr-attach-row="${i}">
         ${isImg ? `<img src="${URL.createObjectURL(f)}" alt="" style="width:32px;height:32px;border-radius:var(--r-sm);object-fit:cover">`
                 : `<span style="font-size:var(--fs-lg)">📎</span>`}
         <div style="flex:1;min-width:0">
           <div style="font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(f.name)}</div>
-          <div class="u-subtle">${sizeKb} KB</div>
+          <div class="u-subtle">${_rrFmtBytes(f.size)}${willCompress ? " · will be optimized" : ""}</div>
         </div>
-        <button type="button" data-rr-attach-clear aria-label="Remove" style="background:none;border:0;color:var(--text-subtle);cursor:pointer;font-size:var(--fs-lg);line-height:1;padding:2px">×</button>
+        ${isImg && _mcShouldCompress(f.type, f.size) ? `<button type="button" data-rr-attach-hd="${i}" title="${s.hd ? "Sending original — click to optimize" : "Optimized for chat — click to send the original"}" aria-pressed="${s.hd ? "true" : "false"}" style="background:${s.hd ? "var(--accent-soft)" : "none"};border:1px solid var(--border);border-radius:var(--r-sm);color:${s.hd ? "var(--accent-text)" : "var(--text-subtle)"};cursor:pointer;font-size:10px;font-weight:700;padding:2px 6px">HD</button>` : ""}
+        <button type="button" data-rr-attach-clear="${i}" aria-label="Remove ${escapeHtml(f.name)}" style="background:none;border:0;color:var(--text-subtle);cursor:pointer;font-size:var(--fs-lg);line-height:1;padding:2px">×</button>
       </div>`;
-    previewEl.querySelector("[data-rr-attach-clear]").addEventListener("click", clear);
+    }).join("");
+    previewEl.querySelectorAll("[data-rr-attach-clear]").forEach((b) =>
+      b.addEventListener("click", () => { staged.splice(+b.getAttribute("data-rr-attach-clear"), 1); push(); render(); }));
+    previewEl.querySelectorAll("[data-rr-attach-hd]").forEach((b) =>
+      b.addEventListener("click", () => { const s = staged[+b.getAttribute("data-rr-attach-hd")]; if (s) s.hd = !s.hd; render(); }));
+  };
+  const stage = (files) => {
+    for (const f of files || []) {
+      if (!f) continue;
+      if (staged.length >= 6) { toast("Up to 6 attachments per message", "warn"); break; }
+      if (f.size > 15 * 1024 * 1024) { toast(`${f.name}: too large (max 15 MB)`, "warn"); continue; }
+      staged.push({ file: f, hd: false });
+    }
+    fileInput.value = "";
+    push();
+    render();
   };
   attachBtn.addEventListener("click", () => fileInput.click());
-  fileInput.addEventListener("change", () => stage(fileInput.files?.[0]));
+  fileInput.addEventListener("change", () => stage(Array.from(fileInput.files || [])));
   // Clipboard images arrive named "image.png" — rename with a timestamp
   // so back-to-back pastes don't all upload under the same name.
   ta.addEventListener("paste", (e) => {
-    const item = Array.from(e.clipboardData?.items || [])
-      .find((x) => x.kind === "file" && x.type.startsWith("image/"));
-    const f = item && item.getAsFile();
-    if (!f) return;               // plain text — let the browser paste it
+    const items = Array.from(e.clipboardData?.items || [])
+      .filter((x) => x.kind === "file" && x.type.startsWith("image/"));
+    const files = items.map((x) => x.getAsFile()).filter(Boolean);
+    if (!files.length) return;    // plain text — let the browser paste it
     e.preventDefault();
-    const ext = (f.type.split("/")[1] || "png").replace("jpeg", "jpg").replace(/[^a-z0-9]/gi, "") || "png";
-    const d = new Date(); const pad = (n) => String(n).padStart(2, "0");
-    const name = `pasted-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.${ext}`;
-    stage(new File([f], name, { type: f.type }));
+    stage(files.map((f, i) => {
+      const ext = (f.type.split("/")[1] || "png").replace("jpeg", "jpg").replace(/[^a-z0-9]/gi, "") || "png";
+      const d = new Date(); const pad = (n) => String(n).padStart(2, "0");
+      const name = `pasted-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}${files.length > 1 ? "-" + (i + 1) : ""}.${ext}`;
+      return new File([f], name, { type: f.type });
+    }));
   });
-  return { clear };
+  // Drag-and-drop onto the composer's form (or the thread) stages files
+  // the same way the picker does. The dragover class lights a drop hint.
+  const form = ta.closest("form");
+  const dropTargets = [form, form?.closest(".rr-mc-shell, .rr-cc-shell")].filter(Boolean);
+  dropTargets.forEach((t) => {
+    t.addEventListener("dragover", (e) => {
+      if (!Array.from(e.dataTransfer?.types || []).includes("Files")) return;
+      e.preventDefault();
+      t.classList.add("rr-mc-dragover");
+    });
+    t.addEventListener("dragleave", () => t.classList.remove("rr-mc-dragover"));
+    t.addEventListener("drop", (e) => {
+      if (!e.dataTransfer?.files?.length) return;
+      e.preventDefault();
+      t.classList.remove("rr-mc-dragover");
+      stage(Array.from(e.dataTransfer.files));
+      ta.focus();
+    });
+  });
+  return { clear, render, stage };
 }
 
 // Wire the composer mic → record a voice note and send it via
@@ -41005,6 +41056,8 @@ function _rrWireComposerMic({ micBtn, previewEl, getTargets }) {
     if (stream) { try { stream.getTracks().forEach((t) => t.stop()); } catch {} stream = null; }
     previewEl.style.display = "none"; previewEl.innerHTML = "";
     micBtn.classList.remove("recording");
+    // Re-paint any staged attachment chips the recording bar displaced.
+    try { window._rrMcAttachCtl?.render?.(); } catch {}
   };
   const stopAndSend = () => {
     if (!rec || rec.state === "inactive") return;
@@ -41079,6 +41132,709 @@ function _rrWireComposerMic({ micBtn, previewEl, getTargets }) {
     rec.start();
   };
   micBtn.addEventListener("click", () => { if (rec && rec.state === "recording") stopAndSend(); else start(); });
+}
+
+// ─── Composer enhancements (Messages 100-list · Batch 1) ─────────────────
+// One enhancement layer shared by the 1:1 composer and the channel
+// composer: per-thread drafts, emoji picker + :shortcode: autocomplete,
+// /slash templates with variable fill, a "+" menu (templates, schedule
+// send, dictation, composer settings), configurable Enter behaviour and
+// an undo-send window. All pure logic lives in msg-core.mjs; this layer
+// is the DOM wiring only.
+
+function _mcPref(key, def) {
+  try { const v = localStorage.getItem(key); return v === null ? def : v; } catch { return def; }
+}
+function _mcSetPref(key, val) { try { localStorage.setItem(key, String(val)); } catch {} }
+function _mcEnterSends() { return _mcPref("rr_msg_enter_sends", "1") === "1"; }
+function _mcUndoSecs() { const n = parseInt(_mcPref("rr_msg_undo_secs", "5"), 10); return isNaN(n) ? 5 : n; }
+
+// One-shot CSS for the enhancement chrome.
+function _mcEnsureExtrasCss() {
+  if (document.getElementById("rr-mc-extras-css")) return;
+  const st = document.createElement("style");
+  st.id = "rr-mc-extras-css";
+  st.textContent = `
+    .rr-mc-iconbtn{background:transparent;border:0;color:var(--text-muted);cursor:pointer;width:34px;height:34px;border-radius:var(--r-2xl);display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+    .rr-mc-iconbtn:hover{background:var(--surface-hover,#f3f4f6);color:var(--text)}
+    .rr-mc-iconbtn.on{color:var(--accent-text);background:var(--accent-soft)}
+    .rr-mc-pop{position:fixed;z-index:9800;background:var(--surface,#fff);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:0 12px 34px rgba(15,23,42,.18);overflow:hidden}
+    .rr-mc-emoji-pop{width:296px}
+    .rr-mc-emoji-search{width:100%;box-sizing:border-box;border:0;border-bottom:1px solid var(--border);padding:9px 12px;font:inherit;font-size:var(--fs-sm);outline:none;background:transparent;color:var(--text)}
+    .rr-mc-emoji-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:2px;max-height:216px;overflow-y:auto;padding:8px}
+    .rr-mc-emoji-grid button{background:none;border:0;font-size:19px;line-height:1;padding:5px 0;cursor:pointer;border-radius:var(--r-sm)}
+    .rr-mc-emoji-grid button:hover,.rr-mc-emoji-grid button:focus-visible{background:var(--surface-hover,#f3f4f6)}
+    .rr-mc-emoji-head{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);padding:6px 12px 0}
+    .rr-mc-suggest{min-width:220px;max-width:340px;max-height:240px;overflow-y:auto;padding:4px}
+    .rr-mc-suggest button{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:none;border:0;padding:7px 10px;border-radius:var(--r-sm);cursor:pointer;font:inherit;font-size:var(--fs-sm);color:var(--text)}
+    .rr-mc-suggest button.sel,.rr-mc-suggest button:hover{background:var(--accent-soft);color:var(--accent-text)}
+    .rr-mc-suggest .rr-mc-sug-name{font-weight:600}
+    .rr-mc-suggest .rr-mc-sug-desc{color:var(--text-subtle);font-size:var(--fs-xs);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+    .rr-mc-plus-menu{min-width:230px;padding:5px}
+    .rr-mc-plus-menu button{display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:none;border:0;padding:8px 10px;border-radius:var(--r-sm);cursor:pointer;font:inherit;font-size:var(--fs-sm);color:var(--text)}
+    .rr-mc-plus-menu button:hover{background:var(--surface-hover,#f3f4f6)}
+    .rr-mc-plus-menu .rr-mc-plus-sep{height:1px;background:var(--border);margin:5px 2px}
+    .rr-mc-plus-menu .rr-mc-plus-note{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);padding:7px 10px 3px}
+    .rr-mc-plus-menu .rr-mc-plus-val{margin-left:auto;color:var(--text-subtle);font-size:var(--fs-xs);font-weight:600}
+    .rr-mc-dragover{outline:2px dashed var(--accent);outline-offset:-6px;border-radius:var(--r-lg)}
+    .rr-md-code{font-family:ui-monospace,Menlo,monospace;font-size:.92em;background:rgba(127,127,127,.16);border-radius:4px;padding:0 4px}
+    .rr-mc-bubble.dispatch .rr-md-code{background:rgba(255,255,255,.22)}
+    .rr-md-bullet{display:inline-block;width:1em;color:currentColor;opacity:.75}
+    .rr-mc-shell,.rr-cc-shell{position:relative}
+    .rr-mc-undo-pill{position:absolute;left:50%;transform:translateX(-50%);bottom:76px;z-index:60;display:flex;align-items:center;gap:10px;background:var(--text,#111827);color:#fff;border-radius:var(--r-pill,999px);padding:8px 8px 8px 16px;font-size:var(--fs-sm);box-shadow:0 10px 30px rgba(15,23,42,.3)}
+    .rr-mc-undo-pill button{background:rgba(255,255,255,.16);border:0;color:#fff;font:inherit;font-weight:700;border-radius:var(--r-pill,999px);padding:5px 14px;cursor:pointer}
+    .rr-mc-undo-pill button:hover{background:rgba(255,255,255,.28)}
+    .rr-mc-modal{position:fixed;inset:0;z-index:9700;display:flex;align-items:center;justify-content:center;padding:20px}
+    .rr-mc-modal .rr-mc-modal-back{position:absolute;inset:0;background:rgba(15,23,42,.35)}
+    .rr-mc-modal .rr-mc-modal-card{position:relative;background:var(--surface,#fff);border-radius:var(--r-xl);box-shadow:0 24px 70px rgba(15,23,42,.3);width:min(520px,94vw);max-height:86vh;display:flex;flex-direction:column;overflow:hidden}
+    .rr-mc-modal .rr-mc-modal-head{display:flex;align-items:center;gap:10px;padding:15px 18px;border-bottom:1px solid var(--border);font-weight:700;color:var(--text)}
+    .rr-mc-modal .rr-mc-modal-x{margin-left:auto;background:none;border:0;font-size:19px;line-height:1;cursor:pointer;color:var(--text-subtle);padding:2px 4px}
+    .rr-mc-modal .rr-mc-modal-body{padding:14px 18px;overflow-y:auto}
+    .rr-mc-modal .rr-mc-modal-foot{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid var(--border)}
+    .rr-mc-modal label.rr-mc-f{display:block;margin-bottom:11px;font-size:var(--fs-sm);color:var(--text)}
+    .rr-mc-modal label.rr-mc-f > span{display:block;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);margin-bottom:4px}
+    .rr-mc-modal input[type=text],.rr-mc-modal input[type=datetime-local],.rr-mc-modal textarea{width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:var(--r-md);padding:8px 10px;font:inherit;font-size:var(--fs-sm);background:var(--canvas,#fafafa);color:var(--text)}
+    .rr-mc-modal textarea{min-height:88px;resize:vertical}
+    .rr-mc-sched-chips{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 12px}
+    .rr-mc-sched-chips button{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-pill,999px);padding:5px 11px;font:inherit;font-size:var(--fs-xs);font-weight:600;color:var(--text);cursor:pointer}
+    .rr-mc-sched-chips button:hover{border-color:var(--accent);color:var(--accent-text)}
+    .rr-mc-tpl-row{display:flex;align-items:center;gap:9px;padding:9px 10px;border:1px solid var(--border);border-radius:var(--r-md);margin-bottom:7px}
+    .rr-mc-tpl-row .rr-mc-tpl-main{flex:1;min-width:0;cursor:pointer}
+    .rr-mc-tpl-row .rr-mc-tpl-name{font-weight:600;color:var(--text);font-size:var(--fs-sm)}
+    .rr-mc-tpl-row .rr-mc-tpl-body{color:var(--text-subtle);font-size:var(--fs-xs);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .rr-mc-tpl-row .rr-mc-tpl-sc{font-family:ui-monospace,Menlo,monospace;font-size:11px;background:var(--accent-soft);color:var(--accent-text);border-radius:4px;padding:1px 6px;flex:0 0 auto}
+    .rr-mc-tpl-row .rr-mc-tpl-act{background:none;border:0;cursor:pointer;color:var(--text-subtle);padding:3px;border-radius:var(--r-sm);flex:0 0 auto}
+    .rr-mc-tpl-row .rr-mc-tpl-act:hover{background:var(--surface-hover,#f3f4f6);color:var(--text)}
+  `;
+  document.head.appendChild(st);
+}
+
+// Insert text at the caret and keep focus + caret position sensible.
+function _mcInsertAtCaret(ta, text, replaceFrom) {
+  const start = replaceFrom != null ? replaceFrom : (ta.selectionStart ?? ta.value.length);
+  const end = ta.selectionEnd ?? ta.value.length;
+  ta.value = ta.value.slice(0, start) + text + ta.value.slice(end);
+  const pos = start + text.length;
+  ta.focus();
+  try { ta.setSelectionRange(pos, pos); } catch {}
+  ta.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+// ── Per-thread drafts ──
+const _mcDraftTimers = new Map();
+function _mcDraftLoad(kind, id) {
+  try { return localStorage.getItem(_mcDraftKey(kind, id)) || ""; } catch { return ""; }
+}
+function _mcDraftSave(kind, id, text) {
+  const key = _mcDraftKey(kind, id);
+  clearTimeout(_mcDraftTimers.get(key));
+  _mcDraftTimers.set(key, setTimeout(() => {
+    try {
+      if ((text || "").trim()) localStorage.setItem(key, text);
+      else localStorage.removeItem(key);
+    } catch {}
+  }, 300));
+}
+function _mcDraftClear(kind, id) {
+  const key = _mcDraftKey(kind, id);
+  clearTimeout(_mcDraftTimers.get(key));
+  try { localStorage.removeItem(key); } catch {}
+}
+
+// ── Floating popover positioning (anchored above a composer control) ──
+function _mcPlacePop(pop, anchor) {
+  document.body.appendChild(pop);
+  const r = anchor.getBoundingClientRect();
+  const w = pop.offsetWidth, h = pop.offsetHeight;
+  let left = Math.min(window.innerWidth - w - 8, Math.max(8, r.right - w));
+  let top = r.top - h - 8;
+  if (top < 8) top = Math.min(window.innerHeight - h - 8, r.bottom + 8);
+  pop.style.left = left + "px";
+  pop.style.top = top + "px";
+}
+function _mcDismissPops() {
+  document.querySelectorAll(".rr-mc-pop").forEach((p) => p.remove());
+}
+if (!window.__rrMcPopOutside) {
+  window.__rrMcPopOutside = true;
+  document.addEventListener("mousedown", (e) => {
+    if (e.target.closest(".rr-mc-pop") || e.target.closest("[data-rr-mc-popanchor]")) return;
+    _mcDismissPops();
+  });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") _mcDismissPops(); });
+}
+
+// ── Emoji picker ──
+function _mcEmojiRecents() {
+  try { return JSON.parse(localStorage.getItem("rr_mc_emoji_recent") || "[]"); } catch { return []; }
+}
+function _mcPushEmojiRecent(ch) {
+  try {
+    const cur = _mcEmojiRecents().filter((c) => c !== ch);
+    cur.unshift(ch);
+    localStorage.setItem("rr_mc_emoji_recent", JSON.stringify(cur.slice(0, 16)));
+  } catch {}
+}
+function _mcOpenEmojiPicker(anchor, ta) {
+  _mcDismissPops();
+  _mcEnsureExtrasCss();
+  const pop = document.createElement("div");
+  pop.className = "rr-mc-pop rr-mc-emoji-pop";
+  pop.setAttribute("role", "dialog");
+  pop.setAttribute("aria-label", "Emoji picker");
+  const renderGrid = (q) => {
+    const recents = !q ? _mcEmojiRecents() : [];
+    const hits = _mcSearchEmoji(q);
+    return (recents.length ? `<div class="rr-mc-emoji-head">Recent</div>
+      <div class="rr-mc-emoji-grid" style="max-height:none">${recents.map((c) => `<button type="button" data-rr-em="${escapeHtml(c)}">${c}</button>`).join("")}</div>
+      <div class="rr-mc-emoji-head">All</div>` : "")
+      + `<div class="rr-mc-emoji-grid">${hits.map(([c, name]) => `<button type="button" data-rr-em="${escapeHtml(c)}" title="${escapeHtml(name)}" aria-label="${escapeHtml(name)}">${c}</button>`).join("") || `<div style="grid-column:1/-1;color:var(--text-subtle);font-size:var(--fs-sm);padding:10px;text-align:center">No matches</div>`}</div>`;
+  };
+  pop.innerHTML = `<input type="search" class="rr-mc-emoji-search" placeholder="Search emoji…" aria-label="Search emoji"><div data-rr-em-body>${renderGrid("")}</div>`;
+  _mcPlacePop(pop, anchor);
+  const search = pop.querySelector(".rr-mc-emoji-search");
+  const body = pop.querySelector("[data-rr-em-body]");
+  search.addEventListener("input", () => { body.innerHTML = renderGrid(search.value.trim()); });
+  pop.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-rr-em]");
+    if (!b) return;
+    const ch = b.getAttribute("data-rr-em");
+    _mcPushEmojiRecent(ch);
+    _mcInsertAtCaret(ta, ch);
+  });
+  search.focus();
+}
+
+// ── :shortcode: autocomplete ──
+function _mcWireShortcodeSuggest(ta) {
+  let menu = null;
+  let sel = 0;
+  let current = null; // { start, query, items }
+  const close = () => { menu?.remove(); menu = null; current = null; };
+  const apply = (i) => {
+    if (!current || !current.items[i]) return;
+    const [ch] = current.items[i];
+    _mcPushEmojiRecent(ch);
+    _mcInsertAtCaret(ta, ch + " ", current.start);
+    close();
+  };
+  const render = () => {
+    if (!current || !current.items.length) { close(); return; }
+    if (!menu) {
+      menu = document.createElement("div");
+      menu.className = "rr-mc-pop rr-mc-suggest";
+      menu.setAttribute("role", "listbox");
+      menu.addEventListener("mousedown", (e) => {
+        const b = e.target.closest("[data-rr-sci]");
+        if (b) { e.preventDefault(); apply(+b.getAttribute("data-rr-sci")); }
+      });
+    }
+    menu.innerHTML = current.items.map(([ch, name], i) =>
+      `<button type="button" role="option" data-rr-sci="${i}" class="${i === sel ? "sel" : ""}" aria-selected="${i === sel}">${ch}<span class="rr-mc-sug-name">:${escapeHtml(name.replace(/\s+/g, "_"))}:</span></button>`).join("");
+    _mcPlacePop(menu, ta);
+  };
+  ta.addEventListener("input", () => {
+    const hit = _mcShortcodeAt(ta.value, ta.selectionStart ?? ta.value.length);
+    if (!hit) { close(); return; }
+    const items = _mcSearchEmoji(hit.query).slice(0, 8);
+    // Also match shortcode keys directly (e.g. "+1", "100").
+    if (!items.length) { close(); return; }
+    sel = 0;
+    current = { start: hit.start, query: hit.query, items };
+    render();
+  });
+  ta.addEventListener("keydown", (e) => {
+    if (!menu || !current) return;
+    if (e.key === "ArrowDown") { e.preventDefault(); sel = Math.min(current.items.length - 1, sel + 1); render(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); sel = Math.max(0, sel - 1); render(); }
+    else if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); apply(sel); }
+    else if (e.key === "Escape") { close(); }
+  }, true);
+  ta.addEventListener("blur", () => setTimeout(close, 150));
+  return { close, isOpen: () => !!menu };
+}
+
+// ── Message templates ──
+// Server-backed (message_templates, migration 0503) with a localStorage
+// fallback when the migration isn't applied yet. Built-ins always show.
+let _mcTemplates = null;         // cached merged list
+let _mcTemplatesServer = false;  // true once the RPC succeeded
+function _mcLocalTemplates() {
+  try { return JSON.parse(localStorage.getItem("rr_msg_templates_local") || "[]"); } catch { return []; }
+}
+function _mcWriteLocalTemplates(list) {
+  try { localStorage.setItem("rr_msg_templates_local", JSON.stringify(list)); } catch {}
+}
+async function _mcLoadTemplates(force) {
+  if (_mcTemplates && !force) return _mcTemplates;
+  let mine = [];
+  try {
+    const { data, error } = await sb.rpc("dispatch_templates_list");
+    if (!error && data) { mine = Array.isArray(data.templates) ? data.templates : []; _mcTemplatesServer = true; }
+    else if (error) { _mcTemplatesServer = false; mine = _mcLocalTemplates(); }
+  } catch { _mcTemplatesServer = false; mine = _mcLocalTemplates(); }
+  _mcTemplates = mine.concat(_MC_BUILTIN_TEMPLATES);
+  return _mcTemplates;
+}
+// Template variable context for the active 1:1 thread.
+let _mcCtxSched = null; // { driverId, today, tomorrow } — filled by _loadMcContextSchedule
+function _mcTemplateCtx(kind) {
+  const ctx = {
+    company: (window.RR?.dsp?.name) || "",
+    operator: (window.RR?.profile?.full_name || "").split(/\s+/)[0] || "",
+    today_date: new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" }),
+  };
+  if (kind === "dm" && _msgInboxSelectedId) {
+    const meta = (_msgInboxList || []).find((t) => String(t.driver_id) === String(_msgInboxSelectedId)) || {};
+    ctx.name = meta.name || "";
+    ctx.first_name = (meta.name || "").split(/\s+/)[0] || "";
+    ctx.station = meta.station_code || "";
+    if (_mcCtxSched && String(_mcCtxSched.driverId) === String(_msgInboxSelectedId)) {
+      const next = _mcCtxSched.today || _mcCtxSched.tomorrow;
+      if (next) {
+        ctx.next_shift = _mcCtxSched.today ? "today" : "tomorrow";
+        if (next.starts_at) ctx.next_shift_time = new Date(next.starts_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+        if (next.route_code) ctx.next_route = next.route_code;
+      }
+    }
+  }
+  return ctx;
+}
+
+// /slash template menu on the composer.
+function _mcWireSlashTemplates(ta, kind) {
+  let menu = null;
+  let sel = 0;
+  let items = [];
+  const close = () => { menu?.remove(); menu = null; items = []; };
+  const apply = (i) => {
+    const t = items[i];
+    if (!t) return;
+    const filled = _mcFillTemplate(t.body, _mcTemplateCtx(kind));
+    ta.value = filled;
+    ta.focus();
+    try { ta.setSelectionRange(filled.length, filled.length); } catch {}
+    close();
+    ta.dispatchEvent(new Event("input", { bubbles: true }));
+  };
+  const render = () => {
+    if (!items.length) { close(); return; }
+    if (!menu) {
+      menu = document.createElement("div");
+      menu.className = "rr-mc-pop rr-mc-suggest";
+      menu.setAttribute("role", "listbox");
+      menu.addEventListener("mousedown", (e) => {
+        const b = e.target.closest("[data-rr-tpi]");
+        if (b) { e.preventDefault(); apply(+b.getAttribute("data-rr-tpi")); }
+      });
+    }
+    menu.innerHTML = `<div class="rr-mc-emoji-head" style="padding:6px 10px 4px">Templates — ↑↓ then Enter</div>` +
+      items.map((t, i) =>
+        `<button type="button" role="option" data-rr-tpi="${i}" class="${i === sel ? "sel" : ""}" aria-selected="${i === sel}">
+          <span class="rr-mc-sug-name">/${escapeHtml(t.shortcut || t.name)}</span>
+          <span class="rr-mc-sug-desc">${escapeHtml(t.body.slice(0, 60))}</span>
+        </button>`).join("");
+    _mcPlacePop(menu, ta);
+  };
+  ta.addEventListener("input", async () => {
+    const v = ta.value;
+    if (!v.startsWith("/") || /\n/.test(v) || v.length > 40) { close(); return; }
+    const list = await _mcLoadTemplates();
+    if (ta.value !== v) return; // raced — a newer keystroke will rerun
+    items = _mcMatchTemplates(list, v.slice(1)).slice(0, 8);
+    sel = 0;
+    render();
+  });
+  ta.addEventListener("keydown", (e) => {
+    if (!menu) return;
+    if (e.key === "ArrowDown") { e.preventDefault(); sel = Math.min(items.length - 1, sel + 1); render(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); sel = Math.max(0, sel - 1); render(); }
+    else if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); apply(sel); }
+    else if (e.key === "Escape") close();
+  }, true);
+  ta.addEventListener("blur", () => setTimeout(close, 150));
+  return { isOpen: () => !!menu, close };
+}
+
+// Template manager modal (list + create/edit/delete).
+async function _mcOpenTemplateManager() {
+  _mcEnsureExtrasCss();
+  document.getElementById("rr-mc-tpl-modal")?.remove();
+  const ov = document.createElement("div");
+  ov.className = "rr-mc-modal";
+  ov.id = "rr-mc-tpl-modal";
+  ov.innerHTML = `
+    <div class="rr-mc-modal-back"></div>
+    <div class="rr-mc-modal-card" role="dialog" aria-modal="true" aria-label="Message templates">
+      <div class="rr-mc-modal-head">Message templates<button type="button" class="rr-mc-modal-x" aria-label="Close">×</button></div>
+      <div class="rr-mc-modal-body" data-rr-tpl-list><div class="u-subtle" style="font-size:var(--fs-sm)">Loading…</div></div>
+      <div class="rr-mc-modal-foot">
+        <button type="button" class="btn btn-sm" data-rr-tpl-new>New template</button>
+        <button type="button" class="btn btn-sm btn-primary" data-rr-tpl-done>Done</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelector(".rr-mc-modal-back").addEventListener("click", close);
+  ov.querySelector(".rr-mc-modal-x").addEventListener("click", close);
+  ov.querySelector("[data-rr-tpl-done]").addEventListener("click", close);
+
+  const listEl = ov.querySelector("[data-rr-tpl-list]");
+  const paint = async (force) => {
+    const list = await _mcLoadTemplates(force);
+    const mine = list.filter((t) => !String(t.id).startsWith("b-"));
+    const builtin = list.filter((t) => String(t.id).startsWith("b-"));
+    const row = (t, editable) => `
+      <div class="rr-mc-tpl-row" data-rr-tpl-id="${escapeHtml(String(t.id))}">
+        <div class="rr-mc-tpl-main" title="Click to edit">
+          <div class="rr-mc-tpl-name">${escapeHtml(t.name || "")}${t.shared === false ? ` <span class="u-subtle" style="font-weight:400">· only you</span>` : ""}</div>
+          <div class="rr-mc-tpl-body">${escapeHtml(t.body || "")}</div>
+        </div>
+        ${t.shortcut ? `<span class="rr-mc-tpl-sc">/${escapeHtml(t.shortcut)}</span>` : ""}
+        ${editable ? `<button type="button" class="rr-mc-tpl-act" data-rr-tpl-del title="Delete"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>` : `<span class="u-subtle" style="font-size:10px;flex:0 0 auto">built-in</span>`}
+      </div>`;
+    listEl.innerHTML =
+      (_mcTemplatesServer ? "" : `<div class="u-subtle" style="font-size:var(--fs-xs);margin-bottom:9px">Saved on this device for now — they'll move to your team library once the templates migration is applied.</div>`)
+      + (mine.length ? mine.map((t) => row(t, true)).join("") : `<div class="u-subtle" style="font-size:var(--fs-sm);margin-bottom:8px">No custom templates yet — create one, then type <b>/</b> in the composer to use it.</div>`)
+      + `<div class="rr-mc-emoji-head" style="padding:8px 0 6px">Built-in</div>` + builtin.map((t) => row(t, false)).join("")
+      + `<div class="u-subtle" style="font-size:var(--fs-xs);margin-top:8px">Variables: {{first_name}} {{name}} {{station}} {{next_shift}} {{next_shift_time}} {{next_route}} {{company}} {{operator}} {{today_date}} — add a fallback with {{var|fallback}}.</div>`;
+    listEl.querySelectorAll(".rr-mc-tpl-row").forEach((rowEl) => {
+      const id = rowEl.getAttribute("data-rr-tpl-id");
+      const t = list.find((x) => String(x.id) === id);
+      if (!t || String(t.id).startsWith("b-")) return;
+      rowEl.querySelector(".rr-mc-tpl-main").addEventListener("click", () => editForm(t));
+      rowEl.querySelector("[data-rr-tpl-del]")?.addEventListener("click", async () => {
+        if (!(await _rrConfirmDialog({ title: "Delete this template?", body: t.name, confirmLabel: "Delete", danger: true }))) return;
+        if (_mcTemplatesServer) {
+          const { error } = await sb.rpc("dispatch_template_delete", { p_id: t.id });
+          if (error) { toast("Couldn't delete: " + error.message, "warn"); return; }
+        } else {
+          _mcWriteLocalTemplates(_mcLocalTemplates().filter((x) => String(x.id) !== id));
+        }
+        paint(true);
+      });
+    });
+  };
+  const editForm = (t) => {
+    listEl.innerHTML = `
+      <label class="rr-mc-f"><span>Name</span><input type="text" data-rr-tf-name maxlength="80" value="${escapeHtml(t?.name || "")}"></label>
+      <label class="rr-mc-f"><span>Shortcut (type /shortcut in the composer)</span><input type="text" data-rr-tf-sc maxlength="24" value="${escapeHtml(t?.shortcut || "")}" placeholder="eta"></label>
+      <label class="rr-mc-f"><span>Message</span><textarea data-rr-tf-body maxlength="2000">${escapeHtml(t?.body || "")}</textarea></label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--text)"><input type="checkbox" data-rr-tf-shared ${t?.shared === false ? "" : "checked"}> Share with the whole team</label>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:13px">
+        <button type="button" class="btn btn-sm" data-rr-tf-cancel>Back</button>
+        <button type="button" class="btn btn-sm btn-primary" data-rr-tf-save>Save template</button>
+      </div>`;
+    listEl.querySelector("[data-rr-tf-cancel]").addEventListener("click", () => paint());
+    listEl.querySelector("[data-rr-tf-save]").addEventListener("click", async () => {
+      const name = listEl.querySelector("[data-rr-tf-name]").value.trim();
+      const shortcut = listEl.querySelector("[data-rr-tf-sc]").value.trim().replace(/^\//, "").toLowerCase();
+      const body = listEl.querySelector("[data-rr-tf-body]").value.trim();
+      const shared = listEl.querySelector("[data-rr-tf-shared]").checked;
+      if (!name || !body) { toast("Name and message are required", "warn"); return; }
+      if (_mcTemplatesServer) {
+        const { error } = await sb.rpc("dispatch_template_upsert", {
+          p_id: t?.id || null, p_name: name, p_shortcut: shortcut || null, p_body: body, p_shared: shared,
+        });
+        if (error) { toast("Couldn't save: " + error.message, "warn"); return; }
+      } else {
+        const cur = _mcLocalTemplates();
+        if (t?.id) {
+          const i = cur.findIndex((x) => String(x.id) === String(t.id));
+          if (i >= 0) cur[i] = { ...cur[i], name, shortcut, body, shared };
+        } else {
+          cur.push({ id: "l-" + Date.now(), name, shortcut, body, shared });
+        }
+        _mcWriteLocalTemplates(cur);
+      }
+      toast("Template saved", "ok");
+      paint(true);
+    });
+  };
+  ov.querySelector("[data-rr-tpl-new]").addEventListener("click", () => editForm(null));
+  paint(true);
+}
+
+// Template picker (from the + menu): pick → fill into the composer.
+async function _mcOpenTemplatePicker(ta, kind) {
+  const list = await _mcLoadTemplates();
+  _mcDismissPops();
+  _mcEnsureExtrasCss();
+  const pop = document.createElement("div");
+  pop.className = "rr-mc-pop rr-mc-suggest";
+  pop.style.maxHeight = "300px";
+  pop.innerHTML = `<div class="rr-mc-emoji-head" style="padding:6px 10px 4px">Insert a template</div>` +
+    list.map((t, i) => `<button type="button" data-rr-tpp="${i}"><span class="rr-mc-sug-name">${escapeHtml(t.name)}</span><span class="rr-mc-sug-desc">${escapeHtml(t.body.slice(0, 56))}</span></button>`).join("");
+  pop.addEventListener("mousedown", (e) => {
+    const b = e.target.closest("[data-rr-tpp]");
+    if (!b) return;
+    e.preventDefault();
+    const t = list[+b.getAttribute("data-rr-tpp")];
+    if (t) { ta.value = _mcFillTemplate(t.body, _mcTemplateCtx(kind)); ta.dispatchEvent(new Event("input", { bubbles: true })); ta.focus(); }
+    _mcDismissPops();
+  });
+  _mcPlacePop(pop, ta);
+}
+
+// ── Schedule-send modal (composer → dispatch_schedule_message) ──
+function _mcOpenScheduleSend({ kind, targetId, ta }) {
+  const body = (ta.value || "").trim();
+  if (!body) { toast("Type the message first, then pick when to send it", "info"); ta.focus(); return; }
+  _mcEnsureExtrasCss();
+  document.getElementById("rr-mc-sched-modal")?.remove();
+  const pad = (n) => String(n).padStart(2, "0");
+  const toLocalInput = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const defAt = new Date(Date.now() + 60 * 60 * 1000);
+  defAt.setMinutes(0, 0, 0);
+  const quick = [];
+  {
+    const inOneHour = new Date(Date.now() + 60 * 60 * 1000);
+    const tom6 = new Date(); tom6.setDate(tom6.getDate() + 1); tom6.setHours(6, 0, 0, 0);
+    const tom8 = new Date(); tom8.setDate(tom8.getDate() + 1); tom8.setHours(8, 0, 0, 0);
+    const mon6 = new Date(); mon6.setDate(mon6.getDate() + ((8 - mon6.getDay()) % 7 || 7)); mon6.setHours(6, 0, 0, 0);
+    quick.push(["In 1 hour", inOneHour], ["Tomorrow 6:00 AM", tom6], ["Tomorrow 8:00 AM", tom8], ["Monday 6:00 AM", mon6]);
+  }
+  const ov = document.createElement("div");
+  ov.className = "rr-mc-modal";
+  ov.id = "rr-mc-sched-modal";
+  ov.innerHTML = `
+    <div class="rr-mc-modal-back"></div>
+    <div class="rr-mc-modal-card" role="dialog" aria-modal="true" aria-label="Schedule send">
+      <div class="rr-mc-modal-head">Schedule send<button type="button" class="rr-mc-modal-x" aria-label="Close">×</button></div>
+      <div class="rr-mc-modal-body">
+        <div style="font-size:var(--fs-sm);color:var(--text-subtle);border:1px solid var(--border);border-radius:var(--r-md);padding:8px 10px;margin-bottom:12px;max-height:88px;overflow-y:auto;white-space:pre-wrap">${escapeHtml(body.length > 400 ? body.slice(0, 400) + "…" : body)}</div>
+        <div class="rr-mc-sched-chips">${quick.map(([lbl, d], i) => `<button type="button" data-rr-sch-q="${i}" data-at="${d.getTime()}">${lbl}</button>`).join("")}</div>
+        <label class="rr-mc-f"><span>Send at</span><input type="datetime-local" data-rr-sch-at value="${toLocalInput(defAt)}" min="${toLocalInput(new Date(Date.now() + 2 * 60000))}"></label>
+      </div>
+      <div class="rr-mc-modal-foot">
+        <button type="button" class="btn btn-sm" data-rr-sch-cancel>Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary" data-rr-sch-go>Schedule</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelector(".rr-mc-modal-back").addEventListener("click", close);
+  ov.querySelector(".rr-mc-modal-x").addEventListener("click", close);
+  ov.querySelector("[data-rr-sch-cancel]").addEventListener("click", close);
+  const atInput = ov.querySelector("[data-rr-sch-at]");
+  ov.querySelectorAll("[data-rr-sch-q]").forEach((b) =>
+    b.addEventListener("click", () => { atInput.value = toLocalInput(new Date(+b.getAttribute("data-at"))); }));
+  ov.querySelector("[data-rr-sch-go]").addEventListener("click", async () => {
+    const at = new Date(atInput.value);
+    if (!atInput.value || isNaN(at.getTime()) || at.getTime() <= Date.now() + 30000) { toast("Pick a time in the future", "warn"); return; }
+    const { error } = await sb.rpc("dispatch_schedule_message", {
+      p_target_kind: kind === "dm" ? "driver" : "channel",
+      p_send_at: at.toISOString(),
+      p_driver_id: kind === "dm" ? targetId : null,
+      p_channel_id: kind === "dm" ? null : targetId,
+      p_body: _mcApplyShortcodes(body),
+      p_priority: kind === "dm" ? _dispatchPriority : "normal",
+      p_requires_ack: kind === "dm" ? _dispatchRequiresAck : false,
+    });
+    if (error) { toast("Couldn't schedule: " + error.message, "warn"); return; }
+    close();
+    ta.value = "";
+    ta.dispatchEvent(new Event("input", { bubbles: true }));
+    _mcDraftClear(kind, targetId);
+    if (kind === "dm") { _dispatchRequiresAck = false; _setDispatchPriority("normal"); }
+    toastAction(`Scheduled for ${at.toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`, {
+      label: "View scheduled", onConfirm: () => { try { openScheduledPanel(); } catch {} },
+    });
+  });
+}
+
+// ── Dictation (speech-to-text into the composer) ──
+let _mcDictation = null; // { rec, ta } while active
+function _mcToggleDictation(ta) {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { toast("Dictation isn't supported in this browser", "warn"); return false; }
+  if (_mcDictation) {
+    try { _mcDictation.rec.stop(); } catch {}
+    _mcDictation = null;
+    return false;
+  }
+  const rec = new SR();
+  rec.continuous = true;
+  rec.interimResults = true;
+  rec.lang = navigator.language || "en-US";
+  rec.onresult = (e) => {
+    let t = "";
+    for (let i = e.resultIndex; i < e.results.length; i++) if (e.results[i].isFinal) t += e.results[i][0].transcript;
+    if (t) _mcInsertAtCaret(ta, (ta.value && !/\s$/.test(ta.value) ? " " : "") + t.trim());
+  };
+  rec.onend = () => { if (_mcDictation && _mcDictation.rec === rec) _mcDictation = null; document.querySelectorAll("[data-rr-mc-dict]").forEach((b) => b.classList.remove("on")); };
+  rec.onerror = rec.onend;
+  try { rec.start(); } catch { toast("Couldn't start dictation", "warn"); return false; }
+  _mcDictation = { rec, ta };
+  toast("Dictating — speak now, click Dictate again to stop", "info");
+  return true;
+}
+
+// ── "+" composer menu ──
+function _mcOpenPlusMenu(anchor, { ta, kind, targetId }) {
+  _mcDismissPops();
+  _mcEnsureExtrasCss();
+  const pop = document.createElement("div");
+  pop.className = "rr-mc-pop rr-mc-plus-menu";
+  pop.setAttribute("role", "menu");
+  const undoSecs = _mcUndoSecs();
+  pop.innerHTML = `
+    <button type="button" role="menuitem" data-rr-pm="tpl">📋<span>Insert template…</span></button>
+    <button type="button" role="menuitem" data-rr-pm="tplmgr">🗂️<span>Manage templates…</span></button>
+    <button type="button" role="menuitem" data-rr-pm="sched">🕐<span>Schedule send…</span></button>
+    <button type="button" role="menuitem" data-rr-pm="dict" data-rr-mc-dict class="${_mcDictation ? "on" : ""}">🎙️<span>${_mcDictation ? "Stop dictation" : "Dictate"}</span></button>
+    <div class="rr-mc-plus-sep"></div>
+    <div class="rr-mc-plus-note">Composer settings</div>
+    <button type="button" role="menuitemcheckbox" data-rr-pm="enter" aria-checked="${_mcEnterSends()}">⏎<span>Enter sends the message</span><span class="rr-mc-plus-val">${_mcEnterSends() ? "On" : "Off — Ctrl+Enter sends"}</span></button>
+    <button type="button" role="menuitem" data-rr-pm="undo">↩️<span>Undo-send window</span><span class="rr-mc-plus-val">${undoSecs ? undoSecs + "s" : "Off"}</span></button>`;
+  _mcPlacePop(pop, anchor);
+  pop.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-rr-pm]");
+    if (!b) return;
+    const act = b.getAttribute("data-rr-pm");
+    if (act === "tpl") { _mcDismissPops(); _mcOpenTemplatePicker(ta, kind); return; }
+    if (act === "tplmgr") { _mcDismissPops(); _mcOpenTemplateManager(); return; }
+    if (act === "sched") { _mcDismissPops(); _mcOpenScheduleSend({ kind, targetId, ta }); return; }
+    if (act === "dict") { const on = _mcToggleDictation(ta); b.classList.toggle("on", on); b.querySelector("span").textContent = on ? "Stop dictation" : "Dictate"; return; }
+    if (act === "enter") {
+      _mcSetPref("rr_msg_enter_sends", _mcEnterSends() ? "0" : "1");
+      b.setAttribute("aria-checked", String(_mcEnterSends()));
+      b.querySelector(".rr-mc-plus-val").textContent = _mcEnterSends() ? "On" : "Off — Ctrl+Enter sends";
+      return;
+    }
+    if (act === "undo") {
+      const order = [0, 3, 5, 10];
+      const next = order[(order.indexOf(_mcUndoSecs()) + 1) % order.length];
+      _mcSetPref("rr_msg_undo_secs", String(next));
+      b.querySelector(".rr-mc-plus-val").textContent = next ? next + "s" : "Off";
+      return;
+    }
+  });
+}
+
+// ── Image compression before upload ──
+// Downscales big JPEG/PNG/WebP photos to ≤1600px JPEG(0.85). Returns the
+// original file untouched when compression isn't worthwhile (or fails —
+// never block a send on canvas quirks).
+async function _mcMaybeCompressImage(file, hd) {
+  try {
+    if (hd || !_mcShouldCompress(file.type, file.size)) return file;
+    const url = URL.createObjectURL(file);
+    const img = await new Promise((res, rej) => {
+      const i = new Image();
+      i.onload = () => res(i);
+      i.onerror = rej;
+      i.src = url;
+    });
+    const { w, h } = _mcFitDims(img.naturalWidth, img.naturalHeight, 1600);
+    const canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+    URL.revokeObjectURL(url);
+    const blob = await new Promise((res) => canvas.toBlob(res, "image/jpeg", 0.85));
+    if (!blob || blob.size >= file.size * 0.92) return file; // not worth it
+    const name = file.name.replace(/\.(png|webp|jpeg|jpg)$/i, "") + ".jpg";
+    return new File([blob], name, { type: "image/jpeg" });
+  } catch { return file; }
+}
+
+// ── Undo-send window ──
+// Shows a countdown pill over the thread; resolves true if the operator
+// clicked Undo before the window elapsed, false when the send may proceed.
+// The pending stub's time label ticks "sending in Ns · Undo" so the state
+// is legible even if the pill is missed.
+function _mcRunUndoWindow(secs, stubId) {
+  return new Promise((resolve) => {
+    _mcEnsureExtrasCss();
+    const shell = document.querySelector(".rr-mc-shell") || document.querySelector(".rr-cc-shell");
+    const pill = document.createElement("div");
+    pill.className = "rr-mc-undo-pill";
+    pill.setAttribute("role", "status");
+    pill.innerHTML = `<span data-rr-undo-label>Sending in ${secs}s…</span><button type="button" data-rr-undo>Undo</button>`;
+    (shell || document.body).appendChild(pill);
+    let left = secs;
+    const stubTime = () => document.querySelector(`[data-rr-stub="${stubId}"] .rr-mc-time, [data-rr-cc-stub="${stubId}"] .rr-cc-time`);
+    const paint = () => {
+      const lbl = pill.querySelector("[data-rr-undo-label]");
+      if (lbl) lbl.textContent = `Sending in ${left}s…`;
+      const t = stubTime();
+      if (t) t.textContent = `sending in ${left}s`;
+    };
+    paint();
+    const timer = setInterval(() => {
+      left -= 1;
+      if (left <= 0) { done(false); return; }
+      paint();
+    }, 1000);
+    const done = (undone) => {
+      clearInterval(timer);
+      pill.remove();
+      const t = stubTime();
+      if (t && !undone) t.textContent = new Date().toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) + " · sending";
+      resolve(undone);
+    };
+    pill.querySelector("[data-rr-undo]").addEventListener("click", () => done(true));
+  });
+}
+
+// ── Enhancement bootstrap (called from both composers' first paint) ──
+function _mcEnhanceComposer({ form, ta, kind, getTargetId }) {
+  if (!form || !ta || form.dataset.rrEnhanced) return;
+  form.dataset.rrEnhanced = "1";
+  _mcEnsureExtrasCss();
+
+  // Draft restore + persist. The draft key follows the ACTIVE target, so
+  // we resolve it lazily on every event.
+  const tid = () => String(getTargetId() || "");
+  const saved = _mcDraftLoad(kind, tid());
+  if (saved && !(ta.value || "").trim()) {
+    ta.value = saved;
+    ta.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+  ta.addEventListener("input", () => _mcDraftSave(kind, tid(), ta.value));
+
+  // Emoji button — sits right before the textarea's following sibling
+  // (priority dropdown in DMs, send button in channels).
+  const emojiBtn = document.createElement("button");
+  emojiBtn.type = "button";
+  emojiBtn.className = "rr-mc-iconbtn";
+  emojiBtn.title = "Emoji";
+  emojiBtn.setAttribute("aria-label", "Insert emoji");
+  emojiBtn.setAttribute("data-rr-mc-popanchor", "1");
+  emojiBtn.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>`;
+  emojiBtn.addEventListener("click", () => _mcOpenEmojiPicker(emojiBtn, ta));
+  // DM composer: textarea is a direct form child → drop the button right
+  // after it (before the priority dropdown). Channel composer: textarea
+  // lives in a nested column → put the button before the send control.
+  if (ta.parentElement === form) ta.insertAdjacentElement("afterend", emojiBtn);
+  else form.insertBefore(emojiBtn, form.querySelector(".rr-mc-send, .rr-cc-send"));
+
+  // "+" menu button — first control in the composer row.
+  const plusBtn = document.createElement("button");
+  plusBtn.type = "button";
+  plusBtn.className = "rr-mc-iconbtn";
+  plusBtn.title = "More composer tools";
+  plusBtn.setAttribute("aria-label", "More composer tools");
+  plusBtn.setAttribute("aria-haspopup", "menu");
+  plusBtn.setAttribute("data-rr-mc-popanchor", "1");
+  plusBtn.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>`;
+  plusBtn.addEventListener("click", () => _mcOpenPlusMenu(plusBtn, { ta, kind, targetId: getTargetId() }));
+  form.insertBefore(plusBtn, form.firstElementChild);
+
+  // Autocomplete layers.
+  const shortcodeCtl = _mcWireShortcodeSuggest(ta);
+  const slashCtl = _mcWireSlashTemplates(ta, kind);
+  // Warm the template cache so the first "/" is instant.
+  setTimeout(() => { _mcLoadTemplates().catch(() => {}); }, 1200);
+
+  return {
+    // Enter-key gate: submit only when Enter-sends is on AND no popup
+    // menu is currently capturing arrows/Enter.
+    enterShouldSend: (e) =>
+      !shortcodeCtl.isOpen() && !slashCtl.isOpen() &&
+      ((e.key === "Enter" && !e.shiftKey && _mcEnterSends()) ||
+       (e.key === "Enter" && (e.ctrlKey || e.metaKey))),
+  };
 }
 
 async function refreshDriverChatThread(scrollToBottom) {
@@ -41165,7 +41921,7 @@ async function refreshDriverChatThread(scrollToBottom) {
           <div class="rr-mc-bottom-sentinel" id="rr-mc-bottom-sentinel" aria-hidden="true"></div>
         </div>
         <form class="rr-mc-composer" id="rr-mc-form">
-          <input type="file" id="rr-mc-file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" hidden>
+          <input type="file" id="rr-mc-file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" multiple hidden>
           <button type="button" id="rr-mc-attach" class="rr-mc-attach" title="Attach photo or document" aria-label="Attach photo or document">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
           </button>
@@ -41215,16 +41971,23 @@ async function refreshDriverChatThread(scrollToBottom) {
       // indicator alive while the operator is composing.
       if (_msgInboxSelectedId) _presenceBroadcastTyping(_msgInboxSelectedId);
     });
+    // Composer enhancement layer: drafts, emoji, :shortcodes:, /templates,
+    // + menu (schedule send, dictation, settings). Wired BEFORE the Enter
+    // handler so its popup state can gate submission.
+    const _mcEnh = _mcEnhanceComposer({
+      form: document.getElementById("rr-mc-form"), ta, kind: "dm",
+      getTargetId: () => _msgInboxSelectedId,
+    });
     ta.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
+      if (_mcEnh && _mcEnh.enterShouldSend(e)) {
         e.preventDefault();
         document.getElementById("rr-mc-form").requestSubmit();
       }
     });
 
-    // Attachment picker — paperclip opens the file input, and Ctrl+V
-    // pastes an image straight into the composer.  Pending file sits
-    // on window._rrMcPending until send.
+    // Attachment picker — paperclip opens the file input (multi-select),
+    // Ctrl+V pastes images, and drag-drop stages files too.  Pending
+    // files sit on window._rrMcPending (array) until send.
     const fileInput = document.getElementById("rr-mc-file");
     const previewEl = document.getElementById("rr-mc-attach-preview");
     const attachCtl = _rrWireComposerAttach({
@@ -41232,6 +41995,7 @@ async function refreshDriverChatThread(scrollToBottom) {
       attachBtn: document.getElementById("rr-mc-attach"),
       setPending: (f) => { window._rrMcPending = f; if (typeof _mcSyncSend === "function") _mcSyncSend(); },
     });
+    window._rrMcAttachCtl = attachCtl;
 
     // ── Voice notes (dispatch → driver) ─────────────────────────────────
     // Tap the mic to record; on send we upload to driver-chat-attachments and
@@ -41246,9 +42010,13 @@ async function refreshDriverChatThread(scrollToBottom) {
 
     document.getElementById("rr-mc-form").addEventListener("submit", async (e) => {
       e.preventDefault();
-      const body = (ta.value || "").trim();
-      const file = window._rrMcPending;
-      if (!body && !file) return;
+      const sendDriverId = _msgInboxSelectedId;
+      const rawBody = (ta.value || "").trim();
+      // Complete :shortcodes: at send time so what leaves matches what
+      // the suggestion layer promised (#2).
+      const body = _mcApplyShortcodes(rawBody);
+      const staged = Array.isArray(window._rrMcPending) ? window._rrMcPending.slice() : [];
+      if (!body && !staged.length) return;
       // Urgent messages get a confirmation before they leave — they fire an
       // immediate high-priority notification on the driver's device. Runs
       // BEFORE the optimistic stub so a cancel leaves the draft untouched.
@@ -41274,15 +42042,17 @@ async function refreshDriverChatThread(scrollToBottom) {
       const stubId = "rrmc-stub-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7);
       const stubAt = Date.now();
       const threadEl = document.getElementById("rr-mc-thread");
-      const stubBody = body ? `<div>${linkifyEscaped(escapeHtml(body).replace(/\n/g, "<br>"))}</div>` : "";
-      const stubAttach = file ? `<div style="font-size:var(--fs-xs);opacity:.85;margin-bottom:4px">📎 ${escapeHtml(file.name)} (uploading…)</div>` : "";
+      const stubBody = body ? `<div>${_mdLite(linkifyEscaped(escapeHtml(body).replace(/\n/g, "<br>")))}</div>` : "";
+      const stubAttach = staged.length
+        ? `<div style="font-size:var(--fs-xs);opacity:.85;margin-bottom:4px">📎 ${staged.length === 1 ? escapeHtml(staged[0].file.name) : staged.length + " attachments"} (uploading…)</div>`
+        : "";
       const nowTime = new Date().toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
       // data-rr-stub-body / -at / -attach let the next refresh reconcile
       // this stub against the server's echoed row by (normalised body +
       // queue time + attachment presence) instead of raw text equality —
       // so two identical sends, or an attachment-only send, don't ghost
       // or drop a bubble.  See the reconciliation block below.
-      const stubHtml = `<div class="rr-mc-bubble dispatch pending" data-rr-stub="${stubId}" data-rr-stub-body="${escapeHtml(_normStubBody(body))}" data-rr-stub-at="${stubAt}" data-rr-stub-attach="${file ? "1" : "0"}" data-group-pos="single">
+      const stubHtml = `<div class="rr-mc-bubble dispatch pending" data-rr-stub="${stubId}" data-rr-stub-body="${escapeHtml(_normStubBody(body))}" data-rr-stub-at="${stubAt}" data-rr-stub-attach="${staged.length ? "1" : "0"}" data-group-pos="single">
         ${stubAttach}${stubBody}
         <div class="rr-mc-time">${escapeHtml(nowTime)} · sending</div>
       </div>`;
@@ -41302,8 +42072,9 @@ async function refreshDriverChatThread(scrollToBottom) {
       //      sentinel.  We use scrollTop + scrollIntoView together so
       //      ANY one mechanism succeeding is sufficient.
       threadEl.dataset.rrAnchor = "1";
-      const savedBody = body;
+      const savedBody = rawBody;
       ta.value = ""; ta.style.height = "auto";
+      _mcDraftClear("dm", sendDriverId);
       if (typeof _mcSyncSend === "function") _mcSyncSend();
       // Direct scrollTop write — the cheap path.  The thread's bottom
       // edge sits just above the composer (grid layout), so scrollHeight
@@ -41339,60 +42110,95 @@ async function refreshDriverChatThread(scrollToBottom) {
           }
         }
       });
-      if (file) attachCtl.clear();
+      if (staged.length) attachCtl.clear();
 
-      let attachment = null;
-      if (file) {
-        const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80) || "file";
-        const dspId = window.RR?.dsp?.id || "unknown";
-        const path  = `${dspId}/${_msgInboxSelectedId}/${Date.now()}-${safe}`;
-        const { error: upErr } = await sb.storage
-          .from("driver-chat-attachments").upload(path, file, { contentType: file.type, upsert: false });
-        if (upErr) {
+      // ── Undo-send window (#6) ── a short beat to pull the message back
+      // before anything touches the network. 0 = off (see + menu).
+      const undoSecs = _mcUndoSecs();
+      if (undoSecs > 0) {
+        const undone = await _mcRunUndoWindow(undoSecs, stubId);
+        if (undone) {
+          threadEl.querySelector(`[data-rr-stub="${stubId}"]`)?.remove();
+          ta.value = savedBody;
+          ta.dispatchEvent(new Event("input", { bubbles: true }));
+          if (staged.length && attachCtl.stage) attachCtl.stage(staged.map((s) => s.file));
+          _mcDraftSave("dm", sendDriverId, savedBody);
           send.disabled = false;
-          const stub = threadEl.querySelector(`[data-rr-stub="${stubId}"]`);
-          if (stub) {
-            stub.classList.remove("pending");
-            stub.classList.add("failed");
-            stub.querySelector(".rr-mc-time").textContent = "upload failed";
-          }
-          ta.value = savedBody; // restore so they can retry
-          toast("Upload failed: " + upErr.message, "warn");
+          ta.focus();
           return;
         }
-        attachment = { path, mime: file.type, name: file.name, size: file.size };
       }
 
-      const { error } = await sb.rpc("dispatch_chat_send", {
-        p_driver_id:             _msgInboxSelectedId,
-        p_body:                  savedBody || null,
+      // ── Upload + send ── one RPC per attachment (the schema carries one
+      // attachment per row); the text body rides the first message and so
+      // do priority / requires-ack.
+      const sendOne = (msgBody, attachment, priority, requiresAck) => sb.rpc("dispatch_chat_send", {
+        p_driver_id:             sendDriverId,
+        p_body:                  msgBody || null,
         p_attachment_path:       attachment?.path || null,
         p_attachment_mime:       attachment?.mime || null,
         p_attachment_name:       attachment?.name || null,
         p_attachment_size_bytes: attachment?.size || null,
-        p_priority:              _dispatchPriority,
-        p_requires_ack:          _dispatchRequiresAck,
+        p_priority:              priority,
+        p_requires_ack:          requiresAck,
       });
-      send.disabled = false;
-      if (error) {
-        // The message never landed, so drop the blob we just uploaded —
-        // otherwise it lingers in the bucket forever with no row pointing
-        // at it.  Best-effort; a failed cleanup isn't worth surfacing.
-        if (attachment?.path) {
-          try { await sb.storage.from("driver-chat-attachments").remove([attachment.path]); } catch (_) {}
-        }
+      const failStub = (label, restoreFiles) => {
+        send.disabled = false;
         const stub = threadEl.querySelector(`[data-rr-stub="${stubId}"]`);
         if (stub) {
           stub.classList.remove("pending");
           stub.classList.add("failed");
-          stub.querySelector(".rr-mc-time").textContent = "send failed · click to retry";
+          stub.querySelector(".rr-mc-time").textContent = label;
           stub.style.cursor = "pointer";
-          stub.title = file ? "Click to restore your message — re-attach the file and resend" : "Click to restore and retry";
-          stub.addEventListener("click", () => { ta.value = savedBody; ta.focus(); stub.remove(); }, { once:true });
+          stub.title = "Click to restore and retry";
+          stub.addEventListener("click", () => {
+            ta.value = savedBody;
+            ta.dispatchEvent(new Event("input", { bubbles: true }));
+            if (restoreFiles?.length && attachCtl.stage) attachCtl.stage(restoreFiles.map((s) => s.file));
+            ta.focus();
+            stub.remove();
+          }, { once: true });
         }
         ta.value = savedBody;
-        toast("Couldn't send: " + error.message, "warn");
-        return;
+      };
+
+      if (!staged.length) {
+        const { error } = await sendOne(body, null, _dispatchPriority, _dispatchRequiresAck);
+        send.disabled = false;
+        if (error) {
+          failStub("send failed · click to retry");
+          toast("Couldn't send: " + error.message, "warn");
+          return;
+        }
+      } else {
+        for (let fi = 0; fi < staged.length; fi++) {
+          // Big photos get downscaled unless the operator flipped HD (#9).
+          const f = await _mcMaybeCompressImage(staged[fi].file, staged[fi].hd);
+          const safe = f.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80) || "file";
+          const dspId = window.RR?.dsp?.id || "unknown";
+          const path  = `${dspId}/${sendDriverId}/${Date.now()}-${fi}-${safe}`;
+          const { error: upErr } = await sb.storage
+            .from("driver-chat-attachments").upload(path, f, { contentType: f.type, upsert: false });
+          if (upErr) {
+            failStub("upload failed · click to retry", staged.slice(fi));
+            toast("Upload failed: " + upErr.message, "warn");
+            return;
+          }
+          const attachment = { path, mime: f.type, name: f.name, size: f.size };
+          const { error } = await sendOne(
+            fi === 0 ? body : null, attachment,
+            fi === 0 ? _dispatchPriority : "normal",
+            fi === 0 ? _dispatchRequiresAck : false);
+          if (error) {
+            // Drop the just-uploaded blob so a failed send doesn't orphan it.
+            try { await sb.storage.from("driver-chat-attachments").remove([path]); } catch (_) {}
+            failStub("send failed · click to retry", staged.slice(fi));
+            toast("Couldn't send: " + error.message, "warn");
+            return;
+          }
+        }
+        send.disabled = false;
+        ta.value = "";
       }
       // Reset priority/ack to defaults so the operator doesn't keep
       // accidentally sending urgent / requires-ack messages after one.
@@ -41560,7 +42366,9 @@ async function refreshDriverChatThread(scrollToBottom) {
       if (isDeleted) {
         bodyHtml = `<div class="rr-mc-deleted-body">Message deleted</div>`;
       } else if (m.body) {
-        bodyHtml = `<div>${linkifyEscaped(escapeHtml(m.body).replace(/\n/g, "<br>"))}</div>`;
+        // escape → linkify → markdown-lite (#10); mdLite only touches the
+        // text runs between tags, so anchors and entities are safe.
+        bodyHtml = `<div>${_mdLite(linkifyEscaped(escapeHtml(m.body).replace(/\n/g, "<br>")))}</div>`;
       }
       // Hover actions — only on the dispatcher's own non-deleted
       // bubbles within the 15-minute edit window.  Visual affordance
@@ -42468,7 +43276,9 @@ function _ccRenderBody(raw, mentioned) {
     html = html.split(nm).join(`<span class="rr-cc-mention">${nm}</span>`);
   });
   html = html.replace(/\n/g, "<br>");
-  return linkifyEscaped(html);
+  // escape → mentions → linkify → markdown-lite (#10); mdLite only touches
+  // text runs between tags, so mention spans and anchors survive.
+  return _mdLite(linkifyEscaped(html));
 }
 
 // Bookmark toggle button for a bubble (kind = 'driver' | 'channel').
@@ -42845,7 +43655,7 @@ async function refreshChannelThread(scrollToBottom) {
         </div>
         <div class="rr-cc-thread" id="rr-cc-thread" role="region" aria-label="Channel messages"></div>
         <form class="rr-cc-composer" id="rr-cc-form" style="${meta.archived_at ? "opacity:.5;pointer-events:none" : ""}">
-          <input type="file" id="rr-cc-file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" hidden>
+          <input type="file" id="rr-cc-file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" multiple hidden>
           <button type="button" id="rr-cc-attach" title="Attach photo or document" aria-label="Attach photo or document"
                   style="background:transparent;border:0;color:var(--text-muted);cursor:pointer;width:36px;height:36px;border-radius:var(--r-2xl);display:flex;align-items:center;justify-content:center">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
@@ -42868,8 +43678,14 @@ async function refreshChannelThread(scrollToBottom) {
       ta.scrollTop = ta.scrollHeight;
       if (typeof _syncComposerPos === "function") _syncComposerPos();
     });
+    // Composer enhancement layer (drafts, emoji, :shortcodes:, /templates,
+    // + menu) — wired BEFORE the Enter handler so popup state gates submit.
+    const _ccEnh = _mcEnhanceComposer({
+      form: document.getElementById("rr-cc-form"), ta, kind: "ch",
+      getTargetId: () => _msgChannelSelectedId,
+    });
     ta.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
+      if (_ccEnh && _ccEnh.enterShouldSend(e)) {
         // Don't submit while the @mention menu is open — let a pick happen.
         if (document.querySelector(".rr-cc-mention-menu")) return;
         e.preventDefault();
@@ -42888,9 +43704,11 @@ async function refreshChannelThread(scrollToBottom) {
 
     document.getElementById("rr-cc-form").addEventListener("submit", async (e) => {
       e.preventDefault();
-      const body = (ta.value || "").trim();
-      const file = window._rrCcPending;
-      if (!body && !file) return;
+      const sendChannelId = _msgChannelSelectedId;
+      const rawBody = (ta.value || "").trim();
+      const body = _mcApplyShortcodes(rawBody);
+      const staged = Array.isArray(window._rrCcPending) ? window._rrCcPending.slice() : [];
+      if (!body && !staged.length) return;
       const send = e.target.querySelector(".rr-cc-send");
       send.disabled = true;
 
@@ -42901,15 +43719,17 @@ async function refreshChannelThread(scrollToBottom) {
       const threadEl = document.getElementById("rr-cc-thread");
       const stubId = "rrcc-stub-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7);
       const stubAt = Date.now();
-      const stubBody = body ? `<div>${linkifyEscaped(escapeHtml(body).replace(/\n/g, "<br>"))}</div>` : "";
-      const stubAttach = file ? `<div style="font-size:var(--fs-xs);opacity:.85;margin-bottom:4px">📎 ${escapeHtml(file.name)} (uploading…)</div>` : "";
+      const stubBody = body ? `<div>${_mdLite(linkifyEscaped(escapeHtml(body).replace(/\n/g, "<br>")))}</div>` : "";
+      const stubAttach = staged.length
+        ? `<div style="font-size:var(--fs-xs);opacity:.85;margin-bottom:4px">📎 ${staged.length === 1 ? escapeHtml(staged[0].file.name) : staged.length + " attachments"} (uploading…)</div>`
+        : "";
       const nowTime = new Date().toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-      const stubHtml = `<div class="rr-cc-bubble dispatch pending" data-rr-cc-stub="${stubId}" data-rr-stub-body="${escapeHtml(_normStubBody(body))}" data-rr-stub-at="${stubAt}" data-rr-stub-attach="${file ? "1" : "0"}" data-group-pos="single">
+      const stubHtml = `<div class="rr-cc-bubble dispatch pending" data-rr-cc-stub="${stubId}" data-rr-stub-body="${escapeHtml(_normStubBody(body))}" data-rr-stub-at="${stubAt}" data-rr-stub-attach="${staged.length ? "1" : "0"}" data-group-pos="single">
         <div class="rr-cc-sender">Dispatch</div>
         ${stubAttach}${stubBody}
         <div class="rr-cc-time">${escapeHtml(nowTime)} · sending</div>
       </div>`;
-      const savedBody = body;
+      const savedBody = rawBody;
       if (threadEl) {
         threadEl.querySelector(".rr-cc-empty")?.remove();
         const ccSentinel = threadEl.querySelector("#rr-cc-bottom-sentinel");
@@ -42919,9 +43739,10 @@ async function refreshChannelThread(scrollToBottom) {
         threadEl.scrollTop = threadEl.scrollHeight;
       }
       ta.value = ""; ta.style.height = "auto";
-      if (file) attachCtl.clear();
+      _mcDraftClear("ch", sendChannelId);
+      if (staged.length) attachCtl.clear();
 
-      const _ccFail = (label) => {
+      const _ccFail = (label, restoreFiles) => {
         send.disabled = false;
         const stub = threadEl?.querySelector(`[data-rr-cc-stub="${stubId}"]`);
         if (stub) {
@@ -42930,54 +43751,82 @@ async function refreshChannelThread(scrollToBottom) {
           const timeEl = stub.querySelector(".rr-cc-time");
           if (timeEl) timeEl.textContent = label;
           stub.style.cursor = "pointer";
-          stub.title = file ? "Click to restore your message — re-attach the file and resend" : "Click to restore and retry";
-          stub.addEventListener("click", () => { ta.value = savedBody; ta.focus(); stub.remove(); }, { once: true });
+          stub.title = "Click to restore and retry";
+          stub.addEventListener("click", () => {
+            ta.value = savedBody;
+            ta.dispatchEvent(new Event("input", { bubbles: true }));
+            if (restoreFiles?.length && attachCtl.stage) attachCtl.stage(restoreFiles.map((s) => s.file));
+            ta.focus();
+            stub.remove();
+          }, { once: true });
         }
         ta.value = savedBody;
       };
 
-      let attachment = null;
-      if (file) {
-        const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80) || "file";
-        const dspId = window.RR?.dsp?.id || "unknown";
-        const path  = `${dspId}/channels/${_msgChannelSelectedId}/${Date.now()}-${safe}`;
-        const { error: upErr } = await sb.storage
-          .from("driver-chat-attachments").upload(path, file, { contentType: file.type, upsert: false });
-        if (upErr) {
-          _ccFail("upload failed · click to retry");
-          toast("Upload failed: " + upErr.message, "warn");
+      // ── Undo-send window (#6) — same contract as 1:1 chat.
+      const undoSecs = _mcUndoSecs();
+      if (undoSecs > 0) {
+        const undone = await _mcRunUndoWindow(undoSecs, stubId);
+        if (undone) {
+          threadEl?.querySelector(`[data-rr-cc-stub="${stubId}"]`)?.remove();
+          ta.value = savedBody;
+          ta.dispatchEvent(new Event("input", { bubbles: true }));
+          if (staged.length && attachCtl.stage) attachCtl.stage(staged.map((s) => s.file));
+          _mcDraftSave("ch", sendChannelId, savedBody);
+          send.disabled = false;
+          ta.focus();
           return;
         }
-        attachment = { path, mime: file.type, name: file.name, size: file.size };
       }
 
       // Resolve @mentions from the draft against the member roster before we
       // clear it, so we can attach them to the posted row.
-      const _mentionIds = _ccResolveMentions(savedBody);
-      const { data: postData, error } = await sb.rpc("dispatch_channel_post", {
-        p_channel_id:            _msgChannelSelectedId,
-        p_body:                  savedBody || null,
+      const _mentionIds = _ccResolveMentions(body);
+      const postOne = (msgBody, attachment) => sb.rpc("dispatch_channel_post", {
+        p_channel_id:            sendChannelId,
+        p_body:                  msgBody || null,
         p_attachment_path:       attachment?.path || null,
         p_attachment_mime:       attachment?.mime || null,
         p_attachment_name:       attachment?.name || null,
         p_attachment_size_bytes: attachment?.size || null,
       });
-      send.disabled = false;
-      if (error) {
-        // Roll back the just-uploaded blob so a failed post doesn't orphan it.
-        if (attachment?.path) {
-          try { await sb.storage.from("driver-chat-attachments").remove([attachment.path]); } catch (_) {}
+      // One post per attachment; the text body (and its mentions) rides the
+      // first post.
+      const uploads = staged.length ? staged : [null];
+      for (let fi = 0; fi < uploads.length; fi++) {
+        let attachment = null;
+        if (uploads[fi]) {
+          const f = await _mcMaybeCompressImage(uploads[fi].file, uploads[fi].hd);
+          const safe = f.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80) || "file";
+          const dspId = window.RR?.dsp?.id || "unknown";
+          const path  = `${dspId}/channels/${sendChannelId}/${Date.now()}-${fi}-${safe}`;
+          const { error: upErr } = await sb.storage
+            .from("driver-chat-attachments").upload(path, f, { contentType: f.type, upsert: false });
+          if (upErr) {
+            _ccFail("upload failed · click to retry", staged.slice(fi));
+            toast("Upload failed: " + upErr.message, "warn");
+            return;
+          }
+          attachment = { path, mime: f.type, name: f.name, size: f.size };
         }
-        _ccFail("post failed · click to retry");
-        toast("Couldn't post: " + error.message, "warn");
-        return;
+        const { data: postData, error } = await postOne(fi === 0 ? body : null, attachment);
+        if (error) {
+          // Roll back the just-uploaded blob so a failed post doesn't orphan it.
+          if (attachment?.path) {
+            try { await sb.storage.from("driver-chat-attachments").remove([attachment.path]); } catch (_) {}
+          }
+          _ccFail("post failed · click to retry", staged.slice(fi));
+          toast("Couldn't post: " + error.message, "warn");
+          return;
+        }
+        // Record @mentions on the freshly-posted message (best-effort — a
+        // missing RPC on an un-migrated server just no-ops).
+        if (fi === 0 && _mentionIds.length && postData?.id) {
+          sb.rpc("dispatch_channel_set_mentions", { p_message_id: postData.id, p_driver_ids: _mentionIds })
+            .then(undefined, () => {});
+        }
       }
-      // Record @mentions on the freshly-posted message (best-effort — a
-      // missing RPC on an un-migrated server just no-ops).
-      if (_mentionIds.length && postData?.id) {
-        sb.rpc("dispatch_channel_set_mentions", { p_message_id: postData.id, p_driver_ids: _mentionIds })
-          .then(undefined, () => {});
-      }
+      send.disabled = false;
       ta.value = ""; ta.style.height = "auto";
       // Composer is a regular grid child now — track sizing handles
       // the height shrink mechanically.  The call below is a no-op
