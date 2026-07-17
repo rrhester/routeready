@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────
--- Migration 0509 · Messages 100-list Batch 10 (admin, compliance,
+-- Migration 0511 · Messages 100-list Batch 10 (admin, compliance,
 -- integrations)
 --
 --   #93 retention + legal hold  → dsp_msg_settings.retention_days,
@@ -23,7 +23,7 @@ alter table public.dsp_msg_settings
 alter table public.driver_conversations
   add column if not exists legal_hold_at timestamptz;
 
--- Extend the settings RPC (drop the 0508 signature to avoid overloads).
+-- Extend the settings RPC (drop the 0510 signature to avoid overloads).
 drop function if exists public.dispatch_msg_settings_set(boolean, text);
 create or replace function public.dispatch_msg_settings_set(
   p_autoreply_enabled boolean default null,

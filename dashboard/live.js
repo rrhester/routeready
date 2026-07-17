@@ -40530,7 +40530,7 @@ new MutationObserver(() => {
 
 // ─── Thread prefs + list organization (Batch 3 · #28–34) ─────────────────
 // Per-operator archive / mute / snooze / mark-unread / labels, stored in
-// dispatch_thread_prefs (migration 0506) with a localStorage fallback so
+// dispatch_thread_prefs (migration 0508) with a localStorage fallback so
 // the features work (device-locally) before the migration is applied.
 let _mcThreadPrefs = new Map();   // driver_id → pref object
 let _mcPrefsServer = null;        // null unknown → probed on first load
@@ -40579,7 +40579,7 @@ async function _mcSetThreadPref(driverId, patch) {
     if (!_mcRpcMissing(error)) { toast("Couldn't save the change: " + (error.message || ""), "warn"); return; }
     _mcPrefsServer = false;
   }
-  // Device-local fallback until 0506 is applied.
+  // Device-local fallback until 0508 is applied.
   const all = _mcLocalPrefsRead();
   all[key] = cur;
   _mcLocalPrefsWrite(all);
@@ -40806,7 +40806,7 @@ function _mcOpenLabelEditor(driverId) {
 
 // ─── Notifications, presence & escalation (Batch 5 · #45–54) ─────────────
 // Operator-level prefs (quiet hours, keyword alerts, tones, presence)
-// from dispatch_operator_msg_prefs (0508), localStorage fallback before
+// from dispatch_operator_msg_prefs (0510), localStorage fallback before
 // the migration lands. The notify engine diffs unread counts on every
 // inbox refresh and fires tones + Web Notifications by the rules:
 // keyword hit > everything; muted/off threads stay silent; quiet hours
@@ -41053,7 +41053,7 @@ async function _mcOpenNotifySettings() {
       p_autoreply_enabled: arOn, p_autoreply_text: arText || null,
     }).then((r) => r, (e) => ({ error: e || {} }));
     if (arErr && !_mcRpcMissing(arErr)) toast("Auto-reply didn't save: " + (arErr.message || ""), "warn");
-    else if (arErr) toast("Auto-reply needs migration 0508 — other settings saved", "info");
+    else if (arErr) toast("Auto-reply needs migration 0510 — other settings saved", "info");
     else toast("Notification settings saved", "ok");
     close();
     _mcPaintPresenceChip();
@@ -41100,7 +41100,7 @@ function _mcPaintDigestBadge() {
 // ── Urgent escalation watch (#49) ──
 // Flags dispatch-sent urgent messages the driver hasn't read after 10
 // minutes: one-time tone + notification + an action toast offering an SMS
-// fallback (queued through the existing Twilio pipeline, 0508 RPC).
+// fallback (queued through the existing Twilio pipeline, 0510 RPC).
 function _mcEscSeen() {
   try { return new Set(JSON.parse(localStorage.getItem("rr_esc_seen") || "[]")); } catch { return new Set(); }
 }
@@ -41146,7 +41146,7 @@ async function _mcEscalationTick() {
           p_driver_id: m.driver_id,
           p_body: `URGENT from dispatch: ${String(m.body || "please check the RouteReady app").slice(0, 500)}`,
         }).then((r) => r, (e) => ({ error: e || {} }));
-        if (error) toast(_mcRpcMissing(error) ? "SMS fallback needs migration 0508" : ("SMS failed: " + (error.message || "")), "warn");
+        if (error) toast(_mcRpcMissing(error) ? "SMS fallback needs migration 0510" : ("SMS failed: " + (error.message || "")), "warn");
         else toast("SMS queued to " + name, "ok");
       },
     });
@@ -42433,7 +42433,7 @@ function _mcWireShortcodeSuggest(ta) {
 }
 
 // ── Message templates ──
-// Server-backed (dispatch_chat_templates, migration 0504) with a localStorage
+// Server-backed (dispatch_chat_templates, migration 0506) with a localStorage
 // fallback when the migration isn't applied yet. Built-ins always show.
 let _mcTemplates = null;         // cached merged list
 let _mcTemplatesServer = false;  // true once the RPC succeeded
@@ -42839,7 +42839,7 @@ function _mcOpenPlusMenu(anchor, { ta, kind, targetId }) {
         if (!ok) return;
         const { error } = await sb.rpc("dispatch_thread_legal_hold", { p_driver_id: driverId, p_on: !on })
           .then((r) => r, (e) => ({ error: e || {} }));
-        if (error) toast(_mcRpcMissing(error) ? "Legal hold unlocks once migration 0509 is applied" : ("Couldn't update: " + (error.message || "")), "warn");
+        if (error) toast(_mcRpcMissing(error) ? "Legal hold unlocks once migration 0511 is applied" : ("Couldn't update: " + (error.message || "")), "warn");
         else toast(on ? "Legal hold released" : "Legal hold placed", "ok");
       })();
       return;
@@ -43364,12 +43364,12 @@ async function refreshDriverChatThread(scrollToBottom) {
         };
         if (replyToId) params.p_reply_to = replyToId;
         let res = await sb.rpc("dispatch_chat_send", params);
-        // Pre-0505 servers don't know p_reply_to — retry as a plain send
+        // Pre-0507 servers don't know p_reply_to — retry as a plain send
         // rather than losing the message.
         if (res.error && replyToId && _mcRpcMissing(res.error)) {
           delete params.p_reply_to;
           res = await sb.rpc("dispatch_chat_send", params);
-          if (!res.error) toast("Sent — reply-quoting unlocks once migration 0505 is applied", "info");
+          if (!res.error) toast("Sent — reply-quoting unlocks once migration 0507 is applied", "info");
         }
         return res;
       };
@@ -43974,7 +43974,7 @@ async function refreshDriverChatThread(scrollToBottom) {
 // Multi-emoji reactions on the 1:1 chat, grouped per emoji under each
 // bubble (chips), with the 👍 bubble button kept as a quick-toggle.
 // Server: dispatch_chat_reactions_v2 / dispatch_message_react_emoji
-// (migration 0505), falling back to the 0389 single-👍 RPCs until the
+// (migration 0507), falling back to the 0389 single-👍 RPCs until the
 // migration is applied.
 let _mcLastMsgs = [];              // loaded window, for menus/quotes/media tab
 let _mcLastReadState = {};         // { peerReadAt, peerDeliveredAt }
@@ -44012,7 +44012,7 @@ async function _mcReact(messageId, emoji, on) {
     if (!_mcRpcMissing(error)) throw error;
     _mcReactV2 = false;
   }
-  if (emoji !== "👍") { toast("More reactions unlock once migration 0505 is applied — 👍 works today", "info"); return null; }
+  if (emoji !== "👍") { toast("More reactions unlock once migration 0507 is applied — 👍 works today", "info"); return null; }
   const { data, error } = await sb.rpc("dispatch_message_react", { p_message_id: messageId, p_on: on });
   if (error) throw error;
   return { message_id: messageId, emoji: "👍", count: data?.like_count || 0, mine: !!data?.liked_by_me };
@@ -44207,7 +44207,7 @@ async function _mcOpenEditHistory(anchor, messageId) {
   const bodyEl = pop.lastElementChild;
   if (!bodyEl || !pop.isConnected) return;
   if (error) {
-    bodyEl.textContent = _mcRpcMissing(error) ? "Edit history starts recording once migration 0505 is applied." : "Couldn't load history.";
+    bodyEl.textContent = _mcRpcMissing(error) ? "Edit history starts recording once migration 0507 is applied." : "Couldn't load history.";
     return;
   }
   const hist = data?.history || [];
@@ -44258,7 +44258,7 @@ function _mcOpenMoreMenu(anchor, messageId) {
       const { error } = await sb.rpc("dispatch_pin_message", { p_message_id: m.id, p_on: !pinned })
         .then((r) => r, (err) => ({ error: err }));
       if (error) {
-        toast(_mcRpcMissing(error) ? "Pinning unlocks once migration 0505 is applied" : ("Couldn't pin: " + (error.message || "")), "warn");
+        toast(_mcRpcMissing(error) ? "Pinning unlocks once migration 0507 is applied" : ("Couldn't pin: " + (error.message || "")), "warn");
         return;
       }
       toast(pinned ? "Unpinned" : "Pinned to the top of this conversation", "ok");
@@ -44917,7 +44917,7 @@ function _mcOpenEmailTranscript() {
     const { error } = await sb.rpc("dispatch_email_transcript", { p_driver_id: driverId, p_to_email: to })
       .then((r) => r, (e) => ({ error: e || {} }));
     if (error) {
-      toast(_mcRpcMissing(error) ? "Email transcripts unlock once migration 0509 is applied" : ("Couldn't queue the email: " + (error.message || "")), "warn");
+      toast(_mcRpcMissing(error) ? "Email transcripts unlock once migration 0511 is applied" : ("Couldn't queue the email: " + (error.message || "")), "warn");
       return;
     }
     toast("Transcript queued to " + to, "ok");
@@ -44970,7 +44970,7 @@ async function _mcOpenAdminPanel() {
   sb.rpc("dispatch_msg_audit", { p_limit: 100 }).then(({ data, error }) => {
     const el = ov.querySelector("[data-rr-ad-audit]");
     if (!el) return;
-    if (error) { el.textContent = _mcRpcMissing(error) ? "The audit log unlocks once migration 0509 is applied." : "Couldn't load."; return; }
+    if (error) { el.textContent = _mcRpcMissing(error) ? "The audit log unlocks once migration 0511 is applied." : "Couldn't load."; return; }
     const evs = data?.events || [];
     const lbl = { edit: "✏️ Edited", delete: "🗑️ Deleted", urgent: "🚨 Urgent" };
     el.innerHTML = evs.length ? evs.map((ev) => {
@@ -44982,7 +44982,7 @@ async function _mcOpenAdminPanel() {
     ev.target.disabled = true;
     const { data, error } = await sb.rpc("dispatch_run_retention").then((r) => r, (e) => ({ error: e || {} }));
     ev.target.disabled = false;
-    if (error) { toast(_mcRpcMissing(error) ? "Needs migration 0509" : ("Purge failed: " + (error.message || "")), "warn"); return; }
+    if (error) { toast(_mcRpcMissing(error) ? "Needs migration 0511" : ("Purge failed: " + (error.message || "")), "warn"); return; }
     toast(`Purge complete — ${data?.purged ?? 0} old message${(data?.purged ?? 0) === 1 ? "" : "s"} removed`, "ok");
   });
   ov.querySelector("[data-rr-ad-save]").addEventListener("click", async () => {
@@ -45001,7 +45001,7 @@ async function _mcOpenAdminPanel() {
       return;
     }
     if ((setErr && _mcRpcMissing(setErr)) || (hookErr && _mcRpcMissing(hookErr))) {
-      toast("These controls activate once migration 0509 is applied", "info");
+      toast("These controls activate once migration 0511 is applied", "info");
     } else {
       toast("Admin settings saved", "ok");
     }
@@ -45835,7 +45835,7 @@ function _ccOpenPollCreate(channelId) {
       p_closes_at: closesRaw ? new Date(closesRaw).toISOString() : null,
     }).then((r) => r, (err) => ({ error: err }));
     if (error) {
-      toast(_mcRpcMissing(error) ? "Polls unlock once migration 0507 is applied" : ("Couldn't create the poll: " + (error.message || "")), "warn");
+      toast(_mcRpcMissing(error) ? "Polls unlock once migration 0509 is applied" : ("Couldn't create the poll: " + (error.message || "")), "warn");
       return;
     }
     close();
@@ -46024,7 +46024,7 @@ async function _ccOpenRoomInfo(channelId) {
       p_channel_id: channelId, p_description: desc, p_announcement_only: ann,
     }).then((r) => r, (err) => ({ error: err }));
     if (error) {
-      toast(_mcRpcMissing(error) ? "Room settings unlock once migration 0507 is applied" : ("Couldn't save: " + (error.message || "")), "warn");
+      toast(_mcRpcMissing(error) ? "Room settings unlock once migration 0509 is applied" : ("Couldn't save: " + (error.message || "")), "warn");
       return;
     }
     toast("Room updated", "ok");
@@ -47445,13 +47445,13 @@ async function refreshChannelThread(scrollToBottom) {
         if (replyToId) params.p_reply_to = replyToId;
         if (reqAck) params.p_requires_ack = true;
         let res = await sb.rpc("dispatch_channel_post", params);
-        // Pre-0507 servers don't know the new params — retry plain rather
+        // Pre-0509 servers don't know the new params — retry plain rather
         // than losing the post.
         if (res.error && (replyToId || reqAck) && _mcRpcMissing(res.error)) {
           delete params.p_reply_to;
           delete params.p_requires_ack;
           res = await sb.rpc("dispatch_channel_post", params);
-          if (!res.error) toast("Posted — threads & acknowledgements unlock once migration 0507 is applied", "info");
+          if (!res.error) toast("Posted — threads & acknowledgements unlock once migration 0509 is applied", "info");
         }
         return res;
       };
@@ -47806,7 +47806,7 @@ function openChannelCreateModal() {
     const { data, error } = await sb.rpc("dispatch_channel_create", params);
     if (error) { toast("Create failed: " + error.message, "warn"); return; }
     // Announcement-only (#36) is set post-create via the update RPC so
-    // creation still works against pre-0507 servers.
+    // creation still works against pre-0509 servers.
     if (data?.id && document.getElementById("rr-cc-new-ann")?.checked) {
       await sb.rpc("dispatch_channel_update", { p_channel_id: data.id, p_announcement_only: true })
         .then((r) => r, () => ({}));

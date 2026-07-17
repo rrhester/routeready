@@ -151,8 +151,8 @@ batches (one commit each), branch `claude/message-tool-improvements-nzuo5s`.
 Pure logic lives in `msg-core.mjs` (tested via `scripts/test-msg-core.mjs`
 in `npm test`). New edge functions: `link-preview` (unfurls, SSRF-
 constrained); `notebook-ai` gained translate/chat_suggest_replies/
-chat_summarize/chat_tone actions. Migrations **0504–0509** (renumbered
-after main took 0503): templates, replies/reactions/pins/edit-history,
+chat_summarize/chat_tone actions. Migrations **0506–0511** (renumbered
+twice after parallel sessions took 0503–0505): templates, replies/reactions/pins/edit-history,
 thread prefs, channel upgrades (announcement-only/acks/polls/recurrence),
 notifications (operator prefs/SMS fallback/auto-reply), admin (retention/
 legal hold/audit/SMS bridge/email transcript/webhooks). Everything

@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────
--- Migration 0508 · Messages 100-list Batch 5 (notifications & escalation)
+-- Migration 0510 · Messages 100-list Batch 5 (notifications & escalation)
 --
 --   #45 per-thread notification level → dispatch_thread_prefs.notify_level
 --   #46/#48/#51/#53 operator prefs    → dispatch_operator_msg_prefs
