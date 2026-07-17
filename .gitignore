@@ -31,3 +31,6 @@ test-results/
 .env
 .env.*
 !.env.example
+
+# Booking e2e: locally built supabase-js bundle (rebuilt in CI)
+tests/booking-e2e/.supabase-esm.js

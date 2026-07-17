@@ -213,6 +213,8 @@ const I18N = {
     tooLate: "It's too close to your interview to change it online — please reply to the email or text we sent you.",
     reschedLimit: "This booking can't be changed online anymore — please reply to the email or text we sent you and we'll find a time together.",
     recommended: "Recommended — keeps the team's day tight",
+    rateLimited: "Too many attempts — please wait a few minutes and try again.",
+    captchaNeeded: "Please complete the security check and try again.",
   },
   es: {
     pick: "Elige una hora para tu cita", minApts: "min por cita",
@@ -241,6 +243,8 @@ const I18N = {
     tooLate: "Falta muy poco para tu entrevista para cambiarla en línea — responde al correo o mensaje que te enviamos.",
     reschedLimit: "Esta reserva ya no se puede cambiar en línea — responde al correo o mensaje que te enviamos y buscamos una hora juntos.",
     recommended: "Recomendado — mantiene el día del equipo compacto",
+    rateLimited: "Demasiados intentos — espera unos minutos e inténtalo de nuevo.",
+    captchaNeeded: "Completa la verificación de seguridad e inténtalo de nuevo.",
   },
 };
 let LANG = (() => {
@@ -310,6 +314,8 @@ function bookErrorCopy(raw) {
   if (s.includes("day_full")) return T("dayFull");
   if (s.includes("too_late_to_cancel")) return T("tooLate");
   if (s.includes("reschedule_limit")) return T("reschedLimit");
+  if (s.includes("rate_limited")) return T("rateLimited");
+  if (s.includes("captcha")) return T("captchaNeeded");
   if (s.includes("no_phone")) return "We don't have a phone number on file — reply to the email we sent you instead.";
   if (s.includes("failed to fetch") || s.includes("network")) return "Network hiccup — check your connection and try that time again.";
   return "Couldn't book that time — please pick another.";
@@ -369,6 +375,25 @@ let VERIFY_REQ = false;  // the chosen option requires an SMS code
 let PHONE_HINT = "";     // last 2 digits of the phone the code goes to
 let VERIFY_SENT = false; // a code has been requested this session
 let INFO = null;         // booking_load payload
+// CAPTCHA (0498, config-gated): sitekey arrives via booking_load only when
+// some offered schedule requires it AND Turnstile is configured server-side.
+let CAPTCHA_REQ = false;
+let CAPTCHA_SITEKEY = null;
+let CAPTCHA_WIDGET = null;
+let _tsLoading = null;
+function loadTurnstile() {
+  if (window.turnstile) return Promise.resolve();
+  if (_tsLoading) return _tsLoading;
+  _tsLoading = new Promise((res, rej) => {
+    const s = document.createElement("script");
+    s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+    s.async = true;
+    s.onload = () => res();
+    s.onerror = () => { _tsLoading = null; rej(new Error("captcha_load_failed")); };
+    document.head.appendChild(s);
+  });
+  return _tsLoading;
+}
 
 async function init() {
   if (!PREVIEW && !token) return showError("This scheduling link looks invalid. Please use the link we sent you.");
@@ -407,6 +432,8 @@ async function init() {
   ARRIVAL = (activeOpt && activeOpt.arrival_notes) || info.arrival_notes || "";
   VERIFY_REQ = !!((activeOpt && activeOpt.require_phone_verify) ?? info.require_phone_verify);
   PHONE_HINT = info.phone_hint || "";
+  CAPTCHA_SITEKEY = info.captcha_sitekey || null;
+  CAPTCHA_REQ = !!(activeOpt && activeOpt.require_captcha) && !!CAPTCHA_SITEKEY;
   // DSP branding: accent color + welcome message + logo.
   const br = info.branding || {};
   if (br.accent && /^#[0-9a-fA-F]{6}$/.test(br.accent)) {
@@ -526,6 +553,8 @@ async function selectOption(btn) {
   ARRIVAL = opt.arrival_notes || "";
   VERIFY_REQ = !!opt.require_phone_verify;
   VERIFY_SENT = false;
+  CAPTCHA_REQ = !!opt.require_captcha && !!CAPTCHA_SITEKEY;
+  CAPTCHA_WIDGET = null;
   document.querySelectorAll("[data-opt]").forEach(x => x.classList.toggle("sel", x === btn));
   document.getElementById("host-title").textContent = opt.name || document.getElementById("host-title").textContent;
   const mrow = document.querySelector("#host-meta .host-mrow span");
@@ -826,6 +855,8 @@ function renderConfirm() {
       <div id="vnote" style="font-size:12px;color:var(--muted)">${VERIFY_SENT && PHONE_HINT ? esc(T("verifySent") + " " + PHONE_HINT) : ""}</div>
     </div>` : "";
   const arriveBlock = ARRIVAL ? `<div class="arrive"><strong>${esc(T("arriveTitle"))}</strong>${esc(ARRIVAL)}</div>` : "";
+  // Config-gated Turnstile (0498) — rendered explicitly after the DOM lands.
+  const captcha = CAPTCHA_REQ ? `<div class="iq" style="margin-top:16px"><div id="cx-captcha"></div></div>` : "";
   host.innerHTML = `<div class="confirm">
     ${who}
     <div class="cw-when">${esc(fmtDay(PENDING.start))}</div>
@@ -834,6 +865,7 @@ function renderConfirm() {
     <div class="cw-row">${tzIco}<span>${esc(tzPretty(DISPTZ))}</span></div>
     ${qs}
     ${verify}
+    ${captcha}
     ${arriveBlock}
     <div class="cbtns">
       <button class="btn" data-cx="back">${esc(T("back"))}</button>
@@ -843,6 +875,19 @@ function renderConfirm() {
   </div>`;
   host.querySelector('[data-cx="back"]').addEventListener("click", () => { PENDING = null; renderBooking(); });
   host.querySelector('[data-cx="confirm"]').addEventListener("click", () => doBook(host.querySelector('[data-cx="confirm"]')));
+  if (CAPTCHA_REQ) {
+    CAPTCHA_WIDGET = null;
+    loadTurnstile().then(() => {
+      const box = document.getElementById("cx-captcha");
+      if (box && window.turnstile) {
+        CAPTCHA_WIDGET = window.turnstile.render(box, { sitekey: CAPTCHA_SITEKEY, language: LANG });
+        postHeight();
+      }
+    }).catch(() => {
+      const errEl = document.getElementById("confirm-err");
+      if (errEl) errEl.textContent = LANG === "es" ? "No se pudo cargar la verificación de seguridad — recarga la página." : "Couldn't load the security check — please reload the page.";
+    });
+  }
   host.querySelector('[data-cx="sendcode"]')?.addEventListener("click", async (e) => {
     e.target.disabled = true;
     const note = document.getElementById("vnote");
@@ -889,10 +934,25 @@ async function doBook(confirmBtn) {
     if (SCHED) extArgs.p_schedule_id = SCHED;
     if (Object.keys(answers).length) extArgs.p_answers = answers;
     if (VERIFY_REQ && vcode.trim()) extArgs.p_verify_code = vcode.trim();
+    // CAPTCHA (0498): trade the Turnstile token for the signed proof the
+    // booking RPC demands. A required CAPTCHA is never silently dropped.
+    if (CAPTCHA_REQ) {
+      const tsToken = (window.turnstile && CAPTCHA_WIDGET != null) ? window.turnstile.getResponse(CAPTCHA_WIDGET) : "";
+      if (!tsToken) {
+        if (errEl) errEl.textContent = LANG === "es" ? "Completa la verificación de seguridad." : "Please complete the security check.";
+        confirmBtn.disabled = false; confirmBtn.textContent = T("confirm");
+        return;
+      }
+      const cv = await sb.functions.invoke("booking-captcha", { body: { token, captcha_token: tsToken } });
+      if (cv.error || !cv.data || !cv.data.proof) {
+        throw new Error((cv.data && cv.data.error) || "captcha_failed");
+      }
+      extArgs.p_captcha = cv.data.proof;
+    }
     let r = await sb.rpc("book_interview_slot", extArgs);
     // Pre-0493 fallback: retry bare when the widened signature isn't there —
-    // but never silently drop a REQUIRED verification or schedule choice.
-    if (r.error && Object.keys(extArgs).length > 3 && !SCHED && !VERIFY_REQ
+    // but never silently drop a REQUIRED verification, CAPTCHA or schedule choice.
+    if (r.error && Object.keys(extArgs).length > 3 && !SCHED && !VERIFY_REQ && !CAPTCHA_REQ
         && /book_interview_slot|schema cache|PGRST202/i.test(String(r.error.message || ""))) {
       r = await sb.rpc("book_interview_slot", baseArgs);
     }

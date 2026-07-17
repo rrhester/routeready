@@ -12,6 +12,7 @@ import { planScheduleWeek } from "./scheduling-engine.js?v=b2ebeec00db5";
 import { assessPlan as rrAssessLaborPlan, driversNeeded as rrDriversNeeded, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=b2ebeec00db5";
 import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=b2ebeec00db5";
 import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=b2ebeec00db5";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=b2ebeec00db5";
 import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=b2ebeec00db5";
 import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=b2ebeec00db5";
 
@@ -26342,7 +26343,7 @@ async function loadIvCalendar() {
       sb.rpc("interview_availability_get"),
       sb.rpc("interview_sessions_list"),
       sb.from("cal_events")
-        .select("id, applicant_id, kind, status, starts_at, ends_at, meeting_url, location, interview_session_id, title, metadata, rsvp, rsvp_token, calendar_id, google_sync_status, series_id, series_exception, created_by, applicants:applicant_id (full_name, email, phone, screening_completed_at)")
+        .select("id, applicant_id, kind, status, starts_at, ends_at, updated_at, meeting_url, location, interview_session_id, title, metadata, rsvp, rsvp_token, calendar_id, google_sync_status, ms_sync_status, series_id, series_exception, created_by, applicants:applicant_id (full_name, email, phone, screening_completed_at)")
         .eq("dsp_id", window.RR.dsp.id)
         .in("status", ["scheduled", "rescheduled"])
         // Lower bound is critical: without it, ascending order + limit(500)
@@ -26383,7 +26384,7 @@ async function loadIvCalendar() {
       // Pre-0431 fallback: series columns may not exist yet — retry with the
       // previous column set so nothing else degrades.
       const b1 = await sb.from("cal_events")
-        .select("id, applicant_id, kind, status, starts_at, ends_at, meeting_url, location, interview_session_id, title, metadata, rsvp, rsvp_token, calendar_id, google_sync_status, created_by, applicants:applicant_id (full_name, email, phone, screening_completed_at)")
+        .select("id, applicant_id, kind, status, starts_at, ends_at, updated_at, meeting_url, location, interview_session_id, title, metadata, rsvp, rsvp_token, calendar_id, google_sync_status, created_by, applicants:applicant_id (full_name, email, phone, screening_completed_at)")
         .eq("dsp_id", window.RR.dsp.id)
         .in("status", ["scheduled", "rescheduled"])
         .gte("starts_at", _ivcalQueryFloorISO())
@@ -26428,6 +26429,7 @@ async function loadIvCalendar() {
       // refetch; _ivcalEnsureGoogle refetches only when the window/toggle changes.
       googleEvents: (_ivcalCache && _ivcalCache.googleEvents) || [],
     };
+    _ivcalDayWinMemo.clear();   // windows/overrides may have changed (#93)
   } catch (e) {
     if (firstLoad) host.innerHTML = `<div class="rr-iv-err">Couldn't load calendar: ${escapeHtml(e.message || String(e))}</div>`;
     else toast("Couldn't refresh calendar: " + (e.message || e), "warn");
@@ -26436,8 +26438,90 @@ async function loadIvCalendar() {
   _ivcalRender();
   // A ?ev= deep link opens that event once its row is actually in the cache.
   _ivcalTryOpenPending();
+  _ivcalSchemaProbe();
+  _ivcalEnsureRealtime();
 }
 window.loadIvCalendar = loadIvCalendar;
+
+// Realtime in-place patching (#91): once cal_events is in the realtime
+// publication (migration 0499), a colleague's booking/cancel/move lands on
+// this calendar within ~1s — merged into the cache row-by-row instead of a
+// full reload. Our own optimistic writes echo back identical, and the
+// render-diff guard (#92) turns those repaints into no-ops. If the
+// publication (or the websocket, e.g. behind a proxy) isn't available the
+// subscribe fails quietly and manual refresh behavior is unchanged.
+let _ivcalRtChannel = null;
+function _ivcalEnsureRealtime() {
+  if (_ivcalRtChannel) return;
+  const dsp = window.RR && window.RR.dsp && window.RR.dsp.id;
+  if (!dsp) return;
+  try {
+    _ivcalRtChannel = sb.channel("rr-ivcal-rt")
+      .on("postgres_changes",
+        { event: "*", schema: "public", table: "cal_events", filter: `dsp_id=eq.${dsp}` },
+        _ivcalRtEvent)
+      .subscribe();
+  } catch (_) { _ivcalRtChannel = null; }
+}
+let _ivcalRtColsSel = "id, applicant_id, kind, status, starts_at, ends_at, updated_at, meeting_url, location, interview_session_id, title, metadata, rsvp, rsvp_token, calendar_id, google_sync_status, series_id, series_exception, created_by, applicants:applicant_id (full_name, email, phone, screening_completed_at)";
+function _ivcalRtEvent(payload) {
+  if (!_ivcalCache || !Array.isArray(_ivcalCache.bookings)) return;
+  const list = _ivcalCache.bookings;
+  const type = payload.eventType || payload.event;
+  if (type === "DELETE") {
+    const oldId = payload.old && payload.old.id;
+    const i = oldId ? list.findIndex(b => b.id === oldId) : -1;
+    if (i >= 0) { list.splice(i, 1); _ivcalRender(); }
+    return;
+  }
+  const row = payload.new;
+  if (!row || !row.id) return;
+  const i = list.findIndex(b => b.id === row.id);
+  if (i >= 0) {
+    // Merge over the cached row — the payload has no joins, so the embedded
+    // applicant record is kept from the cache.
+    list[i] = { ...list[i], ...row };
+    _ivcalRender();
+  } else if (type === "INSERT") {
+    // New row (a candidate just booked, a colleague created an event):
+    // fetch it once WITH the applicant join, then splice it in.
+    sb.from("cal_events").select(_ivcalRtColsSel).eq("id", row.id).maybeSingle()
+      .then(({ data }) => {
+        if (!data || !_ivcalCache || _ivcalCache.bookings.some(b => b.id === data.id)) return;
+        _ivcalCache.bookings.push(data);
+        _ivcalRender();
+      }, () => {});
+  }
+}
+
+// One probe replacing scattered per-feature fallback discovery (#87): tell
+// the operator ONCE per session when calendar migrations are behind, with
+// the number to apply through. Individual dialogs keep their specific
+// fallback copy; this makes the gap visible before a feature is touched.
+let _ivcalSchemaProbed = false;
+const _IVCAL_SCHEMA_EXPECTED = 498;
+async function _ivcalSchemaProbe() {
+  if (_ivcalSchemaProbed) return;
+  _ivcalSchemaProbed = true;
+  try { if (sessionStorage.getItem("rr_ivcal_schema_dismissed")) return; } catch (_) {}
+  let ver = 0;
+  try {
+    const { data, error } = await sb.rpc("calendar_schema_version");
+    if (!error && typeof data === "number") ver = data;
+  } catch (_) {}
+  if (ver >= _IVCAL_SCHEMA_EXPECTED) return;
+  const host = document.getElementById("rr-ivcal");
+  if (!host || document.getElementById("rr-ivcal-schemanote")) return;
+  const note = document.createElement("div");
+  note.id = "rr-ivcal-schemanote";
+  note.className = "oc-schema-note";
+  note.innerHTML = `<span>Some newer calendar features need database migrations you haven't applied yet — run the SQL through <strong>0${_IVCAL_SCHEMA_EXPECTED}</strong> in the Supabase SQL Editor.</span><button type="button" aria-label="Dismiss">×</button>`;
+  note.querySelector("button").onclick = () => {
+    note.remove();
+    try { sessionStorage.setItem("rr_ivcal_schema_dismissed", "1"); } catch (_) {}
+  };
+  host.insertAdjacentElement("beforebegin", note);
+}
 
 function _ivcalWeekStart(d) { const x = new Date(d); x.setHours(0,0,0,0); const off = _ivWeekStartMon ? ((x.getDay()+6)%7) : x.getDay(); x.setDate(x.getDate() - off); return x; }
 function _ivcalISODate(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
@@ -26666,6 +26750,7 @@ let _ivcalLastPaintSig = null;
 // back where you were, instead of re-running the auto-scroll.
 const _ivcalScrollMem = {};
 let _ivcalLastRenderView = null;
+let _ivcalLastHtml = "";   // render-diff guard state (#92)
 function _ivcalRender() {
   if (_ivcalRenderedThisFrame) {
     if (!_ivcalRenderPending) {
@@ -26720,7 +26805,7 @@ function _ivcalRenderNow() {
           <button class="oc-btn oc-ico oc-search-btn" data-ivcal-search title="Search events (/)" aria-label="Search events"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
           <button class="oc-btn oc-ico" data-ivcal-settings title="Calendar settings" aria-label="Calendar settings"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
         </div>`;
-  host.innerHTML = `
+  const _fullHtml = `
     <div class="oc${_ivcalSideOpen ? "" : " oc-side-closed"}">
       ${_ivcalSideOpen ? `<div class="oc-side">
         <button class="oc-side-x" data-ivcal-side title="Hide calendar panel" aria-label="Hide calendar panel">«</button>
@@ -26735,6 +26820,13 @@ function _ivcalRenderNow() {
       </div>
       ${pane}
     </div>`;
+  // Render-diff guard (#92): when a repaint would produce byte-identical
+  // markup (realtime echo of our own optimistic write, redundant render
+  // calls), keep the existing DOM — its handlers stay wired, and we skip
+  // the innerHTML teardown, layout thrash, and focus/scroll loss entirely.
+  if (_hadOc && _fullHtml === _ivcalLastHtml) return;
+  _ivcalLastHtml = _fullHtml;
+  host.innerHTML = _fullHtml;
 
   // Arrive-animation gate (see _ivcalLastPaintSig): a repaint of the same
   // view + period over an existing grid is an in-place refresh — suppress the
@@ -29000,8 +29092,17 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
           if (calVal || ev0.calendar_id) patch.calendar_id = calVal;
         }
         try {
-          const { error } = await sb.from("cal_events").update(patch).eq("id", editEv.id);
+          // Concurrent-edit guard (#84): refuse if a colleague changed the
+          // event while the composer was open, instead of clobbering them.
+          let updQ = sb.from("cal_events").update(patch).eq("id", editEv.id);
+          if (ev0.updated_at) updQ = updQ.eq("updated_at", ev0.updated_at);
+          const { data: updRows, error } = await updQ.select("id");
           if (error) throw error;
+          if (ev0.updated_at && (!updRows || !updRows.length)) {
+            toast("Someone else edited this event while you had it open — refreshing. Re-apply your change.", "warn");
+            closeEditor(); loadIvCalendar();
+            return;
+          }
           // Vehicle reservation follows the event (fleet calendar, #1).
           const vr = await _neSaveVehicle(editEv.id, title, sdate, stime, etime);
           if (vr) {
@@ -29500,17 +29601,10 @@ function _ivcalEventBlock(ev, type, lay, conflict) {
 
 // Side-by-side column layout: when timed events overlap, split the column so
 // they sit next to each other instead of stacking on top of one another.
-// _ivcalLayStyle turns an assigned {lx,lw} (left %, width %) into inline CSS.
-function _ivcalLayStyle(lay) {
-  if (!lay) return "";
-  // Lay columns out within (column width − G) so a clickable grid strip stays
-  // on the right (same as single events' right:16px), keeping double-click-to-
-  // create available even when the row is full of side-by-side events.
-  const G = 16;
-  const lpx = (lay.lx * G / 100).toFixed(2);
-  const wpx = (lay.lw * G / 100 + 2).toFixed(2); // +2 = gap between events
-  return `;left:calc(${lay.lx}% - ${lpx}px + 1px);width:calc(${lay.lw}% - ${wpx}px);right:auto`;
-}
+// Overlap layout lives in ivcal-layout.js (unit-tested, #90) — thin
+// delegates keep every call site unchanged.
+function _ivcalLayStyle(lay) { return _layStyleCore(lay); }
+function _ivcalLayoutDay(items) { return _layoutDayCore(items); }
 function _ivcalMinSpan(startsAt, endsAt) {
   const s = new Date(startsAt);
   const e = endsAt ? new Date(endsAt) : new Date(s.getTime() + 30 * 60000);
@@ -29518,32 +29612,6 @@ function _ivcalMinSpan(startsAt, endsAt) {
   let em = e.getHours() * 60 + e.getMinutes();
   if (em <= sm) em = sm + 30; // min duration / guards against day-spanning ends
   return { sm, em };
-}
-// Greedy interval-graph coloring within each overlap cluster; assigns each
-// item _lx (left %) and _lw (width %). Items carry _sm/_em (start/end minutes).
-function _ivcalLayoutDay(items) {
-  if (!items.length) return;
-  items.sort((a, b) => a._sm - b._sm || b._em - a._em);
-  let cluster = [], clusterEnd = -1;
-  const flush = () => {
-    if (!cluster.length) return;
-    const colEnds = [];
-    for (const it of cluster) {
-      let col = -1;
-      for (let c = 0; c < colEnds.length; c++) { if (colEnds[c] <= it._sm) { colEnds[c] = it._em; col = c; break; } }
-      if (col === -1) { col = colEnds.length; colEnds.push(it._em); }
-      it._col = col;
-    }
-    const n = colEnds.length, w = 100 / n;
-    for (const it of cluster) { it._lw = w; it._lx = it._col * w; }
-    cluster = []; clusterEnd = -1;
-  };
-  for (const it of items) {
-    if (clusterEnd >= 0 && it._sm >= clusterEnd) flush();
-    cluster.push(it);
-    clusterEnd = clusterEnd < 0 ? it._em : Math.max(clusterEnd, it._em);
-  }
-  flush();
 }
 
 // Live "current time" indicator · keep the red now-line + timestamp moving
@@ -29652,9 +29720,18 @@ function _ivcalTzAbbr(tz, when) {
 // layered over the weekly schedule exactly like the server's slot
 // generation (0407). Pure math lives in ivcal-slots.js (unit-tested);
 // this just feeds it the cache.
+// Availability-window memo (#93): _ivcalDayWindows runs per day per render
+// (headers, shading, capacity meters — the month view alone asks 42×).
+// Windows/overrides only change through loadIvCalendar, which clears this.
+const _ivcalDayWinMemo = new Map();
 function _ivcalDayWindows(d) {
-  return _slotEffectiveWindows(_ivcalISODate(d), d.getDay(),
+  const iso = _ivcalISODate(d);
+  const hit = _ivcalDayWinMemo.get(iso);
+  if (hit) return hit;
+  const w = _slotEffectiveWindows(iso, d.getDay(),
     (_ivcalCache && _ivcalCache.windows) || [], (_ivcalCache && _ivcalCache.overrides) || []);
+  _ivcalDayWinMemo.set(iso, w);
+  return w;
 }
 function _ivcalTimeGrid(ndays) {
   let startDay;
@@ -30332,6 +30409,117 @@ async function _ivcalOpenApplicant(id) {
 function _ivcalCloseMenus() {
   document.querySelectorAll(".oc-menu,.oc-hover,.oc-quick").forEach(el => el.remove());
 }
+// Booking-link control (#89): copy the applicant's stable /b/ link, or
+// regenerate it — killing any leaked/forwarded copy instantly.
+async function _ivcalBookingLink(applicantId, reset) {
+  if (!applicantId) return;
+  if (reset && !(await _rrConfirmDialog({
+    title: "Reset this booking link?",
+    body: "The link the candidate already has stops working immediately; you'll need to send them the new one.",
+    confirmLabel: "Reset link", danger: true,
+  }))) return;
+  try {
+    // Copy rides 0401's booking_link_get (never rotates); reset is 0498's.
+    const { data, error } = await sb.rpc(reset ? "booking_link_reset" : "booking_link_get", { p_id: applicantId });
+    if (error) throw error;
+    const link = (data && data.link) || "";
+    if (!link) throw new Error("no_link");
+    try { await navigator.clipboard.writeText(link); toast(reset ? "New booking link copied — the old one is dead" : "Booking link copied", "success"); }
+    catch (_) { prompt(reset ? "New booking link (old one is dead):" : "Booking link:", link); }
+  } catch (e) {
+    const msg = String((e && e.message) || e);
+    toast(/booking_link_reset|schema cache|PGRST202/i.test(msg)
+      ? "Resetting booking links needs the latest Supabase migration (0498)."
+      : "Couldn't get the link: " + msg, "warn");
+  }
+}
+
+// Per-event history (#83) — the audit trail the 0498 trigger writes.
+async function _ivcalHistoryDialog(eventId) {
+  document.getElementById("rr-ivcal-hist")?.remove();
+  const back = document.createElement("div");
+  back.id = "rr-ivcal-hist";
+  back.className = "oc-modal-back";
+  back.innerHTML = `<div class="oc-jump" role="dialog" aria-modal="true" aria-label="Event history" style="min-width:360px;max-width:520px">
+    <div class="oc-jump-h">History</div>
+    <div id="rr-hist-list" style="display:flex;flex-direction:column;gap:8px;max-height:340px;overflow-y:auto;font-size:var(--fs-sm)">Loading…</div>
+    <div class="oc-jump-f"><button type="button" class="oc-btn" data-hist-close>Close</button></div>
+  </div>`;
+  document.body.appendChild(back);
+  back.addEventListener("click", (e) => { if (e.target === back || e.target.closest("[data-hist-close]")) back.remove(); });
+  const listEl = back.querySelector("#rr-hist-list");
+  try {
+    const { data, error } = await sb.rpc("calendar_event_audit", { p_event_id: eventId });
+    if (error) throw error;
+    const rows = data || [];
+    const word = (a) => ({
+      created: "Created", time_changed: "Time changed", status_changed: "Status changed",
+      details_changed: "Details changed", candidate_confirmed: "Candidate confirmed", running_late: "Running late",
+    }[a] || a);
+    const fmtT = (iso) => new Date(iso).toLocaleString(_ivDLocale(), { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+    listEl.innerHTML = rows.length ? rows.map(r => {
+      let extra = "";
+      if (r.detail && r.detail.to && r.detail.to.starts_at) extra = ` → ${escapeHtml(fmtT(r.detail.to.starts_at))}`;
+      else if (r.detail && r.detail.status_to) extra = ` → ${escapeHtml(r.detail.status_to)}`;
+      return `<div style="display:flex;gap:10px;align-items:baseline"><span style="color:var(--text-subtle);white-space:nowrap;font-size:var(--fs-xs)">${escapeHtml(fmtT(r.at))}</span><span><strong>${escapeHtml(word(r.action))}</strong>${extra} <span style="color:var(--text-subtle)">· ${escapeHtml(r.actor_name || "")}</span></span></div>`;
+    }).join("") : `<span style="color:var(--text-subtle)">No history yet — changes are recorded from migration 0498 onward.</span>`;
+  } catch (e) {
+    const msg = String((e && e.message) || e);
+    listEl.innerHTML = `<span class="rr-iv-err">${escapeHtml(/calendar_event_audit|schema cache|PGRST202/i.test(msg)
+      ? "Event history needs the latest Supabase migration (0498)."
+      : "Couldn't load history: " + msg)}</span>`;
+  }
+}
+
+// Trash (#82): recently cancelled events with one-click restore. Every
+// calendar "delete" is already a soft cancel, so this is the recovery path.
+async function _ivcalTrashDialog() {
+  document.getElementById("rr-ivcal-trashd")?.remove();
+  const back = document.createElement("div");
+  back.id = "rr-ivcal-trashd";
+  back.className = "oc-modal-back";
+  back.innerHTML = `<div class="oc-jump" role="dialog" aria-modal="true" aria-label="Trash" style="min-width:420px;max-width:560px">
+    <div class="oc-jump-h">Trash — recently cancelled</div>
+    <p style="font-size:var(--fs-sm);color:var(--text-muted);margin:0 0 10px">Events cancelled in the last 30 days. Restoring puts one back on the calendar as scheduled (no emails are sent).</p>
+    <div id="rr-trash-list" style="display:flex;flex-direction:column;gap:6px;max-height:340px;overflow-y:auto;font-size:var(--fs-sm)">Loading…</div>
+    <div class="oc-jump-f"><button type="button" class="oc-btn" data-trash-close>Close</button></div>
+  </div>`;
+  document.body.appendChild(back);
+  back.addEventListener("click", (e) => { if (e.target === back || e.target.closest("[data-trash-close]")) back.remove(); });
+  const listEl = back.querySelector("#rr-trash-list");
+  async function paint() {
+    try {
+      const { data, error } = await sb.from("cal_events")
+        .select("id, kind, starts_at, title, updated_at, applicants:applicant_id (full_name)")
+        .eq("status", "cancelled")
+        .gte("updated_at", new Date(Date.now() - 30 * 864e5).toISOString())
+        .order("updated_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      const rows = data || [];
+      const fmtT = (iso) => new Date(iso).toLocaleString(_ivDLocale(), { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+      listEl.innerHTML = rows.length ? rows.map(r => {
+        const name = r.kind === "event"
+          ? ((r.title || "").trim() || "Event")
+          : `${r.kind === "orientation" ? "Orientation" : "Interview"} · ${(r.applicants && r.applicants.full_name) || "Applicant"}`;
+        return `<div style="display:flex;align-items:center;gap:8px"><span style="flex:1"><strong>${escapeHtml(name)}</strong><br><span style="color:var(--text-subtle);font-size:var(--fs-xs)">${escapeHtml(fmtT(r.starts_at))}</span></span><button type="button" class="oc-btn" data-trash-restore="${escapeHtml(r.id)}" style="font-size:var(--fs-xs);padding:4px 10px">Restore</button></div>`;
+      }).join("") : `<span style="color:var(--text-subtle)">Nothing in the trash.</span>`;
+      listEl.querySelectorAll("[data-trash-restore]").forEach(b => b.onclick = async () => {
+        b.disabled = true;
+        const { error: e2 } = await sb.from("cal_events")
+          .update({ status: "scheduled", cancelled_at: null, cancellation_reason: null })
+          .eq("id", b.getAttribute("data-trash-restore"));
+        if (e2) { b.disabled = false; toast("Couldn't restore: " + (e2.message || e2), "warn"); return; }
+        toast("Event restored", "success");
+        paint(); loadIvCalendar();
+      });
+    } catch (e) {
+      listEl.innerHTML = `<span class="rr-iv-err">${escapeHtml("Couldn't load: " + ((e && e.message) || e))}</span>`;
+    }
+  }
+  paint();
+}
+
 function _ivcalContextMenu(e, kind, id) {
   _ivcalCloseMenus();
   const ev = _ivcalFindEv(kind, id); if (!ev) return;
@@ -30372,6 +30560,10 @@ function _ivcalContextMenu(e, kind, id) {
     item("duplicate", "Duplicate") +
     (ev.applicant_id ? item("applicant", "Open applicant") : "") +
     (kind !== "session" && ev.kind !== "event" ? item("interviewer", ivwName ? `Interviewer: ${escapeHtml(ivwName)}…` : "Assign interviewer…") : "") +
+    (kind !== "session" && ev.kind !== "event" && ev.applicant_id
+      ? item("blink-copy", "Copy booking link") + item("blink-reset", "Reset booking link…")
+      : "") +
+    (kind !== "session" ? item("history", "History") : "") +
     outcomeRow +
     `<div class="sep"></div>` +
     item("delete", kind === "session" ? "Remove" : "Cancel / delete", true) +
@@ -30398,6 +30590,9 @@ function _ivcalContextMenu(e, kind, id) {
     else if (act === "out-showed") _ivcalLogOutcome(kind, id, "showed");
     else if (act === "out-noshow") _ivcalLogOutcome(kind, id, ev.status === "no_show" ? "showed" : "no_show");
     else if (act === "out-reject") _ivcalLogOutcome(kind, id, "reject");
+    else if (act === "blink-copy") _ivcalBookingLink(ev.applicant_id, false);
+    else if (act === "blink-reset") _ivcalBookingLink(ev.applicant_id, true);
+    else if (act === "history") _ivcalHistoryDialog(id);
     else if (act === "delete") _ivcalDeleteEvent(kind, id, true);
   });
   setTimeout(() => document.addEventListener("click", function off() { _ivcalCloseMenus(); document.removeEventListener("click", off); }, { once: true }), 0);
@@ -30875,6 +31070,10 @@ function _ivcalSettingsMenu(btn) {
         <span class="oc-set-link-ico"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></span>
         <span class="oc-set-link-lbl">Webhooks (Zapier)…</span>
       </button>
+      <button type="button" class="oc-set-link" data-set-trash role="menuitem" title="Restore recently cancelled events">
+        <span class="oc-set-link-ico"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></span>
+        <span class="oc-set-link-lbl">Trash — restore cancelled…</span>
+      </button>
     </div>
     <div class="oc-set-sec" data-set-remsec hidden></div>
     <div class="oc-set-sec">
@@ -30977,6 +31176,9 @@ function _ivcalSettingsMenu(btn) {
   });
   menu.querySelector("[data-set-webhooks]").addEventListener("click", () => {
     closeMenu(); _ivcalWebhooksDialog();
+  });
+  menu.querySelector("[data-set-trash]").addEventListener("click", () => {
+    closeMenu(); _ivcalTrashDialog();
   });
   const workRow = menu.querySelector("[data-set-workrow]");
   menu.querySelector("[data-set-workon]").addEventListener("change", (e) => {
@@ -31869,13 +32071,19 @@ async function _ivcalApplyTimePatch(ev, patch, msg) {
   for (const k of Object.keys(patch)) prev[k] = (k in ev && ev[k] !== undefined) ? ev[k] : null;
   Object.assign(ev, patch);
   _ivcalRender();
-  const { error } = await sb.from("cal_events").update(patch).eq("id", ev.id);
-  if (error) {
+  // Concurrent-edit guard (#84): compare-and-swap on updated_at, so a
+  // colleague's simultaneous change refuses instead of being clobbered.
+  let q = sb.from("cal_events").update(patch).eq("id", ev.id);
+  if (ev.updated_at) q = q.eq("updated_at", ev.updated_at);
+  const { data: rows, error } = await q.select("id, updated_at");
+  if (error || (ev.updated_at && (!rows || !rows.length))) {
     Object.assign(ev, prev);
     _ivcalRender();
-    toast("Couldn't update: " + (error.message || error), "warn");
+    if (error) toast("Couldn't update: " + (error.message || error), "warn");
+    else { toast("Someone else changed this event — refreshing", "warn"); loadIvCalendar(); }
     return false;
   }
+  if (rows && rows[0] && rows[0].updated_at) ev.updated_at = rows[0].updated_at;
   _ivcalUndoToast(msg, async () => {
     const { error: e2 } = await sb.from("cal_events").update(prev).eq("id", ev.id);
     if (e2) throw e2;
@@ -32242,6 +32450,7 @@ async function loadInterviewAvailabilityEditor() {
         <label style="display:block">Questions asked at booking <span class="rr-iv-hint">(one per line · add&nbsp;<code>*</code> for required · <code>Label | option / option</code> for a choice)</span>
           <textarea class="rr-iv-intake" rows="3" placeholder="Do you have a valid CDL? *&#10;How did you hear about us? | Indeed / Referral / Other">${escapeHtml(iqLines)}</textarea></label>
         <label><input type="checkbox" class="rr-iv-verify" ${cfg.require_phone_verify ? "checked" : ""}> Require SMS code verification before booking</label>
+        <label><input type="checkbox" class="rr-iv-captcha" ${cfg.require_captcha ? "checked" : ""}> Require CAPTCHA before booking <span class="rr-iv-hint">(needs Cloudflare Turnstile configured server-side — harmless to leave on otherwise)</span></label>
         <label><input type="checkbox" class="rr-iv-public" ${cfg.offer_public ? "checked" : ""}> Offer this schedule as a pickable option on the booking page</label>
         <div class="rr-iv-caps">
           <label>Daily cap <input type="number" min="0" class="rr-iv-maxday" value="${parseInt(cfg.max_per_day, 10) || 0}" title="Maximum booked interviews per day — 0 = no cap"> /day (0 = off)</label>
@@ -32422,6 +32631,7 @@ async function _ivSave(body) {
           arrival_notes: (body.querySelector(".rr-iv-arrival")?.value || "").trim().slice(0, 1000),
           intake_questions: iq,
           require_phone_verify: !!body.querySelector(".rr-iv-verify")?.checked,
+          require_captcha: !!body.querySelector(".rr-iv-captcha")?.checked,
           offer_public: !!body.querySelector(".rr-iv-public")?.checked,
           max_per_day: parseInt(body.querySelector(".rr-iv-maxday")?.value, 10) || 0,
           min_cancel_hours: parseInt(body.querySelector(".rr-iv-mincancel")?.value, 10) || 0,
