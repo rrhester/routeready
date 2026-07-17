@@ -33134,3 +33134,11 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 .rr-iv-pool-list { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 6px; }
 .rr-iv-pool-item { font-weight: 400; display: inline-flex; align-items: center; gap: 5px; }
 #rr-ivcal .oc-next-slot-v.is-alt { opacity: .75; font-weight: 500; }
+
+/* ═══ Calendar Wave 5 · domain features (2026-07-17) ═════════════════════ */
+#rr-ivcal .oc-ev-scrn { color: var(--amber); font-weight: 700; }
+#rr-ivcal .oc-dh-hol { font-size: var(--fs-xs); color: var(--text-subtle); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rr-iv-presets { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+.rr-iv-preset { font: inherit; font-size: var(--fs-xs); font-weight: 600; border: 1px solid var(--border); background: var(--surface); border-radius: 999px; padding: 5px 12px; cursor: pointer; color: var(--text-muted); }
+.rr-iv-preset:hover { border-color: var(--accent); color: var(--accent-text); }
+.rr-iv-preset.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-text); }
