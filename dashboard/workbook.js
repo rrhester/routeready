@@ -7805,6 +7805,7 @@ function mountSheetBlock(block, body) {
     </div>
     </div>
     <div class="wb-grid ${ro ? "is-readonly" : ""}" tabindex="0" role="grid" aria-label="${esc(block.title || "Spreadsheet")}" data-wb-gridfocus="${block.id}">
+      <span class="wb-sr-live" data-wb-srlive aria-live="polite" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0"></span>
       <div class="wb-gr-corner" style="width:${HDR_COL_W}px;height:${HDR_ROW_H}px"></div>
       <div class="wb-gr-cols" style="left:${HDR_COL_W}px;height:${HDR_ROW_H}px"><div class="wb-gr-cols-inner"></div></div>
       <div class="wb-gr-rows" style="top:${HDR_ROW_H}px;width:${HDR_COL_W}px"><div class="wb-gr-rows-inner"></div></div>
@@ -8332,6 +8333,14 @@ function computeGeometry(g) {
   const addH = addRow ? 48 : 0;
   if (addRow) addRow.style.top = g.rowY[rows.length] + 6 + "px";
   g.els.canvas.style.height = Math.max(g.rowY[rows.length] + addH, Math.ceil(chartH) + 12) + "px";
+  // Accessibility (100-list #99): declare the logical grid size so a screen
+  // reader announces "row R of N, column C of M" as the user navigates the
+  // virtualized cells (only the visible slice is ever in the DOM).
+  if (g.els.grid) {
+    g.els.grid.setAttribute("aria-rowcount", String(sheet.rowCount));
+    g.els.grid.setAttribute("aria-colcount", String(sheet.colCount));
+    g.els.grid.setAttribute("aria-multiselectable", "true");
+  }
   sizeGrid(g);
 }
 
@@ -8770,7 +8779,7 @@ function paintNow(g) {
     if (w === 0) continue; // hidden column
     const isSel = c >= Math.min(g.sel.c0, g.sel.c1) && c <= Math.max(g.sel.c0, g.sel.c1);
     const grp = grpColStarts.get(c);
-    colsHtml += `<div class="wb-hcell wb-hcol ${isSel ? "is-sel" : ""}" data-wb-col="${c}" style="left:${g.colX[c]}px;width:${w}px;height:${HDR_ROW_H}px">${grp ? `<button type="button" class="wb-grp" data-wb-grp="col:${grp.id}" title="${grp.collapsed ? "Expand" : "Collapse"} columns ${colLabel(grp.from + 1)}–${colLabel(grp.to)}">${grp.collapsed ? "⊞" : "⊟"}</button>` : ""}${colLabel(c)}<span class="wb-rz-col" data-wb-rzcol="${c}"></span></div>`;
+    colsHtml += `<div class="wb-hcell wb-hcol ${isSel ? "is-sel" : ""}" role="columnheader" aria-label="Column ${colLabel(c)}" data-wb-col="${c}" style="left:${g.colX[c]}px;width:${w}px;height:${HDR_ROW_H}px">${grp ? `<button type="button" class="wb-grp" data-wb-grp="col:${grp.id}" title="${grp.collapsed ? "Expand" : "Collapse"} columns ${colLabel(grp.from + 1)}–${colLabel(grp.to)}">${grp.collapsed ? "⊞" : "⊟"}</button>` : ""}${colLabel(c)}<span class="wb-rz-col" data-wb-rzcol="${c}"></span></div>`;
   }
   g.els.colsInner.innerHTML = colsHtml;
   g.els.colsInner.style.transform = `translateX(${-sx}px)`;
@@ -8783,7 +8792,7 @@ function paintNow(g) {
     const h = g.rowY[di + 1] - g.rowY[di];
     const isSel = r >= Math.min(g.sel.r0, g.sel.r1) && r <= Math.max(g.sel.r0, g.sel.r1);
     const grp = grpRowStarts.get(r);
-    rowsHtml += `<div class="wb-hcell wb-hrow ${isSel ? "is-sel" : ""}" data-wb-row="${r}" style="top:${g.rowY[di]}px;height:${h}px;width:${HDR_COL_W}px">${grp ? `<button type="button" class="wb-grp" data-wb-grp="row:${grp.id}" title="${grp.collapsed ? "Expand" : "Collapse"} rows ${grp.from + 2}–${grp.to + 1}">${grp.collapsed ? "⊞" : "⊟"}</button>` : ""}${r + 1}<span class="wb-rz-row" data-wb-rzrow="${r}"></span></div>`;
+    rowsHtml += `<div class="wb-hcell wb-hrow ${isSel ? "is-sel" : ""}" role="rowheader" aria-label="Row ${r + 1}" data-wb-row="${r}" style="top:${g.rowY[di]}px;height:${h}px;width:${HDR_COL_W}px">${grp ? `<button type="button" class="wb-grp" data-wb-grp="row:${grp.id}" title="${grp.collapsed ? "Expand" : "Collapse"} rows ${grp.from + 2}–${grp.to + 1}">${grp.collapsed ? "⊞" : "⊟"}</button>` : ""}${r + 1}<span class="wb-rz-row" data-wb-rzrow="${r}"></span></div>`;
   }
   g.els.rowsInner.innerHTML = rowsHtml;
   g.els.rowsInner.style.transform = `translateY(${-sy}px)`;
@@ -10674,6 +10683,7 @@ function renderSheetTabs(g) {
   g.els.selstats = g.els.body.querySelector("[data-wb-selstats]");
   g.els.sbmode = g.els.body.querySelector("[data-wb-sbmode]");
   g.els.sbfilter = g.els.body.querySelector("[data-wb-sbfilter]");
+  g.els.srlive = g.els.body.querySelector("[data-wb-srlive]");
 }
 
 // Sheets' ☰ list: every sheet including hidden ones; picking a hidden
@@ -10724,6 +10734,25 @@ function switchSheet(g, sheetId) {
 
 // ─── Selection + navigation ─────────────────────────────────────────────────
 
+// Announce the focused cell to assistive tech (100-list #99). The grid is a
+// virtualized canvas of divs, so there's no per-cell focus for a screen reader
+// to land on — instead we push "B3, 42" (or "B3, empty") into a polite live
+// region whenever the active cell moves. Debounced so fast arrow-navigation
+// announces the cell you settle on, not every one you pass through.
+let _srAnnounceT = null;
+function announceActiveCell(g, r, c) {
+  const el = g.els && g.els.srlive;
+  if (!el) return;
+  clearTimeout(_srAnnounceT);
+  _srAnnounceT = setTimeout(() => {
+    const sheet = g.sheet;
+    const cell = sheet.cells.get(cellKey(r, c));
+    let val = cell && cell.err ? cell.err : displayValue(sheet, r, c);
+    const has = val != null && String(val).trim() !== "";
+    el.textContent = cellRef(r, c) + (has ? ", " + String(val).slice(0, 120) : ", empty");
+  }, 110);
+}
+
 function setActive(g, r, c, opts) {
   const sheet = g.sheet;
   r = Math.max(0, Math.min(sheet.rowCount - 1, r));
@@ -10741,6 +10770,7 @@ function setActive(g, r, c, opts) {
   syncFormulaBar(g);
   if (!opts || opts.scroll !== false) scrollCellIntoView(g, r, c);
   broadcastCursor(g, r, c);
+  announceActiveCell(g, r, c);
 }
 
 // Broadcast my cursor to teammates via the presence channel (100-list #73),
@@ -24509,7 +24539,7 @@ export const __engine = {
   linearFit, analyzeColumns, computeInsights,
   aiWorkbookSchema, aiColumnStats, aiPlanToSpecs,
   computePivot, pivotAggregate, pivotTableHtml, pivotEffectiveSpec, pivotDrillRecords, pivotChartSvg, ooxmlChartXml, ooxmlDrawingXml, pivotToExportSheet, expandExportSheets,
-  autoLinkFor, cellLink, cellInnerHtml,
+  autoLinkFor, cellLink, cellInnerHtml, esc,
   selCycle,
   WB_IMG_RE, cellImgSrc,
   planMoveChanges, recalcSheet,
