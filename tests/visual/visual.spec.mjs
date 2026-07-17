@@ -9,10 +9,14 @@ import { test, expect } from "@playwright/test";
 const BASE = "http://127.0.0.1:8123/";
 
 async function prep(page, path) {
-  // Block everything off-host BEFORE navigation: live.js's CDN deps
+  // Block everything off-host BEFORE navigation: live.js's heavy deps
   // never load, so the page renders its static markup the same way
-  // everywhere (no auth redirect, no data, no flakiness).
+  // everywhere (no auth redirect, no data, no flakiness). supabase-js is
+  // vendored locally now (Wave B), so the same determinism requires
+  // aborting the vendor path too — with it, live.js boots for real and
+  // its auth redirect destroys the page mid-screenshot.
   await page.route(/^https?:\/\/(?!127\.0\.0\.1)/, (r) => r.abort());
+  await page.route(/\/dashboard\/vendor\//, (r) => r.abort());
   // The schedule "orient flash" highlights today's column for 1.5s on
   // a setTimeout poll — a timing window that lands differently across
   // hosts and flipped the schedule baseline (CI failed at 3% vs the 2%

@@ -7194,7 +7194,7 @@ function renderDetailPage() {
   root.innerHTML = `
     <div class="wb-detail ${WB.panelOpen ? "is-panel-open" : ""}" id="wb-detail">
       <div class="wb-head">
-        <span class="wb-appmark" aria-hidden="true" title="RouteReady"><img src="../app/Icon.png" alt=""></span>
+        <span class="wb-appmark" aria-hidden="true" title="RouteReady"><img src="../app/icons/icon-192.png" alt=""></span>
         <button type="button" class="btn btn-ghost btn-icon" data-wb-act="back-to-list" title="Close workbook — back to RouteReady" aria-label="Close workbook — back to RouteReady">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
         </button>

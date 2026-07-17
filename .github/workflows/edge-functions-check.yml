@@ -1,0 +1,55 @@
+name: edge-functions-check
+
+# First CI gate for supabase/functions/ — until now a PR touching only
+# edge functions triggered NO workflow at all, then auto-deployed on merge
+# via deploy-migrations.yml, so type errors surfaced only at deploy
+# bundling (or in production). This typechecks every function with the
+# same TypeScript surface the edge bundler uses, and runs any
+# supabase/functions/**/*_test.ts unit tests (signature verifiers, shared
+# helpers) under Deno's test runner.
+on:
+  pull_request:
+    paths:
+      - "supabase/functions/**"
+      - "supabase/config.toml"
+      - "flex-capacity/src/**"
+      - ".github/workflows/edge-functions-check.yml"
+  push:
+    branches: [main]
+    paths:
+      - "supabase/functions/**"
+      - "supabase/config.toml"
+      - "flex-capacity/src/**"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v2
+        with:
+          # Pinned; bump deliberately alongside the Supabase edge runtime.
+          deno-version: "2.9.3"
+
+      - name: Cache remote modules
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/deno
+          key: deno-${{ hashFiles('supabase/functions/**/*.ts') }}
+          restore-keys: deno-
+
+      - name: Typecheck every function
+        # One invocation = one module graph, so _shared/ and the esm.sh
+        # deps are fetched/checked once. Failures name the exact file.
+        run: deno check --node-modules-dir=auto supabase/functions/*/index.ts
+
+      - name: Unit tests (signature verifiers, shared helpers)
+        # No-ops cleanly while no *_test.ts files exist yet.
+        run: |
+          if ls supabase/functions/**/*_test.ts >/dev/null 2>&1 || ls supabase/functions/*_test.ts >/dev/null 2>&1; then
+            deno test --allow-none supabase/functions
+          else
+            echo "no *_test.ts files yet — skipping deno test"
+          fi

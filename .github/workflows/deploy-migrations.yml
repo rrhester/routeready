@@ -17,6 +17,11 @@ on:
     branches: [main]
     paths:
       - 'supabase/**'
+      # The flex-capacity edge function imports ../../../flex-capacity/src/*.ts
+      # directly, so engine-source changes must redeploy it too — without this
+      # a src-only change silently never ships (production keeps the old
+      # engine until an unrelated supabase/** change happens to deploy).
+      - 'flex-capacity/src/**'
       - '.github/workflows/deploy-migrations.yml'
   workflow_dispatch:
 
@@ -31,12 +36,70 @@ jobs:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      # ── Single source of truth for the function deploy lists ──────────
+      # Every directory under supabase/functions/ (except _shared) MUST
+      # appear in exactly one of these lists, or in MANUAL_ONLY_FUNCS.
+      # The "deploy list covers every function" step below enforces it —
+      # this workflow used to hand-enumerate functions in two loop bodies
+      # and had silently drifted 11 functions behind the directory
+      # (analytics-ai, booking-captcha, vin-decode, parts-search,
+      # vehicle-document-fetch, explain-optimization-run,
+      # google-calendar-reconcile, microsoft-*) — merged changes to those
+      # never shipped.
+      JWT_FUNCS: >-
+        send-driver-push send-staff-push meet-turn-credentials
+        invite-team-member admin-delete-dsp google-oauth-start
+        google-calendar-disconnect google-calendar-events
+        google-drive-create google-drive-status dispatch-optimization-run
+        finch-oauth-start finch-sync workbook-ai notebook-ai flex-capacity
+        analytics-ai microsoft-oauth-start microsoft-calendar-disconnect
+      NOJWT_FUNCS: >-
+        send-email send-sms push-fanout livekit-token meet-turn-driver
+        export-tenant-files health cal-availability webhook-twilio
+        webhook-cal webhook-apply webhook-email-inbound webhook-email-events
+        upload-applicant-video upload-driver-photo driver-document-fetch
+        document-verify document-classify dvic-ai-review desktop-pair
+        ai-proxy box-ingest google-oauth-callback google-calendar-sync
+        google-calendar-pull calendar-feed interview-room
+        finch-oauth-callback repair-shop-portal repair-quote-extract
+        booking-captcha vin-decode parts-search vehicle-document-fetch
+        explain-optimization-run google-calendar-reconcile
+        microsoft-oauth-callback microsoft-calendar-sync link-preview
+      # Functions deliberately excluded from auto-deploy (deployed by
+      # hand). Keep empty unless a function truly must not ship from CI.
+      MANUAL_ONLY_FUNCS: ''
     steps:
       - uses: actions/checkout@v4
 
+      - name: Deploy list covers every function (drift gate)
+        # Fails the run if a function directory exists that no list
+        # mentions (it would silently never deploy), or if a list entry
+        # has no directory (typo / deleted function).
+        run: |
+          set -euo pipefail
+          listed=$(printf '%s\n' $JWT_FUNCS $NOJWT_FUNCS $MANUAL_ONLY_FUNCS)
+          fail=0
+          for d in supabase/functions/*/; do
+            fn=$(basename "$d")
+            [ "$fn" = "_shared" ] && continue
+            if ! printf '%s\n' "$listed" | grep -qx "$fn"; then
+              echo "::error::supabase/functions/$fn is in NO deploy list — it will silently never ship. Add it to JWT_FUNCS, NOJWT_FUNCS, or MANUAL_ONLY_FUNCS."
+              fail=1
+            fi
+          done
+          for fn in $JWT_FUNCS $NOJWT_FUNCS $MANUAL_ONLY_FUNCS; do
+            if [ ! -d "supabase/functions/$fn" ]; then
+              echo "::error::deploy list mentions '$fn' but supabase/functions/$fn does not exist."
+              fail=1
+            fi
+          done
+          exit $fail
+
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # Pinned (was `latest`) so deploys are reproducible and a CLI
+          # release can't change behaviour mid-week. Bump deliberately.
+          version: 2.109.1
 
       - name: Link project
         run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
@@ -98,7 +161,7 @@ jobs:
             return 1
           }
           failed=()
-          for fn in send-driver-push send-staff-push meet-turn-credentials invite-team-member admin-delete-dsp google-oauth-start google-calendar-disconnect google-calendar-events google-drive-create google-drive-status dispatch-optimization-run finch-oauth-start finch-sync workbook-ai notebook-ai flex-capacity; do
+          for fn in $JWT_FUNCS; do
             echo "▶ deploying $fn (auth required)"
             if ! deploy_with_retry "$fn"; then
               echo "::error::deploy failed for $fn"
@@ -134,7 +197,7 @@ jobs:
             return 1
           }
           failed=()
-          for fn in send-email send-sms push-fanout livekit-token meet-turn-driver export-tenant-files health cal-availability webhook-twilio webhook-cal webhook-apply webhook-email-inbound webhook-email-events upload-applicant-video upload-driver-photo driver-document-fetch document-verify document-classify dvic-ai-review desktop-pair ai-proxy box-ingest google-oauth-callback google-calendar-sync google-calendar-pull calendar-feed interview-room finch-oauth-callback repair-shop-portal repair-quote-extract link-preview; do
+          for fn in $NOJWT_FUNCS; do
             echo "▶ deploying $fn (no jwt)"
             if ! deploy_with_retry "$fn" --no-verify-jwt; then
               echo "::error::deploy failed for $fn"

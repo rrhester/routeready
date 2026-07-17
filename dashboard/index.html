@@ -131,8 +131,8 @@
 <meta http-equiv="Pragma" content="no-cache" />
 <meta http-equiv="Expires" content="0" />
 <title>RouteReady — Dispatcher Dashboard</title>
-<link rel="icon" type="image/png" href="../app/Icon.png">
-<link rel="apple-touch-icon" href="../app/Icon.png">
+<link rel="icon" type="image/png" href="../app/icons/favicon-32.png">
+<link rel="apple-touch-icon" href="../app/icons/apple-touch-icon.png">
 
 <!-- ── Installable PWA · dispatcher dashboard ────────────────────
      Scope: /dashboard/ (the driver-facing PWA at /app/ owns its own
@@ -160,7 +160,7 @@
 <meta name="apple-mobile-web-app-title" content="RR Dispatch">
 <meta name="application-name" content="RouteReady Dispatch">
 <meta name="msapplication-TileColor" content="#2563EB">
-<meta name="msapplication-TileImage" content="../app/Icon.png">
+<meta name="msapplication-TileImage" content="../app/icons/icon-192.png">
 <!-- RouteReady Fluent 2 design system foundation (additive).
      Tokens: --rr-*. Primitives: .rrx-* (see app/rr-system.css). -->
 <link rel="preload" href="../app/fonts/inter-var-latin.woff2" as="font" type="font/woff2" crossorigin>
@@ -175,7 +175,7 @@
        time in BOTH this file and live.js, so the URLs always match) -->
 <link rel="preconnect" href="https://doiwrhkirgblcvuskhno.supabase.co" crossorigin>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-<link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm">
+<link rel="modulepreload" href="/dashboard/vendor/supabase-js-2.45.4.mjs">
 <link rel="modulepreload" href="./scheduling-engine.js?v=radiohail01">
 <link rel="modulepreload" href="./forecast-core.js?v=radiohail01">
 <link rel="modulepreload" href="./workbook.js?v=radiohail01">
@@ -1982,7 +1982,7 @@
          (Notebook ▸ Section ▸ Page ▸ Subpage), rich editor, search,
          per-object notebooks. Markup + engine in the fragment.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-notebooks" data-rr-view-src="views/view-notebooks.frag?v=radiohail40">
+    <div class="view" id="view-notebooks" data-rr-view-src="views/view-notebooks.frag?v=radiohail42">
       <!-- markup lives in views/view-notebooks.frag -->
     </div>
 

@@ -34,12 +34,37 @@ try {
   throw e;
 }
 
-const targets = [
-  path.join(import.meta.dirname, "..", "dashboard", "live.js"),
-  path.join(import.meta.dirname, "..", "dashboard", "workbook.js"),
-  path.join(import.meta.dirname, "..", "dashboard", "reports.js"),
-  path.join(import.meta.dirname, "..", "app",       "app.js"),
-];
+const root = path.join(import.meta.dirname, "..");
+
+// Monoliths that get the full orphan-detection walk. Everything else gets
+// conflict-marker + parse checks only: the orphan heuristic assumes every
+// referenced identifier is bound somewhere in the SAME file, which is true
+// for these self-contained modules but false-positives on cross-file
+// classic scripts (mock-wiring.js et al reference globals live.js defines).
+const FULL_CHECK = new Set([
+  path.join(root, "dashboard", "live.js"),
+  path.join(root, "dashboard", "workbook.js"),
+  path.join(root, "dashboard", "reports.js"),
+  path.join(root, "app",       "app.js"),
+]);
+
+// Every shipped JS file gets at least the parse gate — app/sw.js,
+// form-validation.js, meet.js, the parts/repair UIs etc. previously
+// shipped with zero syntax check of any kind.
+function shippedJs(dir) {
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir)
+    .filter(f => f.endsWith(".js") || f.endsWith(".mjs"))
+    .map(f => path.join(dir, f));
+}
+const targets = [...new Set([
+  ...FULL_CHECK,
+  ...shippedJs(path.join(root, "dashboard")),
+  ...shippedJs(path.join(root, "dashboard", "parts")),
+  ...shippedJs(path.join(root, "dashboard", "parts", "adapters")),
+  ...shippedJs(path.join(root, "dashboard", "repair")),
+  ...shippedJs(path.join(root, "app")),
+])];
 
 let total = 0;
 
@@ -57,6 +82,8 @@ for (const file of targets) {
   }
 
   // 2. Parse — surfaces real syntax errors that node --check might miss.
+  //    Module parse first; classic scripts (service workers, mock-wiring)
+  //    that use sloppy-mode-only syntax fall back to a script parse.
   let ast;
   try {
     ast = Parser.parse(code, {
@@ -65,11 +92,23 @@ for (const file of targets) {
       allowAwaitOutsideFunction: true,
       locations: true,
     });
-  } catch (e) {
-    console.error(`  ✗ parse error · ${e.message}`);
-    total += 1;
-    continue;
+  } catch (moduleErr) {
+    if (!FULL_CHECK.has(file)) {
+      try {
+        ast = Parser.parse(code, { ecmaVersion: "latest", sourceType: "script", locations: true });
+      } catch {
+        console.error(`  ✗ parse error · ${moduleErr.message}`);
+        total += 1;
+        continue;
+      }
+    } else {
+      console.error(`  ✗ parse error · ${moduleErr.message}`);
+      total += 1;
+      continue;
+    }
   }
+
+  if (!FULL_CHECK.has(file)) { console.log("  ✓ ok (parse only)"); continue; }
 
   // 3. Walk top-level statements and flag orphans.  The orphan
   //    signature: a top-level `if`/`return` whose identifier reads

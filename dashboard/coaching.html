@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Your coaching record</title>
 <link rel="icon" href="data:,"/>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
     @font-face{font-family:'Inter';font-style:normal;font-weight:400 700;font-display:swap;src:url(../app/fonts/inter-var-latin.woff2) format('woff2')}
   :root {
@@ -69,7 +68,7 @@
 
 <script src="/dashboard/config.js"></script>
 <script type="module">
-import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
+import { createClient } from "/dashboard/vendor/supabase-js-2.45.4.mjs";
 const cfg = window.RR_CONFIG;
 const sb = createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, { auth: { persistSession: false } });
 

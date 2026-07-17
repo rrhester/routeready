@@ -7,7 +7,7 @@
 //
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
-import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
+import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
 import { planScheduleWeek } from "./scheduling-engine.js?v=b2ebeec00db5";
 import { assessPlan as rrAssessLaborPlan, driversNeeded as rrDriversNeeded, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=b2ebeec00db5";
 import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=b2ebeec00db5";
@@ -2329,27 +2329,10 @@ async function _initApplicantNotes(slot, applicantId) {
 }
 
 
-// Consolidated "Recruiting" footer for the sourcing tile group (Funnel /
-// Interview / Onboarding). Instead of a separate "Rules" launcher per tile, the
-// whole group gets ONE centered caption on the strip's bottom line plus a single
-// box-arrow launcher pinned bottom-right — matching the calendar group's
-// "Rules". The launcher opens a small chooser with two options (Screening
-// questions → funnel rules, Onboarding steps → onboarding blueprint), each
-// forwarding to its existing popover. Built/repositioned from live.js (DOM +
-// inline styles) so it reliably reaches the browser regardless of cached HTML.
-function _rrCloseRecruitingChooser() {
-  const m = document.getElementById("rr-recruiting-chooser");
-  if (m) m.remove();
-}
-// The Funnel/Onboarding rules popovers are anchored to their tile, so opening
-// them from the right-side launcher pushed them off the right edge and past the
-// bottom of the viewport with no usable scroll. Re-pin the opened popover as a
-// fixed panel under the strip, right-aligned, bounded to the viewport height
-// with its own scroll. Re-fit on resize while it's open.
-// One-time style that constrains the rules popovers' inner content so there's a
-// SINGLE scrollbar (the popover's own, at its right edge) and nothing spills
-// horizontally past it. A style rule (not inline) survives the builder's
-// re-renders of its rows.
+// (Removed 2026-07-17: the "Recruiting" footer/chooser cluster was a permanent
+// no-op — superseded by the per-tab action-bar buttons #rr-funnel-rules-toggle /
+// #rr-ob-rules-toggle. Its MutationObserver was still firing on every DOM change.
+// The popover fit helpers below are KEPT — the live rules popovers use them.)
 function _rrInstallRulesPopoverStyle() {
   if (document.getElementById("rr-rules-pop-fit-style")) return;
   const st = document.createElement("style");
@@ -2366,12 +2349,6 @@ function _rrInstallRulesPopoverStyle() {
   `;
   document.head.appendChild(st);
 }
-// Left edge of the fixed right utility rail when it's visible. The rail is
-// an opaque body-level strip that deliberately paints ABOVE in-page chrome
-// (z 90 vs the TCP strip's stacking context), so fixed popovers anchored to
-// the viewport's right edge slide underneath it and lose their right-hand
-// controls. Fitters clamp against this edge instead of the raw viewport.
-// Falls back to the viewport width when the rail is hidden (other views).
 function _rrRightChromeEdge() {
   const rail = document.querySelector("#rr-util-rail-mount .sched-util-rail");
   if (!rail) return window.innerWidth;
@@ -2402,114 +2379,6 @@ function _rrFitRulesPopover(pop) {
     pop._rrFitBound = true;
     window.addEventListener("resize", () => { if (!pop.hidden) _rrFitRulesPopover(pop); });
   }
-}
-function _rrToggleRecruitingChooser(anchor) {
-  if (document.getElementById("rr-recruiting-chooser")) { _rrCloseRecruitingChooser(); return; }
-  const menu = document.createElement("div");
-  menu.id = "rr-recruiting-chooser";
-  Object.assign(menu.style, {
-    position: "fixed", zIndex: "10000", background: "var(--surface,#fff)",
-    border: "1px solid var(--border,rgba(15,23,42,.12))", borderRadius: "8px",
-    boxShadow: "0 12px 32px rgba(15,23,42,.18)", padding: "4px", minWidth: "190px",
-    display: "flex", flexDirection: "column", gap: "1px",
-  });
-  const mk = (label, fn) => {
-    const b = document.createElement("button");
-    b.type = "button"; b.textContent = label;
-    Object.assign(b.style, {
-      display: "block", width: "100%", textAlign: "left", appearance: "none",
-      border: "0", background: "transparent", cursor: "pointer", font: "inherit",
-      fontSize: "13px", color: "var(--text,#111827)", padding: "8px 12px", borderRadius: "6px",
-    });
-    b.addEventListener("mouseenter", () => { b.style.background = "rgba(37,99,235,.08)"; b.style.color = "#2563EB"; });
-    b.addEventListener("mouseleave", () => { b.style.background = "transparent"; b.style.color = "var(--text,#111827)"; });
-    b.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); _rrCloseRecruitingChooser(); fn(); });
-    return b;
-  };
-  menu.appendChild(mk("Screening questions", () => {
-    if (window._rrToggleObRules) window._rrToggleObRules(false);
-    if (window._rrToggleFunnelRules) window._rrToggleFunnelRules(true);
-    _rrFitRulesPopover(document.getElementById("rr-funnel-rules-popover"));
-  }));
-  menu.appendChild(mk("Onboarding steps", () => {
-    if (window._rrToggleFunnelRules) window._rrToggleFunnelRules(false);
-    if (window._rrToggleObRules) window._rrToggleObRules(true);
-    _rrFitRulesPopover(document.getElementById("rr-ob-rules-popover"));
-  }));
-  document.body.appendChild(menu);
-  const r = anchor.getBoundingClientRect();
-  menu.style.top = (r.bottom + 4) + "px";
-  menu.style.left = Math.max(8, r.right - menu.offsetWidth) + "px";
-  setTimeout(() => {
-    document.addEventListener("click", function onDoc(e) {
-      if (!e.target.closest("#rr-recruiting-chooser") && !e.target.closest(".rr-recruiting-foot")) {
-        _rrCloseRecruitingChooser();
-        document.removeEventListener("click", onDoc);
-      }
-    });
-  }, 0);
-}
-function _rrBuildRecruitingFooter() {
-  // RETIRED · the combined "Recruiting" chooser is replaced by
-  // context-specific per-tab buttons surfaced directly on the action bar
-  // (Funnel → "Screening questions" via #rr-funnel-rules-toggle,
-  // Onboarding → "Onboarding steps" via #rr-ob-rules-toggle). Leaving the
-  // per-tile launchers visible, so this footer builder is a no-op now.
-  return;
-  // eslint-disable-next-line no-unreachable
-  if (typeof document === "undefined") return;
-  const group = document.querySelector('#view-onboarding-ops .sched-ribbon-group[data-group="sourcing"]');
-  if (!group) return;
-  // Hide every per-tile launcher in the group — one footer replaces them all.
-  group.querySelectorAll('#rr-ob-rules-toggle, #rr-funnel-rules-toggle, .ob-rules-foot, .rr-rules-injected')
-    .forEach((el) => el.style.setProperty("display", "none", "important"));
-  // Full strip height + relative anchor so the caption/launcher sit on the
-  // bottom hairline (the calendar group sets the strip height); top-align the
-  // tiles so they match the calendar group's tiles.
-  group.style.setProperty("align-self", "stretch", "important");
-  group.style.setProperty("position", "relative", "important");
-  const sub = group.querySelector(".subnav");
-  if (sub) sub.style.setProperty("align-self", "flex-start", "important");
-  if (group.querySelector(".rr-recruiting-cap")) return; // footer already built
-  const cap = document.createElement("span");
-  cap.className = "rr-recruiting-cap";
-  cap.textContent = "Recruiting";
-  Object.assign(cap.style, {
-    position: "absolute", left: "0", right: "0", bottom: "-4px", textAlign: "center",
-    fontSize: "11px", fontWeight: "800", lineHeight: "1", letterSpacing: ".01em",
-    whiteSpace: "nowrap", color: "var(--text-subtle)", pointerEvents: "none", zIndex: "1",
-  });
-  const launch = document.createElement("button");
-  launch.type = "button";
-  launch.className = "rr-recruiting-foot";
-  launch.title = "Recruiting rules — screening questions & onboarding steps";
-  launch.innerHTML = '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" rx="1"/><line x1="8" y1="8" x2="13.5" y2="13.5"/><polyline points="13.5 10 13.5 13.5 10 13.5"/></svg>';
-  Object.assign(launch.style, {
-    position: "absolute", right: "6px", bottom: "-3px", display: "inline-flex",
-    alignItems: "center", justifyContent: "center", appearance: "none", border: "0",
-    background: "transparent", cursor: "pointer", color: "var(--text-subtle)",
-    padding: "1px 4px", margin: "0", borderRadius: "999px", zIndex: "2", opacity: ".85",
-  });
-  launch.addEventListener("mouseenter", () => { launch.style.opacity = "1"; launch.style.color = "var(--accent-text,#2563EB)"; launch.style.background = "var(--accent-soft,rgba(37,99,235,.08))"; });
-  launch.addEventListener("mouseleave", () => { launch.style.opacity = ".85"; launch.style.color = "var(--text-subtle)"; launch.style.background = "transparent"; });
-  launch.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); _rrToggleRecruitingChooser(launch); });
-  group.appendChild(cap);
-  group.appendChild(launch);
-  // The footer can nudge strip layout; re-fit the calendar so its sticky header
-  // stays pinned (deferred so it runs after module init and this paint).
-  setTimeout(() => { try { if (typeof _ivcalFitHeight === "function") _ivcalFitHeight(); } catch (_) {} }, 0);
-}
-let _rrRecruitingQueued = false;
-function _rrBuildRecruitingFooterSoon() {
-  if (_rrRecruitingQueued) return;
-  _rrRecruitingQueued = true;
-  setTimeout(() => { _rrRecruitingQueued = false; _rrBuildRecruitingFooter(); }, 200);
-}
-if (typeof document !== "undefined") {
-  _rrBuildRecruitingFooter();
-  setTimeout(_rrBuildRecruitingFooter, 600);
-  setTimeout(_rrBuildRecruitingFooter, 1800);
-  try { new MutationObserver(_rrBuildRecruitingFooterSoon).observe(document.documentElement, { childList: true, subtree: true }); } catch (_) {}
 }
 
 let _emailThreadChannel = null;
@@ -11950,8 +11819,17 @@ function _rrNtSanitize(html) {
       if (!ok.has(c.tagName)) { c.replaceWith(document.createTextNode(c.textContent || "")); return; }
       Array.from(c.attributes).forEach((a) => {
         const nm = a.name.toLowerCase();
-        if (nm === "href" && c.tagName === "A" && !/^\s*javascript:/i.test(a.value)) return;
-        if (nm === "src"  && c.tagName === "IMG" && !/^\s*javascript:/i.test(a.value)) return;
+        // Scheme ALLOWLIST, not a javascript:-only blocklist: the old check
+        // let data:/vbscript:/etc through, and remote http(s) <img> in pasted
+        // note HTML doubles as a tracking/exfil beacon that fires on every
+        // render. Links stay clickable for the web; images must be inline
+        // data/blob (pasted screenshots) or same-origin.
+        if (nm === "href" && c.tagName === "A" && /^\s*(https?:|mailto:|tel:)/i.test(a.value)) return;
+        if (nm === "src" && c.tagName === "IMG") {
+          const v = a.value || "";
+          if (/^\s*(data:image\/|blob:)/i.test(v)) return;
+          try { if (new URL(v, location.href).origin === location.origin) return; } catch (_) {}
+        }
         c.removeAttribute(a.name);
       });
       if (c.tagName === "A") { c.setAttribute("target", "_blank"); c.setAttribute("rel", "noopener noreferrer"); }
@@ -17365,6 +17243,10 @@ async function loadDashboardWeather() {
     // (dsp_id, date) just upserts the freshest values.
     try {
       const dspId = window.RR?.dsp?.id;
+      // First daytime entry = today. (This block referenced an undefined
+      // `today` for months — the ReferenceError was swallowed by this
+      // try/catch, so weather_snapshots never got a single row.)
+      const today = dayPairs[0] || null;
       if (dspId && today) {
         const todayIso = fmtIsoDate(new Date());
         const conditions = (() => {
@@ -25862,6 +25744,7 @@ async function _ivcalGoogleConnect() {
     if (error || !data || !data.url) throw error || new Error("No authorization URL returned");
     const popup = window.open(data.url, "rr-gcal", "width=520,height=640");
     const onMsg = (ev) => {
+      if (ev.origin !== location.origin) return; // callback pages post with location.origin target
       if (!ev.data || ev.data.type !== "rr-gcal") return;
       window.removeEventListener("message", onMsg);
       try { popup && popup.close(); } catch (_) {}
@@ -25892,6 +25775,7 @@ async function _ivcalMsConnect() {
     }
     const popup = window.open(data.url, "rr-mscal", "width=520,height=640");
     const onMsg = (ev) => {
+      if (ev.origin !== location.origin) return; // callback pages post with location.origin target
       if (!ev.data || ev.data.type !== "rr-gcal") return;   // shared landing page
       window.removeEventListener("message", onMsg);
       try { popup && popup.close(); } catch (_) {}
@@ -25974,6 +25858,7 @@ function _ivcalGoogleMenu(e) {
 // the card shows so the two never stack.
 let _ivHoverPeek = (() => { try { return localStorage.getItem("rr_ivcal_hoverpeek") === "1"; } catch (_) { return false; } })();
 let _ivPeekTimer = null;
+let _ivPeekFocusAt = 0;   // focus() auto-scrolls; that scroll must not cancel the focus peek
 function _ivcalClosePeek() {
   clearTimeout(_ivPeekTimer); _ivPeekTimer = null;
   const el = document.getElementById("rr-ivcal-peek");
@@ -26058,7 +25943,53 @@ function _ivcalInstallHoverPeek(host) {
     _ivcalClosePeek();
   });
   host.addEventListener("mousedown", () => _ivcalClosePeek(), true);
-  host.addEventListener("scroll", () => _ivcalClosePeek(), true);
+  // Scrolling dismisses a peek — EXCEPT the scroll the browser itself makes
+  // to bring a freshly-focused block into view, which lands right after
+  // focusin and would otherwise cancel every keyboard-initiated peek.
+  host.addEventListener("scroll", () => {
+    if (Date.now() - _ivPeekFocusAt < 600) return;
+    _ivcalClosePeek();
+  }, true);
+  // Keyboard parity: tabbing onto an event block peeks too (same opt-in
+  // pref) — sighted keyboard users get what mouse users get.
+  host.addEventListener("focusin", (e) => {
+    if (!_ivHoverPeek) return;
+    const block = e.target.closest ? e.target.closest("[data-ivcal-kind][data-ivcal-id]") : null;
+    if (!block) return;
+    _ivPeekFocusAt = Date.now();
+    clearTimeout(_ivPeekTimer);
+    _ivPeekTimer = setTimeout(() => { if (block.isConnected) _ivcalShowPeek(block); }, 150);
+  });
+  host.addEventListener("focusout", (e) => {
+    const open = document.getElementById("rr-ivcal-peek");
+    const to = e.relatedTarget;
+    if (to && open && (open.contains(to) || (open._srcEl && open._srcEl.contains(to)))) return;
+    _ivcalClosePeek();
+  });
+}
+
+// Mobile swipe navigation: a quick horizontal swipe on the grid background
+// moves a period back/forward — the touch counterpart of the ‹ › buttons.
+// Event chips are excluded (long-press there arms a drag), and mostly-
+// vertical gestures stay native scrolls.
+function _ivcalInstallSwipeNav(host) {
+  if (host._rrSwipeWired) return;
+  host._rrSwipeWired = true;
+  let sw = null;
+  host.addEventListener("touchstart", (e) => {
+    if (e.touches.length !== 1) { sw = null; return; }
+    if (e.target.closest && e.target.closest("[data-ivcal-id]")) { sw = null; return; }
+    sw = { x: e.touches[0].clientX, y: e.touches[0].clientY, at: Date.now() };
+  }, { passive: true });
+  host.addEventListener("touchend", (e) => {
+    if (!sw || _ivcalDrag) { sw = null; return; }
+    const t = e.changedTouches && e.changedTouches[0];
+    if (!t) { sw = null; return; }
+    const dx = t.clientX - sw.x, dy = t.clientY - sw.y, dt = Date.now() - sw.at;
+    sw = null;
+    if (dt > 600 || Math.abs(dx) < 70 || Math.abs(dy) > 45) return;
+    _ivcalNav(dx < 0 ? 1 : -1);
+  }, { passive: true });
 }
 
 // Inline detail popover for a read-only Google overlay event (#67).
@@ -26145,6 +26076,45 @@ function _ivcalImportIcs() {
     loadIvCalendar();
   };
   inp.click();
+}
+
+// Export the visible range as a one-shot .ics download — the counterpart of
+// the subscribe feed (live) and the .ics import (inbound). Private events
+// export as "Private" with no details.
+function _ivcalExportIcs() {
+  const vr = _ivcalViewRange();
+  const from = vr.start.getTime(), to = vr.end.getTime() + 864e5;
+  const fmt = (iso) => new Date(iso).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+  const escT = (s) => String(s || "").replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
+  const rows = ((_ivcalCache && _ivcalCache.bookings) || []).filter(b => {
+    if (!b || !["scheduled", "rescheduled"].includes(b.status || "scheduled")) return false;
+    if (b.metadata && b.metadata.is_task) return false;
+    const t = new Date(b.starts_at).getTime();
+    return t >= from && t <= to;
+  });
+  if (!rows.length) { toast("No events in the current view to export", "info"); return; }
+  const vevents = rows.map(b => {
+    const priv = _ivcalPrivMasked(b);
+    const title = priv ? "Private"
+      : b.kind === "event" ? ((b.title || "").trim() || "Event")
+      : `${b.kind === "orientation" ? "Orientation" : "Interview"} · ${(b.applicants && b.applicants.full_name) || "Applicant"}`;
+    const end = b.ends_at || new Date(new Date(b.starts_at).getTime() + 30 * 60000).toISOString();
+    return ["BEGIN:VEVENT",
+      "UID:rr-" + b.id + "@gorouteready.com",
+      "DTSTAMP:" + fmt(new Date().toISOString()),
+      "DTSTART:" + fmt(b.starts_at),
+      "DTEND:" + fmt(end),
+      "SUMMARY:" + escT(title),
+      (!priv && b.location) ? "LOCATION:" + escT(b.location) : "",
+      (!priv && b.meeting_url && /^https:\/\//i.test(b.meeting_url)) ? "DESCRIPTION:" + escT("Join: " + b.meeting_url) : "",
+      "END:VEVENT"].filter(Boolean).join("\r\n");
+  });
+  const ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//RouteReady//Calendar Export//EN", ...vevents, "END:VCALENDAR"].join("\r\n");
+  const a = document.createElement("a");
+  a.href = "data:text/calendar;charset=utf-8," + encodeURIComponent(ics);
+  a.download = `calendar-${_ivcalISODate(vr.start)}-to-${_ivcalISODate(vr.end)}.ics`;
+  document.body.appendChild(a); a.click(); a.remove();
+  toast(`Exported ${rows.length} event${rows.length === 1 ? "" : "s"}`, "success");
 }
 
 // Outbound webhooks manager (#70) — Zapier-style POSTs on booking events.
@@ -26883,6 +26853,7 @@ function _ivcalRenderNow() {
   _ivcalCloseMenus();
   _ivcalClosePeek();
   _ivcalInstallHoverPeek(host);
+  _ivcalInstallSwipeNav(host);
   const _hadOc = !!host.querySelector(".oc"); // grid already on screen → this is a repaint
   const _prevScroll = document.getElementById("rr-ivcal-scroll") ? document.getElementById("rr-ivcal-scroll").scrollTop : null;
   const seg = (v, t) => `<button class="${_ivcalView===v?"on":""}" data-ivcal-view="${v}">${t}</button>`;
@@ -30279,6 +30250,15 @@ function _ivcalPaneHtml() {
   if (ev.metadata && ev.metadata.prep_notes) {
     rows += drow("📋", `<span style="white-space:pre-wrap;color:#3a3a45"><strong style="font-size:var(--fs-xs);color:var(--text-subtle);text-transform:uppercase;letter-spacing:.03em">Prep notes (internal)</strong><br>${escapeHtml(String(ev.metadata.prep_notes))}</span>`);
   }
+  // Candidate's booking-form answers (0493). They were stored on every booking
+  // but never shown to the operator — the interviewer should walk in knowing
+  // what the candidate already told them.
+  const _ia = ev.metadata && ev.metadata.intake_answers;
+  if (type !== "session" && _ia && typeof _ia === "object" && !Array.isArray(_ia) && Object.keys(_ia).length) {
+    const qa = Object.entries(_ia).slice(0, 8).map(([q, a]) =>
+      `<div style="margin-top:4px"><span style="color:var(--text-subtle);font-size:var(--fs-xs)">${escapeHtml(String(q))}</span><br>${escapeHtml(String(a))}</div>`).join("");
+    rows += drow("📝", `<div><strong style="font-size:var(--fs-xs);color:var(--text-subtle);text-transform:uppercase;letter-spacing:.03em">Booking answers</strong>${qa}</div>`);
+  }
   // Per-guest RSVP rollup (0492): ✓ accepted · ✗ declined · ? awaiting.
   if (type !== "session" && ev.metadata && ev.metadata.invitee_tokens && Array.isArray(ev.metadata.invitees) && ev.metadata.invitees.length > 1) {
     const by = ev.metadata.rsvp_by || {};
@@ -30316,6 +30296,7 @@ function _ivcalPaneHtml() {
     ev.meeting_url ? `<button class="oc-btn" data-oc-pane="join">🎥 Join</button>` : "",
     isRRMeet ? `<button class="oc-btn" data-oc-pane="lock" title="Lock or unlock the meeting room for guests">🔒 Room lock</button>` : "",
     type !== "session" ? `<button class="oc-btn" data-oc-pane="cancel">✖ Cancel</button>` : "",
+    type !== "session" ? `<button class="oc-btn" data-oc-pane="history" title="See every change made to this event">🕘 History</button>` : "",
     a && ev.applicant_id ? `<button class="oc-btn" data-oc-pane="applicant">Open applicant</button>` : "",
   ].filter(Boolean).join("");
   return `<div class="oc-pane">
@@ -30397,6 +30378,7 @@ function _ivcalWirePane(host) {
     else if (act === "join" && ev.meeting_url) _ivcalOpenRoom(ev);
     else if (act === "lock" && ev.meeting_url) _ivcalToggleRoomLock(ev);
     else if (act === "cancel") _ivcalDeleteEvent(sel.kind, sel.id, true);
+    else if (act === "history") _ivcalHistoryDialog(ev.id);
     else if (act === "applicant" && ev.applicant_id) _ivcalOpenApplicant(ev.applicant_id);
   });
 }
@@ -30498,7 +30480,7 @@ async function _ivcalOpenApplicant(id) {
   if (!id) return;
   // Prefer a host-provided modal if one is ever wired up.
   if (typeof window.openApplicant === "function") { window.openApplicant(id); return; }
-  if (typeof openApplicantModal === "function") { openApplicantModal(id); return; }
+  if (typeof window.openApplicantModal === "function") { window.openApplicantModal(id); return; }
   // Otherwise land the operator on the candidate's card in the Funnel — the
   // richest existing view (stage, history, one-click actions). Switch to the
   // Funnel sub-tab, load every stage, then scroll to + flash the card. obSub
@@ -30655,7 +30637,7 @@ async function _ivcalInsightsDialog() {
   try {
     const since = new Date(Date.now() - 56 * 864e5).toISOString();
     const { data, error } = await sb.from("cal_events")
-      .select("id, kind, status, starts_at, metadata")
+      .select("id, kind, status, starts_at, created_at, metadata")
       .in("kind", ["interview", "orientation"])
       .gte("starts_at", since).lt("starts_at", new Date().toISOString())
       .limit(2000);
@@ -30680,6 +30662,18 @@ async function _ivcalInsightsDialog() {
     html += bar("No-show", noShow, n, "is-bad");
     html += bar("Cancelled", cancelled, n, "is-bad");
     if (!n) html += `<div class="rr-ins-empty">No interviews in the last 8 weeks yet.</div>`;
+    // How far ahead candidates book — the median gap between booking time
+    // and the interview itself. Short leads mean tight staffing windows.
+    const leads = rows
+      .filter(r => r.created_at && r.starts_at)
+      .map(r => new Date(r.starts_at) - new Date(r.created_at))
+      .filter(ms => ms > 0)
+      .sort((a, b) => a - b);
+    if (leads.length) {
+      const med = leads[Math.floor(leads.length / 2)];
+      const txt = med >= 2 * 864e5 ? `${(med / 864e5).toFixed(1)} days` : `${Math.max(1, Math.round(med / 36e5))} hours`;
+      html += `<div class="rr-ins-note">Median booking lead time: <strong>${escapeHtml(txt)}</strong> — how far ahead candidates book.</div>`;
+    }
 
     // Utilization by weekday (#99) — booked vs the CURRENT weekly hours.
     const slot = (_ivcalCache && _ivcalCache.slot) || 30, buf = (_ivcalCache && _ivcalCache.buffer) || 0;
@@ -31265,6 +31259,10 @@ function _ivcalSettingsMenu(btn) {
         <span class="oc-set-link-ico"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>
         <span class="oc-set-link-lbl">Import .ics file…</span>
       </button>
+      <button type="button" class="oc-set-link" data-set-exportics role="menuitem" title="Download everything in the current view as an .ics file">
+        <span class="oc-set-link-ico"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></span>
+        <span class="oc-set-link-lbl">Export .ics (current view)</span>
+      </button>
       <button type="button" class="oc-set-link" data-set-webhooks role="menuitem" title="Send booking events to Zapier or your own systems">
         <span class="oc-set-link-ico"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></span>
         <span class="oc-set-link-lbl">Webhooks (Zapier)…</span>
@@ -31381,6 +31379,9 @@ function _ivcalSettingsMenu(btn) {
   });
   menu.querySelector("[data-set-importics]").addEventListener("click", () => {
     closeMenu(); _ivcalImportIcs();
+  });
+  menu.querySelector("[data-set-exportics]").addEventListener("click", () => {
+    closeMenu(); _ivcalExportIcs();
   });
   menu.querySelector("[data-set-webhooks]").addEventListener("click", () => {
     closeMenu(); _ivcalWebhooksDialog();
@@ -32555,6 +32556,7 @@ function _ivShowCopyMenu(btn, srcDay, srcWins, applyFn) {
 
 let _ivCurSchedId = null;   // the named schedule currently being edited
 let _ivLegacyMode = false;  // true until the 0400 named-schedules migration is applied
+let _ivWinsOverride = null; // one-shot: hours copied from another schedule, shown unsaved
 async function loadInterviewAvailabilityEditor() {
   const body = document.getElementById("rr-iv-body");
   if (!body) return;
@@ -32595,6 +32597,9 @@ async function loadInterviewAvailabilityEditor() {
     body.innerHTML = `<div class="rr-iv-err">Couldn't load: ${escapeHtml(e.message || String(e))}</div>`;
     return;
   }
+  // "Copy hours from…" hand-off: show another schedule's weekly hours in the
+  // day rows, unsaved, so the owner can review and Save to keep them.
+  if (_ivWinsOverride) { schedWins = _ivWinsOverride; _ivWinsOverride = null; }
   const cfg = sched || {};
   const tz = cfg.timezone || "America/Chicago";
   const slot = cfg.slot_minutes || 30, lead = cfg.min_lead_hours ?? 12, windowDays = cfg.window_days ?? 21, buffer = cfg.buffer_minutes ?? 0;
@@ -32656,6 +32661,11 @@ async function loadInterviewAvailabilityEditor() {
       ${(_ivCurSchedId!=="__new" && schedules.length>1) ? `<button type="button" class="rr-iv-sched-del" id="rr-iv-sched-del" title="Delete this schedule" aria-label="Delete schedule"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>` : ""}
       <label class="rr-iv-sched-active"><input type="checkbox" class="rr-iv-active-cb" ${isActive?"checked":""}> Active booking schedule</label>
     </div>`;
+  // Start from another schedule's hours instead of re-typing them.
+  const copySrcs = _ivLegacyMode ? [] : schedules.filter(s => s.id !== _ivCurSchedId);
+  const copyFromHtml = copySrcs.length
+    ? `<div class="rr-iv-copyfrom"><label>Copy hours from <select class="rr-iv-copyfrom-sel" aria-label="Copy weekly hours from another schedule"><option value="">another schedule…</option>${copySrcs.map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`).join("")}</select></label></div>`
+    : "";
   body.innerHTML = `
     ${schedHtml}
     <div class="rr-iv-cfg">
@@ -32696,7 +32706,9 @@ async function loadInterviewAvailabilityEditor() {
         </div>
       </div>
     </details>`; })()}
+    ${copyFromHtml}
     <div class="rr-iv-days">${rows}</div>
+    <div class="rr-iv-weekcap" id="rr-iv-weekcap" aria-live="polite"></div>
     <div class="rr-iv-foot"><span class="rr-iv-save-status" id="rr-iv-save-status"></span><button class="rr-iv-btn" id="rr-iv-save">Save availability</button></div>
     <div class="rr-iv-subh">One-off group sessions</div>
     <div id="rr-iv-sess-list">${sessHtml}</div>
@@ -32731,6 +32743,54 @@ async function loadInterviewAvailabilityEditor() {
     }).catch(() => { poolHost.innerHTML = `<span class="rr-iv-hint">Couldn't load the team list.</span>`; });
   }
 
+  // Weekly capacity summary: live total of bookable spots implied by the
+  // current (possibly unsaved) hours + slot/buffer settings, so the owner
+  // sees what a change does before saving it.
+  const weekCapEl = body.querySelector("#rr-iv-weekcap");
+  const refreshWeekCap = () => {
+    if (!weekCapEl) return;
+    const slotM = parseInt(body.querySelector(".rr-iv-slot").value, 10) || 30;
+    const bufM = parseInt(body.querySelector(".rr-iv-buffer").value, 10) || 0;
+    let total = 0, days = 0;
+    body.querySelectorAll(".rr-iv-day").forEach(row => {
+      if (!row.querySelector(".rr-iv-on").checked) return;
+      const wins = [...row.querySelectorAll(".rr-iv-win")].map(w => ({
+        start_min: _ivHHMMToMin(w.querySelector(".rr-iv-start").value),
+        end_min: _ivHHMMToMin(w.querySelector(".rr-iv-end").value),
+        capacity: Math.max(1, parseInt(w.querySelector(".rr-iv-cap").value, 10) || 1),
+      })).filter(w => w.end_min > w.start_min);
+      const cap = _slotDayCapacity(wins, slotM, bufM);
+      if (cap > 0) { total += cap; days++; }
+    });
+    weekCapEl.textContent = total
+      ? `Adds up to ${total} bookable spot${total === 1 ? "" : "s"} a week across ${days} day${days === 1 ? "" : "s"} — ${slotM}-min slots${bufM ? ` with a ${bufM}-min buffer` : ""}.`
+      : "No weekly hours yet — turn a day on above to open booking times.";
+  };
+  const daysHost = body.querySelector(".rr-iv-days");
+  daysHost.addEventListener("input", refreshWeekCap);
+  daysHost.addEventListener("change", refreshWeekCap);
+  // Add/remove-window buttons mutate the rows after the click lands.
+  daysHost.addEventListener("click", (e) => { if (e.target.closest(".rr-iv-winx, .rr-iv-addwin")) setTimeout(refreshWeekCap, 0); });
+  body.querySelector(".rr-iv-slot")?.addEventListener("change", refreshWeekCap);
+  body.querySelector(".rr-iv-buffer")?.addEventListener("input", refreshWeekCap);
+  refreshWeekCap();
+
+  // Copy hours from another schedule: fetch its windows, reload the editor
+  // with them applied (still unsaved).
+  body.querySelector(".rr-iv-copyfrom-sel")?.addEventListener("change", async (e) => {
+    const srcId = e.target.value;
+    if (!srcId) return;
+    try {
+      const g = await sb.rpc("interview_schedule_get", { p_id: srcId });
+      if (g.error) throw g.error;
+      const wins = (g.data && g.data.windows) || [];
+      if (!wins.length) { toast("That schedule has no weekly hours to copy", "warn"); e.target.value = ""; return; }
+      _ivWinsOverride = wins;
+      await loadInterviewAvailabilityEditor();
+      toast("Hours copied — review, then Save availability to keep them", "success");
+    } catch (err) { toast("Couldn't copy hours: " + (err.message || err), "warn"); e.target.value = ""; }
+  });
+
   // Replace a day's windows with a copied set (used by "copy to other days").
   const applyWinsToDay = (targetDay, srcWins) => {
     const tgt = body.querySelector(`.rr-iv-day[data-day="${targetDay}"]`);
@@ -32739,6 +32799,7 @@ async function loadInterviewAvailabilityEditor() {
     tgt.querySelector(".rr-iv-on").checked = true;
     tgt.querySelector(".rr-iv-wins").innerHTML = srcWins.map(w => winRow({ start_min: w.start, end_min: w.end, capacity: w.cap }, true)).join("");
     tgt.querySelectorAll("input:not(.rr-iv-on), .rr-iv-winx, .rr-iv-addwin, .rr-iv-copy").forEach(el => { el.disabled = false; });
+    refreshWeekCap();
   };
   body.querySelectorAll(".rr-iv-day").forEach(row => {
     const setOn = (on) => {
@@ -32998,6 +33059,7 @@ async function connectGoogleCalendar() {
     if (error || !data?.url) throw error || new Error("No authorization URL returned");
     const popup = window.open(data.url, "rr-gcal", "width=520,height=640");
     const onMsg = (ev) => {
+      if (ev.origin !== location.origin) return; // callback pages post with location.origin target
       if (!ev.data || ev.data.type !== "rr-gcal") return;
       window.removeEventListener("message", onMsg);
       try { popup && popup.close(); } catch (_) {}
@@ -47378,6 +47440,10 @@ function _ddMessageDriver(driverId) {
     try { if (typeof openDriverChatThread === "function") openDriverChatThread(driverId); } catch (_) {}
   }, 80);
 }
+// mock-wiring's New-DM modal calls this by name; as a module-scoped function
+// it was invisible to that classic script, so picking a driver silently did
+// nothing — the window export is what makes the modal actually work.
+window._ddMessageDriver = _ddMessageDriver;
 
 async function openCoachingForm(driverId, opts) {
   let m = document.getElementById("rr-coach-modal");
@@ -59394,127 +59460,6 @@ async function renderSchedTodayView() {
 }
 window._rrRenderSchedTodayView = renderSchedTodayView;
 
-// Stub kept so the no-longer-used legacy block below compiles —
-// the early return prevents anything past this point from running.
-async function _renderSchedTodayView_LEGACY_UNUSED() {
-  return;
-  const body = document.getElementById("rr-sched-today-body");
-  if (!body) return;
-  const dspId = window.RR?.dsp?.id;
-  if (!dspId) return;
-  if (!_schedTodayDate) _schedTodayDate = fmtIsoDate(new Date());
-  const iso = _schedTodayDate;
-  const dt  = new Date(iso + "T12:00:00");
-
-  body.innerHTML = `<div class="rr-loading">Loading…</div>`;
-
-  // Pull the visible week's grid so we can pick the day's shifts.
-  const weekStart = fmtIsoDate(startOfWeekMonday(dt));
-  const [gridRes, driversRes] = await Promise.all([
-    sb.rpc("schedule_grid", { p_start: weekStart, p_weeks: 1 }),
-    sb.from("drivers")
-      .select("id, full_name, first_name, last_name, preferred_name, status, station_id, tier, station:station_id (code)")
-      .eq("dsp_id", dspId)
-      .eq("status", "active")
-      .order("full_name"),
-  ]);
-  if (gridRes.error || driversRes.error) {
-    body.innerHTML = `<div class="sched-today-empty">Couldn't load today's schedule.</div>`;
-    return;
-  }
-  const grid = gridRes.data || { shifts: [] };
-  const drivers = driversRes.data || [];
-  const byId = new Map(drivers.map(d => [d.id, d]));
-
-  // Bucket the day's shifts: assigned, PTO, open.
-  const dayShifts = (grid.shifts || []).filter(s => s.date === iso);
-  const eff = window._rrEffectiveSettings || {};
-  const lead = Math.max(0, parseInt(eff.report_lead_minutes, 10) || 0);
-  const blockMin = Math.max(0, parseFloat(eff.default_block_hours) || 0) * 60;
-
-  const assigned = dayShifts.filter(s => s.driver_id && s.status === "scheduled");
-  const open     = dayShifts.filter(s => !s.driver_id && s.status === "scheduled");
-
-  const fmtTimes = (sh) => {
-    const sMs = sh.starts_at ? new Date(sh.starts_at).getTime() : null;
-    if (sMs == null) return "";
-    const waveMs = sMs + lead * 60000;
-    const endMs  = blockMin > 0 ? waveMs + blockMin * 60000 : (sh.ends_at ? new Date(sh.ends_at).getTime() : null);
-    const rpt   = fmtTimeShort(new Date(sMs).toISOString());
-    const wave  = fmtTimeShort(new Date(waveMs).toISOString());
-    const end   = endMs != null ? fmtTimeShort(new Date(endMs).toISOString()) : "";
-    const r = lead > 0 ? `<span class="shift-chip-rpt">Rpt ${rpt}</span>` : "";
-    return `${r}<span class="shift-chip-wave">${wave}${end ? " – " + end : ""}</span>`;
-  };
-
-  const rowHtml = (sh) => {
-    const d = byId.get(sh.driver_id);
-    const name = d ? (d.preferred_name || d.full_name) : (sh.driver_name || "Driver");
-    const initials = _schedDriverInitials(name);
-    const tier = d?.tier ? `tier-${String(d.tier).toLowerCase()}` : "";
-    const station = d?.station?.code || sh.station_code || "—";
-    const isPto = sh.shift_kind === "pto" || sh.status === "pto";
-    const cls = `sched-today-row${isPto ? " pto" : ""}`;
-    const route = sh.route_code ? escapeHtml(sh.route_code) : (isPto ? "PTO" : "shift");
-    const kind = isPto ? "pto" : "shift";
-    return `<div class="${cls}" draggable="true" data-rr-today-row="${escapeHtml(sh.id || "")}" data-rr-today-kind="${kind}">
-      <span class="sched-today-drag-handle" aria-hidden="true" title="Drag to reorder">
-        <svg viewBox="0 0 12 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="4" cy="3" r=".8" fill="currentColor"/><circle cx="8" cy="3" r=".8" fill="currentColor"/><circle cx="4" cy="7" r=".8" fill="currentColor"/><circle cx="8" cy="7" r=".8" fill="currentColor"/><circle cx="4" cy="11" r=".8" fill="currentColor"/><circle cx="8" cy="11" r=".8" fill="currentColor"/></svg>
-      </span>
-      <div class="sched-today-driver">
-        <div class="avatar-sm ${tier}">${escapeHtml(initials)}</div>
-        <div>
-          <div class="sched-today-driver-name">${escapeHtml(name)}</div>
-          <div class="sched-today-driver-meta">${escapeHtml(station)}</div>
-        </div>
-      </div>
-      <div class="sched-today-shift">
-        <div class="sched-today-shift-route">${route}</div>
-        <div class="sched-today-shift-time">${fmtTimes(sh)}</div>
-      </div>
-      <div class="sched-today-tag">${isPto ? "PTO" : "Scheduled"}</div>
-    </div>`;
-  };
-
-  const assignedHtml = assigned.length
-    ? assigned.sort((a,b) => (a.starts_at || "").localeCompare(b.starts_at || "")).map(rowHtml).join("")
-    : "";
-
-  const openHtml = open.length
-    ? open.map(sh => {
-        const sMs = sh.starts_at ? new Date(sh.starts_at).getTime() : null;
-        const waveMs = sMs != null ? sMs + lead * 60000 : null;
-        const endMs  = waveMs != null && blockMin > 0 ? waveMs + blockMin * 60000 : (sh.ends_at ? new Date(sh.ends_at).getTime() : null);
-        const wave = waveMs != null ? fmtTimeShort(new Date(waveMs).toISOString()) : "";
-        const end  = endMs  != null ? fmtTimeShort(new Date(endMs).toISOString())  : "";
-        return `<div class="sched-today-row" draggable="true" data-rr-today-row="${escapeHtml(sh.id || "")}" data-rr-today-kind="open" style="border-left:3px solid var(--sch-amber)">
-          <span class="sched-today-drag-handle" aria-hidden="true" title="Drag to reorder">
-            <svg viewBox="0 0 12 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="4" cy="3" r=".8" fill="currentColor"/><circle cx="8" cy="3" r=".8" fill="currentColor"/><circle cx="4" cy="7" r=".8" fill="currentColor"/><circle cx="8" cy="7" r=".8" fill="currentColor"/><circle cx="4" cy="11" r=".8" fill="currentColor"/><circle cx="8" cy="11" r=".8" fill="currentColor"/></svg>
-          </span>
-          <div class="sched-today-driver">
-            <div class="avatar-sm" style="background:var(--sch-surface-3);color:var(--text-subtle);border:1.5px dashed var(--sch-line-strong);font-weight:700">+</div>
-            <div>
-              <div class="sched-today-driver-name">Unassigned</div>
-              <div class="sched-today-driver-meta">${escapeHtml(sh.station_code || "—")}</div>
-            </div>
-          </div>
-          <div class="sched-today-shift">
-            <div class="sched-today-shift-route">${escapeHtml(sh.route_code || "Open shift")}</div>
-            <div class="sched-today-shift-time"><span class="shift-chip-wave">${wave}${end ? " – " + end : ""}</span></div>
-          </div>
-          <div class="sched-today-tag" style="color:var(--sch-amber-dark);background:var(--sch-amber-soft)">Open</div>
-        </div>`;
-      }).join("")
-    : "";
-
-  // Empty day = blank body (no headers, no placeholder copy).
-  body.innerHTML =
-    (assigned.length ? `<div class="sched-today-section-head">Scheduled · ${assigned.length}</div>${assignedHtml}` : "") +
-    (open.length     ? `<div class="sched-today-section-head">Open · ${open.length}</div>${openHtml}`               : "");
-
-  _wireSchedTodayDragReorder(body);
-}
-window._rrRenderSchedTodayView = renderSchedTodayView;
 
 // Drag-to-reorder support for Today view rows. We keep the order in
 // memory only — it's a per-session display preference, no DB write.
@@ -92715,6 +92660,7 @@ async function _driveConnectGoogle(triggerBtn) {
     if (error || !data?.url) throw error || new Error("No authorization URL returned");
     const popup = window.open(data.url, "rr-gw", "width=520,height=660");
     const onMsg = (ev) => {
+      if (ev.origin !== location.origin) return; // callback pages post with location.origin target
       if (!ev.data || ev.data.type !== "rr-gcal") return;
       window.removeEventListener("message", onMsg);
       try { popup && popup.close(); } catch (_) {}
@@ -94694,6 +94640,7 @@ async function _rrAdpConnect() {
     }
     const popup = window.open(data.url, "rr-finch", "width=560,height=680");
     const onMsg = async (ev) => {
+      if (ev.origin !== location.origin) return; // callback pages post with location.origin target
       if (!ev.data || ev.data.type !== "rr-finch") return;
       window.removeEventListener("message", onMsg);
       try { popup && popup.close(); } catch (_) {}

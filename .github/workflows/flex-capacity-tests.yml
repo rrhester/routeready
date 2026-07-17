@@ -1,0 +1,35 @@
+name: flex-capacity-tests
+
+# The Flex Capacity engine (flex-capacity/) has a full node:test suite and a
+# typecheck script, but until now no workflow ran either — engine changes
+# could merge with red tests. Same pattern as engine-tests.yml. The edge
+# function supabase/functions/flex-capacity/index.ts imports this package's
+# src/ directly, so these tests also gate what production runs (deploys are
+# triggered from deploy-migrations.yml, whose paths include flex-capacity/src).
+on:
+  pull_request:
+    paths:
+      - "flex-capacity/**"
+      - ".github/workflows/flex-capacity-tests.yml"
+  push:
+    branches: [main]
+    paths:
+      - "flex-capacity/**"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: flex-capacity
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: flex-capacity/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test

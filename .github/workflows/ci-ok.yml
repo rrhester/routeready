@@ -1,0 +1,52 @@
+name: ci-ok
+
+# Always-run aggregator so "CI green" is well-defined (project-review
+# PR#84). Every real test workflow here is path-filtered, which means two
+# problems for branch protection and the auto-merge convention:
+#   1. some PR classes (docs-only, workflow-only, supabase-only before the
+#      edge-functions gate existed) trigger no checks at all, and
+#   2. GitHub required-status-checks hang forever on workflows that were
+#      path-filtered out, because a skipped workflow never reports.
+# This job always runs, waits for every other check run on the head SHA to
+# finish, and fails if any of them failed — one reliable signal to require.
+on:
+  pull_request:
+
+permissions:
+  checks: read
+  contents: read
+
+jobs:
+  ci-ok:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Wait for all other checks on this SHA
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const sha = context.payload.pull_request.head.sha;
+            const ownJob = 'ci-ok';
+            // Give path-filtered workflows a moment to spawn their runs.
+            await new Promise(r => setTimeout(r, 60_000));
+            const bad = new Set(['failure', 'timed_out', 'action_required']);
+            for (;;) {
+              const runs = await github.paginate(github.rest.checks.listForRef, {
+                owner: context.repo.owner, repo: context.repo.repo, ref: sha, per_page: 100,
+              });
+              const others = runs.filter(r => r.name !== ownJob);
+              const pending = others.filter(r => r.status !== 'completed');
+              if (pending.length === 0) {
+                const failed = others.filter(r => bad.has(r.conclusion));
+                if (failed.length) {
+                  core.setFailed(`failing checks: ${failed.map(r => r.name).join(', ')}`);
+                } else {
+                  core.info(others.length
+                    ? `all ${others.length} checks passed/neutral: ${others.map(r => `${r.name}=${r.conclusion}`).join(', ')}`
+                    : 'no other checks triggered for this PR — ok');
+                }
+                return;
+              }
+              core.info(`waiting on: ${pending.map(r => r.name).join(', ')}`);
+              await new Promise(r => setTimeout(r, 30_000));
+            }

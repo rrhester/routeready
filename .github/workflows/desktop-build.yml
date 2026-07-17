@@ -69,12 +69,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          # No npm cache configured yet — there's no package-lock.json
-          # in the repo (it'll generate on first install). Add
-          # `cache: 'npm'` once you commit a lockfile to speed builds.
+          cache: 'npm'
+          cache-dependency-path: desktop/package-lock.json
 
       - name: Install deps
-        run: npm install --no-audit --no-fund
+        # npm ci against the committed lockfile — installers are now built
+        # from pinned dependency trees instead of whatever electron ^32 /
+        # playwright ^1.48 resolve to on build day.
+        run: npm ci --no-audit --no-fund
 
       # electron-builder writes outputs to desktop/dist/. Mac produces
       # .dmg, Windows produces .exe (NSIS installer), Linux produces

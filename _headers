@@ -21,7 +21,25 @@
 #   X-Frame-Options SAMEORIGIN (was DENY): the dashboard's interview
 #   room embeds our own meet.html in an iframe; SAMEORIGIN still blocks
 #   every cross-origin framing attempt.
-# CSP: deferred — inline scripts/styles need nonce/hash refactor first.
+# CSP: enforcing baseline (project-review PR#1). script-src keeps
+# 'unsafe-inline' (the app relies on inline scripts/handlers — nonce/hash
+# refactor is a separate project) but pins script ORIGIN to self + the
+# three CDNs actually used, which blocks injected remote-script loading
+# outright. Every non-'self' origin below maps to a verified use:
+#   jsdelivr  — supabase-js (lazy features), pdf-lib/pdfjs/qrcode/mammoth/
+#               xlsx/tesseract/MediaPipe
+#   esm.sh    — TipTap editor       unpkg — Leaflet
+#   challenges.cloudflare.com — Turnstile (booking captcha, script+frame)
+#   *.supabase.co — API/realtime/storage   *.livekit.cloud — Meet SFU
+#   docs.google.com + *.googleusercontent.com — workbook sheet-CSV import
+#   api.weather.gov / open-meteo / sunrise-sunset / rainviewer — weather
+#   vpic.nhtsa.dot.gov — VIN decode fallback
+#   storage.googleapis.com — MediaPipe segmenter model
+#   tessdata.projectnaptha.com — tesseract traineddata (driver scanner)
+#   fonts.googleapis/gstatic — DM fonts on terms/privacy only
+# img-src stays https: (map tiles, storage photos) — images are the one
+# deliberately-wide directive. KEEP THIS VALUE IDENTICAL to netlify.toml;
+# scripts/check-headers-parity.mjs fails the build when the two drift.
 /*
   X-Frame-Options: SAMEORIGIN
   X-Content-Type-Options: nosniff
@@ -29,6 +47,7 @@
   Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
   Permissions-Policy: geolocation=(self), camera=(self), microphone=(self), display-capture=(self), payment=()
   X-XSS-Protection: 0
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://esm.sh https://unpkg.com https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://esm.sh https://unpkg.com https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: data: https://doiwrhkirgblcvuskhno.supabase.co; connect-src 'self' https://doiwrhkirgblcvuskhno.supabase.co wss://doiwrhkirgblcvuskhno.supabase.co https://*.livekit.cloud wss://*.livekit.cloud https://cdn.jsdelivr.net https://esm.sh https://unpkg.com https://docs.google.com https://*.googleusercontent.com https://api.weather.gov https://archive-api.open-meteo.com https://api.sunrise-sunset.org https://api.rainviewer.com https://vpic.nhtsa.dot.gov https://storage.googleapis.com https://tessdata.projectnaptha.com https://challenges.cloudflare.com; worker-src 'self' blob: https://cdn.jsdelivr.net; frame-src 'self' blob: https://challenges.cloudflare.com https://calendar.google.com https://doiwrhkirgblcvuskhno.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; upgrade-insecure-requests
 
 /*.html
   Cache-Control: no-cache, no-store, must-revalidate
@@ -96,4 +115,51 @@
 # carries a deploy-unique ?v= token (bust-cache.mjs), so the content at
 # any given URL never changes.
 /dashboard/views/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# ── Immutable long-cache for ?v=-tokened assets (project-review PR#22) ──
+# Every reference to these files carries a deploy-unique ?v= token
+# (bust-cache.mjs), so a deploy changes the URL and the year-long cache
+# can never pin an operator on stale code. Previously these ~8 MB of
+# JS/CSS fell to default revalidate-every-load behaviour.
+# Deliberately EXCLUDED: /dashboard/sw.js + manifests (no-cache rules
+# above), /dashboard/config.js + desktop-connect.js (referenced WITHOUT
+# tokens from login.html), and /app/*.js (the driver-app shell is
+# precached by its service worker, which refetches the same bare URLs on
+# SHELL_CACHE bumps — an immutable HTTP cache would feed it stale bytes).
+/dashboard/vendor/*
+  Cache-Control: public, max-age=31536000, immutable
+/dashboard/parts/*
+  Cache-Control: public, max-age=31536000, immutable
+/dashboard/repair/*
+  Cache-Control: public, max-age=31536000, immutable
+/dashboard/*.css
+  Cache-Control: public, max-age=31536000, immutable
+/app/fonts/*
+  Cache-Control: public, max-age=31536000, immutable
+/marketing.css
+  Cache-Control: public, max-age=31536000, immutable
+/dashboard/live.js
+  Cache-Control: public, max-age=31536000, immutable
+/dashboard/workbook.js
+  Cache-Control: public, max-age=31536000, immutable
+/dashboard/reports.js
+  Cache-Control: public, max-age=31536000, immutable
+/dashboard/meet.js
+  Cache-Control: public, max-age=31536000, immutable
+/dashboard/meet-core.js
+  Cache-Control: public, max-age=31536000, immutable
+/dashboard/scheduling-engine.js
+  Cache-Control: public, max-age=31536000, immutable
+/dashboard/mock-wiring.js
+  Cache-Control: public, max-age=31536000, immutable
+/dashboard/fleet-sync.js
+  Cache-Control: public, max-age=31536000, immutable
+/dashboard/forecast-core.js
+  Cache-Control: public, max-age=31536000, immutable
+/dashboard/ivcal-layout.js
+  Cache-Control: public, max-age=31536000, immutable
+/dashboard/ivcal-slots.js
+  Cache-Control: public, max-age=31536000, immutable
+/dashboard/cal-tz.mjs
   Cache-Control: public, max-age=31536000, immutable

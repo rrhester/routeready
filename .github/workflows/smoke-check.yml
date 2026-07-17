@@ -11,19 +11,22 @@ name: smoke-check
 on:
   pull_request:
     paths:
-      - "dashboard/live.js"
-      - "dashboard/workbook.js"
-      - "dashboard/reports.js"
-      - "app/app.js"
+      - "dashboard/*.js"
+      - "dashboard/*.mjs"
+      - "dashboard/parts/**"
+      - "dashboard/repair/**"
+      - "app/*.js"
       - "scripts/smoke-check-live.mjs"
+      - "eslint.config.mjs"
       - ".github/workflows/smoke-check.yml"
   push:
     branches: [main]
     paths:
-      - "dashboard/live.js"
-      - "dashboard/workbook.js"
-      - "dashboard/reports.js"
-      - "app/app.js"
+      - "dashboard/*.js"
+      - "dashboard/*.mjs"
+      - "dashboard/parts/**"
+      - "dashboard/repair/**"
+      - "app/*.js"
       - "scripts/smoke-check-live.mjs"
 
 jobs:
@@ -34,5 +37,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: npm install
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
       - run: npm run smoke
+      # no-undef + silent-no-op detectors over the shipped JS — the class
+      # of bug the typeof-guard convention was hand-papering over. See
+      # eslint.config.mjs for scope + the shared-globals contract.
+      - run: npm run lint
