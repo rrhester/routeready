@@ -1097,6 +1097,27 @@ const skey = (ref) => { const rc = parseCellRef(ref); return rc.row + "," + rc.c
 const scell = (sh, ref) => sh.cells.get(skey(ref));
 const sspill = (sh, ref) => { const e = sh.spill.get(skey(ref)); return e ? e.value : undefined; };
 
+ok("iterative calc: a circular sum converges instead of #CIRCULAR (100-list #1)", () => {
+  // B1 = A1 + B1*0 ... use a damped convergence: X = (10 + X)/2 → X→10
+  const sh = spillSheet({ A1: "=(10 + A1) / 2" });
+  sh.meta = { iterCalc: { on: true, max: 200, eps: 1e-6 } };
+  __engine.recalcSheet(sh);
+  assert.equal(scell(sh, "A1").err, null);
+  assert.ok(Math.abs(scell(sh, "A1").computed - 10) < 1e-3, "converged to ~10, got " + scell(sh, "A1").computed);
+});
+ok("iterative calc off: the same circular formula is #CIRCULAR", () => {
+  const sh = spillSheet({ A1: "=(10 + A1) / 2" });
+  __engine.recalcSheet(sh);
+  assert.equal(scell(sh, "A1").err, "#CIRCULAR");
+});
+ok("SPARKLINE returns a marked value the painter renders (100-list #9)", () => {
+  const sh = spillSheet({ A1: "1", A2: "5", A3: "3", B1: "=SPARKLINE(A1:A3, \"column\")" });
+  __engine.recalcSheet(sh);
+  const v = scell(sh, "B1").computed;
+  assert.ok(typeof v === "string" && v.includes("SPARK"), "sparkline marker present");
+  assert.ok(v.includes("column"), "carries the chart type");
+});
+
 ok("spill: SEQUENCE(3) fills the column below the origin", () => {
   const sh = spillSheet({ A1: "=SEQUENCE(3)" });
   __engine.recalcSheet(sh);

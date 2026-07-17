@@ -421,6 +421,17 @@ function parseFormula(src) {
         return { k: "func", name: up, args };
       }
       if (peek() && peek().t === "!") { next(); return parseSheetRef(id); }
+      // 3-D reference: Week1:Week4!B2 — a sheet span, resolved by tab order
+      // (100-list #6). Must be checked before the whole-column form.
+      if (peek() && peek().t === TOK_COLON && toks[p + 1] && (toks[p + 1].t === TOK_ID || toks[p + 1].t === "sheetq") && toks[p + 2] && toks[p + 2].t === "!") {
+        next(); // :
+        const endTok = next();
+        next(); // !
+        let node = parseSheetRef(id);
+        if (node.k === "ref") node = { k: "range", a: { row: node.row, col: node.col }, b: { row: node.row, col: node.col }, sheet: node.sheet };
+        node.sheetEnd = endTok.v;
+        return node;
+      }
       // whole-column range: A:A / B:D (rows open-ended)
       if (/^\$?[A-Za-z]{1,3}$/.test(id) && peek() && peek().t === TOK_COLON && toks[p + 1] && toks[p + 1].t === TOK_ID && /^\$?[A-Za-z]{1,3}$/.test(toks[p + 1].v)) {
         next(); // :
@@ -443,6 +454,16 @@ function parseFormula(src) {
       return { k: "name", v: up };
     }
     if (tok.t === "sheetq") {
+      // quoted 3-D span: 'Week 1':'Week 4'!B2 (100-list #6)
+      if (peek() && peek().t === TOK_COLON && toks[p + 1] && (toks[p + 1].t === TOK_ID || toks[p + 1].t === "sheetq") && toks[p + 2] && toks[p + 2].t === "!") {
+        next(); // :
+        const endTok = next();
+        next(); // !
+        let node = parseSheetRef(tok.v);
+        if (node.k === "ref") node = { k: "range", a: { row: node.row, col: node.col }, b: { row: node.row, col: node.col }, sheet: node.sheet };
+        node.sheetEnd = endTok.v;
+        return node;
+      }
       const bang = next();
       if (!bang || bang.t !== "!") throw new FormulaError("#ERROR", "expected ! after sheet name");
       return parseSheetRef(tok.v);
@@ -2438,8 +2459,10 @@ const R1C1_RE = /^R(\d{1,7})C(\d{1,5})$/i;
 // Supports SELECT (cols + sum/avg/count/max/min), WHERE (comparisons,
 // contains/starts with/ends with, is [not] null, matches, and/or/not, parens),
 // GROUP BY, ORDER BY, LIMIT, OFFSET. Column refs are A,B,C… or Col1,Col2…
-// (the data range's own columns). LABEL/FORMAT/PIVOT are not supported.
-const QUERY_KW = new Set(["select", "where", "group", "order", "by", "limit", "offset", "and", "or", "not", "asc", "desc", "contains", "starts", "ends", "with", "is", "null", "matches", "like", "true", "false", "date", "sum", "avg", "count", "max", "min"]);
+// (the data range's own columns). LABEL renames output columns and FORMAT
+// applies an Excel-style number format to them (100-list #7); PIVOT is not
+// supported.
+const QUERY_KW = new Set(["select", "where", "group", "order", "by", "limit", "offset", "and", "or", "not", "asc", "desc", "contains", "starts", "ends", "with", "is", "null", "matches", "like", "true", "false", "date", "sum", "avg", "count", "max", "min", "label", "format"]);
 function queryTokenize(src) {
   const toks = []; let i = 0;
   const push = (t, v) => toks.push({ t, v });
@@ -2551,6 +2574,20 @@ function runQuery(grid, queryStr, headerRows) {
   let limit = null, offset = 0;
   if (isKw("limit")) { p++; limit = Math.trunc(eat("num").v); }
   if (isKw("offset")) { p++; offset = Math.trunc(eat("num").v); }
+  // ── LABEL / FORMAT (100-list #7) ──
+  // label B 'Route', sum(C) 'Total' — renames output headers;
+  // format C '#,##0.00' — runs values through the custom-format engine.
+  const selKey = () => {
+    const tk = peek();
+    if (tk && ["sum", "avg", "count", "max", "min"].includes(tk.t)) {
+      const agg = tk.t; p++; eat("("); const col = eat("id").v; eat(")");
+      return agg + ":" + queryColIndex(col, width);
+    }
+    return ":" + queryColIndex(eat("id").v, width);
+  };
+  const labels = new Map(), outFormats = new Map();
+  if (isKw("label")) { p++; for (;;) { const k = selKey(); labels.set(k, eat("str").v); if (peek() && peek().t === ",") { p++; continue; } break; } }
+  if (isKw("format")) { p++; for (;;) { const k = selKey(); outFormats.set(k, eat("str").v); if (peek() && peek().t === ",") { p++; continue; } break; } }
   if (peek()) throw new FormulaError("#VALUE", `QUERY: trailing '${peek().v}'`);
 
   // ── evaluate ──
@@ -2621,8 +2658,16 @@ function runQuery(grid, queryStr, headerRows) {
   }
   if (offset > 0) out = out.slice(offset);
   if (limit != null) out = out.slice(0, limit);
-  // header row: selected column labels / aggregate names
-  const headRow = sel.map((s) => s.agg ? `${s.agg} ${headerLabel(s.idx)}` : headerLabel(s.idx));
+  const keyOfSel = (s) => (s.agg || "") + ":" + s.idx;
+  if (outFormats.size) {
+    out = out.map((row) => row.map((v, i) => {
+      const pat = outFormats.get(keyOfSel(sel[i]));
+      if (pat == null || v == null || v === "") return v;
+      try { return applyCustomFormat(v, pat, null); } catch (_) { return v; }
+    }));
+  }
+  // header row: selected column labels / aggregate names, LABEL overrides
+  const headRow = sel.map((s) => labels.has(keyOfSel(s)) ? labels.get(keyOfSel(s)) : s.agg ? `${s.agg} ${headerLabel(s.idx)}` : headerLabel(s.idx));
   return [headRow, ...out];
 }
 
@@ -2631,7 +2676,32 @@ function runQuery(grid, queryStr, headerRows) {
 // reference probes, error catchers, dynamic references, and the
 // array-shaping family (which wants grids, not flattened values).
 
+const WB_SPARK_MARK = "\u2063SPARK\u2063"; // invisible-separator marker; cellInnerHtml renders it as an inline chart
+
 const FUNCS_RAW = {
+  // In-cell sparkline (100-list #9): =SPARKLINE(B2:M2, "column"). The cell
+  // computes to a marked JSON string the painter turns into an inline SVG.
+  SPARKLINE: (args, ctx) => {
+    if (!args.length) throw new FormulaError("#ERROR", "SPARKLINE takes a range");
+    const grid = argGrid(args[0], ctx);
+    const type = args.length > 1 ? String(fmtScalar(deArr(evalNode(args[1], ctx)))).toLowerCase() : "line";
+    const vals = grid.flat().map((v) => cellNumeric(v)).filter((v) => v != null).slice(0, 60);
+    if (!vals.length) return "";
+    return WB_SPARK_MARK + JSON.stringify({ t: ["line", "column", "bar", "winloss"].includes(type) ? type : "line", v: vals });
+  },
+  // GETPIVOTDATA (100-list #5): value field, pivot (1-based index or title),
+  // then field/item pairs narrowing the slice. No pairs = grand total.
+  GETPIVOTDATA: (args, ctx) => {
+    if (args.length < 2) throw new FormulaError("#ERROR", "GETPIVOTDATA takes a value field and a pivot");
+    if (!ctx.pivotLookup) throw new FormulaError("#N/A", "no pivot tables here");
+    const valueField = fmtScalar(deArr(evalNode(args[0], ctx)));
+    const which = deArr(evalNode(args[1], ctx));
+    const pairs = [];
+    for (let i = 2; i + 1 < args.length; i += 2) {
+      pairs.push([fmtScalar(deArr(evalNode(args[i], ctx))), fmtScalar(deArr(evalNode(args[i + 1], ctx)))]);
+    }
+    return ctx.pivotLookup(valueField, which, pairs);
+  },
   QUERY: (args, ctx) => {
     if (args.length < 2) throw new FormulaError("#ERROR", "QUERY takes data and a query string");
     const grid = argGrid(args[0], ctx);
@@ -3377,6 +3447,23 @@ function gridOfRange(node, ctx) {
   const r0 = Math.min(a.row, b.row), r1 = Math.max(a.row, b.row);
   const c0 = Math.min(a.col, b.col), c1 = Math.max(a.col, b.col);
   if ((r1 - r0 + 1) * (c1 - c0 + 1) > MAX_RANGE_CELLS) throw new FormulaError("#REF", "range too large");
+  // 3-D span (100-list #6): the same rectangle on every sheet from
+  // node.sheet..node.sheetEnd, stacked vertically — SUM(Week1:Week4!B2)
+  // adds all four B2s.
+  if (node.sheetEnd) {
+    if (!ctx.sheetSpan) throw new FormulaError("#REF", "3-D references need sheet context");
+    const span = ctx.sheetSpan(node.sheet, node.sheetEnd);
+    if ((r1 - r0 + 1) * (c1 - c0 + 1) * span.length > MAX_RANGE_CELLS) throw new FormulaError("#REF", "range too large");
+    const rows = [];
+    for (const sn of span) {
+      for (let r = r0; r <= r1; r++) {
+        const row = [];
+        for (let c = c0; c <= c1; c++) row.push(ctx.getCell(r, c, sn));
+        rows.push(row);
+      }
+    }
+    return new Arr(rows);
+  }
   const rows = [];
   for (let r = r0; r <= r1; r++) {
     const row = [];
@@ -4564,8 +4651,11 @@ function namesForSheet(sheet) {
   for (const d of defs) {
     if (!d || !d.name || !d.ref) continue;
     let node;
-    try { node = parseFormula("=" + d.ref); } catch (_) { continue; }
-    if (node.k !== "range" && node.k !== "ref") continue;
+    try { node = parseFormula(String(d.ref).startsWith("=") ? d.ref : "=" + d.ref); } catch (_) { continue; }
+    // dynamic names (100-list #4): a "=formula" definition splices its whole
+    // AST in wherever the name is used — OFFSET/INDEX-based growing ranges
+    // work because those resolve at eval time anyway.
+    if (node.k !== "range" && node.k !== "ref") { m.set(String(d.name).toUpperCase(), node); continue; }
     if (node.sheet && String(node.sheet).trim().toLowerCase() === here) delete node.sheet;
     m.set(String(d.name).toUpperCase(), node);
   }
@@ -6122,6 +6212,8 @@ function recalcCone(sheet, dirtyKeys) {
     tables: buildTablesRegistry(sheet),
     getCell: (r, c, sheetName) => (sheetName ? crossSheetValue(sheet, sheetName, r, c) : engineValue(sheet, r, c)),
     getFormula: (r, c) => { const cell = sheet.cells.get(cellKey(r, c)); return cell && cell.formula ? cell.formula : null; },
+    sheetSpan: (a, b) => sheetSpanNames(sheet, a, b),
+    pivotLookup: (valueField, which, pairs) => getPivotDataValue(sheet, valueField, which, pairs),
   };
   for (const key of order) {
     const cell = sheet.cells.get(key);
@@ -6138,9 +6230,20 @@ function recalcCone(sheet, dirtyKeys) {
   return true;
 }
 
+// Iterative-calculation setting (100-list #1): when on, intentional
+// circular references converge instead of erroring. Per sheet, in meta.
+function sheetIterCalc(sheet) {
+  const v = sheet && sheet.meta && sheet.meta.iterCalc;
+  if (!v || !v.on) return null;
+  return { max: Number.isInteger(v.max) && v.max > 0 ? Math.min(1000, v.max) : 50, eps: typeof v.eps === "number" && v.eps > 0 ? v.eps : 0.001 };
+}
+
 function recalcSheet(sheet, dirtyKeys) {
-  // Fast path: recompute just the edited cells' dependent cone when it's sound.
-  if (dirtyKeys && dirtyKeys.length && recalcCone(sheet, dirtyKeys)) return;
+  const iter = sheetIterCalc(sheet);
+  // Fast path: recompute just the edited cells' dependent cone when it's
+  // sound. Iterative mode always takes the full path — the cone doesn't
+  // know how to converge a cycle.
+  if (!iter && dirtyKeys && dirtyKeys.length && recalcCone(sheet, dirtyKeys)) return;
   if (sheet.spill) sheet.spill.clear(); else sheet.spill = new Map();
   const formulaCells = [];
   let usedR = 0, usedC = 0;
@@ -6173,6 +6276,7 @@ function recalcSheet(sheet, dirtyKeys) {
   const WHITE = 0, GRAY = 1, BLACK = 2;
   const color = new Map();
   const order = [];
+  const cycleSet = new Set(); // members of intentional cycles (iterative mode)
   const formulaSet = new Set(asts.keys());
   const visit = (key, stack) => {
     color.set(key, GRAY);
@@ -6180,7 +6284,8 @@ function recalcSheet(sheet, dirtyKeys) {
     for (const dep of deps.get(key) || []) {
       if (!formulaSet.has(dep)) continue;
       const c = color.get(dep) || WHITE;
-      if (c === GRAY) { // cycle: poison every member currently in the stack
+      if (c === GRAY) { // cycle: converge it (iterative mode) or poison it
+        if (iter) { for (const k of stack) cycleSet.add(k); continue; }
         for (const k of stack) { const cell = sheet.cells.get(k); if (cell) cell.err = "#CIRCULAR"; }
         continue;
       }
@@ -6204,6 +6309,8 @@ function recalcSheet(sheet, dirtyKeys) {
     tables: buildTablesRegistry(sheet),
     getCell: (r, c, sheetName) => (sheetName ? crossSheetValue(sheet, sheetName, r, c) : engineValue(sheet, r, c)),
     getFormula: (r, c) => { const cell = sheet.cells.get(cellKey(r, c)); return cell && cell.formula ? cell.formula : null; },
+    sheetSpan: (a, b) => sheetSpanNames(sheet, a, b),
+    pivotLookup: (valueField, which, pairs) => getPivotDataValue(sheet, valueField, which, pairs),
   };
   const evalOne = (key) => {
     const cell = sheet.cells.get(key);
@@ -6226,6 +6333,25 @@ function recalcSheet(sheet, dirtyKeys) {
     }
   };
   for (const key of order) evalOne(key);
+  // iterative calculation (100-list #1): re-evaluate cycle members until the
+  // largest numeric change drops under eps (or the iteration cap trips)
+  if (iter && cycleSet.size) {
+    const keys = [...cycleSet];
+    for (const k of keys) { const cell = sheet.cells.get(k); if (cell && cell.computed == null && !cell.err) cell.computed = 0; }
+    for (let round = 0; round < iter.max; round++) {
+      let maxDelta = 0;
+      for (const k of keys) {
+        const cell = sheet.cells.get(k);
+        if (!cell) continue;
+        const before = typeof cell.computed === "number" ? cell.computed : 0;
+        cell.err = null;
+        evalOne(k);
+        const after = typeof cell.computed === "number" ? cell.computed : 0;
+        maxDelta = Math.max(maxDelta, Math.abs(after - before));
+      }
+      if (maxDelta <= iter.eps) break;
+    }
+  }
   // INDIRECT/OFFSET read cells chosen at eval time, invisible to the static
   // dependency graph — re-evaluate those formulas once everything else has
   // settled, then cascade through their (statically known) dependents.
@@ -6310,6 +6436,17 @@ function applySpill(sheet, order, deps, evalOne) {
 // Cross-sheet reads resolve against a sibling sheet in the same block
 // by (case-insensitive) name, using its stored computed values — no
 // recursive evaluation, so cross-sheet cycles are impossible.
+// Ordered sheet names across a 3-D span (inclusive), by tab position.
+function sheetSpanNames(fromSheet, a, b) {
+  const sibs = WB.sheetsByBlock.get(fromSheet.blockId) || [];
+  const norm = (x) => String(x).trim().toLowerCase();
+  const ia = sibs.findIndex((s2) => norm(s2.name) === norm(a));
+  const ib = sibs.findIndex((s2) => norm(s2.name) === norm(b));
+  if (ia < 0 || ib < 0) throw new FormulaError("#REF", `no sheet named “${ia < 0 ? a : b}”`);
+  const [lo, hi] = ia <= ib ? [ia, ib] : [ib, ia];
+  return sibs.slice(lo, hi + 1).map((s2) => s2.name);
+}
+
 function crossSheetValue(fromSheet, sheetName, r, c) {
   const sibs = WB.sheetsByBlock.get(fromSheet.blockId) || [];
   const want = String(sheetName).trim().toLowerCase();
@@ -7986,7 +8123,38 @@ function cellStyle(sheet, r, c, cell) {
 // auto-detected email/URL) renders its text as a real <a> so it looks and
 // behaves like a hyperlink — blue, underlined, click to open. Rotated text
 // renders inside a span so the background/borders stay square.
+// Inline sparkline SVG for a SPARKLINE() marker value (100-list #9).
+function sparkSvg(json) {
+  let spec;
+  try { spec = JSON.parse(json); } catch (_) { return ""; }
+  const vals = Array.isArray(spec.v) ? spec.v.filter((x) => typeof x === "number") : [];
+  if (!vals.length) return "";
+  const W = 80, H = 16, n = vals.length;
+  const min = Math.min(...vals, 0), max = Math.max(...vals, 0);
+  const span = max - min || 1;
+  if (spec.t === "column" || spec.t === "bar") {
+    const bw = Math.max(1.5, W / n - 1);
+    const y0 = H - ((0 - min) / span) * H;
+    return `<svg class="wb-spark" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-hidden="true">${vals.map((v, i) => {
+      const x = (i * W) / n;
+      const y = H - ((v - min) / span) * H;
+      const top = Math.min(y, y0), h = Math.max(1, Math.abs(y0 - y));
+      return `<rect x="${x.toFixed(1)}" y="${top.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" fill="${v < 0 ? "#DC2626" : "#2563EB"}"/>`;
+    }).join("")}</svg>`;
+  }
+  if (spec.t === "winloss") {
+    const bw = Math.max(1.5, W / n - 1);
+    return `<svg class="wb-spark" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-hidden="true">${vals.map((v, i) => {
+      const x = (i * W) / n;
+      return `<rect x="${x.toFixed(1)}" y="${v >= 0 ? 1 : H / 2}" width="${bw.toFixed(1)}" height="${H / 2 - 1}" fill="${v < 0 ? "#DC2626" : "#16A34A"}"/>`;
+    }).join("")}</svg>`;
+  }
+  const pts = vals.map((v, i) => `${((i * W) / Math.max(1, n - 1)).toFixed(1)},${(H - ((v - min) / span) * (H - 2) - 1).toFixed(1)}`).join(" ");
+  return `<svg class="wb-spark" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="#2563EB" stroke-width="1.5"/></svg>`;
+}
+
 function cellInnerHtml(cell, disp) {
+  if (typeof disp === "string" && disp.startsWith(WB_SPARK_MARK)) return sparkSvg(disp.slice(WB_SPARK_MARK.length));
   const f = cell && cell.format;
   const link = cellLink(cell);
   // only http(s)/mailto reach an href — never javascript:/data: schemes
@@ -8603,6 +8771,131 @@ async function pasteValuesOnly(g) { pasteSpecial(g, "values"); }
 function pasteFormatOnly(g) { pasteSpecial(g, "formats"); }
 
 // Formula auditing: light one — reuse the reference-highlight layer.
+// Plain-English explainer + a concrete suggested fix for the active error
+// cell (100-list #8).
+function explainErrorCell(g) {
+  const { r, c } = g.active;
+  const cell = g.sheet.cells.get(cellKey(r, c));
+  if (!cell || !cell.err) { _toast("The active cell has no error", "info"); return; }
+  const code = cell.err;
+  const fixes = {
+    "#DIV/0": "Guard the divisor: =IFERROR(<formula>, 0) or =IF(<divisor>=0, 0, <formula>).",
+    "#N/A": "A lookup found no match. Check the value exists, or add a fallback: =IFNA(<lookup>, \"\").",
+    "#REF": "A referenced cell was deleted. Re-point the reference, or undo the delete that broke it.",
+    "#VALUE": "A value is the wrong type — often text where a number is expected. Check each argument.",
+    "#NUM": "A number is out of range (SQRT of a negative, or too large). Check the arguments.",
+    "#NULL": "Two ranges that were expected to intersect don't. Check the range operator.",
+    "#CIRCULAR": "The formula depends on its own cell. Break the loop, or turn on Data → Iterative calculation.",
+    "#SPILL": "An array can't spill — cells in its path aren't empty. Clear the cells below/right.",
+  };
+  let fix = fixes[code.replace(/!$/, "")] || "Re-check the formula's arguments.";
+  if (code === "#NAME" && cell.formula) {
+    const m = /([A-Za-z][A-Za-z0-9._]*)\s*\(/.exec(cell.formula);
+    let dym = "";
+    if (m) {
+      const typed = m[1].toUpperCase();
+      let best = null, bestD = 99;
+      for (const f of FUNCTION_META) { const d = levenshtein(typed, f.n); if (d < bestD) { bestD = d; best = f.n; } }
+      if (best && bestD <= 2 && best !== typed) dym = `Did you mean <b>${esc(best)}</b>? `;
+    }
+    fix = dym + "Check the function name and that any named ranges exist.";
+  }
+  confirmModal({
+    title: `${code} in ${cellRef(r, c)}`,
+    body: `<span style="display:block;margin-bottom:8px">${esc(errorHint(code))}</span><span style="display:block;color:var(--text-subtle)">${fix}</span>`,
+    confirmLabel: "Wrap in IFERROR",
+    onConfirm: () => {
+      if (!WB.canEdit || !cell.formula) return;
+      setCells(g, [{ r, c, cell: cellFromInput(`=IFERROR(${cell.formula.replace(/^=/, "")}, "")`, cell) }]);
+    },
+  });
+}
+
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  const d = Array.from({ length: m + 1 }, (_, i) => [i, ...new Array(n).fill(0)]);
+  for (let j = 0; j <= n; j++) d[0][j] = j;
+  for (let i = 1; i <= m; i++) for (let j = 1; j <= n; j++)
+    d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return d[m][n];
+}
+
+// ── #12: Evaluate Formula stepper ──
+function evaluateFormulaSteps(g) {
+  const { r, c } = g.active;
+  const cell = g.sheet.cells.get(cellKey(r, c));
+  if (!cell || !cell.formula) { _toast("The active cell has no formula", "info"); return; }
+  let ast;
+  try {
+    ast = cachedParse(cell.formula);
+    const names = namesForSheet(g.sheet);
+    if (names.size) ast = bindNames(ast, names);
+    const treg = buildTablesRegistry(g.sheet);
+    if (treg.size) ast = bindTableRefs(ast, treg);
+  } catch (e) { _toast("Couldn't parse this formula", "warn"); return; }
+  const ctx = cfEvalCtx(g.sheet);
+  ctx.cur = { r, c };
+  const steps = [];
+  const fmtV = (v) => {
+    if (v instanceof Arr) { const fl = v.flat(); return "{" + fl.slice(0, 6).map(fmtV).join(", ") + (fl.length > 6 ? ", …" : "") + "}"; }
+    if (v == null || v === "") return "(empty)";
+    if (typeof v === "string") return '"' + (v.length > 24 ? v.slice(0, 24) + "…" : v) + '"';
+    if (typeof v === "number") return cleanNum(v);
+    return String(v);
+  };
+  const src = (node) => {
+    try {
+      if (node.k === "ref") return (node.sheet ? node.sheet + "!" : "") + colLabel(node.col) + (node.row + 1);
+      if (node.k === "range") return (node.sheet ? node.sheet + "!" : "") + colLabel(node.a.col) + (node.a.row + 1) + ":" + colLabel(node.b.col) + (node.b.row + 1);
+      if (node.k === "num") return cleanNum(node.v);
+      if (node.k === "str") return '"' + node.v + '"';
+      if (node.k === "func") return node.name + "(…)";
+      if (node.k === "bin" || node.k === "cmp" || node.k === "concat") return "… " + (node.op || "&") + " …";
+    } catch (_) {}
+    return "expression";
+  };
+  const seen = new Set();
+  const walk = (node, depth) => {
+    if (!node || typeof node !== "object" || depth > 40) return;
+    if (node.k === "func") node.args.forEach((a) => walk(a, depth + 1));
+    if (node.l) walk(node.l, depth + 1);
+    if (node.r) walk(node.r, depth + 1);
+    if (["func", "bin", "cmp", "concat", "ref", "range"].includes(node.k)) {
+      const label = src(node);
+      if (seen.has(label + depth)) return;
+      seen.add(label + depth);
+      let val;
+      try { val = node.k === "range" ? gridOfRange(node, ctx) : evalNode(node, ctx); }
+      catch (e) { val = e instanceof FormulaError ? e.code : "#ERROR"; }
+      steps.push({ label, value: typeof val === "string" && /^#[A-Z]/.test(val) ? val : fmtV(val) });
+    }
+  };
+  walk(ast, 0);
+  let final;
+  try { final = fmtV(cell.err || evalNode(ast, ctx)); } catch (_) { final = cell.err || "#ERROR"; }
+  document.getElementById("wb-eval-modal")?.remove();
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-eval-modal";
+  wrap.innerHTML = `
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Evaluate formula" style="width:460px">
+      <div class="rr-modal-head">
+        <div class="rr-modal-head-content"><p class="rr-modal-title">Evaluate ${cellRef(r, c)}</p><p class="rr-modal-sub" style="font-family:ui-monospace,monospace">${esc(cell.formula)}</p></div>
+        <button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button>
+      </div>
+      <div class="rr-modal-body" style="max-height:320px;overflow:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          ${steps.map((st) => `<tr><td style="padding:4px 8px;font-family:ui-monospace,monospace;color:var(--text-subtle)">${esc(st.label)}</td><td style="padding:4px 8px;font-family:ui-monospace,monospace;text-align:right">${esc(st.value)}</td></tr>`).join("")}
+          <tr style="border-top:2px solid var(--border,#E5E7EB);font-weight:700"><td style="padding:6px 8px">Result</td><td style="padding:6px 8px;font-family:ui-monospace,monospace;text-align:right">${esc(final)}</td></tr>
+        </table>
+      </div>
+      <div class="rr-modal-foot"><button class="rr-modal-btn primary" type="button" data-wb-close>Done</button></div>
+    </div>`;
+  document.body.appendChild(wrap);
+  wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") wrap.remove(); });
+  wrap.addEventListener("click", (e) => { if (e.target === wrap || e.target.closest("[data-wb-close]")) wrap.remove(); });
+}
+
 function tracePrecedents(g) {
   const cell = g.sheet.cells.get(cellKey(g.active.r, g.active.c));
   if (!cell || !cell.formula) { _toast("The active cell has no formula", "info"); return; }
@@ -9829,6 +10122,44 @@ function ensureFxPop(g) {
   return g.els.fxpop;
 }
 
+// The innermost open function call before the caret + which argument the
+// caret sits in (100-list #2). String literals are skipped.
+function fxCallContext(before) {
+  const stack = [];
+  let i = 0, inStr = false;
+  while (i < before.length) {
+    const ch = before[i];
+    if (inStr) { if (ch === '"') inStr = false; i++; continue; }
+    if (ch === '"') { inStr = true; i++; continue; }
+    if (ch === "(") {
+      const m = /([A-Za-z][A-Za-z0-9._]{0,22})\s*$/.exec(before.slice(0, i));
+      stack.push({ name: m ? m[1].toUpperCase() : null, arg: 0 });
+    } else if (ch === ")") stack.pop();
+    else if (ch === ",") { if (stack.length) stack[stack.length - 1].arg++; }
+    i++;
+  }
+  for (let k = stack.length - 1; k >= 0; k--) if (stack[k].name) return stack[k];
+  return null;
+}
+
+// Signature HTML with the caret's argument bolded; variadic overflow sticks
+// to the last parameter.
+function fxSigHtml(sig, argIdx) {
+  const m = /^([A-Za-z0-9._]+)\((.*)\)$/.exec(sig);
+  if (!m) return esc(sig);
+  const parts = [];
+  let depth = 0, cur = "";
+  for (const ch of m[2]) {
+    if (ch === "[" || ch === "(") depth++;
+    if (ch === "]" || ch === ")") depth--;
+    if (ch === "," && depth <= 0) { parts.push(cur); cur = ""; continue; }
+    cur += ch;
+  }
+  if (cur.trim() !== "" || parts.length === 0) parts.push(cur);
+  const hot = Math.min(argIdx, parts.length - 1);
+  return esc(m[1]) + "(" + parts.map((t, i) => (i === hot ? `<b class="wb-fx-arg">${esc(t.trim())}</b>` : esc(t.trim()))).join(", ") + ")";
+}
+
 function updateFxPop(g) {
   const ed = g.editing;
   const input = ed && ed.input;
@@ -9848,10 +10179,13 @@ function updateFxPop(g) {
         g.fxWord = { start: caret - q.length, end: caret };
         show = true;
       }
-    } else if (mSig) {
-      const f = FUNCTION_META.find((x) => x.n === mSig[1].toUpperCase());
+    } else {
+      // mid-call: keep the signature up and bold the argument under the
+      // caret (100-list #2), not just right after the "("
+      const cc = mSig ? { name: mSig[1].toUpperCase(), arg: 0 } : fxCallContext(before);
+      const f = cc && FUNCTION_META.find((x) => x.n === cc.name);
       if (f) {
-        pop.innerHTML = `<div class="wb-fx-hint"><span class="wb-fx-name">${esc(f.sig)}</span><span class="wb-fx-desc">${esc(f.d)}</span></div>`;
+        pop.innerHTML = `<div class="wb-fx-hint"><span class="wb-fx-name">${fxSigHtml(f.sig, cc.arg)}</span><span class="wb-fx-desc">${esc(f.d)}</span></div>`;
         g.fxWord = null;
         show = true;
       }
@@ -10693,6 +11027,7 @@ function selectionToTsv(g) {
     for (let c = c0; c <= c1; c++) {
       const cell = sheet.cells.get(cellKey(r, c));
       let v = cell ? (cell.formula ? (cell.err || String(cell.computed ?? "")) : String(cell.value ?? "")) : "";
+      if (v.startsWith(WB_SPARK_MARK)) v = ""; // sparklines have no text form
       if (/[\t\n\r]/.test(v)) v = '"' + v.replace(/"/g, '""') + '"';
       parts.push(v);
     }
@@ -11903,6 +12238,8 @@ function cfEvalCtx(sheet) {
     getCell: (r, c, sn) => (sn ? crossSheetValue(sheet, sn, r, c) : engineValue(sheet, r, c)),
     names: namesForSheet(sheet),
     tables: buildTablesRegistry(sheet),
+    sheetSpan: (a, b) => sheetSpanNames(sheet, a, b),
+    pivotLookup: (valueField, which, pairs) => getPivotDataValue(sheet, valueField, which, pairs),
   };
   _cfCtxMemo.set(sheet, ctx);
   return ctx;
@@ -13978,7 +14315,7 @@ function paintSlicers(g) {
       <button type="button" class="wb-slicer-chip ${!picked ? "is-on" : ""}" data-wb-slicerall="${sl.col}">All</button>
       ${values.map((v) => `<button type="button" class="wb-slicer-chip ${picked && picked.has(v) ? "is-on" : ""}" data-wb-slicerval="${esc(v)}" data-wb-slicercol="${sl.col}">${esc(v.slice(0, 20))}</button>`).join("")}
       ${counts.size > SLICER_VALUE_CAP ? `<span class="wb-slicer-more">+${counts.size - SLICER_VALUE_CAP}</span>` : ""}
-      ${WB.canEdit ? `<button type="button" class="wb-slicer-del" data-wb-slicerdel="${sl.id}" title="Remove slicer" aria-label="Remove slicer">\u00d7</button>` : ""}
+      ${WB.canEdit ? `<button type="button" class="wb-slicer-del" data-wb-slicerdel="${sl.id}" title="Remove slicer" aria-label="Remove slicer">×</button>` : ""}
     </div>`;
   }).join("");
 }
@@ -14006,7 +14343,7 @@ function paintTableSuggest(g) {
   el.hidden = false;
   el.innerHTML = `Pasted data looks like a table
     <button type="button" class="btn btn-sm" data-wb-tsyes>Create table</button>
-    <button type="button" class="wb-slicer-del" data-wb-tsno aria-label="Dismiss">\u00d7</button>`;
+    <button type="button" class="wb-slicer-del" data-wb-tsno aria-label="Dismiss">×</button>`;
 }
 
 function detectTableSuggest(g, r0, c0, nRows, nCols) {
@@ -18063,6 +18400,36 @@ function pivotAggregate(agg, vals) {
 
 // Pure computation → grouping keys + an aggregate accessor that re-aggregates
 // over the underlying records (so totals of averages stay correct).
+// GETPIVOTDATA resolver (100-list #5): find the pivot by 1-based index or
+// title, pick the value field by name ("Cost" or "sum Cost"), filter its
+// source records by the field/item pairs, and aggregate.
+function getPivotDataValue(sheet, valueField, which, pairs) {
+  const pivots = Array.isArray(sheet.meta && sheet.meta.pivots) ? sheet.meta.pivots : [];
+  if (!pivots.length) throw new FormulaError("#N/A", "no pivot tables on this sheet");
+  let spec = null;
+  if (typeof which === "number") spec = pivots[Math.trunc(which) - 1];
+  else {
+    const want = String(which ?? "").trim().toLowerCase();
+    spec = pivots.find((pv) => String(pv.title || "").trim().toLowerCase() === want) || (want === "" ? pivots[0] : null);
+  }
+  if (!spec) throw new FormulaError("#REF", "no such pivot table");
+  const pv = computePivot(sheet, spec);
+  if (!pv) throw new FormulaError("#N/A", "pivot has no value fields");
+  const wantV = String(valueField ?? "").trim().toLowerCase();
+  const vi = pv.values.findIndex((v) => String(v.field).trim().toLowerCase() === wantV
+    || `${v.agg} ${v.field}`.trim().toLowerCase() === wantV);
+  if (vi < 0) throw new FormulaError("#REF", `no value field “${valueField}”`);
+  let recs = pv.records;
+  for (const [field, item] of pairs) {
+    const f = String(field ?? "").trim();
+    if (!(f in (recs[0] || {})) && !pv.rowFields.includes(f) && !pv.colFields.includes(f)) throw new FormulaError("#REF", `no pivot field “${field}”`);
+    recs = recs.filter((rec) => String(rec[f] ?? "").trim().toLowerCase() === String(item ?? "").trim().toLowerCase());
+  }
+  if (!recs.length) throw new FormulaError("#N/A", "no pivot data for that slice");
+  const v = pv.values[vi];
+  return pivotAggregate(v.agg, recs.map((r) => r[v.field]));
+}
+
 function computePivot(sheet, spec) {
   const { records } = pivotSource(sheet, spec);
   const rowFields = (spec.rows || []).filter(Boolean);
@@ -19531,6 +19898,7 @@ function openSheetsCellMenu(g, x, y) {
     it(null, "Copy cell reference", "copy-ref"),
     it(null, "Highlight precedents", "trace-precedents"),
     it(null, "Highlight dependents", "trace-dependents"),
+    it(null, "Evaluate formula…", "evaluate-formula"),
     sep,
     it(null, "Insert image into cell…", "insert-image", { disabled: ro }),
     ...(hasImg ? [it(null, "View image", "view-image")] : []),
@@ -19671,6 +20039,8 @@ function openSheetsCellMenu(g, x, y) {
       case "copy-ref": try { await navigator.clipboard.writeText(cellRef(r, c)); _toast(`Copied ${cellRef(r, c)}`, "success"); } catch (_) {} break;
       case "trace-precedents": tracePrecedents(g); break;
       case "trace-dependents": traceDependents(g); break;
+      case "explain-error": explainErrorCell(g); break;
+      case "evaluate-formula": evaluateFormulaSteps(g); break;
       case "insert-image": pickImageInto(g); break;
       case "view-image": { const s = cellImgSrc(g.sheet.cells.get(cellKey(r, c))); if (s) openImageLightbox(s); break; }
       case "remove-image": removeCellImage(g, r, c); break;
@@ -19720,6 +20090,8 @@ function openCellContextMenu(g, x, y, kind) {
     item("paste-values", "Paste values only"),
     item("trace-precedents", "Highlight precedents"),
     item("trace-dependents", "Highlight dependents"),
+    item("evaluate-formula", "Evaluate formula…"),
+    g.sheet.cells.get(cellKey(r, c))?.err ? item("explain-error", "Explain this error…") : "",
     item("data-validation", "Data validation…"),
     item("cond-format", "Conditional formatting…"),
     sep,
@@ -19815,6 +20187,8 @@ function openCellContextMenu(g, x, y, kind) {
       case "paste-values": await pasteValuesOnly(g); break;
       case "trace-precedents": tracePrecedents(g); break;
       case "trace-dependents": traceDependents(g); break;
+      case "explain-error": explainErrorCell(g); break;
+      case "evaluate-formula": evaluateFormulaSteps(g); break;
       case "data-validation": openValidationDialog(g); break;
       case "cond-format": openCondFormatDialog(g); break;
       case "insert-link": insertLinkPrompt(g); break;
@@ -20545,6 +20919,7 @@ function wbMenuItems(menu, g) {
         { label: "Group rows", act: "data:group-rows", disabled: !ed || !g },
         { label: "Group columns", act: "data:group-cols", disabled: !ed || !g },
         { label: "Ungroup", act: "data:ungroup", disabled: !ed || !g },
+        { label: ((g && g.sheet.meta && g.sheet.meta.iterCalc && g.sheet.meta.iterCalc.on) ? "✓ " : "") + "Iterative calculation", act: "data:itercalc", disabled: !ed || !g },
         { label: "Protect / unprotect selection", act: "data:protect", disabled: !g || !WB.canAdmin },
         { label: "Goal seek…", act: "data:goalseek", disabled: !ed || !g },
         { label: "Pivot table…", act: "data:pivot", disabled: !ed || !g },
@@ -20696,6 +21071,16 @@ function wbMenuAction(act, g) {
     case "data:group-rows": if (need()) groupSelection(g, "row"); return;
     case "data:group-cols": if (need()) groupSelection(g, "col"); return;
     case "data:ungroup": if (need()) ungroupSelection(g); return;
+    case "data:itercalc": if (need()) {
+      // 100-list #1: allow intentional circular references to converge
+      const cur = g.sheet.meta && g.sheet.meta.iterCalc;
+      const on = !(cur && cur.on);
+      g.sheet.meta = { ...(g.sheet.meta || {}), iterCalc: on ? { on: true, max: 50, eps: 0.001 } : { on: false } };
+      saveSheetMeta(g.sheet.id);
+      recalcWithSiblings(g.sheet);
+      repaintGrid(g);
+      _toast(on ? "Iterative calculation on — circular formulas now converge (50 iterations, Δ 0.001)" : "Iterative calculation off", "success");
+    } return;
     case "data:protect": toggleProtectSelection(g); return;
     case "data:goalseek": if (need()) openGoalSeekDialog(g); return;
     case "data:pivot": if (need()) openPivotDialog(g); return;
