@@ -33,6 +33,22 @@ const DEFAULT_MODEL = Deno.env.get("ANTHROPIC_MODEL") || "claude-sonnet-4-6";
 const MAX_SHEETS = 12;
 const MAX_COLS = 40;
 const MAX_SAMPLES = 4;
+const MAX_QUESTION = 2000;
+
+// Fixed-window per-user rate limit. In-memory, so it's per-isolate — a
+// determined caller can still get a fresh window on a cold start, but it
+// stops the cheap way to burn the shared Anthropic key (100-list #95).
+const RATE_LIMIT = 20;              // requests…
+const RATE_WINDOW_MS = 10 * 60_000; // …per 10 minutes per user
+const _hits = new Map<string, { n: number; t0: number }>();
+function rateLimited(userId: string): boolean {
+  const now = Date.now();
+  const h = _hits.get(userId);
+  if (!h || now - h.t0 > RATE_WINDOW_MS) { _hits.set(userId, { n: 1, t0: now }); return false; }
+  h.n += 1;
+  if (_hits.size > 5000) _hits.clear(); // bound memory on long-lived isolates
+  return h.n > RATE_LIMIT;
+}
 
 // ── The one terminal tool: a strict schema the workbook knows how to draw ──
 const RENDER_PLAN_TOOL = {
@@ -144,14 +160,30 @@ Deno.serve(async (req) => {
   const supa = serviceClient();
   const { data: userData, error: userErr } = await supa.auth.getUser(jwt);
   if (userErr || !userData?.user) return json({ error: "invalid_auth" }, 401);
+  // Same staff gate as analytics-ai: the workbook is a dispatcher+ surface.
   const { data: appUser, error: appErr } = await supa
-    .from("app_users").select("id").eq("id", userData.user.id).eq("active", true).maybeSingle();
+    .from("app_users").select("id, dsp_id, role").eq("id", userData.user.id).eq("active", true).maybeSingle();
   if (appErr || !appUser) return json({ error: "no_membership" }, 403);
+  if (!["dispatcher", "ops", "owner", "platform_admin"].includes(appUser.role)) {
+    return json({ error: "forbidden", detail: "The AI analyst is available to dispatcher-level staff and up." }, 403);
+  }
+  if (rateLimited(userData.user.id)) {
+    return json({ error: "rate_limited", detail: "Too many AI questions in a short time — try again in a few minutes." }, 429);
+  }
 
   let body: any;
   try { body = await req.json(); } catch { return json({ error: "invalid_json" }, 400); }
-  const question = String(body?.question || "").trim();
+  const question = String(body?.question || "").trim().slice(0, MAX_QUESTION);
   if (!question) return json({ error: "question_required" }, 400);
+  // The schema is client-sent, but the caller must at least name a workbook
+  // in their own DSP — this endpoint no longer answers for anonymous scopes.
+  const workbookId = String(body?.workbook_id || "").trim();
+  if (workbookId) {
+    const { data: wbRow } = await supa.from("workbooks").select("id, dsp_id").eq("id", workbookId).maybeSingle();
+    if (!wbRow || wbRow.dsp_id !== appUser.dsp_id) {
+      return json({ error: "forbidden", detail: "That workbook isn't in your DSP." }, 403);
+    }
+  }
   const schema = compactSchema(body?.schema);
   if (!schema.length) return json({ error: "schema_required", detail: "No sheets with data were provided." }, 400);
   const conversation = Array.isArray(body?.conversation) ? body.conversation.slice(-6) : [];

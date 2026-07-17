@@ -421,6 +421,17 @@ function parseFormula(src) {
         return { k: "func", name: up, args };
       }
       if (peek() && peek().t === "!") { next(); return parseSheetRef(id); }
+      // 3-D reference: Week1:Week4!B2 — a sheet span, resolved by tab order
+      // (100-list #6). Must be checked before the whole-column form.
+      if (peek() && peek().t === TOK_COLON && toks[p + 1] && (toks[p + 1].t === TOK_ID || toks[p + 1].t === "sheetq") && toks[p + 2] && toks[p + 2].t === "!") {
+        next(); // :
+        const endTok = next();
+        next(); // !
+        let node = parseSheetRef(id);
+        if (node.k === "ref") node = { k: "range", a: { row: node.row, col: node.col }, b: { row: node.row, col: node.col }, sheet: node.sheet };
+        node.sheetEnd = endTok.v;
+        return node;
+      }
       // whole-column range: A:A / B:D (rows open-ended)
       if (/^\$?[A-Za-z]{1,3}$/.test(id) && peek() && peek().t === TOK_COLON && toks[p + 1] && toks[p + 1].t === TOK_ID && /^\$?[A-Za-z]{1,3}$/.test(toks[p + 1].v)) {
         next(); // :
@@ -443,6 +454,16 @@ function parseFormula(src) {
       return { k: "name", v: up };
     }
     if (tok.t === "sheetq") {
+      // quoted 3-D span: 'Week 1':'Week 4'!B2 (100-list #6)
+      if (peek() && peek().t === TOK_COLON && toks[p + 1] && (toks[p + 1].t === TOK_ID || toks[p + 1].t === "sheetq") && toks[p + 2] && toks[p + 2].t === "!") {
+        next(); // :
+        const endTok = next();
+        next(); // !
+        let node = parseSheetRef(tok.v);
+        if (node.k === "ref") node = { k: "range", a: { row: node.row, col: node.col }, b: { row: node.row, col: node.col }, sheet: node.sheet };
+        node.sheetEnd = endTok.v;
+        return node;
+      }
       const bang = next();
       if (!bang || bang.t !== "!") throw new FormulaError("#ERROR", "expected ! after sheet name");
       return parseSheetRef(tok.v);
@@ -2438,8 +2459,10 @@ const R1C1_RE = /^R(\d{1,7})C(\d{1,5})$/i;
 // Supports SELECT (cols + sum/avg/count/max/min), WHERE (comparisons,
 // contains/starts with/ends with, is [not] null, matches, and/or/not, parens),
 // GROUP BY, ORDER BY, LIMIT, OFFSET. Column refs are A,B,C… or Col1,Col2…
-// (the data range's own columns). LABEL/FORMAT/PIVOT are not supported.
-const QUERY_KW = new Set(["select", "where", "group", "order", "by", "limit", "offset", "and", "or", "not", "asc", "desc", "contains", "starts", "ends", "with", "is", "null", "matches", "like", "true", "false", "date", "sum", "avg", "count", "max", "min"]);
+// (the data range's own columns). LABEL renames output columns and FORMAT
+// applies an Excel-style number format to them (100-list #7); PIVOT is not
+// supported.
+const QUERY_KW = new Set(["select", "where", "group", "order", "by", "limit", "offset", "and", "or", "not", "asc", "desc", "contains", "starts", "ends", "with", "is", "null", "matches", "like", "true", "false", "date", "sum", "avg", "count", "max", "min", "label", "format"]);
 function queryTokenize(src) {
   const toks = []; let i = 0;
   const push = (t, v) => toks.push({ t, v });
@@ -2551,6 +2574,20 @@ function runQuery(grid, queryStr, headerRows) {
   let limit = null, offset = 0;
   if (isKw("limit")) { p++; limit = Math.trunc(eat("num").v); }
   if (isKw("offset")) { p++; offset = Math.trunc(eat("num").v); }
+  // ── LABEL / FORMAT (100-list #7) ──
+  // label B 'Route', sum(C) 'Total' — renames output headers;
+  // format C '#,##0.00' — runs values through the custom-format engine.
+  const selKey = () => {
+    const tk = peek();
+    if (tk && ["sum", "avg", "count", "max", "min"].includes(tk.t)) {
+      const agg = tk.t; p++; eat("("); const col = eat("id").v; eat(")");
+      return agg + ":" + queryColIndex(col, width);
+    }
+    return ":" + queryColIndex(eat("id").v, width);
+  };
+  const labels = new Map(), outFormats = new Map();
+  if (isKw("label")) { p++; for (;;) { const k = selKey(); labels.set(k, eat("str").v); if (peek() && peek().t === ",") { p++; continue; } break; } }
+  if (isKw("format")) { p++; for (;;) { const k = selKey(); outFormats.set(k, eat("str").v); if (peek() && peek().t === ",") { p++; continue; } break; } }
   if (peek()) throw new FormulaError("#VALUE", `QUERY: trailing '${peek().v}'`);
 
   // ── evaluate ──
@@ -2621,8 +2658,16 @@ function runQuery(grid, queryStr, headerRows) {
   }
   if (offset > 0) out = out.slice(offset);
   if (limit != null) out = out.slice(0, limit);
-  // header row: selected column labels / aggregate names
-  const headRow = sel.map((s) => s.agg ? `${s.agg} ${headerLabel(s.idx)}` : headerLabel(s.idx));
+  const keyOfSel = (s) => (s.agg || "") + ":" + s.idx;
+  if (outFormats.size) {
+    out = out.map((row) => row.map((v, i) => {
+      const pat = outFormats.get(keyOfSel(sel[i]));
+      if (pat == null || v == null || v === "") return v;
+      try { return applyCustomFormat(v, pat, null); } catch (_) { return v; }
+    }));
+  }
+  // header row: selected column labels / aggregate names, LABEL overrides
+  const headRow = sel.map((s) => labels.has(keyOfSel(s)) ? labels.get(keyOfSel(s)) : s.agg ? `${s.agg} ${headerLabel(s.idx)}` : headerLabel(s.idx));
   return [headRow, ...out];
 }
 
@@ -2631,7 +2676,32 @@ function runQuery(grid, queryStr, headerRows) {
 // reference probes, error catchers, dynamic references, and the
 // array-shaping family (which wants grids, not flattened values).
 
+const WB_SPARK_MARK = "\u2063SPARK\u2063"; // invisible-separator marker; cellInnerHtml renders it as an inline chart
+
 const FUNCS_RAW = {
+  // In-cell sparkline (100-list #9): =SPARKLINE(B2:M2, "column"). The cell
+  // computes to a marked JSON string the painter turns into an inline SVG.
+  SPARKLINE: (args, ctx) => {
+    if (!args.length) throw new FormulaError("#ERROR", "SPARKLINE takes a range");
+    const grid = argGrid(args[0], ctx);
+    const type = args.length > 1 ? String(fmtScalar(deArr(evalNode(args[1], ctx)))).toLowerCase() : "line";
+    const vals = grid.flat().map((v) => cellNumeric(v)).filter((v) => v != null).slice(0, 60);
+    if (!vals.length) return "";
+    return WB_SPARK_MARK + JSON.stringify({ t: ["line", "column", "bar", "winloss"].includes(type) ? type : "line", v: vals });
+  },
+  // GETPIVOTDATA (100-list #5): value field, pivot (1-based index or title),
+  // then field/item pairs narrowing the slice. No pairs = grand total.
+  GETPIVOTDATA: (args, ctx) => {
+    if (args.length < 2) throw new FormulaError("#ERROR", "GETPIVOTDATA takes a value field and a pivot");
+    if (!ctx.pivotLookup) throw new FormulaError("#N/A", "no pivot tables here");
+    const valueField = fmtScalar(deArr(evalNode(args[0], ctx)));
+    const which = deArr(evalNode(args[1], ctx));
+    const pairs = [];
+    for (let i = 2; i + 1 < args.length; i += 2) {
+      pairs.push([fmtScalar(deArr(evalNode(args[i], ctx))), fmtScalar(deArr(evalNode(args[i + 1], ctx)))]);
+    }
+    return ctx.pivotLookup(valueField, which, pairs);
+  },
   QUERY: (args, ctx) => {
     if (args.length < 2) throw new FormulaError("#ERROR", "QUERY takes data and a query string");
     const grid = argGrid(args[0], ctx);
@@ -3377,6 +3447,23 @@ function gridOfRange(node, ctx) {
   const r0 = Math.min(a.row, b.row), r1 = Math.max(a.row, b.row);
   const c0 = Math.min(a.col, b.col), c1 = Math.max(a.col, b.col);
   if ((r1 - r0 + 1) * (c1 - c0 + 1) > MAX_RANGE_CELLS) throw new FormulaError("#REF", "range too large");
+  // 3-D span (100-list #6): the same rectangle on every sheet from
+  // node.sheet..node.sheetEnd, stacked vertically — SUM(Week1:Week4!B2)
+  // adds all four B2s.
+  if (node.sheetEnd) {
+    if (!ctx.sheetSpan) throw new FormulaError("#REF", "3-D references need sheet context");
+    const span = ctx.sheetSpan(node.sheet, node.sheetEnd);
+    if ((r1 - r0 + 1) * (c1 - c0 + 1) * span.length > MAX_RANGE_CELLS) throw new FormulaError("#REF", "range too large");
+    const rows = [];
+    for (const sn of span) {
+      for (let r = r0; r <= r1; r++) {
+        const row = [];
+        for (let c = c0; c <= c1; c++) row.push(ctx.getCell(r, c, sn));
+        rows.push(row);
+      }
+    }
+    return new Arr(rows);
+  }
   const rows = [];
   for (let r = r0; r <= r1; r++) {
     const row = [];
@@ -4587,8 +4674,11 @@ function namesForSheet(sheet) {
   for (const d of defs) {
     if (!d || !d.name || !d.ref) continue;
     let node;
-    try { node = parseFormula("=" + d.ref); } catch (_) { continue; }
-    if (node.k !== "range" && node.k !== "ref") continue;
+    try { node = parseFormula(String(d.ref).startsWith("=") ? d.ref : "=" + d.ref); } catch (_) { continue; }
+    // dynamic names (100-list #4): a "=formula" definition splices its whole
+    // AST in wherever the name is used — OFFSET/INDEX-based growing ranges
+    // work because those resolve at eval time anyway.
+    if (node.k !== "range" && node.k !== "ref") { m.set(String(d.name).toUpperCase(), node); continue; }
     if (node.sheet && String(node.sheet).trim().toLowerCase() === here) delete node.sheet;
     m.set(String(d.name).toUpperCase(), node);
   }
@@ -4597,14 +4687,21 @@ function namesForSheet(sheet) {
 
 // ─── Access level (client mirror of private.can_*_workbook) ────────────────
 
+const WB_ROLE_RANK = { dispatcher: 1, ops: 2, owner: 3, platform_admin: 3 };
+const WB_ROLE_SHARE_LABELS = { dispatcher: "Dispatchers and up", ops: "Ops and up", owner: "Owners" };
+
 function computeAccess() {
   const self = _me();
   const wb = WB.wb;
   if (!wb || !self) { WB.canEdit = false; WB.canAdmin = false; return; }
-  const mine = WB.permissions.find((p) => p.subject_type === "user" && p.subject_id === self.id);
-  const owner = wb.owner_user_id === self.id;
-  WB.canEdit = owner || wb.visibility === "org" || (mine && (mine.access_level === "edit" || mine.access_level === "admin"));
   const role = self.role;
+  const mine = WB.permissions.find((p) => p.subject_type === "user" && p.subject_id === self.id);
+  // role shares grant by minimum rank (mirror of is_staff in 0489); they cap at edit
+  const roleGrant = WB.permissions.find((p) => p.subject_type === "role" && p.subject_role
+    && (WB_ROLE_RANK[role] || 0) >= (WB_ROLE_RANK[p.subject_role] || 9));
+  const owner = wb.owner_user_id === self.id;
+  const grants = [mine, roleGrant].filter(Boolean);
+  WB.canEdit = owner || wb.visibility === "org" || grants.some((p) => p.access_level === "edit" || p.access_level === "admin");
   WB.canAdmin = owner || role === "ops" || role === "owner" || role === "platform_admin" || (mine && mine.access_level === "admin");
 }
 
@@ -4909,7 +5006,16 @@ async function createWorkbookSnapshot(label, auto) {
     if (ins.error) throw ins.error;
     pruneSnapshots();
     return ins.data ? ins.data.id : null;
-  } catch (e) { console.warn("snapshot save:", e && e.message); if (!auto) _toast("Couldn't save the version — migration 0421 may be pending", "warn"); return null; }
+  } catch (e) {
+    console.warn("snapshot save:", e && e.message);
+    if (!auto) _toast("Couldn't save the version: " + ((e && e.message) || "migration 0421 may be pending"), "warn");
+    else if (!WB._autoSnapWarned) {
+      // auto snapshots fail silently otherwise — say so once per session (100-list #100)
+      WB._autoSnapWarned = true;
+      _toast("Background version saves aren't working — recent versions may be missing", "warn");
+    }
+    return null;
+  }
 }
 
 async function pruneSnapshots() {
@@ -5747,7 +5853,8 @@ function cleanNum(x) {
 // trailing-comma scaling (each trailing comma ÷1000 → K/M/…), decimals, %,
 // quoted / escaped / symbol literals, and date-time tokens. Bracket tags
 // ([Red], [$-409], [>100]) are parsed; numeric conditions pick a section,
-// colors are ignored (in-cell text color isn't themed through this path).
+// section colors paint the cell text via customFormatColor (cellStyle),
+// and elapsed-time brackets ([h]/[mm]/[ss]) accumulate past their unit.
 const CUSTOM_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const CUSTOM_DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -5769,6 +5876,9 @@ function customLiteralize(s) {
   return s.replace(/\[[^\]]*\]/g, "").replace(/\\(.)/g, "$1").replace(/"([^"]*)"/g, "$1");
 }
 function isDateSection(body) {
+  // elapsed-time brackets ([h], [mm], [ss]) are time sections even though
+  // the bracket strip below would hide them (100-list #42)
+  if (/\[(h+|m+|s+)\]/i.test(body.replace(/"[^"]*"/g, ""))) return true;
   const s = body.replace(/"[^"]*"/g, "").replace(/\[[^\]]*\]/g, "").replace(/\\./g, "");
   if (/[#0?]/.test(s)) return false;           // digit placeholders ⇒ numeric
   return /[yd]/i.test(s) || (/[hs]/i.test(s) && /m/i.test(s)) || /[hs]/i.test(s);
@@ -5825,7 +5935,18 @@ function renderDateSection(serial, body) {
   while (i < body.length) {
     if (body[i] === '"') { const e = body.indexOf('"', i + 1); out += body.slice(i + 1, e < 0 ? body.length : e); i = e < 0 ? body.length : e + 1; continue; }
     if (body[i] === "\\") { out += body[i + 1] || ""; i += 2; continue; }
-    if (body[i] === "[") { const e = body.indexOf("]", i); i = e < 0 ? body.length : e + 1; continue; }
+    if (body[i] === "[") {
+      const e = body.indexOf("]", i);
+      const inner = e < 0 ? "" : body.slice(i + 1, e);
+      i = e < 0 ? body.length : e + 1;
+      // elapsed-time tokens accumulate past their unit instead of wrapping,
+      // so a 30.5-hour duration sum shows 30:30 not 6:30 (100-list #42)
+      const totalSec = Math.max(0, Math.round(serial * 86400));
+      if (/^h+$/i.test(inner)) { out += String(Math.floor(totalSec / 3600)).padStart(inner.length, "0"); seen.push("h"); }
+      else if (/^m+$/i.test(inner)) { out += String(Math.floor(totalSec / 60)).padStart(inner.length, "0"); seen.push("h"); }
+      else if (/^s+$/i.test(inner)) { out += String(totalSec).padStart(inner.length, "0"); seen.push("s"); }
+      continue;
+    }
     const rest = body.slice(i).toLowerCase();
     const tok = toks.find((t) => rest.startsWith(t));
     if (!tok) { out += body[i]; i++; continue; }
@@ -5882,6 +6003,34 @@ function applyCustomFormat(value, code, type) {
   if (sec == null) sec = pos;
   if (isDateSection(sec)) return renderDateSection(ser, sec);
   return sign + renderNumericSection(Math.abs(n), sec);
+}
+
+// [Red]-style bracket colors: the color of the section a value formats
+// through (100-list #34). Mirrors applyCustomFormat's section selection;
+// null when the code names no color. Hues are tamed for a white canvas.
+const CUSTOM_FORMAT_COLORS = { black: "#000000", red: "#DC2626", green: "#15803D", blue: "#1D4ED8", magenta: "#C026D3", cyan: "#0E7490", yellow: "#B45309", white: "#FFFFFF" };
+const CUSTOM_COLOR_RE = /\[(black|red|green|blue|magenta|cyan|yellow|white)\]/i;
+function customFormatColor(value, code, type) {
+  if (!code || !CUSTOM_COLOR_RE.test(code)) return null;
+  const colorOf = (s) => { const m = s != null && CUSTOM_COLOR_RE.exec(s); return m ? CUSTOM_FORMAT_COLORS[m[1].toLowerCase()] : null; };
+  const secs = splitCustomSections(code);
+  let num = cellNumeric(value);
+  let dateSerial = num;
+  if (num == null && type !== "text") {
+    const d = parseDateLoose(String(value));
+    if (d) dateSerial = dateToSerial(d);
+  }
+  if (num == null && dateSerial == null) return secs.length >= 4 ? colorOf(secs[3]) : null;
+  const n = num != null ? num : dateSerial;
+  for (const s of secs) { const c = sectionCondition(s); if (c && condHolds(c, n)) return colorOf(s); }
+  const plain = secs.filter((s) => !sectionCondition(s));
+  const pos = plain[0] != null ? plain[0] : secs[0];
+  const neg = plain.length > 1 ? plain[1] : null, zero = plain.length > 2 ? plain[2] : null;
+  let sec;
+  if (n > 0 || (n === 0 && zero == null)) sec = pos;
+  else if (n < 0) sec = neg != null ? neg : pos;
+  else sec = zero;
+  return colorOf(sec == null ? pos : sec);
 }
 
 // ── Goal Seek ────────────────────────────────────────────────────────────────
@@ -6086,6 +6235,8 @@ function recalcCone(sheet, dirtyKeys) {
     tables: buildTablesRegistry(sheet),
     getCell: (r, c, sheetName) => (sheetName ? crossSheetValue(sheet, sheetName, r, c) : engineValue(sheet, r, c)),
     getFormula: (r, c) => { const cell = sheet.cells.get(cellKey(r, c)); return cell && cell.formula ? cell.formula : null; },
+    sheetSpan: (a, b) => sheetSpanNames(sheet, a, b),
+    pivotLookup: (valueField, which, pairs) => getPivotDataValue(sheet, valueField, which, pairs),
   };
   for (const key of order) {
     const cell = sheet.cells.get(key);
@@ -6102,9 +6253,20 @@ function recalcCone(sheet, dirtyKeys) {
   return true;
 }
 
+// Iterative-calculation setting (100-list #1): when on, intentional
+// circular references converge instead of erroring. Per sheet, in meta.
+function sheetIterCalc(sheet) {
+  const v = sheet && sheet.meta && sheet.meta.iterCalc;
+  if (!v || !v.on) return null;
+  return { max: Number.isInteger(v.max) && v.max > 0 ? Math.min(1000, v.max) : 50, eps: typeof v.eps === "number" && v.eps > 0 ? v.eps : 0.001 };
+}
+
 function recalcSheet(sheet, dirtyKeys) {
-  // Fast path: recompute just the edited cells' dependent cone when it's sound.
-  if (dirtyKeys && dirtyKeys.length && recalcCone(sheet, dirtyKeys)) return;
+  const iter = sheetIterCalc(sheet);
+  // Fast path: recompute just the edited cells' dependent cone when it's
+  // sound. Iterative mode always takes the full path — the cone doesn't
+  // know how to converge a cycle.
+  if (!iter && dirtyKeys && dirtyKeys.length && recalcCone(sheet, dirtyKeys)) return;
   if (sheet.spill) sheet.spill.clear(); else sheet.spill = new Map();
   const formulaCells = [];
   let usedR = 0, usedC = 0;
@@ -6137,6 +6299,7 @@ function recalcSheet(sheet, dirtyKeys) {
   const WHITE = 0, GRAY = 1, BLACK = 2;
   const color = new Map();
   const order = [];
+  const cycleSet = new Set(); // members of intentional cycles (iterative mode)
   const formulaSet = new Set(asts.keys());
   const visit = (key, stack) => {
     color.set(key, GRAY);
@@ -6144,7 +6307,8 @@ function recalcSheet(sheet, dirtyKeys) {
     for (const dep of deps.get(key) || []) {
       if (!formulaSet.has(dep)) continue;
       const c = color.get(dep) || WHITE;
-      if (c === GRAY) { // cycle: poison every member currently in the stack
+      if (c === GRAY) { // cycle: converge it (iterative mode) or poison it
+        if (iter) { for (const k of stack) cycleSet.add(k); continue; }
         for (const k of stack) { const cell = sheet.cells.get(k); if (cell) cell.err = "#CIRCULAR"; }
         continue;
       }
@@ -6168,6 +6332,8 @@ function recalcSheet(sheet, dirtyKeys) {
     tables: buildTablesRegistry(sheet),
     getCell: (r, c, sheetName) => (sheetName ? crossSheetValue(sheet, sheetName, r, c) : engineValue(sheet, r, c)),
     getFormula: (r, c) => { const cell = sheet.cells.get(cellKey(r, c)); return cell && cell.formula ? cell.formula : null; },
+    sheetSpan: (a, b) => sheetSpanNames(sheet, a, b),
+    pivotLookup: (valueField, which, pairs) => getPivotDataValue(sheet, valueField, which, pairs),
   };
   const evalOne = (key) => {
     const cell = sheet.cells.get(key);
@@ -6190,6 +6356,25 @@ function recalcSheet(sheet, dirtyKeys) {
     }
   };
   for (const key of order) evalOne(key);
+  // iterative calculation (100-list #1): re-evaluate cycle members until the
+  // largest numeric change drops under eps (or the iteration cap trips)
+  if (iter && cycleSet.size) {
+    const keys = [...cycleSet];
+    for (const k of keys) { const cell = sheet.cells.get(k); if (cell && cell.computed == null && !cell.err) cell.computed = 0; }
+    for (let round = 0; round < iter.max; round++) {
+      let maxDelta = 0;
+      for (const k of keys) {
+        const cell = sheet.cells.get(k);
+        if (!cell) continue;
+        const before = typeof cell.computed === "number" ? cell.computed : 0;
+        cell.err = null;
+        evalOne(k);
+        const after = typeof cell.computed === "number" ? cell.computed : 0;
+        maxDelta = Math.max(maxDelta, Math.abs(after - before));
+      }
+      if (maxDelta <= iter.eps) break;
+    }
+  }
   // INDIRECT/OFFSET read cells chosen at eval time, invisible to the static
   // dependency graph — re-evaluate those formulas once everything else has
   // settled, then cascade through their (statically known) dependents.
@@ -6274,6 +6459,17 @@ function applySpill(sheet, order, deps, evalOne) {
 // Cross-sheet reads resolve against a sibling sheet in the same block
 // by (case-insensitive) name, using its stored computed values — no
 // recursive evaluation, so cross-sheet cycles are impossible.
+// Ordered sheet names across a 3-D span (inclusive), by tab position.
+function sheetSpanNames(fromSheet, a, b) {
+  const sibs = WB.sheetsByBlock.get(fromSheet.blockId) || [];
+  const norm = (x) => String(x).trim().toLowerCase();
+  const ia = sibs.findIndex((s2) => norm(s2.name) === norm(a));
+  const ib = sibs.findIndex((s2) => norm(s2.name) === norm(b));
+  if (ia < 0 || ib < 0) throw new FormulaError("#REF", `no sheet named “${ia < 0 ? a : b}”`);
+  const [lo, hi] = ia <= ib ? [ia, ib] : [ib, ia];
+  return sibs.slice(lo, hi + 1).map((s2) => s2.name);
+}
+
 function crossSheetValue(fromSheet, sheetName, r, c) {
   const sibs = WB.sheetsByBlock.get(fromSheet.blockId) || [];
   const want = String(sheetName).trim().toLowerCase();
@@ -6961,6 +7157,55 @@ function confirmModal({ title, body, confirmLabel, danger, onConfirm }) {
   setTimeout(() => wrap.querySelector("[data-wb-confirm]")?.focus(), 30);
 }
 
+// Input twin of confirmModal: one labelled field + Cancel/Apply. Replaces
+// window.prompt call sites (100-list #17). kind:"number" clamps to min/max;
+// Enter applies, Escape closes. onSubmit gets the final value.
+function promptModal({ title, label, value, kind, min, max, placeholder, submitLabel, onSubmit }) {
+  document.getElementById("wb-prompt-modal")?.remove();
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-prompt-modal";
+  wrap.innerHTML = `
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="${esc(title)}" style="width:380px">
+      <div class="rr-modal-head">
+        <div class="rr-modal-head-content"><p class="rr-modal-title">${esc(title)}</p></div>
+        <button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button>
+      </div>
+      <div class="rr-modal-body"><label class="wb-field"><span class="wb-field-label">${esc(label || "")}</span>
+        <input class="wb-input" data-wb-prompt-input type="${kind === "number" ? "number" : "text"}"
+          ${kind === "number" && min != null ? `min="${min}"` : ""} ${kind === "number" && max != null ? `max="${max}"` : ""}
+          value="${esc(value == null ? "" : String(value))}" placeholder="${esc(placeholder || "")}"></label></div>
+      <div class="rr-modal-foot">
+        <button class="rr-modal-btn" type="button" data-wb-close>Cancel</button>
+        <button class="rr-modal-btn primary" type="button" data-wb-confirm>${esc(submitLabel || "Apply")}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  const input = wrap.querySelector("[data-wb-prompt-input]");
+  const submit = () => {
+    let v = input.value;
+    if (kind === "number") {
+      v = Number(v);
+      if (!isFinite(v)) { input.focus(); return; }
+      if (min != null) v = Math.max(min, v);
+      if (max != null) v = Math.min(max, v);
+      v = Math.round(v);
+    }
+    wrap.remove();
+    onSubmit(v);
+  };
+  wrap.addEventListener("click", (e) => {
+    if (e.target === wrap || e.target.closest("[data-wb-close]")) { wrap.remove(); return; }
+    if (e.target.closest("[data-wb-confirm]")) submit();
+  });
+  wrap.addEventListener("keydown", (e) => {
+    e.stopPropagation();
+    if (e.key === "Escape") wrap.remove();
+    else if (e.key === "Enter") { e.preventDefault(); submit(); }
+  });
+  setTimeout(() => { input.focus(); input.select(); }, 30);
+}
+
 // Help → Keyboard shortcuts: a compact reference rendered through the
 // shared confirm-modal shell (info-only, single dismiss button).
 function showShortcutsHelp() {
@@ -7287,6 +7532,7 @@ function mountSheetBlock(block, body) {
       <div class="wb-gr-rows" style="top:${HDR_ROW_H}px;width:${HDR_COL_W}px"><div class="wb-gr-rows-inner"></div></div>
       <div class="wb-gr-frozen-top" style="left:${HDR_COL_W}px;top:${HDR_ROW_H}px" hidden><div class="wb-gr-frozen-top-inner"></div></div>
       <div class="wb-gr-frozen-left" style="top:${HDR_ROW_H}px" hidden><div class="wb-gr-frozen-left-inner"></div></div>
+      <div class="wb-gr-frozen-corner" style="left:${HDR_COL_W}px;top:${HDR_ROW_H}px" hidden><div class="wb-gr-frozen-corner-inner"></div></div>
       <div class="wb-gr-scroll" style="left:${HDR_COL_W}px;top:${HDR_ROW_H}px">
         <div class="wb-gr-canvas">
           <div class="wb-gr-cells"></div>
@@ -7303,6 +7549,7 @@ function mountSheetBlock(block, body) {
         </div>
       </div>
       <div class="wb-gr-filterchip" hidden></div>
+      <div class="wb-gr-tablesuggest" data-wb-tablesuggest hidden></div>
       <div class="wb-dash-bar" data-wb-dashbar>
         <button type="button" class="btn btn-sm wb-dash-magic" data-wb-dashauto title="Auto-build a dashboard from your data">✨ Auto-build</button>
         <button type="button" class="btn btn-sm wb-dash-btn" data-wb-dashrefresh title="Refresh live data feeding this dashboard">⟳ Refresh data</button>
@@ -7317,6 +7564,7 @@ function mountSheetBlock(block, body) {
       </form>
       <div class="wb-ai-follow" data-wb-aifollow hidden></div>
     </div>
+    <div class="wb-slicers" data-wb-slicers hidden></div>
     <div class="wb-pivots" data-wb-pivots hidden></div>
     <div class="wb-tabs" data-wb-tabs="${block.id}"></div>
     <div class="wb-statusbar" data-wb-statusbar>
@@ -7352,10 +7600,14 @@ function mountSheetBlock(block, body) {
       frozenTopInner: body.querySelector(".wb-gr-frozen-top-inner"),
       frozenLeft: body.querySelector(".wb-gr-frozen-left"),
       frozenLeftInner: body.querySelector(".wb-gr-frozen-left-inner"),
+      frozenCorner: body.querySelector(".wb-gr-frozen-corner"),
+      frozenCornerInner: body.querySelector(".wb-gr-frozen-corner-inner"),
       fbarRef: body.querySelector("[data-wb-fbar-ref]"),
       fbarInput: body.querySelector("[data-wb-fbar-input]"),
       fbarErr: body.querySelector("[data-wb-fbar-err]"),
       filterChip: body.querySelector(".wb-gr-filterchip"),
+      tableSuggest: body.querySelector("[data-wb-tablesuggest]"),
+      slicers: body.querySelector("[data-wb-slicers]"),
       charts: body.querySelector("[data-wb-charts]"),
       pivots: body.querySelector("[data-wb-pivots]"),
       tabs: body.querySelector("[data-wb-tabs]"),
@@ -7392,6 +7644,42 @@ function mountSheetBlock(block, body) {
   renderLiveBar(g); // Live-dataset chip (refreshable operational data)
   g.els.body.addEventListener("click", (e) => {
     if (e.target.closest("[data-wb-liverefresh]")) { e.stopPropagation(); refreshLiveData(g); }
+  });
+  // slicers (100-list #46): chip clicks toggle the column filter
+  g.els.slicers.addEventListener("click", (e) => {
+    const del = e.target.closest("[data-wb-slicerdel]");
+    if (del) { removeSlicer(g, del.getAttribute("data-wb-slicerdel")); return; }
+    const all = e.target.closest("[data-wb-slicerall]");
+    if (all) {
+      g.filters.delete(+all.getAttribute("data-wb-slicerall"));
+      computeGeometry(g); repaintGrid(g); persistFilterState(g);
+      return;
+    }
+    const chip = e.target.closest("[data-wb-slicerval]");
+    if (chip) {
+      const col = +chip.getAttribute("data-wb-slicercol");
+      const val = chip.getAttribute("data-wb-slicerval");
+      const cur = g.filters.get(col);
+      let vals = cur && cur.values ? new Set(cur.values) : null;
+      if (!vals) vals = new Set([val]);            // first pick narrows to just it
+      else if (vals.has(val)) { vals.delete(val); if (!vals.size) vals = null; }
+      else vals.add(val);
+      if (!vals) g.filters.delete(col);
+      else g.filters.set(col, { ...(cur || {}), text: (cur && cur.text) || null, values: vals });
+      if (g.filters.size && !g.filterMode) g.filterMode = true;
+      computeGeometry(g); repaintGrid(g); persistFilterState(g);
+    }
+  });
+  // "looks like a table" chip (100-list #49)
+  g.els.tableSuggest.addEventListener("click", (e) => {
+    if (e.target.closest("[data-wb-tsyes]")) {
+      const rect = g.tableSuggest;
+      g.tableSuggest = null;
+      if (rect) { selectRect(g, rect.r0, rect.c0, rect.r1, rect.c1); toggleTableSelection(g); }
+      g.els.tableSuggest.hidden = true;
+      return;
+    }
+    if (e.target.closest("[data-wb-tsno]")) { g.tableSuggest = null; g.els.tableSuggest.hidden = true; }
   });
   g.els.charts.addEventListener("click", (e) => {
     const add = e.target.closest("[data-wb-dashadd]");
@@ -7618,9 +7906,17 @@ function sheetToolbarHtml(block, ro) {
           <button type="button" class="popover-item" data-wb-border="right" role="menuitem">Right border</button>
           <button type="button" class="popover-item" data-wb-border="none" role="menuitem">No borders</button>
           <div class="popover-section"></div>
-          <button type="button" class="popover-item" data-wb-bw="1" role="menuitem"><span class="wb-bw-sample" style="border-top-width:1px"></span>Thin line</button>
+          <button type="button" class="popover-item is-on" data-wb-bw="1" role="menuitem"><span class="wb-bw-sample" style="border-top-width:1px"></span>Thin line</button>
           <button type="button" class="popover-item" data-wb-bw="2" role="menuitem"><span class="wb-bw-sample" style="border-top-width:2px"></span>Medium line</button>
           <button type="button" class="popover-item" data-wb-bw="3" role="menuitem"><span class="wb-bw-sample" style="border-top-width:3px"></span>Thick line</button>
+          <div class="popover-section"></div>
+          <button type="button" class="popover-item is-on" data-wb-bst="solid" role="menuitem"><span class="wb-bw-sample" style="border-top-style:solid"></span>Solid</button>
+          <button type="button" class="popover-item" data-wb-bst="dashed" role="menuitem"><span class="wb-bw-sample" style="border-top-style:dashed"></span>Dashed</button>
+          <button type="button" class="popover-item" data-wb-bst="dotted" role="menuitem"><span class="wb-bw-sample" style="border-top-style:dotted"></span>Dotted</button>
+          <div class="popover-section"></div>
+          <div class="wb-bcolor-row" role="group" aria-label="Border color">
+            ${[["#000000", "Black"], ["#6B7280", "Gray"], ["#DC2626", "Red"], ["#2563EB", "Blue"], ["#16A34A", "Green"], ["#D97706", "Amber"]].map(([hex, name], i) => `<button type="button" class="wb-bcolor-sw ${i === 0 ? "is-on" : ""}" data-wb-bcolor="${hex}" style="background:${hex}" title="${name} border" aria-label="${name} border"></button>`).join("")}
+          </div>
         </div></span>
     </div>
     <div class="wb-tgrp">${btn("merge", "Merge / unmerge cells", `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="1"/><path d="M9 12h6"/><path d="M7 9l-2 3 2 3"/><path d="M17 9l2 3-2 3"/></svg>`)}${btn("insert-link", "Insert link (Ctrl+click opens)", `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`)}${btn("comment-cell", "Comment on the active cell", `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`)}${btn("insert-chart", "Insert chart from the selection", `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="4" y1="20" x2="20" y2="20"/><rect x="6" y="10" width="3" height="7"/><rect x="11" y="6" width="3" height="11"/><rect x="16" y="13" width="3" height="4"/></svg>`)}</div>
@@ -7679,14 +7975,42 @@ function filterCellText(sheet, r, col) {
   return cell ? String(cell.formula ? (cell.err || (cell.computed ?? "")) : (cell.value ?? "")) : "";
 }
 
+// Number/date filter conditions (100-list #43). Values and limits coerce
+// through numbers first, then loose date parsing, so "≥ 2026-07-01" works
+// on a date column and "> 40" on route counts.
+function filterCondNum(v) {
+  if (v == null || v === "") return null;
+  const n = cellNumeric(v);
+  if (n != null) return n;
+  const d = parseDateLoose(String(v));
+  return d ? dateToSerial(d) : null;
+}
+function filterCondHits(cond, text) {
+  if (!cond || !cond.op) return true;
+  if (text === "") return false; // blanks never satisfy a condition
+  const x = filterCondNum(text);
+  const a = filterCondNum(cond.v1), b = filterCondNum(cond.v2);
+  switch (cond.op) {
+    case "gt": return x != null && a != null && x > a;
+    case "ge": return x != null && a != null && x >= a;
+    case "lt": return x != null && a != null && x < a;
+    case "le": return x != null && a != null && x <= a;
+    case "between": return x != null && a != null && b != null && x >= Math.min(a, b) && x <= Math.max(a, b);
+    case "eq": return x != null && a != null ? x === a : String(text).trim().toLowerCase() === String(cond.v1 ?? "").trim().toLowerCase();
+    case "ne": return x != null && a != null ? x !== a : String(text).trim().toLowerCase() !== String(cond.v1 ?? "").trim().toLowerCase();
+    default: return true;
+  }
+}
+
 function computeGeometry(g) {
   const sheet = g.sheet;
   // visible rows (filter-aware; header row 0 always visible). Every
   // filtered column must accept the row — Excel AutoFilter semantics.
   const rows = [];
-  const rowHidden = (r) => sheet.hiddenRows && sheet.hiddenRows.has(r);
+  const grpRows = groupHiddenSet(sheet, "row");
+  const rowHidden = (r) => (sheet.hiddenRows && sheet.hiddenRows.has(r)) || grpRows.has(r);
   const filters = g.filters && g.filters.size
-    ? [...g.filters.entries()].map(([col, f]) => ({ col, needle: f.text ? f.text.toLowerCase() : null, values: f.values || null }))
+    ? [...g.filters.entries()].map(([col, f]) => ({ col, needle: f.text ? f.text.toLowerCase() : null, values: f.values || null, cond: f.cond || null, color: f.color || null }))
     : null;
   for (let r = 0; r < sheet.rowCount; r++) {
     if (rowHidden(r)) continue;
@@ -7696,6 +8020,13 @@ function computeGeometry(g) {
       const t = filterCellText(sheet, r, f.col);
       if (f.needle && !t.toLowerCase().includes(f.needle)) { show = false; break; }
       if (f.values && !f.values.has(t)) { show = false; break; }
+      if (f.cond && !filterCondHits(f.cond, t)) { show = false; break; }
+      if (f.color) {
+        // filter by fill color (100-list #44): manual #hex fills only
+        const cc = sheet.cells.get(cellKey(r, f.col));
+        const bg = cc && cc.format && typeof cc.format.bg === "string" && cc.format.bg[0] === "#" ? cc.format.bg.toUpperCase() : "";
+        if (bg !== f.color) { show = false; break; }
+      }
     }
     if (show) rows.push(r);
   }
@@ -7706,7 +8037,8 @@ function computeGeometry(g) {
   for (let i = 0; i < rows.length; i++) g.rowY[i + 1] = g.rowY[i] + Math.round(rowH(sheet, rows[i]) * z);
   g.colX = new Array(sheet.colCount + 1);
   g.colX[0] = 0;
-  for (let c = 0; c < sheet.colCount; c++) g.colX[c + 1] = g.colX[c] + Math.round(colW(sheet, c) * z);
+  const grpCols = groupHiddenSet(sheet, "col");
+  for (let c = 0; c < sheet.colCount; c++) g.colX[c + 1] = g.colX[c] + (grpCols.has(c) ? 0 : Math.round(colW(sheet, c) * z));
   // floating widgets can extend past the cells — grow the canvas so the scroll
   // range reaches them (extents are in logical px; scale by zoom)
   let chartW = 0, chartH = 0;
@@ -7811,9 +8143,29 @@ function cellStyle(sheet, r, c, cell) {
   if (f.bg === "header") s += "background:var(--canvas);font-weight:600;";
   if (f.fg) s += `color:${wbColorCss("fg", f.fg)};`;
   else if (f.link) s += "color:var(--accent, #2563EB);";
+  // [Red]-style custom-format section color wins over the font color,
+  // like Excel (100-list #34)
+  if (f.fmt && cell && CUSTOM_COLOR_RE.test(f.fmt)) {
+    const cfc = customFormatColor(cell.formula ? (cell.err ? null : cell.computed) : cell.value, f.fmt, cell.type);
+    if (cfc) s += `color:${cfc};`;
+  }
   if (f.wrap) s += "white-space:normal;line-height:1.3;";
-  // applied borders read solid black, like Excel's default border ink;
-  // format.bw picks the line weight (1 thin · 2 medium · 3 thick)
+  // indent steps the left padding (left-aligned content only, like Excel)
+  if (Number.isInteger(f.ind) && f.ind > 0) s += `padding-left:${7 + Math.min(8, f.ind) * 14}px;`;
+  // per-side borders (100-list #33): f.bs = {t,b,l,r}, each {w:1|2|3,
+  // st:"solid"|"dashed"|"dotted", c:"#RRGGBB"}. Cells are border-box, so a
+  // real CSS border simply replaces the gridline on that side and dashed/
+  // dotted render natively.
+  if (f.bs && typeof f.bs === "object") {
+    const side = (sd) => `${sd.w === 2 ? 2 : sd.w === 3 ? 3 : 1}px ${sd.st === "dashed" ? "dashed" : sd.st === "dotted" ? "dotted" : "solid"} ${typeof sd.c === "string" && HEX_COLOR_RE.test(sd.c) ? sd.c : "#000"}`;
+    if (f.bs.t) s += `border-top:${side(f.bs.t)};`;
+    if (f.bs.b) s += `border-bottom:${side(f.bs.b)};`;
+    if (f.bs.l) s += `border-left:${side(f.bs.l)};`;
+    if (f.bs.r) s += `border-right:${side(f.bs.r)};`;
+    return s;
+  }
+  // legacy single-value borders keep rendering exactly as before, so old
+  // cells stay pixel-identical; format.bw picks the line weight
   const bw = f.bw === 2 || f.bw === 3 ? f.bw : 1;
   const bAll = bw === 1 ? 1 : bw === 2 ? 2 : 3;
   const bEdge = bw === 1 ? 1.5 : bw === 2 ? 2.5 : 4;
@@ -7829,7 +8181,38 @@ function cellStyle(sheet, r, c, cell) {
 // auto-detected email/URL) renders its text as a real <a> so it looks and
 // behaves like a hyperlink — blue, underlined, click to open. Rotated text
 // renders inside a span so the background/borders stay square.
+// Inline sparkline SVG for a SPARKLINE() marker value (100-list #9).
+function sparkSvg(json) {
+  let spec;
+  try { spec = JSON.parse(json); } catch (_) { return ""; }
+  const vals = Array.isArray(spec.v) ? spec.v.filter((x) => typeof x === "number") : [];
+  if (!vals.length) return "";
+  const W = 80, H = 16, n = vals.length;
+  const min = Math.min(...vals, 0), max = Math.max(...vals, 0);
+  const span = max - min || 1;
+  if (spec.t === "column" || spec.t === "bar") {
+    const bw = Math.max(1.5, W / n - 1);
+    const y0 = H - ((0 - min) / span) * H;
+    return `<svg class="wb-spark" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-hidden="true">${vals.map((v, i) => {
+      const x = (i * W) / n;
+      const y = H - ((v - min) / span) * H;
+      const top = Math.min(y, y0), h = Math.max(1, Math.abs(y0 - y));
+      return `<rect x="${x.toFixed(1)}" y="${top.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" fill="${v < 0 ? "#DC2626" : "#2563EB"}"/>`;
+    }).join("")}</svg>`;
+  }
+  if (spec.t === "winloss") {
+    const bw = Math.max(1.5, W / n - 1);
+    return `<svg class="wb-spark" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-hidden="true">${vals.map((v, i) => {
+      const x = (i * W) / n;
+      return `<rect x="${x.toFixed(1)}" y="${v >= 0 ? 1 : H / 2}" width="${bw.toFixed(1)}" height="${H / 2 - 1}" fill="${v < 0 ? "#DC2626" : "#16A34A"}"/>`;
+    }).join("")}</svg>`;
+  }
+  const pts = vals.map((v, i) => `${((i * W) / Math.max(1, n - 1)).toFixed(1)},${(H - ((v - min) / span) * (H - 2) - 1).toFixed(1)}`).join(" ");
+  return `<svg class="wb-spark" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="#2563EB" stroke-width="1.5"/></svg>`;
+}
+
 function cellInnerHtml(cell, disp) {
+  if (typeof disp === "string" && disp.startsWith(WB_SPARK_MARK)) return sparkSvg(disp.slice(WB_SPARK_MARK.length));
   const f = cell && cell.format;
   const link = cellLink(cell);
   // only http(s)/mailto reach an href — never javascript:/data: schemes
@@ -7837,7 +8220,9 @@ function cellInnerHtml(cell, disp) {
   const body = safe
     ? `<a class="wb-cell-link" href="${esc(safe)}" target="_blank" rel="noopener noreferrer" draggable="false">${esc(disp)}</a>`
     : esc(disp);
-  if (f && (f.rot === 45 || f.rot === 90)) return `<span class="wb-rot" style="transform:rotate(-${f.rot}deg)">${body}</span>`;
+  // any angle from -90 to 90 (100-list #35); positive rotates counter-clockwise
+  const rot = f && Number.isFinite(+f.rot) ? Math.max(-90, Math.min(90, Math.round(+f.rot))) : 0;
+  if (rot) return `<span class="wb-rot" style="transform:rotate(${-rot}deg)">${body}</span>`;
   return body;
 }
 
@@ -8098,24 +8483,28 @@ function paintNow(g) {
   const d0 = dispRowAt(g, sy), d1 = Math.min(g.rows.length - 1, dispRowAt(g, sy + vh) + 1);
   const c0 = colAt(g, sx), c1 = Math.min(sheet.colCount - 1, colAt(g, sx + vw) + 1);
 
-  // column headers
+  // column headers (collapsible groups get their toggle on the summary col)
+  const grpColStarts = new Map(sheetGroups(sheet, "col").map((gr) => [gr.from, gr]));
   let colsHtml = "";
   for (let c = c0; c <= c1; c++) {
     const w = g.colX[c + 1] - g.colX[c];
     if (w === 0) continue; // hidden column
     const isSel = c >= Math.min(g.sel.c0, g.sel.c1) && c <= Math.max(g.sel.c0, g.sel.c1);
-    colsHtml += `<div class="wb-hcell wb-hcol ${isSel ? "is-sel" : ""}" data-wb-col="${c}" style="left:${g.colX[c]}px;width:${w}px;height:${HDR_ROW_H}px">${colLabel(c)}<span class="wb-rz-col" data-wb-rzcol="${c}"></span></div>`;
+    const grp = grpColStarts.get(c);
+    colsHtml += `<div class="wb-hcell wb-hcol ${isSel ? "is-sel" : ""}" data-wb-col="${c}" style="left:${g.colX[c]}px;width:${w}px;height:${HDR_ROW_H}px">${grp ? `<button type="button" class="wb-grp" data-wb-grp="col:${grp.id}" title="${grp.collapsed ? "Expand" : "Collapse"} columns ${colLabel(grp.from + 1)}–${colLabel(grp.to)}">${grp.collapsed ? "⊞" : "⊟"}</button>` : ""}${colLabel(c)}<span class="wb-rz-col" data-wb-rzcol="${c}"></span></div>`;
   }
   g.els.colsInner.innerHTML = colsHtml;
   g.els.colsInner.style.transform = `translateX(${-sx}px)`;
 
-  // row headers
+  // row headers (collapsible groups get their toggle on the summary row)
+  const grpRowStarts = new Map(sheetGroups(sheet, "row").map((gr) => [gr.from, gr]));
   let rowsHtml = "";
   for (let di = d0; di <= d1; di++) {
     const r = g.rows[di];
     const h = g.rowY[di + 1] - g.rowY[di];
     const isSel = r >= Math.min(g.sel.r0, g.sel.r1) && r <= Math.max(g.sel.r0, g.sel.r1);
-    rowsHtml += `<div class="wb-hcell wb-hrow ${isSel ? "is-sel" : ""}" data-wb-row="${r}" style="top:${g.rowY[di]}px;height:${h}px;width:${HDR_COL_W}px">${r + 1}<span class="wb-rz-row" data-wb-rzrow="${r}"></span></div>`;
+    const grp = grpRowStarts.get(r);
+    rowsHtml += `<div class="wb-hcell wb-hrow ${isSel ? "is-sel" : ""}" data-wb-row="${r}" style="top:${g.rowY[di]}px;height:${h}px;width:${HDR_COL_W}px">${grp ? `<button type="button" class="wb-grp" data-wb-grp="row:${grp.id}" title="${grp.collapsed ? "Expand" : "Collapse"} rows ${grp.from + 2}–${grp.to + 1}">${grp.collapsed ? "⊞" : "⊟"}</button>` : ""}${r + 1}<span class="wb-rz-row" data-wb-rzrow="${r}"></span></div>`;
   }
   g.els.rowsInner.innerHTML = rowsHtml;
   g.els.rowsInner.style.transform = `translateY(${-sy}px)`;
@@ -8176,7 +8565,7 @@ function paintNow(g) {
       : isDv && dvStyle === "chip"
         ? `<span class="wb-dv-pill ${cell && disp ? "" : "is-empty"}" data-wb-dvchip="${r},${c}" style="${dvColor ? `background:${dvColor};` : ""}">${cell && disp ? esc(disp) : "Select"}<span class="wb-dv-pillarrow">▾</span></span>`
         : cell && disp ? cellInnerHtml(cell, disp) : isDv && dvStyle === "arrow" ? `<span class="wb-dv-chip-empty">Select</span>` : "";
-    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${cell && cell.spill ? "is-spill-origin" : ""} ${inval ? "is-invalid" : ""} ${isDv ? "is-dv" : ""} ${isDv && dvStyle === "arrow" ? "is-dvarrow" : ""} ${imgSrc || photoRef ? "is-img" : ""} ${receiptRef ? "is-receipt" : ""} ${linkUrl ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${dvFill ? `background:${dvFill};` : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : err ? `title="${esc(cell.err + " — " + errorHint(cell.err))}"` : linkUrl ? `title="${esc(linkUrl)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${condIconFor(sheet, r, c, cell)}${inner}${dvMark}${fltBtn(r, c)}</div>`;
+    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${cell && cell.spill ? "is-spill-origin" : ""} ${inval ? "is-invalid" : ""} ${inval && g.circleInvalid ? "is-circled" : ""} ${isDv ? "is-dv" : ""} ${isDv && dvStyle === "arrow" ? "is-dvarrow" : ""} ${imgSrc || photoRef ? "is-img" : ""} ${receiptRef ? "is-receipt" : ""} ${linkUrl ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${dvFill ? `background:${dvFill};` : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : err ? `title="${esc(cell.err + " — " + errorHint(cell.err))}"` : linkUrl ? `title="${esc(linkUrl)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${cell && cell.format && cell.format.note ? `<span class="wb-nmark" title="${esc(cell.format.note)}"></span>` : ""}${condIconFor(sheet, r, c, cell)}${inner}${dvMark}${fltBtn(r, c)}</div>`;
   };
   let html = "";
   const paintedMerges = new Set();
@@ -8204,6 +8593,8 @@ function paintNow(g) {
   paintSelection(g);
   paintFrozen(g, sx, sy, c0, c1);
   paintFilterChip(g);
+  paintSlicers(g);
+  paintTableSuggest(g);
 }
 
 function paintSelection(g) {
@@ -8320,46 +8711,79 @@ function showDragSize(g, rows, cols) {
 
 function paintFrozen(g, sx, sy, c0, c1) {
   const sheet = g.sheet;
-  // frozen top row
-  if (sheet.frozenRows > 0 && g.rows.length) {
-    const r = g.rows[0];
-    const h = g.rowY[1] - g.rowY[0];
+  // any number of frozen rows/cols (100-list #13); bands are painted from
+  // the first N visible rows / first M columns so filters stay coherent
+  const nRows = Math.max(0, Math.min(sheet.frozenRows || 0, g.rows.length));
+  const nCols = Math.max(0, Math.min(sheet.frozenCols || 0, sheet.colCount));
+  const fzCell = (r, c, x, top, w, h) => {
+    const cell = sheet.cells.get(cellKey(r, c));
+    const fzFlt = r === 0 && g.filterMode && c <= (g.fltMaxC ?? -1)
+      ? `<button type="button" class="wb-flt-btn ${g.filters.has(c) ? "is-filtered" : ""}" data-wb-fltbtn="${c}" title="Filter column ${colLabel(c)}" aria-label="Filter column ${colLabel(c)}">${g.filters.has(c) ? "▼" : "▾"}</button>`
+      : "";
+    return `<div class="wb-cell" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${condStyleFor(sheet, r, c, cell)}">${condIconFor(sheet, r, c, cell)}${cell ? cellInnerHtml(cell, displayValue(sheet, r, c)) : ""}${fzFlt}</div>`;
+  };
+  // frozen top rows
+  if (nRows > 0) {
     let html = "";
-    for (let c = c0; c <= c1; c++) {
-      const cell = sheet.cells.get(cellKey(r, c));
-      const w = g.colX[c + 1] - g.colX[c];
-      const fzFlt = r === 0 && g.filterMode && c <= (g.fltMaxC ?? -1)
-        ? `<button type="button" class="wb-flt-btn ${g.filters.has(c) ? "is-filtered" : ""}" data-wb-fltbtn="${c}" title="Filter column ${colLabel(c)}" aria-label="Filter column ${colLabel(c)}">${g.filters.has(c) ? "▼" : "▾"}</button>`
-        : "";
-      html += `<div class="wb-cell" data-r="${r}" data-c="${c}" style="left:${g.colX[c]}px;top:0;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${condStyleFor(sheet, r, c, cell)}">${condIconFor(sheet, r, c, cell)}${cell ? cellInnerHtml(cell, displayValue(sheet, r, c)) : ""}${fzFlt}</div>`;
+    for (let di = 0; di < nRows; di++) {
+      const r = g.rows[di];
+      const top = g.rowY[di], h = g.rowY[di + 1] - top;
+      for (let c = c0; c <= c1; c++) {
+        const w = g.colX[c + 1] - g.colX[c];
+        if (w === 0) continue;
+        html += fzCell(r, c, g.colX[c], top, w, h);
+      }
     }
     g.els.frozenTop.hidden = false;
-    g.els.frozenTop.style.height = h + "px";
+    g.els.frozenTop.style.height = g.rowY[nRows] + "px";
     g.els.frozenTopInner.innerHTML = html;
     g.els.frozenTopInner.style.transform = `translateX(${-sx}px)`;
     g.els.frozenTop.classList.toggle("is-lifted", sy > 0);
   } else {
     g.els.frozenTop.hidden = true;
   }
-  // frozen first column
-  if (sheet.frozenCols > 0) {
-    const w = g.colX[1] - g.colX[0];
+  // frozen left columns
+  if (nCols > 0) {
     const d0 = dispRowAt(g, sy), d1 = Math.min(g.rows.length - 1, dispRowAt(g, sy + g.els.scroll.clientHeight) + 1);
     let html = "";
     for (let di = d0; di <= d1; di++) {
       const r = g.rows[di];
-      const cell = sheet.cells.get(cellKey(r, 0));
-      const h = g.rowY[di + 1] - g.rowY[di];
-      html += `<div class="wb-cell" data-r="${r}" data-c="0" style="left:0;top:${g.rowY[di]}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, 0, cell) : ""}${condStyleFor(sheet, r, 0, cell)}">${condIconFor(sheet, r, 0, cell)}${cell ? cellInnerHtml(cell, displayValue(sheet, r, 0)) : ""}</div>`;
+      const top = g.rowY[di], h = g.rowY[di + 1] - top;
+      for (let c = 0; c < nCols; c++) {
+        const w = g.colX[c + 1] - g.colX[c];
+        if (w === 0) continue;
+        html += fzCell(r, c, g.colX[c], top, w, h);
+      }
     }
     g.els.frozenLeft.hidden = false;
     g.els.frozenLeft.style.left = HDR_COL_W + "px";
-    g.els.frozenLeft.style.width = w + "px";
+    g.els.frozenLeft.style.width = g.colX[nCols] + "px";
     g.els.frozenLeftInner.innerHTML = html;
     g.els.frozenLeftInner.style.transform = `translateY(${-sy}px)`;
     g.els.frozenLeft.classList.toggle("is-lifted", sx > 0);
   } else {
     g.els.frozenLeft.hidden = true;
+  }
+  // fixed corner where both bands overlap — scrolls in neither direction
+  if (g.els.frozenCorner) {
+    if (nRows > 0 && nCols > 0) {
+      let html = "";
+      for (let di = 0; di < nRows; di++) {
+        const r = g.rows[di];
+        const top = g.rowY[di], h = g.rowY[di + 1] - top;
+        for (let c = 0; c < nCols; c++) {
+          const w = g.colX[c + 1] - g.colX[c];
+          if (w === 0) continue;
+          html += fzCell(r, c, g.colX[c], top, w, h);
+        }
+      }
+      g.els.frozenCorner.hidden = false;
+      g.els.frozenCorner.style.width = g.colX[nCols] + "px";
+      g.els.frozenCorner.style.height = g.rowY[nRows] + "px";
+      g.els.frozenCornerInner.innerHTML = html;
+    } else {
+      g.els.frozenCorner.hidden = true;
+    }
   }
 }
 
@@ -8405,6 +8829,131 @@ async function pasteValuesOnly(g) { pasteSpecial(g, "values"); }
 function pasteFormatOnly(g) { pasteSpecial(g, "formats"); }
 
 // Formula auditing: light one — reuse the reference-highlight layer.
+// Plain-English explainer + a concrete suggested fix for the active error
+// cell (100-list #8).
+function explainErrorCell(g) {
+  const { r, c } = g.active;
+  const cell = g.sheet.cells.get(cellKey(r, c));
+  if (!cell || !cell.err) { _toast("The active cell has no error", "info"); return; }
+  const code = cell.err;
+  const fixes = {
+    "#DIV/0": "Guard the divisor: =IFERROR(<formula>, 0) or =IF(<divisor>=0, 0, <formula>).",
+    "#N/A": "A lookup found no match. Check the value exists, or add a fallback: =IFNA(<lookup>, \"\").",
+    "#REF": "A referenced cell was deleted. Re-point the reference, or undo the delete that broke it.",
+    "#VALUE": "A value is the wrong type — often text where a number is expected. Check each argument.",
+    "#NUM": "A number is out of range (SQRT of a negative, or too large). Check the arguments.",
+    "#NULL": "Two ranges that were expected to intersect don't. Check the range operator.",
+    "#CIRCULAR": "The formula depends on its own cell. Break the loop, or turn on Data → Iterative calculation.",
+    "#SPILL": "An array can't spill — cells in its path aren't empty. Clear the cells below/right.",
+  };
+  let fix = fixes[code.replace(/!$/, "")] || "Re-check the formula's arguments.";
+  if (code === "#NAME" && cell.formula) {
+    const m = /([A-Za-z][A-Za-z0-9._]*)\s*\(/.exec(cell.formula);
+    let dym = "";
+    if (m) {
+      const typed = m[1].toUpperCase();
+      let best = null, bestD = 99;
+      for (const f of FUNCTION_META) { const d = levenshtein(typed, f.n); if (d < bestD) { bestD = d; best = f.n; } }
+      if (best && bestD <= 2 && best !== typed) dym = `Did you mean <b>${esc(best)}</b>? `;
+    }
+    fix = dym + "Check the function name and that any named ranges exist.";
+  }
+  confirmModal({
+    title: `${code} in ${cellRef(r, c)}`,
+    body: `<span style="display:block;margin-bottom:8px">${esc(errorHint(code))}</span><span style="display:block;color:var(--text-subtle)">${fix}</span>`,
+    confirmLabel: "Wrap in IFERROR",
+    onConfirm: () => {
+      if (!WB.canEdit || !cell.formula) return;
+      setCells(g, [{ r, c, cell: cellFromInput(`=IFERROR(${cell.formula.replace(/^=/, "")}, "")`, cell) }]);
+    },
+  });
+}
+
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  const d = Array.from({ length: m + 1 }, (_, i) => [i, ...new Array(n).fill(0)]);
+  for (let j = 0; j <= n; j++) d[0][j] = j;
+  for (let i = 1; i <= m; i++) for (let j = 1; j <= n; j++)
+    d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return d[m][n];
+}
+
+// ── #12: Evaluate Formula stepper ──
+function evaluateFormulaSteps(g) {
+  const { r, c } = g.active;
+  const cell = g.sheet.cells.get(cellKey(r, c));
+  if (!cell || !cell.formula) { _toast("The active cell has no formula", "info"); return; }
+  let ast;
+  try {
+    ast = cachedParse(cell.formula);
+    const names = namesForSheet(g.sheet);
+    if (names.size) ast = bindNames(ast, names);
+    const treg = buildTablesRegistry(g.sheet);
+    if (treg.size) ast = bindTableRefs(ast, treg);
+  } catch (e) { _toast("Couldn't parse this formula", "warn"); return; }
+  const ctx = cfEvalCtx(g.sheet);
+  ctx.cur = { r, c };
+  const steps = [];
+  const fmtV = (v) => {
+    if (v instanceof Arr) { const fl = v.flat(); return "{" + fl.slice(0, 6).map(fmtV).join(", ") + (fl.length > 6 ? ", …" : "") + "}"; }
+    if (v == null || v === "") return "(empty)";
+    if (typeof v === "string") return '"' + (v.length > 24 ? v.slice(0, 24) + "…" : v) + '"';
+    if (typeof v === "number") return cleanNum(v);
+    return String(v);
+  };
+  const src = (node) => {
+    try {
+      if (node.k === "ref") return (node.sheet ? node.sheet + "!" : "") + colLabel(node.col) + (node.row + 1);
+      if (node.k === "range") return (node.sheet ? node.sheet + "!" : "") + colLabel(node.a.col) + (node.a.row + 1) + ":" + colLabel(node.b.col) + (node.b.row + 1);
+      if (node.k === "num") return cleanNum(node.v);
+      if (node.k === "str") return '"' + node.v + '"';
+      if (node.k === "func") return node.name + "(…)";
+      if (node.k === "bin" || node.k === "cmp" || node.k === "concat") return "… " + (node.op || "&") + " …";
+    } catch (_) {}
+    return "expression";
+  };
+  const seen = new Set();
+  const walk = (node, depth) => {
+    if (!node || typeof node !== "object" || depth > 40) return;
+    if (node.k === "func") node.args.forEach((a) => walk(a, depth + 1));
+    if (node.l) walk(node.l, depth + 1);
+    if (node.r) walk(node.r, depth + 1);
+    if (["func", "bin", "cmp", "concat", "ref", "range"].includes(node.k)) {
+      const label = src(node);
+      if (seen.has(label + depth)) return;
+      seen.add(label + depth);
+      let val;
+      try { val = node.k === "range" ? gridOfRange(node, ctx) : evalNode(node, ctx); }
+      catch (e) { val = e instanceof FormulaError ? e.code : "#ERROR"; }
+      steps.push({ label, value: typeof val === "string" && /^#[A-Z]/.test(val) ? val : fmtV(val) });
+    }
+  };
+  walk(ast, 0);
+  let final;
+  try { final = fmtV(cell.err || evalNode(ast, ctx)); } catch (_) { final = cell.err || "#ERROR"; }
+  document.getElementById("wb-eval-modal")?.remove();
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-eval-modal";
+  wrap.innerHTML = `
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Evaluate formula" style="width:460px">
+      <div class="rr-modal-head">
+        <div class="rr-modal-head-content"><p class="rr-modal-title">Evaluate ${cellRef(r, c)}</p><p class="rr-modal-sub" style="font-family:ui-monospace,monospace">${esc(cell.formula)}</p></div>
+        <button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button>
+      </div>
+      <div class="rr-modal-body" style="max-height:320px;overflow:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          ${steps.map((st) => `<tr><td style="padding:4px 8px;font-family:ui-monospace,monospace;color:var(--text-subtle)">${esc(st.label)}</td><td style="padding:4px 8px;font-family:ui-monospace,monospace;text-align:right">${esc(st.value)}</td></tr>`).join("")}
+          <tr style="border-top:2px solid var(--border,#E5E7EB);font-weight:700"><td style="padding:6px 8px">Result</td><td style="padding:6px 8px;font-family:ui-monospace,monospace;text-align:right">${esc(final)}</td></tr>
+        </table>
+      </div>
+      <div class="rr-modal-foot"><button class="rr-modal-btn primary" type="button" data-wb-close>Done</button></div>
+    </div>`;
+  document.body.appendChild(wrap);
+  wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") wrap.remove(); });
+  wrap.addEventListener("click", (e) => { if (e.target === wrap || e.target.closest("[data-wb-close]")) wrap.remove(); });
+}
+
 function tracePrecedents(g) {
   const cell = g.sheet.cells.get(cellKey(g.active.r, g.active.c));
   if (!cell || !cell.formula) { _toast("The active cell has no formula", "info"); return; }
@@ -8504,12 +9053,8 @@ function openFormatCellsDialog(g) {
               <option value="top" ${f.valign === "top" ? "selected" : ""}>Top</option>
               <option value="bottom" ${f.valign === "bottom" ? "selected" : ""}>Bottom</option>
             </select></label>
-          <label class="wb-field"><span class="wb-field-label">Rotation</span>
-            <select class="wb-input" id="wb-fmt-rot">
-              <option value="" ${!f.rot ? "selected" : ""}>None</option>
-              <option value="45" ${f.rot === 45 ? "selected" : ""}>Tilt 45°</option>
-              <option value="90" ${f.rot === 90 ? "selected" : ""}>Vertical</option>
-            </select></label>
+          <label class="wb-field"><span class="wb-field-label">Rotation (°, -90 to 90)</span>
+            <input type="number" class="wb-input" id="wb-fmt-rot" min="-90" max="90" step="5" value="${Number.isFinite(+f.rot) && f.rot ? +f.rot : 0}"></label>
         </div>
         <div class="wb-field"><span class="wb-field-label">Style</span>
           <div class="wb-fmt-checks">
@@ -8726,7 +9271,7 @@ function fillWithinSelection(g, dir) {
     if (c1 <= c0) return;
     for (let r = r0; r <= r1; r++) { const src = g.sheet.cells.get(cellKey(r, c0)); for (let c = c0 + 1; c <= c1; c++) { let nx = src ? cloneCell(src) : null; if (nx && src.formula) { nx.formula = shiftFormulaRelative(src.formula, 0, c - c0); nx.computed = null; nx.err = null; } changes.push({ r, c, cell: nx }); } }
   }
-  if (changes.length) setCells(g, changes);
+  if (changes.length) setCells(g, changes, { validate: true });
 }
 
 // Double-click the fill handle → fill down to the extent of the adjacent
@@ -8758,7 +9303,7 @@ function fillSelectionWithActive(g) {
     if (nx && src.formula) { nx.formula = shiftFormulaRelative(src.formula, r - g.active.r, c - g.active.c); nx.computed = null; nx.err = null; }
     changes.push({ r, c, cell: nx });
   }
-  if (changes.length) setCells(g, changes);
+  if (changes.length) setCells(g, changes, { validate: true });
 }
 
 // Ctrl+; : insert today's date into the active cell.
@@ -8844,7 +9389,7 @@ function applyFill(g, src, ext) {
     }
   }
   if (!changes.length) return;
-  setCells(g, changes);
+  setCells(g, changes, { validate: true });
   if (vertical) g.sel = { r0: src.r0, c0: src.c0, r1: src.r1 + ext.count, c1: src.c1 };
   else g.sel = { r0: src.r0, c0: src.c0, r1: src.r1, c1: src.c1 + ext.count };
   paintSelection(g);
@@ -9635,6 +10180,44 @@ function ensureFxPop(g) {
   return g.els.fxpop;
 }
 
+// The innermost open function call before the caret + which argument the
+// caret sits in (100-list #2). String literals are skipped.
+function fxCallContext(before) {
+  const stack = [];
+  let i = 0, inStr = false;
+  while (i < before.length) {
+    const ch = before[i];
+    if (inStr) { if (ch === '"') inStr = false; i++; continue; }
+    if (ch === '"') { inStr = true; i++; continue; }
+    if (ch === "(") {
+      const m = /([A-Za-z][A-Za-z0-9._]{0,22})\s*$/.exec(before.slice(0, i));
+      stack.push({ name: m ? m[1].toUpperCase() : null, arg: 0 });
+    } else if (ch === ")") stack.pop();
+    else if (ch === ",") { if (stack.length) stack[stack.length - 1].arg++; }
+    i++;
+  }
+  for (let k = stack.length - 1; k >= 0; k--) if (stack[k].name) return stack[k];
+  return null;
+}
+
+// Signature HTML with the caret's argument bolded; variadic overflow sticks
+// to the last parameter.
+function fxSigHtml(sig, argIdx) {
+  const m = /^([A-Za-z0-9._]+)\((.*)\)$/.exec(sig);
+  if (!m) return esc(sig);
+  const parts = [];
+  let depth = 0, cur = "";
+  for (const ch of m[2]) {
+    if (ch === "[" || ch === "(") depth++;
+    if (ch === "]" || ch === ")") depth--;
+    if (ch === "," && depth <= 0) { parts.push(cur); cur = ""; continue; }
+    cur += ch;
+  }
+  if (cur.trim() !== "" || parts.length === 0) parts.push(cur);
+  const hot = Math.min(argIdx, parts.length - 1);
+  return esc(m[1]) + "(" + parts.map((t, i) => (i === hot ? `<b class="wb-fx-arg">${esc(t.trim())}</b>` : esc(t.trim()))).join(", ") + ")";
+}
+
 function updateFxPop(g) {
   const ed = g.editing;
   const input = ed && ed.input;
@@ -9654,10 +10237,13 @@ function updateFxPop(g) {
         g.fxWord = { start: caret - q.length, end: caret };
         show = true;
       }
-    } else if (mSig) {
-      const f = FUNCTION_META.find((x) => x.n === mSig[1].toUpperCase());
+    } else {
+      // mid-call: keep the signature up and bold the argument under the
+      // caret (100-list #2), not just right after the "("
+      const cc = mSig ? { name: mSig[1].toUpperCase(), arg: 0 } : fxCallContext(before);
+      const f = cc && FUNCTION_META.find((x) => x.n === cc.name);
       if (f) {
-        pop.innerHTML = `<div class="wb-fx-hint"><span class="wb-fx-name">${esc(f.sig)}</span><span class="wb-fx-desc">${esc(f.d)}</span></div>`;
+        pop.innerHTML = `<div class="wb-fx-hint"><span class="wb-fx-name">${fxSigHtml(f.sig, cc.arg)}</span><span class="wb-fx-desc">${esc(f.d)}</span></div>`;
         g.fxWord = null;
         show = true;
       }
@@ -9915,12 +10501,23 @@ function scrollCellIntoView(g, r, c) {
   const di = dispIndexOfRow(g, r);
   if (di < 0) return;
   const scroll = g.els.scroll;
+  // frozen bands cover the top/left of the viewport — scroll targets
+  // outside the bands must land below/right of them, and cells inside
+  // a band are always visible (never scroll for them)
+  const nRows = Math.max(0, Math.min(g.sheet.frozenRows || 0, g.rows.length));
+  const nCols = Math.max(0, Math.min(g.sheet.frozenCols || 0, g.sheet.colCount));
+  const bandH = nRows > 0 ? g.rowY[nRows] : 0;
+  const bandW = nCols > 0 ? g.colX[nCols] : 0;
   const x = g.colX[c], x2 = g.colX[c + 1];
   const y = g.rowY[di], y2 = g.rowY[di + 1];
-  if (x < scroll.scrollLeft) scroll.scrollLeft = x;
-  else if (x2 > scroll.scrollLeft + scroll.clientWidth) scroll.scrollLeft = x2 - scroll.clientWidth;
-  if (y < scroll.scrollTop) scroll.scrollTop = y;
-  else if (y2 > scroll.scrollTop + scroll.clientHeight) scroll.scrollTop = y2 - scroll.clientHeight;
+  if (c >= nCols) {
+    if (x < scroll.scrollLeft + bandW) scroll.scrollLeft = Math.max(0, x - bandW);
+    else if (x2 > scroll.scrollLeft + scroll.clientWidth) scroll.scrollLeft = x2 - scroll.clientWidth;
+  }
+  if (di >= nRows) {
+    if (y < scroll.scrollTop + bandH) scroll.scrollTop = Math.max(0, y - bandH);
+    else if (y2 > scroll.scrollTop + scroll.clientHeight) scroll.scrollTop = y2 - scroll.clientHeight;
+  }
 }
 
 function moveActive(g, dr, dc, extend) {
@@ -10113,6 +10710,21 @@ function setCells(g, changes, opts) {
     const before = changes.length;
     changes = changes.filter((ch) => !isCellProtected(sheet, ch.r, ch.c));
     if (changes.length < before) _toast(changes.length ? "Some cells are in a protected range and weren’t changed" : "That range is protected — only an admin can edit it", "warn");
+    if (!changes.length) return;
+  }
+  // strict ("reject") data-validation rules also gate bulk writes when the
+  // caller asks — paste and fill (100-list #14). Warn-mode rules keep their
+  // passive red marker; formula cells are never blocked.
+  if (opts && opts.validate && Array.isArray(sheet.meta && sheet.meta.validation) && sheet.meta.validation.length) {
+    const before = changes.length;
+    changes = changes.filter((ch) => {
+      if (!ch.cell || ch.cell.formula || ch.cell.value == null || ch.cell.value === "") return true;
+      const rule = findValidationRule(sheet, ch.r, ch.c);
+      if (!rule || rule.mode === "warn") return true;
+      return valueSatisfiesRule(rule, ch.cell.value, sheet, ch.r, ch.c);
+    });
+    const dropped = before - changes.length;
+    if (dropped) _toast(`${dropped} value${dropped === 1 ? " was" : "s were"} rejected by data validation`, "warn");
     if (!changes.length) return;
   }
   const applied = [];
@@ -10473,6 +11085,7 @@ function selectionToTsv(g) {
     for (let c = c0; c <= c1; c++) {
       const cell = sheet.cells.get(cellKey(r, c));
       let v = cell ? (cell.formula ? (cell.err || String(cell.computed ?? "")) : String(cell.value ?? "")) : "";
+      if (v.startsWith(WB_SPARK_MARK)) v = ""; // sparklines have no text form
       if (/[\t\n\r]/.test(v)) v = '"' + v.replace(/"/g, '""') + '"';
       parts.push(v);
     }
@@ -10573,7 +11186,9 @@ function pasteMatrix(g, matrix) {
     const clippedR = matrix.length - (maxR - g.active.r + 1);
     if (clippedR > 0) _toast(`Paste clipped: ${clippedR} row${clippedR === 1 ? "" : "s"} didn't fit the sheet`, "warn");
   }
-  setCells(g, changes);
+  setCells(g, changes, { validate: true });
+  // a header-plus-data paste earns a one-click "Create table" chip (#49)
+  if (!single) detectTableSuggest(g, g.active.r, g.active.c, matrix.length, Math.max(...matrix.map((l) => l.length)));
 }
 
 async function pasteFromClipboard(g) {
@@ -10681,7 +11296,7 @@ function pasteRich(g, cb, opts) {
     cb.mode = "copy"; // a cut pastes once; further pastes behave as copy
     WB.march = null;  // the marching-ants marquee clears when a cut is placed (Excel)
   }
-  setCells(g, changes);
+  setCells(g, changes, { validate: true });
   g.sel = { r0: sel.r0, c0: sel.c0, r1: Math.min(sheet.rowCount - 1, sel.r0 + repR * outR - 1), c1: Math.min(sheet.colCount - 1, sel.c0 + repC * outC - 1) };
   g.active = { r: sel.r0, c: sel.c0 };
   paintSelection(g);
@@ -11145,6 +11760,105 @@ function deleteCellsShift(g, dir) {
 
 // ─── Formatting ──────────────────────────────────────────────────────────────
 
+// ── Cell styles gallery (100-list #36) ──────────────────────────────────────
+// Named one-click looks, applied as plain format patches so they stack with
+// (and are overridable by) manual formatting.
+const WB_CELL_STYLES = {
+  title: { label: "Title", patch: { bold: true, fs: 18 } },
+  heading: { label: "Heading", patch: { bold: true, fs: 14, border: "bottom", bw: 2 } },
+  good: { label: "Good", patch: { bg: "#D9EAD3", fg: "#166534" } },
+  bad: { label: "Bad", patch: { bg: "#F4CCCC", fg: "#B91C1C" } },
+  neutral: { label: "Neutral", patch: { bg: "#FFF2CC", fg: "#92400E" } },
+  note: { label: "Note", patch: { bg: "#F3F4F6", fg: "#6B7280", italic: true } },
+  currency: { label: "Currency", patch: { num: "currency" } },
+  percent: { label: "Percent", patch: { num: "percent" } },
+  comma: { label: "Comma (thousands)", patch: { num: "custom", fmt: "#,##0.00" } },
+  date: { label: "Date", patch: { num: "date" } },
+};
+
+// ── Alternating colors (100-list #37) ───────────────────────────────────────
+// One click drops a "banding" conditional-format rule on the selection: odd
+// offsets from the range top get a soft tint (row 1 of the range is treated
+// as a header and stays clear). Managed/removable in the CF rules list.
+function applyBandingRule(g) {
+  if (!WB.canEdit) return;
+  let rect = selRect(g);
+  if (rect.r0 === rect.r1 && rect.c0 === rect.c1) {
+    const { maxR, maxC } = usedRange(g.sheet);
+    rect = { r0: 0, r1: Math.max(1, maxR), c0: 0, c1: Math.max(0, maxC) };
+  }
+  const rules = sheetRules(g.sheet, "condFormat");
+  const rule = { id: "cf" + Math.random().toString(36).slice(2, 8), type: "banding", style: "blue", r0: rect.r0, c0: rect.c0, r1: rect.r1, c1: rect.c1 };
+  rules.push(rule);
+  setSheetRules(g, "condFormat", rules);
+  wbLog("sheet.condformat", `added alternating colors on ${ruleRefText(rule)} in ${g.sheet.name}`, { target_type: "sheet", target_id: g.sheet.id });
+  _toast("Alternating colors applied — manage the rule under Conditional formatting", "success");
+}
+
+// ── Borders (100-list #33) ──────────────────────────────────────────────────
+// Per-side model: format.bs = { t, b, l, r }, each { w: 1|2|3, st: "solid"|
+// "dashed"|"dotted", c: "#RRGGBB" }. applyBorders merges sides into the
+// existing set (Top then Bottom keeps both — unlike the old single-value
+// overwrite) with Excel's edge semantics: top/bottom/left/right act on the
+// selection's edge, outline wraps it, all grids every cell.
+function legacyBorderSides(f) {
+  if (!f || !f.border) return {};
+  const sd = { w: f.bw === 2 || f.bw === 3 ? f.bw : 1, st: "solid", c: "#000000" };
+  if (f.border === "all" || f.border === "outline") return { t: { ...sd }, b: { ...sd }, l: { ...sd }, r: { ...sd } };
+  const k = f.border === "top" ? "t" : f.border === "bottom" ? "b" : f.border === "left" ? "l" : "r";
+  return { [k]: { ...sd } };
+}
+
+function applyBorders(g, mode, opt) {
+  if (!WB.canEdit) return;
+  const sheet = g.sheet;
+  const { r0, r1, c0, c1 } = selRect(g);
+  const o = opt || g.borderOpt || {};
+  const sd = {
+    w: o.w === 2 || o.w === 3 ? o.w : 1,
+    st: o.st === "dashed" || o.st === "dotted" ? o.st : "solid",
+    c: typeof o.c === "string" && HEX_COLOR_RE.test(o.c) ? o.c : "#000000",
+  };
+  const changes = [];
+  for (let r = r0; r <= r1; r++) {
+    for (let c = c0; c <= c1; c++) {
+      const touched = mode === "none" || mode === "all"
+        || (mode === "outline" && (r === r0 || r === r1 || c === c0 || c === c1))
+        || (mode === "top" && r === r0) || (mode === "bottom" && r === r1)
+        || (mode === "left" && c === c0) || (mode === "right" && c === c1);
+      if (!touched) continue;
+      const prev = sheet.cells.get(cellKey(r, c));
+      const base = prev ? cloneCell(prev) : { value: null, formula: null, type: null, format: {} };
+      const fmt = { ...base.format };
+      let bs = fmt.bs && typeof fmt.bs === "object" ? JSON.parse(JSON.stringify(fmt.bs)) : legacyBorderSides(fmt);
+      if (mode === "none") bs = {};
+      else if (mode === "all") bs = { t: { ...sd }, b: { ...sd }, l: { ...sd }, r: { ...sd } };
+      else {
+        if (r === r0 && (mode === "outline" || mode === "top")) bs.t = { ...sd };
+        if (r === r1 && (mode === "outline" || mode === "bottom")) bs.b = { ...sd };
+        if (c === c0 && (mode === "outline" || mode === "left")) bs.l = { ...sd };
+        if (c === c1 && (mode === "outline" || mode === "right")) bs.r = { ...sd };
+      }
+      delete fmt.border; delete fmt.bw; // sides supersede the legacy single value
+      if (Object.keys(bs).length) fmt.bs = bs; else delete fmt.bs;
+      if (JSON.stringify(fmt) === JSON.stringify(base.format)) continue;
+      if (!prev && !Object.keys(fmt).length) continue;
+      changes.push({ r, c, cell: { ...base, format: fmt } });
+    }
+  }
+  if (changes.length) setCells(g, changes);
+}
+
+// The border popover's weight/style/color pickers stage into g.borderOpt;
+// the side buttons then apply it.
+function setBorderOpt(g, btn, patch) {
+  g.borderOpt = { w: 1, st: "solid", c: "#000000", ...(g.borderOpt || {}), ...patch };
+  const pop = btn.closest(".popover");
+  if (!pop) return;
+  const attr = "w" in patch ? "data-wb-bw" : "st" in patch ? "data-wb-bst" : "data-wb-bcolor";
+  pop.querySelectorAll(`[${attr}]`).forEach((b) => b.classList.toggle("is-on", b === btn));
+}
+
 function formatSelection(g, patch) {
   if (!WB.canEdit) return;
   const sheet = g.sheet;
@@ -11375,7 +12089,7 @@ function dvDateSerial(v) {
 // The options a list/range dropdown offers. A range source reads distinct,
 // non-empty values from its cells (sheet-qualified refs and named ranges
 // both resolve through the shared eval ctx).
-function dvOptionList(rule, sheet) {
+function dvOptionList(rule, sheet, atR) {
   if (rule.type === "range" && rule.source && sheet) {
     try {
       const ctx = cfEvalCtx(sheet);
@@ -11383,6 +12097,23 @@ function dvOptionList(rule, sheet) {
       if (node.k === "name") node = bindNames(node, ctx.names);
       if (node.k !== "range" && node.k !== "ref") return [];
       const grid = argGrid(node, ctx);
+      // dependent dropdown (100-list #16): when the rule names a filter
+      // column, the source is a two-column (parent, option) mapping and
+      // only rows whose parent matches this row's value in that column
+      // are offered — pick a station, the routes dropdown narrows.
+      const rows = grid instanceof Arr ? grid.rows : grid;
+      if (rule.depend != null && atR != null && rows.length && rows[0].length >= 2) {
+        const parent = String(engineValue(sheet, atR, +rule.depend) ?? "").trim().toLowerCase();
+        const out = [], seen = new Set();
+        for (const row of rows) {
+          if (String(row[0] ?? "").trim().toLowerCase() !== parent) continue;
+          const v = row[1];
+          if (v == null || v === "") continue;
+          const s = String(v);
+          if (!seen.has(s)) { seen.add(s); out.push(s); }
+        }
+        return out;
+      }
       const out = [], seen = new Set();
       for (const v of grid.flat()) {
         if (v == null || v === "") continue;
@@ -11425,7 +12156,7 @@ function valueSatisfiesRule(rule, raw, sheet, r, c) {
   if (rule.type === "checkbox") { const s = String(raw).trim().toLowerCase(); return s === "true" || s === "false"; }
   if (rule.type === "list" || rule.type === "range") {
     const s = String(raw).trim().toLowerCase();
-    return dvOptionList(rule, sheet).some((it) => String(it).trim().toLowerCase() === s);
+    return dvOptionList(rule, sheet, r).some((it) => String(it).trim().toLowerCase() === s);
   }
   if (rule.type === "custom") return dvCustomHits(sheet, rule, r, c);
   if (rule.type === "textlen") return dvNumericCompare(rule.op, String(raw).length, +rule.v1, +rule.v2);
@@ -11487,7 +12218,7 @@ const WB_CF_STYLES = {
 const WB_CF_KINDS = {
   gt: "Greater than", lt: "Less than", between: "Between", eq: "Equal to",
   contains: "Text contains", notempty: "Is not empty", empty: "Is empty",
-  formula: "Custom formula is",
+  dup: "Is a duplicate", formula: "Custom formula is",
 };
 
 // Color-scale presets (Google Sheets' default gradient colors). Two- or
@@ -11517,7 +12248,28 @@ function cfScaleColor(stops, t) {
 // cell values change between repaints).
 let _cfScaleMemo = new WeakMap();
 let _cfCtxMemo = new WeakMap();
-function cfClearMemo() { _cfScaleMemo = new WeakMap(); _cfCtxMemo = new WeakMap(); }
+let _cfDupMemo = new WeakMap();
+function cfClearMemo() { _cfScaleMemo = new WeakMap(); _cfCtxMemo = new WeakMap(); _cfDupMemo = new WeakMap(); }
+
+// Value → occurrence count over a duplicate-rule's rectangle, memoized per
+// repaint (100-list #50). Case/whitespace-insensitive, like Excel's preset.
+function cfDupCounts(sheet, rule) {
+  let m = _cfDupMemo.get(rule);
+  if (m) return m;
+  m = new Map();
+  for (let r = rule.r0; r <= Math.min(rule.r1, sheet.rowCount - 1); r++) {
+    for (let c = rule.c0; c <= Math.min(rule.c1, sheet.colCount - 1); c++) {
+      const cl = sheet.cells.get(cellKey(r, c));
+      if (!cl) continue;
+      const raw = cl.formula ? (cl.err ? null : cl.computed) : cl.value;
+      if (raw == null || raw === "") continue;
+      const k = String(raw).trim().toLowerCase();
+      m.set(k, (m.get(k) || 0) + 1);
+    }
+  }
+  _cfDupMemo.set(rule, m);
+  return m;
+}
 function cfScaleStats(sheet, rule) {
   let s = _cfScaleMemo.get(rule);
   if (s) return s;
@@ -11544,6 +12296,8 @@ function cfEvalCtx(sheet) {
     getCell: (r, c, sn) => (sn ? crossSheetValue(sheet, sn, r, c) : engineValue(sheet, r, c)),
     names: namesForSheet(sheet),
     tables: buildTablesRegistry(sheet),
+    sheetSpan: (a, b) => sheetSpanNames(sheet, a, b),
+    pivotLookup: (valueField, which, pairs) => getPivotDataValue(sheet, valueField, which, pairs),
   };
   _cfCtxMemo.set(sheet, ctx);
   return ctx;
@@ -11596,6 +12350,8 @@ const WB_CF_ICONSETS = {
   arrows: [{ g: "▼", c: "#B91C1C" }, { g: "▬", c: "#92400E" }, { g: "▲", c: "#166534" }],
   traffic: [{ g: "●", c: "#DC2626" }, { g: "●", c: "#D97706" }, { g: "●", c: "#16A34A" }],
   signs: [{ g: "✖", c: "#B91C1C" }, { g: "!", c: "#92400E" }, { g: "✔", c: "#166534" }],
+  signal: [{ g: "▂", c: "#B91C1C" }, { g: "▅", c: "#92400E" }, { g: "█", c: "#166534" }],
+  flags: [{ g: "⚑", c: "#DC2626" }, { g: "⚑", c: "#D97706" }, { g: "⚑", c: "#16A34A" }],
 };
 function condIconPick(rule, stats, n) {
   const set = WB_CF_ICONSETS[rule.icons] || WB_CF_ICONSETS.arrows;
@@ -11620,9 +12376,19 @@ function condIconFor(sheet, r, c, cell) {
 }
 
 function condStyleFor(sheet, r, c, cell) {
-  const rules = sheet.meta && sheet.meta.condFormat;
-  if (!Array.isArray(rules) || !rules.length) return "";
   let out = "";
+  // banded table rows (100-list #47): odd data rows of a banded table tint
+  const tbls = sheet.meta && sheet.meta.tables;
+  if (Array.isArray(tbls)) {
+    for (const t of tbls) {
+      if (t.banded && r > t.r0 && r <= t.r1 && c >= t.c0 && c <= t.c1 && (r - t.r0) % 2 === 1) {
+        out = "background:rgba(37,99,235,.06);";
+        break;
+      }
+    }
+  }
+  const rules = sheet.meta && sheet.meta.condFormat;
+  if (!Array.isArray(rules) || !rules.length) return out;
   for (const rule of rules) {
     if (!ruleCovers(rule, r, c)) continue;
     if (rule.type === "colorscale") {
@@ -11639,6 +12405,12 @@ function condStyleFor(sheet, r, c, cell) {
       if (n == null) continue;
       const st = cfScaleStats(sheet, rule);
       if (st.empty) continue;
+      // negative values draw a red bar left of the zero axis (100-list #39)
+      if (st.min < 0 && n < 0) {
+        const p0 = condBarPercent(st, 0), pn = condBarPercent(st, n);
+        out = `background:linear-gradient(90deg, transparent ${pn.toFixed(1)}%, #DC26262e ${pn.toFixed(1)}%, #DC26262e ${p0.toFixed(1)}%, transparent ${p0.toFixed(1)}%);`;
+        continue;
+      }
       const pct = condBarPercent(st, n);
       const bar = WB_CF_STYLES[rule.style] ? WB_CF_STYLES[rule.style].fg : "#2a78d6";
       // a soft bar behind the text: filled portion tinted, remainder clear
@@ -11651,6 +12423,24 @@ function condStyleFor(sheet, r, c, cell) {
       out = `background:${stf.bg};color:${stf.fg};`;
       continue;
     }
+    if (rule.kind === "dup") {
+      const raw = cell ? (cell.formula ? (cell.err ? null : cell.computed) : cell.value) : null;
+      if (raw == null || raw === "") continue;
+      if ((cfDupCounts(sheet, rule).get(String(raw).trim().toLowerCase()) || 0) > 1) {
+        const std = WB_CF_STYLES[rule.style] || WB_CF_STYLES.red;
+        out = `background:${std.bg};color:${std.fg};`;
+      }
+      continue;
+    }
+    if (rule.type === "banding") {
+      // alternating colors: odd offsets from the range top tint; the first
+      // row of the range reads as a header and stays clear (100-list #37)
+      if ((r - rule.r0) % 2 === 1) {
+        const stb = WB_CF_STYLES[rule.style] || WB_CF_STYLES.blue;
+        out = `background:${stb.bg};`;
+      }
+      continue;
+    }
     const raw = cell ? (cell.formula ? (cell.err ? null : cell.computed) : cell.value) : null;
     if (condRuleHits(rule, raw)) {
       const st = WB_CF_STYLES[rule.style] || WB_CF_STYLES.amber;
@@ -11661,7 +12451,30 @@ function condStyleFor(sheet, r, c, cell) {
 }
 
 // Keep rule rectangles anchored through row/column insert/delete.
+function shiftGroupRanges(sheet, axis, index, delta) {
+  const key = axis === "row" ? "rowGroups" : "colGroups";
+  const groups = sheetGroups(sheet, axis);
+  if (!groups.length) return;
+  const cut = delta < 0 ? -delta : 0;
+  const next = [];
+  for (const gr of groups) {
+    let a = gr.from, b = gr.to;
+    if (delta < 0) {
+      if (a >= index && b < index + cut) continue; // fully deleted
+      a = a >= index + cut ? a + delta : a > index ? index : a;
+      b = b >= index + cut ? b + delta : b >= index ? index - 1 : b;
+      if (b <= a) continue; // a one-line group is no group
+    } else {
+      if (a >= index) a += delta;
+      if (b >= index) b += delta;
+    }
+    next.push({ ...gr, from: a, to: b });
+  }
+  sheet.meta = { ...(sheet.meta || {}), [key]: next };
+}
+
 function shiftRuleRanges(sheet, axis, index, delta) {
+  shiftGroupRanges(sheet, axis, index, delta);
   const meta = sheet.meta || {};
   const lo = axis === "row" ? "r0" : "c0", hi = axis === "row" ? "r1" : "c1";
   const cut = delta < 0 ? -delta : 0;
@@ -11700,7 +12513,7 @@ function openValidationPicker(g, btnEl) {
   const rule = findValidationRule(g.sheet, r, c);
   if (!rule || (rule.type !== "list" && rule.type !== "range") || !WB.canEdit) return;
   const rect = btnEl.getBoundingClientRect();
-  const m = ctxMenu(rect.left - 120, rect.bottom + 2, dvOptionList(rule, g.sheet).map((opt, i) => {
+  const m = ctxMenu(rect.left - 120, rect.bottom + 2, dvOptionList(rule, g.sheet, r).map((opt, i) => {
     const hex = Array.isArray(rule.colors) && rule.colors[i] && HEX_COLOR_RE.test(rule.colors[i]) ? rule.colors[i] : null;
     return `<button type="button" class="popover-item" data-dv-opt="${esc(String(opt))}" role="menuitem">${hex ? `<span class="wb-dv-menuswatch" style="background:${hex}"></span>` : `<span class="wb-dv-menuswatch is-none"></span>`}${esc(String(opt))}</button>`;
   }).join("") +
@@ -11770,6 +12583,9 @@ function openValidationDialog(g) {
           <label class="wb-field"><span class="wb-field-label">Options come from</span>
             <input type="text" class="wb-input" id="wb-dv-source" value="${esc(cur.source || "")}" placeholder="Sheet1!A2:A50 or a named range" spellcheck="false"></label>
           <p class="wb-dv-hint" style="margin-top:6px">Distinct, non-empty values from that range fill the dropdown.</p>
+          <label class="wb-field" style="margin-top:10px"><span class="wb-field-label">Depends on column (optional) — makes a cascading dropdown</span>
+            <input type="text" class="wb-input" id="wb-dv-depend" value="${cur.depend != null ? esc(colLabel(+cur.depend)) : ""}" placeholder="e.g. B" maxlength="3" spellcheck="false"></label>
+          <p class="wb-dv-hint" style="margin-top:6px">With a filter column, the source must be a two-column mapping (parent, option): only options whose parent matches this row's value in that column are offered.</p>
         </div>
         <div class="wb-field-row" id="wb-dv-num-row" hidden>
           <label class="wb-field"><span class="wb-field-label" id="wb-dv-op-label">Condition</span>
@@ -11785,7 +12601,7 @@ function openValidationDialog(g) {
           <label class="wb-field"><span class="wb-field-label">Custom formula — relative to the top-left cell, must return TRUE</span>
             <input type="text" class="wb-input" id="wb-dv-formula" value="${esc(cur.formula || "")}" placeholder='=AND(A1>0, A1<100)' spellcheck="false"></label>
         </div>
-        <p class="wb-dv-hint">Cells that break the rule get a red corner marker. Typed input is checked as you enter it; pasted data is only flagged.</p>
+        <p class="wb-dv-hint">Cells that break the rule get a red corner marker. Typed input is checked as you enter it; with “Reject the input”, pasted and filled values are checked too.</p>
       </div>
       <div class="rr-modal-foot">
         ${existing ? `<button class="rr-modal-btn" type="button" data-wb-dv-remove style="margin-right:auto">Remove rule</button>` : ""}
@@ -11876,6 +12692,11 @@ function openValidationDialog(g) {
           || (blockNamedRanges(findBlock(sheet.blockId)).some((d) => d.name.toLowerCase() === wrap.querySelector("#wb-dv-source").value.trim().toLowerCase()) ? wrap.querySelector("#wb-dv-source").value.trim() : null);
         if (!src) { _toast("Enter a range like A2:A50 or a named range", "warn"); return; }
         rule.source = src;
+        const dep = wrap.querySelector("#wb-dv-depend").value.trim().toUpperCase();
+        if (dep) {
+          if (!/^[A-Z]{1,3}$/.test(dep)) { _toast("Filter column should be a column letter like B", "warn"); return; }
+          rule.depend = colIndex(dep);
+        }
       } else if (type === "custom") {
         const formula = wrap.querySelector("#wb-dv-formula").value.trim();
         if (!formula.startsWith("=")) { _toast("Custom formula must start with =", "warn"); return; }
@@ -12044,7 +12865,7 @@ function openCondFormatDialog(g) {
         <label class="wb-field" id="wb-cf-scale-field" style="display:none"><span class="wb-field-label">Gradient</span>
           <select class="wb-input" id="wb-cf-scale">${scaleOpts}</select></label>
         <label class="wb-field" id="wb-cf-icons-field" style="display:none"><span class="wb-field-label">Icon set</span>
-          <select class="wb-input" id="wb-cf-icons"><option value="arrows">▲ ▬ ▼  arrows</option><option value="traffic">●  traffic lights</option><option value="signs">✔ ! ✖  signs</option></select></label>
+          <select class="wb-input" id="wb-cf-icons"><option value="arrows">▲ ▬ ▼  arrows</option><option value="traffic">●  traffic lights</option><option value="signs">✔ ! ✖  signs</option><option value="signal">▂ ▅ █  signal bars</option><option value="flags">⚑  flags</option></select></label>
         <div class="wb-field" id="wb-cf-style-field"><span class="wb-field-label">Style</span>
           <div class="wb-cf-chips" id="wb-cf-chips">${chips}</div></div>
         <button type="button" class="btn btn-primary btn-sm" data-wb-cf-add>Add rule</button>
@@ -12073,15 +12894,23 @@ function openCondFormatDialog(g) {
             const set = WB_CF_ICONSETS[rule.icons] || WB_CF_ICONSETS.arrows;
             swatch = `<span class="wb-cf-swatch" style="background:transparent;font-size:11px;letter-spacing:1px">${set.map((x) => `<span style="color:${x.c}">${x.g}</span>`).join("")}</span>`;
             what = "Icon set";
+          } else if (rule.type === "banding") {
+            const st = WB_CF_STYLES[rule.style] || WB_CF_STYLES.blue;
+            swatch = `<span class="wb-cf-swatch" style="background:repeating-linear-gradient(180deg,transparent 0 4px,${st.bg} 4px 8px)"></span>`;
+            what = "Alternating colors";
           } else {
             const st = WB_CF_STYLES[rule.style] || WB_CF_STYLES.amber;
             swatch = `<span class="wb-cf-swatch" style="background:${st.bg};color:${st.fg}">Aa</span>`;
             what = rule.kind === "formula" ? `Custom · ${rule.formula}`
-              : rule.kind === "empty" || rule.kind === "notempty" ? WB_CF_KINDS[rule.kind]
+              : rule.kind === "empty" || rule.kind === "notempty" || rule.kind === "dup" ? WB_CF_KINDS[rule.kind]
               : rule.kind === "between" ? `${WB_CF_KINDS.between} ${rule.v1} and ${rule.v2}`
               : `${WB_CF_KINDS[rule.kind] || rule.kind} ${rule.v1}`;
           }
-          return `<div class="wb-cf-rule">${swatch}<span class="wb-cf-what">${esc(ruleRefText(rule))} · ${esc(what)}</span><button type="button" class="wb-cf-del" data-cf-del="${i}" aria-label="Delete rule">×</button></div>`;
+          // reorder controls (100-list #38): later rules win when they overlap,
+          // so ↑/↓ decide precedence
+          const up = i > 0 ? `<button type="button" class="wb-cf-move" data-cf-up="${i}" title="Lower precedence (checked earlier)" aria-label="Move rule up">↑</button>` : `<span class="wb-cf-move is-ghost"></span>`;
+          const down = i < rules.length - 1 ? `<button type="button" class="wb-cf-move" data-cf-down="${i}" title="Raise precedence (wins on overlap)" aria-label="Move rule down">↓</button>` : `<span class="wb-cf-move is-ghost"></span>`;
+          return `<div class="wb-cf-rule">${swatch}<span class="wb-cf-what">${esc(ruleRefText(rule))} · ${esc(what)}</span>${up}${down}<button type="button" class="wb-cf-del" data-cf-del="${i}" aria-label="Delete rule">×</button></div>`;
         }).join("");
   };
   const syncFields = () => {
@@ -12091,7 +12920,7 @@ function openCondFormatDialog(g) {
     const isFormula = isSingle && k === "formula";
     const show = (id, on) => { wrap.querySelector(id).style.display = on ? "" : "none"; };
     show("#wb-cf-kind-field", isSingle);
-    show("#wb-cf-v1-field", isSingle && !isFormula && k !== "empty" && k !== "notempty");
+    show("#wb-cf-v1-field", isSingle && !isFormula && k !== "empty" && k !== "notempty" && k !== "dup");
     show("#wb-cf-v2-field", isSingle && !isFormula && k === "between");
     show("#wb-cf-formula-field", isFormula);
     show("#wb-cf-scale-field", isScale);
@@ -12117,6 +12946,18 @@ function openCondFormatDialog(g) {
       paintRules();
       return;
     }
+    const mv = e.target.closest("[data-cf-up],[data-cf-down]");
+    if (mv) {
+      const rules = sheetRules(sheet, "condFormat").slice();
+      const i = +(mv.getAttribute("data-cf-up") ?? mv.getAttribute("data-cf-down"));
+      const j = mv.hasAttribute("data-cf-up") ? i - 1 : i + 1;
+      if (j >= 0 && j < rules.length) {
+        [rules[i], rules[j]] = [rules[j], rules[i]];
+        setSheetRules(g, "condFormat", rules);
+        paintRules();
+      }
+      return;
+    }
     if (e.target.closest("[data-wb-cf-add]")) {
       const type = wrap.querySelector("#wb-cf-type").value;
       const base = { id: "cf" + Math.random().toString(36).slice(2, 8), r0: rect.r0, c0: rect.c0, r1: rect.r1, c1: rect.c1 };
@@ -12139,7 +12980,7 @@ function openCondFormatDialog(g) {
         } else {
           const v1 = wrap.querySelector("#wb-cf-v1").value.trim();
           const v2 = wrap.querySelector("#wb-cf-v2").value.trim();
-          if (kind !== "empty" && kind !== "notempty" && v1 === "") { _toast("Enter a value for the condition", "warn"); return; }
+          if (kind !== "empty" && kind !== "notempty" && kind !== "dup" && v1 === "") { _toast("Enter a value for the condition", "warn"); return; }
           if (kind === "between" && v2 === "") { _toast("Enter both limits", "warn"); return; }
           rules.push({ ...base, kind, v1, v2, style });
         }
@@ -12166,17 +13007,24 @@ function computeFindMatches(g) {
   f.matches = [];
   if (f.text) {
     const needle = f.matchCase ? f.text : f.text.toLowerCase();
-    const entries = [...g.sheet.cells.entries()].map(([key, cell]) => ({ ...keyRC(key), cell })).sort((a, b) => a.r - b.r || a.c - b.c);
-    for (const { r, c, cell } of entries) {
-      if (dispIndexOfRow(g, r) < 0 || colW(g.sheet, c) === 0) continue; // hidden/filtered out
-      const texts = [];
-      if (cell.formula) { texts.push(String(cell.err ? "" : cell.computed ?? "")); if (f.inFormulas) texts.push(cell.formula); }
-      else texts.push(String(cell.value ?? ""));
-      const hit = texts.some((t) => {
-        const hay = f.matchCase ? t : t.toLowerCase();
-        return f.entire ? hay === needle : hay.includes(needle);
-      });
-      if (hit) f.matches.push({ r, c });
+    // All sheets (100-list #29): sweep every sheet in this block; matches
+    // carry their sheetId and stepping switches sheets as it navigates.
+    const sheetsToSearch = f.allSheets ? (WB.sheetsByBlock.get(g.blockId) || [g.sheet]) : [g.sheet];
+    for (const sh of sheetsToSearch) {
+      const active = sh.id === g.sheet.id;
+      const entries = [...sh.cells.entries()].map(([key, cell]) => ({ ...keyRC(key), cell })).sort((a, b) => a.r - b.r || a.c - b.c);
+      for (const { r, c, cell } of entries) {
+        if (active && (dispIndexOfRow(g, r) < 0 || colW(sh, c) === 0)) continue; // hidden/filtered out
+        if (!active && sh.hiddenRows && sh.hiddenRows.has(r)) continue;
+        const texts = [];
+        if (cell.formula) { texts.push(String(cell.err ? "" : cell.computed ?? "")); if (f.inFormulas) texts.push(cell.formula); }
+        else texts.push(String(cell.value ?? ""));
+        const hit = texts.some((t) => {
+          const hay = f.matchCase ? t : t.toLowerCase();
+          return f.entire ? hay === needle : hay.includes(needle);
+        });
+        if (hit) f.matches.push({ r, c, sheetId: sh.id });
+      }
     }
   }
   f.idx = f.matches.length ? 0 : -1;
@@ -12194,6 +13042,7 @@ function stepFind(g, dir) {
   if (!f || !f.matches.length) { paintFindCount(g); return; }
   f.idx = (f.idx + dir + f.matches.length) % f.matches.length;
   const m = f.matches[f.idx];
+  if (m.sheetId && m.sheetId !== g.sheet.id) switchSheet(g, m.sheetId);
   setActive(g, m.r, m.c);
   paintFindCount(g);
 }
@@ -12209,7 +13058,11 @@ function replaceInText(t, f, replText) {
 
 function replacementFor(g, m, replText) {
   const f = g.find;
-  const cell = g.sheet.cells.get(cellKey(m.r, m.c));
+  // cross-sheet matches replace on their own sheet (100-list #29)
+  const sh = m.sheetId && m.sheetId !== g.sheet.id
+    ? (WB.sheetsByBlock.get(g.blockId) || []).find((x) => x.id === m.sheetId) || g.sheet
+    : g.sheet;
+  const cell = sh.cells.get(cellKey(m.r, m.c));
   if (!cell) return null;
   if (cell.formula) {
     if (!f.inFormulas) return null; // matched the computed result — nothing editable
@@ -12237,13 +13090,24 @@ function replaceCurrent(g, replText) {
 function replaceAll(g, replText) {
   const f = g.find;
   if (!WB.canEdit || !f || !f.matches.length) return;
-  const changes = [];
+  const startSheet = g.sheet.id;
+  const bySheet = new Map();
   let skipped = 0;
   for (const m of f.matches) {
     const change = replacementFor(g, m, replText);
-    if (change) changes.push(change); else skipped++;
+    if (!change) { skipped++; continue; }
+    const sid = m.sheetId || startSheet;
+    if (!bySheet.has(sid)) bySheet.set(sid, []);
+    bySheet.get(sid).push(change);
   }
-  if (changes.length) setCells(g, changes);
+  let changesN = 0;
+  for (const [sid, list] of bySheet) {
+    if (sid !== g.sheet.id) switchSheet(g, sid); // setCells works on the active sheet
+    setCells(g, list);
+    changesN += list.length;
+  }
+  if (g.sheet.id !== startSheet) switchSheet(g, startSheet);
+  const changes = { length: changesN }; // keep the toast below working unchanged
   _toast(changes.length ? `Replaced in ${changes.length} cell${changes.length === 1 ? "" : "s"}${skipped ? ` · ${skipped} formula result${skipped === 1 ? "" : "s"} skipped` : ""}` : "Nothing to replace", changes.length ? "success" : "info");
   computeFindMatches(g);
   paintFindCount(g);
@@ -12271,6 +13135,7 @@ function openFindPanel(g, withReplace) {
       <label><input type="checkbox" data-wb-find-opt="matchCase"> Match case</label>
       <label><input type="checkbox" data-wb-find-opt="entire"> Entire cell</label>
       <label><input type="checkbox" data-wb-find-opt="inFormulas"> Formulas</label>
+      <label><input type="checkbox" data-wb-find-opt="allSheets"> All sheets</label>
       ${ro ? "" : `<button type="button" class="wb-find-toggle" data-wb-find="toggle-replace">Replace…</button>`}
     </div>
     ${ro ? "" : `<div class="wb-find-row wb-find-replace-row">
@@ -12280,7 +13145,7 @@ function openFindPanel(g, withReplace) {
     </div>`}`;
   g.els.grid.appendChild(panel);
   g.els.findPanel = panel;
-  g.find = { text: "", matchCase: false, entire: false, inFormulas: false, matches: [], idx: -1 };
+  g.find = { text: "", matchCase: false, entire: false, inFormulas: false, allSheets: false, matches: [], idx: -1 };
   const input = panel.querySelector("[data-wb-find-input]");
   const rinput = panel.querySelector("[data-wb-find-rinput]");
   panel.addEventListener("keydown", (e) => {
@@ -12369,32 +13234,45 @@ function sortBySpecs(g, specs, opts) {
     return found || null;
   };
   const ordBy = new Map(specs.map((sp) => [sp.col, ordinalFor(sp.col)]));
-  const keyOf = (r, col) => {
+  // custom sort lists (100-list #45): weekday/month presets match by their
+  // first three letters; a user list matches the full value. Unlisted
+  // values sort after listed ones, alphabetically.
+  const listIndexer = (list) => {
+    if (list === "weekday") { const d = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]; return (s) => { const i = d.indexOf(s.slice(0, 3)); return i < 0 ? null : i; }; }
+    if (list === "month") { const mth = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"]; return (s) => { const i = mth.indexOf(s.slice(0, 3)); return i < 0 ? null : i; }; }
+    if (Array.isArray(list)) return (s) => { const i = list.indexOf(s); return i < 0 ? null : i; };
+    return null;
+  };
+  const keyOf = (r, col, idxer) => {
     const cell = sheet.cells.get(cellKey(r, col));
     if (!cell) return { empty: true };
     const raw = cell.formula ? cell.computed : cell.value;
     if (raw == null || raw === "") return { empty: true };
+    const s = String(raw).trim().toLowerCase();
+    if (idxer) { const li = idxer(s); return { empty: false, n: li == null ? null : li, s, unlisted: li == null }; }
     let n = cellNumeric(raw);
     const ord = ordBy.get(col);
-    if (ord && typeof raw === "string" && raw.trim().toLowerCase() in ord) n = ord[raw.trim().toLowerCase()];
+    if (ord && typeof raw === "string" && s in ord) n = ord[s];
     else if (n == null && typeof raw === "string") { const d = parseDateLoose(raw); if (d) n = dateToSerial(d); } // dates sort as dates
     return { empty: false, n, s: String(raw).toLowerCase() };
   };
-  const cmpLevel = (a, b, col, dir) => {
-    const ka = keyOf(a, col), kb = keyOf(b, col);
+  const cmpLevel = (a, b, sp) => {
+    const idxer = listIndexer(sp.list);
+    const ka = keyOf(a, sp.col, idxer), kb = keyOf(b, sp.col, idxer);
     if (ka.empty && kb.empty) return 0;
     if (ka.empty) return 1; // empties always last
     if (kb.empty) return -1;
+    if (idxer && ka.unlisted !== kb.unlisted) return ka.unlisted ? 1 : -1;
     let cmp;
     if (ka.n != null && kb.n != null) cmp = ka.n - kb.n;
     else if (ka.n != null) cmp = -1;
     else if (kb.n != null) cmp = 1;
     else cmp = ka.s < kb.s ? -1 : ka.s > kb.s ? 1 : 0;
-    return dir === "asc" ? cmp : -cmp;
+    return sp.dir === "asc" ? cmp : -cmp;
   };
   const sorted = rowsIdx.slice().sort((a, b) => {
     for (const sp of specs) {
-      const cmp = cmpLevel(a, b, sp.col, sp.dir);
+      const cmp = cmpLevel(a, b, sp);
       if (cmp) return cmp;
     }
     return a - b; // stable
@@ -12440,8 +13318,8 @@ function sortBySpecs(g, specs, opts) {
   repaintGrid(g);
 }
 
-// Custom sort dialog: up to three levels, column labels pulled from the
-// header row so operators pick by name, not letter.
+// Custom sort dialog: up to eight levels (100-list #32), column labels
+// pulled from the header row so operators pick by name, not letter.
 function openSortDialog(g) {
   if (!WB.canEdit) return;
   document.getElementById("wb-sort-modal")?.remove();
@@ -12464,6 +13342,7 @@ function openSortDialog(g) {
         <button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button>
       </div>
       <div class="rr-modal-body">
+        <div id="wb-sort-levels">
         ${[0, 1, 2].map((i) => `
         <div class="wb-field-row">
           <label class="wb-field"><span class="wb-field-label">${i === 0 ? "Sort by" : "Then by"}</span>
@@ -12472,8 +13351,13 @@ function openSortDialog(g) {
             <select class="wb-input" data-sort-dir="${i}">
               <option value="asc">A → Z · low → high</option>
               <option value="desc">Z → A · high → low</option>
+              <option value="weekday">Day of week (Mon → Sun)</option>
+              <option value="month">Month (Jan → Dec)</option>
+              <option value="custom">Custom list…</option>
             </select></label>
         </div>`).join("")}
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm" id="wb-sort-add">+ Add another level</button>
       </div>
       <div class="rr-modal-foot">
         <button class="rr-modal-btn" type="button" data-wb-close>Cancel</button>
@@ -12481,20 +13365,64 @@ function openSortDialog(g) {
       </div>
     </div>`;
   document.body.appendChild(wrap);
+  const SORT_MAX_LEVELS = 8;
+  wrap.querySelector("#wb-sort-add").addEventListener("click", () => {
+    const host = wrap.querySelector("#wb-sort-levels");
+    const i = host.children.length;
+    if (i >= SORT_MAX_LEVELS) { _toast("Eight levels is the limit", "info"); return; }
+    const row = document.createElement("div");
+    row.className = "wb-field-row";
+    row.innerHTML = `
+          <label class="wb-field"><span class="wb-field-label">Then by</span>
+            <select class="wb-input" data-sort-col="${i}"><option value="">—</option>${colOpts(-1)}</select></label>
+          <label class="wb-field" style="flex:0 0 170px"><span class="wb-field-label">Order</span>
+            <select class="wb-input" data-sort-dir="${i}">
+              <option value="asc">A → Z · low → high</option>
+              <option value="desc">Z → A · high → low</option>
+              <option value="weekday">Day of week (Mon → Sun)</option>
+              <option value="month">Month (Jan → Dec)</option>
+              <option value="custom">Custom list…</option>
+            </select></label>`;
+    host.appendChild(row);
+    row.querySelector("select").focus();
+  });
   wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") wrap.remove(); });
   wrap.addEventListener("click", (e) => {
     if (e.target === wrap || e.target.closest("[data-wb-close]")) { wrap.remove(); return; }
     if (e.target.closest("[data-wb-sort-apply]")) {
       const specs = [];
-      for (let i = 0; i < 3; i++) {
+      let needsCustom = null;
+      const nLevels = wrap.querySelector("#wb-sort-levels").children.length;
+      for (let i = 0; i < nLevels; i++) {
         const col = wrap.querySelector(`[data-sort-col="${i}"]`).value;
         if (col === "") continue;
         const c = +col;
         if (specs.some((s) => s.col === c)) continue;
-        specs.push({ col: c, dir: wrap.querySelector(`[data-sort-dir="${i}"]`).value });
+        const dirV = wrap.querySelector(`[data-sort-dir="${i}"]`).value;
+        // custom sort lists (100-list #45): weekday/month presets sort by
+        // meaning; "custom" asks for the order after the dialog closes
+        if (dirV === "weekday" || dirV === "month") specs.push({ col: c, dir: "asc", list: dirV });
+        else if (dirV === "custom") { const sp = { col: c, dir: "asc", list: null }; specs.push(sp); needsCustom = needsCustom || sp; }
+        else specs.push({ col: c, dir: dirV });
       }
       wrap.remove();
-      if (specs.length) sortBySpecs(g, specs);
+      if (!specs.length) { g.els.grid.focus(); return; }
+      if (needsCustom) {
+        promptModal({
+          title: "Custom sort order",
+          label: "Values in order, separated by commas (unlisted values sort last)",
+          value: "", placeholder: "e.g. Cargo van, CDV, EDV, Step van", submitLabel: "Sort",
+          onSubmit: (txt) => {
+            const list = String(txt || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+            if (!list.length) { _toast("Enter at least one value", "warn"); return; }
+            for (const sp of specs) if (sp.list === null) sp.list = list;
+            sortBySpecs(g, specs);
+            g.els.grid.focus();
+          },
+        });
+        return;
+      }
+      sortBySpecs(g, specs);
       g.els.grid.focus();
     }
   });
@@ -12529,7 +13457,7 @@ function persistFilterState(g) {
     ...(g.sheet.meta || {}),
     filterState: {
       on: g.filterMode,
-      filters: [...g.filters.entries()].map(([col, f]) => ({ col, text: f.text || null, values: f.values ? [...f.values] : null })),
+      filters: [...g.filters.entries()].map(([col, f]) => ({ col, text: f.text || null, values: f.values ? [...f.values] : null, cond: f.cond || null, color: f.color || null })),
     },
   };
   saveSheetMeta(g.sheet.id);
@@ -12543,7 +13471,7 @@ function restoreViewState(g) {
   if (fs && typeof fs === "object") {
     g.filterMode = !!fs.on;
     for (const f of Array.isArray(fs.filters) ? fs.filters : []) {
-      if (typeof f.col === "number") g.filters.set(f.col, { text: f.text || null, values: Array.isArray(f.values) ? new Set(f.values) : null });
+      if (typeof f.col === "number") g.filters.set(f.col, { text: f.text || null, values: Array.isArray(f.values) ? new Set(f.values) : null, cond: f.cond && f.cond.op ? f.cond : null, color: f.color || null });
     }
   }
   g.els.body.querySelector('[data-wb-tb="filter"]')?.classList.toggle("is-on", g.filterMode);
@@ -12594,6 +13522,27 @@ function openFilterPanel(g, col, anchorEl, at) {
         <button type="button" class="wb-filterpop-sortbtn" data-fp-sort="desc">↓ Sort Z→A · high→low</button>
       </div>` : ""}
       <input type="text" class="wb-input wb-filterpop-text" data-fp-text placeholder="Contains…" value="${esc((cur && cur.text) || "")}" autocomplete="off" spellcheck="false" aria-label="Rows containing text">
+      <div class="wb-filterpop-cond">
+        <select class="wb-input" data-fp-op aria-label="Condition">
+          ${[["", "Condition…"], ["gt", "Greater than"], ["ge", "At least"], ["lt", "Less than"], ["le", "At most"], ["eq", "Equals"], ["ne", "Not equal"], ["between", "Between"]].map(([v, l]) => `<option value="${v}" ${cur && cur.cond && cur.cond.op === v ? "selected" : ""}>${l}</option>`).join("")}
+        </select>
+        <input type="text" class="wb-input" data-fp-v1 placeholder="value / date" value="${esc((cur && cur.cond && cur.cond.v1) || "")}" aria-label="Condition value">
+        <input type="text" class="wb-input" data-fp-v2 placeholder="and" value="${esc((cur && cur.cond && cur.cond.v2) || "")}" aria-label="Condition upper value" ${cur && cur.cond && cur.cond.op === "between" ? "" : "hidden"}>
+      </div>
+      ${(() => {
+        // fill-color chips (100-list #44): distinct manual #hex fills in this column
+        const seen = new Set();
+        for (let r = 1; r < sheet.rowCount; r++) {
+          const cc = sheet.cells.get(cellKey(r, col));
+          const bg = cc && cc.format && typeof cc.format.bg === "string" && cc.format.bg[0] === "#" ? cc.format.bg.toUpperCase() : "";
+          if (bg) seen.add(bg);
+          if (seen.size >= 8) break;
+        }
+        return seen.size ? `<div class="wb-filterpop-colors" role="group" aria-label="Filter by color">
+          <span class="wb-filterpop-colorlabel">Fill color:</span>
+          ${[...seen].map((hex) => `<button type="button" class="wb-bcolor-sw ${cur && cur.color === hex ? "is-on" : ""}" data-fp-color="${hex}" style="background:${hex}" title="Only ${hex}" aria-label="Only ${hex}"></button>`).join("")}
+        </div>` : "";
+      })()}
       <label class="wb-filterpop-item wb-filterpop-all"><input type="checkbox" data-fp-all ${!cur || !cur.values ? "checked" : ""}> <span>Select all</span><span class="wb-filterpop-n">${values.length}</span></label>
       <div class="wb-filterpop-list">
         ${shown.map((v) => `<label class="wb-filterpop-item"><input type="checkbox" data-fp-val="${esc(v)}" ${isChecked(v) ? "checked" : ""}> <span>${esc(v)}</span><span class="wb-filterpop-n">${counts.get(v)}</span></label>`).join("") || `<div class="rr-empty-inline">No values below the header yet.</div>`}
@@ -12610,10 +13559,14 @@ function openFilterPanel(g, col, anchorEl, at) {
     const boxes = [...m.querySelectorAll("[data-fp-val]")];
     const all = !boxes.length || boxes.every((cb) => cb.checked);
     const picked = new Set(boxes.filter((cb) => cb.checked).map((cb) => cb.getAttribute("data-fp-val")));
+    const op = m.querySelector("[data-fp-op]").value;
+    const cond = op ? { op, v1: m.querySelector("[data-fp-v1]").value.trim(), v2: m.querySelector("[data-fp-v2]").value.trim() } : null;
+    const colorSw = m.querySelector("[data-fp-color].is-on");
+    const color = colorSw ? colorSw.getAttribute("data-fp-color") : null;
     closeAllPopovers();
-    if (!text && all) g.filters.delete(col);
+    if (!text && all && !cond && !color) g.filters.delete(col);
     else {
-      g.filters.set(col, { text: text || null, values: all ? null : picked });
+      g.filters.set(col, { text: text || null, values: all ? null : picked, cond, color });
       // applying a filter turns filter mode on so the header ▾ buttons show
       if (!g.filterMode) {
         g.filterMode = true;
@@ -12627,6 +13580,16 @@ function openFilterPanel(g, col, anchorEl, at) {
   };
   allBox.addEventListener("change", () => {
     m.querySelectorAll("[data-fp-val]").forEach((cb) => { cb.checked = allBox.checked; });
+  });
+  m.querySelector("[data-fp-op]").addEventListener("change", (e) => {
+    m.querySelector("[data-fp-v2]").hidden = e.target.value !== "between";
+  });
+  m.addEventListener("click", (e) => {
+    const sw = e.target.closest("[data-fp-color]");
+    if (!sw) return;
+    const on = sw.classList.contains("is-on");
+    m.querySelectorAll("[data-fp-color]").forEach((b) => b.classList.remove("is-on"));
+    if (!on) sw.classList.add("is-on"); // click again to clear the color filter
   });
   m.addEventListener("change", (e) => {
     if (e.target.closest("[data-fp-val]")) {
@@ -12797,12 +13760,23 @@ function autofitColumns(g, c0, c1) {
 
 // ─── Freeze ──────────────────────────────────────────────────────────────────
 
+const WB_FREEZE_MAX = 50; // matches the workbook_sheets check constraint (0490)
+
 function setFreeze(g, what) {
   if (!WB.canEdit) return;
   const sheet = g.sheet;
   const before = structSnapshot(sheet);
   if (what === "row") sheet.frozenRows = sheet.frozenRows ? 0 : 1;
   else if (what === "col") sheet.frozenCols = sheet.frozenCols ? 0 : 1;
+  else if (what === "here") {
+    // Excel "Freeze Panes": everything above and left of the active cell
+    const di = dispIndexOfRow(g, g.active.r);
+    const rows = Math.max(0, Math.min(WB_FREEZE_MAX, di < 0 ? 0 : di));
+    const cols = Math.max(0, Math.min(WB_FREEZE_MAX, g.active.c));
+    if (!rows && !cols) { _toast("Click a cell below and right of what you want to keep frozen, then freeze", "info"); return; }
+    sheet.frozenRows = rows;
+    sheet.frozenCols = cols;
+  }
   else { sheet.frozenRows = 0; sheet.frozenCols = 0; }
   saveSheetMeta(sheet.id);
   pushStructUndo(g, before);
@@ -13126,23 +14100,70 @@ function sheetFilterViews(sheet) {
   return Array.isArray(v) ? v : [];
 }
 
+// Personal views live in localStorage per user+sheet (100-list #48), so two
+// dispatchers can keep their own views without fighting over the shared list.
+function localFilterViews(sheetId) {
+  try { const v = JSON.parse(localStorage.getItem("rr-wb-fv-" + sheetId) || "[]"); return Array.isArray(v) ? v : []; } catch (_) { return []; }
+}
+function setLocalFilterViews(sheetId, views) {
+  try { localStorage.setItem("rr-wb-fv-" + sheetId, JSON.stringify(views)); } catch (_) {}
+}
+
 function saveFilterView(g) {
   if (!WB.canEdit) return;
   if (!g.filters.size) { _toast("Set up a filter first, then save it as a view", "info"); return; }
-  const name = window.prompt("Name this filter view:", "");
-  if (!name || !name.trim()) return;
-  const spec = [...g.filters.entries()].map(([col, f]) => ({ col, text: f.text || null, values: f.values ? [...f.values] : null }));
-  const views = [...sheetFilterViews(g.sheet), { id: "fv" + Math.random().toString(36).slice(2, 8), name: name.trim().slice(0, 60), filters: spec }];
-  g.sheet.meta = { ...(g.sheet.meta || {}), filterViews: views };
-  saveSheetMeta(g.sheet.id);
-  wbLog("sheet.filterview", `saved filter view “${name.trim()}” on ${g.sheet.name}`, { target_type: "sheet", target_id: g.sheet.id });
-  _toast(`Saved filter view “${name.trim()}”`, "success");
+  document.getElementById("wb-fv-modal")?.remove();
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-fv-modal";
+  wrap.innerHTML = `
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Save filter view" style="width:380px">
+      <div class="rr-modal-head">
+        <div class="rr-modal-head-content"><p class="rr-modal-title">Save filter view</p></div>
+        <button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button>
+      </div>
+      <div class="rr-modal-body">
+        <label class="wb-field"><span class="wb-field-label">Name</span>
+          <input type="text" class="wb-input" id="wb-fv-name" maxlength="60" placeholder="e.g. DTW1 only"></label>
+        <label class="wb-field" style="margin-top:10px"><span class="wb-field-label">Who sees it</span>
+          <select class="wb-input" id="wb-fv-aud">
+            <option value="me" selected>Just me (this browser)</option>
+            <option value="all">Everyone on this sheet</option>
+          </select></label>
+      </div>
+      <div class="rr-modal-foot">
+        <button class="rr-modal-btn" type="button" data-wb-close>Cancel</button>
+        <button class="rr-modal-btn primary" type="button" data-wb-confirm>Save view</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") wrap.remove(); });
+  wrap.addEventListener("click", (e) => {
+    if (e.target === wrap || e.target.closest("[data-wb-close]")) { wrap.remove(); return; }
+    if (!e.target.closest("[data-wb-confirm]")) return;
+    const name = wrap.querySelector("#wb-fv-name").value.trim();
+    if (!name) { wrap.querySelector("#wb-fv-name").focus(); return; }
+    const personal = wrap.querySelector("#wb-fv-aud").value === "me";
+    wrap.remove();
+    const spec = [...g.filters.entries()].map(([col, f]) => ({ col, text: f.text || null, values: f.values ? [...f.values] : null, cond: f.cond || null, color: f.color || null }));
+    const view = { id: (personal ? "lfv" : "fv") + Math.random().toString(36).slice(2, 8), name: name.slice(0, 60), filters: spec };
+    if (personal) {
+      setLocalFilterViews(g.sheet.id, [...localFilterViews(g.sheet.id), view]);
+    } else {
+      g.sheet.meta = { ...(g.sheet.meta || {}), filterViews: [...sheetFilterViews(g.sheet), view] };
+      saveSheetMeta(g.sheet.id);
+      wbLog("sheet.filterview", `saved filter view “${name}” on ${g.sheet.name}`, { target_type: "sheet", target_id: g.sheet.id });
+    }
+    _toast(`Saved filter view “${name}”${personal ? " (just you)" : ""}`, "success");
+  });
+  setTimeout(() => wrap.querySelector("#wb-fv-name")?.focus(), 30);
 }
 
 function applyFilterView(g, viewId) {
-  const view = sheetFilterViews(g.sheet).find((v) => v.id === viewId);
+  const view = sheetFilterViews(g.sheet).find((v) => v.id === viewId)
+    || localFilterViews(g.sheet.id).find((v) => v.id === viewId);
   if (!view) return;
-  g.filters = new Map(view.filters.map((f) => [f.col, { text: f.text || null, values: f.values ? new Set(f.values) : null }]));
+  g.filters = new Map(view.filters.map((f) => [f.col, { text: f.text || null, values: f.values ? new Set(f.values) : null, cond: f.cond && f.cond.op ? f.cond : null, color: f.color || null }]));
   if (g.filters.size && !g.filterMode) {
     g.filterMode = true;
     g.els.body.querySelector('[data-wb-tb="filter"]')?.classList.add("is-on");
@@ -13153,9 +14174,254 @@ function applyFilterView(g, viewId) {
 }
 
 function deleteFilterView(g, viewId) {
+  if (String(viewId).startsWith("lfv")) {
+    setLocalFilterViews(g.sheet.id, localFilterViews(g.sheet.id).filter((v) => v.id !== viewId));
+    return;
+  }
   if (!WB.canEdit) return;
   g.sheet.meta = { ...(g.sheet.meta || {}), filterViews: sheetFilterViews(g.sheet).filter((v) => v.id !== viewId) };
   saveSheetMeta(g.sheet.id);
+}
+
+// ─── Smart Fill from examples (100-list #23) ────────────────────────────────
+// Type two or more transformed values at the top of a column, run Data →
+// Smart Fill, and the rest of the column fills with the inferred pattern.
+// The inference tries a fixed candidate set — copies, case changes,
+// first/last word, initials, before/after a delimiter, and two-column
+// concatenations — and only fills when every example agrees.
+function inferSmartTransform(examples) {
+  if (!Array.isArray(examples) || examples.length < 2) return null;
+  const nCols = examples[0].src.length;
+  const S = (v) => String(v ?? "").trim();
+  const cands = [];
+  const proper = (t) => t.replace(/\w\S*/g, (w) => w[0].toUpperCase() + w.slice(1).toLowerCase());
+  for (let i = 0; i < nCols; i++) {
+    cands.push({ f: (src) => S(src[i]), d: "copy" });
+    cands.push({ f: (src) => S(src[i]).toUpperCase(), d: "UPPERCASE" });
+    cands.push({ f: (src) => S(src[i]).toLowerCase(), d: "lowercase" });
+    cands.push({ f: (src) => proper(S(src[i])), d: "Proper Case" });
+    cands.push({ f: (src) => S(src[i]).split(/\s+/)[0], d: "first word" });
+    cands.push({ f: (src) => S(src[i]).split(/\s+/).slice(-1)[0], d: "last word" });
+    cands.push({ f: (src) => (S(src[i]).match(/[A-Za-z]+/g) || []).map((w) => w[0].toUpperCase()).join(""), d: "initials" });
+    for (const dlm of [" ", ",", "-", "/", "@", ":"]) {
+      cands.push({ f: (src) => S(src[i]).split(dlm)[0].trim(), d: `text before “${dlm}”` });
+      cands.push({ f: (src) => S(src[i]).split(dlm).slice(1).join(dlm).trim(), d: `text after “${dlm}”` });
+    }
+  }
+  for (let i = 0; i < nCols; i++) {
+    for (let j = 0; j < nCols; j++) {
+      if (i === j) continue;
+      for (const sep of [" ", ", ", "-", "/", "", ". "]) {
+        cands.push({ f: (src) => S(src[i]) + sep + S(src[j]), d: "combined columns" });
+      }
+    }
+  }
+  for (const cand of cands) {
+    let hit = true;
+    for (const ex of examples) {
+      let got;
+      try { got = cand.f(ex.src); } catch (_) { hit = false; break; }
+      if (S(got) === "" || S(got) !== S(ex.out)) { hit = false; break; }
+    }
+    if (hit) return cand;
+  }
+  return null;
+}
+
+function smartFillColumn(g) {
+  if (!WB.canEdit) return;
+  const sheet = g.sheet;
+  const target = g.active.c;
+  const { maxR, maxC } = usedRange(sheet);
+  if (maxR < 2) { _toast("Not enough data — fill two example values first", "info"); return; }
+  const srcCols = [];
+  for (let c = 0; c <= Math.min(maxC, 25); c++) if (c !== target) srcCols.push(c);
+  if (!srcCols.length) { _toast("Smart Fill needs at least one other column to read from", "info"); return; }
+  const srcAt = (r) => srcCols.map((c) => filterCellText(sheet, r, c));
+  const examples = [];
+  let r = 1;
+  for (; r <= maxR; r++) {
+    const t = filterCellText(sheet, r, target);
+    if (t === "") break;
+    examples.push({ src: srcAt(r), out: t });
+  }
+  if (examples.length < 2) { _toast("Type at least two example values at the top of the column, then run Smart Fill", "info"); return; }
+  const cand = inferSmartTransform(examples);
+  if (!cand) { _toast("Couldn't find a pattern that matches all your examples", "warn"); return; }
+  const changes = [];
+  for (let rr = r; rr <= maxR; rr++) {
+    if (filterCellText(sheet, rr, target) !== "") continue;
+    const src = srcAt(rr);
+    if (src.every((v) => v === "")) continue;
+    let out;
+    try { out = cand.f(src); } catch (_) { continue; }
+    if (String(out ?? "").trim() === "") continue;
+    changes.push({ r: rr, c: target, cell: cellFromInput(String(out), sheet.cells.get(cellKey(rr, target))) });
+  }
+  if (!changes.length) { _toast("Nothing left to fill in this column", "info"); return; }
+  setCells(g, changes, { validate: true });
+  _toast(`Smart-filled ${changes.length} cell${changes.length === 1 ? "" : "s"} (${cand.d})`, "success");
+}
+
+// ─── Row/column grouping (100-list #19) ─────────────────────────────────────
+// Groups live in sheet.meta.rowGroups / colGroups as {id, from, to,
+// collapsed}. The first row/col of a group is its summary line and carries
+// the collapse toggle in its header; collapsing hides from+1..to.
+function sheetGroups(sheet, axis) {
+  const v = sheet.meta && sheet.meta[axis === "row" ? "rowGroups" : "colGroups"];
+  return Array.isArray(v) ? v : [];
+}
+function groupHiddenSet(sheet, axis) {
+  const out = new Set();
+  for (const gr of sheetGroups(sheet, axis)) {
+    if (!gr.collapsed) continue;
+    for (let i = gr.from + 1; i <= gr.to; i++) out.add(i);
+  }
+  return out;
+}
+function groupSelection(g, axis) {
+  if (!WB.canEdit) return;
+  const rect = selRect(g);
+  const from = axis === "row" ? rect.r0 : rect.c0;
+  const to = axis === "row" ? rect.r1 : rect.c1;
+  if (to - from < 1) { _toast(`Select at least two ${axis === "row" ? "rows" : "columns"} to group`, "info"); return; }
+  const key = axis === "row" ? "rowGroups" : "colGroups";
+  const groups = sheetGroups(g.sheet, axis);
+  if (groups.some((gr) => !(to < gr.from || from > gr.to))) { _toast("Those overlap an existing group — ungroup first", "warn"); return; }
+  g.sheet.meta = { ...(g.sheet.meta || {}), [key]: [...groups, { id: "gr" + Math.random().toString(36).slice(2, 8), from, to, collapsed: false }] };
+  saveSheetMeta(g.sheet.id);
+  repaintGrid(g);
+  _toast(`Grouped — use the ⊟ button on ${axis === "row" ? "row " + (from + 1) : "column " + colLabel(from)} to collapse`, "success");
+}
+function ungroupSelection(g) {
+  if (!WB.canEdit) return;
+  const rect = selRect(g);
+  let removed = 0;
+  for (const [axis, key, a, b] of [["row", "rowGroups", rect.r0, rect.r1], ["col", "colGroups", rect.c0, rect.c1]]) {
+    const groups = sheetGroups(g.sheet, axis);
+    const keep = groups.filter((gr) => b < gr.from || a > gr.to);
+    removed += groups.length - keep.length;
+    if (keep.length !== groups.length) g.sheet.meta = { ...(g.sheet.meta || {}), [key]: keep };
+  }
+  if (!removed) { _toast("No group under the selection", "info"); return; }
+  saveSheetMeta(g.sheet.id);
+  computeGeometry(g);
+  repaintGrid(g);
+}
+function toggleGroup(g, axis, id) {
+  const groups = sheetGroups(g.sheet, axis);
+  const gr = groups.find((x) => x.id === id);
+  if (!gr) return;
+  gr.collapsed = !gr.collapsed;
+  g.sheet.meta = { ...(g.sheet.meta || {}) };
+  if (WB.canEdit) saveSheetMeta(g.sheet.id);
+  computeGeometry(g);
+  repaintGrid(g);
+}
+
+// ─── Slicers (100-list #46) ──────────────────────────────────────────────────
+// Visual filter chips for a column, persisted in sheet.meta.slicers as
+// [{id, col}]. Chips ride the same g.filters state as the AutoFilter, so
+// slicers, filter views and the filter popup all stay coherent.
+function sheetSlicers(sheet) {
+  const v = sheet.meta && sheet.meta.slicers;
+  return Array.isArray(v) ? v : [];
+}
+
+function addSlicer(g) {
+  if (!WB.canEdit) return;
+  const col = g.active.c;
+  const slicers = sheetSlicers(g.sheet);
+  if (slicers.some((sl) => sl.col === col)) { _toast("That column already has a slicer", "info"); return; }
+  g.sheet.meta = { ...(g.sheet.meta || {}), slicers: [...slicers, { id: "sl" + Math.random().toString(36).slice(2, 8), col }] };
+  saveSheetMeta(g.sheet.id);
+  repaintGrid(g);
+  wbLog("sheet.slicer", `added a slicer for column ${colLabel(col)} on ${g.sheet.name}`, { target_type: "sheet", target_id: g.sheet.id });
+}
+
+function removeSlicer(g, id) {
+  if (!WB.canEdit) return;
+  const sl = sheetSlicers(g.sheet).find((x) => x.id === id);
+  g.sheet.meta = { ...(g.sheet.meta || {}), slicers: sheetSlicers(g.sheet).filter((x) => x.id !== id) };
+  if (sl) g.filters.delete(sl.col); // dropping the slicer drops its filter
+  saveSheetMeta(g.sheet.id);
+  computeGeometry(g);
+  repaintGrid(g);
+  persistFilterState(g);
+}
+
+const SLICER_VALUE_CAP = 12;
+function paintSlicers(g) {
+  const host = g.els.slicers;
+  if (!host) return;
+  const slicers = sheetSlicers(g.sheet);
+  if (!slicers.length) { host.hidden = true; return; }
+  const sheet = g.sheet;
+  host.hidden = false;
+  host.innerHTML = slicers.map((sl) => {
+    const counts = new Map();
+    for (let r = 1; r < sheet.rowCount; r++) {
+      const t = filterCellText(sheet, r, sl.col);
+      if (t !== "") counts.set(t, (counts.get(t) || 0) + 1);
+    }
+    const values = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, SLICER_VALUE_CAP).map(([v]) => v);
+    const cur = g.filters.get(sl.col);
+    const picked = cur && cur.values ? cur.values : null;
+    const header = filterCellText(sheet, 0, sl.col) || colLabel(sl.col);
+    return `<div class="wb-slicer" data-wb-slicer="${sl.id}">
+      <span class="wb-slicer-name">${esc(header.slice(0, 24))}</span>
+      <button type="button" class="wb-slicer-chip ${!picked ? "is-on" : ""}" data-wb-slicerall="${sl.col}">All</button>
+      ${values.map((v) => `<button type="button" class="wb-slicer-chip ${picked && picked.has(v) ? "is-on" : ""}" data-wb-slicerval="${esc(v)}" data-wb-slicercol="${sl.col}">${esc(v.slice(0, 20))}</button>`).join("")}
+      ${counts.size > SLICER_VALUE_CAP ? `<span class="wb-slicer-more">+${counts.size - SLICER_VALUE_CAP}</span>` : ""}
+      ${WB.canEdit ? `<button type="button" class="wb-slicer-del" data-wb-slicerdel="${sl.id}" title="Remove slicer" aria-label="Remove slicer">×</button>` : ""}
+    </div>`;
+  }).join("");
+}
+
+// ─── Table banding (100-list #47) ────────────────────────────────────────────
+// Toggles banded (zebra) data rows for the table containing the active cell;
+// stored on the table entry in sheet.meta.tables and painted dynamically.
+function toggleTableBanding(g) {
+  if (!WB.canEdit) return;
+  const tables = Array.isArray(g.sheet.meta && g.sheet.meta.tables) ? g.sheet.meta.tables : [];
+  const t = tables.find((x) => g.active.r >= x.r0 && g.active.r <= x.r1 && g.active.c >= x.c0 && g.active.c <= x.c1);
+  if (!t) { _toast("Click inside a table first (Data → Create table)", "info"); return; }
+  t.banded = !t.banded;
+  g.sheet.meta = { ...(g.sheet.meta || {}) };
+  saveSheetMeta(g.sheet.id);
+  repaintGrid(g);
+  _toast(t.banded ? "Banded rows on" : "Banded rows off", "success");
+}
+
+// ─── "Looks like a table" suggestion (100-list #49) ─────────────────────────
+function paintTableSuggest(g) {
+  const el = g.els.tableSuggest;
+  if (!el) return;
+  if (!g.tableSuggest) { el.hidden = true; return; }
+  el.hidden = false;
+  el.innerHTML = `Pasted data looks like a table
+    <button type="button" class="btn btn-sm" data-wb-tsyes>Create table</button>
+    <button type="button" class="wb-slicer-del" data-wb-tsno aria-label="Dismiss">×</button>`;
+}
+
+function detectTableSuggest(g, r0, c0, nRows, nCols) {
+  if (!WB.canEdit || nRows < 3 || nCols < 2) return;
+  const sheet = g.sheet;
+  const tables = Array.isArray(sheet.meta && sheet.meta.tables) ? sheet.meta.tables : [];
+  const r1 = r0 + nRows - 1, c1 = c0 + nCols - 1;
+  if (tables.some((t) => !(r1 < t.r0 || r0 > t.r1 || c1 < t.c0 || c0 > t.c1))) return;
+  let headerish = 0, dataish = 0;
+  for (let c = c0; c <= c1; c++) {
+    const h = sheet.cells.get(cellKey(r0, c));
+    if (h && !h.formula && typeof h.value === "string" && h.value.trim() && cellNumeric(h.value) == null) headerish++;
+    const d = sheet.cells.get(cellKey(r0 + 1, c));
+    const raw = d && (d.formula ? d.computed : d.value);
+    if (raw != null && (cellNumeric(raw) != null || parseDateLoose(String(raw)))) dataish++;
+  }
+  if (headerish === nCols && dataish >= 1) {
+    g.tableSuggest = { r0, c0, r1, c1 };
+    paintTableSuggest(g);
+  }
 }
 
 // ─── Data tools ──────────────────────────────────────────────────────────────
@@ -13966,10 +15232,83 @@ function openMacrosPanel(g) {
 
 function splitTextToColumns(g) {
   if (!WB.canEdit) return;
+  // Delimiter picker with a live preview of the first matching cell
+  // (100-list #21) — replaces the bare window.prompt.
+  const col = g.active.c;
+  const sheet = g.sheet;
+  document.getElementById("wb-split-modal")?.remove();
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-split-modal";
+  wrap.innerHTML = `
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Split text to columns" style="width:420px">
+      <div class="rr-modal-head">
+        <div class="rr-modal-head-content"><p class="rr-modal-title">Split text to columns</p><p class="rr-modal-sub">Column ${esc(colLabel(col))} splits into the columns to its right.</p></div>
+        <button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button>
+      </div>
+      <div class="rr-modal-body">
+        <div class="wb-field-row">
+          <label class="wb-field"><span class="wb-field-label">Separator</span>
+            <select class="wb-input" id="wb-split-delim">
+              <option value=",">Comma ( , )</option>
+              <option value=";">Semicolon ( ; )</option>
+              <option value="\\t">Tab</option>
+              <option value=" ">Space</option>
+              <option value="custom">Custom…</option>
+            </select></label>
+          <label class="wb-field" style="flex:0 0 120px;display:none" id="wb-split-custom-field"><span class="wb-field-label">Custom</span>
+            <input type="text" class="wb-input" id="wb-split-custom" maxlength="8" placeholder="e.g. |"></label>
+        </div>
+        <span class="wb-field-label" style="margin-top:10px">Preview</span>
+        <p id="wb-split-preview" style="font-family:ui-monospace,monospace;font-size:12px;background:var(--surface-2,#f5f6f8);border-radius:6px;padding:8px 10px;min-height:34px;margin:4px 0 0"></p>
+      </div>
+      <div class="rr-modal-foot">
+        <button class="rr-modal-btn" type="button" data-wb-close>Cancel</button>
+        <button class="rr-modal-btn primary" type="button" data-wb-confirm>Split</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  const sel = wrap.querySelector("#wb-split-delim");
+  const customField = wrap.querySelector("#wb-split-custom-field");
+  const custom = wrap.querySelector("#wb-split-custom");
+  const preview = wrap.querySelector("#wb-split-preview");
+  const currentDelim = () => (sel.value === "custom" ? custom.value : sel.value === "\\t" ? "\t" : sel.value);
+  const firstSample = () => {
+    const d = currentDelim();
+    if (!d) return null;
+    let best = null, bestR = Infinity;
+    for (const [key, cell] of sheet.cells) {
+      const rc = keyRC(key);
+      if (rc.c !== col || cell.formula || cell.value == null) continue;
+      if (rc.r < bestR && String(cell.value).includes(d)) { best = String(cell.value); bestR = rc.r; }
+    }
+    return best;
+  };
+  const paintPreview = () => {
+    customField.style.display = sel.value === "custom" ? "" : "none";
+    const d = currentDelim();
+    const sample = d ? firstSample() : null;
+    preview.textContent = !d ? "Pick a separator"
+      : sample ? sample.split(d).map((x) => x.trim()).join("  |  ")
+      : `No cells in ${colLabel(col)} contain “${d}”`;
+  };
+  sel.addEventListener("change", paintPreview);
+  custom.addEventListener("input", paintPreview);
+  paintPreview();
+  wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") wrap.remove(); });
+  wrap.addEventListener("click", (e) => {
+    if (e.target === wrap || e.target.closest("[data-wb-close]")) { wrap.remove(); return; }
+    if (!e.target.closest("[data-wb-confirm]")) return;
+    const d = currentDelim();
+    if (!d) { _toast("Enter the custom separator", "warn"); return; }
+    wrap.remove();
+    doSplitTextToColumns(g, d);
+  });
+}
+
+function doSplitTextToColumns(g, delim) {
   const sheet = g.sheet;
   const col = g.active.c;
-  const delim = window.prompt(`Split column ${colLabel(col)} on which separator?`, ",");
-  if (delim == null || delim === "") return;
   const rect = selRect(g);
   const r0 = rect.r0 === rect.r1 ? 1 : rect.r0; // single cell → all data rows
   let r1 = rect.r0 === rect.r1 ? 0 : rect.r1;
@@ -14023,26 +15362,102 @@ function removeDuplicateRows(g) {
     if (maxR < 2) { _toast("Nothing to de-duplicate below the header", "info"); return; }
     rect = { r0: 1, r1: maxR, c0: 0, c1: maxC };
   }
-  const seen = new Set();
-  const dupRows = [];
-  for (let r = Math.max(1, rect.r0); r <= rect.r1; r++) {
-    const parts = [];
-    for (let c = rect.c0; c <= rect.c1; c++) parts.push(filterCellText(sheet, r, c).toLowerCase());
-    const k = parts.join("");
-    if (!parts.some((p) => p !== "")) continue; // fully empty rows don't count
-    if (seen.has(k)) dupRows.push(r);
-    else seen.add(k);
-  }
-  if (!dupRows.length) { _toast("No duplicate rows found", "success"); return; }
-  confirmModal({
-    title: `Remove ${dupRows.length} duplicate row${dupRows.length === 1 ? "" : "s"}?`,
-    body: `Rows with identical values in columns ${esc(colLabel(rect.c0))}–${esc(colLabel(rect.c1))} will be deleted; the first occurrence stays.`,
-    confirmLabel: "Remove duplicates", danger: true,
-    onConfirm: () => {
-      for (const r of dupRows.sort((a, b) => b - a)) restructure(g, "row", r, -1);
-      _toast(`Removed ${dupRows.length} duplicate row${dupRows.length === 1 ? "" : "s"}`, "success");
-    },
+  // column checklist (100-list #22): pick which columns define a duplicate.
+  // Headers label the checkboxes when row 0 sits above the range.
+  const colName = (c) => {
+    const hdr = sheet.cells.get(cellKey(0, c));
+    const t = hdr && !hdr.formula && hdr.value != null ? String(hdr.value).trim() : "";
+    return t && rect.r0 >= 1 ? `${colLabel(c)} — ${t.slice(0, 28)}` : colLabel(c);
+  };
+  document.getElementById("wb-dedupe-modal")?.remove();
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-dedupe-modal";
+  const cols = [];
+  for (let c = rect.c0; c <= rect.c1; c++) cols.push(c);
+  wrap.innerHTML = `
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Remove duplicates" style="width:420px">
+      <div class="rr-modal-head">
+        <div class="rr-modal-head-content"><p class="rr-modal-title">Remove duplicates</p><p class="rr-modal-sub">Rows ${rect.r0 + 1}–${rect.r1 + 1} · duplicates are decided by the checked columns; the first occurrence stays.</p></div>
+        <button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button>
+      </div>
+      <div class="rr-modal-body" style="max-height:300px;overflow:auto">
+        ${cols.map((c) => `<label style="display:flex;align-items:center;gap:8px;padding:5px 2px"><input type="checkbox" data-dd-col="${c}" checked> <span>${esc(colName(c))}</span></label>`).join("")}
+      </div>
+      <div class="rr-modal-foot">
+        <button class="rr-modal-btn" type="button" data-wb-close>Cancel</button>
+        <button class="rr-modal-btn primary" type="button" data-wb-confirm>Remove duplicates</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") wrap.remove(); });
+  wrap.addEventListener("click", (e) => {
+    if (e.target === wrap || e.target.closest("[data-wb-close]")) { wrap.remove(); return; }
+    if (!e.target.closest("[data-wb-confirm]")) return;
+    const picked = [...wrap.querySelectorAll("[data-dd-col]:checked")].map((el) => +el.getAttribute("data-dd-col"));
+    if (!picked.length) { _toast("Check at least one column", "warn"); return; }
+    wrap.remove();
+    const seen = new Set();
+    const dupRows = [];
+    for (let r = Math.max(1, rect.r0); r <= rect.r1; r++) {
+      const parts = picked.map((c) => filterCellText(sheet, r, c).toLowerCase());
+      const k = parts.join(" ");
+      if (!parts.some((p) => p !== "")) continue; // fully empty rows don't count
+      if (seen.has(k)) dupRows.push(r);
+      else seen.add(k);
+    }
+    if (!dupRows.length) { _toast("No duplicate rows found", "success"); return; }
+    confirmModal({
+      title: `Remove ${dupRows.length} duplicate row${dupRows.length === 1 ? "" : "s"}?`,
+      body: `Rows with identical values in ${picked.length === 1 ? "column " + esc(colLabel(picked[0])) : picked.length + " checked columns"} will be deleted; the first occurrence stays.`,
+      confirmLabel: "Remove duplicates", danger: true,
+      onConfirm: () => {
+        for (const r of dupRows.sort((a, b) => b - a)) restructure(g, "row", r, -1);
+        _toast(`Removed ${dupRows.length} duplicate row${dupRows.length === 1 ? "" : "s"}`, "success");
+      },
+    });
   });
+}
+
+// Data → Circle invalid data (100-list #15): toggles a loud red oval on every
+// cell that violates its validation rule — the passive corner marker is easy
+// to miss when auditing a sheet.
+function circleInvalidData(g) {
+  const sheet = g.sheet;
+  if (g.circleInvalid) { g.circleInvalid = false; repaintGrid(g); return; }
+  const rules = sheetRules(sheet, "validation");
+  if (!rules.length) { _toast("No data-validation rules on this sheet", "info"); return; }
+  let count = 0;
+  for (const rule of rules) {
+    for (let r = rule.r0; r <= Math.min(rule.r1, sheet.rowCount - 1); r++) {
+      for (let c = rule.c0; c <= Math.min(rule.c1, sheet.colCount - 1); c++) {
+        if (findValidationRule(sheet, r, c) !== rule) continue; // the last covering rule wins
+        if (cellInvalid(sheet, r, c, sheet.cells.get(cellKey(r, c)))) count++;
+      }
+    }
+  }
+  if (!count) { _toast("Every validated cell checks out", "success"); return; }
+  g.circleInvalid = true;
+  repaintGrid(g);
+  _toast(`${count} cell${count === 1 ? "" : "s"} break${count === 1 ? "s" : ""} validation — circled in red`, "warn");
+}
+
+// Data → Highlight duplicates (100-list #50): one click drops a duplicate-
+// values conditional format on the selection (or the used range).
+function highlightDuplicatesQuickRule(g) {
+  if (!WB.canEdit) return;
+  const sheet = g.sheet;
+  let rect = selRect(g);
+  if (rect.r0 === rect.r1 && rect.c0 === rect.c1) {
+    const { maxR, maxC } = usedRange(sheet);
+    rect = { r0: 0, r1: Math.max(0, maxR), c0: 0, c1: Math.max(0, maxC) };
+  }
+  const rules = sheetRules(sheet, "condFormat");
+  const rule = { id: "cf" + Math.random().toString(36).slice(2, 8), kind: "dup", style: "red", r0: rect.r0, c0: rect.c0, r1: rect.r1, c1: rect.c1 };
+  rules.push(rule);
+  setSheetRules(g, "condFormat", rules);
+  wbLog("sheet.condformat", `highlighted duplicate values in ${ruleRefText(rule)} on ${sheet.name}`, { target_type: "sheet", target_id: sheet.id });
+  _toast("Duplicates in the range are highlighted — manage the rule under Conditional formatting", "success");
 }
 
 function trimWhitespace(g) {
@@ -14559,10 +15974,20 @@ function buildXlsxBytes(sheets) {
   const borderXml = (edges, style) => `<border>` +
     ["left", "right", "top", "bottom"].map((e) => (edges.includes(e) ? `<${e} style="${style || "thin"}">${BORDER_EDGE}</${e}>` : `<${e}/>`)).join("") +
     `<diagonal/></border>`;
+  // per-side borders (format.bs): each side carries its own OOXML style +
+  // color (100-list #33)
+  const bsStyleToken = (sd) => sd.st === "dotted" ? "dotted"
+    : sd.st === "dashed" ? (sd.w >= 2 ? "mediumDashed" : "dashed")
+    : sd.w === 3 ? "thick" : sd.w === 2 ? "medium" : "thin";
+  const bsSideXml = (e, sd) => !sd ? `<${e}/>`
+    : `<${e} style="${bsStyleToken(sd)}"><color rgb="FF${(typeof sd.c === "string" && HEX_COLOR_RE.test(sd.c) ? sd.c.slice(1) : "000000").toUpperCase()}"/></${e}>`;
+  const bsBorderXml = (bs) => `<border>` +
+    bsSideXml("left", bs.l) + bsSideXml("right", bs.r) + bsSideXml("top", bs.t) + bsSideXml("bottom", bs.b) +
+    `<diagonal/></border>`;
   const borders = [borderXml([])];
   const borderIdx = new Map([["", 0]]);
   const xfs = [`<xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>`];
-  const xfIdx = new Map([["0|0|0||0||0|0", 0]]);
+  const xfIdx = new Map([["0|0|0||0||0|0|0", 0]]);
 
   // Differential formats (dxf) for conditional-formatting rules, and a global
   // priority counter (Excel wants unique priorities). CF/DV styles mirror the
@@ -14610,27 +16035,41 @@ function buildXlsxBytes(sheets) {
       fills.push(`<fill><patternFill patternType="solid"><fgColor rgb="${bgHex}"/><bgColor indexed="64"/></patternFill></fill>`);
       fillIdx.set(bgHex, fillId);
     }
-    // per-cell borders: all/outline both mean every edge of the cell;
-    // format.bw maps to OOXML line styles (thin/medium/thick)
-    const bSide = ["all", "outline", "top", "bottom", "left", "right"].includes(f.border) ? f.border : "";
-    const bStyle = bSide ? (f.bw === 3 ? "thick" : f.bw === 2 ? "medium" : "thin") : "";
-    const bKey = bSide ? `${bSide}|${bStyle}` : "";
-    let borderId = borderIdx.get(bKey);
-    if (borderId == null) {
-      borderId = borders.length;
-      borders.push(borderXml(bSide === "all" || bSide === "outline" ? ["left", "right", "top", "bottom"] : [bSide], bStyle));
-      borderIdx.set(bKey, borderId);
+    // per-cell borders: the per-side model (f.bs) exports each side's own
+    // style + color; the legacy single f.border/f.bw keeps its old mapping
+    let borderId;
+    if (f.bs && typeof f.bs === "object" && (f.bs.t || f.bs.b || f.bs.l || f.bs.r)) {
+      const bKey = "bs|" + JSON.stringify(f.bs);
+      borderId = borderIdx.get(bKey);
+      if (borderId == null) {
+        borderId = borders.length;
+        borders.push(bsBorderXml(f.bs));
+        borderIdx.set(bKey, borderId);
+      }
+    } else {
+      const bSide = ["all", "outline", "top", "bottom", "left", "right"].includes(f.border) ? f.border : "";
+      const bStyle = bSide ? (f.bw === 3 ? "thick" : f.bw === 2 ? "medium" : "thin") : "";
+      const bKey = bSide ? `${bSide}|${bStyle}` : "";
+      borderId = borderIdx.get(bKey);
+      if (borderId == null) {
+        borderId = borders.length;
+        borders.push(borderXml(bSide === "all" || bSide === "outline" ? ["left", "right", "top", "bottom"] : [bSide], bStyle));
+        borderIdx.set(bKey, borderId);
+      }
     }
     const align = f.align || "";
     const valign = f.valign === "middle" ? "center" : f.valign || "";
-    const rot = f.rot === 45 || f.rot === 90 ? f.rot : 0;
+    // OOXML textRotation: 0-90 counter-clockwise; 91-180 encodes clockwise
+    const rotRaw = Number.isFinite(+f.rot) ? Math.max(-90, Math.min(90, Math.round(+f.rot))) : 0;
+    const rot = rotRaw < 0 ? 90 - rotRaw : rotRaw;
     const wrap = f.wrap ? 1 : 0;
-    const xfKey = `${numId}|${fontId}|${fillId}|${align}|${wrap}|${valign}|${rot}|${borderId}`;
+    const ind = Number.isInteger(f.ind) && f.ind > 0 ? Math.min(8, f.ind) : 0;
+    const xfKey = `${numId}|${fontId}|${fillId}|${align}|${wrap}|${valign}|${rot}|${borderId}|${ind}`;
     let s = xfIdx.get(xfKey);
     if (s == null) {
       s = xfs.length;
-      const alignXml = align || wrap || valign || rot
-        ? `<alignment${align ? ` horizontal="${align}"` : ""}${valign ? ` vertical="${valign}"` : ""}${wrap ? ` wrapText="1"` : ""}${rot ? ` textRotation="${rot}"` : ""}/>`
+      const alignXml = align || wrap || valign || rot || ind
+        ? `<alignment${align ? ` horizontal="${align}"` : ""}${valign ? ` vertical="${valign}"` : ""}${wrap ? ` wrapText="1"` : ""}${rot ? ` textRotation="${rot}"` : ""}${ind ? ` indent="${ind}"` : ""}/>`
         : "";
       xfs.push(`<xf numFmtId="${numId}" fontId="${fontId}" fillId="${fillId}" borderId="${borderId}"${numId ? ` applyNumberFormat="1"` : ""}${fontId ? ` applyFont="1"` : ""}${fillId ? ` applyFill="1"` : ""}${borderId ? ` applyBorder="1"` : ""}${alignXml ? ` applyAlignment="1"` : ""}>${alignXml}</xf>`);
       xfIdx.set(xfKey, s);
@@ -14685,7 +16124,7 @@ function buildXlsxBytes(sheets) {
       : "";
     let view = `<sheetViews><sheetView workbookViewId="0"/></sheetViews>`;
     if (sheet.frozenRows || sheet.frozenCols) {
-      const x = sheet.frozenCols ? 1 : 0, y = sheet.frozenRows ? 1 : 0;
+      const x = sheet.frozenCols || 0, y = sheet.frozenRows || 0; // real counts (100-list #13)
       view = `<sheetViews><sheetView workbookViewId="0"><pane${x ? ` xSplit="${x}"` : ""}${y ? ` ySplit="${y}"` : ""} topLeftCell="${colLabel(x) + (y + 1)}" state="frozen"/></sheetView></sheetViews>`;
     }
     const merges = Array.isArray(sheet.meta && sheet.meta.merges) ? sheet.meta.merges.filter((m) => m.r1 > m.r0 || m.c1 > m.c0) : [];
@@ -14922,12 +16361,30 @@ function parseXlsxFill(xml) {
   return hex ? { bg: hex } : {};
 }
 function parseXlsxBorder(xml) {
-  const present = [], styles = [];
+  const sideKey = { left: "l", right: "r", top: "t", bottom: "b" };
+  const sides = {}, present = [], styles = [];
+  let fancy = false; // any dash/dot style or a non-black color → per-side model
   for (const e of ["left", "right", "top", "bottom"]) {
-    const m = new RegExp(`<${e}\\b[^>]*style="([^"]+)"`).exec(xml);
-    if (m) { present.push(e); styles.push(m[1]); }
+    const m = new RegExp(`<${e}\\b[^>]*style="([^"]+)"([\\s\\S]*?)(?:</${e}>|/>)`).exec(xml);
+    if (!m) continue;
+    const st = m[1];
+    present.push(e); styles.push(st);
+    const sd = {
+      w: st === "thick" ? 3 : /^medium/.test(st) || st === "double" ? 2 : 1,
+      st: /dot/i.test(st) ? "dotted" : /dash/i.test(st) ? "dashed" : "solid",
+    };
+    const cm = /<color[^>]*rgb="([0-9A-Fa-f]{6,8})"/.exec(m[2] || "");
+    const hex = cm ? xlsxArgbToHex(cm[1]) : null;
+    if (hex && hex.toLowerCase() !== "#000000") { sd.c = hex.toUpperCase(); fancy = true; }
+    if (sd.st !== "solid") fancy = true;
+    sides[sideKey[e]] = sd;
   }
   if (!present.length) return {};
+  // mixed side styles also need the per-side model (100-list #33); a plain
+  // uniform black border keeps the legacy single-value shape so old
+  // workbooks round-trip byte-identically
+  const uniform = present.length === 4 && new Set(styles).size === 1;
+  if (fancy || (!uniform && present.length > 1)) return { bs: sides };
   const w = (s) => (s === "thick" ? 3 : s === "medium" || s === "double" ? 2 : 1);
   const bw = Math.max(...styles.map(w));
   const out = { border: present.length === 4 ? "all" : present[0] };
@@ -14983,7 +16440,10 @@ export async function parseXlsxBytes(buf) {
         const h = /horizontal="([^"]+)"/.exec(al[1]); if (h) fmt.align = h[1];
         const v = /vertical="([^"]+)"/.exec(al[1]); if (v && v[1] !== "bottom") fmt.valign = v[1] === "center" ? "middle" : v[1];
         if (/wrapText="1"/.test(al[1])) fmt.wrap = true;
-        const rot = /textRotation="(\d+)"/.exec(al[1]); if (rot && (+rot[1] === 45 || +rot[1] === 90)) fmt.rot = +rot[1];
+        // any angle: 0-90 is counter-clockwise, 91-180 encodes clockwise (#35)
+        const rot = /textRotation="(\d+)"/.exec(al[1]);
+        if (rot) { const rv = +rot[1]; const deg = rv > 90 ? 90 - rv : rv; if (deg && deg >= -90 && deg <= 90) fmt.rot = deg; }
+        const indM = /indent="(\d+)"/.exec(al[1]); if (indM && +indM[1] > 0) fmt.ind = Math.min(8, +indM[1]);
       }
       // a genuinely custom code (our exports use ids ≥165) round-trips verbatim
       // as format.fmt; otherwise map to the preset class (dates via cell.type)
@@ -15027,8 +16487,8 @@ export async function parseXlsxBytes(buf) {
     if (pane) {
       const xs = /xSplit="([\d.]+)"/.exec(pane[0]);
       const ys = /ySplit="([\d.]+)"/.exec(pane[0]);
-      if (xs && +xs[1] > 0) out.frozenCols = 1;
-      if (ys && +ys[1] > 0) out.frozenRows = 1;
+      if (xs && +xs[1] > 0) out.frozenCols = Math.min(50, Math.round(+xs[1]));
+      if (ys && +ys[1] > 0) out.frozenRows = Math.min(50, Math.round(+ys[1]));
     }
     let cm;
     const colRe = /<col\b[^>]*\/>/g;
@@ -16939,7 +18399,7 @@ async function askWorkbookAi(g, question) {
   if (btn) { btn.disabled = true; btn.classList.add("is-loading"); }
   if (input) input.disabled = true;
   try {
-    const { data, error } = await sb.functions.invoke("workbook-ai", { body: { question, schema } });
+    const { data, error } = await sb.functions.invoke("workbook-ai", { body: { question, schema, workbook_id: WB.wb && WB.wb.id } });
     if (error || !data || data.error || !data.plan) {
       const msg = (error && error.message) || (data && (data.detail || data.error)) || "Unknown error";
       _toast(`AI couldn't answer that: ${msg}`, "warn");
@@ -16998,6 +18458,36 @@ function pivotAggregate(agg, vals) {
 
 // Pure computation → grouping keys + an aggregate accessor that re-aggregates
 // over the underlying records (so totals of averages stay correct).
+// GETPIVOTDATA resolver (100-list #5): find the pivot by 1-based index or
+// title, pick the value field by name ("Cost" or "sum Cost"), filter its
+// source records by the field/item pairs, and aggregate.
+function getPivotDataValue(sheet, valueField, which, pairs) {
+  const pivots = Array.isArray(sheet.meta && sheet.meta.pivots) ? sheet.meta.pivots : [];
+  if (!pivots.length) throw new FormulaError("#N/A", "no pivot tables on this sheet");
+  let spec = null;
+  if (typeof which === "number") spec = pivots[Math.trunc(which) - 1];
+  else {
+    const want = String(which ?? "").trim().toLowerCase();
+    spec = pivots.find((pv) => String(pv.title || "").trim().toLowerCase() === want) || (want === "" ? pivots[0] : null);
+  }
+  if (!spec) throw new FormulaError("#REF", "no such pivot table");
+  const pv = computePivot(sheet, spec);
+  if (!pv) throw new FormulaError("#N/A", "pivot has no value fields");
+  const wantV = String(valueField ?? "").trim().toLowerCase();
+  const vi = pv.values.findIndex((v) => String(v.field).trim().toLowerCase() === wantV
+    || `${v.agg} ${v.field}`.trim().toLowerCase() === wantV);
+  if (vi < 0) throw new FormulaError("#REF", `no value field “${valueField}”`);
+  let recs = pv.records;
+  for (const [field, item] of pairs) {
+    const f = String(field ?? "").trim();
+    if (!(f in (recs[0] || {})) && !pv.rowFields.includes(f) && !pv.colFields.includes(f)) throw new FormulaError("#REF", `no pivot field “${field}”`);
+    recs = recs.filter((rec) => String(rec[f] ?? "").trim().toLowerCase() === String(item ?? "").trim().toLowerCase());
+  }
+  if (!recs.length) throw new FormulaError("#N/A", "no pivot data for that slice");
+  const v = pv.values[vi];
+  return pivotAggregate(v.agg, recs.map((r) => r[v.field]));
+}
+
 function computePivot(sheet, spec) {
   const { records } = pivotSource(sheet, spec);
   const rowFields = (spec.rows || []).filter(Boolean);
@@ -17435,6 +18925,36 @@ function bindGridEvents(g) {
     setZoom(g, Math.round((g.zoom + step) * 100) / 100);
   }, { passive: false });
 
+  // ── touch (100-list #20): two-finger pinch zooms, long-press opens the
+  // cell context menu; scrolling stays native single-finger.
+  let _pinch = null, _press = null;
+  const touchDist = (e) => Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+  grid.addEventListener("touchstart", (e) => {
+    if (e.touches.length === 2) {
+      clearTimeout(_press); _press = null;
+      _pinch = { d: touchDist(e), z: g.zoom };
+      return;
+    }
+    const t = e.touches[0];
+    const el = document.elementFromPoint(t.clientX, t.clientY);
+    if (!el || !el.closest(".wb-cell")) return;
+    clearTimeout(_press);
+    _press = setTimeout(() => {
+      _press = null;
+      el.dispatchEvent(new MouseEvent("contextmenu", { clientX: t.clientX, clientY: t.clientY, bubbles: true, cancelable: true }));
+    }, 550);
+  }, { passive: true });
+  grid.addEventListener("touchmove", (e) => {
+    if (_press) { clearTimeout(_press); _press = null; }
+    if (_pinch && e.touches.length === 2) {
+      e.preventDefault();
+      const scale = touchDist(e) / _pinch.d;
+      setZoom(g, Math.round(_pinch.z * scale * 20) / 20);
+    }
+  }, { passive: false });
+  grid.addEventListener("touchend", () => { clearTimeout(_press); _press = null; _pinch = null; }, { passive: true });
+  grid.addEventListener("touchcancel", () => { clearTimeout(_press); _press = null; _pinch = null; }, { passive: true });
+
   // ── mouse selection / resize ──
   const canvasPos = (e) => {
     const rect = scroll.getBoundingClientRect();
@@ -17442,6 +18962,7 @@ function bindGridEvents(g) {
   };
 
   grid.addEventListener("mousedown", (e) => {
+    if (e.target.closest("[data-wb-grp]")) return; // group toggles act on click
     // right-drag the fill handle → preview, then a fill-options menu on
     // release (Excel). Must run before the context-menu bail below.
     if (e.button === 2 && WB.canEdit && e.target.closest("[data-wb-fillhandle]")) {
@@ -17459,7 +18980,7 @@ function bindGridEvents(g) {
       const stPoint = formulaPointState(g);
       if (stPoint) {
         e.preventDefault(); // keep focus in the formula editor
-        const fzPt = e.target.closest(".wb-gr-frozen-top .wb-cell, .wb-gr-frozen-left .wb-cell");
+        const fzPt = e.target.closest(".wb-gr-frozen-top .wb-cell, .wb-gr-frozen-left .wb-cell, .wb-gr-frozen-corner .wb-cell");
         if (fzPt) {
           insertPointRef(g, stPoint, colLabel(+fzPt.getAttribute("data-c")) + (+fzPt.getAttribute("data-r") + 1));
           return;
@@ -17640,7 +19161,13 @@ function bindGridEvents(g) {
       return;
     }
 
-    const fz = e.target.closest(".wb-gr-frozen-top .wb-cell, .wb-gr-frozen-left .wb-cell");
+    const grpBtn = e.target.closest("[data-wb-grp]");
+    if (grpBtn) {
+      const [axis, id] = grpBtn.getAttribute("data-wb-grp").split(":");
+      toggleGroup(g, axis, id);
+      return;
+    }
+    const fz = e.target.closest(".wb-gr-frozen-top .wb-cell, .wb-gr-frozen-left .wb-cell, .wb-gr-frozen-corner .wb-cell");
     if (fz) {
       e.preventDefault();
       if (g.editing) commitEdit(g, 0, 0, { refocus: false });
@@ -17856,6 +19383,12 @@ function bindGridEvents(g) {
       return;
     }
     if (meta && (k === "s" || k === "S")) { e.preventDefault(); scheduleCellFlush.flushNow(); return; }
+    if (meta && (k === "k" || k === "K")) { e.preventDefault(); openCommandPalette(g); return; } // command palette (#24)
+    { // user-bound shortcuts run any palette command (100-list #30)
+      const combo = wbComboFromEvent(e);
+      const act = combo && wbCustomKeys()[combo];
+      if (act) { e.preventDefault(); wbMenuAction(act, g); return; }
+    }
     if (meta && e.altKey && (k === "m" || k === "M")) { e.preventDefault(); openCellComment(g, g.active.r, g.active.c); return; } // Sheets' comment shortcut
     if (meta && k === "`") { e.preventDefault(); g.showFormulas = !g.showFormulas; repaintGrid(g); return; } // View → Show → Formulas
     if (meta && (k === "f" || k === "F")) { e.preventDefault(); openFindPanel(g, false); return; }
@@ -18112,9 +19645,15 @@ function bindGridEvents(g) {
       return;
     }
     const borderBtn = e.target.closest("[data-wb-border]");
-    if (borderBtn) { const v = borderBtn.getAttribute("data-wb-border"); formatSelection(g, { border: v === "none" ? null : v }); closeAllPopovers(); return; }
+    if (borderBtn) { applyBorders(g, borderBtn.getAttribute("data-wb-border")); closeAllPopovers(); return; }
+    // weight/style/color stage into g.borderOpt and keep the popover open,
+    // so you pick the line first and then the side to draw it on
     const bwBtn = e.target.closest("[data-wb-bw]");
-    if (bwBtn) { const w = +bwBtn.getAttribute("data-wb-bw"); formatSelection(g, { bw: w === 1 ? null : w }); closeAllPopovers(); return; }
+    if (bwBtn) { setBorderOpt(g, bwBtn, { w: +bwBtn.getAttribute("data-wb-bw") }); return; }
+    const bstBtn = e.target.closest("[data-wb-bst]");
+    if (bstBtn) { setBorderOpt(g, bstBtn, { st: bstBtn.getAttribute("data-wb-bst") }); return; }
+    const bcBtn = e.target.closest("[data-wb-bcolor]");
+    if (bcBtn) { setBorderOpt(g, bcBtn, { c: bcBtn.getAttribute("data-wb-bcolor") }); return; }
     const freezeBtn = e.target.closest("[data-wb-freeze]");
     if (freezeBtn) { setFreeze(g, freezeBtn.getAttribute("data-wb-freeze")); closeAllPopovers(); return; }
     const fnItem = e.target.closest("[data-wb-fn]");
@@ -18417,6 +19956,7 @@ function openSheetsCellMenu(g, x, y) {
     it(null, "Copy cell reference", "copy-ref"),
     it(null, "Highlight precedents", "trace-precedents"),
     it(null, "Highlight dependents", "trace-dependents"),
+    it(null, "Evaluate formula…", "evaluate-formula"),
     sep,
     it(null, "Insert image into cell…", "insert-image", { disabled: ro }),
     ...(hasImg ? [it(null, "View image", "view-image")] : []),
@@ -18557,6 +20097,8 @@ function openSheetsCellMenu(g, x, y) {
       case "copy-ref": try { await navigator.clipboard.writeText(cellRef(r, c)); _toast(`Copied ${cellRef(r, c)}`, "success"); } catch (_) {} break;
       case "trace-precedents": tracePrecedents(g); break;
       case "trace-dependents": traceDependents(g); break;
+      case "explain-error": explainErrorCell(g); break;
+      case "evaluate-formula": evaluateFormulaSteps(g); break;
       case "insert-image": pickImageInto(g); break;
       case "view-image": { const s = cellImgSrc(g.sheet.cells.get(cellKey(r, c))); if (s) openImageLightbox(s); break; }
       case "remove-image": removeCellImage(g, r, c); break;
@@ -18595,6 +20137,7 @@ function openCellContextMenu(g, x, y, kind) {
     item("format-cells", "Format cells…"),
     item("merge-toggle", "Merge / unmerge cells"),
     item("comment", "Add comment"),
+    item("note", g.sheet.cells.get(cellKey(r, c))?.format?.note ? "Edit note…" : "Add note…"),
     item("insert-link", (g.sheet.cells.get(cellKey(r, c))?.format?.link ? "Edit link…" : "Insert link…")),
     g.sheet.cells.get(cellKey(r, c))?.format?.link ? item("open-link", "Open link") : "",
     g.sheet.cells.get(cellKey(r, c))?.format?.link ? item("remove-link", "Remove link") : "",
@@ -18605,6 +20148,8 @@ function openCellContextMenu(g, x, y, kind) {
     item("paste-values", "Paste values only"),
     item("trace-precedents", "Highlight precedents"),
     item("trace-dependents", "Highlight dependents"),
+    item("evaluate-formula", "Evaluate formula…"),
+    g.sheet.cells.get(cellKey(r, c))?.err ? item("explain-error", "Explain this error…") : "",
     item("data-validation", "Data validation…"),
     item("cond-format", "Conditional formatting…"),
     sep,
@@ -18619,8 +20164,8 @@ function openCellContextMenu(g, x, y, kind) {
     kind === "col" && hasHiddenCols ? item("unhide-cols", "Unhide columns in selection") : "",
     kind === "col" ? item("resize-col", "Resize column…") : "",
     kind === "row" ? item("resize-row", "Resize row…") : "",
-    kind === "col" ? item("freeze-col", g.sheet.frozenCols ? "Unfreeze first column" : "Freeze first column") : "",
-    kind === "row" ? item("freeze-row", g.sheet.frozenRows ? "Unfreeze top row" : "Freeze top row") : "",
+    kind === "col" ? item("freeze-col", g.sheet.frozenCols ? (g.sheet.frozenCols > 1 ? `Unfreeze ${g.sheet.frozenCols} columns` : "Unfreeze first column") : "Freeze first column") : "",
+    kind === "row" ? item("freeze-row", g.sheet.frozenRows ? (g.sheet.frozenRows > 1 ? `Unfreeze ${g.sheet.frozenRows} rows` : "Unfreeze top row") : "Freeze top row") : "",
     sep,
     item("delete-row", `Delete ${rowsLabel}`, true),
     item("delete-col", `Delete ${colsLabel}`, true),
@@ -18642,15 +20187,51 @@ function openCellContextMenu(g, x, y, kind) {
       case "clear-format": clearFormatting(g); break;
       case "format-cells": openFormatCellsDialog(g); break;
       case "comment": openCellComment(g, r, c); break;
+      case "note": {
+        // plain note (100-list #28): lightweight text on the cell, separate
+        // from threaded comments; shows on hover via the purple corner mark
+        const prevCell = g.sheet.cells.get(cellKey(r, c));
+        promptModal({
+          title: `Note on ${cellRef(r, c)}`, label: "Note (empty removes it)",
+          value: (prevCell && prevCell.format && prevCell.format.note) || "", submitLabel: "Save note",
+          onSubmit: (txt) => {
+            const base = prevCell ? cloneCell(prevCell) : { value: null, formula: null, type: null, format: {} };
+            const fmt = { ...base.format };
+            if (String(txt).trim()) fmt.note = String(txt).trim().slice(0, 500);
+            else delete fmt.note;
+            setCells(g, [{ r, c, cell: { ...base, format: fmt } }]);
+          },
+        });
+        break;
+      }
       case "copy-ref": try { await navigator.clipboard.writeText(ref); _toast(`Copied ${ref}`, "success"); } catch (_) {} break;
       case "resize-col": {
-        const w = window.prompt(`Column ${colLabel(c)} width (px, ${MIN_COL_W}–${MAX_COL_W}):`, String(colW(g.sheet, c)));
-        if (w != null && isFinite(+w)) { g.sheet.colWidths[c] = Math.min(MAX_COL_W, Math.max(MIN_COL_W, Math.round(+w))); computeGeometry(g); repaintGrid(g); saveSheetMeta(g.sheet.id); }
+        // clicked inside the selection → resize every selected column
+        const inSel = c >= rect0.c0 && c <= rect0.c1;
+        const cc0 = inSel ? rect0.c0 : c, cc1 = inSel ? rect0.c1 : c;
+        promptModal({
+          title: cc1 > cc0 ? `Resize columns ${colLabel(cc0)}–${colLabel(cc1)}` : `Resize column ${colLabel(cc0)}`,
+          label: `Width (px, ${MIN_COL_W}–${MAX_COL_W})`, kind: "number", min: MIN_COL_W, max: MAX_COL_W,
+          value: colW(g.sheet, c), submitLabel: "Resize",
+          onSubmit: (w) => {
+            for (let ci = cc0; ci <= cc1; ci++) g.sheet.colWidths[ci] = w;
+            computeGeometry(g); repaintGrid(g); saveSheetMeta(g.sheet.id);
+          },
+        });
         break;
       }
       case "resize-row": {
-        const h2 = window.prompt(`Row ${r + 1} height (px, ${MIN_ROW_H}–${MAX_ROW_H}):`, String(rowH(g.sheet, r)));
-        if (h2 != null && isFinite(+h2)) { g.sheet.rowHeights[r] = Math.min(MAX_ROW_H, Math.max(MIN_ROW_H, Math.round(+h2))); computeGeometry(g); repaintGrid(g); saveSheetMeta(g.sheet.id); }
+        const inSel = r >= rect0.r0 && r <= rect0.r1;
+        const rr0 = inSel ? rect0.r0 : r, rr1 = inSel ? rect0.r1 : r;
+        promptModal({
+          title: rr1 > rr0 ? `Resize rows ${rr0 + 1}–${rr1 + 1}` : `Resize row ${rr0 + 1}`,
+          label: `Height (px, ${MIN_ROW_H}–${MAX_ROW_H})`, kind: "number", min: MIN_ROW_H, max: MAX_ROW_H,
+          value: rowH(g.sheet, r), submitLabel: "Resize",
+          onSubmit: (h2) => {
+            for (let ri = rr0; ri <= rr1; ri++) g.sheet.rowHeights[ri] = h2;
+            computeGeometry(g); repaintGrid(g); saveSheetMeta(g.sheet.id);
+          },
+        });
         break;
       }
       case "freeze-col": setFreeze(g, "col"); break;
@@ -18664,6 +20245,8 @@ function openCellContextMenu(g, x, y, kind) {
       case "paste-values": await pasteValuesOnly(g); break;
       case "trace-precedents": tracePrecedents(g); break;
       case "trace-dependents": traceDependents(g); break;
+      case "explain-error": explainErrorCell(g); break;
+      case "evaluate-formula": evaluateFormulaSteps(g); break;
       case "data-validation": openValidationDialog(g); break;
       case "cond-format": openCondFormatDialog(g); break;
       case "insert-link": insertLinkPrompt(g); break;
@@ -19023,8 +20606,10 @@ function renderDetailsPanel(body) {
 function renderSharingPanel(body) {
   const wb = WB.wb;
   const userPerms = WB.permissions.filter((p) => p.subject_type === "user");
+  const rolePerms = WB.permissions.filter((p) => p.subject_type === "role" && p.subject_role);
   const canManage = WB.canAdmin;
   const levels = [["view", "View"], ["comment", "Comment"], ["edit", "Edit"], ["admin", "Admin"]];
+  const groupLevels = levels.filter(([k]) => k !== "admin"); // group shares cap at edit (0489)
   body.innerHTML = `
     <div class="wb-share-vis">
       <span class="wb-field-label">Visibility</span>
@@ -19049,7 +20634,17 @@ function renderSharingPanel(body) {
           <button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-permremove="${p.id}" title="Remove access" aria-label="Remove access">×</button>`
           : `<span class="wb-share-level">${esc(p.access_level)}</span>`}
         </div>`).join("")}
-      ${!userPerms.length && wb.visibility === "private" ? `<div class="rr-empty-inline">No one else has access yet.</div>` : ""}
+      ${rolePerms.map((p) => `
+        <div class="wb-share-row" data-wb-perm="${p.id}">
+          <span class="wb-avatar wb-avatar-sm">${esc(initialsOf(WB_ROLE_SHARE_LABELS[p.subject_role] || p.subject_role))}</span>
+          <span class="wb-share-name">${esc(WB_ROLE_SHARE_LABELS[p.subject_role] || p.subject_role)}</span>
+          ${canManage ? `<select class="wb-input wb-share-sel" data-wb-permlevel="${p.id}" aria-label="Access level">
+            ${groupLevels.map(([k, l]) => `<option value="${k}" ${p.access_level === k ? "selected" : ""}>${l}</option>`).join("")}
+          </select>
+          <button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-permremove="${p.id}" title="Remove access" aria-label="Remove access">×</button>`
+          : `<span class="wb-share-level">${esc(p.access_level)}</span>`}
+        </div>`).join("")}
+      ${!userPerms.length && !rolePerms.length && wb.visibility === "private" ? `<div class="rr-empty-inline">No one else has access yet.</div>` : ""}
     </div>
     ${canManage ? `<div class="wb-share-add">
       <select class="wb-input" id="wb-share-user" aria-label="Add person">
@@ -19060,6 +20655,16 @@ function renderSharingPanel(body) {
         ${levels.map(([k, l]) => `<option value="${k}" ${k === "edit" ? "selected" : ""}>${l}</option>`).join("")}
       </select>
       <button type="button" class="btn btn-sm" data-wb-act="share-add">Share</button>
+    </div>
+    <div class="wb-share-add">
+      <select class="wb-input" id="wb-share-role" aria-label="Add a role">
+        <option value="">Add a role…</option>
+        ${Object.entries(WB_ROLE_SHARE_LABELS).filter(([r]) => !rolePerms.some((p) => p.subject_role === r)).map(([r, l]) => `<option value="${esc(r)}">${esc(l)}</option>`).join("")}
+      </select>
+      <select class="wb-input" id="wb-share-role-level" aria-label="Access level">
+        ${groupLevels.map(([k, l]) => `<option value="${k}" ${k === "view" ? "selected" : ""}>${l}</option>`).join("")}
+      </select>
+      <button type="button" class="btn btn-sm" data-wb-act="share-add-role">Share</button>
     </div>` : ""}`;
   if (canManage) {
     body.querySelectorAll('input[name="wb-share-vis"]').forEach((radio) => radio.addEventListener("change", async () => {
@@ -19111,6 +20716,113 @@ function insertLinkPrompt(g) {
 }
 
 const WB_MENUS = ["File", "Edit", "View", "Insert", "Format", "Data", "Tools", "Help"];
+
+// ─── Command palette (100-list #24) + custom shortcuts (#30) ────────────────
+// Every menu action, searchable under Ctrl+K. The palette rides the same
+// wbMenuItems/wbMenuAction pair as the menu bar, so anything added to a menu
+// is automatically searchable — and bindable to a custom shortcut.
+function paletteCommands(g) {
+  const out = [];
+  for (const menu of WB_MENUS) {
+    const walk = (items, path) => {
+      for (const it of items || []) {
+        if (!it || typeof it !== "object" || !it.label) continue;
+        if (it.sub) { walk(it.sub, path.concat(it.label)); continue; }
+        if (!it.act || it.disabled) continue;
+        out.push({ label: String(it.label).replace(/^✓ /, ""), path: path.join(" › "), act: it.act, kbd: it.kbd || "" });
+      }
+    };
+    walk(wbMenuItems(menu, g), [menu]);
+  }
+  return out;
+}
+
+function wbCustomKeys() {
+  try { const v = JSON.parse(localStorage.getItem("rr-wb-keys") || "{}"); return v && typeof v === "object" ? v : {}; } catch (_) { return {}; }
+}
+function wbComboFromEvent(e) {
+  if (["Control", "Meta", "Shift", "Alt"].includes(e.key)) return null;
+  const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  const parts = [];
+  if (e.ctrlKey || e.metaKey) parts.push("ctrl");
+  if (e.altKey) parts.push("alt");
+  if (e.shiftKey) parts.push("shift");
+  parts.push(k);
+  return parts.join("+");
+}
+
+function openCommandPalette(g) {
+  document.getElementById("wb-palette")?.remove();
+  const cmds = paletteCommands(g);
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-palette";
+  wrap.innerHTML = `
+    <div class="rr-modal-panel wb-palette-panel" role="dialog" aria-modal="true" aria-label="Command palette" style="width:480px">
+      <input type="text" class="wb-input wb-palette-q" id="wb-palette-q" placeholder="Type a command…" autocomplete="off" spellcheck="false" aria-label="Search commands">
+      <div class="wb-palette-list" id="wb-palette-list" role="listbox"></div>
+      <p class="wb-palette-hint">↑↓ choose · Enter runs · ⌨ binds a custom shortcut</p>
+    </div>`;
+  document.body.appendChild(wrap);
+  const input = wrap.querySelector("#wb-palette-q");
+  const list = wrap.querySelector("#wb-palette-list");
+  let filtered = cmds, sel = 0, binding = null;
+  const keysByAct = () => { const m = {}; for (const [combo, act] of Object.entries(wbCustomKeys())) m[act] = combo; return m; };
+  const paint = () => {
+    const bound = keysByAct();
+    list.innerHTML = filtered.slice(0, 40).map((c, i) => `
+      <div class="wb-palette-item ${i === sel ? "is-sel" : ""}" data-pal-i="${i}" role="option" aria-selected="${i === sel}">
+        <span class="wb-palette-label">${esc(c.label)}</span>
+        <span class="wb-palette-path">${esc(c.path)}</span>
+        ${binding === i ? `<span class="wb-palette-kbd is-live">press keys…</span>`
+          : bound[c.act] ? `<span class="wb-palette-kbd">${esc(bound[c.act])}</span>`
+          : c.kbd ? `<span class="wb-palette-kbd">${esc(c.kbd)}</span>` : ""}
+        <button type="button" class="wb-palette-bind" data-pal-bind="${i}" title="Bind a custom shortcut" aria-label="Bind a custom shortcut">⌨</button>
+      </div>`).join("") || `<div class="rr-empty-inline">No matching commands.</div>`;
+  };
+  const run = (i) => {
+    const cmd = filtered[i];
+    if (!cmd) return;
+    wrap.remove();
+    wbMenuAction(cmd.act, g);
+  };
+  input.addEventListener("input", () => {
+    const q = input.value.trim().toLowerCase();
+    filtered = !q ? cmds : cmds.filter((c) => (c.label + " " + c.path).toLowerCase().includes(q));
+    sel = 0; binding = null;
+    paint();
+  });
+  wrap.addEventListener("keydown", (e) => {
+    e.stopPropagation();
+    if (binding != null) {
+      e.preventDefault();
+      if (e.key === "Escape") { binding = null; paint(); return; }
+      const combo = wbComboFromEvent(e);
+      if (!combo) return;
+      const keys = wbCustomKeys();
+      for (const [c2, a2] of Object.entries(keys)) if (a2 === filtered[binding].act) delete keys[c2];
+      keys[combo] = filtered[binding].act;
+      try { localStorage.setItem("rr-wb-keys", JSON.stringify(keys)); } catch (_) {}
+      _toast(`${filtered[binding].label} → ${combo}`, "success");
+      binding = null;
+      paint();
+      return;
+    }
+    if (e.key === "Escape") { wrap.remove(); g.els.grid.focus(); }
+    else if (e.key === "ArrowDown") { e.preventDefault(); sel = Math.min(filtered.length - 1, sel + 1); paint(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); sel = Math.max(0, sel - 1); paint(); }
+    else if (e.key === "Enter") { e.preventDefault(); run(sel); }
+  });
+  wrap.addEventListener("click", (e) => {
+    if (e.target === wrap) { wrap.remove(); return; }
+    const bind = e.target.closest("[data-pal-bind]");
+    if (bind) { binding = +bind.getAttribute("data-pal-bind"); paint(); return; }
+    const item = e.target.closest("[data-pal-i]");
+    if (item) run(+item.getAttribute("data-pal-i"));
+  });
+  paint();
+  setTimeout(() => input.focus(), 30);
+}
 
 function wbMenuItems(menu, g) {
   const ed = WB.canEdit;
@@ -19166,6 +20878,7 @@ function wbMenuItems(menu, g) {
       { label: "Freeze", sub: [
         { label: "Freeze top row", act: "view:freeze-row", disabled: !ed || !g },
         { label: "Freeze first column", act: "view:freeze-col", disabled: !ed || !g },
+        { label: "Freeze panes — up to current cell", act: "view:freeze-here", disabled: !ed || !g },
         { label: "Unfreeze", act: "view:unfreeze", disabled: !ed || !g },
       ] },
       { label: "Zoom", sub: [0.5, 0.75, 0.9, 1, 1.25, 1.5, 2].map((z) => ({ label: Math.round(z * 100) + "%", act: "view:zoom:" + z, disabled: !g })) },
@@ -19216,7 +20929,10 @@ function wbMenuItems(menu, g) {
         sep,
         ...[["1", "Thin line"], ["2", "Medium line"], ["3", "Thick line"]].map(([v, label]) => ({ label, act: "fmt:bw:" + v, disabled: !ed || !g })),
       ] },
-      { label: "Rotation", sub: [["", "None"], ["45", "Tilt 45°"], ["90", "Vertical"]].map(([v, label]) => ({ label, act: "fmt:rot:" + v, disabled: !ed || !g })) },
+      { label: "Cell styles", sub: Object.entries(WB_CELL_STYLES).map(([k, st]) => ({ label: st.label, act: "fmt:style:" + k, disabled: !ed || !g })) },
+      { label: "Alternating colors", act: "fmt:banding", disabled: !ed || !g },
+      { label: "Indent", sub: [{ label: "Increase indent", act: "fmt:indent:1", disabled: !ed || !g }, { label: "Decrease indent", act: "fmt:indent:-1", disabled: !ed || !g }] },
+      { label: "Rotation", sub: [["", "None"], ["30", "Tilt 30°"], ["45", "Tilt 45°"], ["60", "Tilt 60°"], ["90", "Vertical"], ["-45", "Tilt down 45°"], ["custom", "Custom angle…"]].map(([v, label]) => ({ label, act: "fmt:rot:" + v, disabled: !ed || !g })) },
       { label: "Font size", sub: [8, 10, 12, 13, 14, 18, 24].map((n) => ({ label: String(n) + " px", act: "fmt:fs:" + n, disabled: !ed || !g })) },
       sep,
       { label: "Merge cells", act: "fmt:merge", disabled: !ed || !g },
@@ -19226,7 +20942,8 @@ function wbMenuItems(menu, g) {
       { label: "Clear formatting", act: "fmt:clear", disabled: !ed || !g },
     ];
     case "Data": {
-      const views = g ? sheetFilterViews(g.sheet) : [];
+      // shared views + this user's personal views (100-list #48)
+      const views = g ? [...sheetFilterViews(g.sheet), ...localFilterViews(g.sheet.id).map((v) => ({ ...v, name: v.name + " · me" }))] : [];
       return [
         { label: "Load from RouteReady", sub: [
           { label: "Drivers…", act: "data:fill-people", disabled: !ed || !g },
@@ -19254,6 +20971,13 @@ function wbMenuItems(menu, g) {
         { label: "Column stats", act: "data:stats", disabled: !g },
         { label: "Create / remove table", act: "data:table", disabled: !ed || !g },
         { label: "Toggle table total row", act: "data:table-totals", disabled: !ed || !g },
+        { label: "Toggle table banded rows", act: "data:table-band", disabled: !ed || !g },
+        { label: "Add slicer for this column", act: "data:slicer", disabled: !ed || !g },
+        { label: "Smart Fill from examples", act: "data:smartfill", disabled: !ed || !g },
+        { label: "Group rows", act: "data:group-rows", disabled: !ed || !g },
+        { label: "Group columns", act: "data:group-cols", disabled: !ed || !g },
+        { label: "Ungroup", act: "data:ungroup", disabled: !ed || !g },
+        { label: ((g && g.sheet.meta && g.sheet.meta.iterCalc && g.sheet.meta.iterCalc.on) ? "✓ " : "") + "Iterative calculation", act: "data:itercalc", disabled: !ed || !g },
         { label: "Protect / unprotect selection", act: "data:protect", disabled: !g || !WB.canAdmin },
         { label: "Goal seek…", act: "data:goalseek", disabled: !ed || !g },
         { label: "Pivot table…", act: "data:pivot", disabled: !ed || !g },
@@ -19262,7 +20986,9 @@ function wbMenuItems(menu, g) {
         { label: "Split text to columns…", act: "data:split", disabled: !ed || !g },
         { label: "Data cleanup", sub: [
           { label: "Remove duplicates…", act: "data:dedupe", disabled: !ed || !g },
+          { label: "Highlight duplicates", act: "data:highlight-dups", disabled: !ed || !g },
           { label: "Trim whitespace", act: "data:trim", disabled: !ed || !g },
+          { label: (g && g.circleInvalid) ? "Stop circling invalid data" : "Circle invalid data", act: "data:circle-invalid", disabled: !g },
         ] },
       ];
     }
@@ -19350,6 +21076,7 @@ function wbMenuAction(act, g) {
     case "view:noop": return;
     case "view:freeze-row": if (need()) { g.sheet.frozenRows = 1; saveSheetMeta(g.sheet.id); repaintGrid(g); } return;
     case "view:freeze-col": if (need()) { g.sheet.frozenCols = 1; saveSheetMeta(g.sheet.id); repaintGrid(g); } return;
+    case "view:freeze-here": if (need()) setFreeze(g, "here"); return;
     case "view:unfreeze": if (need()) setFreeze(g, "none"); return;
     case "view:unhide": if (need()) { g.sheet.hiddenRows.clear(); g.sheet.hiddenCols.clear(); saveSheetMeta(g.sheet.id); computeGeometry(g); repaintGrid(g); } return;
     case "view:comments": openPanelTab("comments"); return;
@@ -19396,6 +21123,22 @@ function wbMenuAction(act, g) {
     case "data:stats": if (need()) showColumnStats(g); return;
     case "data:table": if (need()) toggleTableSelection(g); return;
     case "data:table-totals": if (need()) toggleTableTotals(g); return;
+    case "data:table-band": if (need()) toggleTableBanding(g); return;
+    case "data:slicer": if (need()) addSlicer(g); return;
+    case "data:smartfill": if (need()) smartFillColumn(g); return;
+    case "data:group-rows": if (need()) groupSelection(g, "row"); return;
+    case "data:group-cols": if (need()) groupSelection(g, "col"); return;
+    case "data:ungroup": if (need()) ungroupSelection(g); return;
+    case "data:itercalc": if (need()) {
+      // 100-list #1: allow intentional circular references to converge
+      const cur = g.sheet.meta && g.sheet.meta.iterCalc;
+      const on = !(cur && cur.on);
+      g.sheet.meta = { ...(g.sheet.meta || {}), iterCalc: on ? { on: true, max: 50, eps: 0.001 } : { on: false } };
+      saveSheetMeta(g.sheet.id);
+      recalcWithSiblings(g.sheet);
+      repaintGrid(g);
+      _toast(on ? "Iterative calculation on — circular formulas now converge (50 iterations, Δ 0.001)" : "Iterative calculation off", "success");
+    } return;
     case "data:protect": toggleProtectSelection(g); return;
     case "data:goalseek": if (need()) openGoalSeekDialog(g); return;
     case "data:pivot": if (need()) openPivotDialog(g); return;
@@ -19403,6 +21146,8 @@ function wbMenuAction(act, g) {
     case "data:validation": if (need()) openValidationDialog(g); return;
     case "data:split": if (need()) splitTextToColumns(g); return;
     case "data:dedupe": if (need()) removeDuplicateRows(g); return;
+    case "data:highlight-dups": if (need()) highlightDuplicatesQuickRule(g); return;
+    case "data:circle-invalid": if (need()) circleInvalidData(g); return;
     case "data:trim": if (need()) trimWhitespace(g); return;
     case "help:shortcuts": showShortcutsHelp(); return;
     case "help:functions": if (need()) {
@@ -19431,9 +21176,24 @@ function wbMenuAction(act, g) {
   else if (ns === "fmt" && verb === "tog") toggleFormat(g, arg);
   else if (ns === "fmt" && verb === "align") formatSelection(g, { align: arg });
   else if (ns === "fmt" && verb === "valign") formatSelection(g, { valign: arg });
-  else if (ns === "fmt" && verb === "border") formatSelection(g, { border: arg || null });
-  else if (ns === "fmt" && verb === "bw") formatSelection(g, { bw: +arg === 1 ? null : +arg });
-  else if (ns === "fmt" && verb === "rot") formatSelection(g, { rot: +arg || null });
+  else if (ns === "fmt" && verb === "border") applyBorders(g, arg || "none");
+  else if (ns === "fmt" && verb === "bw") { g.borderOpt = { st: "solid", c: "#000000", ...(g.borderOpt || {}), w: +arg }; }
+  else if (ns === "fmt" && verb === "rot") {
+    if (arg === "custom") {
+      promptModal({
+        title: "Text rotation", label: "Angle in degrees (-90 to 90; positive tilts up)",
+        kind: "number", min: -90, max: 90, value: 45, submitLabel: "Rotate",
+        onSubmit: (deg) => formatSelection(g, { rot: deg || null }),
+      });
+    } else formatSelection(g, { rot: +arg || null });
+  }
+  else if (ns === "fmt" && verb === "style") { const st = WB_CELL_STYLES[arg]; if (st) formatSelection(g, st.patch); }
+  else if (ns === "fmt" && verb === "banding") applyBandingRule(g);
+  else if (ns === "fmt" && verb === "indent") {
+    const cur = (g.sheet.cells.get(cellKey(g.active.r, g.active.c)) || {}).format || {};
+    const next = Math.max(0, Math.min(8, (Number.isInteger(cur.ind) ? cur.ind : 0) + (+arg)));
+    formatSelection(g, { ind: next || null });
+  }
   else if (ns === "fmt" && verb === "fs") formatSelection(g, { fs: +arg });
   else if (ns === "data" && verb === "fv") applyFilterView(g, arg);
   else if (ns === "data" && verb === "fv-del") { deleteFilterView(g, arg); _toast("Filter view deleted", "success"); }
@@ -19929,6 +21689,22 @@ function installRootListeners() {
         });
         break;
       }
+      case "share-add-role": {
+        const roleSel = document.getElementById("wb-share-role");
+        const lvlSel = document.getElementById("wb-share-role-level");
+        if (!roleSel || !roleSel.value) break;
+        _sb().from("workbook_permissions").insert({
+          dsp_id: WB.wb.dsp_id, workbook_id: WB.wb.id, subject_type: "role",
+          subject_role: roleSel.value, access_level: lvlSel.value, created_by: _me() ? _me().id : null,
+        }).select().single().then((res) => {
+          if (res.error) { _toast("Couldn't share: " + res.error.message + " — migration 0489 may be pending", "error"); return; }
+          WB.permissions.push(res.data);
+          wbLog("workbook.shared", `shared the workbook with ${WB_ROLE_SHARE_LABELS[roleSel.value] || roleSel.value} (${lvlSel.value})`);
+          computeAccess();
+          renderPanelBody();
+        });
+        break;
+      }
     }
   });
 
@@ -19961,6 +21737,10 @@ function installRootListeners() {
   });
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") flushCells();
+  });
+  // beforeunload is unreliable on iOS Safari; pagehide is the durable signal
+  window.addEventListener("pagehide", () => {
+    if ([...WB.dirtyCells.values()].some((s) => s.size)) flushCells();
   });
   window.addEventListener("resize", () => {
     clearTimeout(WB._resizeT);
@@ -21311,7 +23091,7 @@ export const __engine = {
   fillSeries, cycleRefAnchor, errorHint, columnSuggestion, snapshotSheet, applySheetSnapshot,
   colLabel, colIndex, cellRef, parseCellRef,
   dateToSerial, serialToDate, isoDate, parseDateLoose,
-  buildXlsxBytes, parseXlsxBytes, buildPrintTable, formatForDisplay, applyCustomFormat, solveGoalSeek,
+  buildXlsxBytes, parseXlsxBytes, buildPrintTable, formatForDisplay, applyCustomFormat, customFormatColor, solveGoalSeek, filterCondHits, inferSmartTransform,
   condBarPercent, condIconPick, WB_CF_ICONSETS, isCellProtected, runQuery,
   chartSvg, WB_CHART_TYPES, kpiTileHtml, tableTileHtml, textTileHtml, kpiSparkline, kpiFmt, embedCellNum,
   chartData, aggRange, distinctColumnValues, kpiValue, KPI_AGGS,

@@ -2554,41 +2554,10 @@
 
 
         <!-- INSIGHTS — driver availability + future insights -->
-        <!-- TEMPLATES -->
-        <div class="sched-subview" id="sched-sub-templates" style="display:none">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--s-4)">
-            <div class="page-sub" style="margin:0">Saved schedule patterns. Apply to new drivers or for quick weekly setup.</div>
-            <button class="btn btn-primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>New template</button>
-          </div>
-
-          <div class="templates-grid">
-            <div class="template-card">
-              <div class="template-card-name">Standard M–F</div>
-              <div class="template-card-days">M T W T F · · ·</div>
-              <div class="template-card-meta">7:00a – 6:00p · used by 62 drivers</div>
-            </div>
-            <div class="template-card">
-              <div class="template-card-name">Tuesday – Saturday</div>
-              <div class="template-card-days">· T W T F S ·</div>
-              <div class="template-card-meta">7:00a – 6:00p · used by 12 drivers</div>
-            </div>
-            <div class="template-card">
-              <div class="template-card-name">Weekend warrior</div>
-              <div class="template-card-days">· · · · F S S</div>
-              <div class="template-card-meta">7:00a – 6:00p · used by 4 drivers</div>
-            </div>
-            <div class="template-card">
-              <div class="template-card-name">Part-time M/W/F</div>
-              <div class="template-card-days">M · W · F · ·</div>
-              <div class="template-card-meta">7:00a – 6:00p · used by 0 drivers</div>
-            </div>
-            <div class="template-card">
-              <div class="template-card-name">6-day week</div>
-              <div class="template-card-days">M T W T F S ·</div>
-              <div class="template-card-meta">7:00a – 6:00p · used by 0 drivers</div>
-            </div>
-          </div>
-        </div>
+        <!-- TEMPLATES · the live Templates sub-view (#sched-sub-templates,
+             capture button + rr-tpl-list) is declared earlier in this file.
+             A legacy static mockup with the SAME id lived here — duplicate
+             DOM id + fake "used by N drivers" numbers — removed 2026-07-17. -->
 
 
         </div><!-- /.tcp-body -->

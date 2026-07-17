@@ -2381,6 +2381,18 @@ function runEngine(input) {
   runAffinityEnhancement(ctx, ws);
   const { violations, warnings } = validate(ctx, ws);
   warnings.push(...lockWarnings);
+  if (ctx.settings.historical_pattern_protection !== "off") {
+    const coldCount = ctx.drivers.filter(
+      (d) => ctx.patterns.get(d.driver_id)?.cold_start
+    ).length;
+    if (coldCount > 0) {
+      const windowWeeks = ctx.settings.history_window_weeks;
+      warnings.push({
+        type: "affinity_cold_start",
+        message: `${coldCount} of ${ctx.drivers.length} drivers have schedule history in fewer than ${Math.ceil(windowWeeks / 2)} of the last ${windowWeeks} weeks \u2014 historical patterns are neutral for them this run (they'll kick in as more weeks accumulate)`
+      });
+    }
+  }
   runFifthDayFill(ctx, ws);
   const assignmentExplanations = buildAssignmentExplanations(
     ctx,
@@ -2500,12 +2512,13 @@ function availabilityFromDows(dows) {
 function mapDriver(raw, ptoByDriver) {
   const status = String(raw.status ?? "").toLowerCase();
   const name = splitName(String(raw.full_name ?? raw.id));
+  const emp = String(raw.employment_type ?? "").toLowerCase().replace(/[\s-]+/g, "_");
   return {
     driver_id: String(raw.id),
     first_name: name.first,
     last_name: name.last,
     status: status === "onboarding" ? "onboarding" : "active",
-    employment_type: "full_time",
+    employment_type: emp === "part_time" || emp === "parttime" || emp === "pt" ? "part_time" : "full_time",
     // A MISSING hire date must not make the driver the most senior (seniority
     // sorts ascending, so "2000-01-01" put unknown-tenure drivers at the front
     // of every priority queue — a data gap becoming top scheduling priority).
@@ -2517,9 +2530,12 @@ function mapDriver(raw, ptoByDriver) {
     xl_certified: raw.xl_certified === true,
     saved_availability: availabilityFromDows(raw.available_dows),
     preferred_availability: availabilityFromDows(raw.preferred_dows),
+    // No hours on the record → the engine applies the pto_default_hours
+    // setting per day. Stamping a literal here (the old behavior) silently
+    // overrode that setting for every DSP.
     pto_records: (ptoByDriver.get(String(raw.id)) ?? []).map((date) => ({
       date,
-      hours: PTO_HOURS_PER_DAY
+      hours: null
     })),
     attendance_score: null,
     attendance_final: raw.final_corrective_action === true,
@@ -2719,19 +2735,32 @@ function planScheduleWeek(payload) {
     list.push(p.date);
     ptoByDriver.set(p.driver_id, list);
   }
-  const drivers = payload.drivers.filter((d) => {
+  const eligibleRaw = payload.drivers.filter((d) => {
     const s = String(d.status ?? "").toLowerCase();
     return s === "active" || s === "onboarding";
-  }).map((d) => mapDriver(d, ptoByDriver));
+  });
+  const drivers = eligibleRaw.map((d) => mapDriver(d, ptoByDriver));
+  const settings = buildSettings(payload);
   const input = {
     schedule_week_start: payload.schedule_week_start,
     shifts: payload.shifts.map(mapShift),
     drivers,
     dsp: { dsp_blackout_dates: payload.blackout_dates ?? [] },
-    settings: buildSettings(payload),
+    settings,
     ad_hoc_constraints: payload.ad_hoc_constraints
   };
-  return runEngine(input);
+  const result = runEngine(input);
+  if (settings.scheduling_method === "seniority") {
+    for (const d of eligibleRaw) {
+      if (d.hire_date && d.hire_date.length >= 10) continue;
+      result.warnings.push({
+        type: "hire_date_missing",
+        driver_id: String(d.id),
+        message: `${String(d.full_name ?? d.id)} has no hire date on file \u2014 ranked least-senior by the Seniority scheduling method until one is set`
+      });
+    }
+  }
+  return result;
 }
 export {
   ENGINE_VERSION,
