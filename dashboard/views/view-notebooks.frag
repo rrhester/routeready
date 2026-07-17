@@ -325,6 +325,15 @@
 .rrnb-editor a:hover{border-bottom-color:var(--accent)}
 .rrnb-editor a.rrnb-pagelink,.rrnb-editor a.rrnb-objlink{background:var(--accent-soft);
   border-radius:var(--r-sm);padding:0 4px;border-bottom:0;font-weight:500}
+/* #36 a type glyph inside record chips so the kind reads at a glance */
+.rrnb-editor a.rrnb-objlink[data-obj-type]::before{margin-right:3px;font-weight:400;opacity:.85}
+.rrnb-editor a.rrnb-objlink[data-obj-type="driver"]::before{content:"👤"}
+.rrnb-editor a.rrnb-objlink[data-obj-type="applicant"]::before{content:"👤"}
+.rrnb-editor a.rrnb-objlink[data-obj-type="vehicle"]::before{content:"🚚"}
+.rrnb-editor a.rrnb-objlink[data-obj-type="route"]::before{content:"🧭"}
+.rrnb-editor a.rrnb-objlink[data-obj-type="station"]::before{content:"🏢"}
+.rrnb-editor a.rrnb-objlink[data-obj-type="incident"]::before{content:"⚠️"}
+.rrnb-editor a.rrnb-objlink[data-obj-type="shift"]::before{content:"🕒"}
 /* web links (auto-detected URLs + Ctrl/⌘-K links): read as clickable */
 .rrnb-editor a.rrnb-weblink{cursor:pointer;border-bottom:1px solid var(--accent-border)}
 .rrnb-editor a.rrnb-weblink:hover{border-bottom-color:var(--accent);text-decoration:underline;text-underline-offset:2px}
@@ -2727,6 +2736,15 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     if (!ed || !sel || !sel.anchorNode || !ed.contains(sel.anchorNode)) return null;
     return topBlockOf(sel.anchorNode, ed);
   }
+  // #9 true when the selection exactly spans a block's contents (used to
+  // decide whether Ctrl+A should escalate from block to whole-page).
+  function selectionIsWholeBlock(sel, blk) {
+    if (!sel || !sel.rangeCount || !blk) return false;
+    var r = sel.getRangeAt(0); if (r.collapsed) return false;
+    var full = document.createRange(); full.selectNodeContents(blk);
+    try { return r.compareBoundaryPoints(Range.START_TO_START, full) === 0 && r.compareBoundaryPoints(Range.END_TO_END, full) === 0; }
+    catch (e) { return false; }
+  }
   function duplicateBlock() {
     var ed = $id("rrnb-editor"); var blk = currentTopBlock(); if (!blk || !blk.parentNode) return;
     var clone = blk.cloneNode(true); ed.insertBefore(clone, blk.nextSibling);
@@ -2827,6 +2845,17 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   function onEditorKey(e) {
     var mod = e.ctrlKey || e.metaKey;
     if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "f") { e.preventDefault(); openFind(); return; }
+    // #9 Ctrl/⌘+A selects the current block first; a second press (block already
+    // fully selected) falls through to the native whole-page select-all.
+    if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "a") {
+      var blkA = currentTopBlock();
+      if (blkA && !selectionIsWholeBlock(window.getSelection(), blkA)) {
+        e.preventDefault();
+        var ra = document.createRange(); ra.selectNodeContents(blkA);
+        var sa = window.getSelection(); sa.removeAllRanges(); sa.addRange(ra);
+      }
+      return;
+    }
     if (slashKey(e)) return;                       // slash menu owns arrows/enter/esc while open
     if (mdKey(e)) return;                           // markdown shortcuts / smart quotes
     if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "d") { e.preventDefault(); duplicateBlock(); return; }
@@ -3757,6 +3786,8 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     var pop = showPop('<label>Table</label><div class="rrnb-tablectl">' +
       '<button data-tbl="row+">＋ Row</button><button data-tbl="col+">＋ Column</button>' +
       '<button data-tbl="row-" class="danger">− Row</button><button data-tbl="col-" class="danger">− Column</button>' +
+      '<button data-tbl="rowup" title="Move this row up">Row ↑</button><button data-tbl="rowdn" title="Move this row down">Row ↓</button>' +
+      '<button data-tbl="colL" title="Move this column left">Col ←</button><button data-tbl="colR" title="Move this column right">Col →</button>' +
       '<button data-tbl="al-left" title="Align column left">⇤</button><button data-tbl="al-center" title="Align column center">↔</button><button data-tbl="al-right" title="Align column right">⇥</button>' +
       '<button data-tbl="hdr" title="Toggle header row">Header row</button>' +
       '<button data-tbl="zebra" title="Toggle row striping">Striping</button>' +
@@ -3786,6 +3817,26 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
         });
       } else if (act === "col-") {
         rows.forEach(function (r) { if (r.cells[ci]) r.cells[ci].remove(); });
+      } else if (act === "rowup" || act === "rowdn") {
+        // #45 move this row within its section, never past a header/footer row
+        var sib = act === "rowup" ? tr.previousElementSibling : tr.nextElementSibling;
+        var blocked = !sib || (sib.parentNode && sib.parentNode.tagName === "THEAD") || sib.classList.contains("rrnb-tfoot") || (sib.cells[0] && sib.cells[0].tagName === "TH");
+        if (!blocked) { if (act === "rowup") tr.parentNode.insertBefore(tr, sib); else tr.parentNode.insertBefore(sib, tr); }
+      } else if (act === "colL" || act === "colR") {
+        // #45 move this column one step left/right across every row (+ its colgroup col)
+        var tj = act === "colL" ? ci - 1 : ci + 1;
+        if (tj >= 0 && tj < tr.cells.length) {
+          rows.forEach(function (r) {
+            if (!r.cells[ci] || !r.cells[tj]) return;
+            if (act === "colL") r.insertBefore(r.cells[ci], r.cells[tj]);
+            else r.insertBefore(r.cells[tj], r.cells[ci]);
+          });
+          var cg = table.querySelector("colgroup");
+          if (cg && cg.children[ci] && cg.children[tj]) {
+            if (act === "colL") cg.insertBefore(cg.children[ci], cg.children[tj]);
+            else cg.insertBefore(cg.children[tj], cg.children[ci]);
+          }
+        }
       } else if (act === "al-left" || act === "al-center" || act === "al-right") {
         var al = act.slice(3); rows.forEach(function (r) { if (r.cells[ci]) r.cells[ci].style.textAlign = al; });
       } else if (act === "zebra") {
