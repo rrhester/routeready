@@ -2336,7 +2336,11 @@
       : kind === 'warn'
       ? '<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'
       : '<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
-    el.innerHTML = icon + '<span>' + msg + '</span>';
+    // The icon is a trusted constant; the message is caller-supplied and can
+    // carry user text (e.g. a workbook data-validation message), so it must go
+    // in as text, never markup — mirrors toastAction()'s textContent path.
+    el.innerHTML = icon + '<span></span>';
+    el.querySelector('span').textContent = msg == null ? '' : String(msg);
     stack.appendChild(el);
     setTimeout(function(){ el.classList.add('fade'); setTimeout(function(){ el.remove(); }, 250); }, 2800);
   }
