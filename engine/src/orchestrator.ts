@@ -235,6 +235,26 @@ export function runEngine(input: EngineInput): ScheduleResult {
   // Surface Step 1.5 pin-yield warnings alongside the validation warnings.
   warnings.push(...lockWarnings);
 
+  // Historical-pattern cold start: drivers with history in fewer than
+  // ceil(window/2) of the lookback weeks get a NEUTRAL 0.5 affinity on
+  // every weekday (Step 4) — patterns silently stop steering their
+  // placements. Only worth saying when pattern protection is actually on.
+  if (ctx.settings.historical_pattern_protection !== "off") {
+    const coldCount = ctx.drivers.filter(
+      (d) => ctx.patterns.get(d.driver_id)?.cold_start,
+    ).length;
+    if (coldCount > 0) {
+      const windowWeeks = ctx.settings.history_window_weeks;
+      warnings.push({
+        type: "affinity_cold_start",
+        message:
+          `${coldCount} of ${ctx.drivers.length} drivers have schedule history in fewer than ` +
+          `${Math.ceil(windowWeeks / 2)} of the last ${windowWeeks} weeks — historical patterns are ` +
+          "neutral for them this run (they'll kick in as more weeks accumulate)",
+      });
+    }
+  }
+
   // Step 9b — Fifth-Day Fill. Runs AFTER validation: it intentionally
   // takes opted-in drivers one day past the max-days cap, so validating
   // it against that cap would be a false positive. The pass self-

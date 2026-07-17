@@ -7058,3 +7058,20 @@ body.rr-sched-carrying #view-schedule #sched-sub-week .cal-cell[data-rr-cell="dr
   box-shadow: var(--ring-focus, 0 0 0 3px rgba(37,99,235,.18)),
               inset 0 0 0 2px var(--accent);
 }
+
+/* ── Weekend shading · Sat/Sun columns get a faint neutral tint so the
+   week's edges read at a glance (100-list #38). Renderer adds .is-wknd
+   to day headers and driver-day cells. Today's accent tint still wins
+   (:not(.today)); hover keeps its existing canvas wash. End-of-sheet so
+   it layers over the earlier cell backgrounds. */
+#view-schedule.rrx-schedule .cal-cell.is-wknd:not(.today) {
+  background: rgba(15, 23, 42, 0.022);
+}
+#view-schedule.rrx-schedule .cal-cell.is-wknd:not(.today):hover {
+  background: var(--canvas);
+}
+#view-schedule.rrx-schedule .cal-grid.head .cal-cell-head.is-wknd:not(.today) {
+  /* Keep the sticky header opaque (driver rows scroll beneath it) —
+     blend the tint into a solid colour instead of an alpha wash. */
+  background: #F7F8FA !important;
+}

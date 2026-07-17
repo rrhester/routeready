@@ -224,3 +224,26 @@ test("seniority scheduling method orders by hire date", () => {
   );
   assert.equal(r.assigned_shifts[0].driver_id, "senior");
 });
+
+test("cold-start affinity emits a warning when pattern protection is on", () => {
+  const base = {
+    drivers: [driver({ driver_id: "d1" }), driver({ driver_id: "d2" })],
+    shifts: [shift({ shift_id: "s1", date: "2026-05-25" })],
+    history: [], // no history at all -> every driver is cold-start
+  };
+  const on = runEngine(
+    input({ ...base, settings: { historical_pattern_protection: "low" } }),
+  );
+  const warns = on.warnings.filter((w) => w.type === "affinity_cold_start");
+  assert.equal(warns.length, 1);
+  assert.match(warns[0].message, /2 of 2 drivers/);
+
+  // Silent when pattern protection is off — the patterns aren't consulted.
+  const off = runEngine(
+    input({ ...base, settings: { historical_pattern_protection: "off" } }),
+  );
+  assert.equal(
+    off.warnings.filter((w) => w.type === "affinity_cold_start").length,
+    0,
+  );
+});

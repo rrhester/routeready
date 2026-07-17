@@ -33909,7 +33909,7 @@ async function _sawSmartFill() {
     const payload = {
       schedule_week_start: weekStart, max_days: st.maxDays, weekly_hour_cap: st.weeklyCap, time_budget_ms: 8000,
       rules: { availability: true, pto_block: true, preserve_locked_assignments: true, manual_mode: false, assign_vans: false, weekly_hour_cap_enforcement: true, consecutive_working_days: true, min_rest: true, min_rest_hours: st.minRest, same_day_multi_shift: "block" },
-      drivers: [{ id: st.driver.id, full_name: st.driver.full_name, status: st.driver.status, hire_date: st.driver.hire_date, dl_expires_on: st.driver.dl_expires_on || null, dot_certified: !!st.driver.dot_certified, xl_certified: !!st.driver.xl_certified, edv_certified: !!st.driver.edv_certified, available_dows: availDows, preferred_dows: prefDows, final_corrective_action: false, weekday_affinity: null, fifth_day_ok: av.fifth_day_ok === true }],
+      drivers: [{ id: st.driver.id, full_name: st.driver.full_name, status: st.driver.status, hire_date: st.driver.hire_date, dl_expires_on: st.driver.dl_expires_on || null, dot_certified: !!st.driver.dot_certified, xl_certified: !!st.driver.xl_certified, edv_certified: !!st.driver.edv_certified, employment_type: st.driver.employment_type ?? st.driver.metadata?.employment_type ?? null, available_dows: availDows, preferred_dows: prefDows, final_corrective_action: false, weekday_affinity: null, fifth_day_ok: av.fifth_day_ok === true }],
       shifts: engineShifts, pto: [], ad_hoc_constraints: [],
     };
     // IDs of the real eligible open shifts we offered the engine, so we can
@@ -57968,6 +57968,12 @@ async function autoFillScheduleWeek() {
           diagnostics.unscheduled.map(s => "  • " + s).join("\n")
         );
       }
+      if (diagnostics.dataNotices && diagnostics.dataNotices.length > 0) {
+        parts.push(
+          `Data notices (input gaps shaping this run):\n` +
+          diagnostics.dataNotices.map(m => "  • " + m).join("\n")
+        );
+      }
       summaryAlert =
         (_rrWhatIfOptions ? "Smart Fill results · SIMULATION (live schedule not changed)\n\n"
                           : "Smart Fill results\n\n")
@@ -59316,6 +59322,10 @@ async function autoAssignDriversForWeek() {
         dot_certified: d.dot_certified,
         xl_certified: d.xl_certified,
         edv_certified: d.edv_certified,
+        // Column doesn't exist on drivers yet — metadata is the interim
+        // home. Missing/unknown → the engine adapter defaults full_time,
+        // so this is a pure pass-through until the roster captures it.
+        employment_type: d.employment_type ?? d.metadata?.employment_type ?? null,
         available_dows: availableDowsOf(d),
         preferred_dows: preferredDowsOf(d),
         final_corrective_action: finalDrivers.has(d.id),
@@ -59726,6 +59736,12 @@ async function autoAssignDriversForWeek() {
     // pin "didn't work."
     pinYields: (result.warnings || [])
       .filter(w => w && w.type === "pin_not_applied")
+      .map(w => w.message),
+    // Data notices · engine/adapter warnings about the INPUTS (missing
+    // hire dates under seniority ordering, thin pattern history) — the
+    // schedule is fine, but a data gap is quietly shaping who gets picked.
+    dataNotices: (result.warnings || [])
+      .filter(w => w && (w.type === "hire_date_missing" || w.type === "affinity_cold_start"))
       .map(w => w.message),
     // Per-date coverage projection (used by the Monthly staffing forecast).
     // shifts = schedulable shifts the engine saw that day; assigned = those
@@ -63443,6 +63459,7 @@ async function renderScheduleWeek() {
       const iso = fmtIsoDate(dt);
       const c = fillByDate.get(iso) || { needed: 0, filled: 0 };
       cellHead.classList.toggle("today", iso === todayIso);
+      cellHead.classList.toggle("is-wknd", dt.getDay() === 0 || dt.getDay() === 6);
       let coverageLine = "";
       // Actual routes planned for the day in the Targets tool (raw
       // target_routes, BEFORE cushion — distinct from the cushion-inflated
@@ -63727,7 +63744,10 @@ async function renderScheduleWeek() {
     }
     if (_rowDefaultMax < 2) _rowDefaultKey = "";
     const cells = days.map(iso => {
-      const cls = `cal-cell${iso === todayIso ? " today" : ""}`;
+      // is-wknd — Sat/Sun get a faint tint so the week's edges read at a
+      // glance (today's accent still wins; see schedule-rrx.css).
+      const _wkndDow = new Date(iso + "T00:00:00").getDay();
+      const cls = `cal-cell${iso === todayIso ? " today" : ""}${(_wkndDow === 0 || _wkndDow === 6) ? " is-wknd" : ""}`;
       const data = `data-rr-cell="driver-day" data-rr-cell-date="${iso}" data-rr-cell-driver="${d.id}"${d.station_id ? ` data-rr-cell-station="${d.station_id}"` : ""}`;
       const isPref = !!prefSet && prefSet.size > 0 && prefSet.has(_dowKey(iso));
       {
@@ -63818,7 +63838,10 @@ async function renderScheduleWeek() {
 
   const pdRowsHtml = peakUnfilled === 0 ? "" : Array.from({ length: peakUnfilled }, (_, r) => {
     const cells = days.map(iso => {
-      const cls = `cal-cell${iso === todayIso ? " today" : ""}`;
+      // is-wknd — Sat/Sun get a faint tint so the week's edges read at a
+      // glance (today's accent still wins; see schedule-rrx.css).
+      const _wkndDow = new Date(iso + "T00:00:00").getDay();
+      const cls = `cal-cell${iso === todayIso ? " today" : ""}${(_wkndDow === 0 || _wkndDow === 6) ? " is-wknd" : ""}`;
       const slots = openSlotsByDate.get(iso) || [];
       if (r >= slots.length) return `<div class="${cls}"><div class="shift-chip off"></div></div>`;
       const slot = slots[r];
@@ -67667,22 +67690,73 @@ function _tplCard(t) {
     </div>`;
 }
 
-// "Save this week as template" — name + optional description, then RPC.
-document.addEventListener("click", async (e) => {
+// "Save this week as template" — name + optional description in a small
+// modal (same inline pattern as the Apply modal below; replaced the old
+// double window.prompt() flow), then RPC.
+document.addEventListener("click", (e) => {
   if (!e.target.closest("#rr-tpl-capture-btn")) return;
   const weekStart = window._rrWeekStart instanceof Date
     ? window._rrWeekStart
     : new Date();
   const iso = `${weekStart.getFullYear()}-${String(weekStart.getMonth() + 1).padStart(2, "0")}-${String(weekStart.getDate()).padStart(2, "0")}`;
-  const name = window.prompt(`Save the week starting ${weekStart.toLocaleDateString()} as a template.\n\nName:`);
-  if (!name) return;
-  const description = window.prompt("Optional description (or leave blank):") || null;
-  const { data, error } = await sb.rpc("template_capture", {
-    p_name: name, p_week_start: iso, p_description: description,
+
+  let m = document.getElementById("rr-tpl-capture-modal");
+  if (m) m.remove();
+  m = document.createElement("div");
+  m.id = "rr-tpl-capture-modal";
+  m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:200;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
+  m.innerHTML = `
+    <div role="dialog" aria-modal="true" aria-labelledby="rr-tpl-capture-title" style="background:var(--surface);border-radius:var(--r-xl);width:100%;max-width:420px;overflow:hidden">
+      <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border)">
+        <div id="rr-tpl-capture-title" style="font-weight:700;font-size:var(--fs-md);color:var(--text)">Save week as template</div>
+        <div style="margin-top:2px;font-size:var(--fs-xs);color:var(--text-subtle)">Week starting ${escapeHtml(weekStart.toLocaleDateString())}</div>
+      </div>
+      <div style="padding:var(--s-4) var(--s-5);display:flex;flex-direction:column;gap:var(--s-3-5)">
+        <label style="display:flex;flex-direction:column;gap:6px">
+          <span style="font-size:var(--fs-sm);font-weight:600">Template name</span>
+          <input type="text" id="rr-tpl-capture-name" class="form-input" maxlength="80" placeholder="e.g. Standard 4-wave week" autocomplete="off"/>
+        </label>
+        <label style="display:flex;flex-direction:column;gap:6px">
+          <span style="font-size:var(--fs-sm);font-weight:600">Description <span style="font-weight:400;color:var(--text-subtle)">(optional)</span></span>
+          <textarea id="rr-tpl-capture-desc" class="form-input" rows="2" maxlength="240" placeholder="When to use this pattern…" style="resize:vertical"></textarea>
+        </label>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:var(--s-2);padding:var(--s-3-5) 22px;border-top:1px solid var(--border);background:var(--canvas)">
+        <button class="btn btn-sm" id="rr-tpl-capture-cancel" type="button">Cancel</button>
+        <button class="btn btn-sm btn-primary" id="rr-tpl-capture-go" type="button">Save template</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  const nameInput = document.getElementById("rr-tpl-capture-name");
+  const close = () => { m.remove(); document.removeEventListener("keydown", onKey); };
+  const onKey = (ev) => {
+    if (ev.key === "Escape") { ev.stopPropagation(); close(); }
+    if (ev.key === "Enter" && ev.target === nameInput) { ev.preventDefault(); go(); }
+  };
+  document.addEventListener("keydown", onKey);
+  async function go() {
+    const name = (nameInput?.value || "").trim();
+    if (!name) { nameInput?.focus(); return; }
+    const description = (document.getElementById("rr-tpl-capture-desc")?.value || "").trim() || null;
+    const btn = document.getElementById("rr-tpl-capture-go");
+    if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
+    const { data, error } = await sb.rpc("template_capture", {
+      p_name: name, p_week_start: iso, p_description: description,
+    });
+    if (error) {
+      toast(error.message || "Couldn't save template", "warn");
+      if (btn) { btn.disabled = false; btn.textContent = "Save template"; }
+      return;
+    }
+    toast(`Template saved · ${data?.slot_count || 0} slots captured`, "success");
+    close();
+    loadScheduleTemplates();
+  }
+  m.addEventListener("click", (ev) => {
+    if (ev.target === m || ev.target.closest("#rr-tpl-capture-cancel")) { close(); return; }
+    if (ev.target.closest("#rr-tpl-capture-go")) go();
   });
-  if (error) { toast(error.message || "Couldn't save template", "warn"); return; }
-  toast(`Template saved · ${data?.slot_count || 0} slots captured`, "success");
-  loadScheduleTemplates();
+  setTimeout(() => nameInput?.focus(), 0);
 });
 
 async function _tplOpenApply(templateId, name) {

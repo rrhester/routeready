@@ -224,3 +224,56 @@ test("adapter run is idempotent", () => {
     );
   assert.equal(JSON.stringify(mk().assigned_shifts), JSON.stringify(mk().assigned_shifts));
 });
+
+test("adapter lets the pto_default_hours setting govern PTO hours", () => {
+  // One PTO day + an 8h default: the record must carry NO hours value so
+  // the setting applies (10 was previously stamped on every record).
+  const r = planScheduleWeek(
+    basePayload({
+      drivers: [d("d1")],
+      shifts: [s("s1", "2026-05-26")],
+      pto: [{ driver_id: "d1", date: "2026-05-25" }],
+      rules: { pto_default_hours: 8 },
+    }),
+  );
+  const t = r.driver_totals.find((x) => x.driver_id === "d1");
+  assert.equal(t?.pto_hours, 8);
+});
+
+test("adapter maps employment_type variants for full_time_priority", () => {
+  // Same profile except employment type; full_time_priority must hand the
+  // single shift to the full-time driver even though "pt" sorts first
+  // alphabetically. "pt"/"part-time" variants normalize to part_time.
+  const r = planScheduleWeek(
+    basePayload({
+      drivers: [
+        d("a-part", { employment_type: "pt" }),
+        d("b-full", { employment_type: "Full Time" }),
+      ],
+      shifts: [s("s1", "2026-05-25")],
+      rules: { scheduling_method: "full_time_priority" },
+    }),
+  );
+  assert.equal(r.assigned_shifts[0]?.driver_id, "b-full");
+});
+
+test("adapter warns on missing hire dates under seniority ordering", () => {
+  const mk = (method: "seniority" | "fair_rotation") =>
+    planScheduleWeek(
+      basePayload({
+        drivers: [d("d1", { hire_date: null }), d("d2")],
+        shifts: [s("s1", "2026-05-25")],
+        rules: { scheduling_method: method },
+      }),
+    );
+  const warned = mk("seniority").warnings.filter(
+    (w) => w.type === "hire_date_missing",
+  );
+  assert.equal(warned.length, 1);
+  assert.equal(warned[0].driver_id, "d1");
+  // Only relevant when seniority ordering is in play.
+  const silent = mk("fair_rotation").warnings.filter(
+    (w) => w.type === "hire_date_missing",
+  );
+  assert.equal(silent.length, 0);
+});
