@@ -4234,7 +4234,8 @@ function hasDynamicRefs(ast) {
 // RFC-4180-ish: quoted values, embedded commas, embedded quotes (""),
 // embedded newlines inside quotes, CRLF/LF/CR line endings, BOM strip.
 
-function parseCsv(text) {
+function parseCsv(text, delimiter) {
+  const D = delimiter && delimiter.length === 1 ? delimiter : ",";
   const rows = [];
   let row = [];
   let field = "";
@@ -4253,7 +4254,7 @@ function parseCsv(text) {
       field += c; i++; continue;
     }
     if (c === '"' && field === "") { inQuotes = true; i++; continue; }
-    if (c === ",") { row.push(field); field = ""; i++; continue; }
+    if (c === D) { row.push(field); field = ""; i++; continue; }
     if (c === "\r") { if (s[i + 1] === "\n") i++; row.push(field); rows.push(row); row = []; field = ""; i++; continue; }
     if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; i++; continue; }
     field += c; i++;
@@ -11078,6 +11079,14 @@ function syncFormulaBar(g) {
 
 // ─── Clipboard ───────────────────────────────────────────────────────────────
 
+// The displayed text of a selected cell (formula result or raw value).
+function selCellText(sheet, r, c) {
+  const cell = sheet.cells.get(cellKey(r, c));
+  let v = cell ? (cell.formula ? (cell.err || String(cell.computed ?? "")) : String(cell.value ?? "")) : "";
+  if (v.startsWith(WB_SPARK_MARK)) v = ""; // sparklines have no text form
+  return v;
+}
+
 function selectionToTsv(g) {
   const { r0, r1, c0, c1 } = selRect(g);
   const sheet = g.sheet;
@@ -11085,15 +11094,59 @@ function selectionToTsv(g) {
   for (let r = r0; r <= r1; r++) {
     const parts = [];
     for (let c = c0; c <= c1; c++) {
-      const cell = sheet.cells.get(cellKey(r, c));
-      let v = cell ? (cell.formula ? (cell.err || String(cell.computed ?? "")) : String(cell.value ?? "")) : "";
-      if (v.startsWith(WB_SPARK_MARK)) v = ""; // sparklines have no text form
+      let v = selCellText(sheet, r, c);
       if (/[\t\n\r]/.test(v)) v = '"' + v.replace(/"/g, '""') + '"';
       parts.push(v);
     }
     lines.push(parts.join("\t"));
   }
   return lines.join("\n");
+}
+
+// Copy the selection as a Markdown or HTML table (100-list #71). Row 0 of the
+// selection is treated as the header.
+function selectionToMarkdown(g) {
+  const { r0, r1, c0, c1 } = selRect(g);
+  const sheet = g.sheet;
+  const rows = [];
+  for (let r = r0; r <= r1; r++) {
+    const cells = [];
+    for (let c = c0; c <= c1; c++) cells.push(selCellText(sheet, r, c).replace(/\|/g, "\\|").replace(/\n/g, " "));
+    rows.push(`| ${cells.join(" | ")} |`);
+  }
+  if (rows.length) {
+    const cols = c1 - c0 + 1;
+    rows.splice(1, 0, `| ${Array(cols).fill("---").join(" | ")} |`);
+  }
+  return rows.join("\n");
+}
+function selectionToHtmlTable(g) {
+  const { r0, r1, c0, c1 } = selRect(g);
+  const sheet = g.sheet;
+  let out = '<table border="1" cellspacing="0" cellpadding="4">';
+  for (let r = r0; r <= r1; r++) {
+    out += "<tr>";
+    for (let c = c0; c <= c1; c++) {
+      const tag = r === r0 ? "th" : "td";
+      out += `<${tag}>${esc(selCellText(sheet, r, c))}</${tag}>`;
+    }
+    out += "</tr>";
+  }
+  return out + "</table>";
+}
+async function copySelectionAs(g, fmt) {
+  const text = fmt === "md" ? selectionToMarkdown(g) : selectionToHtmlTable(g);
+  try {
+    if (fmt === "html" && navigator.clipboard.write && window.ClipboardItem) {
+      await navigator.clipboard.write([new ClipboardItem({
+        "text/html": new Blob([text], { type: "text/html" }),
+        "text/plain": new Blob([selectionToTsv(g)], { type: "text/plain" }),
+      })]);
+    } else {
+      await navigator.clipboard.writeText(text);
+    }
+    _toast(fmt === "md" ? "Copied as Markdown" : "Copied as an HTML table", "success");
+  } catch (_) { _toast("Couldn't copy", "error"); }
 }
 
 // Rich internal clipboard: cell objects (formulas + formats) plus the
@@ -13962,6 +14015,103 @@ function exportSheetCsv(g) {
   _toast("CSV exported", "success");
 }
 
+// Minimal text-table PDF writer (100-list #67): a real PDF, not the browser
+// print dialog. Lays the used range out as a monospaced grid across letter
+// pages, repeating the header row on each page. Dependency-free.
+function pdfEscape(s) { return String(s).replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)"); }
+function buildTablePdf(matrix, opts = {}) {
+  const title = opts.title || "Workbook";
+  const landscape = !!opts.landscape;
+  const PW = landscape ? 792 : 612, PH = landscape ? 612 : 792;
+  const M = 40, fontSize = 8, lineH = 12, charW = fontSize * 0.6;
+  const usableW = PW - 2 * M;
+  const nCols = matrix.reduce((m, row) => Math.max(m, row.length), 0) || 1;
+  // even column widths (in chars), clamped so the row fits the page width
+  const colChars = Math.max(4, Math.floor((usableW / charW) / nCols));
+  const clip = (v) => { const s = String(v ?? "").replace(/[\r\n\t]/g, " "); return s.length > colChars ? s.slice(0, colChars - 1) + "…" : s; };
+  const rowsPerPage = Math.floor((PH - 2 * M - lineH * 2) / lineH);
+  const header = matrix[0] || [];
+  const dataRows = matrix.slice(1);
+  const pages = [];
+  for (let i = 0; i < Math.max(1, dataRows.length); i += rowsPerPage) pages.push(dataRows.slice(i, i + rowsPerPage));
+  const objs = [];
+  const streams = pages.map((pageRows, pi) => {
+    let y = PH - M;
+    let content = `BT /F1 ${fontSize + 2} Tf ${M} ${y} Td (${pdfEscape(title)}) Tj ET\n`;
+    y -= lineH * 1.6;
+    const drawRow = (row, bold) => {
+      let line = "";
+      for (let c = 0; c < nCols; c++) line += clip(row[c]).padEnd(colChars + 1, " ");
+      content += `BT /F${bold ? "2" : "1"} ${fontSize} Tf ${M} ${y} Td (${pdfEscape(line)}) Tj ET\n`;
+      y -= lineH;
+    };
+    if (header.length) drawRow(header, true);
+    for (const row of pageRows) drawRow(row, false);
+    // page number footer (100-list #68)
+    content += `BT /F1 7 Tf ${PW - M - 60} ${M - 14} Td (Page ${pi + 1} of ${pages.length}) Tj ET\n`;
+    return content;
+  });
+  // assemble the PDF objects: catalog, pages, per-page [page, content], 2 fonts
+  const nPages = streams.length;
+  const fontHelv = "<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>";
+  const fontBold = "<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold >>";
+  const parts = [];
+  const kids = [];
+  let objNum = 3 + nPages * 2; // fonts get the last two ids
+  const fontHelvId = objNum + 1, fontBoldId = objNum + 2;
+  for (let i = 0; i < nPages; i++) {
+    const pageId = 3 + i * 2, contentId = 4 + i * 2;
+    kids.push(`${pageId} 0 R`);
+  }
+  objs[1] = `<< /Type /Catalog /Pages 2 0 R >>`;
+  objs[2] = `<< /Type /Pages /Count ${nPages} /Kids [${kids.join(" ")}] >>`;
+  for (let i = 0; i < nPages; i++) {
+    const pageId = 3 + i * 2, contentId = 4 + i * 2;
+    objs[pageId] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PW} ${PH}] /Resources << /Font << /F1 ${fontHelvId} 0 R /F2 ${fontBoldId} 0 R >> >> /Contents ${contentId} 0 R >>`;
+    const s = streams[i];
+    objs[contentId] = `<< /Length ${s.length} >>\nstream\n${s}\nendstream`;
+  }
+  objs[fontHelvId] = fontHelv;
+  objs[fontBoldId] = fontBold;
+  // serialize with an xref table
+  let pdf = "%PDF-1.4\n";
+  const offsets = [];
+  for (let i = 1; i < objs.length; i++) {
+    if (objs[i] == null) continue;
+    offsets[i] = pdf.length;
+    pdf += `${i} 0 obj\n${objs[i]}\nendobj\n`;
+  }
+  const xrefStart = pdf.length;
+  const maxId = objs.length - 1;
+  pdf += `xref\n0 ${maxId + 1}\n0000000000 65535 f \n`;
+  for (let i = 1; i <= maxId; i++) {
+    pdf += offsets[i] != null ? `${String(offsets[i]).padStart(10, "0")} 00000 n \n` : `0000000000 00000 f \n`;
+  }
+  pdf += `trailer\n<< /Size ${maxId + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`;
+  return new TextEncoder().encode(pdf);
+}
+
+function exportSheetPdf(g) {
+  const sheet = g.sheet;
+  const { maxR, maxC } = usedRange(sheet);
+  if (maxR < 0) { _toast("This sheet is empty — nothing to export", "info"); return; }
+  const matrix = [];
+  for (let r = 0; r <= maxR; r++) {
+    const row = [];
+    for (let c = 0; c <= maxC; c++) row.push(sheet.cells.get(cellKey(r, c)) ? displayValue(sheet, r, c) : "");
+    matrix.push(row);
+  }
+  const bytes = buildTablePdf(matrix, { title: `${(WB.wb && WB.wb.title) || "Workbook"} · ${sheet.name}`, landscape: maxC > 6 });
+  const blob = new Blob([bytes], { type: "application/pdf" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `${((WB.wb && WB.wb.title) || "workbook").replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "-").toLowerCase()}-${sheet.name.replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "-").toLowerCase() || "sheet"}.pdf`;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 400);
+  wbLog("pdf.exported", `exported ${sheet.name} as PDF`, { target_type: "sheet", target_id: sheet.id });
+  _toast("PDF exported", "success");
+}
+
 // ─── Print / page layout ─────────────────────────────────────────────────────
 // A live print-preview popup with real page setup — orientation, paper size,
 // margins, fit-to-width scaling, gridlines, a repeated header row, and print
@@ -14034,12 +14184,16 @@ function printSheet(g) {
     table.gridlines td,table.gridlines th{border:1px solid #D1D5DB}
     .wb-page.no-headings .wb-rh,.wb-page.no-headings .wb-colhead{display:none}
     @page{size:letter portrait;margin:14mm}
+    /* page footer with a page counter (100-list #68) — paged-media counters */
+    @page{@bottom-center{content:"${esc(sheet.name)} — page " counter(page) " of " counter(pages);font-family:-apple-system,Segoe UI,sans-serif;font-size:9px;color:#6B7280}}
     @media print{
       body{background:#fff}
       .wb-bar{display:none}
       .wb-page{margin:0;padding:0;box-shadow:none;width:auto;max-width:none}
       thead.norepeat{display:table-row-group}
+      .wb-print-foot{display:block}
     }
+    .wb-print-foot{display:none;position:fixed;bottom:4mm;left:0;right:0;text-align:center;font-size:9px;color:#6B7280}
   </style></head><body>
     <div class="wb-bar">
       <label>Orientation <select id="p-orient">${opt("portrait", "Portrait")}${opt("landscape", "Landscape")}</select></label>
@@ -14058,6 +14212,7 @@ function printSheet(g) {
       <div class="wb-head"><h2>${esc(title)}</h2><p class="sub">${esc(sheet.name)} · ${esc(new Date().toLocaleDateString())}</p></div>
       <table class="gridlines" id="p-table"><thead id="p-thead">${fullT.thead}</thead><tbody id="p-tbody">${fullT.tbody}</tbody></table>
     </div>
+    <div class="wb-print-foot">${esc(sheet.name)} · ${esc(new Date().toLocaleDateString())}</div>
     <script>
       var DATA={sheet:{thead:${JSON.stringify(fullT.thead)},tbody:${JSON.stringify(fullT.tbody)}},sel:${selT ? JSON.stringify({ thead: selT.thead, tbody: selT.tbody }) : "null"}};
       var PAPER={letter:[8.5,11],a4:[8.27,11.69],legal:[8.5,14]},MARG={normal:14,narrow:6,wide:22};
@@ -14065,7 +14220,7 @@ function printSheet(g) {
       function pageStyle(){
         var o=$("p-orient").value,p=$("p-paper").value,m=MARG[$("p-margin").value];
         var st=document.getElementById("p-page-style")||document.head.appendChild(Object.assign(document.createElement("style"),{id:"p-page-style"}));
-        st.textContent="@page{size:"+p+" "+o+";margin:"+m+"mm}";
+        st.textContent="@page{size:"+p+" "+o+";margin:"+m+"mm;@bottom-center{content:'page ' counter(page) ' of ' counter(pages);font-size:9px;color:#6B7280}}";
         return {o:o,p:p,m:m};
       }
       function fit(cfg){
@@ -15493,28 +15648,92 @@ function importCsvInto(g) {
     if (file.size > 5 * 1024 * 1024) { _toast("That file is over 5 MB — split it up first", "error"); return; }
     const reader = new FileReader();
     reader.onload = () => {
-      let matrix;
-      try { matrix = parseCsv(String(reader.result || "")); }
-      catch (e) { _toast("Couldn't parse that CSV file", "error"); return; }
-      if (!matrix.length) { _toast("That CSV file is empty", "warn"); return; }
-      let clipped = false;
-      if (matrix.length > CSV_MAX_ROWS) { matrix = matrix.slice(0, CSV_MAX_ROWS); clipped = true; }
-      matrix = matrix.map((row) => { if (row.length > CSV_MAX_COLS) { clipped = true; return row.slice(0, CSV_MAX_COLS); } return row; });
-      const sheet = g.sheet;
-      const hasData = usedRange(sheet).maxR >= 0;
-      const doImport = () => applyCsvImport(g, matrix, clipped, file.name);
-      if (hasData) {
-        confirmModal({
-          title: "Replace this sheet's data?",
-          body: `Importing <strong>${esc(file.name)}</strong> (${matrix.length} row${matrix.length === 1 ? "" : "s"}) will replace everything currently on “${esc(sheet.name)}”.`,
-          confirmLabel: "Replace and import", danger: true, onConfirm: doImport,
-        });
-      } else doImport();
+      const text = String(reader.result || "");
+      openCsvImportWizard(g, text, file.name);
     };
     reader.onerror = () => _toast("Couldn't read that file", "error");
     reader.readAsText(file);
   });
   input.click();
+}
+
+// CSV import wizard (100-list #69): delimiter picker with a live preview.
+// Encoding is UTF-8 (the FileReader default) with a note; the delimiter is
+// auto-detected from the first line and adjustable.
+function csvGuessDelimiter(text) {
+  const firstLine = text.split(/\r?\n/).find((l) => l.trim()) || "";
+  const counts = { ",": 0, ";": 0, "\t": 0, "|": 0 };
+  let inQ = false;
+  for (const ch of firstLine) { if (ch === '"') inQ = !inQ; else if (!inQ && ch in counts) counts[ch]++; }
+  return Object.entries(counts).sort((a, b) => b[1] - a[1])[0][1] > 0
+    ? Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0] : ",";
+}
+function openCsvImportWizard(g, text, fileName) {
+  document.getElementById("wb-csv-modal")?.remove();
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-csv-modal";
+  const guessed = csvGuessDelimiter(text);
+  const delimVal = (v) => v === "\t" ? "\\t" : v;
+  wrap.innerHTML = `
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Import CSV" style="width:560px">
+      <div class="rr-modal-head">
+        <div class="rr-modal-head-content"><p class="rr-modal-title">Import ${esc(fileName)}</p><p class="rr-modal-sub">Pick the separator; the preview updates as you choose.</p></div>
+        <button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button>
+      </div>
+      <div class="rr-modal-body">
+        <div class="wb-field-row">
+          <label class="wb-field" style="flex:0 0 200px"><span class="wb-field-label">Separator</span>
+            <select class="wb-input" id="wb-csv-delim">
+              <option value="," ${guessed === "," ? "selected" : ""}>Comma ( , )</option>
+              <option value=";" ${guessed === ";" ? "selected" : ""}>Semicolon ( ; )</option>
+              <option value="\\t" ${guessed === "\t" ? "selected" : ""}>Tab</option>
+              <option value="|" ${guessed === "|" ? "selected" : ""}>Pipe ( | )</option>
+            </select></label>
+          <label class="wb-field"><span class="wb-field-label">Encoding</span>
+            <input class="wb-input" value="UTF-8 (auto)" disabled></label>
+        </div>
+        <span class="wb-field-label" style="margin-top:10px">Preview (first rows)</span>
+        <div id="wb-csv-preview" style="overflow:auto;max-height:260px;border:1px solid var(--border,#E5E7EB);border-radius:8px;margin-top:4px"></div>
+      </div>
+      <div class="rr-modal-foot">
+        <button class="rr-modal-btn" type="button" data-wb-close>Cancel</button>
+        <button class="rr-modal-btn primary" type="button" data-wb-confirm>Import</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  const sel = wrap.querySelector("#wb-csv-delim");
+  const previewHost = wrap.querySelector("#wb-csv-preview");
+  const curDelim = () => sel.value === "\\t" ? "\t" : sel.value;
+  const paint = () => {
+    let m;
+    try { m = parseCsv(text, curDelim()); } catch (_) { m = []; }
+    const rows = m.slice(0, 8);
+    previewHost.innerHTML = `<table style="border-collapse:collapse;font-size:12px;width:100%">${rows.map((row, ri) => `<tr>${row.slice(0, 12).map((cell) => `<td style="border:1px solid var(--border,#eee);padding:3px 6px;${ri === 0 ? "font-weight:600;background:var(--surface-2,#f5f6f8)" : ""}">${esc(String(cell).slice(0, 40))}</td>`).join("")}</tr>`).join("")}</table>`;
+  };
+  sel.addEventListener("change", paint);
+  paint();
+  wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") wrap.remove(); });
+  wrap.addEventListener("click", (e) => {
+    if (e.target === wrap || e.target.closest("[data-wb-close]")) { wrap.remove(); return; }
+    if (!e.target.closest("[data-wb-confirm]")) return;
+    let matrix;
+    try { matrix = parseCsv(text, curDelim()); } catch (_) { _toast("Couldn't parse with that separator", "error"); return; }
+    if (!matrix.length) { _toast("Nothing to import with that separator", "warn"); return; }
+    let clipped = false;
+    if (matrix.length > CSV_MAX_ROWS) { matrix = matrix.slice(0, CSV_MAX_ROWS); clipped = true; }
+    matrix = matrix.map((row) => { if (row.length > CSV_MAX_COLS) { clipped = true; return row.slice(0, CSV_MAX_COLS); } return row; });
+    wrap.remove();
+    const sheet = g.sheet;
+    const doImport = () => applyCsvImport(g, matrix, clipped, fileName);
+    if (usedRange(sheet).maxR >= 0) {
+      confirmModal({
+        title: "Replace this sheet's data?",
+        body: `Importing <strong>${esc(fileName)}</strong> (${matrix.length} row${matrix.length === 1 ? "" : "s"}) will replace everything currently on “${esc(sheet.name)}”.`,
+        confirmLabel: "Replace and import", danger: true, onConfirm: doImport,
+      });
+    } else doImport();
+  });
 }
 
 function applyCsvImport(g, matrix, clipped, fileName) {
@@ -20414,6 +20633,8 @@ function openCellContextMenu(g, x, y, kind) {
     cellImgSrc(g.sheet.cells.get(cellKey(r, c))) ? item("view-image", "View image") : "",
     g.sheet.cells.get(cellKey(r, c))?.format?.img ? item("remove-image", "Remove image") : "",
     item("copy-ref", "Copy cell reference"),
+    item("copy-md", "Copy as Markdown"),
+    item("copy-html", "Copy as HTML table"),
     item("paste-values", "Paste values only"),
     item("trace-precedents", "Highlight precedents"),
     item("trace-dependents", "Highlight dependents"),
@@ -20447,6 +20668,8 @@ function openCellContextMenu(g, x, y, kind) {
     switch (act) {
       case "cut": await copySelection(g, "cut"); break;
       case "copy": await copySelection(g); break;
+      case "copy-md": await copySelectionAs(g, "md"); break;
+      case "copy-html": await copySelectionAs(g, "html"); break;
       case "paste": await pasteFromClipboard(g); break;
       case "insert-row-above": restructure(g, "row", rect0.r0, kind === "row" ? nRows : 1); break;
       case "insert-row-below": restructure(g, "row", rect0.r1 + 1, kind === "row" ? nRows : 1); break;
@@ -21106,6 +21329,7 @@ function wbMenuItems(menu, g) {
       { label: "Download", sub: [
         { label: "Microsoft Excel (.xlsx)", act: "file:xlsx", disabled: !g },
         { label: "CSV (current sheet)", act: "file:csv", disabled: !g },
+        { label: "PDF (current sheet)", act: "file:pdf", disabled: !g },
       ] },
       { label: "Print…", act: "file:print", disabled: !g },
       sep,
@@ -21309,6 +21533,7 @@ function wbMenuAction(act, g) {
     case "file:import-xlsx": if (need()) importXlsxInto(g); return;
     case "file:xlsx": if (need()) exportBlockXlsx(g); return;
     case "file:csv": if (need()) exportSheetCsv(g); return;
+    case "file:pdf": if (need()) exportSheetPdf(g); return;
     case "file:print": if (need()) printSheet(g); return;
     case "file:rename": { const t = document.getElementById("wb-title-input"); if (t) { t.focus(); t.select(); } return; }
     case "file:share": openPanelTab("sharing"); return;
@@ -23512,7 +23737,7 @@ export const __engine = {
   fillSeries, cycleRefAnchor, errorHint, columnSuggestion, snapshotSheet, applySheetSnapshot,
   colLabel, colIndex, cellRef, parseCellRef,
   dateToSerial, serialToDate, isoDate, parseDateLoose,
-  buildXlsxBytes, parseXlsxBytes, buildPrintTable, formatForDisplay, applyCustomFormat, customFormatColor, solveGoalSeek, filterCondHits, inferSmartTransform,
+  buildXlsxBytes, parseXlsxBytes, buildPrintTable, buildTablePdf, formatForDisplay, applyCustomFormat, customFormatColor, solveGoalSeek, filterCondHits, inferSmartTransform, parseCsv,
   condBarPercent, condIconPick, WB_CF_ICONSETS, isCellProtected, runQuery,
   chartSvg, WB_CHART_TYPES, kpiTileHtml, tableTileHtml, textTileHtml, kpiSparkline, kpiFmt, embedCellNum,
   chartData, aggRange, distinctColumnValues, kpiValue, KPI_AGGS,
