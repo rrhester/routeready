@@ -364,3 +364,58 @@ Phase 6 limits: shop-side self-service status updates (the shop
 posting "parts arrived" through the portal) land with the inbound
 email / document-intelligence phase; parts ETAs are tracked via the
 delay reason + revised date rather than a parts subtable.
+
+## 14 · Phase 7 — what shipped
+
+- `supabase/migrations/0490_repair_center_email_intelligence.sql` —
+  three rails: ① `repair_inbound_email_match` (sender ↔ vendor email
+  incl. contacts jsonb; an RC-YYYY-NNNN token in subject/body always
+  wins; vendor fallback ONLY when exactly one open case — ambiguity
+  never guesses) writes one idempotent 'shop_email' timeline event and
+  files the email's document_intake attachments onto the case, using
+  0330's until-now-unused filing columns. ② `repair_quote_extract_save`
+  + `repair_document_extractions` journal: coerces model output
+  fail-closed (integer cents 0..$1M, safe timestamps, category
+  whitelist), creates DRAFT quotes only, replaces only its own
+  unreviewed draft on re-extract, and backs off entirely once
+  reviewed; totals recomputed by repair_quote_recompute with
+  totals_mismatch flagged never corrected. `repair_quote_review`
+  (staff) accepts (reviewer-stamped → submitted) or discards.
+  ③ `repair_email_event_apply`: delivered → delivered_at (0002's
+  dormant columns), bounced/complained → status failed + the linked
+  quote request flips to 'failed' (red) + timeline events on request
+  and authorization emails. Also defensively re-creates
+  document_intake (0330 predates the 0373 ledger baseline — same gap
+  class as the 0313 vendor columns).
+- Edge functions — `webhook-email-events` (new; Svix-verified Resend
+  deliverability events; RESEND_EVENTS_WEBHOOK_SECRET, documented in
+  SECRETS.md); `repair-quote-extract` (new; document-classify's
+  sibling — Sonnet, forced tool use, transcribe-never-compute prompt,
+  28 MB cap, 4-attempt backoff, dual service/user-JWT auth);
+  `webhook-email-inbound` gains a best-effort repair-match call after
+  both insert and dedup paths, with fire-and-forget extraction for
+  matched PDF/image attachments. Both new functions registered in
+  config.toml + the deploy workflow's no-verify-jwt list.
+- Dashboard — "Needs review · extracted, unconfirmed" section in the
+  drawer's quotes area (confidence %, totals-differ badge); review
+  modal (source document one click away, transcribed lines,
+  server-computed vs printed total, shop picker when the sender wasn't
+  identified, accept/discard — never edits a number); per-attachment
+  "Extract quote" button for PDFs/photos; bounced-email timeline
+  events render red.
+- Verified: 0486→0490 from scratch + 0490 double-applied on local
+  Postgres 16; new 0490 exercise (case-insensitive vendor match, token
+  precedence, ambiguity refusal, idempotent redelivery, hostile-value
+  coercion incl. oversized/negative cents, re-extract replacement,
+  reviewed-never-overwritten, discard keeps the journal, invoice
+  journaled without a quote, bounce→request-failed, delivered
+  stamping, unknown ids ignored, non-staff refusal); Playwright drive
+  of the review flow with zero console errors.
+
+Phase 7 limits: the two new edge functions can't be executed locally
+(no Deno here) — they mirror document-classify / webhook-email-inbound
+patterns line-for-line and their SQL write-backs are exercise-covered;
+first real inbound email + a Resend test bounce are worth watching in
+the function logs after deploy. Invoices are journaled and typed but
+not reconciled — that's Phase 8. Multi-case senders fall back to the
+Fleet Bridge inbox by design.
