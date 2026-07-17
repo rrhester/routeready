@@ -15193,13 +15193,17 @@ function openDataTableDialog(g) {
   wrap.className = "rr-modal-backdrop";
   wrap.id = "wb-datatable-modal";
   wrap.innerHTML = `
-    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="What-if data table" style="width:460px">
-      <div class="rr-modal-head"><div class="rr-modal-head-content"><p class="rr-modal-title">What-if data table</p><p class="rr-modal-sub">Try a column (or row) of input values through one cell and record a formula's result for each.</p></div><button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button></div>
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="What-if data table" style="width:470px">
+      <div class="rr-modal-head"><div class="rr-modal-head-content"><p class="rr-modal-title">What-if data table</p><p class="rr-modal-sub">Try a column (or row) of input values through one cell and record a formula's result for each. Add a second input for a full two-way table.</p></div><button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button></div>
       <div class="rr-modal-body">
         <label class="wb-field"><span class="wb-field-label">Input values — a single column or row</span><input class="wb-input" id="wb-dt-inputs" value="${esc(rect.r0 !== rect.r1 || rect.c0 !== rect.c1 ? selRef : "")}" placeholder="A2:A11" autocomplete="off" spellcheck="false"></label>
         <label class="wb-field" style="margin-top:10px"><span class="wb-field-label">Substitute into cell</span><input class="wb-input" id="wb-dt-input" placeholder="B1" autocomplete="off" spellcheck="false"></label>
+        <details style="margin-top:10px"><summary style="cursor:pointer;font-size:12px;color:var(--text-subtle)">Add a second input (two-way table)</summary>
+          <label class="wb-field" style="margin-top:8px"><span class="wb-field-label">Second input values — a single column or row</span><input class="wb-input" id="wb-dt-inputs2" placeholder="B1:E1" autocomplete="off" spellcheck="false"></label>
+          <label class="wb-field" style="margin-top:8px"><span class="wb-field-label">Substitute into cell</span><input class="wb-input" id="wb-dt-input2" placeholder="B2" autocomplete="off" spellcheck="false"></label>
+        </details>
         <label class="wb-field" style="margin-top:10px"><span class="wb-field-label">Formula cell to record</span><input class="wb-input" id="wb-dt-formula" placeholder="C1" autocomplete="off" spellcheck="false"></label>
-        <label class="wb-field" style="margin-top:10px"><span class="wb-field-label">Write results starting at</span><input class="wb-input" id="wb-dt-out" placeholder="C2" autocomplete="off" spellcheck="false"></label>
+        <label class="wb-field" style="margin-top:10px"><span class="wb-field-label">Write results starting at (top-left)</span><input class="wb-input" id="wb-dt-out" placeholder="C2" autocomplete="off" spellcheck="false"></label>
         <p id="wb-dt-msg" style="margin-top:10px;min-height:18px;color:var(--text-subtle);font-size:12px"></p>
       </div>
       <div class="rr-modal-foot"><button class="rr-modal-btn" type="button" data-wb-close>Cancel</button><button class="rr-modal-btn primary" type="button" id="wb-dt-run">Fill table</button></div>
@@ -15208,51 +15212,86 @@ function openDataTableDialog(g) {
   const close = () => wrap.remove();
   wrap.addEventListener("click", (e) => { if (e.target === wrap || e.target.closest("[data-wb-close]")) close(); });
   wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") close(); });
+  // Parse a "single column or row" reference into a rect (a bare cell counts).
+  const parseLine = (txt) => parseRangeRefText(txt) || (() => { const c = parseCellRef(txt); return c ? { r0: c.row, c0: c.col, r1: c.row, c1: c.col } : null; })();
+  // Read a single row/col range's raw values as a flat list, in order.
+  const gatherInputs = (rng) => {
+    const out = [];
+    if (rng.c0 === rng.c1) for (let r = rng.r0; r <= rng.r1; r++) { const c = sheet.cells.get(cellKey(r, rng.c0)); out.push(c ? (c.formula ? c.computed : c.value) : ""); }
+    else for (let c = rng.c0; c <= rng.c1; c++) { const cc = sheet.cells.get(cellKey(rng.r0, c)); out.push(cc ? (cc.formula ? cc.computed : cc.value) : ""); }
+    return out;
+  };
+  const cellFormulaResult = (formulaKey) => {
+    const t = sheet.cells.get(formulaKey);
+    if (!t || t.err) return null;
+    const raw = t.formula ? t.computed : t.value;
+    const num = cellNumeric(raw);
+    return (typeof num === "number" && isFinite(num)) ? num : raw;
+  };
   wrap.querySelector("#wb-dt-run").addEventListener("click", () => {
     const msg = wrap.querySelector("#wb-dt-msg");
-    const inRect = parseRangeRefText((wrap.querySelector("#wb-dt-inputs").value || "").trim())
-      || (() => { const c = parseCellRef((wrap.querySelector("#wb-dt-inputs").value || "").trim()); return c ? { r0: c.row, c0: c.col, r1: c.row, c1: c.col } : null; })();
+    const inRect = parseLine((wrap.querySelector("#wb-dt-inputs").value || "").trim());
     const inputRC = parseCellRef((wrap.querySelector("#wb-dt-input").value || "").trim());
     const formulaRC = parseCellRef((wrap.querySelector("#wb-dt-formula").value || "").trim());
     const outRC = parseCellRef((wrap.querySelector("#wb-dt-out").value || "").trim());
+    // optional second input (two-way table)
+    const in2Txt = (wrap.querySelector("#wb-dt-inputs2").value || "").trim();
+    const in2CellTxt = (wrap.querySelector("#wb-dt-input2").value || "").trim();
+    const twoWay = !!(in2Txt || in2CellTxt);
+    const in2Rect = twoWay ? parseLine(in2Txt) : null;
+    const input2RC = twoWay ? parseCellRef(in2CellTxt) : null;
     if (!inRect || !inputRC || !formulaRC || !outRC) { msg.textContent = "Enter valid references for every field."; return; }
     if (inRect.r0 !== inRect.r1 && inRect.c0 !== inRect.c1) { msg.textContent = "Input values must be a single column or a single row."; return; }
-    const vertical = inRect.c0 === inRect.c1;
-    const formulaKey = cellKey(formulaRC.row, formulaRC.col), inputKey = cellKey(inputRC.row, inputRC.col);
+    if (twoWay && (!in2Rect || !input2RC)) { msg.textContent = "Fill both second-input fields, or clear them for a one-way table."; return; }
+    if (twoWay && in2Rect.r0 !== in2Rect.r1 && in2Rect.c0 !== in2Rect.c1) { msg.textContent = "Second input values must be a single column or a single row."; return; }
+    const formulaKey = cellKey(formulaRC.row, formulaRC.col);
     const formulaCell = sheet.cells.get(formulaKey);
     if (!formulaCell || !formulaCell.formula) { msg.textContent = "The formula cell must contain a formula."; return; }
-    const inputCell = sheet.cells.get(inputKey);
+    const inputKey = cellKey(inputRC.row, inputRC.col), inputCell = sheet.cells.get(inputKey);
     if (inputCell && inputCell.formula) { msg.textContent = "The substitution cell can't contain a formula."; return; }
-    // gather the raw substitution values in order
-    const inputs = [];
-    if (vertical) for (let r = inRect.r0; r <= inRect.r1; r++) { const c = sheet.cells.get(cellKey(r, inRect.c0)); inputs.push(c ? (c.formula ? c.computed : c.value) : ""); }
-    else for (let c = inRect.c0; c <= inRect.c1; c++) { const cc = sheet.cells.get(cellKey(inRect.r0, c)); inputs.push(cc ? (cc.formula ? cc.computed : cc.value) : ""); }
+    const input2Key = twoWay ? cellKey(input2RC.row, input2RC.col) : null;
+    if (twoWay) { const c2 = sheet.cells.get(input2Key); if (c2 && c2.formula) { msg.textContent = "The second substitution cell can't contain a formula."; return; } if (input2Key === inputKey) { msg.textContent = "The two substitution cells must be different."; return; } }
+    // save / restore / set helpers for the input cell(s)
+    const save = (key) => { const c = sheet.cells.get(key); return c ? { existed: true, value: c.value } : { existed: false }; };
+    const restore = (key, o) => { if (!o.existed) sheet.cells.delete(key); else { const c = sheet.cells.get(key); if (c) { c.value = o.value; c.computed = null; c.err = null; } } };
+    const setCell = (key, v) => { let c = sheet.cells.get(key); if (!c) { c = { value: "0", formula: null, type: "number", computed: null, err: null, format: {} }; sheet.cells.set(key, c); } c.value = String(v ?? ""); c.formula = null; c.computed = null; c.err = null; };
+
+    const inputs = gatherInputs(inRect);
     if (!inputs.length) { msg.textContent = "The input range is empty."; return; }
-    // probe: substitute → recalc → read the formula cell
-    const origVal = inputCell ? inputCell.value : null, existed = !!inputCell;
-    const ensureInput = () => { let c = sheet.cells.get(inputKey); if (!c) { c = { value: "0", formula: null, type: "number", computed: null, err: null, format: {} }; sheet.cells.set(inputKey, c); } return c; };
-    const probe1 = (v) => {
-      const c = ensureInput(); c.value = String(v ?? ""); c.formula = null; c.computed = null; c.err = null;
-      recalcSheet(sheet, [inputKey]);
-      const t = sheet.cells.get(formulaKey);
-      if (!t || t.err) return null;
-      const raw = t.formula ? t.computed : t.value;
-      const num = cellNumeric(raw);
-      return (typeof num === "number" && isFinite(num)) ? num : raw;
-    };
-    const outputs = computeDataTable1(probe1, inputs);
-    // restore the input cell, then recalc back to the original state
-    const c = sheet.cells.get(inputKey);
-    if (c) { if (!existed) sheet.cells.delete(inputKey); else { c.value = origVal; c.computed = null; c.err = null; } }
-    recalcSheet(sheet);
-    // write the results in the same orientation as the inputs
+
+    if (!twoWay) {
+      // ── one-way table ──
+      const vertical = inRect.c0 === inRect.c1;
+      const o1 = save(inputKey);
+      const probe1 = (v) => { setCell(inputKey, v); recalcSheet(sheet, [inputKey]); return cellFormulaResult(formulaKey); };
+      const outputs = computeDataTable1(probe1, inputs);
+      restore(inputKey, o1); recalcSheet(sheet);
+      const changes = outputs.map((y, i) => {
+        const r = vertical ? outRC.row + i : outRC.row, cc = vertical ? outRC.col : outRC.col + i;
+        return { r, c: cc, cell: cellFromInput(y == null ? "" : String(y), sheet.cells.get(cellKey(r, cc))) };
+      });
+      setCells(g, changes);
+      _toast(`Data table: filled ${outputs.length} result${outputs.length === 1 ? "" : "s"}.`, "success");
+      close();
+      return;
+    }
+
+    // ── two-way table: inputs (col 1) run DOWN the rows, second inputs run ACROSS the columns ──
+    const inputs2 = gatherInputs(in2Rect);
+    if (!inputs2.length) { msg.textContent = "The second input range is empty."; return; }
+    if (inputs.length * inputs2.length > 10000) { msg.textContent = "That table is too large (over 10,000 cells) — use smaller input ranges."; return; }
+    const o1 = save(inputKey), o2 = save(input2Key);
+    const probe2 = (acrossVal, downVal) => { setCell(input2Key, acrossVal); setCell(inputKey, downVal); recalcSheet(sheet, [inputKey, input2Key]); return cellFormulaResult(formulaKey); };
+    // computeDataTable2(probe, rowInputs, colInputs) → colInputs map to output rows, rowInputs to output columns
+    const grid = computeDataTable2(probe2, inputs2, inputs);
+    restore(inputKey, o1); restore(input2Key, o2); recalcSheet(sheet);
     const changes = [];
-    outputs.forEach((y, i) => {
-      const r = vertical ? outRC.row + i : outRC.row, cc = vertical ? outRC.col : outRC.col + i;
+    grid.forEach((row, i) => row.forEach((y, j) => {
+      const r = outRC.row + i, cc = outRC.col + j;
       changes.push({ r, c: cc, cell: cellFromInput(y == null ? "" : String(y), sheet.cells.get(cellKey(r, cc))) });
-    });
+    }));
     setCells(g, changes);
-    _toast(`Data table: filled ${outputs.length} result${outputs.length === 1 ? "" : "s"}.`, "success");
+    _toast(`Data table: filled a ${inputs.length}×${inputs2.length} grid.`, "success");
     close();
   });
   setTimeout(() => wrap.querySelector("#wb-dt-input")?.focus(), 0);
