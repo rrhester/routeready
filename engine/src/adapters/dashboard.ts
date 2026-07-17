@@ -37,6 +37,9 @@ export interface DashboardDriver {
   weekday_affinity?: number[] | null;
   /** Driver opted in to working an extra (5th) day. */
   fifth_day_ok?: boolean;
+  /** "full_time" | "part_time" (ft/pt variants accepted); null/unknown =
+   *  full_time. Feeds the full_time_priority scheduling method. */
+  employment_type?: string | null;
 }
 
 export interface DashboardShift {
@@ -164,7 +167,10 @@ export interface PlanPayload {
   ad_hoc_constraints?: AdHocConstraint[];
 }
 
-// PTO / approved day off always counts as 10 hours toward the weekly cap.
+// Fallback hours-per-PTO-day for the pto_default_hours SETTING when the
+// operator hasn't set one. PTO records themselves are passed to the engine
+// with no hours value, so the setting (not this constant) governs how many
+// hours each PTO day counts toward the weekly cap.
 const PTO_HOURS_PER_DAY = 10;
 // A permissive window: a listed day-of-week means "available all day".
 const ALL_DAY: WeeklyAvailability[string] = [{ start: "00:00", end: "48:00" }];
@@ -199,12 +205,19 @@ function mapDriver(
 ): DriverInput {
   const status = String(raw.status ?? "").toLowerCase();
   const name = splitName(String(raw.full_name ?? raw.id));
+  // Employment type — sanitize here (the engine's normalizer THROWS on
+  // unknown values, which would drop the driver): pt variants map to
+  // part_time, anything else (incl. missing data) defaults to full_time.
+  const emp = String(raw.employment_type ?? "").toLowerCase().replace(/[\s-]+/g, "_");
   return {
     driver_id: String(raw.id),
     first_name: name.first,
     last_name: name.last,
     status: status === "onboarding" ? "onboarding" : "active",
-    employment_type: "full_time",
+    employment_type:
+      emp === "part_time" || emp === "parttime" || emp === "pt"
+        ? "part_time"
+        : "full_time",
     // A MISSING hire date must not make the driver the most senior (seniority
     // sorts ascending, so "2000-01-01" put unknown-tenure drivers at the front
     // of every priority queue — a data gap becoming top scheduling priority).
@@ -220,9 +233,12 @@ function mapDriver(
     xl_certified: raw.xl_certified === true,
     saved_availability: availabilityFromDows(raw.available_dows),
     preferred_availability: availabilityFromDows(raw.preferred_dows),
+    // No hours on the record → the engine applies the pto_default_hours
+    // setting per day. Stamping a literal here (the old behavior) silently
+    // overrode that setting for every DSP.
     pto_records: (ptoByDriver.get(String(raw.id)) ?? []).map((date) => ({
       date,
-      hours: PTO_HOURS_PER_DAY,
+      hours: null,
     })),
     attendance_score: null,
     attendance_final: raw.final_corrective_action === true,
@@ -537,20 +553,38 @@ export function planScheduleWeek(payload: PlanPayload): ScheduleResult {
     ptoByDriver.set(p.driver_id, list);
   }
 
-  const drivers = payload.drivers
-    .filter((d) => {
-      const s = String(d.status ?? "").toLowerCase();
-      return s === "active" || s === "onboarding";
-    })
-    .map((d) => mapDriver(d, ptoByDriver));
+  const eligibleRaw = payload.drivers.filter((d) => {
+    const s = String(d.status ?? "").toLowerCase();
+    return s === "active" || s === "onboarding";
+  });
+  const drivers = eligibleRaw.map((d) => mapDriver(d, ptoByDriver));
 
+  const settings = buildSettings(payload);
   const input: EngineInput = {
     schedule_week_start: payload.schedule_week_start,
     shifts: payload.shifts.map(mapShift),
     drivers,
     dsp: { dsp_blackout_dates: payload.blackout_dates ?? [] },
-    settings: buildSettings(payload),
+    settings,
     ad_hoc_constraints: payload.ad_hoc_constraints,
   };
-  return runEngine(input);
+  const result = runEngine(input);
+
+  // Data-quality notice: under Seniority ordering, a driver with no hire
+  // date on file gets a far-future sentinel and always ranks LEAST senior
+  // (mapDriver above). Deliberate — a data gap must not become top
+  // priority — but invisible to the operator unless surfaced.
+  if (settings.scheduling_method === "seniority") {
+    for (const d of eligibleRaw) {
+      if (d.hire_date && d.hire_date.length >= 10) continue;
+      result.warnings.push({
+        type: "hire_date_missing",
+        driver_id: String(d.id),
+        message:
+          `${String(d.full_name ?? d.id)} has no hire date on file — ` +
+          "ranked least-senior by the Seniority scheduling method until one is set",
+      });
+    }
+  }
+  return result;
 }
