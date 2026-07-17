@@ -254,6 +254,17 @@
   background:transparent;color:var(--text-subtle);cursor:pointer;font-size:var(--fs-base)}
 .rrnb-newpage:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
 .rrnb-empty{padding:var(--s-8) var(--s-4);text-align:center;color:var(--text-subtle);font-size:var(--fs-sm)}
+/* #93 consistent friendly empty state */
+.rrnb-estate{padding:26px 18px;text-align:center;color:var(--text-subtle)}
+.rrnb-estate .ico{font-size:26px;line-height:1;opacity:.55;margin-bottom:7px}
+.rrnb-estate .ttl{font-size:var(--fs-sm);font-weight:600;color:var(--text)}
+.rrnb-estate .hint{font-size:var(--fs-xs);margin-top:3px;line-height:1.4}
+/* #98 visible keyboard-focus rings — only for keyboard nav, never on mouse */
+#view-notebooks button:focus-visible,#view-notebooks a:focus-visible,#view-notebooks input:focus-visible,
+#view-notebooks select:focus-visible,#view-notebooks textarea:focus-visible,#view-notebooks [tabindex]:focus-visible,
+#view-notebooks .rrnb-page:focus-visible,#view-notebooks .rrnb-section:focus-visible,
+.rrnb-slash-opt:focus-visible,.rrnb-ctx-item:focus-visible,.rrnb-menu-item:focus-visible{
+  outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
 
 /* ── canvas / editor ─────────────────────────────────────────────── */
 .rrnb-canvas-wrap{flex:1;min-height:0;overflow:auto;display:flex;justify-content:center}
@@ -1469,8 +1480,14 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     if (pinned.length) { html += '<div class="rrnb-plgroup-hd">Pinned</div>' + pinned.map(function (p) { return pageRow(p, true); }).join(""); html += '<div class="rrnb-plgroup-hd">Pages</div>'; }
     function walk(p) { html += pageRow(p, false); (kids[p.id] || []).forEach(walk); }
     tops.forEach(walk);
+    if (!tops.length && !pinned.length) html += emptyStateHTML("📄", "No pages yet", S.readOnly ? "This section is empty." : "Press <b>＋ Add page</b> or <b>Alt+N</b> to start one.");
     host.innerHTML = html;
     applyDensity();
+  }
+  // #93 a consistent, friendly empty state (icon + title + optional hint).
+  // `hint` may contain small inline HTML (e.g. a shortcut in <b>).
+  function emptyStateHTML(icon, title, hint) {
+    return '<div class="rrnb-estate"><div class="ico" aria-hidden="true">' + icon + '</div><div class="ttl">' + esc(title) + '</div>' + (hint ? '<div class="hint">' + hint + '</div>' : '') + '</div>';
   }
   // Compact vs comfortable page list — persisted per browser.
   function applyDensity() {
@@ -1511,7 +1528,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   function renderRecycle(host) {
     S.be.recycleList(S.nbId).then(function (rows) {
       var html = '<div class="rrnb-plgroup-hd">Recycle Bin</div>';
-      if (!rows || !rows.length) html += '<div class="rrnb-empty">Nothing deleted. Deleted pages are kept here so you can restore them.</div>';
+      if (!rows || !rows.length) html += emptyStateHTML("🗑️", "Recycle Bin is empty", "Deleted pages land here so you can restore them.");
       html += (rows || []).map(function (r) {
         return '<div class="rrnb-page" data-restore="' + r.id + '"><div class="body"><div class="ttl">' + esc(r.title) + '</div>' +
           '<div class="sub">deleted ' + esc(relTime(r.deleted_at)) + '</div></div>' +
@@ -3178,7 +3195,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     var top = rows.filter(function (c) { return !c.parent_id; });
     var repl = {}; rows.forEach(function (c) { if (c.parent_id) (repl[c.parent_id] = repl[c.parent_id] || []).push(c); });
     var html = '<h4>Comments' + (rows.length ? '<span class="cnt">' + rows.length + "</span>" : "") + "</h4>";
-    if (!rows.length) html += '<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:8px">No comments yet — start the thread.</div>';
+    if (!rows.length) html += emptyStateHTML("💬", "No comments yet", "Start the thread below.");
     top.forEach(function (c) { html += cmtHtml(c, false); (repl[c.id] || []).forEach(function (r) { html += cmtHtml(r, true); }); });
     var chip = "";
     if (S._replyTo) {
@@ -3445,6 +3462,12 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
         '.rrnb-todo[data-checked="1"] .rrnb-todo-text{text-decoration:line-through;color:#888}' +
         '.rrnb-callout{display:flex;gap:8px;background:#eef4ff;border:1px solid #c8d8f8;border-radius:6px;padding:8px 12px;margin:8px 0}' +
         'a{color:#2563eb}.rrnb-file{display:block;border:1px solid #ddd;border-radius:6px;padding:8px 12px;max-width:420px;text-decoration:none;color:#111;margin:8px 0}' +
+        // #97 sane page breaks: keep headings with their content, never split
+        // tables/rows/images/callouts across a page.
+        '@page{margin:16mm}' +
+        'h1,h2,h3{break-after:avoid;page-break-after:avoid}' +
+        'table,figure,pre,blockquote,.rrnb-callout,.rrnb-todo,img{break-inside:avoid;page-break-inside:avoid}' +
+        'tr{break-inside:avoid;page-break-inside:avoid}' +
         '</style></head><body><h1>' + esc(p.title || "Page") + '</h1>' + (p.content_html || "") + '</body></html>');
       w.document.close();
       w.focus();
@@ -4356,7 +4379,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     var label = q || (tag ? "#" + tag : "");
     S.be.search(q, { tag: tag }).then(function (rows) {
       S.mode = "search";
-      if (!rows || !rows.length) { host.innerHTML = '<div class="rrnb-empty">No results for “' + esc(label) + '”.</div>'; return; }
+      if (!rows || !rows.length) { host.innerHTML = emptyStateHTML("🔍", "No results", "Nothing matches “" + esc(label) + "”. Try a different word or tag."); return; }
       host.innerHTML = '<div class="rrnb-plgroup-hd">' + rows.length + ' result' + (rows.length > 1 ? "s" : "") + '</div>' + rows.map(function (r) {
         return '<div class="rrnb-page" data-search-page="' + r.id + '" data-search-nb="' + r.notebook_id + '"><div class="body">' +
           '<div class="ttl">' + hlText(r.title || "Untitled", q) + '</div>' +
@@ -4994,7 +5017,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     var list = [];
     try { list = JSON.parse(localStorage.getItem(recentKey()) || "[]"); } catch (e) {}
     var html = '<div class="rrnb-plgroup-hd">Recent</div>';
-    if (!list.length) html += '<div class="rrnb-empty">Pages you open show up here.</div>';
+    if (!list.length) html += emptyStateHTML("🕘", "No recent pages", "Pages you open will show up here.");
     html += list.map(function (r) {
       var nb = S.notebooks.filter(function (n) { return n.id === r.notebook_id; })[0];
       return '<div class="rrnb-page" data-recent-page="' + r.id + '" data-recent-nb="' + r.notebook_id + '"><div class="body">' +
