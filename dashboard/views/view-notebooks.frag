@@ -273,9 +273,14 @@
   margin-bottom:var(--s-3)}
 .rrnb-wc{color:var(--text-subtle);white-space:nowrap;font-variant-numeric:tabular-nums}
 .rrnb-save{display:inline-flex;align-items:center;gap:6px}
-.rrnb-save .dot{width:7px;height:7px;border-radius:50%;background:var(--green)}
+.rrnb-save .dot{width:7px;height:7px;border-radius:50%;background:var(--green);transition:background .2s}
 .rrnb-save.saving .dot{background:var(--amber)}
 .rrnb-save.err .dot{background:var(--red)}
+/* #92 a brief pulse on the dot + fade on the label when a save lands */
+.rrnb-save.saved-flash .dot{animation:rrnbsaved .7s ease-out}
+.rrnb-save.saved-flash #rrnb-save-txt{animation:rrnbsavedtxt .7s ease-out}
+@keyframes rrnbsaved{0%{transform:scale(1);box-shadow:0 0 0 0 var(--green)}35%{transform:scale(1.55);box-shadow:0 0 0 4px rgba(22,163,74,.18)}100%{transform:scale(1);box-shadow:0 0 0 6px rgba(22,163,74,0)}}
+@keyframes rrnbsavedtxt{0%{opacity:.35}100%{opacity:1}}
 
 /* toolbar */
 .rrnb-toolbar{position:sticky;top:0;z-index:10;display:flex;flex-wrap:wrap;align-items:center;gap:2px;
@@ -1090,6 +1095,26 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     } catch (e) {}
   }
   function fail(e) { console.warn("[notebooks]", e); notify((e && e.message) || "Something went wrong"); }
+  // #95 a toast with an Undo action, self-rendered so it works regardless of
+  // the host app's toast. Auto-dismisses after a few seconds.
+  function undoToast(msg, onUndo) {
+    try {
+      var t = document.getElementById("rrnb-undotoast");
+      if (!t) {
+        t = document.createElement("div"); t.id = "rrnb-undotoast";
+        t.style.cssText = "position:fixed;z-index:2147483001;left:50%;bottom:28px;transform:translateX(-50%);display:flex;align-items:center;gap:12px;background:#111827;color:#fff;padding:8px 10px 8px 16px;border-radius:8px;font-size:13px;font-family:inherit;box-shadow:0 8px 24px rgba(0,0,0,.28);opacity:0;transition:opacity .15s;max-width:80vw";
+        t.innerHTML = '<span id="rrnb-undotoast-msg"></span><button type="button" id="rrnb-undotoast-btn" style="background:transparent;border:0;color:#93c5fd;font-weight:600;cursor:pointer;font-size:13px;padding:3px 8px;border-radius:6px">Undo</button>';
+        document.body.appendChild(t);
+      }
+      t.querySelector("#rrnb-undotoast-msg").textContent = msg;
+      var btn = t.querySelector("#rrnb-undotoast-btn");
+      t.style.opacity = "1"; clearTimeout(t._h);
+      var done = false;
+      var close = function () { t.style.opacity = "0"; };
+      btn.onclick = function () { if (done) return; done = true; clearTimeout(t._h); close(); try { onUndo && onUndo(); } catch (e) {} };
+      t._h = setTimeout(close, 6000);
+    } catch (e) { notify(msg); }
+  }
 
   // ── first load ──────────────────────────────────────────────────
   function provKey() { return "rrnb-provisioned:" + (((window.RR && window.RR.dsp && window.RR.dsp.id) || "local")); }
@@ -2866,12 +2891,13 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   }
   function setSaveState(st) {
     var box = $id("rrnb-save"); if (!box) return;
+    var wasSaving = box.classList.contains("saving");
     box.classList.remove("saving", "err");
     if (st === "saving") { box.classList.add("saving"); $id("rrnb-save-txt").textContent = "Saving…"; }
     else if (st === "err") { box.classList.add("err"); $id("rrnb-save-txt").textContent = "Save failed — retrying"; setTimeout(doSave, 2500); }
     else if (st === "queued") { box.classList.add("saving"); $id("rrnb-save-txt").textContent = "Offline — saved on this device, will sync"; setTimeout(doSave, 4000); }
     else if (st === "conflict") { box.classList.add("err"); $id("rrnb-save-txt").textContent = "Conflict — not saved"; }
-    else refreshSaveLabel();
+    else { refreshSaveLabel(); if (wasSaving) { box.classList.remove("saved-flash"); void box.offsetWidth; box.classList.add("saved-flash"); setTimeout(function () { box.classList.remove("saved-flash"); }, 750); } }
   }
 
   // ── offline outbox: edits survive a dead connection AND a closed tab ──
@@ -4427,7 +4453,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       if (act === "md") return exportMarkdown(t.id);
       if (act === "tpl") return saveAsTemplate(t.id);
       if (act === "dup") return S.be.duplicatePage(t.id).then(function () { return selectNotebook(S.nbId, null); });
-      if (act === "del") return S.be.deleteItem("page", t.id).then(function () { if (S.pageId === t.id) showBlank(); return selectNotebook(S.nbId, null); });
+      if (act === "del") { var delId = t.id, wasCur = S.pageId === t.id; return S.be.deleteItem("page", delId).then(function () { if (wasCur) showBlank(); return selectNotebook(S.nbId, null); }).then(function () { undoToast("Page deleted", function () { S.be.restoreItem("page", delId).then(function () { return selectNotebook(S.nbId, delId); }).catch(fail); }); }); }
       if (act === "sub") return indentPage(t.id, +1);
       if (act === "promote") return indentPage(t.id, -1);
     }
@@ -4693,10 +4719,24 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   function openTagPicker(anchor) {
     var r = anchor.getBoundingClientRect();
     var used = (S.page && S.page.tags) || [];
-    var opts = TAG_PRESETS.filter(function (t) { return used.indexOf(t) < 0; });
-    var pop = showPop('<label>Add tag</label><input id="rrnb-tag-in" placeholder="Type or pick…" /><div class="rrnb-pop-list">' +
-      opts.map(function (t) { return '<div class="rrnb-pop-opt" data-tag-pick="' + esc(t) + '">' + esc(t) + '</div>'; }).join("") + '</div>', r);
+    // #77 autocomplete: offer the preset tags plus every tag already in use
+    // across this notebook's pages, minus the ones on this page already.
+    var inUse = {};
+    ((S.tree && S.tree.pages) || []).forEach(function (p) { (p.tags || []).forEach(function (t) { if (t) inUse[t] = 1; }); });
+    var all = TAG_PRESETS.slice();
+    Object.keys(inUse).forEach(function (t) { if (all.indexOf(t) < 0) all.push(t); });
+    all = all.filter(function (t) { return used.indexOf(t) < 0; }).sort(function (a, b) { return a.toLowerCase() < b.toLowerCase() ? -1 : 1; });
+    var pop = showPop('<label>Add tag</label><input id="rrnb-tag-in" placeholder="Type or pick…" autocomplete="off" /><div class="rrnb-pop-list" id="rrnb-tag-list"></div>', r);
+    function renderList(q) {
+      q = (q || "").trim(); var lc = q.toLowerCase();
+      var opts = all.filter(function (t) { return !lc || t.toLowerCase().indexOf(lc) >= 0; });
+      var html = opts.map(function (t) { return '<div class="rrnb-pop-opt" data-tag-pick="' + esc(t) + '">' + esc(t) + '</div>'; }).join("");
+      if (q && all.indexOf(q) < 0 && used.indexOf(q) < 0) html += '<div class="rrnb-pop-opt rrnb-pop-new" data-tag-pick="' + esc(q) + '">＋ Create “' + esc(q) + '”</div>';
+      var list = $id("rrnb-tag-list"); if (list) list.innerHTML = html || '<div class="rrnb-pop-opt" style="opacity:.5">No matching tags</div>';
+    }
+    renderList("");
     var inp = $id("rrnb-tag-in"); inp.focus();
+    inp.addEventListener("input", function () { renderList(inp.value); });
     inp.addEventListener("keydown", function (e) { if (e.key === "Enter") { addTag(inp.value); hidePop(); } });
     pop.addEventListener("click", function (e) { var o = e.target.closest("[data-tag-pick]"); if (o) { addTag(o.getAttribute("data-tag-pick")); hidePop(); } });
   }
