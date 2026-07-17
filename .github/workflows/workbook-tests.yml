@@ -8,6 +8,8 @@ on:
     paths:
       - "dashboard/workbook.js"
       - "dashboard/cal-tz.mjs"
+      - "dashboard/ivcal-layout.js"
+      - "dashboard/ivcal-slots.js"
       - "scripts/**"
       - "package.json"
       - ".github/workflows/workbook-tests.yml"
@@ -16,6 +18,8 @@ on:
     paths:
       - "dashboard/workbook.js"
       - "dashboard/cal-tz.mjs"
+      - "dashboard/ivcal-layout.js"
+      - "dashboard/ivcal-slots.js"
       - "scripts/**"
 
 jobs:

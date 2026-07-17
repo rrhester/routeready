@@ -1,0 +1,40 @@
+name: booking-e2e
+
+# End-to-end candidate booking flow (tests/booking-e2e) — real
+# dashboard/booking.html in Chromium against fully stubbed Supabase routes.
+on:
+  pull_request:
+    paths:
+      - "dashboard/booking.html"
+      - "tests/booking-e2e/**"
+      - ".github/workflows/booking-e2e.yml"
+  push:
+    branches: [main]
+    paths:
+      - "dashboard/booking.html"
+      - "tests/booking-e2e/**"
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install test deps
+        run: npm install --no-save @playwright/test http-server esbuild @supabase/supabase-js@2.45.4
+      - name: Bundle supabase-js for route interception
+        run: npx esbuild --bundle node_modules/@supabase/supabase-js/dist/module/index.js --format=esm --outfile=tests/booking-e2e/.supabase-esm.js
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run booking e2e
+        run: npx playwright test --config tests/booking-e2e/playwright.config.mjs
+      - name: Upload traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: booking-e2e-results
+          path: test-results/
+          retention-days: 14
