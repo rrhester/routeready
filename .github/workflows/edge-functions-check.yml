@@ -8,6 +8,7 @@ name: edge-functions-check
 # supabase/functions/**/*_test.ts unit tests (signature verifiers, shared
 # helpers) under Deno's test runner.
 on:
+  workflow_dispatch:
   pull_request:
     paths:
       - "supabase/functions/**"
@@ -43,13 +44,13 @@ jobs:
       - name: Typecheck every function
         # One invocation = one module graph, so _shared/ and the esm.sh
         # deps are fetched/checked once. Failures name the exact file.
-        run: deno check --node-modules-dir=auto supabase/functions/*/index.ts
+        run: deno check --config supabase/functions/deno.json --node-modules-dir=auto supabase/functions/*/index.ts
 
       - name: Unit tests (signature verifiers, shared helpers)
         # No-ops cleanly while no *_test.ts files exist yet.
         run: |
-          if ls supabase/functions/**/*_test.ts >/dev/null 2>&1 || ls supabase/functions/*_test.ts >/dev/null 2>&1; then
-            deno test --allow-none supabase/functions
+          if find supabase/functions -name '*_test.ts' | grep -q .; then
+            deno test --config supabase/functions/deno.json --node-modules-dir=auto --permit-no-files --allow-net supabase/functions
           else
             echo "no *_test.ts files yet — skipping deno test"
           fi
