@@ -30402,6 +30402,7 @@ function _ivcalPaneHtml() {
     ev.meeting_url ? `<button class="oc-btn" data-oc-pane="join">🎥 Join</button>` : "",
     isRRMeet ? `<button class="oc-btn" data-oc-pane="lock" title="Lock or unlock the meeting room for guests">🔒 Room lock</button>` : "",
     type !== "session" ? `<button class="oc-btn" data-oc-pane="cancel">✖ Cancel</button>` : "",
+    type !== "session" ? `<button class="oc-btn" data-oc-pane="history" title="See every change made to this event">🕘 History</button>` : "",
     a && ev.applicant_id ? `<button class="oc-btn" data-oc-pane="applicant">Open applicant</button>` : "",
   ].filter(Boolean).join("");
   return `<div class="oc-pane">
@@ -30483,6 +30484,7 @@ function _ivcalWirePane(host) {
     else if (act === "join" && ev.meeting_url) _ivcalOpenRoom(ev);
     else if (act === "lock" && ev.meeting_url) _ivcalToggleRoomLock(ev);
     else if (act === "cancel") _ivcalDeleteEvent(sel.kind, sel.id, true);
+    else if (act === "history") _ivcalHistoryDialog(ev.id);
     else if (act === "applicant" && ev.applicant_id) _ivcalOpenApplicant(ev.applicant_id);
   });
 }
@@ -32660,6 +32662,7 @@ function _ivShowCopyMenu(btn, srcDay, srcWins, applyFn) {
 
 let _ivCurSchedId = null;   // the named schedule currently being edited
 let _ivLegacyMode = false;  // true until the 0400 named-schedules migration is applied
+let _ivWinsOverride = null; // one-shot: hours copied from another schedule, shown unsaved
 async function loadInterviewAvailabilityEditor() {
   const body = document.getElementById("rr-iv-body");
   if (!body) return;
@@ -32700,6 +32703,9 @@ async function loadInterviewAvailabilityEditor() {
     body.innerHTML = `<div class="rr-iv-err">Couldn't load: ${escapeHtml(e.message || String(e))}</div>`;
     return;
   }
+  // "Copy hours from…" hand-off: show another schedule's weekly hours in the
+  // day rows, unsaved, so the owner can review and Save to keep them.
+  if (_ivWinsOverride) { schedWins = _ivWinsOverride; _ivWinsOverride = null; }
   const cfg = sched || {};
   const tz = cfg.timezone || "America/Chicago";
   const slot = cfg.slot_minutes || 30, lead = cfg.min_lead_hours ?? 12, windowDays = cfg.window_days ?? 21, buffer = cfg.buffer_minutes ?? 0;
@@ -32761,6 +32767,11 @@ async function loadInterviewAvailabilityEditor() {
       ${(_ivCurSchedId!=="__new" && schedules.length>1) ? `<button type="button" class="rr-iv-sched-del" id="rr-iv-sched-del" title="Delete this schedule" aria-label="Delete schedule"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>` : ""}
       <label class="rr-iv-sched-active"><input type="checkbox" class="rr-iv-active-cb" ${isActive?"checked":""}> Active booking schedule</label>
     </div>`;
+  // Start from another schedule's hours instead of re-typing them.
+  const copySrcs = _ivLegacyMode ? [] : schedules.filter(s => s.id !== _ivCurSchedId);
+  const copyFromHtml = copySrcs.length
+    ? `<div class="rr-iv-copyfrom"><label>Copy hours from <select class="rr-iv-copyfrom-sel" aria-label="Copy weekly hours from another schedule"><option value="">another schedule…</option>${copySrcs.map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`).join("")}</select></label></div>`
+    : "";
   body.innerHTML = `
     ${schedHtml}
     <div class="rr-iv-cfg">
@@ -32801,7 +32812,9 @@ async function loadInterviewAvailabilityEditor() {
         </div>
       </div>
     </details>`; })()}
+    ${copyFromHtml}
     <div class="rr-iv-days">${rows}</div>
+    <div class="rr-iv-weekcap" id="rr-iv-weekcap" aria-live="polite"></div>
     <div class="rr-iv-foot"><span class="rr-iv-save-status" id="rr-iv-save-status"></span><button class="rr-iv-btn" id="rr-iv-save">Save availability</button></div>
     <div class="rr-iv-subh">One-off group sessions</div>
     <div id="rr-iv-sess-list">${sessHtml}</div>
@@ -32836,6 +32849,54 @@ async function loadInterviewAvailabilityEditor() {
     }).catch(() => { poolHost.innerHTML = `<span class="rr-iv-hint">Couldn't load the team list.</span>`; });
   }
 
+  // Weekly capacity summary: live total of bookable spots implied by the
+  // current (possibly unsaved) hours + slot/buffer settings, so the owner
+  // sees what a change does before saving it.
+  const weekCapEl = body.querySelector("#rr-iv-weekcap");
+  const refreshWeekCap = () => {
+    if (!weekCapEl) return;
+    const slotM = parseInt(body.querySelector(".rr-iv-slot").value, 10) || 30;
+    const bufM = parseInt(body.querySelector(".rr-iv-buffer").value, 10) || 0;
+    let total = 0, days = 0;
+    body.querySelectorAll(".rr-iv-day").forEach(row => {
+      if (!row.querySelector(".rr-iv-on").checked) return;
+      const wins = [...row.querySelectorAll(".rr-iv-win")].map(w => ({
+        start_min: _ivHHMMToMin(w.querySelector(".rr-iv-start").value),
+        end_min: _ivHHMMToMin(w.querySelector(".rr-iv-end").value),
+        capacity: Math.max(1, parseInt(w.querySelector(".rr-iv-cap").value, 10) || 1),
+      })).filter(w => w.end_min > w.start_min);
+      const cap = _slotDayCapacity(wins, slotM, bufM);
+      if (cap > 0) { total += cap; days++; }
+    });
+    weekCapEl.textContent = total
+      ? `Adds up to ${total} bookable spot${total === 1 ? "" : "s"} a week across ${days} day${days === 1 ? "" : "s"} — ${slotM}-min slots${bufM ? ` with a ${bufM}-min buffer` : ""}.`
+      : "No weekly hours yet — turn a day on above to open booking times.";
+  };
+  const daysHost = body.querySelector(".rr-iv-days");
+  daysHost.addEventListener("input", refreshWeekCap);
+  daysHost.addEventListener("change", refreshWeekCap);
+  // Add/remove-window buttons mutate the rows after the click lands.
+  daysHost.addEventListener("click", (e) => { if (e.target.closest(".rr-iv-winx, .rr-iv-addwin")) setTimeout(refreshWeekCap, 0); });
+  body.querySelector(".rr-iv-slot")?.addEventListener("change", refreshWeekCap);
+  body.querySelector(".rr-iv-buffer")?.addEventListener("input", refreshWeekCap);
+  refreshWeekCap();
+
+  // Copy hours from another schedule: fetch its windows, reload the editor
+  // with them applied (still unsaved).
+  body.querySelector(".rr-iv-copyfrom-sel")?.addEventListener("change", async (e) => {
+    const srcId = e.target.value;
+    if (!srcId) return;
+    try {
+      const g = await sb.rpc("interview_schedule_get", { p_id: srcId });
+      if (g.error) throw g.error;
+      const wins = (g.data && g.data.windows) || [];
+      if (!wins.length) { toast("That schedule has no weekly hours to copy", "warn"); e.target.value = ""; return; }
+      _ivWinsOverride = wins;
+      await loadInterviewAvailabilityEditor();
+      toast("Hours copied — review, then Save availability to keep them", "success");
+    } catch (err) { toast("Couldn't copy hours: " + (err.message || err), "warn"); e.target.value = ""; }
+  });
+
   // Replace a day's windows with a copied set (used by "copy to other days").
   const applyWinsToDay = (targetDay, srcWins) => {
     const tgt = body.querySelector(`.rr-iv-day[data-day="${targetDay}"]`);
@@ -32844,6 +32905,7 @@ async function loadInterviewAvailabilityEditor() {
     tgt.querySelector(".rr-iv-on").checked = true;
     tgt.querySelector(".rr-iv-wins").innerHTML = srcWins.map(w => winRow({ start_min: w.start, end_min: w.end, capacity: w.cap }, true)).join("");
     tgt.querySelectorAll("input:not(.rr-iv-on), .rr-iv-winx, .rr-iv-addwin, .rr-iv-copy").forEach(el => { el.disabled = false; });
+    refreshWeekCap();
   };
   body.querySelectorAll(".rr-iv-day").forEach(row => {
     const setOn = (on) => {
