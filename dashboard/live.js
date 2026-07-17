@@ -22,6 +22,7 @@ import {
   parseSearchQuery as _mcParseSearch, hasSearchOps as _mcHasSearchOps,
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
+  scanMessageRisks as _mcScanRisks,
 } from "./msg-core.mjs?v=b2ebeec00db5";
 import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=b2ebeec00db5";
 import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=b2ebeec00db5";
@@ -42741,7 +42742,19 @@ function _mcOpenPlusMenu(anchor, { ta, kind, targetId }) {
     <button type="button" role="menuitem" data-rr-pm="shareched">📅<span>Share schedule (7 days)</span></button>
     <button type="button" role="menuitem" data-rr-pm="shareloc">📍<span>Share a location…</span></button>
     <button type="button" role="menuitem" data-rr-pm="checkin">🫡<span>Request check-in</span></button>
-    <button type="button" role="menuitem" data-rr-pm="incident">🚨<span>Report incident…</span></button>` : "";
+    <button type="button" role="menuitem" data-rr-pm="incident">🚨<span>Report incident…</span></button>
+    <div class="rr-mc-plus-sep"></div>
+    <div class="rr-mc-plus-note">AI assist</div>
+    <button type="button" role="menuitem" data-rr-pm="aisuggest">✨<span>Suggest replies</span></button>
+    <button type="button" role="menuitem" data-rr-pm="aicatchup">🧾<span>Catch me up (summary)</span></button>
+    <button type="button" role="menuitem" data-rr-pm="aitone">🎭<span>Check tone of draft</span></button>
+    <div class="rr-mc-plus-sep"></div>
+    <div class="rr-mc-plus-note">Transcript &amp; compliance</div>
+    <button type="button" role="menuitem" data-rr-pm="txprint">🖨️<span>Export transcript (print/PDF)</span></button>
+    <button type="button" role="menuitem" data-rr-pm="txcsv">📄<span>Export transcript (CSV)</span></button>
+    <button type="button" role="menuitem" data-rr-pm="txemail">✉️<span>Email transcript…</span></button>
+    ${_mcIsAdminRole() ? `<button type="button" role="menuitem" data-rr-pm="legalhold">⚖️<span>Legal hold…</span></button>
+    <button type="button" role="menuitem" data-rr-pm="admin">🛡️<span>Admin &amp; compliance…</span></button>` : ""}` : "";
   pop.innerHTML = `
     <button type="button" role="menuitem" data-rr-pm="tpl">📋<span>Insert template…</span></button>
     <button type="button" role="menuitem" data-rr-pm="tplmgr">🗂️<span>Manage templates…</span></button>
@@ -42780,6 +42793,35 @@ function _mcOpenPlusMenu(anchor, { ta, kind, targetId }) {
     if (act === "shareloc") { _mcDismissPops(); _mcOpenShareLocation(ta); return; }
     if (act === "checkin") { _mcDismissPops(); _mcSendCheckinRequest(); return; }
     if (act === "incident") { _mcDismissPops(); _mcOpenIncidentIntake(); return; }
+    if (act === "aisuggest") { _mcDismissPops(); _mcAiSuggestReplies(ta, anchor); return; }
+    if (act === "aicatchup") { _mcDismissPops(); _mcAiCatchMeUp(); return; }
+    if (act === "aitone") { _mcDismissPops(); _mcAiToneCheck(ta); return; }
+    if (act === "txprint") { _mcDismissPops(); _mcExportTranscript("print"); return; }
+    if (act === "txcsv") { _mcDismissPops(); _mcExportTranscript("csv"); return; }
+    if (act === "txemail") { _mcDismissPops(); _mcOpenEmailTranscript(); return; }
+    if (act === "admin") { _mcDismissPops(); _mcOpenAdminPanel(); return; }
+    if (act === "legalhold") {
+      _mcDismissPops();
+      (async () => {
+        const driverId = _msgInboxSelectedId;
+        const { data: conv } = await sb.from("driver_conversations")
+          .select("legal_hold_at").eq("driver_id", driverId).maybeSingle()
+          .then((r) => r, () => ({ data: null }));
+        const on = !!conv?.legal_hold_at;
+        const ok = await _rrConfirmDialog({
+          title: on ? "Release legal hold?" : "Place this conversation on legal hold?",
+          body: on ? "Retention purges will apply to this conversation again."
+                   : "The conversation becomes exempt from retention purges until the hold is released.",
+          confirmLabel: on ? "Release hold" : "Place hold",
+        });
+        if (!ok) return;
+        const { error } = await sb.rpc("dispatch_thread_legal_hold", { p_driver_id: driverId, p_on: !on })
+          .then((r) => r, (e) => ({ error: e || {} }));
+        if (error) toast(_mcRpcMissing(error) ? "Legal hold unlocks once migration 0509 is applied" : ("Couldn't update: " + (error.message || "")), "warn");
+        else toast(on ? "Legal hold released" : "Legal hold placed", "ok");
+      })();
+      return;
+    }
     if (act === "dict") { const on = _mcToggleDictation(ta); b.classList.toggle("on", on); b.querySelector("span").textContent = on ? "Stop dictation" : "Dictate"; return; }
     if (act === "enter") {
       _mcSetPref("rr_msg_enter_sends", _mcEnterSends() ? "0" : "1");
@@ -43167,6 +43209,19 @@ async function refreshDriverChatThread(scrollToBottom) {
           danger: true,
         });
         if (!ok) return;
+      }
+      // Soft PII/profanity guard (#95) — warn, never hard-block.
+      {
+        const risks = _mcScanRisks(body);
+        if (risks.length) {
+          const ok = await _rrConfirmDialog({
+            title: "Double-check before sending",
+            body: `This message looks like it contains ${risks.join(" and ")}. Chat history is retained — send anyway?`,
+            confirmLabel: "Send anyway",
+            danger: true,
+          });
+          if (!ok) return;
+        }
       }
       const send = e.target.querySelector(".rr-mc-send");
       send.disabled = true;
@@ -44759,6 +44814,263 @@ function _mcOpenCallNoteModal(peer, durLbl, transcript) {
   });
 }
 
+// ─── Admin, compliance & integrations (Batch 10 · #92–100) ───────────────
+
+// Role gate (#96): the admin surfaces (retention, audit, webhooks, legal
+// hold) are for owner/ops; everyday messaging stays open to all staff.
+function _mcIsAdminRole() {
+  const r = window.RR?.profile?.role || (typeof profile !== "undefined" && profile?.role) || "";
+  return ["owner", "ops", "admin", "platform_admin"].includes(r);
+}
+
+// Transcript export (#92): CSV download + printable view from a full
+// (1000-row) fetch of the open thread.
+async function _mcExportTranscript(mode) {
+  const driverId = _msgInboxSelectedId;
+  if (!driverId || driverId === "__support__") { toast("Open a driver conversation first", "info"); return; }
+  const meta = (_msgInboxList || []).find((t) => String(t.driver_id) === String(driverId)) || {};
+  const { data, error } = await sb.rpc("dispatch_chat_thread", { p_driver_id: driverId, p_limit: 1000 });
+  if (error) { toast("Couldn't load the thread: " + error.message, "warn"); return; }
+  const msgs = (data?.messages || []).filter((m) => !m.deleted_at);
+  const name = meta.name || data?.driver?.name || "driver";
+  if (mode === "csv") {
+    const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const rows = [["time", "sender", "message", "attachment", "priority", "acknowledged_at"]]
+      .concat(msgs.map((m) => [
+        new Date(m.created_at).toISOString(),
+        m.sender_kind === "dispatch" ? "Dispatch" : name,
+        m.body || "", m.attachment_name || "", m.priority || "", m.acked_at || "",
+      ]));
+    const blob = new Blob([rows.map((r) => r.map(esc).join(",")).join("\r\n")], { type: "text/csv" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `transcript-${String(name).replace(/\W+/g, "-").toLowerCase()}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  } else {
+    // Printable view → the browser's PDF path.
+    const w = window.open("", "_blank");
+    if (!w) { toast("Pop-up blocked — allow pop-ups to print", "warn"); return; }
+    const line = (m) => `<div style="margin-bottom:9px"><b>${m.sender_kind === "dispatch" ? "Dispatch" : escapeHtml(name)}</b>
+      <span style="color:#666;font-size:11px">${escapeHtml(new Date(m.created_at).toLocaleString())}${m.priority && m.priority !== "normal" ? " · " + escapeHtml(m.priority.toUpperCase()) : ""}</span>
+      <div style="white-space:pre-wrap">${escapeHtml(m.body || "")}${m.attachment_name ? `<i>[attachment: ${escapeHtml(m.attachment_name)}]</i>` : ""}</div>
+      ${m.requires_ack ? `<div style="font-size:11px;color:#666">${m.acked_at ? "Acknowledged " + escapeHtml(new Date(m.acked_at).toLocaleString()) : "Acknowledgement pending"}</div>` : ""}</div>`;
+    w.document.write(`<!doctype html><title>Transcript — ${escapeHtml(name)}</title>
+      <body style="font:13px/1.5 system-ui,sans-serif;max-width:720px;margin:24px auto;padding:0 16px">
+      <h2 style="font-size:17px">Message transcript — ${escapeHtml(name)}</h2>
+      <div style="color:#666;font-size:12px;margin-bottom:16px">Exported ${escapeHtml(new Date().toLocaleString())} · ${msgs.length} messages (up to the last 1000)</div>
+      ${msgs.map(line).join("")}
+      <script>window.print()<\/script></body>`);
+    w.document.close();
+  }
+}
+function _mcOpenEmailTranscript() {
+  const driverId = _msgInboxSelectedId;
+  if (!driverId || driverId === "__support__") return;
+  _mcEnsureExtrasCss();
+  document.getElementById("rr-mc-emailtx")?.remove();
+  const ov = document.createElement("div");
+  ov.className = "rr-mc-modal";
+  ov.id = "rr-mc-emailtx";
+  ov.innerHTML = `
+    <div class="rr-mc-modal-back"></div>
+    <div class="rr-mc-modal-card" role="dialog" aria-modal="true" aria-label="Email transcript" style="width:min(400px,94vw)">
+      <div class="rr-mc-modal-head">Email this transcript<button type="button" class="rr-mc-modal-x" aria-label="Close">×</button></div>
+      <div class="rr-mc-modal-body">
+        <label class="rr-mc-f"><span>Send to</span><input type="email" data-rr-et-to value="${escapeHtml(window.RR?.user?.email || "")}"></label>
+        <div class="u-subtle" style="font-size:10px">Sends the last 500 messages as plain text through the RouteReady mail pipeline.</div>
+      </div>
+      <div class="rr-mc-modal-foot">
+        <button type="button" class="btn btn-sm" data-rr-et-cancel>Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary" data-rr-et-go>Email transcript</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelector(".rr-mc-modal-back").addEventListener("click", close);
+  ov.querySelector(".rr-mc-modal-x").addEventListener("click", close);
+  ov.querySelector("[data-rr-et-cancel]").addEventListener("click", close);
+  ov.querySelector("[data-rr-et-go]").addEventListener("click", async () => {
+    const to = ov.querySelector("[data-rr-et-to]").value.trim();
+    const { error } = await sb.rpc("dispatch_email_transcript", { p_driver_id: driverId, p_to_email: to })
+      .then((r) => r, (e) => ({ error: e || {} }));
+    if (error) {
+      toast(_mcRpcMissing(error) ? "Email transcripts unlock once migration 0509 is applied" : ("Couldn't queue the email: " + (error.message || "")), "warn");
+      return;
+    }
+    toast("Transcript queued to " + to, "ok");
+    close();
+  });
+}
+
+// Admin panel (#93/#94/#99) — retention, audit log, webhook.
+async function _mcOpenAdminPanel() {
+  if (!_mcIsAdminRole()) { toast("Retention, audit and webhooks are owner/ops surfaces", "info"); return; }
+  _mcEnsureExtrasCss();
+  const [{ data: setRow }, { data: hookRow }] = await Promise.all([
+    sb.from("dsp_msg_settings").select("retention_days").maybeSingle().then((r) => r, () => ({ data: null })),
+    sb.from("dsp_msg_webhooks").select("url, active").maybeSingle().then((r) => r, () => ({ data: null })),
+  ]);
+  document.getElementById("rr-mc-admin-modal")?.remove();
+  const ov = document.createElement("div");
+  ov.className = "rr-mc-modal";
+  ov.id = "rr-mc-admin-modal";
+  ov.innerHTML = `
+    <div class="rr-mc-modal-back"></div>
+    <div class="rr-mc-modal-card" role="dialog" aria-modal="true" aria-label="Messages admin">
+      <div class="rr-mc-modal-head">Messages — admin &amp; compliance<button type="button" class="rr-mc-modal-x" aria-label="Close">×</button></div>
+      <div class="rr-mc-modal-body">
+        <div class="rr-mc-emoji-head" style="padding:0 0 6px">Retention (#93)</div>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+          <input type="number" data-rr-ad-ret min="30" max="3650" value="${setRow?.retention_days || ""}" placeholder="off" style="width:90px;border:1px solid var(--border);border-radius:var(--r-md);padding:7px 9px;font:inherit;font-size:var(--fs-sm)">
+          <span class="u-subtle" style="font-size:var(--fs-sm)">days (30–3650, blank = keep forever)</span>
+          <button type="button" class="btn btn-sm" data-rr-ad-runret style="margin-left:auto">Run purge now</button>
+        </div>
+        <div class="u-subtle" style="font-size:10px;margin-bottom:14px">Purges nightly. Legal-hold conversations and pinned messages are never purged; attachment files stay in storage for manual cleanup.</div>
+        <div class="rr-mc-emoji-head" style="padding:0 0 6px">Outbound webhook (#99)</div>
+        <input type="url" data-rr-ad-hook value="${escapeHtml(hookRow?.url || "")}" placeholder="https://example.com/routeready-hook" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:var(--r-md);padding:7px 9px;font:inherit;font-size:var(--fs-sm);margin-bottom:6px">
+        <input type="text" data-rr-ad-secret placeholder="Shared secret (sent as X-RouteReady-Secret)" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:var(--r-md);padding:7px 9px;font:inherit;font-size:var(--fs-sm);margin-bottom:6px">
+        <div class="u-subtle" style="font-size:10px;margin-bottom:14px">POSTs message.created events (ids + a 140-char preview). Clear the URL to remove.</div>
+        <div class="rr-mc-emoji-head" style="padding:0 0 6px">Audit log (#94)</div>
+        <div data-rr-ad-audit style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r-md);padding:8px 10px;font-size:var(--fs-xs)">Loading…</div>
+      </div>
+      <div class="rr-mc-modal-foot">
+        <button type="button" class="btn btn-sm" data-rr-ad-cancel>Close</button>
+        <button type="button" class="btn btn-sm btn-primary" data-rr-ad-save>Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelector(".rr-mc-modal-back").addEventListener("click", close);
+  ov.querySelector(".rr-mc-modal-x").addEventListener("click", close);
+  ov.querySelector("[data-rr-ad-cancel]").addEventListener("click", close);
+  // Audit paint.
+  sb.rpc("dispatch_msg_audit", { p_limit: 100 }).then(({ data, error }) => {
+    const el = ov.querySelector("[data-rr-ad-audit]");
+    if (!el) return;
+    if (error) { el.textContent = _mcRpcMissing(error) ? "The audit log unlocks once migration 0509 is applied." : "Couldn't load."; return; }
+    const evs = data?.events || [];
+    const lbl = { edit: "✏️ Edited", delete: "🗑️ Deleted", urgent: "🚨 Urgent" };
+    el.innerHTML = evs.length ? evs.map((ev) => {
+      const meta = (_msgInboxList || []).find((t) => String(t.driver_id) === String(ev.driver_id)) || {};
+      return `<div style="padding:3px 0;border-bottom:1px solid var(--border)"><b>${lbl[ev.kind] || ev.kind}</b> · ${escapeHtml(meta.name || "driver")} · ${escapeHtml(new Date(ev.at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }))}${ev.actor ? ` · by ${escapeHtml(ev.actor)}` : ""}${ev.detail ? `<div class="u-subtle">${escapeHtml(ev.detail)}</div>` : ""}</div>`;
+    }).join("") : "Nothing sensitive in the last 30 days.";
+  }, () => {});
+  ov.querySelector("[data-rr-ad-runret]").addEventListener("click", async (ev) => {
+    ev.target.disabled = true;
+    const { data, error } = await sb.rpc("dispatch_run_retention").then((r) => r, (e) => ({ error: e || {} }));
+    ev.target.disabled = false;
+    if (error) { toast(_mcRpcMissing(error) ? "Needs migration 0509" : ("Purge failed: " + (error.message || "")), "warn"); return; }
+    toast(`Purge complete — ${data?.purged ?? 0} old message${(data?.purged ?? 0) === 1 ? "" : "s"} removed`, "ok");
+  });
+  ov.querySelector("[data-rr-ad-save]").addEventListener("click", async () => {
+    const retRaw = ov.querySelector("[data-rr-ad-ret]").value.trim();
+    const ret = retRaw ? parseInt(retRaw, 10) : null;
+    const { error: setErr } = await sb.rpc("dispatch_msg_settings_set", {
+      p_retention_days: ret, p_clear_retention: !retRaw,
+    }).then((r) => r, (e) => ({ error: e || {} }));
+    const hookUrl = ov.querySelector("[data-rr-ad-hook]").value.trim();
+    const hookSecret = ov.querySelector("[data-rr-ad-secret]").value.trim();
+    const { error: hookErr } = await sb.rpc("dispatch_msg_webhook_set",
+      hookUrl ? { p_url: hookUrl, p_secret: hookSecret || null, p_active: true } : { p_delete: true }
+    ).then((r) => r, (e) => ({ error: e || {} }));
+    if ((setErr && !_mcRpcMissing(setErr)) || (hookErr && !_mcRpcMissing(hookErr))) {
+      toast("Some settings failed: " + ((setErr || hookErr).message || ""), "warn");
+      return;
+    }
+    if ((setErr && _mcRpcMissing(setErr)) || (hookErr && _mcRpcMissing(hookErr))) {
+      toast("These controls activate once migration 0509 is applied", "info");
+    } else {
+      toast("Admin settings saved", "ok");
+    }
+    close();
+  });
+}
+
+// ── AI assist (#100) via notebook-ai chat actions ──
+async function _mcAiInvoke(action, text) {
+  const { data, error } = await sb.functions.invoke("notebook-ai", { body: { action, text } })
+    .then((r) => r, (e) => ({ error: e || {} }));
+  if (error || !data?.result) throw new Error((error && error.message) || data?.detail || "AI unavailable");
+  return String(data.result).trim();
+}
+function _mcTranscriptTail(n) {
+  const meta = (_msgInboxList || []).find((t) => String(t.driver_id) === String(_msgInboxSelectedId)) || {};
+  return (_mcLastMsgs || []).filter((m) => !m.deleted_at && (m.body || m.attachment_name)).slice(-(n || 14)).map((m) =>
+    `${m.sender_kind === "dispatch" ? "Dispatch" : "Driver"} (${new Date(m.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}): ${m.body || "[" + (m.attachment_name || "attachment") + "]"}`
+  ).join("\n") + (meta.name ? `\n(Driver's name: ${meta.name})` : "");
+}
+async function _mcAiSuggestReplies(ta, anchor) {
+  if (!(_mcLastMsgs || []).length) { toast("Nothing to reply to yet", "info"); return; }
+  toast("Thinking…", "info");
+  let out;
+  try { out = await _mcAiInvoke("chat_suggest_replies", _mcTranscriptTail(14)); }
+  catch (e) { toast("AI assist isn't reachable: " + e.message, "warn"); return; }
+  const options = out.split(/\n+/).map((s) => s.replace(/^[-•\d.\s]+/, "").trim()).filter(Boolean).slice(0, 3);
+  if (!options.length) { toast("No suggestions came back", "warn"); return; }
+  _mcDismissPops();
+  const pop = document.createElement("div");
+  pop.className = "rr-mc-pop rr-mc-suggest";
+  pop.style.maxWidth = "380px";
+  pop.innerHTML = `<div class="rr-mc-emoji-head" style="padding:6px 10px 4px">Suggested replies — click to insert</div>`
+    + options.map((o, i) => `<button type="button" data-rr-ai-s="${i}"><span class="rr-mc-sug-desc" style="white-space:normal">${escapeHtml(o)}</span></button>`).join("");
+  _mcPlacePop(pop, anchor || ta);
+  pop.addEventListener("mousedown", (ev) => {
+    const b = ev.target.closest("[data-rr-ai-s]");
+    if (!b) return;
+    ev.preventDefault();
+    ta.value = options[+b.getAttribute("data-rr-ai-s")];
+    ta.dispatchEvent(new Event("input", { bubbles: true }));
+    ta.focus();
+    _mcDismissPops();
+  });
+}
+async function _mcAiCatchMeUp() {
+  if (!(_mcLastMsgs || []).length) { toast("Nothing to summarize yet", "info"); return; }
+  toast("Summarizing…", "info");
+  let out;
+  try { out = await _mcAiInvoke("chat_summarize", _mcTranscriptTail(60)); }
+  catch (e) { toast("AI assist isn't reachable: " + e.message, "warn"); return; }
+  _mcEnsureExtrasCss();
+  document.getElementById("rr-mc-ai-summary")?.remove();
+  const ov = document.createElement("div");
+  ov.className = "rr-mc-modal";
+  ov.id = "rr-mc-ai-summary";
+  ov.innerHTML = `
+    <div class="rr-mc-modal-back"></div>
+    <div class="rr-mc-modal-card" role="dialog" aria-modal="true" aria-label="Conversation summary">
+      <div class="rr-mc-modal-head">🧾 Catch me up<button type="button" class="rr-mc-modal-x" aria-label="Close">×</button></div>
+      <div class="rr-mc-modal-body" style="font-size:var(--fs-sm);color:var(--text)">${_mdLite(linkifyEscaped(escapeHtml(out).replace(/\n/g, "<br>")))}</div>
+      <div class="rr-mc-modal-foot"><button type="button" class="btn btn-sm btn-primary" data-rr-ai-done>Done</button></div>
+    </div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelector(".rr-mc-modal-back").addEventListener("click", close);
+  ov.querySelector(".rr-mc-modal-x").addEventListener("click", close);
+  ov.querySelector("[data-rr-ai-done]").addEventListener("click", close);
+}
+async function _mcAiToneCheck(ta) {
+  const draft = (ta.value || "").trim();
+  if (!draft) { toast("Type the draft first", "info"); return; }
+  toast("Checking tone…", "info");
+  let out;
+  try { out = await _mcAiInvoke("chat_tone", draft); }
+  catch (e) { toast("AI assist isn't reachable: " + e.message, "warn"); return; }
+  if (/^OK\b/i.test(out)) { toast("Tone reads fine 👍", "ok"); return; }
+  const revised = out.replace(/^REVISE:\s*/i, "").trim();
+  if (!revised) { toast("Tone reads fine 👍", "ok"); return; }
+  const ok = await _rrConfirmDialog({
+    title: "Softer wording suggested",
+    body: revised.slice(0, 400),
+    confirmLabel: "Use this wording",
+  });
+  if (ok) {
+    ta.value = revised;
+    ta.dispatchEvent(new Event("input", { bubbles: true }));
+    ta.focus();
+  }
+}
+
 // ─── Accessibility & UX polish (Batch 9 · #83–91) ────────────────────────
 
 // ARIA live regions (#84): polite for normal traffic, assertive for
@@ -44853,8 +45165,8 @@ async function _mcTranslateMessage(m) {
     const { data, error } = await sb.functions.invoke("notebook-ai", { body: { action: "translate", text: m.body.slice(0, 1500) } })
       .then((r) => r, (e) => ({ error: e || {} }));
     note.remove();
-    if (error || !data?.text) { toast("Couldn't translate — the AI helper isn't reachable", "warn"); return; }
-    text = String(data.text).trim();
+    if (error || !data?.result) { toast("Couldn't translate — the AI helper isn't reachable", "warn"); return; }
+    text = String(data.result).trim();
     _mcTranslateCache.set(m.id, text);
   }
   if (!bubble.isConnected) return;
@@ -47004,6 +47316,19 @@ async function refreshChannelThread(scrollToBottom) {
         });
         if (!ok) return;
         _mcSetPref(lastKey, String(Date.now()));
+      }
+      // Soft PII/profanity guard (#95).
+      {
+        const risks = _mcScanRisks(body);
+        if (risks.length) {
+          const ok2 = await _rrConfirmDialog({
+            title: "Double-check before posting",
+            body: `This post looks like it contains ${risks.join(" and ")}. The whole room will see it — post anyway?`,
+            confirmLabel: "Post anyway",
+            danger: true,
+          });
+          if (!ok2) return;
+        }
       }
       const send = e.target.querySelector(".rr-cc-send");
       send.disabled = true;

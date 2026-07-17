@@ -311,5 +311,36 @@ export function linkifyPhones(escapedHtml) {
   return out;
 }
 
+// ── Outbound message risk scan (#95) ─────────────────────────────────────
+// Soft guard before send: flags likely SSNs, card numbers (Luhn-checked),
+// bank routing+account pairs, and a small profanity set. Returns a list
+// of human-readable risk labels (empty = clean). Deliberately
+// conservative — a false block on a route number would erode trust fast.
+const PROFANITY = ["fuck", "fucking", "shit", "bitch", "asshole", "dumbass", "dickhead", "motherfucker", "cunt"];
+function luhnOk(digits) {
+  let sum = 0, alt = false;
+  for (let i = digits.length - 1; i >= 0; i--) {
+    let d = digits.charCodeAt(i) - 48;
+    if (alt) { d *= 2; if (d > 9) d -= 9; }
+    sum += d; alt = !alt;
+  }
+  return sum % 10 === 0;
+}
+export function scanMessageRisks(text) {
+  const s = String(text ?? "");
+  const risks = [];
+  if (/\b\d{3}-\d{2}-\d{4}\b/.test(s)) risks.push("a Social Security number");
+  // Card numbers: 13–16 digits (spaces/dashes allowed), Luhn-valid.
+  const cardMatches = s.match(/\b(?:\d[ -]?){13,16}\b/g) || [];
+  if (cardMatches.some((m) => {
+    const digits = m.replace(/\D/g, "");
+    return digits.length >= 13 && digits.length <= 16 && luhnOk(digits);
+  })) risks.push("a payment card number");
+  if (/\brouting\b[\s\S]{0,24}\b\d{9}\b|\b\d{9}\b[\s\S]{0,24}\baccount\b/i.test(s)) risks.push("bank account details");
+  const lower = " " + s.toLowerCase().replace(/[^a-z]+/g, " ") + " ";
+  if (PROFANITY.some((w) => lower.includes(" " + w + " "))) risks.push("strong language");
+  return risks;
+}
+
 // ── Misc ─────────────────────────────────────────────────────────────────
 export function draftKey(kind, id) { return `rr_draft_${kind}_${id}`; }

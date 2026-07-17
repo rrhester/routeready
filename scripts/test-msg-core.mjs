@@ -8,7 +8,7 @@ import {
   mdLite, applyShortcodes, shortcodeAt, searchEmoji, EMOJIS, SHORTCODES,
   fillTemplate, matchTemplates, BUILTIN_TEMPLATES, fitDims, shouldCompress, draftKey,
   parseSearchQuery, hasSearchOps, msgMatchesOps, sortThreads, isSnoozed,
-  linkifyPhones,
+  linkifyPhones, scanMessageRisks,
 } from "../dashboard/msg-core.mjs";
 
 let failures = 0;
@@ -163,6 +163,16 @@ eq(linkifyPhones("order 12345678 shipped"), "order 12345678 shipped", "8-digit i
 eq(linkifyPhones("route 123-4567"), "route 123-4567", "7-digit fragment untouched");
 eq(linkifyPhones('<a href="x">555-867-5309</a>'), '<a href="x">555-867-5309</a>', "number inside an anchor untouched");
 eq(linkifyPhones("no digits here"), "no digits here", "no digits fast path");
+
+console.log("scanMessageRisks");
+eq(scanMessageRisks("my ssn is 123-45-6789"), ["a Social Security number"], "SSN pattern");
+eq(scanMessageRisks("card 4111 1111 1111 1111 please"), ["a payment card number"], "Luhn-valid card");
+eq(scanMessageRisks("call 4111 1111 1111 1112"), [], "Luhn-invalid 16 digits pass");
+eq(scanMessageRisks("routing 123456789 and account 55"), ["bank account details"], "routing+account");
+eq(scanMessageRisks("what the fuck happened"), ["strong language"], "profanity");
+eq(scanMessageRisks("package 123456789012 delivered"), [], "tracking-ish digits pass");
+eq(scanMessageRisks("shift starts at 9:15, route 12"), [], "normal dispatch text clean");
+eq(scanMessageRisks("class B restriction"), [], "no substring false positives");
 
 console.log("SHORTCODES sanity");
 eq(Object.keys(SHORTCODES).length >= 50, true, "healthy shortcode map");
