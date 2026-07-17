@@ -6,7 +6,8 @@
   "scripts": {
     "dev":    "wrangler dev",
     "deploy": "wrangler deploy",
-    "tail":   "wrangler tail"
+    "tail":   "wrangler tail",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "pdf-lib": "^1.17.1"

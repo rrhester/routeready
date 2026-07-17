@@ -1,5 +1,8 @@
 name: engine-tests
 
+# dashboard/scheduling-engine.js is in the paths so a PR that hand-edits or
+# reverts the generated bundle (instead of rebuilding from engine/src) also
+# triggers the freshness check below — previously only engine/** did.
 on:
   pull_request:
     paths:
@@ -7,6 +10,7 @@ on:
       - "solver-service/rr_solver/**"
       - "tests/conformance/**"
       - "scripts/test-conformance.mjs"
+      - "dashboard/scheduling-engine.js"
       - ".github/workflows/engine-tests.yml"
   push:
     branches: [main]
@@ -14,6 +18,7 @@ on:
       - "engine/**"
       - "solver-service/rr_solver/**"
       - "tests/conformance/**"
+      - "dashboard/scheduling-engine.js"
 
 jobs:
   test:
@@ -26,7 +31,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: npm install
+          cache: npm
+          cache-dependency-path: engine/package-lock.json
+      - run: npm ci
       - run: npm run typecheck
       - run: npm test
       - run: npm run build:dashboard

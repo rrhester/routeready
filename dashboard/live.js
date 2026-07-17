@@ -2319,27 +2319,10 @@ async function _initApplicantNotes(slot, applicantId) {
 }
 
 
-// Consolidated "Recruiting" footer for the sourcing tile group (Funnel /
-// Interview / Onboarding). Instead of a separate "Rules" launcher per tile, the
-// whole group gets ONE centered caption on the strip's bottom line plus a single
-// box-arrow launcher pinned bottom-right — matching the calendar group's
-// "Rules". The launcher opens a small chooser with two options (Screening
-// questions → funnel rules, Onboarding steps → onboarding blueprint), each
-// forwarding to its existing popover. Built/repositioned from live.js (DOM +
-// inline styles) so it reliably reaches the browser regardless of cached HTML.
-function _rrCloseRecruitingChooser() {
-  const m = document.getElementById("rr-recruiting-chooser");
-  if (m) m.remove();
-}
-// The Funnel/Onboarding rules popovers are anchored to their tile, so opening
-// them from the right-side launcher pushed them off the right edge and past the
-// bottom of the viewport with no usable scroll. Re-pin the opened popover as a
-// fixed panel under the strip, right-aligned, bounded to the viewport height
-// with its own scroll. Re-fit on resize while it's open.
-// One-time style that constrains the rules popovers' inner content so there's a
-// SINGLE scrollbar (the popover's own, at its right edge) and nothing spills
-// horizontally past it. A style rule (not inline) survives the builder's
-// re-renders of its rows.
+// (Removed 2026-07-17: the "Recruiting" footer/chooser cluster was a permanent
+// no-op — superseded by the per-tab action-bar buttons #rr-funnel-rules-toggle /
+// #rr-ob-rules-toggle. Its MutationObserver was still firing on every DOM change.
+// The popover fit helpers below are KEPT — the live rules popovers use them.)
 function _rrInstallRulesPopoverStyle() {
   if (document.getElementById("rr-rules-pop-fit-style")) return;
   const st = document.createElement("style");
@@ -2356,12 +2339,6 @@ function _rrInstallRulesPopoverStyle() {
   `;
   document.head.appendChild(st);
 }
-// Left edge of the fixed right utility rail when it's visible. The rail is
-// an opaque body-level strip that deliberately paints ABOVE in-page chrome
-// (z 90 vs the TCP strip's stacking context), so fixed popovers anchored to
-// the viewport's right edge slide underneath it and lose their right-hand
-// controls. Fitters clamp against this edge instead of the raw viewport.
-// Falls back to the viewport width when the rail is hidden (other views).
 function _rrRightChromeEdge() {
   const rail = document.querySelector("#rr-util-rail-mount .sched-util-rail");
   if (!rail) return window.innerWidth;
@@ -2392,114 +2369,6 @@ function _rrFitRulesPopover(pop) {
     pop._rrFitBound = true;
     window.addEventListener("resize", () => { if (!pop.hidden) _rrFitRulesPopover(pop); });
   }
-}
-function _rrToggleRecruitingChooser(anchor) {
-  if (document.getElementById("rr-recruiting-chooser")) { _rrCloseRecruitingChooser(); return; }
-  const menu = document.createElement("div");
-  menu.id = "rr-recruiting-chooser";
-  Object.assign(menu.style, {
-    position: "fixed", zIndex: "10000", background: "var(--surface,#fff)",
-    border: "1px solid var(--border,rgba(15,23,42,.12))", borderRadius: "8px",
-    boxShadow: "0 12px 32px rgba(15,23,42,.18)", padding: "4px", minWidth: "190px",
-    display: "flex", flexDirection: "column", gap: "1px",
-  });
-  const mk = (label, fn) => {
-    const b = document.createElement("button");
-    b.type = "button"; b.textContent = label;
-    Object.assign(b.style, {
-      display: "block", width: "100%", textAlign: "left", appearance: "none",
-      border: "0", background: "transparent", cursor: "pointer", font: "inherit",
-      fontSize: "13px", color: "var(--text,#111827)", padding: "8px 12px", borderRadius: "6px",
-    });
-    b.addEventListener("mouseenter", () => { b.style.background = "rgba(37,99,235,.08)"; b.style.color = "#2563EB"; });
-    b.addEventListener("mouseleave", () => { b.style.background = "transparent"; b.style.color = "var(--text,#111827)"; });
-    b.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); _rrCloseRecruitingChooser(); fn(); });
-    return b;
-  };
-  menu.appendChild(mk("Screening questions", () => {
-    if (window._rrToggleObRules) window._rrToggleObRules(false);
-    if (window._rrToggleFunnelRules) window._rrToggleFunnelRules(true);
-    _rrFitRulesPopover(document.getElementById("rr-funnel-rules-popover"));
-  }));
-  menu.appendChild(mk("Onboarding steps", () => {
-    if (window._rrToggleFunnelRules) window._rrToggleFunnelRules(false);
-    if (window._rrToggleObRules) window._rrToggleObRules(true);
-    _rrFitRulesPopover(document.getElementById("rr-ob-rules-popover"));
-  }));
-  document.body.appendChild(menu);
-  const r = anchor.getBoundingClientRect();
-  menu.style.top = (r.bottom + 4) + "px";
-  menu.style.left = Math.max(8, r.right - menu.offsetWidth) + "px";
-  setTimeout(() => {
-    document.addEventListener("click", function onDoc(e) {
-      if (!e.target.closest("#rr-recruiting-chooser") && !e.target.closest(".rr-recruiting-foot")) {
-        _rrCloseRecruitingChooser();
-        document.removeEventListener("click", onDoc);
-      }
-    });
-  }, 0);
-}
-function _rrBuildRecruitingFooter() {
-  // RETIRED · the combined "Recruiting" chooser is replaced by
-  // context-specific per-tab buttons surfaced directly on the action bar
-  // (Funnel → "Screening questions" via #rr-funnel-rules-toggle,
-  // Onboarding → "Onboarding steps" via #rr-ob-rules-toggle). Leaving the
-  // per-tile launchers visible, so this footer builder is a no-op now.
-  return;
-  // eslint-disable-next-line no-unreachable
-  if (typeof document === "undefined") return;
-  const group = document.querySelector('#view-onboarding-ops .sched-ribbon-group[data-group="sourcing"]');
-  if (!group) return;
-  // Hide every per-tile launcher in the group — one footer replaces them all.
-  group.querySelectorAll('#rr-ob-rules-toggle, #rr-funnel-rules-toggle, .ob-rules-foot, .rr-rules-injected')
-    .forEach((el) => el.style.setProperty("display", "none", "important"));
-  // Full strip height + relative anchor so the caption/launcher sit on the
-  // bottom hairline (the calendar group sets the strip height); top-align the
-  // tiles so they match the calendar group's tiles.
-  group.style.setProperty("align-self", "stretch", "important");
-  group.style.setProperty("position", "relative", "important");
-  const sub = group.querySelector(".subnav");
-  if (sub) sub.style.setProperty("align-self", "flex-start", "important");
-  if (group.querySelector(".rr-recruiting-cap")) return; // footer already built
-  const cap = document.createElement("span");
-  cap.className = "rr-recruiting-cap";
-  cap.textContent = "Recruiting";
-  Object.assign(cap.style, {
-    position: "absolute", left: "0", right: "0", bottom: "-4px", textAlign: "center",
-    fontSize: "11px", fontWeight: "800", lineHeight: "1", letterSpacing: ".01em",
-    whiteSpace: "nowrap", color: "var(--text-subtle)", pointerEvents: "none", zIndex: "1",
-  });
-  const launch = document.createElement("button");
-  launch.type = "button";
-  launch.className = "rr-recruiting-foot";
-  launch.title = "Recruiting rules — screening questions & onboarding steps";
-  launch.innerHTML = '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" rx="1"/><line x1="8" y1="8" x2="13.5" y2="13.5"/><polyline points="13.5 10 13.5 13.5 10 13.5"/></svg>';
-  Object.assign(launch.style, {
-    position: "absolute", right: "6px", bottom: "-3px", display: "inline-flex",
-    alignItems: "center", justifyContent: "center", appearance: "none", border: "0",
-    background: "transparent", cursor: "pointer", color: "var(--text-subtle)",
-    padding: "1px 4px", margin: "0", borderRadius: "999px", zIndex: "2", opacity: ".85",
-  });
-  launch.addEventListener("mouseenter", () => { launch.style.opacity = "1"; launch.style.color = "var(--accent-text,#2563EB)"; launch.style.background = "var(--accent-soft,rgba(37,99,235,.08))"; });
-  launch.addEventListener("mouseleave", () => { launch.style.opacity = ".85"; launch.style.color = "var(--text-subtle)"; launch.style.background = "transparent"; });
-  launch.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); _rrToggleRecruitingChooser(launch); });
-  group.appendChild(cap);
-  group.appendChild(launch);
-  // The footer can nudge strip layout; re-fit the calendar so its sticky header
-  // stays pinned (deferred so it runs after module init and this paint).
-  setTimeout(() => { try { if (typeof _ivcalFitHeight === "function") _ivcalFitHeight(); } catch (_) {} }, 0);
-}
-let _rrRecruitingQueued = false;
-function _rrBuildRecruitingFooterSoon() {
-  if (_rrRecruitingQueued) return;
-  _rrRecruitingQueued = true;
-  setTimeout(() => { _rrRecruitingQueued = false; _rrBuildRecruitingFooter(); }, 200);
-}
-if (typeof document !== "undefined") {
-  _rrBuildRecruitingFooter();
-  setTimeout(_rrBuildRecruitingFooter, 600);
-  setTimeout(_rrBuildRecruitingFooter, 1800);
-  try { new MutationObserver(_rrBuildRecruitingFooterSoon).observe(document.documentElement, { childList: true, subtree: true }); } catch (_) {}
 }
 
 let _emailThreadChannel = null;
@@ -17355,6 +17224,10 @@ async function loadDashboardWeather() {
     // (dsp_id, date) just upserts the freshest values.
     try {
       const dspId = window.RR?.dsp?.id;
+      // First daytime entry = today. (This block referenced an undefined
+      // `today` for months — the ReferenceError was swallowed by this
+      // try/catch, so weather_snapshots never got a single row.)
+      const today = dayPairs[0] || null;
       if (dspId && today) {
         const todayIso = fmtIsoDate(new Date());
         const conditions = (() => {
@@ -30586,7 +30459,7 @@ async function _ivcalOpenApplicant(id) {
   if (!id) return;
   // Prefer a host-provided modal if one is ever wired up.
   if (typeof window.openApplicant === "function") { window.openApplicant(id); return; }
-  if (typeof openApplicantModal === "function") { openApplicantModal(id); return; }
+  if (typeof window.openApplicantModal === "function") { window.openApplicantModal(id); return; }
   // Otherwise land the operator on the candidate's card in the Funnel — the
   // richest existing view (stage, history, one-click actions). Switch to the
   // Funnel sub-tab, load every stage, then scroll to + flash the card. obSub
@@ -44189,6 +44062,10 @@ function _ddMessageDriver(driverId) {
     try { if (typeof openDriverChatThread === "function") openDriverChatThread(driverId); } catch (_) {}
   }, 80);
 }
+// mock-wiring's New-DM modal calls this by name; as a module-scoped function
+// it was invisible to that classic script, so picking a driver silently did
+// nothing — the window export is what makes the modal actually work.
+window._ddMessageDriver = _ddMessageDriver;
 
 async function openCoachingForm(driverId, opts) {
   let m = document.getElementById("rr-coach-modal");
@@ -56199,127 +56076,6 @@ async function renderSchedTodayView() {
 }
 window._rrRenderSchedTodayView = renderSchedTodayView;
 
-// Stub kept so the no-longer-used legacy block below compiles —
-// the early return prevents anything past this point from running.
-async function _renderSchedTodayView_LEGACY_UNUSED() {
-  return;
-  const body = document.getElementById("rr-sched-today-body");
-  if (!body) return;
-  const dspId = window.RR?.dsp?.id;
-  if (!dspId) return;
-  if (!_schedTodayDate) _schedTodayDate = fmtIsoDate(new Date());
-  const iso = _schedTodayDate;
-  const dt  = new Date(iso + "T12:00:00");
-
-  body.innerHTML = `<div class="rr-loading">Loading…</div>`;
-
-  // Pull the visible week's grid so we can pick the day's shifts.
-  const weekStart = fmtIsoDate(startOfWeekMonday(dt));
-  const [gridRes, driversRes] = await Promise.all([
-    sb.rpc("schedule_grid", { p_start: weekStart, p_weeks: 1 }),
-    sb.from("drivers")
-      .select("id, full_name, first_name, last_name, preferred_name, status, station_id, tier, station:station_id (code)")
-      .eq("dsp_id", dspId)
-      .eq("status", "active")
-      .order("full_name"),
-  ]);
-  if (gridRes.error || driversRes.error) {
-    body.innerHTML = `<div class="sched-today-empty">Couldn't load today's schedule.</div>`;
-    return;
-  }
-  const grid = gridRes.data || { shifts: [] };
-  const drivers = driversRes.data || [];
-  const byId = new Map(drivers.map(d => [d.id, d]));
-
-  // Bucket the day's shifts: assigned, PTO, open.
-  const dayShifts = (grid.shifts || []).filter(s => s.date === iso);
-  const eff = window._rrEffectiveSettings || {};
-  const lead = Math.max(0, parseInt(eff.report_lead_minutes, 10) || 0);
-  const blockMin = Math.max(0, parseFloat(eff.default_block_hours) || 0) * 60;
-
-  const assigned = dayShifts.filter(s => s.driver_id && s.status === "scheduled");
-  const open     = dayShifts.filter(s => !s.driver_id && s.status === "scheduled");
-
-  const fmtTimes = (sh) => {
-    const sMs = sh.starts_at ? new Date(sh.starts_at).getTime() : null;
-    if (sMs == null) return "";
-    const waveMs = sMs + lead * 60000;
-    const endMs  = blockMin > 0 ? waveMs + blockMin * 60000 : (sh.ends_at ? new Date(sh.ends_at).getTime() : null);
-    const rpt   = fmtTimeShort(new Date(sMs).toISOString());
-    const wave  = fmtTimeShort(new Date(waveMs).toISOString());
-    const end   = endMs != null ? fmtTimeShort(new Date(endMs).toISOString()) : "";
-    const r = lead > 0 ? `<span class="shift-chip-rpt">Rpt ${rpt}</span>` : "";
-    return `${r}<span class="shift-chip-wave">${wave}${end ? " – " + end : ""}</span>`;
-  };
-
-  const rowHtml = (sh) => {
-    const d = byId.get(sh.driver_id);
-    const name = d ? (d.preferred_name || d.full_name) : (sh.driver_name || "Driver");
-    const initials = _schedDriverInitials(name);
-    const tier = d?.tier ? `tier-${String(d.tier).toLowerCase()}` : "";
-    const station = d?.station?.code || sh.station_code || "—";
-    const isPto = sh.shift_kind === "pto" || sh.status === "pto";
-    const cls = `sched-today-row${isPto ? " pto" : ""}`;
-    const route = sh.route_code ? escapeHtml(sh.route_code) : (isPto ? "PTO" : "shift");
-    const kind = isPto ? "pto" : "shift";
-    return `<div class="${cls}" draggable="true" data-rr-today-row="${escapeHtml(sh.id || "")}" data-rr-today-kind="${kind}">
-      <span class="sched-today-drag-handle" aria-hidden="true" title="Drag to reorder">
-        <svg viewBox="0 0 12 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="4" cy="3" r=".8" fill="currentColor"/><circle cx="8" cy="3" r=".8" fill="currentColor"/><circle cx="4" cy="7" r=".8" fill="currentColor"/><circle cx="8" cy="7" r=".8" fill="currentColor"/><circle cx="4" cy="11" r=".8" fill="currentColor"/><circle cx="8" cy="11" r=".8" fill="currentColor"/></svg>
-      </span>
-      <div class="sched-today-driver">
-        <div class="avatar-sm ${tier}">${escapeHtml(initials)}</div>
-        <div>
-          <div class="sched-today-driver-name">${escapeHtml(name)}</div>
-          <div class="sched-today-driver-meta">${escapeHtml(station)}</div>
-        </div>
-      </div>
-      <div class="sched-today-shift">
-        <div class="sched-today-shift-route">${route}</div>
-        <div class="sched-today-shift-time">${fmtTimes(sh)}</div>
-      </div>
-      <div class="sched-today-tag">${isPto ? "PTO" : "Scheduled"}</div>
-    </div>`;
-  };
-
-  const assignedHtml = assigned.length
-    ? assigned.sort((a,b) => (a.starts_at || "").localeCompare(b.starts_at || "")).map(rowHtml).join("")
-    : "";
-
-  const openHtml = open.length
-    ? open.map(sh => {
-        const sMs = sh.starts_at ? new Date(sh.starts_at).getTime() : null;
-        const waveMs = sMs != null ? sMs + lead * 60000 : null;
-        const endMs  = waveMs != null && blockMin > 0 ? waveMs + blockMin * 60000 : (sh.ends_at ? new Date(sh.ends_at).getTime() : null);
-        const wave = waveMs != null ? fmtTimeShort(new Date(waveMs).toISOString()) : "";
-        const end  = endMs  != null ? fmtTimeShort(new Date(endMs).toISOString())  : "";
-        return `<div class="sched-today-row" draggable="true" data-rr-today-row="${escapeHtml(sh.id || "")}" data-rr-today-kind="open" style="border-left:3px solid var(--sch-amber)">
-          <span class="sched-today-drag-handle" aria-hidden="true" title="Drag to reorder">
-            <svg viewBox="0 0 12 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="4" cy="3" r=".8" fill="currentColor"/><circle cx="8" cy="3" r=".8" fill="currentColor"/><circle cx="4" cy="7" r=".8" fill="currentColor"/><circle cx="8" cy="7" r=".8" fill="currentColor"/><circle cx="4" cy="11" r=".8" fill="currentColor"/><circle cx="8" cy="11" r=".8" fill="currentColor"/></svg>
-          </span>
-          <div class="sched-today-driver">
-            <div class="avatar-sm" style="background:var(--sch-surface-3);color:var(--text-subtle);border:1.5px dashed var(--sch-line-strong);font-weight:700">+</div>
-            <div>
-              <div class="sched-today-driver-name">Unassigned</div>
-              <div class="sched-today-driver-meta">${escapeHtml(sh.station_code || "—")}</div>
-            </div>
-          </div>
-          <div class="sched-today-shift">
-            <div class="sched-today-shift-route">${escapeHtml(sh.route_code || "Open shift")}</div>
-            <div class="sched-today-shift-time"><span class="shift-chip-wave">${wave}${end ? " – " + end : ""}</span></div>
-          </div>
-          <div class="sched-today-tag" style="color:var(--sch-amber-dark);background:var(--sch-amber-soft)">Open</div>
-        </div>`;
-      }).join("")
-    : "";
-
-  // Empty day = blank body (no headers, no placeholder copy).
-  body.innerHTML =
-    (assigned.length ? `<div class="sched-today-section-head">Scheduled · ${assigned.length}</div>${assignedHtml}` : "") +
-    (open.length     ? `<div class="sched-today-section-head">Open · ${open.length}</div>${openHtml}`               : "");
-
-  _wireSchedTodayDragReorder(body);
-}
-window._rrRenderSchedTodayView = renderSchedTodayView;
 
 // Drag-to-reorder support for Today view rows. We keep the order in
 // memory only — it's a per-session display preference, no DB write.

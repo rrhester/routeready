@@ -16,6 +16,15 @@ on:
       - "*.html"
       - "tests/visual/**"
       - ".github/workflows/visual-regression.yml"
+  # Weekly drift run — see booking-e2e.yml.
+  schedule:
+    - cron: '02 10 * * 1'
+
+env:
+  # Pinned — a Playwright/Chromium bump shifts font rendering enough to
+  # break the committed baselines with no code change. Bump deliberately
+  # and regenerate baselines in the same PR.
+  PLAYWRIGHT_VERSION: 1.61.1
 
 jobs:
   visual:
@@ -27,9 +36,19 @@ jobs:
         with:
           node-version: 22
       - name: Install test deps
-        run: npm install --no-save @playwright/test http-server
+        run: npm install --no-save @playwright/test@$PLAYWRIGHT_VERSION http-server
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ env.PLAYWRIGHT_VERSION }}
       - name: Install Chromium
+        if: steps.pw-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
+      - name: Install Chromium OS deps (cache hit)
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
       - name: Run visual tests
         run: npx playwright test --config tests/visual/playwright.config.mjs
       - name: Upload diffs on failure

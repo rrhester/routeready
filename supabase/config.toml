@@ -193,5 +193,89 @@ verify_jwt = false
 [functions.parts-search]
 verify_jwt = false
 
+# ───────────────────────────────────────────────────────────────────────
+# Every function the deploy workflow ships with --no-verify-jwt gets an
+# explicit entry here so config.toml — not a workflow flag — is
+# authoritative. Without an entry, a manual `supabase functions deploy X`
+# reverts to the project default (verify_jwt = true) and silently breaks
+# webhooks / server-to-server callers (that exact failure mode is
+# documented on webhook-email-inbound above). Grouped by auth style:
+
+# Signed-webhook receivers — the provider signature IS the auth
+# (Twilio HMAC / Cal.com HMAC / shared apply secret).
+[functions.webhook-twilio]
+verify_jwt = false
+
+[functions.webhook-cal]
+verify_jwt = false
+
+[functions.webhook-apply]
+verify_jwt = false
+
+# Server-to-server: called by pg_cron / pg_net triggers presenting the
+# service-role key (or a shared sync token) in a header; each function
+# checks it in-code (requireServiceKey() / x-rr-sync-token compare).
+[functions.push-fanout]
+verify_jwt = false
+
+[functions.google-calendar-sync]
+verify_jwt = false
+
+[functions.google-calendar-pull]
+verify_jwt = false
+
+[functions.google-calendar-reconcile]
+verify_jwt = false
+
+[functions.microsoft-calendar-sync]
+verify_jwt = false
+
+# Token-keyed public/driver flows — a capability token in the request
+# body/query is the auth (driver session token, applicant booking token,
+# signed calendar-feed token, interview-room token, meeting token).
+[functions.livekit-token]
+verify_jwt = false
+
+[functions.meet-turn-driver]
+verify_jwt = false
+
+[functions.upload-applicant-video]
+verify_jwt = false
+
+[functions.upload-driver-photo]
+verify_jwt = false
+
+[functions.driver-document-fetch]
+verify_jwt = false
+
+[functions.vehicle-document-fetch]
+verify_jwt = false
+
+[functions.document-verify]
+verify_jwt = false
+
+[functions.document-classify]
+verify_jwt = false
+
+[functions.calendar-feed]
+verify_jwt = false
+
+[functions.interview-room]
+verify_jwt = false
+
+[functions.booking-captcha]
+verify_jwt = false
+
+# OAuth redirect landings — the provider redirects the browser here with
+# code+state (no JWT possible); state is verified in-code.
+[functions.google-oauth-callback]
+verify_jwt = false
+
+[functions.microsoft-oauth-callback]
+verify_jwt = false
+
+[functions.finch-oauth-callback]
+verify_jwt = false
+
 [analytics]
 enabled = false
