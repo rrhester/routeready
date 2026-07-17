@@ -40081,7 +40081,7 @@ let _mcFocusMsgId = null;
 // so the operator's eye lands on the message the search matched.
 function _rrMcFlashBubble(el) {
   if (!el) return;
-  try { el.scrollIntoView({ block: "center", behavior: "smooth" }); }
+  try { el.scrollIntoView({ block: "center", behavior: _mcReducedMotion() ? "auto" : "smooth" }); }
   catch { el.scrollIntoView(false); }
   const prevShadow = el.style.boxShadow;
   const prevTrans  = el.style.transition;
@@ -40902,12 +40902,14 @@ function _mcNotifyEngineTick(threads) {
     }
     if (kwHit) {
       _mcPlayTone("keyword");
+      _mcAnnounce(`Keyword alert from ${t.name || "driver"}: ${body.slice(0, 80)}`, true);
       _mcWebNotify(`⚠️ ${t.name || "Driver"} — keyword alert`, body, id, true);
       toastAction(`⚠️ ${escapeHtml(t.name || "Driver")}: ${escapeHtml(body.slice(0, 80))}`, {
         label: "Open", onConfirm: () => openDriverChatThread(id),
       });
     } else {
       _mcPlayTone("normal");
+      _mcAnnounce(`New message from ${t.name || "driver"}`);
       _mcWebNotify(`${t.name || "Driver"}`, body, id, false);
     }
   }
@@ -42248,6 +42250,16 @@ function _mcEnsureExtrasCss() {
        big rosters (#77/#82) — offscreen bubbles/rows skip layout+paint. */
     .rr-mc-bubble,.rr-cc-bubble{content-visibility:auto;contain-intrinsic-size:auto 64px}
     .msg-item{content-visibility:auto;contain-intrinsic-size:auto 58px}
+    /* Batch 9 · a11y & polish */
+    .rr-mc-bubble-actions button:focus-visible,.rr-mc-react-chip:focus-visible,.msg-fb-btn:focus-visible,
+    .rr-mc-iconbtn:focus-visible,.msg-item:focus-visible,.rr-mc-pin-chip:focus-visible,
+    .rr-cc-poll-opt:focus-visible,.msg-item-quick button:focus-visible{outline:2px solid var(--accent,#2563eb);outline-offset:2px}
+    .rr-mc-translation{margin-top:5px;padding:6px 9px;border-left:3px solid var(--accent,#2563eb);background:rgba(127,127,127,.1);border-radius:6px;font-size:.94em;white-space:pre-wrap}
+    .rr-mc-bubble.dispatch .rr-mc-translation{background:rgba(255,255,255,.16);border-left-color:rgba(255,255,255,.6)}
+    .rr-mc-translation-tag{display:block;font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;opacity:.7;margin-bottom:2px}
+    @media (prefers-reduced-motion: reduce){
+      .rr-mc-pop,.rr-mc-modal-card,.rr-mc-bubble,.rr-cc-bubble,.rr-cc-poll-bar{animation:none !important;transition:none !important}
+    }
   `;
   document.head.appendChild(st);
 }
@@ -42738,7 +42750,9 @@ function _mcOpenPlusMenu(anchor, { ta, kind, targetId }) {
     <div class="rr-mc-plus-sep"></div>
     <div class="rr-mc-plus-note">Composer settings</div>
     <button type="button" role="menuitemcheckbox" data-rr-pm="enter" aria-checked="${_mcEnterSends()}">⏎<span>Enter sends the message</span><span class="rr-mc-plus-val">${_mcEnterSends() ? "On" : "Off — Ctrl+Enter sends"}</span></button>
-    <button type="button" role="menuitem" data-rr-pm="undo">↩️<span>Undo-send window</span><span class="rr-mc-plus-val">${undoSecs ? undoSecs + "s" : "Off"}</span></button>`;
+    <button type="button" role="menuitem" data-rr-pm="undo">↩️<span>Undo-send window</span><span class="rr-mc-plus-val">${undoSecs ? undoSecs + "s" : "Off"}</span></button>
+    <button type="button" role="menuitem" data-rr-pm="fsize">🔠<span>Message text size</span><span class="rr-mc-plus-val">${({ s: "Small", m: "Medium", l: "Large" })[_mcPref("rr_msg_text_size", "m")]}</span></button>
+    <button type="button" role="menuitem" data-rr-pm="clock">🕐<span>Clock</span><span class="rr-mc-plus-val">${({ auto: "Auto", "12": "12-hour", "24": "24-hour" })[_mcPref("rr_msg_hour12", "auto")]}</span></button>`;
   _mcPlacePop(pop, anchor);
   pop.addEventListener("click", (e) => {
     const b = e.target.closest("[data-rr-pm]");
@@ -42778,6 +42792,22 @@ function _mcOpenPlusMenu(anchor, { ta, kind, targetId }) {
       const next = order[(order.indexOf(_mcUndoSecs()) + 1) % order.length];
       _mcSetPref("rr_msg_undo_secs", String(next));
       b.querySelector(".rr-mc-plus-val").textContent = next ? next + "s" : "Off";
+      return;
+    }
+    if (act === "fsize") {
+      const order = ["s", "m", "l"];
+      const next = order[(order.indexOf(_mcPref("rr_msg_text_size", "m")) + 1) % order.length];
+      _mcSetPref("rr_msg_text_size", next);
+      b.querySelector(".rr-mc-plus-val").textContent = ({ s: "Small", m: "Medium", l: "Large" })[next];
+      _mcApplyTextSize();
+      return;
+    }
+    if (act === "clock") {
+      const order = ["auto", "12", "24"];
+      const next = order[(order.indexOf(_mcPref("rr_msg_hour12", "auto")) + 1) % order.length];
+      _mcSetPref("rr_msg_hour12", next);
+      b.querySelector(".rr-mc-plus-val").textContent = ({ auto: "Auto", "12": "12-hour", "24": "24-hour" })[next];
+      if (typeof refreshDriverChatThread === "function" && _msgInboxSelectedId) refreshDriverChatThread(false);
       return;
     }
   });
@@ -43422,7 +43452,11 @@ async function refreshDriverChatThread(scrollToBottom) {
   //              the previous bubble (or on the first bubble of the
   //              thread, but only if that bubble isn't from today —
   //              "Today" without context above feels odd).
-  const renderEmpty = () => `<div class="rr-mc-empty">No messages yet. Start the thread below.</div>`;
+  const renderEmpty = () => `<div class="rr-mc-empty">No messages yet. Start the thread below.
+    <div style="display:flex;gap:6px;justify-content:center;margin-top:10px;flex-wrap:wrap">
+      <button type="button" class="msg-fb-btn" data-rr-empty-tpl="welcome">👋 Send the welcome template</button>
+      <button type="button" class="msg-fb-btn" data-rr-empty-sched>📅 Share their schedule</button>
+    </div></div>`;
   const dayLabel = (d) => {
     const today = new Date();
     today.setHours(0,0,0,0);
@@ -43518,7 +43552,7 @@ async function refreshDriverChatThread(scrollToBottom) {
     msgs.forEach((m, i) => {
       const t = new Date(m.created_at);
       html += _emitCallsBefore(t.getTime());
-      const time = t.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+      const time = _mcFmtTime(t);
       const dateKey = t.toDateString();
       if (dateKey !== lastDateKey) {
         html += `<div class="rr-msg-day">${escapeHtml(dayLabel(t))}</div>`;
@@ -43631,7 +43665,7 @@ async function refreshDriverChatThread(scrollToBottom) {
         ${actions}
         ${bookmarkBtn}
         ${quoteHtml}${priTag}${attach}${m.is_auto ? '<span class="rr-mc-auto" title="Automated message">Auto</span>' : ''}${bodyHtml}${ackChip}
-        <div class="rr-mc-time">${pinnedTag}${escapeHtml(time)}${editedTag}</div>
+        <div class="rr-mc-time" title="${escapeHtml(t.toLocaleString())}">${pinnedTag}${escapeHtml(time)}${editedTag}</div>
         <div class="rr-mc-reacts" data-rr-mc-reacts="${escapeHtml(m.id)}"></div>
         ${likeBtn}
       </div>`;
@@ -43695,6 +43729,7 @@ async function refreshDriverChatThread(scrollToBottom) {
   // (image loads, padding changes, content additions) WITHOUT a
   // JS-driven re-pin — that is what eliminates the visible glitch.
   thread.innerHTML = _mcPinsBarHtml() + loadOlderHtml + html + liveStubs + jumpPillHtml + sentinelHtml;
+  _mcApplyTextSize();
   _applyMcReactions(_reactions);
   // Wire "Load earlier" — grow the page and re-fetch, then restore the
   // operator's scroll by the exact height the prepended history added so
@@ -43735,7 +43770,7 @@ async function refreshDriverChatThread(scrollToBottom) {
       // Smooth scroll on the THREAD only — never via scrollIntoView,
       // which animates ancestor scroll containers too and would jolt
       // the surrounding page chrome.
-      thread.scrollTo({ top: thread.scrollHeight, behavior: "smooth" });
+      thread.scrollTo({ top: thread.scrollHeight, behavior: _mcReducedMotion() ? "auto" : "smooth" });
     });
   }
 
@@ -44122,6 +44157,7 @@ function _mcOpenMoreMenu(anchor, messageId) {
     <button type="button" data-rr-mm="info">ℹ️<span>Message info</span></button>
     <button type="button" data-rr-mm="pin">📌<span>${pinned ? "Unpin from conversation" : "Pin to conversation"}</span></button>
     <button type="button" data-rr-mm="fwd">↪️<span>Forward…</span></button>
+    ${m.body ? `<button type="button" data-rr-mm="translate">🌐<span>Translate</span></button>` : ""}
     <div class="rr-mc-plus-sep"></div>
     <button type="button" data-rr-mm="task">☑️<span>Create a task…</span></button>
     <button type="button" data-rr-mm="coach">📋<span>Coaching entry…</span></button>
@@ -44152,6 +44188,8 @@ function _mcOpenMoreMenu(anchor, messageId) {
       refreshDriverChatThread(false);
     } else if (act === "fwd") {
       _mcOpenForwardModal(m);
+    } else if (act === "translate") {
+      _mcTranslateMessage(m);
     } else if (act === "task") {
       _mcOpenTaskFromMessage(m);
     } else if (act === "coach") {
@@ -44720,6 +44758,131 @@ function _mcOpenCallNoteModal(peer, durLbl, transcript) {
     if (_msgInboxSelectedId === peer.id) refreshDriverChatThread(false);
   });
 }
+
+// ─── Accessibility & UX polish (Batch 9 · #83–91) ────────────────────────
+
+// ARIA live regions (#84): polite for normal traffic, assertive for
+// urgent/keyword alerts. Created once, reused forever.
+function _mcAnnounce(text, assertive) {
+  const id = assertive ? "rr-mc-live-assertive" : "rr-mc-live-polite";
+  let el = document.getElementById(id);
+  if (!el) {
+    el = document.createElement("div");
+    el.id = id;
+    el.setAttribute("aria-live", assertive ? "assertive" : "polite");
+    el.setAttribute("role", assertive ? "alert" : "status");
+    el.style.cssText = "position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%)";
+    document.body.appendChild(el);
+  }
+  el.textContent = "";
+  setTimeout(() => { el.textContent = String(text || ""); }, 30);
+}
+
+// Reduced motion (#88): one switch for every scripted scroll/animation.
+function _mcReducedMotion() {
+  try { return window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { return false; }
+}
+
+// Message text size (#86): s / m / l applied to both thread surfaces.
+function _mcApplyTextSize() {
+  const size = _mcPref("rr_msg_text_size", "m");
+  const px = size === "s" ? "12.5px" : size === "l" ? "16px" : "";
+  document.documentElement.style.setProperty("--rr-mc-msg-fs", px || "");
+  document.querySelectorAll(".rr-mc-thread, .rr-cc-thread").forEach((t) => {
+    t.style.fontSize = px;
+  });
+}
+
+// Time formatting with a 12/24-hour preference (#89); every timestamp
+// gets an exact-datetime tooltip at render time via _mcTimeTitle.
+function _mcFmtTime(d) {
+  const pref = _mcPref("rr_msg_hour12", "auto");
+  const opts = { hour: "numeric", minute: "2-digit" };
+  if (pref === "12") opts.hour12 = true;
+  else if (pref === "24") opts.hour12 = false;
+  return new Date(d).toLocaleTimeString(undefined, opts);
+}
+
+// Keyboard navigation inside Messages (#83): / focuses search, ↑/↓ move
+// through conversations, Enter opens, Esc backs out. Skipped while any
+// input/textarea/modal has focus.
+if (!window.__rrMsgKeysWired) {
+  window.__rrMsgKeysWired = true;
+  document.addEventListener("keydown", (e) => {
+    if (!document.getElementById("view-messages")?.classList.contains("active")) return;
+    const tag = (document.activeElement?.tagName || "").toLowerCase();
+    const typing = tag === "input" || tag === "textarea" || tag === "select" || document.activeElement?.isContentEditable;
+    if (document.querySelector(".rr-mc-modal")) return;
+    if (e.key === "/" && !typing) {
+      e.preventDefault();
+      document.getElementById("rr-msg-search")?.focus();
+      return;
+    }
+    if (typing) return;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      const rows = Array.from(document.querySelectorAll("#rr-msg-driver-list .msg-item"));
+      if (!rows.length) return;
+      e.preventDefault();
+      const curIdx = rows.findIndex((r) => r.classList.contains("active"));
+      const next = rows[Math.min(rows.length - 1, Math.max(0, curIdx + (e.key === "ArrowDown" ? 1 : -1)))];
+      if (!next || next === rows[curIdx]) return;
+      next.scrollIntoView({ block: "nearest" });
+      next.click();
+      _mcAnnounce(`Opened conversation with ${next.querySelector(".msg-item-name")?.textContent || "contact"}`);
+    } else if (e.key === "Enter") {
+      document.getElementById("rr-mc-input")?.focus();
+    }
+  });
+}
+
+// Bubble translation (#90) via the notebook-ai `translate` action —
+// EN↔ES both directions, cached per message.
+const _mcTranslateCache = new Map();
+async function _mcTranslateMessage(m) {
+  const sel = (window.CSS && CSS.escape) ? CSS.escape(m.id) : m.id;
+  const bubble = document.querySelector(`[data-rr-mc-msg="${sel}"], [data-rr-cc-msg="${sel}"]`);
+  if (!bubble || !m.body) return;
+  const existing = bubble.querySelector(".rr-mc-translation");
+  if (existing) { existing.remove(); return; } // toggle off
+  let text = _mcTranslateCache.get(m.id);
+  if (!text) {
+    const note = document.createElement("div");
+    note.className = "rr-mc-translation";
+    note.textContent = "Translating…";
+    bubble.appendChild(note);
+    const { data, error } = await sb.functions.invoke("notebook-ai", { body: { action: "translate", text: m.body.slice(0, 1500) } })
+      .then((r) => r, (e) => ({ error: e || {} }));
+    note.remove();
+    if (error || !data?.text) { toast("Couldn't translate — the AI helper isn't reachable", "warn"); return; }
+    text = String(data.text).trim();
+    _mcTranslateCache.set(m.id, text);
+  }
+  if (!bubble.isConnected) return;
+  const block = document.createElement("div");
+  block.className = "rr-mc-translation";
+  block.innerHTML = `<span class="rr-mc-translation-tag">Translated</span>${escapeHtml(text)}`;
+  bubble.appendChild(block);
+}
+
+// Empty-state suggestions (#91).
+document.addEventListener("click", (e) => {
+  const w = e.target.closest("[data-rr-empty-tpl]");
+  if (w) {
+    const ta = document.getElementById("rr-mc-input");
+    if (!ta) return;
+    const tpl = _MC_BUILTIN_TEMPLATES.find((t) => t.shortcut === w.getAttribute("data-rr-empty-tpl"));
+    if (tpl) {
+      ta.value = _mcFillTemplate(tpl.body, _mcTemplateCtx("dm"));
+      ta.dispatchEvent(new Event("input", { bubbles: true }));
+      ta.focus();
+    }
+    return;
+  }
+  if (e.target.closest("[data-rr-empty-sched]")) {
+    const ta = document.getElementById("rr-mc-input");
+    if (ta) _mcInsertScheduleShare(ta);
+  }
+});
 
 // ─── Reliability, realtime & perf (Batch 8 · #73–82) ─────────────────────
 
@@ -45827,7 +45990,14 @@ function _rrMcWireVoicePlayer(audio) {
   const timeEl  = box.querySelector("[data-rr-vn-time]");
   const speedBtn = box.querySelector("[data-rr-vn-speed]");
   const fmt = (s) => { s = Math.max(0, Math.floor(s || 0)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
-  const showDur = () => { if (timeEl && isFinite(audio.duration)) timeEl.textContent = fmt(audio.duration); };
+  const showDur = () => {
+    if (timeEl && isFinite(audio.duration)) timeEl.textContent = fmt(audio.duration);
+    // SR-friendly container label (#85).
+    if (isFinite(audio.duration)) {
+      box.setAttribute("role", "group");
+      box.setAttribute("aria-label", `Voice message, ${Math.round(audio.duration)} seconds`);
+    }
+  };
   audio.addEventListener("loadedmetadata", showDur);
   audio.addEventListener("timeupdate", () => {
     const d = audio.duration;
@@ -47040,7 +47210,7 @@ async function refreshChannelThread(scrollToBottom) {
     let lastSenderId = null;
     ccBody = msgs.map((m, i) => {
       const t = new Date(m.created_at);
-      const time = t.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+      const time = _mcFmtTime(t);
       const senderKey = m.sender_kind + "|" + (m.sender_id || m.sender_user_id || m.sender_name || "");
       const sameAsPrev = senderKey === lastSenderId && (t.getTime() - lastTimeMs) < 5 * 60 * 1000;
       const next = msgs[i + 1];
@@ -47125,13 +47295,14 @@ async function refreshChannelThread(scrollToBottom) {
         ${ccQuote}${attach}
         ${bodyHtml}
         ${ackChipCc}
-        <div class="rr-cc-time">${escapeHtml(time)}</div>
+        <div class="rr-cc-time" title="${escapeHtml(t.toLocaleString())}">${escapeHtml(time)}</div>
         ${reactsRow}
         ${threadChip}
       </div>${seenPill}`;
     }).join("");
   }
   thread.innerHTML = ccLoadOlderHtml + ccBody + ccLiveStubs + ccSentinelHtml;
+  _mcApplyTextSize();
   _ccApplyPolls();
   if (msgs.some((m) => m.attachment_path)) setTimeout(() => _rrMcSignAttachments(), 0);
   // Wire "Load earlier" for channels — grow the page to 500 and re-fetch,

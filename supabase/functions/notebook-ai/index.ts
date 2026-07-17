@@ -49,6 +49,11 @@ const ACTIONS: Record<string, string> = {
   minutes: "Turn the note into clean meeting minutes: a short heading, an Attendees line if implied, Discussion bullets, a Decisions list, and an Action items checklist.",
   checklist: "Convert the note into a practical Markdown checklist ('- [ ] item'), one actionable item per line, grouped under short headings if there are natural sections.",
   tags: "Suggest 3 to 6 short, lowercase topical tags for this note (single or two words each). Reply with ONLY the tags, comma-separated, on one line. No other text.",
+  // ── Messages-tool actions (Messages 100-list #90/#100) ──
+  translate: "The text is a chat message from a delivery-driver conversation. Detect its language. If it is not English, translate it into natural, colloquial English. If it IS English, translate it into natural, colloquial Spanish. Reply with ONLY the translation, no commentary.",
+  chat_suggest_replies: "The text is the tail of a dispatcher ↔ delivery-driver chat (lines prefixed 'Driver:' and 'Dispatch:'). Suggest 3 short replies the DISPATCHER could send next — practical, friendly, operations-appropriate. Reply with ONLY the three replies, one per line, no numbering, no commentary.",
+  chat_summarize: "The text is a dispatcher ↔ delivery-driver chat transcript (lines prefixed 'Driver:' and 'Dispatch:' with timestamps). Write a tight catch-up summary for a dispatcher who just came on shift: 3-6 bullets covering what happened, anything unresolved, and any commitments made. Note dates/times where they matter.",
+  chat_tone: "The text is a message a dispatcher is ABOUT to send to a delivery driver. Assess the tone. If it could read as harsh, accusatory or unprofessional, reply with 'REVISE: ' followed by a rewritten version that keeps the same facts and firmness but stays professional and de-escalating. If the tone is fine, reply with exactly 'OK'.",
 };
 
 // OCR input: a browser-produced data URL. The editor compresses images to
