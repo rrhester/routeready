@@ -7354,6 +7354,7 @@ function mountSheetBlock(block, body) {
         </div>
       </div>
       <div class="wb-gr-filterchip" hidden></div>
+      <div class="wb-gr-tablesuggest" data-wb-tablesuggest hidden></div>
       <div class="wb-dash-bar" data-wb-dashbar>
         <button type="button" class="btn btn-sm wb-dash-magic" data-wb-dashauto title="Auto-build a dashboard from your data">✨ Auto-build</button>
         <button type="button" class="btn btn-sm wb-dash-btn" data-wb-dashrefresh title="Refresh live data feeding this dashboard">⟳ Refresh data</button>
@@ -7368,6 +7369,7 @@ function mountSheetBlock(block, body) {
       </form>
       <div class="wb-ai-follow" data-wb-aifollow hidden></div>
     </div>
+    <div class="wb-slicers" data-wb-slicers hidden></div>
     <div class="wb-pivots" data-wb-pivots hidden></div>
     <div class="wb-tabs" data-wb-tabs="${block.id}"></div>
     <div class="wb-statusbar" data-wb-statusbar>
@@ -7409,6 +7411,8 @@ function mountSheetBlock(block, body) {
       fbarInput: body.querySelector("[data-wb-fbar-input]"),
       fbarErr: body.querySelector("[data-wb-fbar-err]"),
       filterChip: body.querySelector(".wb-gr-filterchip"),
+      tableSuggest: body.querySelector("[data-wb-tablesuggest]"),
+      slicers: body.querySelector("[data-wb-slicers]"),
       charts: body.querySelector("[data-wb-charts]"),
       pivots: body.querySelector("[data-wb-pivots]"),
       tabs: body.querySelector("[data-wb-tabs]"),
@@ -7445,6 +7449,42 @@ function mountSheetBlock(block, body) {
   renderLiveBar(g); // Live-dataset chip (refreshable operational data)
   g.els.body.addEventListener("click", (e) => {
     if (e.target.closest("[data-wb-liverefresh]")) { e.stopPropagation(); refreshLiveData(g); }
+  });
+  // slicers (100-list #46): chip clicks toggle the column filter
+  g.els.slicers.addEventListener("click", (e) => {
+    const del = e.target.closest("[data-wb-slicerdel]");
+    if (del) { removeSlicer(g, del.getAttribute("data-wb-slicerdel")); return; }
+    const all = e.target.closest("[data-wb-slicerall]");
+    if (all) {
+      g.filters.delete(+all.getAttribute("data-wb-slicerall"));
+      computeGeometry(g); repaintGrid(g); persistFilterState(g);
+      return;
+    }
+    const chip = e.target.closest("[data-wb-slicerval]");
+    if (chip) {
+      const col = +chip.getAttribute("data-wb-slicercol");
+      const val = chip.getAttribute("data-wb-slicerval");
+      const cur = g.filters.get(col);
+      let vals = cur && cur.values ? new Set(cur.values) : null;
+      if (!vals) vals = new Set([val]);            // first pick narrows to just it
+      else if (vals.has(val)) { vals.delete(val); if (!vals.size) vals = null; }
+      else vals.add(val);
+      if (!vals) g.filters.delete(col);
+      else g.filters.set(col, { ...(cur || {}), text: (cur && cur.text) || null, values: vals });
+      if (g.filters.size && !g.filterMode) g.filterMode = true;
+      computeGeometry(g); repaintGrid(g); persistFilterState(g);
+    }
+  });
+  // "looks like a table" chip (100-list #49)
+  g.els.tableSuggest.addEventListener("click", (e) => {
+    if (e.target.closest("[data-wb-tsyes]")) {
+      const rect = g.tableSuggest;
+      g.tableSuggest = null;
+      if (rect) { selectRect(g, rect.r0, rect.c0, rect.r1, rect.c1); toggleTableSelection(g); }
+      g.els.tableSuggest.hidden = true;
+      return;
+    }
+    if (e.target.closest("[data-wb-tsno]")) { g.tableSuggest = null; g.els.tableSuggest.hidden = true; }
   });
   g.els.charts.addEventListener("click", (e) => {
     const add = e.target.closest("[data-wb-dashadd]");
@@ -7740,6 +7780,33 @@ function filterCellText(sheet, r, col) {
   return cell ? String(cell.formula ? (cell.err || (cell.computed ?? "")) : (cell.value ?? "")) : "";
 }
 
+// Number/date filter conditions (100-list #43). Values and limits coerce
+// through numbers first, then loose date parsing, so "≥ 2026-07-01" works
+// on a date column and "> 40" on route counts.
+function filterCondNum(v) {
+  if (v == null || v === "") return null;
+  const n = cellNumeric(v);
+  if (n != null) return n;
+  const d = parseDateLoose(String(v));
+  return d ? dateToSerial(d) : null;
+}
+function filterCondHits(cond, text) {
+  if (!cond || !cond.op) return true;
+  if (text === "") return false; // blanks never satisfy a condition
+  const x = filterCondNum(text);
+  const a = filterCondNum(cond.v1), b = filterCondNum(cond.v2);
+  switch (cond.op) {
+    case "gt": return x != null && a != null && x > a;
+    case "ge": return x != null && a != null && x >= a;
+    case "lt": return x != null && a != null && x < a;
+    case "le": return x != null && a != null && x <= a;
+    case "between": return x != null && a != null && b != null && x >= Math.min(a, b) && x <= Math.max(a, b);
+    case "eq": return x != null && a != null ? x === a : String(text).trim().toLowerCase() === String(cond.v1 ?? "").trim().toLowerCase();
+    case "ne": return x != null && a != null ? x !== a : String(text).trim().toLowerCase() !== String(cond.v1 ?? "").trim().toLowerCase();
+    default: return true;
+  }
+}
+
 function computeGeometry(g) {
   const sheet = g.sheet;
   // visible rows (filter-aware; header row 0 always visible). Every
@@ -7747,7 +7814,7 @@ function computeGeometry(g) {
   const rows = [];
   const rowHidden = (r) => sheet.hiddenRows && sheet.hiddenRows.has(r);
   const filters = g.filters && g.filters.size
-    ? [...g.filters.entries()].map(([col, f]) => ({ col, needle: f.text ? f.text.toLowerCase() : null, values: f.values || null }))
+    ? [...g.filters.entries()].map(([col, f]) => ({ col, needle: f.text ? f.text.toLowerCase() : null, values: f.values || null, cond: f.cond || null, color: f.color || null }))
     : null;
   for (let r = 0; r < sheet.rowCount; r++) {
     if (rowHidden(r)) continue;
@@ -7757,6 +7824,13 @@ function computeGeometry(g) {
       const t = filterCellText(sheet, r, f.col);
       if (f.needle && !t.toLowerCase().includes(f.needle)) { show = false; break; }
       if (f.values && !f.values.has(t)) { show = false; break; }
+      if (f.cond && !filterCondHits(f.cond, t)) { show = false; break; }
+      if (f.color) {
+        // filter by fill color (100-list #44): manual #hex fills only
+        const cc = sheet.cells.get(cellKey(r, f.col));
+        const bg = cc && cc.format && typeof cc.format.bg === "string" && cc.format.bg[0] === "#" ? cc.format.bg.toUpperCase() : "";
+        if (bg !== f.color) { show = false; break; }
+      }
     }
     if (show) rows.push(r);
   }
@@ -8287,6 +8361,8 @@ function paintNow(g) {
   paintSelection(g);
   paintFrozen(g, sx, sy, c0, c1);
   paintFilterChip(g);
+  paintSlicers(g);
+  paintTableSuggest(g);
 }
 
 function paintSelection(g) {
@@ -10712,6 +10788,8 @@ function pasteMatrix(g, matrix) {
     if (clippedR > 0) _toast(`Paste clipped: ${clippedR} row${clippedR === 1 ? "" : "s"} didn't fit the sheet`, "warn");
   }
   setCells(g, changes, { validate: true });
+  // a header-plus-data paste earns a one-click "Create table" chip (#49)
+  if (!single) detectTableSuggest(g, g.active.r, g.active.c, matrix.length, Math.max(...matrix.map((l) => l.length)));
 }
 
 async function pasteFromClipboard(g) {
@@ -11871,6 +11949,8 @@ const WB_CF_ICONSETS = {
   arrows: [{ g: "▼", c: "#B91C1C" }, { g: "▬", c: "#92400E" }, { g: "▲", c: "#166534" }],
   traffic: [{ g: "●", c: "#DC2626" }, { g: "●", c: "#D97706" }, { g: "●", c: "#16A34A" }],
   signs: [{ g: "✖", c: "#B91C1C" }, { g: "!", c: "#92400E" }, { g: "✔", c: "#166534" }],
+  signal: [{ g: "▂", c: "#B91C1C" }, { g: "▅", c: "#92400E" }, { g: "█", c: "#166534" }],
+  flags: [{ g: "⚑", c: "#DC2626" }, { g: "⚑", c: "#D97706" }, { g: "⚑", c: "#16A34A" }],
 };
 function condIconPick(rule, stats, n) {
   const set = WB_CF_ICONSETS[rule.icons] || WB_CF_ICONSETS.arrows;
@@ -11895,9 +11975,19 @@ function condIconFor(sheet, r, c, cell) {
 }
 
 function condStyleFor(sheet, r, c, cell) {
-  const rules = sheet.meta && sheet.meta.condFormat;
-  if (!Array.isArray(rules) || !rules.length) return "";
   let out = "";
+  // banded table rows (100-list #47): odd data rows of a banded table tint
+  const tbls = sheet.meta && sheet.meta.tables;
+  if (Array.isArray(tbls)) {
+    for (const t of tbls) {
+      if (t.banded && r > t.r0 && r <= t.r1 && c >= t.c0 && c <= t.c1 && (r - t.r0) % 2 === 1) {
+        out = "background:rgba(37,99,235,.06);";
+        break;
+      }
+    }
+  }
+  const rules = sheet.meta && sheet.meta.condFormat;
+  if (!Array.isArray(rules) || !rules.length) return out;
   for (const rule of rules) {
     if (!ruleCovers(rule, r, c)) continue;
     if (rule.type === "colorscale") {
@@ -11914,6 +12004,12 @@ function condStyleFor(sheet, r, c, cell) {
       if (n == null) continue;
       const st = cfScaleStats(sheet, rule);
       if (st.empty) continue;
+      // negative values draw a red bar left of the zero axis (100-list #39)
+      if (st.min < 0 && n < 0) {
+        const p0 = condBarPercent(st, 0), pn = condBarPercent(st, n);
+        out = `background:linear-gradient(90deg, transparent ${pn.toFixed(1)}%, #DC26262e ${pn.toFixed(1)}%, #DC26262e ${p0.toFixed(1)}%, transparent ${p0.toFixed(1)}%);`;
+        continue;
+      }
       const pct = condBarPercent(st, n);
       const bar = WB_CF_STYLES[rule.style] ? WB_CF_STYLES[rule.style].fg : "#2a78d6";
       // a soft bar behind the text: filled portion tinted, remainder clear
@@ -12345,7 +12441,7 @@ function openCondFormatDialog(g) {
         <label class="wb-field" id="wb-cf-scale-field" style="display:none"><span class="wb-field-label">Gradient</span>
           <select class="wb-input" id="wb-cf-scale">${scaleOpts}</select></label>
         <label class="wb-field" id="wb-cf-icons-field" style="display:none"><span class="wb-field-label">Icon set</span>
-          <select class="wb-input" id="wb-cf-icons"><option value="arrows">▲ ▬ ▼  arrows</option><option value="traffic">●  traffic lights</option><option value="signs">✔ ! ✖  signs</option></select></label>
+          <select class="wb-input" id="wb-cf-icons"><option value="arrows">▲ ▬ ▼  arrows</option><option value="traffic">●  traffic lights</option><option value="signs">✔ ! ✖  signs</option><option value="signal">▂ ▅ █  signal bars</option><option value="flags">⚑  flags</option></select></label>
         <div class="wb-field" id="wb-cf-style-field"><span class="wb-field-label">Style</span>
           <div class="wb-cf-chips" id="wb-cf-chips">${chips}</div></div>
         <button type="button" class="btn btn-primary btn-sm" data-wb-cf-add>Add rule</button>
@@ -12386,7 +12482,11 @@ function openCondFormatDialog(g) {
               : rule.kind === "between" ? `${WB_CF_KINDS.between} ${rule.v1} and ${rule.v2}`
               : `${WB_CF_KINDS[rule.kind] || rule.kind} ${rule.v1}`;
           }
-          return `<div class="wb-cf-rule">${swatch}<span class="wb-cf-what">${esc(ruleRefText(rule))} · ${esc(what)}</span><button type="button" class="wb-cf-del" data-cf-del="${i}" aria-label="Delete rule">×</button></div>`;
+          // reorder controls (100-list #38): later rules win when they overlap,
+          // so ↑/↓ decide precedence
+          const up = i > 0 ? `<button type="button" class="wb-cf-move" data-cf-up="${i}" title="Lower precedence (checked earlier)" aria-label="Move rule up">↑</button>` : `<span class="wb-cf-move is-ghost"></span>`;
+          const down = i < rules.length - 1 ? `<button type="button" class="wb-cf-move" data-cf-down="${i}" title="Raise precedence (wins on overlap)" aria-label="Move rule down">↓</button>` : `<span class="wb-cf-move is-ghost"></span>`;
+          return `<div class="wb-cf-rule">${swatch}<span class="wb-cf-what">${esc(ruleRefText(rule))} · ${esc(what)}</span>${up}${down}<button type="button" class="wb-cf-del" data-cf-del="${i}" aria-label="Delete rule">×</button></div>`;
         }).join("");
   };
   const syncFields = () => {
@@ -12420,6 +12520,18 @@ function openCondFormatDialog(g) {
       rules.splice(+del.getAttribute("data-cf-del"), 1);
       setSheetRules(g, "condFormat", rules);
       paintRules();
+      return;
+    }
+    const mv = e.target.closest("[data-cf-up],[data-cf-down]");
+    if (mv) {
+      const rules = sheetRules(sheet, "condFormat").slice();
+      const i = +(mv.getAttribute("data-cf-up") ?? mv.getAttribute("data-cf-down"));
+      const j = mv.hasAttribute("data-cf-up") ? i - 1 : i + 1;
+      if (j >= 0 && j < rules.length) {
+        [rules[i], rules[j]] = [rules[j], rules[i]];
+        setSheetRules(g, "condFormat", rules);
+        paintRules();
+      }
       return;
     }
     if (e.target.closest("[data-wb-cf-add]")) {
@@ -12674,32 +12786,45 @@ function sortBySpecs(g, specs, opts) {
     return found || null;
   };
   const ordBy = new Map(specs.map((sp) => [sp.col, ordinalFor(sp.col)]));
-  const keyOf = (r, col) => {
+  // custom sort lists (100-list #45): weekday/month presets match by their
+  // first three letters; a user list matches the full value. Unlisted
+  // values sort after listed ones, alphabetically.
+  const listIndexer = (list) => {
+    if (list === "weekday") { const d = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]; return (s) => { const i = d.indexOf(s.slice(0, 3)); return i < 0 ? null : i; }; }
+    if (list === "month") { const mth = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"]; return (s) => { const i = mth.indexOf(s.slice(0, 3)); return i < 0 ? null : i; }; }
+    if (Array.isArray(list)) return (s) => { const i = list.indexOf(s); return i < 0 ? null : i; };
+    return null;
+  };
+  const keyOf = (r, col, idxer) => {
     const cell = sheet.cells.get(cellKey(r, col));
     if (!cell) return { empty: true };
     const raw = cell.formula ? cell.computed : cell.value;
     if (raw == null || raw === "") return { empty: true };
+    const s = String(raw).trim().toLowerCase();
+    if (idxer) { const li = idxer(s); return { empty: false, n: li == null ? null : li, s, unlisted: li == null }; }
     let n = cellNumeric(raw);
     const ord = ordBy.get(col);
-    if (ord && typeof raw === "string" && raw.trim().toLowerCase() in ord) n = ord[raw.trim().toLowerCase()];
+    if (ord && typeof raw === "string" && s in ord) n = ord[s];
     else if (n == null && typeof raw === "string") { const d = parseDateLoose(raw); if (d) n = dateToSerial(d); } // dates sort as dates
     return { empty: false, n, s: String(raw).toLowerCase() };
   };
-  const cmpLevel = (a, b, col, dir) => {
-    const ka = keyOf(a, col), kb = keyOf(b, col);
+  const cmpLevel = (a, b, sp) => {
+    const idxer = listIndexer(sp.list);
+    const ka = keyOf(a, sp.col, idxer), kb = keyOf(b, sp.col, idxer);
     if (ka.empty && kb.empty) return 0;
     if (ka.empty) return 1; // empties always last
     if (kb.empty) return -1;
+    if (idxer && ka.unlisted !== kb.unlisted) return ka.unlisted ? 1 : -1;
     let cmp;
     if (ka.n != null && kb.n != null) cmp = ka.n - kb.n;
     else if (ka.n != null) cmp = -1;
     else if (kb.n != null) cmp = 1;
     else cmp = ka.s < kb.s ? -1 : ka.s > kb.s ? 1 : 0;
-    return dir === "asc" ? cmp : -cmp;
+    return sp.dir === "asc" ? cmp : -cmp;
   };
   const sorted = rowsIdx.slice().sort((a, b) => {
     for (const sp of specs) {
-      const cmp = cmpLevel(a, b, sp.col, sp.dir);
+      const cmp = cmpLevel(a, b, sp);
       if (cmp) return cmp;
     }
     return a - b; // stable
@@ -12777,6 +12902,9 @@ function openSortDialog(g) {
             <select class="wb-input" data-sort-dir="${i}">
               <option value="asc">A → Z · low → high</option>
               <option value="desc">Z → A · high → low</option>
+              <option value="weekday">Day of week (Mon → Sun)</option>
+              <option value="month">Month (Jan → Dec)</option>
+              <option value="custom">Custom list…</option>
             </select></label>
         </div>`).join("")}
       </div>
@@ -12791,15 +12919,37 @@ function openSortDialog(g) {
     if (e.target === wrap || e.target.closest("[data-wb-close]")) { wrap.remove(); return; }
     if (e.target.closest("[data-wb-sort-apply]")) {
       const specs = [];
+      let needsCustom = null;
       for (let i = 0; i < 3; i++) {
         const col = wrap.querySelector(`[data-sort-col="${i}"]`).value;
         if (col === "") continue;
         const c = +col;
         if (specs.some((s) => s.col === c)) continue;
-        specs.push({ col: c, dir: wrap.querySelector(`[data-sort-dir="${i}"]`).value });
+        const dirV = wrap.querySelector(`[data-sort-dir="${i}"]`).value;
+        // custom sort lists (100-list #45): weekday/month presets sort by
+        // meaning; "custom" asks for the order after the dialog closes
+        if (dirV === "weekday" || dirV === "month") specs.push({ col: c, dir: "asc", list: dirV });
+        else if (dirV === "custom") { const sp = { col: c, dir: "asc", list: null }; specs.push(sp); needsCustom = needsCustom || sp; }
+        else specs.push({ col: c, dir: dirV });
       }
       wrap.remove();
-      if (specs.length) sortBySpecs(g, specs);
+      if (!specs.length) { g.els.grid.focus(); return; }
+      if (needsCustom) {
+        promptModal({
+          title: "Custom sort order",
+          label: "Values in order, separated by commas (unlisted values sort last)",
+          value: "", placeholder: "e.g. Cargo van, CDV, EDV, Step van", submitLabel: "Sort",
+          onSubmit: (txt) => {
+            const list = String(txt || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+            if (!list.length) { _toast("Enter at least one value", "warn"); return; }
+            for (const sp of specs) if (sp.list === null) sp.list = list;
+            sortBySpecs(g, specs);
+            g.els.grid.focus();
+          },
+        });
+        return;
+      }
+      sortBySpecs(g, specs);
       g.els.grid.focus();
     }
   });
@@ -12834,7 +12984,7 @@ function persistFilterState(g) {
     ...(g.sheet.meta || {}),
     filterState: {
       on: g.filterMode,
-      filters: [...g.filters.entries()].map(([col, f]) => ({ col, text: f.text || null, values: f.values ? [...f.values] : null })),
+      filters: [...g.filters.entries()].map(([col, f]) => ({ col, text: f.text || null, values: f.values ? [...f.values] : null, cond: f.cond || null, color: f.color || null })),
     },
   };
   saveSheetMeta(g.sheet.id);
@@ -12848,7 +12998,7 @@ function restoreViewState(g) {
   if (fs && typeof fs === "object") {
     g.filterMode = !!fs.on;
     for (const f of Array.isArray(fs.filters) ? fs.filters : []) {
-      if (typeof f.col === "number") g.filters.set(f.col, { text: f.text || null, values: Array.isArray(f.values) ? new Set(f.values) : null });
+      if (typeof f.col === "number") g.filters.set(f.col, { text: f.text || null, values: Array.isArray(f.values) ? new Set(f.values) : null, cond: f.cond && f.cond.op ? f.cond : null, color: f.color || null });
     }
   }
   g.els.body.querySelector('[data-wb-tb="filter"]')?.classList.toggle("is-on", g.filterMode);
@@ -12899,6 +13049,27 @@ function openFilterPanel(g, col, anchorEl, at) {
         <button type="button" class="wb-filterpop-sortbtn" data-fp-sort="desc">↓ Sort Z→A · high→low</button>
       </div>` : ""}
       <input type="text" class="wb-input wb-filterpop-text" data-fp-text placeholder="Contains…" value="${esc((cur && cur.text) || "")}" autocomplete="off" spellcheck="false" aria-label="Rows containing text">
+      <div class="wb-filterpop-cond">
+        <select class="wb-input" data-fp-op aria-label="Condition">
+          ${[["", "Condition…"], ["gt", "Greater than"], ["ge", "At least"], ["lt", "Less than"], ["le", "At most"], ["eq", "Equals"], ["ne", "Not equal"], ["between", "Between"]].map(([v, l]) => `<option value="${v}" ${cur && cur.cond && cur.cond.op === v ? "selected" : ""}>${l}</option>`).join("")}
+        </select>
+        <input type="text" class="wb-input" data-fp-v1 placeholder="value / date" value="${esc((cur && cur.cond && cur.cond.v1) || "")}" aria-label="Condition value">
+        <input type="text" class="wb-input" data-fp-v2 placeholder="and" value="${esc((cur && cur.cond && cur.cond.v2) || "")}" aria-label="Condition upper value" ${cur && cur.cond && cur.cond.op === "between" ? "" : "hidden"}>
+      </div>
+      ${(() => {
+        // fill-color chips (100-list #44): distinct manual #hex fills in this column
+        const seen = new Set();
+        for (let r = 1; r < sheet.rowCount; r++) {
+          const cc = sheet.cells.get(cellKey(r, col));
+          const bg = cc && cc.format && typeof cc.format.bg === "string" && cc.format.bg[0] === "#" ? cc.format.bg.toUpperCase() : "";
+          if (bg) seen.add(bg);
+          if (seen.size >= 8) break;
+        }
+        return seen.size ? `<div class="wb-filterpop-colors" role="group" aria-label="Filter by color">
+          <span class="wb-filterpop-colorlabel">Fill color:</span>
+          ${[...seen].map((hex) => `<button type="button" class="wb-bcolor-sw ${cur && cur.color === hex ? "is-on" : ""}" data-fp-color="${hex}" style="background:${hex}" title="Only ${hex}" aria-label="Only ${hex}"></button>`).join("")}
+        </div>` : "";
+      })()}
       <label class="wb-filterpop-item wb-filterpop-all"><input type="checkbox" data-fp-all ${!cur || !cur.values ? "checked" : ""}> <span>Select all</span><span class="wb-filterpop-n">${values.length}</span></label>
       <div class="wb-filterpop-list">
         ${shown.map((v) => `<label class="wb-filterpop-item"><input type="checkbox" data-fp-val="${esc(v)}" ${isChecked(v) ? "checked" : ""}> <span>${esc(v)}</span><span class="wb-filterpop-n">${counts.get(v)}</span></label>`).join("") || `<div class="rr-empty-inline">No values below the header yet.</div>`}
@@ -12915,10 +13086,14 @@ function openFilterPanel(g, col, anchorEl, at) {
     const boxes = [...m.querySelectorAll("[data-fp-val]")];
     const all = !boxes.length || boxes.every((cb) => cb.checked);
     const picked = new Set(boxes.filter((cb) => cb.checked).map((cb) => cb.getAttribute("data-fp-val")));
+    const op = m.querySelector("[data-fp-op]").value;
+    const cond = op ? { op, v1: m.querySelector("[data-fp-v1]").value.trim(), v2: m.querySelector("[data-fp-v2]").value.trim() } : null;
+    const colorSw = m.querySelector("[data-fp-color].is-on");
+    const color = colorSw ? colorSw.getAttribute("data-fp-color") : null;
     closeAllPopovers();
-    if (!text && all) g.filters.delete(col);
+    if (!text && all && !cond && !color) g.filters.delete(col);
     else {
-      g.filters.set(col, { text: text || null, values: all ? null : picked });
+      g.filters.set(col, { text: text || null, values: all ? null : picked, cond, color });
       // applying a filter turns filter mode on so the header ▾ buttons show
       if (!g.filterMode) {
         g.filterMode = true;
@@ -12932,6 +13107,16 @@ function openFilterPanel(g, col, anchorEl, at) {
   };
   allBox.addEventListener("change", () => {
     m.querySelectorAll("[data-fp-val]").forEach((cb) => { cb.checked = allBox.checked; });
+  });
+  m.querySelector("[data-fp-op]").addEventListener("change", (e) => {
+    m.querySelector("[data-fp-v2]").hidden = e.target.value !== "between";
+  });
+  m.addEventListener("click", (e) => {
+    const sw = e.target.closest("[data-fp-color]");
+    if (!sw) return;
+    const on = sw.classList.contains("is-on");
+    m.querySelectorAll("[data-fp-color]").forEach((b) => b.classList.remove("is-on"));
+    if (!on) sw.classList.add("is-on"); // click again to clear the color filter
   });
   m.addEventListener("change", (e) => {
     if (e.target.closest("[data-fp-val]")) {
@@ -13442,23 +13627,70 @@ function sheetFilterViews(sheet) {
   return Array.isArray(v) ? v : [];
 }
 
+// Personal views live in localStorage per user+sheet (100-list #48), so two
+// dispatchers can keep their own views without fighting over the shared list.
+function localFilterViews(sheetId) {
+  try { const v = JSON.parse(localStorage.getItem("rr-wb-fv-" + sheetId) || "[]"); return Array.isArray(v) ? v : []; } catch (_) { return []; }
+}
+function setLocalFilterViews(sheetId, views) {
+  try { localStorage.setItem("rr-wb-fv-" + sheetId, JSON.stringify(views)); } catch (_) {}
+}
+
 function saveFilterView(g) {
   if (!WB.canEdit) return;
   if (!g.filters.size) { _toast("Set up a filter first, then save it as a view", "info"); return; }
-  const name = window.prompt("Name this filter view:", "");
-  if (!name || !name.trim()) return;
-  const spec = [...g.filters.entries()].map(([col, f]) => ({ col, text: f.text || null, values: f.values ? [...f.values] : null }));
-  const views = [...sheetFilterViews(g.sheet), { id: "fv" + Math.random().toString(36).slice(2, 8), name: name.trim().slice(0, 60), filters: spec }];
-  g.sheet.meta = { ...(g.sheet.meta || {}), filterViews: views };
-  saveSheetMeta(g.sheet.id);
-  wbLog("sheet.filterview", `saved filter view “${name.trim()}” on ${g.sheet.name}`, { target_type: "sheet", target_id: g.sheet.id });
-  _toast(`Saved filter view “${name.trim()}”`, "success");
+  document.getElementById("wb-fv-modal")?.remove();
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-fv-modal";
+  wrap.innerHTML = `
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Save filter view" style="width:380px">
+      <div class="rr-modal-head">
+        <div class="rr-modal-head-content"><p class="rr-modal-title">Save filter view</p></div>
+        <button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button>
+      </div>
+      <div class="rr-modal-body">
+        <label class="wb-field"><span class="wb-field-label">Name</span>
+          <input type="text" class="wb-input" id="wb-fv-name" maxlength="60" placeholder="e.g. DTW1 only"></label>
+        <label class="wb-field" style="margin-top:10px"><span class="wb-field-label">Who sees it</span>
+          <select class="wb-input" id="wb-fv-aud">
+            <option value="me" selected>Just me (this browser)</option>
+            <option value="all">Everyone on this sheet</option>
+          </select></label>
+      </div>
+      <div class="rr-modal-foot">
+        <button class="rr-modal-btn" type="button" data-wb-close>Cancel</button>
+        <button class="rr-modal-btn primary" type="button" data-wb-confirm>Save view</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") wrap.remove(); });
+  wrap.addEventListener("click", (e) => {
+    if (e.target === wrap || e.target.closest("[data-wb-close]")) { wrap.remove(); return; }
+    if (!e.target.closest("[data-wb-confirm]")) return;
+    const name = wrap.querySelector("#wb-fv-name").value.trim();
+    if (!name) { wrap.querySelector("#wb-fv-name").focus(); return; }
+    const personal = wrap.querySelector("#wb-fv-aud").value === "me";
+    wrap.remove();
+    const spec = [...g.filters.entries()].map(([col, f]) => ({ col, text: f.text || null, values: f.values ? [...f.values] : null, cond: f.cond || null, color: f.color || null }));
+    const view = { id: (personal ? "lfv" : "fv") + Math.random().toString(36).slice(2, 8), name: name.slice(0, 60), filters: spec };
+    if (personal) {
+      setLocalFilterViews(g.sheet.id, [...localFilterViews(g.sheet.id), view]);
+    } else {
+      g.sheet.meta = { ...(g.sheet.meta || {}), filterViews: [...sheetFilterViews(g.sheet), view] };
+      saveSheetMeta(g.sheet.id);
+      wbLog("sheet.filterview", `saved filter view “${name}” on ${g.sheet.name}`, { target_type: "sheet", target_id: g.sheet.id });
+    }
+    _toast(`Saved filter view “${name}”${personal ? " (just you)" : ""}`, "success");
+  });
+  setTimeout(() => wrap.querySelector("#wb-fv-name")?.focus(), 30);
 }
 
 function applyFilterView(g, viewId) {
-  const view = sheetFilterViews(g.sheet).find((v) => v.id === viewId);
+  const view = sheetFilterViews(g.sheet).find((v) => v.id === viewId)
+    || localFilterViews(g.sheet.id).find((v) => v.id === viewId);
   if (!view) return;
-  g.filters = new Map(view.filters.map((f) => [f.col, { text: f.text || null, values: f.values ? new Set(f.values) : null }]));
+  g.filters = new Map(view.filters.map((f) => [f.col, { text: f.text || null, values: f.values ? new Set(f.values) : null, cond: f.cond && f.cond.op ? f.cond : null, color: f.color || null }]));
   if (g.filters.size && !g.filterMode) {
     g.filterMode = true;
     g.els.body.querySelector('[data-wb-tb="filter"]')?.classList.add("is-on");
@@ -13469,9 +13701,118 @@ function applyFilterView(g, viewId) {
 }
 
 function deleteFilterView(g, viewId) {
+  if (String(viewId).startsWith("lfv")) {
+    setLocalFilterViews(g.sheet.id, localFilterViews(g.sheet.id).filter((v) => v.id !== viewId));
+    return;
+  }
   if (!WB.canEdit) return;
   g.sheet.meta = { ...(g.sheet.meta || {}), filterViews: sheetFilterViews(g.sheet).filter((v) => v.id !== viewId) };
   saveSheetMeta(g.sheet.id);
+}
+
+// ─── Slicers (100-list #46) ──────────────────────────────────────────────────
+// Visual filter chips for a column, persisted in sheet.meta.slicers as
+// [{id, col}]. Chips ride the same g.filters state as the AutoFilter, so
+// slicers, filter views and the filter popup all stay coherent.
+function sheetSlicers(sheet) {
+  const v = sheet.meta && sheet.meta.slicers;
+  return Array.isArray(v) ? v : [];
+}
+
+function addSlicer(g) {
+  if (!WB.canEdit) return;
+  const col = g.active.c;
+  const slicers = sheetSlicers(g.sheet);
+  if (slicers.some((sl) => sl.col === col)) { _toast("That column already has a slicer", "info"); return; }
+  g.sheet.meta = { ...(g.sheet.meta || {}), slicers: [...slicers, { id: "sl" + Math.random().toString(36).slice(2, 8), col }] };
+  saveSheetMeta(g.sheet.id);
+  repaintGrid(g);
+  wbLog("sheet.slicer", `added a slicer for column ${colLabel(col)} on ${g.sheet.name}`, { target_type: "sheet", target_id: g.sheet.id });
+}
+
+function removeSlicer(g, id) {
+  if (!WB.canEdit) return;
+  const sl = sheetSlicers(g.sheet).find((x) => x.id === id);
+  g.sheet.meta = { ...(g.sheet.meta || {}), slicers: sheetSlicers(g.sheet).filter((x) => x.id !== id) };
+  if (sl) g.filters.delete(sl.col); // dropping the slicer drops its filter
+  saveSheetMeta(g.sheet.id);
+  computeGeometry(g);
+  repaintGrid(g);
+  persistFilterState(g);
+}
+
+const SLICER_VALUE_CAP = 12;
+function paintSlicers(g) {
+  const host = g.els.slicers;
+  if (!host) return;
+  const slicers = sheetSlicers(g.sheet);
+  if (!slicers.length) { host.hidden = true; return; }
+  const sheet = g.sheet;
+  host.hidden = false;
+  host.innerHTML = slicers.map((sl) => {
+    const counts = new Map();
+    for (let r = 1; r < sheet.rowCount; r++) {
+      const t = filterCellText(sheet, r, sl.col);
+      if (t !== "") counts.set(t, (counts.get(t) || 0) + 1);
+    }
+    const values = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, SLICER_VALUE_CAP).map(([v]) => v);
+    const cur = g.filters.get(sl.col);
+    const picked = cur && cur.values ? cur.values : null;
+    const header = filterCellText(sheet, 0, sl.col) || colLabel(sl.col);
+    return `<div class="wb-slicer" data-wb-slicer="${sl.id}">
+      <span class="wb-slicer-name">${esc(header.slice(0, 24))}</span>
+      <button type="button" class="wb-slicer-chip ${!picked ? "is-on" : ""}" data-wb-slicerall="${sl.col}">All</button>
+      ${values.map((v) => `<button type="button" class="wb-slicer-chip ${picked && picked.has(v) ? "is-on" : ""}" data-wb-slicerval="${esc(v)}" data-wb-slicercol="${sl.col}">${esc(v.slice(0, 20))}</button>`).join("")}
+      ${counts.size > SLICER_VALUE_CAP ? `<span class="wb-slicer-more">+${counts.size - SLICER_VALUE_CAP}</span>` : ""}
+      ${WB.canEdit ? `<button type="button" class="wb-slicer-del" data-wb-slicerdel="${sl.id}" title="Remove slicer" aria-label="Remove slicer">\u00d7</button>` : ""}
+    </div>`;
+  }).join("");
+}
+
+// ─── Table banding (100-list #47) ────────────────────────────────────────────
+// Toggles banded (zebra) data rows for the table containing the active cell;
+// stored on the table entry in sheet.meta.tables and painted dynamically.
+function toggleTableBanding(g) {
+  if (!WB.canEdit) return;
+  const tables = Array.isArray(g.sheet.meta && g.sheet.meta.tables) ? g.sheet.meta.tables : [];
+  const t = tables.find((x) => g.active.r >= x.r0 && g.active.r <= x.r1 && g.active.c >= x.c0 && g.active.c <= x.c1);
+  if (!t) { _toast("Click inside a table first (Data \u2192 Create table)", "info"); return; }
+  t.banded = !t.banded;
+  g.sheet.meta = { ...(g.sheet.meta || {}) };
+  saveSheetMeta(g.sheet.id);
+  repaintGrid(g);
+  _toast(t.banded ? "Banded rows on" : "Banded rows off", "success");
+}
+
+// ─── "Looks like a table" suggestion (100-list #49) ─────────────────────────
+function paintTableSuggest(g) {
+  const el = g.els.tableSuggest;
+  if (!el) return;
+  if (!g.tableSuggest) { el.hidden = true; return; }
+  el.hidden = false;
+  el.innerHTML = `Pasted data looks like a table
+    <button type="button" class="btn btn-sm" data-wb-tsyes>Create table</button>
+    <button type="button" class="wb-slicer-del" data-wb-tsno aria-label="Dismiss">\u00d7</button>`;
+}
+
+function detectTableSuggest(g, r0, c0, nRows, nCols) {
+  if (!WB.canEdit || nRows < 3 || nCols < 2) return;
+  const sheet = g.sheet;
+  const tables = Array.isArray(sheet.meta && sheet.meta.tables) ? sheet.meta.tables : [];
+  const r1 = r0 + nRows - 1, c1 = c0 + nCols - 1;
+  if (tables.some((t) => !(r1 < t.r0 || r0 > t.r1 || c1 < t.c0 || c0 > t.c1))) return;
+  let headerish = 0, dataish = 0;
+  for (let c = c0; c <= c1; c++) {
+    const h = sheet.cells.get(cellKey(r0, c));
+    if (h && !h.formula && typeof h.value === "string" && h.value.trim() && cellNumeric(h.value) == null) headerish++;
+    const d = sheet.cells.get(cellKey(r0 + 1, c));
+    const raw = d && (d.formula ? d.computed : d.value);
+    if (raw != null && (cellNumeric(raw) != null || parseDateLoose(String(raw)))) dataish++;
+  }
+  if (headerish === nCols && dataish >= 1) {
+    g.tableSuggest = { r0, c0, r1, c1 };
+    paintTableSuggest(g);
+  }
 }
 
 // ─── Data tools ──────────────────────────────────────────────────────────────
@@ -19787,7 +20128,8 @@ function wbMenuItems(menu, g) {
       { label: "Clear formatting", act: "fmt:clear", disabled: !ed || !g },
     ];
     case "Data": {
-      const views = g ? sheetFilterViews(g.sheet) : [];
+      // shared views + this user's personal views (100-list #48)
+      const views = g ? [...sheetFilterViews(g.sheet), ...localFilterViews(g.sheet.id).map((v) => ({ ...v, name: v.name + " · me" }))] : [];
       return [
         { label: "Load from RouteReady", sub: [
           { label: "Drivers…", act: "data:fill-people", disabled: !ed || !g },
@@ -19815,6 +20157,8 @@ function wbMenuItems(menu, g) {
         { label: "Column stats", act: "data:stats", disabled: !g },
         { label: "Create / remove table", act: "data:table", disabled: !ed || !g },
         { label: "Toggle table total row", act: "data:table-totals", disabled: !ed || !g },
+        { label: "Toggle table banded rows", act: "data:table-band", disabled: !ed || !g },
+        { label: "Add slicer for this column", act: "data:slicer", disabled: !ed || !g },
         { label: "Protect / unprotect selection", act: "data:protect", disabled: !g || !WB.canAdmin },
         { label: "Goal seek…", act: "data:goalseek", disabled: !ed || !g },
         { label: "Pivot table…", act: "data:pivot", disabled: !ed || !g },
@@ -19960,6 +20304,8 @@ function wbMenuAction(act, g) {
     case "data:stats": if (need()) showColumnStats(g); return;
     case "data:table": if (need()) toggleTableSelection(g); return;
     case "data:table-totals": if (need()) toggleTableTotals(g); return;
+    case "data:table-band": if (need()) toggleTableBanding(g); return;
+    case "data:slicer": if (need()) addSlicer(g); return;
     case "data:protect": toggleProtectSelection(g); return;
     case "data:goalseek": if (need()) openGoalSeekDialog(g); return;
     case "data:pivot": if (need()) openPivotDialog(g); return;
@@ -21912,7 +22258,7 @@ export const __engine = {
   fillSeries, cycleRefAnchor, errorHint, columnSuggestion, snapshotSheet, applySheetSnapshot,
   colLabel, colIndex, cellRef, parseCellRef,
   dateToSerial, serialToDate, isoDate, parseDateLoose,
-  buildXlsxBytes, parseXlsxBytes, buildPrintTable, formatForDisplay, applyCustomFormat, customFormatColor, solveGoalSeek,
+  buildXlsxBytes, parseXlsxBytes, buildPrintTable, formatForDisplay, applyCustomFormat, customFormatColor, solveGoalSeek, filterCondHits,
   condBarPercent, condIconPick, WB_CF_ICONSETS, isCellProtected, runQuery,
   chartSvg, WB_CHART_TYPES, kpiTileHtml, tableTileHtml, textTileHtml, kpiSparkline, kpiFmt, embedCellNum,
   chartData, aggRange, distinctColumnValues, kpiValue, KPI_AGGS,

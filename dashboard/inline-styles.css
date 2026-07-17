@@ -31184,6 +31184,35 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
   cursor:pointer;padding:0;
 }
 #view-workbooks .wb-bcolor-sw.is-on{border-color:var(--accent,#2563EB);box-shadow:0 0 0 2px var(--surface,#fff) inset}
+/* Filter popup: condition row + fill-color chips */
+#view-workbooks .wb-filterpop-cond{display:flex;gap:6px;margin:6px 0}
+#view-workbooks .wb-filterpop-cond select{flex:1;min-width:0}
+#view-workbooks .wb-filterpop-cond input{flex:0 0 88px;min-width:0}
+#view-workbooks .wb-filterpop-colors{display:flex;align-items:center;gap:6px;margin:2px 0 6px}
+#view-workbooks .wb-filterpop-colorlabel{font-size:var(--fs-xs);color:var(--text-subtle)}
+/* Slicers: chip rows under the grid (100-list #46) */
+#view-workbooks .wb-slicers{display:flex;flex-direction:column;gap:6px;padding:8px 2px 2px}
+#view-workbooks .wb-slicer{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+#view-workbooks .wb-slicer-name{font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);margin-right:2px}
+#view-workbooks .wb-slicer-chip{
+  font-size:var(--fs-xs);padding:3px 10px;border-radius:999px;cursor:pointer;
+  border:1px solid var(--border,#E5E7EB);background:var(--surface);color:var(--text);
+}
+#view-workbooks .wb-slicer-chip.is-on{background:var(--accent-soft,rgba(37,99,235,.1));border-color:var(--accent-border,rgba(37,99,235,.35));color:var(--accent-text,#1D4ED8);font-weight:600}
+#view-workbooks .wb-slicer-more{font-size:var(--fs-xs);color:var(--text-subtle)}
+#view-workbooks .wb-slicer-del{border:0;background:none;cursor:pointer;color:var(--text-subtle);font-size:14px;padding:2px 6px}
+#view-workbooks .wb-slicer-del:hover{color:var(--text)}
+/* "Looks like a table" suggestion chip (100-list #49) */
+#view-workbooks .wb-gr-tablesuggest{
+  position:absolute;left:50%;bottom:44px;transform:translateX(-50%);z-index:7;
+  display:flex;align-items:center;gap:8px;font-size:var(--fs-xs);font-weight:600;
+  background:var(--surface);border:1px solid var(--border,#E5E7EB);border-radius:999px;
+  padding:5px 8px 5px 14px;box-shadow:0 4px 14px rgba(15,23,42,.12);
+}
+/* CF rules list: reorder buttons */
+#view-workbooks .wb-cf-move{border:0;background:none;cursor:pointer;color:var(--text-subtle);padding:2px 4px;font-size:12px}
+#view-workbooks .wb-cf-move:hover{color:var(--text)}
+#view-workbooks .wb-cf-move.is-ghost{width:20px;display:inline-block}
 #view-workbooks .wb-gr-frozen-top-inner,#view-workbooks .wb-gr-frozen-left-inner,#view-workbooks .wb-gr-frozen-corner-inner{position:relative;width:100%;height:100%;will-change:transform}
 #view-workbooks .wb-gr-filterchip{
   position:absolute;left:50%;bottom:10px;transform:translateX(-50%);z-index:7;

@@ -923,6 +923,19 @@ ok("dv list: membership is case-insensitive", () => {
 ok("dv: an empty value always passes (blank is allowed)", () => {
   assert.equal(valueSatisfiesRule({ type: "number", op: ">", v1: "0" }, ""), true);
 });
+ok("filter conditions: numbers and dates (100-list #43)", () => {
+  const { filterCondHits } = __engine;
+  assert.equal(filterCondHits({ op: "gt", v1: "40" }, "45"), true);
+  assert.equal(filterCondHits({ op: "gt", v1: "40" }, "39"), false);
+  assert.equal(filterCondHits({ op: "between", v1: "10", v2: "20" }, "15"), true);
+  assert.equal(filterCondHits({ op: "between", v1: "10", v2: "20" }, "25"), false);
+  assert.equal(filterCondHits({ op: "ge", v1: "2026-07-01" }, "2026-07-15"), true);
+  assert.equal(filterCondHits({ op: "lt", v1: "2026-07-01" }, "2026-07-15"), false);
+  assert.equal(filterCondHits({ op: "eq", v1: "DTW1" }, "dtw1"), true);
+  assert.equal(filterCondHits({ op: "ne", v1: "DTW1" }, "DTW2"), true);
+  assert.equal(filterCondHits({ op: "gt", v1: "40" }, ""), false); // blanks never match
+});
+
 ok("dv range + depend: cascading dropdown filters by the parent column (100-list #16)", () => {
   // A1:B3 is a (station, route) mapping; column C holds the picked station
   const sh = mkSheet("Cascade", {
