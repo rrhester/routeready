@@ -25970,7 +25970,7 @@ async function loadIvCalendar() {
       sb.rpc("interview_availability_get"),
       sb.rpc("interview_sessions_list"),
       sb.from("cal_events")
-        .select("id, applicant_id, kind, status, starts_at, ends_at, meeting_url, location, interview_session_id, title, metadata, rsvp, rsvp_token, calendar_id, google_sync_status, series_id, series_exception, created_by, applicants:applicant_id (full_name, email, phone)")
+        .select("id, applicant_id, kind, status, starts_at, ends_at, meeting_url, location, interview_session_id, title, metadata, rsvp, rsvp_token, calendar_id, google_sync_status, series_id, series_exception, created_by, applicants:applicant_id (full_name, email, phone, screening_completed_at)")
         .eq("dsp_id", window.RR.dsp.id)
         .in("status", ["scheduled", "rescheduled"])
         // Lower bound is critical: without it, ascending order + limit(500)
@@ -26009,7 +26009,7 @@ async function loadIvCalendar() {
       // Pre-0431 fallback: series columns may not exist yet — retry with the
       // previous column set so nothing else degrades.
       const b1 = await sb.from("cal_events")
-        .select("id, applicant_id, kind, status, starts_at, ends_at, meeting_url, location, interview_session_id, title, metadata, rsvp, rsvp_token, calendar_id, google_sync_status, created_by, applicants:applicant_id (full_name, email, phone)")
+        .select("id, applicant_id, kind, status, starts_at, ends_at, meeting_url, location, interview_session_id, title, metadata, rsvp, rsvp_token, calendar_id, google_sync_status, created_by, applicants:applicant_id (full_name, email, phone, screening_completed_at)")
         .eq("dsp_id", window.RR.dsp.id)
         .in("status", ["scheduled", "rescheduled"])
         .gte("starts_at", _ivcalQueryFloorISO())
@@ -26637,6 +26637,18 @@ function _ivcalRenderNow() {
   // Read-only Google events open in Google Calendar.
   host.querySelectorAll("[data-ivcal-glink]").forEach(el => {
     el.addEventListener("click", (e) => { e.stopPropagation(); const u = el.getAttribute("data-ivcal-glink"); if (u) window.open(u, "_blank", "noreferrer"); });
+  });
+  // Day actions (#8/#9): right-click a day header (or month cell) → close the
+  // day / overrides / new event.
+  host.querySelectorAll("[data-ivcal-dh]").forEach(el => {
+    el.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); _ivcalDayMenu(e, el.getAttribute("data-ivcal-dh")); });
+  });
+  host.querySelectorAll(".oc-mcell[data-ivcal-date]").forEach(el => {
+    el.addEventListener("contextmenu", (e) => {
+      if (e.target.closest("[data-ivcal-id]")) return;   // event pills keep their own menu
+      e.preventDefault(); e.stopPropagation();
+      _ivcalDayMenu(e, el.getAttribute("data-ivcal-date"));
+    });
   });
 
   // Empty slot: single-click clears any selection; double-click → full editor.
@@ -27581,6 +27593,10 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
           <input id="rr-ne-location" type="text" placeholder="Add location" style="${fld};width:100%">
           <a id="rr-ne-maplink" href="#" target="_blank" rel="noreferrer noopener" style="display:none;font-size:12px;margin-top:4px;color:var(--accent-text);text-decoration:none">Open in Maps ↗</a>
         </div></div>
+        <div class="rr-ne-grow rr-ne-evonly"><span class="rr-ne-gico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M1 3h15v13H1z"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></span><div class="rr-ne-gcell">
+          <select id="rr-ne-vehicle" style="${fld};width:100%" aria-label="Reserve a vehicle"><option value="">No vehicle reserved</option></select>
+          <span id="rr-ne-vehnote" style="font-size:12px;color:var(--text-subtle)"></span>
+        </div></div>
         <div class="rr-ne-grow rr-ne-evonly"><span class="rr-ne-gico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span><div class="rr-ne-gcell">
           <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-muted);padding:8px 0"><input id="rr-ne-private" type="checkbox"> Private — other teammates see only “Busy”</label>
         </div></div>
@@ -27786,6 +27802,84 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
     });
   }
   _neRenderTmpls();
+
+  // ── Reserve a vehicle (#1) · road tests need a van ────────────────────────
+  // Vehicles load lazily; picking one warns about same-day fleet-calendar
+  // conflicts and, on save, writes a reservation onto the FLEET calendar so
+  // dispatch sees the van is spoken for.
+  const vehSel = document.getElementById("rr-ne-vehicle");
+  const vehNote = document.getElementById("rr-ne-vehnote");
+  if (vehSel) {
+    (async () => {
+      try {
+        const { data, error } = await sb.from("vehicles")
+          .select("id, name, kind, status")
+          .eq("dsp_id", window.RR.dsp.id)
+          .is("archived_at", null)
+          .in("status", ["active", "spare"])
+          .order("name");
+        if (error) throw error;
+        const cur = (isEdit && ev0 && ev0.metadata && ev0.metadata.vehicle && ev0.metadata.vehicle.id) || "";
+        vehSel.innerHTML = `<option value="">No vehicle reserved</option>` + (data || []).map(v =>
+          `<option value="${escapeHtml(v.id)}" data-name="${escapeHtml(v.name)}"${String(v.id) === String(cur) ? " selected" : ""}>${escapeHtml(v.name)}${v.kind && v.kind !== "van" ? ` (${escapeHtml(v.kind)})` : ""}${v.status === "spare" ? " · spare" : ""}</option>`).join("");
+        if (cur) _neVehCheck();
+      } catch (_) {
+        vehSel.innerHTML = `<option value="">Vehicles unavailable</option>`;
+        vehSel.disabled = true;
+      }
+    })();
+    vehSel.addEventListener("change", _neVehCheck);
+    document.getElementById("rr-ne-sdate")?.addEventListener("change", _neVehCheck);
+  }
+  async function _neVehCheck() {
+    if (!vehSel || !vehNote) return;
+    const vid = vehSel.value;
+    if (!vid) { vehNote.textContent = ""; return; }
+    const sdate = (document.getElementById("rr-ne-sdate") || {}).value;
+    if (!sdate) return;
+    try {
+      const { data } = await sb.from("fleet_calendar_events")
+        .select("id, title, start_time, end_time")
+        .eq("dsp_id", window.RR.dsp.id)
+        .eq("vehicle_id", vid)
+        .eq("event_date", sdate);
+      const mine = (isEdit && ev0 && ev0.metadata && ev0.metadata.vehicle && ev0.metadata.vehicle.fleet_event_id) || null;
+      const others = (data || []).filter(r => String(r.id) !== String(mine));
+      vehNote.textContent = others.length
+        ? `⚠ Also on the fleet calendar that day: ${others.map(r => r.title + (r.start_time ? ` (${r.start_time}–${r.end_time || "?"})` : "")).slice(0, 2).join(" · ")}`
+        : "✓ Free on the fleet calendar that day — reserved on save";
+      vehNote.style.color = others.length ? "var(--oc-warn, #B45309)" : "var(--green)";
+    } catch (_) { vehNote.textContent = ""; }
+  }
+  // Persist the reservation onto the fleet calendar after a save. Best-effort:
+  // the calendar event always saves; a fleet hiccup only warns.
+  async function _neSaveVehicle(eventId, title2, sdate, stime, etime) {
+    const vid = vehSel ? vehSel.value : "";
+    const prev = (isEdit && ev0 && ev0.metadata && ev0.metadata.vehicle) || null;
+    if (!vid && !prev) return null;
+    try {
+      if (!vid && prev) {
+        if (prev.fleet_event_id) await sb.from("fleet_calendar_events").delete().eq("id", prev.fleet_event_id);
+        return { clear: true };
+      }
+      const vname = vehSel.selectedOptions[0]?.getAttribute("data-name") || "Vehicle";
+      const { data, error } = await sb.rpc("fleet_calendar_event_upsert", {
+        p_id: (prev && prev.fleet_event_id) || null,
+        p_title: `Reserved · ${title2}`,
+        p_event_date: sdate,
+        p_vehicle_id: vid,
+        p_start_time: stime || null,
+        p_end_time: etime || null,
+        p_notes: "Reserved from the interview calendar",
+      });
+      if (error) throw error;
+      const fid = (data && (data.id || data)) || (prev && prev.fleet_event_id) || null;
+      return { vehicle: { id: vid, name: vname, fleet_event_id: fid } };
+    } catch (err) {
+      toast("Saved, but the vehicle reservation didn't reach the fleet calendar: " + ((err && err.message) || err), "warn");
+      return null;
+    }
+  }
 
   // ── Location → live "Open in Maps" link (composer) ───────────────────────
   const locInp = document.getElementById("rr-ne-location");
@@ -28492,6 +28586,13 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
         try {
           const { error } = await sb.from("cal_events").update(patch).eq("id", editEv.id);
           if (error) throw error;
+          // Vehicle reservation follows the event (fleet calendar, #1).
+          const vr = await _neSaveVehicle(editEv.id, title, sdate, stime, etime);
+          if (vr) {
+            const md2 = { ...patch.metadata };
+            if (vr.clear) delete md2.vehicle; else if (vr.vehicle) md2.vehicle = vr.vehicle;
+            await sb.from("cal_events").update({ metadata: md2 }).eq("id", editEv.id);
+          }
           // Offer to email the attendee(s) the new time when it moved.
           if (timeChanged && !isTask && notifyEmails.length) {
             const dsp = window.RR && window.RR.dsp && window.RR.dsp.id;
@@ -28670,6 +28771,15 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
             if (newPrivate) md.private = true;
             if (googleMeetPending) md.video_provider = "google";
             await sb.from("cal_events").update({ metadata: md }).eq("id", cid);
+          }
+        }
+        // Vehicle reservation for single events (#1) — series skip it (one van
+        // row per occurrence would spam the fleet calendar).
+        if (!recurrence && !isTask && firstId) {
+          const vr = await _neSaveVehicle(firstId, title, sdate, stime, etime);
+          if (vr && vr.vehicle) {
+            const { data: row2 } = await sb.from("cal_events").select("metadata").eq("id", firstId).maybeSingle();
+            await sb.from("cal_events").update({ metadata: { ...((row2 && row2.metadata) || {}), vehicle: vr.vehicle } }).eq("id", firstId);
           }
         }
         toast(isTask ? (recurrence ? `Saved · ${made} task${made!==1?"s":""}` : "Task saved")
@@ -28901,6 +29011,11 @@ function _ivcalEventBlock(ev, type, lay, conflict) {
   // interview workspace (the rest of the chip opens the reading pane/editor).
   if (ev.meeting_url) icons += `<span class="ei-cam-hit" data-ivcal-room="1" title="Open video interview" role="button" tabindex="-1">${_IVCAL_CAM_SVG}</span>`;
   if (ev.series_id) icons += `<span title="Recurring event">↻</span>`;
+  // Candidate readiness (#4): flag interviews whose candidate hasn't finished
+  // screening — the operator sees it before the candidate walks in.
+  if (ev.kind !== "event" && ev.applicant_id && ev.applicants && !ev.applicants.screening_completed_at) {
+    icons += `<span class="oc-ev-scrn" title="Screening not completed yet — review before the interview" aria-label="Screening not completed">⚠</span>`;
+  }
   // Hover-revealed ⋮ opens the same context menu as right-click, so every
   // action (Open / Edit / Email / Cancel / label) is mouse-discoverable.
   const kebab = `<button type="button" class="oc-ev-menu" data-oc-evmenu tabindex="-1" title="Event actions" aria-label="Event actions"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button>`;
@@ -29162,7 +29277,8 @@ function _ivcalTimeGrid(ndays) {
       : closed ? "Closed"
       : (n ? `${n} interview${n === 1 ? "" : "s"}` : "No interviews");
     const _wk = d.getDay() === 0 || d.getDay() === 6;
-    return `<div class="oc-dh${isToday?" today":""}${_wk?" oc-wknd":""}"><div class="dow">${d.toLocaleDateString(undefined,{weekday:"long"})}</div><div class="dn">${d.getDate()}</div><div class="oc-dh-meta${short ? " is-short" : ""}${closed && cap === 0 ? " is-closed" : ""}"${short ? ` title="${cap - n} open slot${cap - n === 1 ? "" : "s"} while candidates wait to book"` : (closed && cap === 0 ? ' title="Closed by a date override (Holidays & date overrides)"' : "")}>${meta}</div></div>`;
+    const _hol = _rrUSHoliday(d);
+    return `<div class="oc-dh${isToday?" today":""}${_wk?" oc-wknd":""}" data-ivcal-dh="${_ivcalISODate(d)}" title="Right-click for day actions (close day, overrides)"><div class="dow">${d.toLocaleDateString(undefined,{weekday:"long"})}</div><div class="dn">${d.getDate()}</div><div class="oc-dh-meta${short ? " is-short" : ""}${closed && cap === 0 ? " is-closed" : ""}"${short ? ` title="${cap - n} open slot${cap - n === 1 ? "" : "s"} while candidates wait to book"` : (closed && cap === 0 ? ' title="Closed by a date override (Holidays & date overrides)"' : "")}>${meta}</div>${_hol ? `<div class="oc-dh-hol" title="US federal holiday">🎉 ${escapeHtml(_hol)}</div>` : ""}</div>`;
   }).join("");
 
   let gutter = "";
@@ -29510,6 +29626,12 @@ function _ivcalPaneHtml() {
   let rows = drow("🕑", `<strong>${escapeHtml(dateStr)}</strong><br><span style="color:var(--oc-sub)">${escapeHtml(timeStr)}</span>`);
   if (a.email) rows += drow("✉", `<a href="mailto:${escapeHtml(a.email)}">${escapeHtml(a.email)}</a>`);
   if (a.phone) rows += drow("📞", `<a href="tel:${escapeHtml(a.phone)}">${escapeHtml(a.phone)}</a>`);
+  // Candidate readiness (#4): screening state at a glance.
+  if (type !== "session" && ev.kind !== "event" && ev.applicant_id) {
+    rows += drow("🛡", a.screening_completed_at
+      ? `<span style="color:var(--green)">Screening completed</span>`
+      : `<span style="color:var(--oc-warn, #B45309)">Screening not completed yet</span>`);
+  }
   if (_ivcalHttps(ev.meeting_url)) rows += drow(_IVCAL_CAM_SVG, `<a href="${escapeHtml(_ivcalHttps(ev.meeting_url))}" target="_blank" rel="noreferrer noopener">Join video meeting</a>`);
   else rows += drow(_IVCAL_CAM_SVG, `<span style="color:var(--oc-sub)">No video link yet</span>`);
   if (type !== "session") rows += drow("●", `${escapeHtml(catLabel)}`);
@@ -29530,6 +29652,10 @@ function _ivcalPaneHtml() {
     rows += drow("📍", mappable
       ? `${escapeHtml(locV)} · <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locV)}" target="_blank" rel="noreferrer noopener">Map ↗</a>`
       : escapeHtml(locV));
+  }
+  // Reserved vehicle (#1).
+  if (ev.metadata && ev.metadata.vehicle && ev.metadata.vehicle.name) {
+    rows += drow("🚐", `Vehicle reserved: <strong>${escapeHtml(ev.metadata.vehicle.name)}</strong> <span style="color:var(--oc-sub)">· on the fleet calendar</span>`);
   }
   const note = ev.metadata && ev.metadata.note;
   if (note) rows += drow("🗒", `<span style="white-space:pre-wrap;color:#3a3a45">${escapeHtml(String(note))}</span>`);
@@ -29805,6 +29931,17 @@ function _ivcalContextMenu(e, kind, id) {
     + `</div>`
     + `<button type="button" class="oc-ctx-default${curColor?"":" on"}" data-oc-color="" data-oc-default><span class="oc-ctx-defck">${ckSvg}</span>Default</button>`;
   const ivwName = ev.metadata && ev.metadata.interviewer && ev.metadata.interviewer.name;
+  // Outcome quick-actions (#5): interviews at/past their start time can be
+  // resolved right from the calendar — the result feeds the Funnel.
+  const isResolvable = kind !== "session" && ev.kind !== "event" && ev.applicant_id
+    && new Date(ev.starts_at).getTime() < Date.now() + 60 * 60000
+    && ev.status !== "cancelled";
+  const outcomeRow = isResolvable
+    ? `<div class="sep"></div>`
+      + item("out-showed", "✓ Showed — mark completed")
+      + item("out-noshow", ev.status === "no_show" ? "↩ Undo no-show" : "✗ No-show…")
+      + item("out-reject", "Not moving forward", true)
+    : "";
   menu.innerHTML =
     item("open", "Open") +
     (kind !== "session" ? item("edit", "Edit") : "") +
@@ -29812,6 +29949,7 @@ function _ivcalContextMenu(e, kind, id) {
     item("duplicate", "Duplicate") +
     (ev.applicant_id ? item("applicant", "Open applicant") : "") +
     (kind !== "session" && ev.kind !== "event" ? item("interviewer", ivwName ? `Interviewer: ${escapeHtml(ivwName)}…` : "Assign interviewer…") : "") +
+    outcomeRow +
     `<div class="sep"></div>` +
     item("delete", kind === "session" ? "Remove" : "Cancel / delete", true) +
     colorRow;
@@ -29834,9 +29972,53 @@ function _ivcalContextMenu(e, kind, id) {
     else if (act === "duplicate") { const s = new Date(ev.starts_at); _ivcalNewEvent(_ivcalISODate(s), s.getHours()*60+s.getMinutes(), s.getHours()*60+s.getMinutes()+30); }
     else if (act === "applicant" && ev.applicant_id) _ivcalOpenApplicant(ev.applicant_id);
     else if (act === "interviewer") _ivcalInterviewerMenu(kind, id, ev2.clientX, ev2.clientY);
+    else if (act === "out-showed") _ivcalLogOutcome(kind, id, "showed");
+    else if (act === "out-noshow") _ivcalLogOutcome(kind, id, ev.status === "no_show" ? "showed" : "no_show");
+    else if (act === "out-reject") _ivcalLogOutcome(kind, id, "reject");
     else if (act === "delete") _ivcalDeleteEvent(kind, id, true);
   });
   setTimeout(() => document.addEventListener("click", function off() { _ivcalCloseMenus(); document.removeEventListener("click", off); }, { once: true }), 0);
+}
+
+// Record an interview outcome (#5) and, for no-shows, offer the automatic
+// "sorry we missed you" rebook email (#6) — the same stable booking link.
+async function _ivcalLogOutcome(kind, id, outcome) {
+  const ev = _ivcalFindEv(kind, id); if (!ev) return;
+  const nm = rrTitleCaseName((ev.applicants || {}).full_name) || "the candidate";
+  try {
+    const { data, error } = await sb.rpc("interview_log_outcome", { p_event_id: id, p_outcome: outcome });
+    if (error) throw error;
+    if (!data || data.ok === false) throw new Error("Couldn't record that");
+    toast(outcome === "no_show" ? `${nm} marked no-show`
+      : outcome === "reject" ? `${nm} marked not moving forward`
+      : `${nm} marked completed`, "success");
+    if (outcome === "no_show" && ev.applicants && ev.applicants.email) {
+      if (await _rrConfirmDialog({
+        title: "Send a rebook link?",
+        body: `Email ${nm} a "sorry we missed you" note with their booking link so they can grab a new time.`,
+        confirmLabel: "Send rebook email",
+      })) {
+        try {
+          const { data: lk, error: e2 } = await sb.rpc("booking_link_get", { p_id: ev.applicant_id });
+          if (e2) throw e2;
+          const link = lk && lk.link;
+          if (!link) throw new Error("No booking link available");
+          const dsp = window.RR && window.RR.dsp && window.RR.dsp.id;
+          const first = nm.split(" ")[0];
+          const bodyTxt = `Hi ${first},\n\nSorry we missed you today! Things come up — if you're still interested, grab a new time that works for you here:\n${link}\n\nWe'd love to meet you.`;
+          await _rrQueueCalEmails([{ dsp_id: dsp, direction: "outbound", status: "queued", to_email: ev.applicants.email, subject: "Sorry we missed you — pick a new time", body_text: bodyTxt, body_html: bodyTxt.replace(/\n/g, "<br>") }]);
+          toast("Rebook email queued", "success");
+        } catch (err) { toast("Couldn't send the rebook email: " + ((err && err.message) || err), "warn"); }
+      }
+    }
+    loadIvCalendar();
+    if (typeof loadCalBookingsList === "function") loadCalBookingsList();
+  } catch (err) {
+    const msg = /interview_log_outcome|schema cache|PGRST202/i.test(String((err && err.message) || err))
+      ? "Outcome logging needs the latest Supabase migration (0495)."
+      : "Couldn't record the outcome: " + ((err && err.message) || err);
+    toast(msg, "warn");
+  }
 }
 
 // Staff submenu for "Assign interviewer" — same .oc-menu chrome, one
@@ -30698,6 +30880,10 @@ async function _ivcalDeleteEvent(kind, id, notify) {
     }
     const { error } = await sb.rpc("cancel_cal_event_silent", { p_event_id: id });
     if (error) throw error;
+    // Free the fleet-calendar vehicle reservation, if this event held one.
+    if (ev.metadata && ev.metadata.vehicle && ev.metadata.vehicle.fleet_event_id) {
+      try { await sb.from("fleet_calendar_events").delete().eq("id", ev.metadata.vehicle.fleet_event_id); } catch (_) {}
+    }
     toast("Event canceled", "success");
     _ivcalSelected = null; loadIvCalendar();
     if (typeof loadCalBookingsList === "function") loadCalBookingsList();
@@ -30789,6 +30975,106 @@ async function _ivcalBulkCancel() {
     }
   });
 }
+// US federal holiday for a date (observed dates shift to the nearest weekday),
+// or null. Pure computation — no tables, no fetches.
+function _rrUSHoliday(d) {
+  const y = d.getFullYear(), m = d.getMonth(), day = d.getDate(), dow = d.getDay();
+  const nth = Math.ceil(day / 7);
+  const isLast = (day + 7) > new Date(y, m + 1, 0).getDate();
+  // Fixed-date holidays incl. observation shifts (Fri for Sat, Mon for Sun).
+  const fixed = (mm, dd, name) => {
+    if (m === mm && day === dd && dow !== 0 && dow !== 6) return name;
+    if (m === mm && day === dd - 1 && dow === 5) return name + " (observed)";
+    if (m === mm && day === dd + 1 && dow === 1) return name + " (observed)";
+    return null;
+  };
+  return fixed(0, 1, "New Year's Day")
+    || (m === 0 && dow === 1 && nth === 3 ? "MLK Jr. Day" : null)
+    || (m === 1 && dow === 1 && nth === 3 ? "Presidents' Day" : null)
+    || (m === 4 && dow === 1 && isLast ? "Memorial Day" : null)
+    || fixed(5, 19, "Juneteenth")
+    || fixed(6, 4, "Independence Day")
+    || (m === 8 && dow === 1 && nth === 1 ? "Labor Day" : null)
+    || (m === 9 && dow === 1 && nth === 2 ? "Columbus Day" : null)
+    || fixed(10, 11, "Veterans Day")
+    || (m === 10 && dow === 4 && nth === 4 ? "Thanksgiving" : null)
+    || fixed(11, 25, "Christmas Day");
+}
+
+// Day-header context menu (#8/#9): close the whole day (cancel + notify +
+// booking-page override), or jump to Holidays & date overrides.
+function _ivcalDayMenu(e, dateISO) {
+  _ivcalCloseMenus();
+  const d = new Date(dateISO + "T00:00:00");
+  const hol = _rrUSHoliday(d);
+  const dayEvs = _ivcalDayClosableEvents(dateISO);
+  const menu = document.createElement("div");
+  menu.className = "oc-menu";
+  menu.innerHTML =
+    (hol ? `<div class="oc-ctx-lblhead"><span>🎉 ${escapeHtml(hol)}</span></div>` : "")
+    + `<button data-oc-day="close"${dayEvs.length ? "" : ""}>Close this day${dayEvs.length ? ` — cancel ${dayEvs.length} & notify…` : "…"}</button>`
+    + `<button data-oc-day="overrides">Holidays &amp; date overrides…</button>`
+    + `<button data-oc-day="new">New event here</button>`;
+  document.body.appendChild(menu);
+  menu.style.left = Math.min(e.clientX, window.innerWidth - menu.offsetWidth - 6) + "px";
+  menu.style.top = Math.min(e.clientY, window.innerHeight - menu.offsetHeight - 6) + "px";
+  menu.addEventListener("click", (e2) => {
+    const b = e2.target.closest("[data-oc-day]"); if (!b) return;
+    const act = b.getAttribute("data-oc-day");
+    _ivcalCloseMenus();
+    if (act === "close") _ivcalCloseDay(dateISO, hol);
+    else if (act === "overrides") { if (typeof _rrOpenDateOverrides === "function") _rrOpenDateOverrides(); }
+    else if (act === "new") _ivcalNewEvent(dateISO, 9 * 60, 9 * 60 + 30);
+  });
+  setTimeout(() => document.addEventListener("click", function off() { _ivcalCloseMenus(); document.removeEventListener("click", off); }, { once: true }), 0);
+}
+function _ivcalDayClosableEvents(dateISO) {
+  return ((_ivcalCache && _ivcalCache.bookings) || []).filter(b => {
+    if (!b || !["scheduled", "rescheduled"].includes(b.status || "scheduled")) return false;
+    if (b.metadata && b.metadata.is_task) return false;
+    return _ivcalISODate(new Date(b.starts_at)) === dateISO;
+  });
+}
+// Close a day: booking-page override + cancel every schedulable event with a
+// notification email (weather callouts, power cuts, "everyone's at Amazon
+// peak"). One confirm, one summary toast.
+async function _ivcalCloseDay(dateISO, holidayName) {
+  const evs = _ivcalDayClosableEvents(dateISO);
+  const dayTxt = new Date(dateISO + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+  const ok = await _rrConfirmDialog({
+    title: `Close ${dayTxt}?`,
+    body: `${evs.length ? `Cancels ${evs.length} event${evs.length === 1 ? "" : "s"} (attendees are emailed) and marks` : "Marks"} the day closed on the booking page. Candidates can pick a new time from their booking link.`,
+    confirmLabel: "Close the day",
+    danger: true,
+  });
+  if (!ok) return;
+  try {
+    const { error: oErr } = await sb.rpc("interview_override_set", {
+      p_date: dateISO, p_is_closed: true, p_windows: null,
+      p_note: holidayName || "Closed",
+    });
+    if (oErr) throw oErr;
+    const dsp = window.RR && window.RR.dsp && window.RR.dsp.id;
+    let cancelled = 0;
+    for (const ev of evs) {
+      const emails = ev.kind === "event"
+        ? ((ev.metadata && Array.isArray(ev.metadata.invitees)) ? ev.metadata.invitees.filter(x => typeof x === "string" && x.includes("@")) : [])
+        : ((ev.applicants && ev.applicants.email) ? [ev.applicants.email] : []);
+      if (dsp && emails.length) {
+        const titl = ev.title || (ev.kind === "orientation" ? "Orientation" : "Interview");
+        const bodyTxt = `Hi,\n\nWe have to close ${dayTxt}${holidayName ? ` (${holidayName})` : ""}, so this appointment is canceled:\n${titl}\n\nSorry for the change of plans — please use your booking link to pick a new time, or reply to this email.`;
+        await _rrQueueCalEmails(emails.map(em => ({ dsp_id: dsp, direction: "outbound", status: "queued", to_email: em, subject: "Canceled: " + titl, cal_event_id: ev.id, calendar_method: "cancel", body_text: bodyTxt })));
+      }
+      const { error } = await sb.rpc("cancel_cal_event_silent", { p_event_id: ev.id });
+      if (!error) cancelled++;
+    }
+    toast(`${dayTxt} closed${cancelled ? ` · ${cancelled} event${cancelled === 1 ? "" : "s"} canceled & notified` : ""}`, "success");
+    loadIvCalendar();
+  } catch (err) {
+    toast("Couldn't close the day: " + ((err && err.message) || err), "warn");
+  }
+}
+
 // Shift a set of events by a raw millisecond delta (Alt+arrow nudge). One
 // combined undo covers the whole batch.
 async function _ivcalShiftEvents(evs, deltaMs, msg) {
@@ -31445,7 +31731,14 @@ async function loadInterviewAvailabilityEditor() {
     + `<option value="__new"${_ivCurSchedId==="__new"?" selected":""}>+ New schedule…</option>`;
   // The named-schedule switcher only appears once the 0400 migration is live;
   // before that we fall back to the original single-config editor.
+  // Appointment-type presets (#2): one tap prefills a new booking page for
+  // the common DSP appointment kinds.
+  const presetHtml = (!_ivLegacyMode && _ivCurSchedId === "__new")
+    ? `<div class="rr-iv-presets">${[["Driver interview", 30], ["Orientation", 90], ["Road test", 60], ["Drug screen", 15], ["DOT physical", 45], ["Badge pickup", 15]]
+        .map(([n, mins]) => `<button type="button" class="rr-iv-preset" data-preset="${escapeHtml(n)}" data-mins="${mins}">${escapeHtml(n)} · ${mins}m</button>`).join("")}</div>`
+    : "";
   const schedHtml = _ivLegacyMode ? "" : `
+    ${presetHtml}
     <div class="rr-iv-sched">
       <input type="text" class="rr-iv-sched-name" placeholder="Schedule name (e.g. 30 min with Ryan)" value="${escapeHtml(schedName)}">
       <select class="rr-iv-sched-pick" aria-label="Choose schedule">${schedOpts}</select>
@@ -31456,7 +31749,7 @@ async function loadInterviewAvailabilityEditor() {
     ${schedHtml}
     <div class="rr-iv-cfg">
       <label>Timezone <select class="rr-iv-tz">${tzOpts}</select></label>
-      <label>Length <select class="rr-iv-slot">${[15,20,30,45,60].map(n=>`<option value="${n}"${n===slot?" selected":""}>${n} min</option>`).join("")}</select></label>
+      <label>Length <select class="rr-iv-slot">${[15,20,30,45,60,90].map(n=>`<option value="${n}"${n===slot?" selected":""}>${n} min</option>`).join("")}</select></label>
       <label>Lead <input type="number" min="0" class="rr-iv-lead" value="${lead}"> hrs</label>
       <label>Window <input type="number" min="1" class="rr-iv-window" value="${windowDays}"> days</label>
       <label>Buffer <input type="number" min="0" class="rr-iv-buffer" value="${buffer}"> min</label>
@@ -31482,6 +31775,7 @@ async function loadInterviewAvailabilityEditor() {
           <label>Daily cap <input type="number" min="0" class="rr-iv-maxday" value="${parseInt(cfg.max_per_day, 10) || 0}" title="Maximum booked interviews per day — 0 = no cap"> /day (0 = off)</label>
           <label>Min cancel notice <input type="number" min="0" class="rr-iv-mincancel" value="${parseInt(cfg.min_cancel_hours, 10) || 0}"> hrs</label>
           <label>Self-reschedules <input type="number" min="0" class="rr-iv-maxresched" value="${parseInt(cfg.max_self_reschedules, 10) || 0}" title="After this many self-cancels, rebooking requires contacting you — 0 = unlimited"> max (0 = off)</label>
+          <label>Auto-nudge after <input type="number" min="0" class="rr-iv-nudge" value="${parseInt(cfg.nudge_after_days, 10) || 0}" title="Automatically re-send the booking link to candidates who haven't picked a time after this many days (max 2 nudges) — 0 = off"> days (0 = off)</label>
         </div>
         <div class="rr-iv-pool" data-pool="${escapeHtml(JSON.stringify(Array.isArray(cfg.interviewer_pool) ? cfg.interviewer_pool : []))}">
           <span style="font-weight:600">Interviewer rotation</span>
@@ -31501,6 +31795,15 @@ async function loadInterviewAvailabilityEditor() {
       <input type="text" class="rr-iv-s-label" placeholder="Label (optional)">
       <button class="rr-iv-btn is-ghost" id="rr-iv-add-btn">Add session</button>
     </div>`;
+
+  // Appointment-type preset chips (#2) prefill name + slot length.
+  body.querySelectorAll(".rr-iv-preset").forEach(b => b.addEventListener("click", () => {
+    const nameEl = body.querySelector(".rr-iv-sched-name");
+    if (nameEl) nameEl.value = b.getAttribute("data-preset") || "";
+    const slotEl = body.querySelector(".rr-iv-slot");
+    if (slotEl) slotEl.value = b.getAttribute("data-mins") || "30";
+    body.querySelectorAll(".rr-iv-preset").forEach(x => x.classList.toggle("on", x === b));
+  }));
 
   // Interviewer-rotation pool (0494): async staff list → checkboxes.
   const poolHost = body.querySelector(".rr-iv-pool-list");
@@ -31651,6 +31954,7 @@ async function _ivSave(body) {
           max_per_day: parseInt(body.querySelector(".rr-iv-maxday")?.value, 10) || 0,
           min_cancel_hours: parseInt(body.querySelector(".rr-iv-mincancel")?.value, 10) || 0,
           max_self_reschedules: parseInt(body.querySelector(".rr-iv-maxresched")?.value, 10) || 0,
+          nudge_after_days: parseInt(body.querySelector(".rr-iv-nudge")?.value, 10) || 0,
           interviewer_pool: Array.from(body.querySelectorAll(".rr-iv-pool-list input:checked")).map(cb => ({
             id: cb.value, name: cb.getAttribute("data-name") || "Teammate",
           })),

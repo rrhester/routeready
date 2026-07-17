@@ -207,6 +207,8 @@ const I18N = {
     verifyNeeded: "Enter the code we texted you to confirm this booking.",
     required: "required", confirmHint: "Tap Confirm to lock in this time.",
     dayFull: "That day just filled up — please pick a different day.",
+    waitlistJoin: "join the waitlist", waitlistFull: "Full · join waitlist",
+    waitlistJoined: "You're #{n} on the list ✓", waitlistCap: "Waitlist is full", waitlistErr: "Couldn't join — try again",
     tooLate: "It's too close to your interview to change it online — please reply to the email or text we sent you.",
     reschedLimit: "This booking can't be changed online anymore — please reply to the email or text we sent you and we'll find a time together.",
     recommended: "Recommended — keeps the team's day tight",
@@ -232,6 +234,8 @@ const I18N = {
     verifyNeeded: "Escribe el código que te enviamos por SMS para confirmar.",
     required: "obligatorio", confirmHint: "Toca Confirmar para asegurar esta hora.",
     dayFull: "Ese día se acaba de llenar — elige otro día.",
+    waitlistJoin: "unirse a la lista de espera", waitlistFull: "Lleno · lista de espera",
+    waitlistJoined: "Eres #{n} en la lista ✓", waitlistCap: "La lista de espera está llena", waitlistErr: "No se pudo — inténtalo de nuevo",
     tooLate: "Falta muy poco para tu entrevista para cambiarla en línea — responde al correo o mensaje que te enviamos.",
     reschedLimit: "Esta reserva ya no se puede cambiar en línea — responde al correo o mensaje que te enviamos y buscamos una hora juntos.",
     recommended: "Recomendado — mantiene el día del equipo compacto",
@@ -694,6 +698,10 @@ function gridHTML() {
         }
       }
       body = items.map(s => {
+        // Full group session (0495): the seat's gone, but the waitlist isn't.
+        if (s.session_id && (s.remaining | 0) <= 0) {
+          return `<button class="gslot wl" data-wl="${esc(s.session_id)}" aria-label="${esc(fmtTime(s.slot_start))}, ${esc(fmtDay(s.slot_start))} — ${esc(T("waitlistJoin"))}">${esc(fmtTime(s.slot_start))}<span class="spots" style="color:var(--muted)">${esc(T("waitlistFull"))}</span></button>`;
+        }
         const group = (s.capacity || 1) > 1;
         const spots = group ? `<span class="spots">${esc(s.remaining)} left</span>` : "";
         const star = starred.has(new Date(s.slot_start).getTime()) ? `<span class="rec" title="${esc(T("recommended"))}" aria-label="${esc(T("recommended"))}">★</span>` : "";
@@ -737,7 +745,23 @@ function wire(host) {
     miniAnchor = firstOfMonth(viewStart);
     renderBooking();
   }));
-  host.querySelectorAll(".gslot").forEach(b => b.addEventListener("click", () => selectSlot(b)));
+  host.querySelectorAll(".gslot:not(.wl)").forEach(b => b.addEventListener("click", () => selectSlot(b)));
+  // Waitlist for full group sessions (0495).
+  host.querySelectorAll(".gslot.wl").forEach(b => b.addEventListener("click", async () => {
+    if (PREVIEW) return;
+    b.disabled = true;
+    try {
+      const { data, error } = await sb.rpc("session_waitlist_join", { p_token: token, p_session_id: b.getAttribute("data-wl") });
+      if (error) throw error;
+      if (!data?.ok) throw new Error(data?.error || "failed");
+      b.querySelector(".spots").textContent = T("waitlistJoined").replace("{n}", data.position || "—");
+      b.querySelector(".spots").style.color = "var(--green)";
+    } catch (e) {
+      b.disabled = false;
+      const s = String((e && e.message) || e).toLowerCase();
+      b.querySelector(".spots").textContent = s.includes("waitlist_full") ? T("waitlistCap") : T("waitlistErr");
+    }
+  }));
 }
 
 let PENDING = null;   // slot awaiting confirmation: { start, end, session }
