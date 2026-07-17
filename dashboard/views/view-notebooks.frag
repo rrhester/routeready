@@ -336,7 +336,17 @@
 .rrnb-editor img{max-width:100%;border-radius:var(--r-md);margin:var(--s-1) 0}
 /* figures (pasted / dropped images) */
 .rrnb-editor figure.rrnb-fig{margin:var(--s-3) 0;max-width:100%}
+.rrnb-editor figure.rrnb-fig[data-align]{width:fit-content}
+.rrnb-editor figure.rrnb-fig[data-align="left"]{margin-right:auto;margin-left:0}
+.rrnb-editor figure.rrnb-fig[data-align="center"]{margin-left:auto;margin-right:auto}
+.rrnb-editor figure.rrnb-fig[data-align="right"]{margin-left:auto;margin-right:0}
 .rrnb-editor figure.rrnb-fig img{display:block;margin:0;cursor:default}
+.rrnb-lightbox{position:fixed;inset:0;z-index:200;background:rgba(10,15,22,.86);display:flex;
+  align-items:center;justify-content:center;padding:32px;cursor:zoom-out}
+.rrnb-lightbox img{max-width:96vw;max-height:92vh;border-radius:6px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.rrnb-lb-close{position:fixed;top:16px;right:20px;width:34px;height:34px;border-radius:50%;border:0;
+  background:rgba(255,255,255,.16);color:#fff;font-size:15px;cursor:pointer}
+.rrnb-lb-close:hover{background:rgba(255,255,255,.28)}
 .rrnb-editor figure.rrnb-fig.sel img,.rrnb-editor img.sel{outline:2px solid var(--accent);outline-offset:2px}
 .rrnb-editor figure.rrnb-fig figcaption{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:6px;
   padding:2px 2px;outline:0;border-radius:var(--r-sm)}
@@ -1868,7 +1878,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     var ed = $id("rrnb-editor");
     if (ed) ed.querySelectorAll("figure.rrnb-fig.sel, img.sel").forEach(function (f) { f.classList.remove("sel"); });
     hideImgResize();
-    if (img) { var fig = img.closest("figure.rrnb-fig") || img; fig.classList.add("sel"); showImgResize(fig, img); openImageSize(fig, img); return; }
+    if (img) { if (S.readOnly) { openLightbox(img.src, img.getAttribute("alt")); return; } var fig = img.closest("figure.rrnb-fig") || img; fig.classList.add("sel"); showImgResize(fig, img); openImageSize(fig, img); return; }
     var fl = e.target.closest("a.rrnb-file");
     if (fl) {
       var mp = fl.getAttribute("data-media-path");
@@ -2193,15 +2203,31 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       Array.prototype.slice.call(files).forEach(function (f) { /^image\//.test(f.type) ? insertImageFile(f) : insertNonImage(f); });
     }
   }
+  function openLightbox(src, alt) {
+    var ex = $id("rrnb-lightbox"); if (ex) ex.remove();
+    var d = document.createElement("div"); d.id = "rrnb-lightbox"; d.className = "rrnb-lightbox";
+    d.innerHTML = '<img src="' + esc(src) + '" alt="' + esc(alt || "") + '"><button class="rrnb-lb-close" type="button" aria-label="Close">✕</button>';
+    document.body.appendChild(d);
+    function close() { d.remove(); document.removeEventListener("keydown", onk); }
+    function onk(e) { if (e.key === "Escape") { e.preventDefault(); close(); } }
+    d.addEventListener("click", close);
+    document.addEventListener("keydown", onk);
+  }
   function openImageSize(fig, img) {
     var r = img.getBoundingClientRect();
     var pop = showPop('<label>Picture</label><div class="rrnb-sizes">' +
       '<button data-imgw="25">25%</button><button data-imgw="50">50%</button><button data-imgw="75">75%</button><button data-imgw="100">100%</button></div>' +
+      '<div class="rrnb-sizes"><button data-imgalign="left" title="Align left">⇤</button><button data-imgalign="center" title="Center">↔</button><button data-imgalign="right" title="Align right">⇥</button>' +
+      '<button data-imglight="1" title="Expand">⤢</button><button data-imgalt="1" title="Alt text">Alt</button></div>' +
       '<div class="rrnb-sizes"><button data-imgann="1" style="flex:1">✏ Annotate</button>' +
       '<button data-imgocr="1" style="flex:1">Copy text from picture</button></div>', r);
-    pop.addEventListener("click", function (e) {
+    pop.onclick = function (e) {   // assign (not addEventListener) so reopening doesn't stack handlers
       var b = e.target.closest("[data-imgw]");
       if (b) { img.style.width = b.getAttribute("data-imgw") + "%"; img.style.height = "auto"; hidePop(); positionImgResize(); scheduleSave(); return; }
+      var al = e.target.closest("[data-imgalign]");
+      if (al) { fig.setAttribute("data-align", al.getAttribute("data-imgalign")); hidePop(); positionImgResize(); scheduleSave(); return; }
+      if (e.target.closest("[data-imglight]")) { hidePop(); openLightbox(img.src, img.getAttribute("alt")); return; }
+      if (e.target.closest("[data-imgalt]")) { var v = window.prompt("Describe this picture (alt text — for screen readers)", img.getAttribute("alt") || ""); if (v != null) { img.setAttribute("alt", v.trim()); scheduleSave(); } hidePop(); return; }
       if (e.target.closest("[data-imgann]")) { hidePop(); hideImgResize(); openAnnotate(fig, img); return; }
       if (e.target.closest("[data-imgocr]")) {
         hidePop();
@@ -2212,7 +2238,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
         var have = fig.getAttribute("data-ocr");
         if (have) put(have); else { notify("Reading picture…"); ocrFigure(fig, img.src, put); }
       }
-    });
+    };
   }
 
   // ── drag-to-resize: grab any corner or border of the selected picture ──
