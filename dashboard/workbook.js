@@ -7624,7 +7624,7 @@ function checklistItemHtml(it) {
       ${done ? `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>` : ""}
     </button>
     <span class="wb-cl-label">${esc(it.label)}</span>
-    ${it.priority && it.priority !== "normal" ? `<span class="wb-chip is-${it.priority}">${it.priority === "high" ? "High" : "Low"}</span>` : ""}
+    ${it.priority === "high" || it.priority === "low" ? `<span class="wb-chip is-${it.priority}">${it.priority === "high" ? "High" : "Low"}</span>` : ""}
     ${it.due_date ? `<span class="wb-chip ${overdue ? "is-overdue" : ""}" title="Due date">${esc(new Date(it.due_date + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" }))}</span>` : ""}
     ${assignee ? `<span class="wb-avatar wb-avatar-sm" title="Assigned to ${esc(assignee)}">${esc(initialsOf(assignee))}</span>` : ""}
     ${WB.canEdit ? `<button type="button" class="btn btn-ghost btn-icon btn-sm wb-cl-edit" data-wb-act="item-edit" title="Edit item" aria-label="Edit item">
@@ -8579,6 +8579,19 @@ const WB_COLORS = {
 // Preset keys resolve through the palette; a #RRGGBB value (from the
 // custom picker) passes through directly. Anything else is inert.
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+// Defense-in-depth (100-list #94): an accent color is only ever a hex constant
+// or a var(--token) in every UI path (the KPI dialog writes an enum theme, not
+// free text), but embed specs are stored in Supabase and could be tampered with
+// directly by a malicious collaborator. Validate before a color reaches a
+// style="" attribute so a crafted value like `x"><img onerror=…>` can't break
+// out of the attribute. Returns `fallback` for anything that isn't a plain hex
+// or a var() reference.
+function safeAccentColor(c, fallback) {
+  const s = String(c == null ? "" : c).trim();
+  if (HEX_COLOR_RE.test(s)) return s;
+  if (/^var\(--[a-z0-9-]+\)$/i.test(s)) return s;
+  return fallback;
+}
 function wbColorCss(kind, key) {
   if (HEX_COLOR_RE.test(String(key))) return key;
   return esc(WB_COLORS[kind][key] || (kind === "bg" ? "transparent" : "inherit"));
@@ -18419,7 +18432,8 @@ function renderCharts(g) {                    // renders every embed kind
   host.innerHTML = embeds.map(({ key, item }) => {
     const L = embedLayout(g, key, item);
     const inner = embedInnerHtml(g, key, item, L);
-    const accentVar = inner.accent ? `--tile-accent:${inner.accent};` : "";
+    const accSafe = inner.accent ? safeAccentColor(inner.accent, "") : "";
+    const accentVar = accSafe ? `--tile-accent:${accSafe};` : "";
     const style = `left:${L.x * z}px;top:${L.y * z}px;width:${L.w * z}px;height:${L.h * z}px;${accentVar}`;
     return `<div class="wb-embed wb-embed-${key}${inner.cls ? " " + inner.cls : ""}" data-wb-embed-kind="${key}" data-wb-embed-id="${esc(item.id)}" style="${style}">
       <div class="wb-embed-head" ${WB.canEdit ? 'data-wb-embed-drag title="Drag to move"' : ""}>
@@ -18641,7 +18655,7 @@ function kpiSparkline(sheet, rangeText, color) {
     `<path d="${line}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
 }
 function kpiTileHtml(sheet, spec, rowFilter) {
-  const accent = spec.accent || chartPalette(spec)[0];   // curated override wins
+  const accent = safeAccentColor(spec.accent, "") || chartPalette(spec)[0];   // curated override wins (validated — #94)
   const agg = spec.agg || "cell";
   const num = kpiValue(sheet, spec, rowFilter);
   const raw = agg === "cell" ? embedCellRaw(sheet, spec.valueRef) : num;
@@ -24539,7 +24553,7 @@ export const __engine = {
   linearFit, analyzeColumns, computeInsights,
   aiWorkbookSchema, aiColumnStats, aiPlanToSpecs,
   computePivot, pivotAggregate, pivotTableHtml, pivotEffectiveSpec, pivotDrillRecords, pivotChartSvg, ooxmlChartXml, ooxmlDrawingXml, pivotToExportSheet, expandExportSheets,
-  autoLinkFor, cellLink, cellInnerHtml, esc,
+  autoLinkFor, cellLink, cellInnerHtml, esc, safeAccentColor,
   selCycle,
   WB_IMG_RE, cellImgSrc,
   planMoveChanges, recalcSheet,

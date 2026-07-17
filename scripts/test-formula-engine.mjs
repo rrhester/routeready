@@ -1426,4 +1426,27 @@ await okA("xlsx round-trip: Excel tables survive as <table> parts", async () => 
   });
 }
 
+// ── #94 hardening: accent-color guard blocks style-attribute injection ───────
+{
+  const { safeAccentColor, esc } = __engine;
+  ok("safeAccentColor: passes a plain 6-digit hex", () => {
+    assert.equal(safeAccentColor("#2563eb", "x"), "#2563eb");
+    assert.equal(safeAccentColor("#FFAA00", "x"), "#FFAA00");
+  });
+  ok("safeAccentColor: passes a var(--token) reference", () => {
+    assert.equal(safeAccentColor("var(--text)", "x"), "var(--text)");
+    assert.equal(safeAccentColor("var(--rr-amber-600)", "x"), "var(--rr-amber-600)");
+  });
+  ok("safeAccentColor: rejects an attribute-breakout payload", () => {
+    assert.equal(safeAccentColor('red"><img src=x onerror=alert(1)>', "SAFE"), "SAFE");
+    assert.equal(safeAccentColor("#zzzzzz", "SAFE"), "SAFE");
+    assert.equal(safeAccentColor("expression(alert(1))", "SAFE"), "SAFE");
+    assert.equal(safeAccentColor("var(--x);background:url(evil)", "SAFE"), "SAFE");
+    assert.equal(safeAccentColor(null, "SAFE"), "SAFE");
+  });
+  ok("esc: neutralizes the five HTML metacharacters", () => {
+    assert.equal(esc('<a href="x" onclick=\'y\'>&</a>'), "&lt;a href=&quot;x&quot; onclick=&#39;y&#39;&gt;&amp;&lt;/a&gt;");
+  });
+}
+
 console.log(`✓ formula engine + xlsx: ${n} tests passed`);
