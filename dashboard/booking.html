@@ -199,6 +199,7 @@ const I18N = {
     noTimes: "No open times right now", checkBack: "Please check back soon, or reply to the email we sent.",
     cancelled: "Your interview is cancelled", cancelledBody: "If you'd like to book a new time, reply to the email or text we sent you.",
     runningLate: "I'm running late", lateSent: "Thanks — we've let the team know you're running a few minutes behind.",
+    imComing: "I'll be there", confirmedNote: "You're confirmed — see you then!",
     arriveTitle: "Getting here", welcomeDefault: "",
     whyCancel: "Mind telling us why? (optional)",
     reasons: ["Found another job", "Time doesn't work", "Transportation issue", "Other"],
@@ -226,6 +227,7 @@ const I18N = {
     noTimes: "No hay horarios disponibles ahora", checkBack: "Vuelve pronto o responde al correo que te enviamos.",
     cancelled: "Tu entrevista está cancelada", cancelledBody: "Si quieres reservar otra hora, responde al correo o mensaje que te enviamos.",
     runningLate: "Voy con retraso", lateSent: "Gracias — le avisamos al equipo que llegas unos minutos tarde.",
+    imComing: "Ahí estaré", confirmedNote: "Confirmado — ¡nos vemos!",
     arriveTitle: "Cómo llegar", welcomeDefault: "",
     whyCancel: "¿Nos dices por qué? (opcional)",
     reasons: ["Encontré otro trabajo", "El horario no me sirve", "Problema de transporte", "Otro"],
@@ -447,6 +449,7 @@ async function init() {
         &nbsp;·&nbsp; <a class="addcal" href="${icsHref(bk.starts_at, bk.ends_at, document.getElementById("host-title").textContent, bk.location, bk.meeting_url)}" download="interview.ics">${esc(T("addIcs"))}</a></div>`;
     }
     const lateAlready = bk && bk.running_late;
+    const confirmedAlready = bk && bk.confirmed;
     const arriveBlock = ARRIVAL ? `<div class="arrive"><strong>${esc(T("arriveTitle"))}</strong>${esc(ARRIVAL)}</div>` : "";
     root.innerHTML = `<div class="card"><div class="msg">
       <div class="ok-ico"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
@@ -454,14 +457,28 @@ async function init() {
       <span>${detail}</span>${extras}
       ${arriveBlock}
       <div class="cbtns" style="justify-content:center;flex-wrap:wrap">
+        ${confirmedAlready ? "" : `<button class="btn" data-ab="confirm" style="color:var(--green);border-color:#BFDCC6">✓ ${esc(T("imComing"))}</button>`}
         <button class="btn" data-ab="reschedule">${esc(T("reschedule"))}</button>
         <button class="btn" data-ab="cancel" style="color:var(--red);border-color:#E6C3C0">${esc(T("cancelIv"))}</button>
         ${lateAlready ? "" : `<button class="btn" data-ab="late">⏱ ${esc(T("runningLate"))}</button>`}
       </div>
       <div id="ab-err" class="err" style="font-size:13px;margin-top:10px"></div>
-      <div id="ab-note" style="font-size:13px;color:var(--green);font-weight:600;margin-top:8px">${lateAlready ? esc(T("lateSent")) : ""}</div></div></div>`;
+      <div id="ab-note" style="font-size:13px;color:var(--green);font-weight:600;margin-top:8px">${confirmedAlready ? esc(T("confirmedNote")) : lateAlready ? esc(T("lateSent")) : ""}</div></div></div>`;
     root.querySelector('[data-ab="reschedule"]').addEventListener("click", () => changeBooking("reschedule"));
     root.querySelector('[data-ab="cancel"]').addEventListener("click", () => changeBooking("cancel"));
+    root.querySelector('[data-ab="confirm"]')?.addEventListener("click", async (e) => {
+      e.target.disabled = true;
+      try {
+        const { data, error } = await sb.rpc("booking_confirm", { p_token: token });
+        if (error) throw error;
+        if (!data?.ok) throw new Error(data?.error || "failed");
+        e.target.remove();
+        document.getElementById("ab-note").textContent = T("confirmedNote");
+      } catch (err) {
+        e.target.disabled = false;
+        document.getElementById("ab-err").textContent = bookErrorCopy(err && err.message);
+      }
+    });
     root.querySelector('[data-ab="late"]')?.addEventListener("click", async (e) => {
       e.target.disabled = true;
       try {

@@ -9086,6 +9086,10 @@ async function _rrOpenReminderSettings() {
   const stepsArr = Array.isArray(cfg.steps) ? cfg.steps : null;   // null ⇒ unconfigured (both on)
   const findStep = (label) => stepsArr ? stepsArr.find(s => s && s.label === label) : { email: true, sms: true };
   const s24 = findStep("r24h"), s1 = findStep("r1h");
+  // Custom step (#75) is opt-in: absent config ⇒ off (the runner's default
+  // steps are 24h/1h only), unlike the two standard steps which default on.
+  const sC = stepsArr ? findStep("rcustom") : null;
+  const cHours = (() => { const n = parseInt(cfg.custom_hours, 10); return (n >= 1 && n <= 168) ? n : 3; })();
   const chStr = (v) => v !== false;   // default checked
   const subj  = cfg.email_subject != null ? cfg.email_subject : (d.email_subject || "");
   const ebody = cfg.email_body    != null ? cfg.email_body    : (d.email_body || "");
@@ -9110,16 +9114,21 @@ async function _rrOpenReminderSettings() {
         <h3 style="margin:0;font-size:16px;font-weight:700;color:var(--text,#111)">Customize interview reminders</h3>
         <button type="button" data-rs-close style="border:0;background:transparent;font-size:20px;line-height:1;cursor:pointer;color:var(--text-subtle,#6b7280)" aria-label="Close">✕</button>
       </div>
-      <p style="margin:0 0 14px;font-size:12.5px;color:var(--text-subtle,#6b7280)">Automatic reminders to candidates before their interview. Timing is fixed at 24 hours and 1 hour before; choose which send, over which channels, and the wording.</p>
+      <p style="margin:0 0 14px;font-size:12.5px;color:var(--text-subtle,#6b7280)">Automatic reminders to candidates before their interview: 24 hours and 1 hour before, plus an optional custom time. Choose which send, over which channels, and the wording.</p>
       <div style="display:flex;flex-direction:column;gap:8px;margin:0 0 16px">
         ${stepRow("24", "24 hours before", !!s24, s24)}
         ${stepRow("1", "1 hour before", !!s1, s1)}
+        <div style="display:flex;align-items:center;gap:14px;padding:10px 12px;border:1px solid var(--border,#e5e7eb);border-radius:8px;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:8px;font-weight:600;flex:1 1 auto;cursor:pointer;white-space:nowrap">${cb("rs-c-on", !!sC)} <input id="rs-c-hours" type="number" min="1" max="168" value="${cHours}" style="width:60px;padding:4px 6px;border:1px solid var(--border,#e5e7eb);border-radius:6px;font:inherit;font-size:13px"> hours before</label>
+          <label style="display:flex;align-items:center;gap:6px;color:var(--text-subtle,#6b7280);cursor:pointer">${cb("rs-c-email", chStr(sC && sC.email))} Email</label>
+          <label style="display:flex;align-items:center;gap:6px;color:var(--text-subtle,#6b7280);cursor:pointer">${cb("rs-c-sms", chStr(sC && sC.sms))} Text</label>
+        </div>
       </div>
       <div style="margin:0 0 12px"><label style="${lbl}">Email subject</label><input id="rs-subj" type="text" style="${fld}" value="${escapeHtml(subj)}"></div>
       <div style="margin:0 0 12px"><label style="${lbl}">Email message</label><textarea id="rs-ebody" rows="6" style="${fld};resize:vertical">${escapeHtml(ebody)}</textarea></div>
       <div style="margin:0 0 8px"><label style="${lbl}">Text message</label><textarea id="rs-sbody" rows="3" style="${fld};resize:vertical">${escapeHtml(sbody)}</textarea></div>
       <div style="font-size:11.5px;color:var(--text-subtle,#6b7280);line-height:1.6;margin:0 0 16px">
-        Placeholders: <code>{{first_name}}</code> <code>{{kind}}</code> (interview/orientation) <code>{{when}}</code> (date &amp; time) <code>{{join}}</code> (video link) <code>{{dsp}}</code>
+        Placeholders: <code>{{first_name}}</code> <code>{{kind}}</code> (interview/orientation) <code>{{when}}</code> (date &amp; time) <code>{{join}}</code> (video link) <code>{{dsp}}</code> <code>{{manage}}</code> (confirm/reschedule link)
       </div>
       <div style="display:flex;justify-content:flex-end;gap:8px">
         <button type="button" data-rs-close style="padding:8px 14px;border:1px solid var(--border,#e5e7eb);background:var(--surface,#fff);border-radius:8px;font:inherit;font-weight:600;cursor:pointer;color:var(--text,#111)">Cancel</button>
@@ -9139,6 +9148,10 @@ async function _rrOpenReminderSettings() {
       if (chk("rs-24-on")) stepsOut.push({ label: "r24h", email: chk("rs-24-email"), sms: chk("rs-24-sms") });
       if (chk("rs-1-on"))  stepsOut.push({ label: "r1h",  email: chk("rs-1-email"),  sms: chk("rs-1-sms") });
       const out = { steps: stepsOut, email_subject: val("rs-subj"), email_body: val("rs-ebody"), sms_body: val("rs-sbody") };
+      if (chk("rs-c-on")) {
+        stepsOut.push({ label: "rcustom", email: chk("rs-c-email"), sms: chk("rs-c-sms") });
+        out.custom_hours = Math.max(1, Math.min(168, parseInt(val("rs-c-hours"), 10) || 3));
+      }
       const btn = e.target.closest("[data-rs-save]");
       btn.disabled = true; btn.textContent = "Saving…";
       sb.rpc("interview_reminders_config_set", { p_config: out }).then(({ error }) => {
@@ -9146,6 +9159,98 @@ async function _rrOpenReminderSettings() {
         toast("Reminder settings saved", "success");
         close();
       });
+    }
+  });
+}
+
+// Notification preferences (calendar 100-list #71/#73/#74/#76/#77): morning
+// digest, SMS quiet hours, unconfirmed escalation, Slack/Teams webhooks and
+// the staff-push toggle — all one jsonb via calendar_notify_get/set (0497).
+async function _rrCalNotifyDialog() {
+  let prefs = {};
+  try {
+    const { data, error } = await sb.rpc("calendar_notify_get");
+    if (error) throw error;
+    prefs = data || {};
+  } catch (e) {
+    const msg = String((e && e.message) || e);
+    toast(/calendar_notify_get|schema cache|PGRST202/i.test(msg)
+      ? "Notification settings need the latest Supabase migration (0497)."
+      : "Couldn't load notification settings: " + msg, "warn");
+    return;
+  }
+  document.getElementById("rr-cal-notify")?.remove();
+  const back = document.createElement("div");
+  back.id = "rr-cal-notify";
+  back.className = "oc-modal-back";
+  const digestSel = (h) => [["", "Off"], ["6", "6:00 AM"], ["7", "7:00 AM"], ["8", "8:00 AM"], ["9", "9:00 AM"]]
+    .map(([v, l]) => `<option value="${v}"${String(h ?? "") === v ? " selected" : ""}>${l}</option>`).join("");
+  const escSel = (h) => [["", "Off"], ["2", "2 hours before"], ["3", "3 hours before"], ["6", "6 hours before"], ["12", "12 hours before"]]
+    .map(([v, l]) => `<option value="${v}"${String(h ?? "") === v ? " selected" : ""}>${l}</option>`).join("");
+  const quietOn = !!(prefs.quiet_start && prefs.quiet_end);
+  back.innerHTML = `<div class="oc-jump rr-notify-dlg" role="dialog" aria-modal="true" aria-label="Calendar notifications">
+    <div class="oc-jump-h">Calendar notifications</div>
+    <div class="rr-notify-b">
+      <label class="rr-notify-row"><span>Morning digest email <span class="rr-iv-hint">today's calendar, to all dispatchers</span></span>
+        <select id="rr-nf-digest">${digestSel(prefs.digest_hour)}</select></label>
+      <label class="rr-notify-row"><span>Escalate unconfirmed interviews <span class="rr-iv-hint">email + push when a candidate hasn't confirmed</span></span>
+        <select id="rr-nf-esc">${escSel(prefs.escalate_hours)}</select></label>
+      <label class="rr-notify-row"><input type="checkbox" id="rr-nf-push"${prefs.push_reminders === false ? "" : " checked"}>
+        <span>Browser push for event reminders</span></label>
+      <label class="rr-notify-row"><input type="checkbox" id="rr-nf-quiet"${quietOn ? " checked" : ""}>
+        <span>SMS quiet hours <span class="rr-iv-hint">hold automated reminder texts overnight</span></span></label>
+      <div class="rr-notify-quiet${quietOn ? "" : " off"}" id="rr-nf-quietrow">
+        <input type="time" id="rr-nf-qs" value="${escapeHtml(prefs.quiet_start || "21:00")}"> <span>to</span>
+        <input type="time" id="rr-nf-qe" value="${escapeHtml(prefs.quiet_end || "08:00")}">
+      </div>
+      <label class="rr-notify-lbl">Slack webhook URL <span class="rr-iv-hint">incoming webhook — posts bookings, cancellations &amp; no-shows</span>
+        <input type="url" id="rr-nf-slack" placeholder="https://hooks.slack.com/services/…" value="${escapeHtml(prefs.slack_url || "")}"></label>
+      <label class="rr-notify-lbl">Microsoft Teams webhook URL
+        <input type="url" id="rr-nf-teams" placeholder="https://….webhook.office.com/…" value="${escapeHtml(prefs.teams_url || "")}"></label>
+    </div>
+    <div class="oc-jump-f"><button type="button" class="oc-btn" data-nf-cancel>Cancel</button><button type="button" class="oc-btn oc-jump-go" data-nf-save>Save</button></div>
+  </div>`;
+  document.body.appendChild(back);
+  const close = () => back.remove();
+  back.addEventListener("click", (e) => { if (e.target === back || e.target.closest("[data-nf-cancel]")) close(); });
+  back.querySelector("#rr-nf-quiet").addEventListener("change", (e) => {
+    back.querySelector("#rr-nf-quietrow").classList.toggle("off", !e.target.checked);
+  });
+  back.querySelector("[data-nf-save]").addEventListener("click", async () => {
+    const v = (id) => back.querySelector(id).value.trim();
+    const quiet = back.querySelector("#rr-nf-quiet").checked;
+    const out = { ...prefs };
+    out.digest_hour = v("#rr-nf-digest") === "" ? null : parseInt(v("#rr-nf-digest"), 10);
+    out.escalate_hours = v("#rr-nf-esc") === "" ? null : parseInt(v("#rr-nf-esc"), 10);
+    out.push_reminders = back.querySelector("#rr-nf-push").checked;
+    out.quiet_start = quiet ? (v("#rr-nf-qs") || "21:00") : null;
+    out.quiet_end = quiet ? (v("#rr-nf-qe") || "08:00") : null;
+    out.slack_url = v("#rr-nf-slack") || null;
+    out.teams_url = v("#rr-nf-teams") || null;
+    if ((out.slack_url && !/^https:\/\//i.test(out.slack_url)) || (out.teams_url && !/^https:\/\//i.test(out.teams_url))) {
+      toast("Webhook URLs must be https://", "warn"); return;
+    }
+    const btn = back.querySelector("[data-nf-save]");
+    btn.disabled = true;
+    try {
+      const { error } = await sb.rpc("calendar_notify_set", { p_prefs: out });
+      if (error) throw error;
+      // Push needs a browser grant + a registered subscription to land (#71).
+      if (out.push_reminders && "Notification" in window && Notification.permission !== "granted") {
+        Notification.requestPermission().then((perm) => {
+          if (perm === "granted" && typeof _ensureStaffPush === "function") _ensureStaffPush();
+        }, () => {});
+      } else if (out.push_reminders && typeof _ensureStaffPush === "function") {
+        _ensureStaffPush();
+      }
+      toast("Notification settings saved", "success");
+      close();
+    } catch (e) {
+      btn.disabled = false;
+      const msg = String((e && e.message) || e);
+      toast(/calendar_notify_set|schema cache|PGRST202/i.test(msg)
+        ? "Notification settings need the latest Supabase migration (0497)."
+        : "Couldn't save: " + msg, "warn");
     }
   });
 }
@@ -29908,6 +30013,14 @@ function _ivcalPaneHtml() {
     rows += drow("🛡", a.screening_completed_at
       ? `<span style="color:var(--green)">Screening completed</span>`
       : `<span style="color:var(--oc-warn, #B45309)">Screening not completed yet</span>`);
+    // Candidate confirmation (#76) — set by the booking page's "I'll be
+    // there" tap; upcoming-only so stale flags don't linger on past events.
+    if (ev.status !== "cancelled" && ev.status !== "no_show" && new Date(ev.starts_at) > new Date()) {
+      const _cAt = ev.metadata && ev.metadata.confirmed_at ? new Date(ev.metadata.confirmed_at) : null;
+      rows += drow("✔", _cAt && !isNaN(_cAt)
+        ? `<span style="color:var(--green)">Candidate confirmed ${escapeHtml(_cAt.toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" }))}</span>`
+        : `<span style="color:var(--oc-sub)">Candidate hasn't confirmed yet</span>`);
+    }
   }
   if (_ivcalHttps(ev.meeting_url)) rows += drow(_IVCAL_CAM_SVG, `<a href="${escapeHtml(_ivcalHttps(ev.meeting_url))}" target="_blank" rel="noreferrer noopener">Join video meeting</a>`);
   else rows += drow(_IVCAL_CAM_SVG, `<span style="color:var(--oc-sub)">No video link yet</span>`);
@@ -30825,7 +30938,9 @@ function _ivcalSettingsMenu(btn) {
         `<span class="oc-set-switch${on ? " on" : ""}" aria-hidden="true"><span class="oc-set-knob"></span></span>` +
       `</button>` +
       `<button type="button" class="oc-set-link oc-set-sub" data-set-reminders-edit role="menuitem">` +
-        `<span class="oc-set-link-ico">${gearIco}</span><span class="oc-set-link-lbl">Customize reminders…</span></button>`;
+        `<span class="oc-set-link-ico">${gearIco}</span><span class="oc-set-link-lbl">Customize reminders…</span></button>` +
+      `<button type="button" class="oc-set-link oc-set-sub" data-set-notify role="menuitem" title="Morning digest, quiet hours, unconfirmed escalation, Slack/Teams">` +
+        `<span class="oc-set-link-ico">${bellIco}</span><span class="oc-set-link-lbl">Digest, quiet hours &amp; chat…</span></button>`;
     rem.querySelector("[data-set-reminders]").addEventListener("click", () => {
       const next = !_ivcalRemindersEnabled;
       _ivcalRemindersEnabled = next;   // optimistic
@@ -30837,6 +30952,9 @@ function _ivcalSettingsMenu(btn) {
     });
     rem.querySelector("[data-set-reminders-edit]").addEventListener("click", () => {
       closeMenu(); if (typeof _rrOpenReminderSettings === "function") _rrOpenReminderSettings();
+    });
+    rem.querySelector("[data-set-notify]").addEventListener("click", () => {
+      closeMenu(); _rrCalNotifyDialog();
     });
   };
   paintReminders();
