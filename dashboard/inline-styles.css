@@ -33113,3 +33113,7 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
   body.rr-print-cal #rr-ivcal .oc-scroll { overflow: visible; height: auto; max-height: none; }
   body.rr-print-cal #rr-ivcal .oc-main { height: auto; }
 }
+
+/* ═══ Calendar Wave 2 · composer & editing (2026-07-17) ══════════════════ */
+#rr-ivcal-new .rr-ne-tmplrow { display: flex; flex-wrap: wrap; gap: 6px; }
+#rr-ivcal-new .rr-ne-tmplrow:empty { display: none; }

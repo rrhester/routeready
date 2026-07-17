@@ -25955,7 +25955,7 @@ async function loadIvCalendar() {
       sb.rpc("interview_availability_get"),
       sb.rpc("interview_sessions_list"),
       sb.from("cal_events")
-        .select("id, applicant_id, kind, status, starts_at, ends_at, meeting_url, location, interview_session_id, title, metadata, rsvp, rsvp_token, calendar_id, google_sync_status, series_id, series_exception, applicants:applicant_id (full_name, email, phone)")
+        .select("id, applicant_id, kind, status, starts_at, ends_at, meeting_url, location, interview_session_id, title, metadata, rsvp, rsvp_token, calendar_id, google_sync_status, series_id, series_exception, created_by, applicants:applicant_id (full_name, email, phone)")
         .eq("dsp_id", window.RR.dsp.id)
         .in("status", ["scheduled", "rescheduled"])
         // Lower bound is critical: without it, ascending order + limit(500)
@@ -25994,7 +25994,7 @@ async function loadIvCalendar() {
       // Pre-0431 fallback: series columns may not exist yet — retry with the
       // previous column set so nothing else degrades.
       const b1 = await sb.from("cal_events")
-        .select("id, applicant_id, kind, status, starts_at, ends_at, meeting_url, location, interview_session_id, title, metadata, rsvp, rsvp_token, calendar_id, google_sync_status, applicants:applicant_id (full_name, email, phone)")
+        .select("id, applicant_id, kind, status, starts_at, ends_at, meeting_url, location, interview_session_id, title, metadata, rsvp, rsvp_token, calendar_id, google_sync_status, created_by, applicants:applicant_id (full_name, email, phone)")
         .eq("dsp_id", window.RR.dsp.id)
         .in("status", ["scheduled", "rescheduled"])
         .gte("starts_at", _ivcalQueryFloorISO())
@@ -27074,6 +27074,9 @@ function _rrInviteEmail(o) {
   const detail = (icon, html) => `<tr><td style="padding:5px 12px 5px 0;font-size:18px;vertical-align:top;width:22px">${icon}</td><td style="padding:5px 0;font-size:15px;color:#111827;vertical-align:top">${html}</td></tr>`;
   const join = o.joinUrl ? detail("🎥", `<a href="${esc(o.joinUrl)}" style="color:#2563EB;font-weight:600;text-decoration:none">Join the video meeting</a>`) : "";
   const loc = (o.location && o.location.trim()) ? detail("📍", esc(o.location.trim())) : "";
+  const atts = (Array.isArray(o.attachments) && o.attachments.length)
+    ? detail("📎", o.attachments.map(a => `<a href="${esc(a.url)}" style="color:#2563EB;font-weight:600;text-decoration:none">${esc(a.name || "Attachment")}</a>`).join("<br>"))
+    : "";
   const msg = (o.message && o.message.trim())
     ? `<div style="margin:18px 0 0;padding:14px 16px;background:#f6f8fb;border-radius:10px;font-size:15px;line-height:1.5;color:#3a3a45;white-space:pre-wrap">${esc(o.message.trim())}</div>` : "";
   const html =
@@ -27090,6 +27093,7 @@ function _rrInviteEmail(o) {
         ${detail("🗓️", `<strong>${esc(o.dateStr)}</strong>${o.timeStr ? `<br><span style="color:#6B7280">${esc(o.timeStr)}</span>` : ""}`)}
         ${loc}
         ${join}
+        ${atts}
       </table>
       ${msg}
       <div style="margin-top:26px">${btn(o.acceptUrl, "✓ Accept", "#16A34A")}&nbsp;&nbsp;${btn(o.declineUrl, "✗ Decline", "#DC2626")}</div>
@@ -27103,7 +27107,7 @@ function _rrInviteEmail(o) {
 `You're invited — ${o.title || "Interview"}
 
 ${o.dateStr}${o.timeStr ? "\n" + o.timeStr : ""}
-${(o.location && o.location.trim()) ? o.location.trim() + "\n" : ""}${o.joinUrl ? "Join the video meeting: " + o.joinUrl + "\n" : ""}${(o.message && o.message.trim()) ? "\n" + o.message.trim() + "\n" : ""}
+${(o.location && o.location.trim()) ? o.location.trim() + "\n" : ""}${o.joinUrl ? "Join the video meeting: " + o.joinUrl + "\n" : ""}${(Array.isArray(o.attachments) && o.attachments.length) ? o.attachments.map(a => "Attachment — " + (a.name || "file") + ": " + a.url).join("\n") + "\n" : ""}${(o.message && o.message.trim()) ? "\n" + o.message.trim() + "\n" : ""}
 Accept:  ${o.acceptUrl}
 Decline: ${o.declineUrl}
 Add to Google Calendar: ${o.gcalUrl}${o.outlookUrl ? "\nAdd to Outlook: " + o.outlookUrl : ""}`;
@@ -27518,6 +27522,8 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
           <button type="button" class="rr-ne-gtab active" data-ne-type="event">Event</button>
           <button type="button" class="rr-ne-gtab" data-ne-type="task">Task</button>
         </div>
+        ${isEdit ? "" : `<input id="rr-ne-quick" type="text" placeholder="Quick add — try &quot;Interview with Sam tomorrow 3pm for 45 min&quot;" style="${fld};width:100%" aria-label="Quick add">
+        <div class="rr-ne-tmplrow" id="rr-ne-tmplrow" aria-label="Templates"></div>`}
         <input id="rr-ne-title" type="text" placeholder="Add title" style="${fld};width:100%">
         <div class="rr-ne-grow"><span class="rr-ne-gico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg></span><div class="rr-ne-gcell rr-ne-gtime">
           <input id="rr-ne-sdate" type="date" value="${escapeHtml(dateISO)}" style="${fld}"><input id="rr-ne-stime" type="time" value="${_ivMinToHHMM(startMin)}" style="${fld}"><span class="rr-ne-gdash">–</span><input id="rr-ne-edate" type="date" value="${escapeHtml(dateISO)}" style="${fld}"><input id="rr-ne-etime" type="time" value="${_ivMinToHHMM(endMin)}" style="${fld}"><label class="rr-ne-gallday"><input id="rr-ne-allday" type="checkbox"> All day</label>
@@ -27540,11 +27546,19 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
         </div></div>
         <div class="rr-ne-grow rr-ne-evonly"><span class="rr-ne-gico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="13" height="12" rx="2"/><path d="M22 8l-5 4 5 4z"/></svg></span><div class="rr-ne-gcell">
           <button type="button" class="rr-ne-glink" data-ne-vproxy>Add video conferencing</button>
+          ${(_ivcalCache && _ivcalCache.gcal) ? `<select id="rr-ne-vprov" aria-label="Video provider" style="${fld};margin-top:4px;width:max-content;font-size:12px"><option value="rr">RouteReady Meet</option><option value="google">Google Meet</option></select>` : ""}
           <span id="rr-ne-roomstate" style="font-size:12px;color:var(--text-subtle)"></span>
         </div></div>
         <div class="rr-ne-grow rr-ne-evonly"><span class="rr-ne-gico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s7-6.5 7-12a7 7 0 1 0-14 0c0 5.5 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg></span><div class="rr-ne-gcell">
           <input id="rr-ne-location" type="text" placeholder="Add location" style="${fld};width:100%">
+          <a id="rr-ne-maplink" href="#" target="_blank" rel="noreferrer noopener" style="display:none;font-size:12px;margin-top:4px;color:var(--accent-text);text-decoration:none">Open in Maps ↗</a>
         </div></div>
+        <div class="rr-ne-grow rr-ne-evonly"><span class="rr-ne-gico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span><div class="rr-ne-gcell">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-muted);padding:8px 0"><input id="rr-ne-private" type="checkbox"> Private — other teammates see only “Busy”</label>
+        </div></div>
+        ${(isEdit && ev0 && ev0.kind !== "event" && !(ev0.metadata && ev0.metadata.is_task)) ? `<div class="rr-ne-grow"><span class="rr-ne-gico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg></span><div class="rr-ne-gcell">
+          <textarea id="rr-ne-prep" placeholder="Interviewer prep notes (internal — never emailed to the candidate)" style="${fld};width:100%;min-height:56px;resize:none;line-height:1.5"></textarea>
+        </div></div>` : ""}
         <div class="rr-ne-grow"><span class="rr-ne-gico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="14" y2="17"/></svg></span><div class="rr-ne-gcell">
           <textarea id="rr-ne-body" placeholder="Add description" style="${fld};width:100%;min-height:84px;resize:none;line-height:1.5"></textarea>
         </div></div>
@@ -27577,6 +27591,10 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
             <label><input type="radio" name="rr-ne-pat" value="yearly"> Yearly</label>
             <div class="rr-ne-prow"><span>Every</span><input type="number" id="rr-ne-rec-interval" min="1" value="1" style="width:54px"><span id="rr-ne-rec-unit">week(s)</span></div>
             <div class="rr-ne-days" id="rr-ne-rec-days">${dows.map((d,i)=>`<label><input type="checkbox" value="${i}"${i===anchorDow?" checked":""}>${d}</label>`).join("")}</div>
+            <div class="rr-ne-pop-sec" id="rr-ne-rec-monthly" style="display:none;gap:4px">
+              <label><input type="radio" name="rr-ne-mmode" value="date" checked> On day <span id="rr-ne-mm-daylbl"></span></label>
+              <label><input type="radio" name="rr-ne-mmode" value="nth"> On the <span id="rr-ne-mm-nthlbl"></span></label>
+            </div>
           </div>
           <div class="rr-ne-pop-sec">
             <div class="rr-ne-pop-t">Range of recurrence</div>
@@ -27617,6 +27635,141 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
   const readReminders = () => Array.from(m.querySelectorAll("[data-ne-rem].sel"))
     .map(b => parseInt(b.getAttribute("data-ne-rem"), 10))
     .filter(Number.isFinite).sort((a, b2) => a - b2);
+
+  // ── Quick add · "Interview with Sam tomorrow 3pm for 45 min" ─────────────
+  // A deliberately small parser: duration ("for 45 min"), a time ("3pm",
+  // "15:00"), and one date phrase (today / tomorrow / weekday / "jul 21" /
+  // 7/21). Whatever's left is the title. Enter applies it to the form.
+  function _neParseQuick(qRaw) {
+    let q = " " + String(qRaw || "").trim() + " ";
+    const out = {};
+    const dur = q.match(/\bfor\s+(\d+(?:\.\d+)?)\s*(min(?:ute)?s?|h(?:ou)?rs?)\b/i);
+    if (dur) { out.dur = Math.max(5, Math.round(parseFloat(dur[1]) * (/^m/i.test(dur[2]) ? 1 : 60))); q = q.replace(dur[0], " "); }
+    const tm = q.match(/\b(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i) || q.match(/\b(\d{1,2}):(\d{2})\b/);
+    if (tm) {
+      let h = +tm[1]; const mm2 = +(tm[2] || 0);
+      const ap = (tm[3] || "").toLowerCase();
+      if (ap === "pm" && h < 12) h += 12;
+      if (ap === "am" && h === 12) h = 0;
+      if (h < 24 && mm2 < 60) { out.startMin = h * 60 + mm2; q = q.replace(tm[0], " "); }
+    }
+    const today0 = new Date(); today0.setHours(0, 0, 0, 0);
+    const dnames = ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"];
+    const mons = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
+    let dm;
+    if (/\btoday\b/i.test(q)) { out.date = _ivcalISODate(today0); q = q.replace(/\btoday\b/i, " "); }
+    else if (/\btomorrow\b/i.test(q)) { const d = new Date(today0); d.setDate(d.getDate() + 1); out.date = _ivcalISODate(d); q = q.replace(/\btomorrow\b/i, " "); }
+    else if ((dm = q.match(new RegExp("\\b(next\\s+)?(" + dnames.join("|") + ")\\b", "i")))) {
+      const d = new Date(today0);
+      let add = (dnames.indexOf(dm[2].toLowerCase()) - d.getDay() + 7) % 7;
+      if (add === 0) add = 7;                      // "monday" on a Monday = next week
+      if (dm[1] && add < 7) add += 7;              // "next monday" skips this week's
+      d.setDate(d.getDate() + add);
+      out.date = _ivcalISODate(d); q = q.replace(dm[0], " ");
+    }
+    else if ((dm = q.match(new RegExp("\\b(" + mons.join("|") + ")[a-z]*\\.?\\s+(\\d{1,2})\\b", "i")))) {
+      let d = new Date(today0.getFullYear(), mons.indexOf(dm[1].toLowerCase().slice(0, 3)), +dm[2]);
+      if (d < today0) d = new Date(today0.getFullYear() + 1, d.getMonth(), d.getDate());
+      out.date = _ivcalISODate(d); q = q.replace(dm[0], " ");
+    }
+    else if ((dm = q.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/))) {
+      let y = dm[3] ? +dm[3] : today0.getFullYear(); if (y < 100) y += 2000;
+      const d = new Date(y, +dm[1] - 1, +dm[2]);
+      if (!dm[3] && d < today0) d.setFullYear(d.getFullYear() + 1);
+      out.date = _ivcalISODate(d); q = q.replace(dm[0], " ");
+    }
+    out.title = q.replace(/\s+/g, " ").replace(/\s(at|on)$/i, "").trim();
+    return out;
+  }
+  const quickInp = document.getElementById("rr-ne-quick");
+  quickInp?.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    const p = _neParseQuick(quickInp.value);
+    if (!p.title && p.startMin == null && !p.date) return;
+    if (p.title) { titleInp.value = p.title; document.getElementById("rr-ne-tt").textContent = p.title; }
+    if (p.date) { document.getElementById("rr-ne-sdate").value = p.date; document.getElementById("rr-ne-edate").value = p.date; }
+    const curDur = p.dur || _neDurMin();
+    if (p.startMin != null) {
+      document.getElementById("rr-ne-stime").value = _ivMinToHHMM(p.startMin);
+      document.getElementById("rr-ne-etime").value = _ivMinToHHMM(Math.min(24 * 60 - 1, p.startMin + curDur));
+    } else if (p.dur) {
+      const st = _ivHHMMToMin(document.getElementById("rr-ne-stime").value || "09:00");
+      document.getElementById("rr-ne-etime").value = _ivMinToHHMM(Math.min(24 * 60 - 1, st + p.dur));
+    }
+    quickInp.value = "";
+    const when = [p.date, p.startMin != null ? _ivMinToHHMM(p.startMin) : null].filter(Boolean).join(" ");
+    toast(`Filled in${p.title ? ` “${p.title}”` : ""}${when ? " · " + when : ""}`, "success");
+  });
+
+  // ── Templates · one-tap prefills (built-ins + device-saved customs) ──────
+  const _NE_BUILTIN_TMPL = [
+    { name: "Driver interview", dur: 30, title: "Driver interview", video: true, body: INTERVIEW_TEMPLATE, reminders: [60] },
+    { name: "Orientation", dur: 90, title: "New driver orientation", video: false, reminders: [1440, 60] },
+    { name: "Road test", dur: 60, title: "Road test", video: false, location: "Station — ask for your trainer", reminders: [60] },
+  ];
+  const _neLoadTmpls = () => { try { return JSON.parse(localStorage.getItem("rr_ivcal_templates") || "[]"); } catch (_) { return []; } };
+  const _neSaveTmpls = (list) => { try { localStorage.setItem("rr_ivcal_templates", JSON.stringify(list.slice(0, 20))); } catch (_) {} };
+  function _neApplyTmpl(t) {
+    if (t.title && !titleInp.readOnly) { titleInp.value = t.title; document.getElementById("rr-ne-tt").textContent = t.title; }
+    if (t.body != null) document.getElementById("rr-ne-body").value = t.body;
+    if (t.location != null) document.getElementById("rr-ne-location").value = t.location;
+    if (t.dur) {
+      const st = _ivHHMMToMin(document.getElementById("rr-ne-stime").value || "09:00");
+      document.getElementById("rr-ne-etime").value = _ivMinToHHMM(Math.min(24 * 60 - 1, st + t.dur));
+      document.getElementById("rr-ne-edate").value = document.getElementById("rr-ne-sdate").value;
+    }
+    m.querySelectorAll("[data-ne-rem]").forEach(b => b.classList.toggle("sel", (t.reminders || []).includes(parseInt(b.getAttribute("data-ne-rem"), 10))));
+    if (t.video && !roomUrl) m.querySelector('[data-ne-act="meeting"]')?.click();
+    if (!t.video && roomUrl) m.querySelector('[data-ne-act="meeting"]')?.click();
+    toast(`Template “${t.name}” applied`, "success");
+  }
+  function _neRenderTmpls() {
+    const host2 = document.getElementById("rr-ne-tmplrow");
+    if (!host2) return;
+    const customs = _neLoadTmpls();
+    host2.innerHTML = [..._NE_BUILTIN_TMPL.map((t, i) => `<button type="button" class="rr-ne-remchip" data-ne-tmpl="b${i}">${escapeHtml(t.name)}</button>`),
+      ...customs.map((t, i) => `<button type="button" class="rr-ne-remchip" data-ne-tmpl="c${i}" title="Right-click to delete">${escapeHtml(t.name)}</button>`),
+      `<button type="button" class="rr-ne-remchip" data-ne-tmpl-save title="Save the current form as a reusable template">＋ Save as template</button>`].join("");
+    host2.querySelectorAll("[data-ne-tmpl]").forEach(b => {
+      const key = b.getAttribute("data-ne-tmpl");
+      b.addEventListener("click", () => _neApplyTmpl(key[0] === "b" ? _NE_BUILTIN_TMPL[+key.slice(1)] : customs[+key.slice(1)]));
+      if (key[0] === "c") b.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        const list = _neLoadTmpls(); list.splice(+key.slice(1), 1); _neSaveTmpls(list); _neRenderTmpls();
+        toast("Template deleted", "info");
+      });
+    });
+    host2.querySelector("[data-ne-tmpl-save]")?.addEventListener("click", () => {
+      const name = prompt("Template name:", titleInp.value.trim() || "My template");
+      if (!name) return;
+      const list = _neLoadTmpls();
+      list.push({
+        name: name.trim().slice(0, 40),
+        title: titleInp.value.trim(),
+        body: document.getElementById("rr-ne-body").value,
+        location: document.getElementById("rr-ne-location").value.trim(),
+        dur: _neDurMin(),
+        video: !!roomUrl,
+        reminders: readReminders(),
+      });
+      _neSaveTmpls(list); _neRenderTmpls();
+      toast(`Template “${name.trim()}” saved on this device`, "success");
+    });
+  }
+  _neRenderTmpls();
+
+  // ── Location → live "Open in Maps" link (composer) ───────────────────────
+  const locInp = document.getElementById("rr-ne-location");
+  const mapA = document.getElementById("rr-ne-maplink");
+  function _neSyncMap() {
+    if (!mapA || !locInp) return;
+    const v = locInp.value.trim();
+    const mappable = v && !/^online\b|^virtual\b|^video\b|^https?:/i.test(v);
+    mapA.style.display = mappable ? "inline-block" : "none";
+    if (mappable) mapA.href = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(v);
+  }
+  locInp?.addEventListener("input", _neSyncMap);
   // "Show my interview availability" — list the operator's own open interview
   // slots for the selected day (from the active booking schedule, mirrored into
   // _ivcalCache.windows). Clicking a slot snaps the event start/end to it, so
@@ -27792,13 +27945,22 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
   // user presses "Schedule Meeting" (the blue video button). When editing an
   // event that already has a video link, start with video ON.
   roomUrl = (isEdit && ev0 && ev0.meeting_url) ? ev0.meeting_url : "";
+  // Google Meet as the provider (#39): no link at compose time — the sync to
+  // Google Calendar mints the conference and mirrors hangoutLink back.
+  let googleMeetPending = !!(isEdit && ev0 && ev0.metadata && ev0.metadata.video_provider === "google" && !ev0.meeting_url);
+  if (googleMeetPending) { const vp = document.getElementById("rr-ne-vprov"); if (vp) vp.value = "google"; }
   // Reflect the current video state in the footer line + the Schedule Meeting
   // tile's active styling. Called on open and whenever video is toggled.
   function renderRoomState() {
     const st = document.getElementById("rr-ne-roomstate");
     const tileEl = m.querySelector('[data-ne-act="meeting"]');
-    if (tileEl) tileEl.classList.toggle("active", !!roomUrl);
+    if (tileEl) tileEl.classList.toggle("active", !!roomUrl || googleMeetPending);
     if (!st) return;
+    if (!roomUrl && googleMeetPending) {
+      st.textContent = "Google Meet — the join link is attached when the event syncs to Google Calendar (usually within a minute)";
+      st.style.color = "var(--text-subtle)";
+      return;
+    }
     if (roomUrl) {
       // Clickable so the interviewer can join straight from the editor. For a
       // saved interview this opens the embedded in-app room (with notes); the
@@ -27846,6 +28008,12 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
         if (b) b.classList.add("sel");
       }
     }
+    // Private flag + interviewer prep notes + the location map link.
+    const privEl0 = document.getElementById("rr-ne-private");
+    if (privEl0) privEl0.checked = !!(ev0.metadata && ev0.metadata.private);
+    const prepEl0 = document.getElementById("rr-ne-prep");
+    if (prepEl0 && ev0.metadata && ev0.metadata.prep_notes != null) prepEl0.value = String(ev0.metadata.prep_notes);
+    _neSyncMap();
     // Clear the attendee placeholders' relevance + relabel ribbon for editing.
     const sendTile = m.querySelector('[data-ne-act="send"] span'); if (sendTile) sendTile.textContent = "Update";
     // Load the messages we've already sent for this event (booking
@@ -27901,18 +28069,42 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
   document.addEventListener("mouseup", _neDragUp);
   // ── Recurrence popover ──
   const recurPop = document.getElementById("rr-ne-recur-pop");
+  // Ordinal weekday of a date within its month ("3rd Thursday"; the 5th
+  // occurrence reads as "last" so the rule stays valid in shorter months).
+  const _neNthOf = (d) => {
+    const nth = Math.ceil(d.getDate() / 7);
+    const label = nth >= 5 ? "last" : ["1st", "2nd", "3rd", "4th"][nth - 1];
+    return { nth: nth >= 5 ? -1 : nth, label: `${label} ${dows[d.getDay()]}` };
+  };
   function syncRecurUnit() {
     const pat = (m.querySelector("input[name=rr-ne-pat]:checked")||{}).value || "weekly";
     const unit = document.getElementById("rr-ne-rec-unit");
     if (unit) unit.textContent = pat === "daily" ? "day(s)" : pat === "monthly" ? "month(s)" : pat === "quarterly" ? "quarter(s)" : pat === "yearly" ? "year(s)" : "week(s)";
     document.getElementById("rr-ne-rec-days").style.display = pat === "weekly" ? "" : "none";
+    // Monthly gains a by-date / by-nth-weekday choice, labelled from the
+    // recurrence range start ("day 21" vs "3rd Tuesday").
+    const mrow = document.getElementById("rr-ne-rec-monthly");
+    if (mrow) {
+      mrow.style.display = pat === "monthly" ? "" : "none";
+      if (pat === "monthly") {
+        const rs = document.getElementById("rr-ne-rec-rstart").value || dateISO;
+        const d = new Date(rs + "T00:00:00");
+        document.getElementById("rr-ne-mm-daylbl").textContent = String(d.getDate());
+        document.getElementById("rr-ne-mm-nthlbl").textContent = _neNthOf(d).label;
+      }
+    }
   }
   m.querySelectorAll("input[name=rr-ne-pat]").forEach(r => r.addEventListener("change", syncRecurUnit));
+  document.getElementById("rr-ne-rec-rstart")?.addEventListener("change", syncRecurUnit);
   function recurSummary(rule) {
     if (!rule) return "";
     const every = rule.interval > 1 ? `every ${rule.interval} ` : "every ";
+    const mNth = () => {
+      const d = new Date((rule.rangeStart || dateISO) + "T00:00:00");
+      return ` on the ${_neNthOf(d).label}`;
+    };
     let s = "Occurs " + (rule.pattern === "daily" ? every + (rule.interval>1?"days":"day")
-      : rule.pattern === "monthly" ? every + (rule.interval>1?"months":"month")
+      : rule.pattern === "monthly" ? every + (rule.interval>1?"months":"month") + (rule.monthlyMode === "nth" ? mNth() : "")
       : rule.pattern === "quarterly" ? every + (rule.interval>1?"quarters":"quarter")
       : rule.pattern === "yearly" ? every + (rule.interval>1?"years":"year")
       : every + (rule.interval>1?"weeks":"week") + " on " + rule.weekdays.map(i=>dows[i]).join(", "));
@@ -28004,6 +28196,32 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
         weekStart.setDate(weekStart.getDate() + 7 * interval); weeks += interval;
         if (until && weekStart > until) break;
       }
+    } else if (rule.pattern === "monthly" && rule.monthlyMode === "nth") {
+      // "3rd Tuesday of every month" — the nth (or last, nth = -1) weekday.
+      const wd = start.getDay();
+      const nth = Math.ceil(start.getDate() / 7) >= 5 ? -1 : Math.ceil(start.getDate() / 7);
+      const nthOfMonth = (y, mo) => {
+        if (nth === -1) {
+          const last = new Date(y, mo + 1, 0);
+          last.setDate(last.getDate() - ((last.getDay() - wd + 7) % 7));
+          return last;
+        }
+        const first = new Date(y, mo, 1);
+        const d0 = new Date(first);
+        d0.setDate(1 + ((wd - first.getDay() + 7) % 7) + (nth - 1) * 7);
+        return d0.getMonth() === mo ? d0 : null;   // 5th weekday missing → skip month
+      };
+      let y = start.getFullYear(), mo = start.getMonth(), guard = 0;
+      while (out.length < maxN && guard < 600) {
+        const d = nthOfMonth(y, mo);
+        if (d && d >= start) {
+          if (until && d > until) break;
+          out.push(_ivcalISODate(d));
+        }
+        mo += interval;
+        y += Math.floor(mo / 12); mo = ((mo % 12) + 12) % 12;
+        guard++;
+      }
     } else {
       let d = new Date(start), guard = 0;
       while (out.length < maxN && guard < 2000) {
@@ -28050,8 +28268,10 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
         const weekdays = Array.from(document.querySelectorAll("#rr-ne-rec-days input:checked")).map(c=>+c.value);
         const endType = (m.querySelector("input[name=rr-ne-end]:checked")||{}).value || "none";
         if (pattern === "weekly" && weekdays.length === 0) { toast("Pick at least one weekday", "warn"); return; }
+        const monthlyMode = pattern === "monthly" ? ((m.querySelector("input[name=rr-ne-mmode]:checked") || {}).value || "date") : null;
         recurrence = {
           pattern, interval, weekdays,
+          monthlyMode,
           rangeStart: document.getElementById("rr-ne-rec-rstart").value || dateISO,
           end: { type: endType, count: parseInt(document.getElementById("rr-ne-rec-count").value,10) || 10, until: document.getElementById("rr-ne-rec-until").value || null },
         };
@@ -28073,11 +28293,21 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
       // Toggle the video meeting on/off. Off by default → plain calendar
       // invite; pressing this adds a video link that's included in the invite.
       const loc = document.getElementById("rr-ne-location");
+      const vprov = ((document.getElementById("rr-ne-vprov") || {}).value) || "rr";
       if (roomUrl) {
         roomUrl = "";
         if (loc && loc.value.trim() === "Online video meeting") loc.value = "";
         renderRoomState();
         toast("Video meeting removed — this is now a plain calendar invite", "info");
+      } else if (googleMeetPending) {
+        googleMeetPending = false;
+        renderRoomState();
+        toast("Google Meet removed", "info");
+      } else if (vprov === "google") {
+        googleMeetPending = true;
+        if (loc && !loc.value.trim()) loc.value = "Online video meeting";
+        renderRoomState();
+        toast("Google Meet selected — the link is attached when the event syncs to Google Calendar", "info");
       } else {
         const applyRoom = (url) => {
           roomUrl = url;
@@ -28139,11 +28369,29 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
       const isAllDay = document.getElementById("rr-ne-allday").checked;
       const location = document.getElementById("rr-ne-location").value.trim();
       const bodyText = document.getElementById("rr-ne-body").value;
-      // Vault attachments to persist on the event (references, not file copies).
-      const attRefs = attachments.filter(a => a && a.vaultId)
-        .map(a => ({ vaultId: a.vaultId, name: a.name || "Document", path: a.path || null, bucket: a.bucket || "driver-documents", isGoogle: !!a.isGoogle, googleUrl: a.googleUrl || null }));
       if (!title) { toast("Add a title", "warn"); return; }
       if (!sdate || (!isAllDay && !stime)) { toast("Pick a start date and time", "warn"); return; }
+      // Attachments: locally-picked files are uploaded into the private
+      // driver-documents bucket first, so they persist on the event AND ride
+      // the invite email as links — same as Vault picks (closes the old
+      // "aren't sent with auto-invites yet" gap).
+      let attRefs = [];
+      try {
+        const picks = attachments.filter(a => a && !a.vaultId && a.file && !a.path);
+        const dspId0 = window.RR && window.RR.dsp && window.RR.dsp.id;
+        for (const a of picks) {
+          const safe = (a.name || "file").replace(/[^\w.\-]+/g, "_");
+          const upPath = `${dspId0}/calendar/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safe}`;
+          const { error: upErr } = await sb.storage.from("driver-documents").upload(upPath, a.file, { contentType: a.file.type || "application/octet-stream", upsert: false });
+          if (upErr) throw upErr;
+          a.path = upPath; a.bucket = "driver-documents";
+        }
+        attRefs = attachments.filter(a => a && (a.vaultId || a.path || (a.isGoogle && a.googleUrl)))
+          .map(a => ({ vaultId: a.vaultId || null, name: a.name || "Document", path: a.path || null, bucket: a.bucket || "driver-documents", isGoogle: !!a.isGoogle, googleUrl: a.googleUrl || null }));
+      } catch (upErr) {
+        toast("Attachment upload failed: " + ((upErr && upErr.message) || upErr), "warn");
+        return;
+      }
       const required = document.getElementById("rr-ne-required").value.split(/[,;]/).map(s => s.trim()).filter(s => s.includes("@"));
       const optional = document.getElementById("rr-ne-optional").value.split(/[,;]/).map(s => s.trim()).filter(s => s.includes("@"));
       const allGuests = Array.from(new Set([...required, ...optional]));
@@ -28187,7 +28435,9 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
         // reminders: undefined drops the key from the rebuilt metadata, so
         // clearing every chip removes the reminders entirely.
         const editReminders = readReminders();
-        const patch = { starts_at: startISO, ends_at: endISO, location: location || null, metadata: { ...(ev0.metadata || {}), note: bodyText || null, is_task: isTask || !!(ev0.metadata && ev0.metadata.is_task), task_done: !!(ev0.metadata && ev0.metadata.task_done), attachments: attRefs, all_day: isAllDay, reminders: editReminders.length ? editReminders : undefined } };
+        const privOn = !!(document.getElementById("rr-ne-private") || {}).checked;
+        const prepVal = ((document.getElementById("rr-ne-prep") || {}).value || "").trim();
+        const patch = { starts_at: startISO, ends_at: endISO, location: location || null, metadata: { ...(ev0.metadata || {}), note: bodyText || null, is_task: isTask || !!(ev0.metadata && ev0.metadata.is_task), task_done: !!(ev0.metadata && ev0.metadata.task_done), attachments: attRefs, all_day: isAllDay, reminders: editReminders.length ? editReminders : undefined, private: privOn ? true : undefined, prep_notes: prepVal || undefined, video_provider: googleMeetPending ? "google" : (ev0.metadata || {}).video_provider } };
         // Editing one occurrence of a series detaches it so series-wide
         // rewrites ("this and following" / "all") skip it from now on.
         if (ev0.series_id) patch.series_exception = true;
@@ -28243,17 +28493,47 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
         if (choice === "back") { if (btn) btn.style.opacity = ""; return; }
         invitees = choice === "send" ? allGuests : [];
       }
+      if (googleMeetPending && invitees.length) {
+        toast("Heads up: the Google Meet link is attached when the event syncs to Google Calendar — the emailed invite may not include it yet", "info");
+      }
       // No forced video link — roomUrl is set only when the user pressed
       // Schedule Meeting. An untouched event stays a plain calendar invite.
       const subjTitle = highImportance ? ("❗ " + title) : title;
       // Occurrence dates: a single one, or the recurrence series.
       const dates = recurrence ? expandOccurrences(recurrence, sdate) : [sdate];
-      // Vault attachments persist on the event; only locally-picked files (no
-      // vaultId) are the ones that aren't carried into the invite email.
-      if (attachments.some(a => a && !a.vaultId)) toast("Note: locally-attached files show here but aren't sent with auto-invites yet", "info");
+      // Attachment links for the invite email (30-day signed URLs; Google
+      // Drive refs use their own share link). Only fetched when inviting.
+      let attLinks = [];
+      if (invitees.length && attRefs.length) {
+        for (const r of attRefs) {
+          if (r.isGoogle && r.googleUrl) { attLinks.push({ name: r.name, url: r.googleUrl }); continue; }
+          if (!r.path) continue;
+          try {
+            const { data: su } = await sb.storage.from(r.bucket || "driver-documents").createSignedUrl(r.path, 60 * 60 * 24 * 30);
+            if (su && su.signedUrl) attLinks.push({ name: r.name, url: su.signedUrl });
+          } catch (_) { /* the event still saves; the email just skips the link */ }
+        }
+      }
       let made = 0, firstId = null;
       const createdIds = [];
       const newReminders = readReminders();
+      const newPrivate = !!(document.getElementById("rr-ne-private") || {}).checked;
+      // Per-invitee RSVP tokens (0492): "<anchor>.<n>" per guest, so each
+      // Accept/Decline records under that guest's email. Single-guest events
+      // keep the plain anchor token (same behavior as before).
+      const inviteeTokens = invitees.length > 1
+        ? Object.fromEntries(invitees.map((em, i2) => [rsvpToken + "." + (i2 + 1), em]))
+        : null;
+      // Pre-0492 fallback: retry once without p_invitee_tokens when the
+      // widened signature isn't in the schema cache yet.
+      const _rpcCreateEvent = async (args2) => {
+        let r = await sb.rpc("create_calendar_event", args2);
+        if (r.error && args2.p_invitee_tokens && /create_calendar_event|schema cache|PGRST202/i.test(String(r.error.message || r.error.code || ""))) {
+          const { p_invitee_tokens: _drop, ...rest } = args2;
+          r = await sb.rpc("create_calendar_event", rest);
+        }
+        return r;
+      };
       let seriesDone = false;
       try {
         if (recurrence && dates.length > 1) {
@@ -28273,12 +28553,15 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
           const inv = _rrInviteEmail({
             dspName: window.RR?.dsp?.name, title: subjTitle, dateStr, timeStr, joinUrl: roomUrl,
             location, message: bodyText, gcalUrl, outlookUrl, acceptUrl, declineUrl,
+            attachments: attLinks,
           });
           const extra = {};
           if (isTask) { extra.is_task = true; extra.task_done = false; }
           if (attRefs.length) extra.attachments = attRefs;
           if (isAllDay) extra.all_day = true;
           if (newReminders.length) extra.reminders = newReminders;
+          if (newPrivate) extra.private = true;
+          if (googleMeetPending) extra.video_provider = "google";
           const calSel0 = document.getElementById("rr-ne-calendar");
           const args = {
             p_title: subjTitle, p_occurrences: occ, p_rule: recurrence,
@@ -28287,7 +28570,12 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
             p_rsvp_token: rsvpToken, p_extra: Object.keys(extra).length ? extra : null,
           };
           if (calSel0 && calSel0.value) args.p_calendar_id = calSel0.value;
-          const { data: res, error } = await sb.rpc("create_calendar_series", args);
+          if (inviteeTokens && invitees.length) args.p_invitee_tokens = inviteeTokens;
+          let { data: res, error } = await sb.rpc("create_calendar_series", args);
+          if (error && args.p_invitee_tokens && /create_calendar_series|schema cache|PGRST202/i.test(String(error.message || error.code || ""))) {
+            const { p_invitee_tokens: _drop, ...rest } = args;
+            ({ data: res, error } = await sb.rpc("create_calendar_series", rest));
+          }
           if (!error) {
             made = (res && res.count) || occ.length;
             firstId = (res && res.anchor_id) || null;
@@ -28310,6 +28598,7 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
           const inv = _rrInviteEmail({
             dspName: window.RR?.dsp?.name, title: subjTitle, dateStr, timeStr, joinUrl: roomUrl,
             location, message: bodyText, gcalUrl, outlookUrl, acceptUrl, declineUrl,
+            attachments: attLinks,
           });
           // Only the first occurrence carries invitees so a recurring series
           // doesn't fire an invite email per occurrence.
@@ -28324,7 +28613,8 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
           // Only pass the calendar when one is chosen, so default event
           // creation still resolves the RPC if the migration isn't applied yet.
           if (calSel && calSel.value) rpcArgs.p_calendar_id = calSel.value;
-          const { data: newId, error } = await sb.rpc("create_calendar_event", rpcArgs);
+          if (i === 0 && inviteeTokens && inviteThis.length) rpcArgs.p_invitee_tokens = inviteeTokens;
+          const { data: newId, error } = await _rpcCreateEvent(rpcArgs);
           if (error) throw error;
           if (i === 0 && newId) firstId = newId;
           if (newId) createdIds.push(newId);
@@ -28335,7 +28625,7 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
         // p_extra server-side). Read-modify-write per id so the invitees/note
         // the RPC set are preserved (only the first occurrence of a series
         // carries invitees).
-        if ((isTask || attRefs.length || isAllDay || newReminders.length) && createdIds.length) {
+        if ((isTask || attRefs.length || isAllDay || newReminders.length || newPrivate || googleMeetPending) && createdIds.length) {
           for (const cid of createdIds) {
             const { data: row } = await sb.from("cal_events").select("metadata").eq("id", cid).maybeSingle();
             const md = { ...((row && row.metadata) || {}) };
@@ -28343,6 +28633,8 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
             if (attRefs.length) md.attachments = attRefs;
             if (isAllDay) md.all_day = true;
             if (newReminders.length) md.reminders = newReminders;
+            if (newPrivate) md.private = true;
+            if (googleMeetPending) md.video_provider = "google";
             await sb.from("cal_events").update({ metadata: md }).eq("id", cid);
           }
         }
@@ -28377,6 +28669,7 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
 // RLS-gated update; does NOT re-send invites (use Email to notify attendees).
 function _ivcalEditEvent(kind, id) {
   if (kind === "session") { toast("Edit group sessions from the Availability tab", "info"); return; }
+  { const _pv = _ivcalFindEv(kind, id); if (_pv && _ivcalPrivMasked(_pv)) { toast("This event is private", "info"); return; } }
   const ev = _ivcalFindEv(kind, id);
   if (!ev) { toast("Event not found", "warn"); return; }
   // Open the full-screen event window in edit mode (prefilled from the event).
@@ -28513,7 +28806,14 @@ function _ivcalFilterOk(ev, type) {
   if (k === "interview") return _ivcalFilters.interview !== false;
   return true;
 }
+// Private events (metadata.private): teammates who didn't create the event
+// see "Busy" instead of the title, and can't open the editor/pane for it.
+function _ivcalPrivMasked(ev) {
+  return !!(ev && ev.metadata && ev.metadata.private && ev.created_by
+    && window.RR && window.RR.user && String(ev.created_by) !== String(window.RR.user.id));
+}
 function _ivcalEventLabel(ev, type) {
+  if (type !== "session" && _ivcalPrivMasked(ev)) return "Busy";
   if (type === "session") return `${ev.label || "Group session"} · ${ev.capacity || 1}`;
   if (ev.kind === "event") return ev.title || "Event";
   return rrTitleCaseName((ev.applicants||{}).full_name) || (ev.kind === "orientation" ? "Orientation" : "Interview");
@@ -29118,7 +29418,11 @@ function _ivcalFindEv(kind, id) {
   const arr = kind === "session" ? _ivcalCache.sessions : _ivcalCache.bookings;
   return (arr || []).find(x => String(x.id) === String(id)) || null;
 }
-function _ivcalSelect(kind, id) { _ivcalSelected = { kind, id }; _ivcalRender(); }
+function _ivcalSelect(kind, id) {
+  const ev = _ivcalFindEv(kind, id);
+  if (ev && _ivcalPrivMasked(ev)) { toast("This event is private", "info"); return; }
+  _ivcalSelected = { kind, id }; _ivcalRender();
+}
 function _ivcalDeselect() { if (_ivcalSelected) { _ivcalSelected = null; _ivcalRender(); } }
 
 // ── Interviewer assignment (world-class pass B, 2026-07-11) ─────────
@@ -29179,18 +29483,56 @@ function _ivcalPaneHtml() {
       ${who ? `<option value="${escapeHtml(who.id)}" selected>${escapeHtml(who.name)}</option>` : ""}
     </select>`);
   }
+  // Location with a one-click map link (skips virtual/URL "locations").
+  if (ev.location && ev.location.trim()) {
+    const locV = ev.location.trim();
+    const mappable = !/^online\b|^virtual\b|^video\b|^https?:/i.test(locV);
+    rows += drow("📍", mappable
+      ? `${escapeHtml(locV)} · <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locV)}" target="_blank" rel="noreferrer noopener">Map ↗</a>`
+      : escapeHtml(locV));
+  }
   const note = ev.metadata && ev.metadata.note;
   if (note) rows += drow("🗒", `<span style="white-space:pre-wrap;color:#3a3a45">${escapeHtml(String(note))}</span>`);
+  // Interviewer prep notes — internal only, so flagged as such.
+  if (ev.metadata && ev.metadata.prep_notes) {
+    rows += drow("📋", `<span style="white-space:pre-wrap;color:#3a3a45"><strong style="font-size:var(--fs-xs);color:var(--text-subtle);text-transform:uppercase;letter-spacing:.03em">Prep notes (internal)</strong><br>${escapeHtml(String(ev.metadata.prep_notes))}</span>`);
+  }
+  // Per-guest RSVP rollup (0492): ✓ accepted · ✗ declined · ? awaiting.
+  if (type !== "session" && ev.metadata && ev.metadata.invitee_tokens && Array.isArray(ev.metadata.invitees) && ev.metadata.invitees.length > 1) {
+    const by = ev.metadata.rsvp_by || {};
+    const rlist = ev.metadata.invitees.map(em => {
+      const r = (by[em] && by[em].r) || "pending";
+      const ic = r === "accepted" ? "✓" : r === "declined" ? "✗" : "?";
+      const col = r === "accepted" ? "var(--green)" : r === "declined" ? "var(--red)" : "var(--text-subtle)";
+      return `<div style="display:flex;gap:6px;align-items:center"><span style="color:${col};font-weight:700;width:12px">${ic}</span><span>${escapeHtml(em)}</span></div>`;
+    }).join("");
+    rows += drow("👥", `<div style="display:flex;flex-direction:column;gap:2px">${rlist}</div>`);
+  }
+  // Proposed new times from the RSVP page — one click accepts & reschedules.
+  const _props = (ev.metadata && Array.isArray(ev.metadata.rsvp_proposals)) ? ev.metadata.rsvp_proposals : [];
+  if (type !== "session" && _props.length) {
+    const durMs = (ev.ends_at ? new Date(ev.ends_at) : new Date(new Date(ev.starts_at).getTime() + 30 * 60000)) - new Date(ev.starts_at);
+    const plist = _props.slice(-4).map((p, i) => {
+      const t = new Date(p.starts_at);
+      if (isNaN(t)) return "";
+      const idx = _props.length - Math.min(4, _props.length) + i;
+      const lbl = t.toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+      return `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span>${escapeHtml(lbl)}${p.email ? ` <span style="color:var(--text-subtle)">· ${escapeHtml(p.email)}</span>` : ""}${p.note ? `<br><span style="color:var(--text-subtle);font-size:var(--fs-xs)">${escapeHtml(p.note)}</span>` : ""}</span><button type="button" class="oc-btn" data-oc-prop="${idx}" data-oc-prop-dur="${durMs}" style="font-size:var(--fs-xs);padding:3px 8px">Accept &amp; reschedule</button></div>`;
+    }).join("");
+    rows += drow("🕓", `<div style="display:flex;flex-direction:column;gap:6px"><strong style="font-size:var(--fs-xs);color:var(--text-subtle);text-transform:uppercase;letter-spacing:.03em">Proposed new time${_props.length > 1 ? "s" : ""}</strong>${plist}</div>`);
+  }
   // Vault attachments → clickable links that open the file (signed URL / Google).
   const atts = (ev.metadata && Array.isArray(ev.metadata.attachments)) ? ev.metadata.attachments : [];
   if (atts.length) {
     const links = atts.map((at, i) => `<a href="#" class="oc-att-link" data-oc-att="${i}">${escapeHtml(at.name || "Attachment")}</a>`).join("");
     rows += drow("📎", `<div class="oc-att-list">${links}</div>`);
   }
+  const isRRMeet = !!(ev.meeting_url && /\/m\/[a-z0-9-]+/i.test(String(ev.meeting_url)));
   const acts = [
     `<button class="oc-btn pri" data-oc-pane="email">✉ Email</button>`,
     type !== "session" ? `<button class="oc-btn" data-oc-pane="edit">✎ Edit</button>` : "",
     ev.meeting_url ? `<button class="oc-btn" data-oc-pane="join">🎥 Join</button>` : "",
+    isRRMeet ? `<button class="oc-btn" data-oc-pane="lock" title="Lock or unlock the meeting room for guests">🔒 Room lock</button>` : "",
     type !== "session" ? `<button class="oc-btn" data-oc-pane="cancel">✖ Cancel</button>` : "",
     a && ev.applicant_id ? `<button class="oc-btn" data-oc-pane="applicant">Open applicant</button>` : "",
   ].filter(Boolean).join("");
@@ -29227,6 +29569,41 @@ function _ivcalWirePane(host) {
     const ref = (ev.metadata.attachments || [])[+a.getAttribute("data-oc-att")];
     if (ref) _ivcalOpenAttachment(ref);
   });
+  // "Accept & reschedule" a proposed new time (0492): move the event to the
+  // proposal, flag it rescheduled, and offer to email everyone the new time.
+  host.querySelectorAll("[data-oc-prop]").forEach(b => b.onclick = async (e) => {
+    e.stopPropagation();
+    const sel = _ivcalSelected; if (!sel) return;
+    const ev = _ivcalFindEv(sel.kind, sel.id); if (!ev || !ev.metadata) return;
+    const p = (ev.metadata.rsvp_proposals || [])[+b.getAttribute("data-oc-prop")];
+    if (!p || !p.starts_at) return;
+    const durMs = Math.max(5 * 60000, parseInt(b.getAttribute("data-oc-prop-dur"), 10) || 30 * 60000);
+    const starts = new Date(p.starts_at);
+    if (isNaN(starts)) return;
+    const whenTxt = starts.toLocaleString(undefined, { weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" });
+    if (!(await _rrConfirmDialog({ title: "Accept proposed time?", body: `Move this event to ${whenTxt}.`, confirmLabel: "Reschedule" }))) return;
+    try {
+      const md = { ...(ev.metadata || {}) };
+      md.rsvp_proposals = (md.rsvp_proposals || []).filter((_, i) => i !== +b.getAttribute("data-oc-prop"));
+      const { error } = await sb.from("cal_events").update({
+        starts_at: starts.toISOString(), ends_at: new Date(starts.getTime() + durMs).toISOString(),
+        status: "rescheduled", metadata: md,
+      }).eq("id", ev.id);
+      if (error) throw error;
+      // Same notify offer the composer makes on a manual time change.
+      const emails = ev.kind === "event"
+        ? ((md.invitees || []).filter(x => typeof x === "string" && x.includes("@")))
+        : ((ev.applicants && ev.applicants.email) ? [ev.applicants.email] : []);
+      const dsp = window.RR && window.RR.dsp && window.RR.dsp.id;
+      if (dsp && emails.length && confirm(`Email the new time to ${emails.length === 1 ? "the attendee" : emails.length + " attendees"}?`)) {
+        const evTitle = ev.title || (ev.kind === "orientation" ? "Orientation" : "Interview");
+        const bodyTxt = `Hi,\n\nGood news — the proposed time works. This event is now:\n${whenTxt}\n\n${ev.meeting_url ? "Join the video meeting: " + ev.meeting_url + "\n\n" : ""}See you then!`;
+        await _rrQueueCalEmails(emails.map(em => ({ dsp_id: dsp, direction: "outbound", status: "queued", to_email: em, subject: "New time confirmed: " + evTitle, body_text: bodyTxt, body_html: bodyTxt.replace(/\n/g, "<br>"), cal_event_id: ev.id, calendar_method: "request" })));
+      }
+      toast("Rescheduled to the proposed time", "success");
+      loadIvCalendar();
+    } catch (err) { toast("Couldn't reschedule: " + (err.message || err), "warn"); }
+  });
   host.querySelectorAll("[data-oc-pane]").forEach(b => b.onclick = (e) => {
     e.stopPropagation();
     const act = b.getAttribute("data-oc-pane");
@@ -29236,9 +29613,37 @@ function _ivcalWirePane(host) {
     if (act === "email") _ivcalOpenEmail(sel.kind, sel.id);
     else if (act === "edit") _ivcalEditEvent(sel.kind, sel.id);
     else if (act === "join" && ev.meeting_url) _ivcalOpenRoom(ev);
+    else if (act === "lock" && ev.meeting_url) _ivcalToggleRoomLock(ev);
     else if (act === "cancel") _ivcalDeleteEvent(sel.kind, sel.id, true);
     else if (act === "applicant" && ev.applicant_id) _ivcalOpenApplicant(ev.applicant_id);
   });
+}
+
+// Lock / unlock a RouteReady Meet room from the event pane (0492). Locked
+// rooms hold guests at the door (meet.js) while the host and staff still join.
+async function _ivcalToggleRoomLock(ev) {
+  const mcode = (String(ev.meeting_url || "").match(/\/m\/([a-z0-9-]+)/i) || [])[1];
+  if (!mcode) { toast("Room lock is available for RouteReady Meet rooms only", "info"); return; }
+  try {
+    const { data: lk, error: e1 } = await sb.rpc("meet_lookup", { p_code: mcode });
+    if (e1) throw e1;
+    if (!lk || lk.ok === false) throw new Error("Room not found");
+    const next = !lk.locked;
+    if (!(await _rrConfirmDialog({
+      title: next ? "Lock this room?" : "Unlock this room?",
+      body: next ? "New guests can't join while it's locked — you and your team still can." : "Guests can join again.",
+      confirmLabel: next ? "Lock room" : "Unlock",
+    }))) return;
+    const { data: res, error: e2 } = await sb.rpc("meet_set_locked", { p_code: mcode, p_locked: next });
+    if (e2) throw e2;
+    if (!res || res.ok === false) throw new Error("Couldn't update the room");
+    toast(next ? "Room locked" : "Room unlocked", "success");
+  } catch (err) {
+    const msg = /meet_set_locked|schema cache|PGRST202/i.test(String((err && err.message) || err))
+      ? "Room lock needs the latest Supabase migration (0492)."
+      : "Couldn't update the room: " + ((err && err.message) || err);
+    toast(msg, "warn");
+  }
 }
 
 function _ivcalOpenRoom(ev) {
@@ -29285,6 +29690,7 @@ function _ivcalCloseMenus() {
 function _ivcalContextMenu(e, kind, id) {
   _ivcalCloseMenus();
   const ev = _ivcalFindEv(kind, id); if (!ev) return;
+  if (_ivcalPrivMasked(ev)) { toast("This event is private", "info"); return; }
   const item = (act, label, danger) => `<button data-oc-ctx="${act}"${danger?' class="danger"':""}>${label}</button>`;
   const menu = document.createElement("div");
   menu.className = "oc-menu";
@@ -30625,6 +31031,7 @@ function _ivcalInstallDrag() {
         const kind = evEl.getAttribute("data-ivcal-kind"), id = evEl.getAttribute("data-ivcal-id");
         if (kind === "session") return;
         const ev = _ivcalFindEv(kind, id); if (!ev) return;
+        if (_ivcalPrivMasked(ev)) return;   // someone else's private block: look, don't touch
         const s = new Date(ev.starts_at), en = ev.ends_at ? new Date(ev.ends_at) : new Date(s.getTime()+30*60000);
         const startMin = s.getHours()*60 + s.getMinutes(), endMin = en.getHours()*60 + en.getMinutes();
         if (!touch) e.preventDefault();

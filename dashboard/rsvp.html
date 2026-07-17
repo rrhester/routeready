@@ -131,11 +131,14 @@ function renderEvent(ev) {
     return;
   }
 
-  const join = (ev.rsvp === "accepted" && safeUrl(ev.meeting_url))
+  // Per-invitee links (0492) report *your* answer in my_rsvp; older events
+  // fall back to the event-level state.
+  const myR = ev.my_rsvp || ev.rsvp;
+  const join = (myR === "accepted" && safeUrl(ev.meeting_url))
     ? `<a class="join" href="${esc(safeUrl(ev.meeting_url))}" target="_blank" rel="noreferrer noopener">Join the video meeting →</a>` : "";
   const changeLink = `<button class="changelink" data-change>Change my response</button>`;
 
-  if (ev.rsvp === "accepted") {
+  if (myR === "accepted") {
     root.innerHTML = `<div class="card"><div class="result">
       <div class="ico ok"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
       <strong>You're confirmed</strong><span>${esc(ev.title || "Your interview")}</span>
@@ -146,13 +149,16 @@ function renderEvent(ev) {
     root.querySelector("[data-change]")?.addEventListener("click", () => renderPending(ev, "decline"));
     return;
   }
-  if (ev.rsvp === "declined") {
+  if (myR === "declined") {
     root.innerHTML = `<div class="card"><div class="result">
       <div class="ico no"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div>
       <strong>You've declined</strong><span>We've let the team know.</span>
       <div>${changeLink}</div>
+      <div><button class="changelink" data-propose>Propose a new time instead</button></div>
+      <div id="rsvp-propose"></div>
     </div></div>`;
     root.querySelector("[data-change]")?.addEventListener("click", () => renderPending(ev, "accept"));
+    root.querySelector("[data-propose]")?.addEventListener("click", () => renderPropose(ev));
     return;
   }
   renderPending(ev, preset === "accept" || preset === "decline" ? preset : null);
@@ -175,9 +181,49 @@ function renderPending(ev, presel) {
       <button class="btn decline${presel === "decline" ? " sel" : ""}" data-r="decline">Decline</button>
     </div>
     ${hint}
+    <div style="text-align:center"><button class="changelink" data-propose>None of these work? Propose a new time</button></div>
+    <div id="rsvp-propose"></div>
     <div id="rsvp-err" class="inlineerr"></div>
   </div>`;
   root.querySelectorAll("[data-r]").forEach(b => b.addEventListener("click", () => respond(b.getAttribute("data-r"))));
+  root.querySelector("[data-propose]")?.addEventListener("click", () => renderPropose(ev));
+}
+
+// "Propose a new time" — a tiny inline form; the suggestion lands on the
+// organizer's calendar pane, nothing is rescheduled until they accept it.
+function renderPropose(ev) {
+  const host = document.getElementById("rsvp-propose");
+  if (!host || host.querySelector("form")) return;
+  const today = new Date().toISOString().slice(0, 10);
+  host.innerHTML = `<form style="margin-top:14px;display:flex;flex-direction:column;gap:8px;text-align:left">
+    <div style="display:flex;gap:8px">
+      <input type="date" name="d" required min="${today}" style="flex:1;padding:10px;border:1px solid var(--border);border-radius:8px;font:inherit">
+      <input type="time" name="t" required style="flex:1;padding:10px;border:1px solid var(--border);border-radius:8px;font:inherit">
+    </div>
+    <input type="text" name="n" maxlength="200" placeholder="Anything the team should know? (optional)" style="padding:10px;border:1px solid var(--border);border-radius:8px;font:inherit">
+    <div style="font-size:12px;color:var(--subtle)">Times are in your local timezone.</div>
+    <button class="btn accept" type="submit">Send suggestion</button>
+  </form>`;
+  host.querySelector("form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    const d = f.elements.d.value, t = f.elements.t.value;
+    if (!d || !t) return;
+    const when = new Date(`${d}T${t}`);
+    if (isNaN(when.getTime()) || when.getTime() < Date.now()) { f.querySelector("button").textContent = "Pick a future time"; return; }
+    f.querySelector("button").disabled = true;
+    try {
+      const { data, error } = await sb.rpc("rsvp_respond", { p_token: token, p_proposal: { starts_at: when.toISOString(), note: f.elements.n.value || "" } });
+      if (error) throw error;
+      if (!data || data.ok === false) throw new Error((data && data.error) || "not found");
+      host.innerHTML = `<div class="confirmhint" style="color:var(--green);font-weight:600">Suggestion sent — the team will confirm or follow up by email.</div>`;
+    } catch (err) {
+      const msg = /p_proposal|rsvp_respond|schema cache|PGRST202/i.test(String(err && err.message || err))
+        ? "Proposing a time isn't available yet — please reply to the invitation email instead."
+        : "Couldn't send that — check your connection and try again.";
+      host.innerHTML = `<div class="inlineerr">${esc(msg)}</div>`;
+    }
+  });
 }
 
 async function respond(resp) {

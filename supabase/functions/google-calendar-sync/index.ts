@@ -79,9 +79,25 @@ Deno.serve(async (req) => {
       title = `${word} · ${app?.full_name || "Applicant"}`;
       description = [ev?.location, ev?.meeting_url].filter(Boolean).join("\n\n");
     }
-    const payload = { title, description, startsAt: ev!.starts_at, endsAt: ev!.ends_at, timezone: ev!.timezone };
+    // Google Meet as the event's video provider (calendar 100-list #39): the
+    // composer stores metadata.video_provider = "google" with no meeting_url;
+    // asking Google for a conference here and mirroring hangoutLink back is
+    // what turns that into a working Join link.
+    const mdAll = (ev?.metadata ?? {}) as Record<string, unknown>;
+    const wantsMeet = mdAll.video_provider === "google" && !ev?.meeting_url;
+    const payload = { title, description, startsAt: ev!.starts_at, endsAt: ev!.ends_at, timezone: ev!.timezone, requestMeet: wantsMeet };
 
     const cancelled = ["cancelled", "no_show"].includes(ev?.status ?? "");
+    const meetLinkOf = (g: unknown) => {
+      const j = g as { hangoutLink?: string; conferenceData?: { entryPoints?: { entryPointType?: string; uri?: string }[] } };
+      return j?.hangoutLink
+        || j?.conferenceData?.entryPoints?.find((p) => p.entryPointType === "video")?.uri
+        || null;
+    };
+    const writeMeet = async (g: unknown) => {
+      const link = wantsMeet ? meetLinkOf(g) : null;
+      if (link) await supa.from("cal_events").update({ meeting_url: link }).eq("id", cal_event_id);
+    };
 
     if (cancelled && ev?.google_event_id) {
       try {
@@ -95,13 +111,15 @@ Deno.serve(async (req) => {
       }).eq("id", cal_event_id);
     } else if (!cancelled && ev?.google_event_id) {
       try {
-        await gcalUpdate(token, cal, ev.google_event_id, payload);
+        const updated = await gcalUpdate(token, cal, ev.google_event_id, payload);
+        await writeMeet(updated);
       } catch (e) {
         // The Google copy was deleted out from under us — recreate it so the
         // link self-heals instead of sticking at 'error' forever.
         if (!isGone(e)) throw e;
         const created = await gcalCreate(token, cal, payload);
         await supa.from("cal_events").update({ google_event_id: (created as { id: string }).id, google_calendar_id: cal }).eq("id", cal_event_id);
+        await writeMeet(created);
       }
       await supa.from("cal_events").update({
         google_sync_status: "synced", google_sync_error: null, google_synced_at: new Date().toISOString(),
@@ -112,6 +130,7 @@ Deno.serve(async (req) => {
         google_event_id: (created as { id: string }).id, google_calendar_id: cal,
         google_sync_status: "synced", google_sync_error: null, google_synced_at: new Date().toISOString(),
       }).eq("id", cal_event_id);
+      await writeMeet(created);
     }
     return jsonResponse({ ok: true });
   } catch (e) {
