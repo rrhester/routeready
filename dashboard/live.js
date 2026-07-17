@@ -36470,7 +36470,7 @@ async function _sawSave(driver) {
   if (!val.ok) { toast("Resolve compliance issues first: " + val.violations[0], "warn"); return; }
   const btn = document.querySelector("[data-saw-save]");
   if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
-  let ok = 0, raced = 0;
+  let ok = 0, raced = 0, blocked = 0;
   for (const sh of list) {
     // Staged from the open-shifts list — expect unassigned (0446) so a
     // concurrently-filled shift is skipped instead of overwritten.
@@ -36480,11 +36480,13 @@ async function _sawSave(driver) {
     });
     if (error) {
       if (_rrIsShiftConflict(error)) raced += 1;
+      if (_rrIsAssignBlocked(error) || _rrIsDoubleBook(error)) blocked += 1;
       console.warn("assign_shift failed:", error);
     } else ok += 1;
   }
   toast(`Scheduled ${ok} shift${ok === 1 ? "" : "s"} for the new hire`
-    + (raced ? ` · ${raced} already taken by another dispatcher` : ""), ok ? "success" : "warn");
+    + (raced ? ` · ${raced} already taken by another dispatcher` : "")
+    + (blocked ? ` · ${blocked} refused by the compliance check` : ""), ok ? "success" : "warn");
   if (typeof renderScheduleWeek === "function") { try { renderScheduleWeek(); } catch (_) {} }
   // Reload the section so the just-assigned shifts drop out of "open".
   await _sawLoadData(driver, st.firstDate, st.pair);
@@ -59258,7 +59260,8 @@ window.fillShiftsFromPreviousWeek = fillShiftsFromPreviousWeek;
 // UPDATE by id with no cross-row contention, so we fire them in
 // bounded-concurrency waves — ~10x fewer wall-clock round-trips.
 async function _assignShiftsParallel(items, concurrency = 12) {
-  let assigned = 0, failed = 0, conflicts = 0, firstError = null;
+  let assigned = 0, failed = 0, conflicts = 0, blocked = 0, firstError = null;
+  const blockedReasons = [];
   for (let i = 0; i < items.length; i += concurrency) {
     const slice = items.slice(i, i + concurrency);
     const results = await Promise.all(slice.map(async (it) => {
@@ -59278,6 +59281,15 @@ async function _assignShiftsParallel(items, concurrency = 12) {
       if (error) {
         failed += 1;
         if (_rrIsShiftConflict(error)) conflicts += 1;
+        // Server compliance gate / double-book guard (0500). Batch writes
+        // NEVER auto-override — the engine believed these were legal, so a
+        // block here is a real rules disagreement the operator must see.
+        if (_rrIsAssignBlocked(error) || _rrIsDoubleBook(error)) {
+          blocked += 1;
+          if (blockedReasons.length < 5) {
+            blockedReasons.push(`${it.driverId}: ${_rrAssignBlockReasons(error).join("; ")}`);
+          }
+        }
         if (!firstError) firstError = error.message || "assign_shift failed";
         console.warn("assign_shift failed:", it.id, "->", it.driverId, error);
       } else {
@@ -59290,7 +59302,10 @@ async function _assignShiftsParallel(items, concurrency = 12) {
   if (conflicts > 0) {
     toast(`${conflicts} shift${conflicts === 1 ? " was" : "s were"} changed by another dispatcher mid-write and left as-is.`, "warn");
   }
-  return { assigned, failed, conflicts, firstError };
+  if (blocked > 0) {
+    toast(`${blocked} assignment${blocked === 1 ? " was" : "s were"} refused by the server's compliance check — see the run summary.`, "warn");
+  }
+  return { assigned, failed, conflicts, blocked, blockedReasons, firstError };
 }
 
 // ── Monthly view · weeks-down-the-left / days-across-the-top
@@ -61800,7 +61815,13 @@ async function autoAssignDriversForWeek() {
     : await _assignShiftsParallel(toWrite);
   const assigned = wr.assigned;
   const failedWrites = wr.failed;
-  const writeError = wr.firstError;
+  // When the server's compliance gate (0500) refused engine-planned
+  // assignments, lead the error line with those reasons — that's a rules
+  // disagreement between engine settings and the DSP's server-side WOC
+  // knobs, and the operator should see WHO was refused and WHY.
+  const writeError = (wr.blocked > 0 && wr.blockedReasons && wr.blockedReasons.length)
+    ? `server compliance check refused ${wr.blocked}:\n  ` + wr.blockedReasons.join("\n  ")
+    : wr.firstError;
 
   // 5th-day notifications — when the DSP opted in, message each driver
   // who picked up an extra day via the Fifth-Day Fill pass. Deduped per
@@ -69214,6 +69235,22 @@ async function _checkAssignViolations(shiftId, shiftDate, driverId, candidateShi
 function _rrIsShiftConflict(error) {
   return !!(error && /shift_conflict/.test(error.message || ""));
 }
+// True when assign_shift/create_shift refused on the server-side
+// compliance gate (migration 0500). The reasons ride in DETAIL.
+function _rrIsAssignBlocked(error) {
+  return !!(error && /assign_blocked/.test(error.message || ""));
+}
+// True when the DB-layer double-book guard refused (migration 0500).
+// Deliberately NOT overridable client-side — multi-shift days are a
+// per-DSP policy (scheduling.same_day_multi_shift), not a per-assign call.
+function _rrIsDoubleBook(error) {
+  return !!(error && /shift_double_book/.test(error.message || ""));
+}
+function _rrAssignBlockReasons(error) {
+  const d = (error && (error.details || error.detail)) || "";
+  const parts = String(d).split("; ").map(s => s.trim()).filter(Boolean);
+  return parts.length ? parts : ["The server's compliance check refused this assignment"];
+}
 // Standard handling for a lost race: tell the operator plainly and
 // refresh the board so they act on reality, not a stale grid.
 function _rrHandleShiftConflict() {
@@ -69240,13 +69277,34 @@ async function assignShiftToDriverWithRules(shiftId, shiftDate, driverId, cell) 
   _markLocalShiftMutation();
   const args = { p_id: shiftId, p_driver_id: driverId };
   if (prevKnown) { args.p_expected_driver_id = prevDriverId; args.p_check_expected = true; }
-  const { error } = await sb.rpc("assign_shift", args);
+  if (violations.length > 0) {
+    // The operator already saw and confirmed these — record the override
+    // server-side (schedule_overrides) instead of re-blocking.
+    args.p_override = true;
+    args.p_override_reason = violations.join("; ");
+  }
+  let { error } = await sb.rpc("assign_shift", args);
+  // Server-side gate (0500): the server can see violations the client
+  // missed (stale grid, another device's edits). Same override dialog,
+  // the server's reasons, one retry — recorded like any other override.
+  if (error && _rrIsAssignBlocked(error)) {
+    const reasons = _rrAssignBlockReasons(error);
+    const ok = await _rrConfirmAssignOverride(reasons, _rrAssignCtx(driverId, shiftDate));
+    if (!ok) return;
+    args.p_override = true;
+    args.p_override_reason = reasons.join("; ");
+    ({ error } = await sb.rpc("assign_shift", args));
+  }
   if (error) {
     if (_rrIsShiftConflict(error)) { _rrHandleShiftConflict(); return; }
+    if (_rrIsDoubleBook(error)) {
+      toast("Not assigned — this driver already has an active shift that day.", "warn");
+      return;
+    }
     toast("Assign failed: " + error.message, "warn");
     return;
   }
-  toast(violations.length > 0 ? "Assigned (override)" : "Shift assigned", "success");
+  toast(args.p_override ? "Assigned (override)" : "Shift assigned", "success");
   if (prevDriverId !== driverId) {
     _rrPushUndo({
       label: (prevDriverId ? "Shift reassigned" : "Shift assigned")
@@ -69259,6 +69317,9 @@ async function assignShiftToDriverWithRules(shiftId, shiftDate, driverId, cell) 
         const { error: undoErr } = await sb.rpc("assign_shift", {
           p_id: shiftId, p_driver_id: prevDriverId,
           p_expected_driver_id: driverId, p_check_expected: true,
+          // Undo restores a state that already existed — never let the
+          // compliance gate (0500) strand the operator mid-undo.
+          p_override: true, p_override_reason: "undo — restoring the previous assignment",
         });
         if (undoErr) {
           throw new Error(_rrIsShiftConflict(undoErr)
@@ -69336,10 +69397,31 @@ async function materializeVirtualShiftToDriver(payload, driverId, cell) {
     service_type_id: payload.service_type_id || null,
     source: "manual",
   };
+  if (violations.length > 0) {
+    // Confirmed client-side — record the override server-side (0500).
+    insertPayload.override = true;
+    insertPayload.override_reason = violations.join("; ");
+  }
   _markLocalShiftMutation();
-  const { data: createdRow, error } = await sb.rpc("create_shift", { p_payload: insertPayload });
-  if (error) { toast("Create + assign failed: " + error.message, "warn"); return; }
-  toast(violations.length > 0 ? "Created (override)" : "Shift created and assigned", "success");
+  let { data: createdRow, error } = await sb.rpc("create_shift", { p_payload: insertPayload });
+  // Server-side gate (0500): confirm the server's reasons, retry once.
+  if (error && _rrIsAssignBlocked(error)) {
+    const reasons = _rrAssignBlockReasons(error);
+    const ok = await _rrConfirmAssignOverride(reasons, _rrAssignCtx(driverId, date));
+    if (!ok) return;
+    insertPayload.override = true;
+    insertPayload.override_reason = reasons.join("; ");
+    ({ data: createdRow, error } = await sb.rpc("create_shift", { p_payload: insertPayload }));
+  }
+  if (error) {
+    if (_rrIsDoubleBook(error)) {
+      toast("Not created — this driver already has an active shift that day.", "warn");
+      return;
+    }
+    toast("Create + assign failed: " + error.message, "warn");
+    return;
+  }
+  toast(insertPayload.override ? "Created (override)" : "Shift created and assigned", "success");
   // Undo a drag-create by deleting the row it produced.
   const _createdId = createdRow && createdRow.id;
   if (_createdId && typeof _rrPushUndo === "function") {
@@ -69396,12 +69478,26 @@ function openAssignShiftModal(shiftId) {
       _markLocalShiftMutation();
       // This modal only opens from an OPEN shift — expect unassigned so a
       // colleague's just-made assignment is never silently overwritten.
-      const { error } = await sb.rpc("assign_shift", {
+      const asArgs = {
         p_id: shiftId, p_driver_id: did,
         p_expected_driver_id: null, p_check_expected: true,
-      });
+      };
+      let { error } = await sb.rpc("assign_shift", asArgs);
+      if (error && _rrIsAssignBlocked(error)) {
+        // Server-side gate (0500): confirm the reasons, retry once.
+        const reasons = _rrAssignBlockReasons(error);
+        const ok = await _rrConfirmAssignOverride(reasons, _rrAssignCtx(did, null));
+        if (!ok) return;
+        asArgs.p_override = true;
+        asArgs.p_override_reason = reasons.join("; ");
+        ({ error } = await sb.rpc("assign_shift", asArgs));
+      }
       if (error) {
         if (_rrIsShiftConflict(error)) { m.remove(); _rrHandleShiftConflict(); return; }
+        if (_rrIsDoubleBook(error)) {
+          toast("Not assigned — this driver already has an active shift that day.", "warn");
+          return;
+        }
         toast("Assign failed: " + error.message, "warn");
         return;
       }
