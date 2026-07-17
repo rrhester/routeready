@@ -131,6 +131,69 @@ begin
     'supabase_realtime must include shifts, shift_offers, driver_checkins';
 end $$;
 
+-- ── 7. Compliance gate (0500): approved PTO blocks, override records ──
+-- Triggers are disabled in this session (replica mode), so this
+-- exercises exactly the in-function gate: staff_assign_violations →
+-- assign_blocked → schedule_overrides.
+do $$
+declare v public.shifts; caught boolean := false; d text;
+begin
+  update public.shifts set driver_id = null
+   where id = 'aaaa1111-0000-4000-8000-000000000005';
+
+  insert into public.time_off_requests (id, dsp_id, driver_id, start_date, end_date, status)
+  values ('aaaa1111-0000-4000-8000-0000000000a1',
+          'aaaa1111-0000-4000-8000-000000000001',
+          'aaaa1111-0000-4000-8000-000000000003',
+          current_date, current_date, 'approved');
+
+  begin
+    v := public.assign_shift(
+      'aaaa1111-0000-4000-8000-000000000005'::uuid,
+      'aaaa1111-0000-4000-8000-000000000003'::uuid);
+  exception when others then
+    caught := sqlerrm like '%assign_blocked%';
+    get stacked diagnostics d = pg_exception_detail;
+  end;
+  assert caught, 'assigning onto approved PTO must raise assign_blocked';
+  assert d like '%approved time off%',
+    'assign_blocked DETAIL must name the violation, got: ' || coalesce(d, '<null>');
+  assert (select driver_id from public.shifts
+           where id = 'aaaa1111-0000-4000-8000-000000000005') is null,
+    'a blocked assign must not write';
+
+  -- Explicit override assigns AND leaves a schedule_overrides record.
+  v := public.assign_shift(
+    'aaaa1111-0000-4000-8000-000000000005'::uuid,
+    'aaaa1111-0000-4000-8000-000000000003'::uuid,
+    null, false, true, 'coverage emergency (test)');
+  assert v.driver_id = 'aaaa1111-0000-4000-8000-000000000003'::uuid,
+    'override must assign';
+  assert (select count(*) from public.schedule_overrides
+           where shift_id = 'aaaa1111-0000-4000-8000-000000000005'
+             and 'driver has approved time off covering ' || current_date::text
+                 = any(violations)) = 1,
+    'override must be recorded in schedule_overrides with the violation text';
+end $$;
+
+-- ── 8. Overlap exclusion (0500): second approved range refuses ────────
+-- Exclusion constraints are index-enforced, so they hold even with
+-- session_replication_role = replica.
+do $$
+declare caught boolean := false;
+begin
+  begin
+    insert into public.time_off_requests (dsp_id, driver_id, start_date, end_date, status)
+    values ('aaaa1111-0000-4000-8000-000000000001',
+            'aaaa1111-0000-4000-8000-000000000003',
+            current_date, current_date + 1, 'approved');
+  exception when exclusion_violation then
+    caught := true;
+  end;
+  assert caught,
+    'overlapping approved time off must violate time_off_requests_no_overlap';
+end $$;
+
 select 'schedule-concurrency: all assertions passed' as result;
 
 rollback;
