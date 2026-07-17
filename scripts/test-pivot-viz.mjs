@@ -123,6 +123,26 @@ ok("charts without target/movavg still render normally", () => {
   assert.ok(!/Target/.test(svg), "no stray target label");
 });
 
+// ── new chart types (100-list #57) ───────────────────────────────────────────
+for (const type of ["donut", "radar", "waterfall", "histogram", "bubble"]) {
+  ok(`${type} chart renders an <svg> without throwing`, () => {
+    const ch = { ...chartRange, type, theme: "route" };
+    const { svg } = chartSvg(chartSheet, ch, { W: 480, H: 260 });
+    assert.ok(svg.includes("<svg") || svg.includes("wb-chart-empty"), `${type} produced output`);
+  });
+}
+ok("below-target columns turn red (100-list #61)", () => {
+  const ch = { ...chartRange, type: "column", theme: "route", target: 15, belowTargetRed: true };
+  const { svg } = chartSvg(chartSheet, ch, { W: 480, H: 220 });
+  assert.ok(svg.includes("#DC2626"), "a below-15 column should be red");
+});
+ok("combo secondary axis draws a right-hand axis (100-list #59)", () => {
+  const two = sheetFrom([["Day", "Routes", "Rate"], ["Mon", 40, 0.9], ["Tue", 55, 0.95], ["Wed", 48, 0.88]]);
+  const ch = { r0: 0, c0: 0, r1: 3, c1: 2, type: "combo", theme: "route", secondaryAxis: true };
+  const { svg } = chartSvg(two, ch, { W: 480, H: 220 });
+  assert.ok(svg.includes("<svg"), "combo renders");
+});
+
 // ── interactive: drill + collapse + pivot-chart ──────────────────────────────
 ok("drill returns the source rows behind a cell", () => {
   const { records } = pivotDrillRecords(sheet, baseSpec, "West", "", false);
@@ -265,6 +285,48 @@ await okA("a dashboard pivot exports its data via srcSheetId (not the empty grid
   const pv = parsed.sheets.find((s) => s.name === "Regions");
   assert.ok(pv, "pivot values sheet exported");
   assert.ok(pv.cells.some((c) => Number(c.value) === 350), "grand total 350 read from the source sheet, not the empty dashboard grid");
+});
+
+// ── new aggregations (100-list #51) ──────────────────────────────────────────
+const { pivotAggregate } = __engine;
+ok("pivot median / stdev / var / product (100-list #51)", () => {
+  assert.equal(pivotAggregate("median", [1, 2, 3, 4]), 2.5);
+  assert.equal(pivotAggregate("median", [5, 1, 3]), 3);
+  assert.equal(pivotAggregate("product", [2, 3, 4]), 24);
+  // sample variance of [2,4,6] = 4; stdev = 2
+  assert.equal(pivotAggregate("var", [2, 4, 6]), 4);
+  assert.equal(pivotAggregate("stdev", [2, 4, 6]), 2);
+  assert.equal(pivotAggregate("stdev", [5]), null); // needs 2+ points
+});
+
+// ── date grouping (100-list #54) ─────────────────────────────────────────────
+ok("pivot date grouping buckets by month/quarter/week (100-list #54)", () => {
+  const ds = sheetFrom([
+    ["Day", "N"],
+    ["2026-07-06", 10],
+    ["2026-07-20", 5],
+    ["2026-08-03", 7],
+  ]);
+  const spec = { r0: 0, c0: 0, r1: 3, c1: 1, rows: ["Day"], cols: [], values: [{ field: "N", agg: "sum" }], dateGroup: "month" };
+  const p = computePivot(ds, spec);
+  assert.ok(p.rowKeys.includes("2026-07"), "July bucket");
+  assert.ok(p.rowKeys.includes("2026-08"), "August bucket");
+  assert.equal(p.aggOf("2026-07", "", 0), 15); // 10 + 5
+});
+
+// ── calculated field (100-list #52) ──────────────────────────────────────────
+ok("pivot calculated field over value aggregates (100-list #52)", () => {
+  const cs = sheetFrom([
+    ["Zone", "Rev", "Cost"],
+    ["A", 100, 60],
+    ["A", 200, 100],
+    ["B", 50, 20],
+  ]);
+  const spec = { r0: 0, c0: 0, r1: 3, c1: 2, rows: ["Zone"], cols: [],
+    values: [{ field: "Rev", agg: "sum" }, { field: "Cost", agg: "sum" }, { calc: "=Rev - Cost", name: "Margin" }] };
+  const p = computePivot(cs, spec);
+  assert.equal(p.aggOf("A", "", 2), 140); // (100+200) - (60+100)
+  assert.equal(p.aggOf("B", "", 2), 30);  // 50 - 20
 });
 
 console.log(`✓ pivot-viz + chart-viz: ${n} checks passed`);

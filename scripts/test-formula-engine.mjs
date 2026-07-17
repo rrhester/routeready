@@ -1097,6 +1097,33 @@ const skey = (ref) => { const rc = parseCellRef(ref); return rc.row + "," + rc.c
 const scell = (sh, ref) => sh.cells.get(skey(ref));
 const sspill = (sh, ref) => { const e = sh.spill.get(skey(ref)); return e ? e.value : undefined; };
 
+ok("buildTablePdf produces a valid PDF with page markers (100-list #67)", () => {
+  const { buildTablePdf } = __engine;
+  const matrix = [["Name", "Qty"], ["Widget", "5"], ["Gadget", "12"]];
+  const bytes = buildTablePdf(matrix, { title: "Test export" });
+  const head = new TextDecoder().decode(bytes.slice(0, 8));
+  assert.ok(head.startsWith("%PDF-1."), "starts with a PDF header");
+  const full = new TextDecoder().decode(bytes);
+  assert.ok(full.includes("%%EOF"), "ends with EOF");
+  assert.ok(full.includes("/Type /Catalog"), "has a catalog");
+  assert.ok(full.includes("Page 1 of"), "has a page-number footer");
+});
+ok("parseCsv honors a custom delimiter (100-list #69)", () => {
+  const { parseCsv } = __engine;
+  assert.deepEqual(parseCsv("a;b;c\n1;2;3", ";"), [["a", "b", "c"], ["1", "2", "3"]]);
+  assert.deepEqual(parseCsv("a\tb\n1\t2", "\t"), [["a", "b"], ["1", "2"]]);
+  assert.deepEqual(parseCsv("a,b\n1,2"), [["a", "b"], ["1", "2"]]); // default comma
+});
+
+ok("rrSelect: picks columns by header name for RR.* live formulas (100-list #11)", () => {
+  const { rrSelect, Arr } = __engine;
+  const grid = new Arr([["Name", "Phone", "Status"], ["Sam", "555", "Active"], ["Ada", "556", "Grounded"]]);
+  assert.deepEqual(rrSelect(grid, ["Status", "Name"]).rows, [["Status", "Name"], ["Active", "Sam"], ["Grounded", "Ada"]]);
+  assert.deepEqual(rrSelect(grid, []).rows, grid.rows);                 // no names → all columns
+  assert.deepEqual(rrSelect(grid, ["Nonexistent"]).rows, grid.rows);   // unknown names → all columns
+  assert.deepEqual(rrSelect(grid, ["phone"]).rows, [["Phone"], ["555"], ["556"]]); // case-insensitive
+});
+
 ok("iterative calc: a circular sum converges instead of #CIRCULAR (100-list #1)", () => {
   // B1 = A1 + B1*0 ... use a damped convergence: X = (10 + X)/2 → X→10
   const sh = spillSheet({ A1: "=(10 + A1) / 2" });

@@ -2634,7 +2634,7 @@ function runQuery(grid, queryStr, headerRows) {
     const groups = new Map();
     const keys = groupBy || [];
     for (const row of rows) {
-      const k = keys.map((i) => String(row[i] ?? "")).join(" ");
+      const k = keys.map((i) => String(row[i] ?? "")).join("\u0000"); // NUL separator: group keys can't collide
       if (!groups.has(k)) groups.set(k, []);
       groups.get(k).push(row);
     }
@@ -2678,7 +2678,60 @@ function runQuery(grid, queryStr, headerRows) {
 
 const WB_SPARK_MARK = "\u2063SPARK\u2063"; // invisible-separator marker; cellInnerHtml renders it as an inline chart
 
+// \u2500\u2500 RouteReady live-data formulas (100-list #11) + workbook imports (#10) \u2500\u2500\u2500\u2500
+// The formula engine is synchronous and pure, but these read live rows over
+// the network. The pattern is the one Sheets uses for IMPORTRANGE/
+// GOOGLEFINANCE: results are cached; a cold read throws #N/A and queues a
+// background load that recalcs + repaints when it lands. RR_CACHE holds
+// each dataset as a 2-D array (header row + data rows); WB_IMPORT_CACHE
+// holds cross-workbook ranges keyed by "workbook|ref".
+const RR_CACHE = new Map();          // name -> { grid: any[][], at: number }
+const RR_PENDING = new Set();        // names currently loading
+const WB_IMPORT_CACHE = new Map();   // "wb|ref" -> { grid, at }
+const WB_IMPORT_PENDING = new Set();
+const RR_TTL_MS = 5 * 60_000;        // treated as fresh for 5 minutes
+
+function rrGridArr(name) {
+  const hit = RR_CACHE.get(name);
+  if (hit && Date.now() - hit.at < RR_TTL_MS) return new Arr(hit.grid.length ? hit.grid : [[""]]);
+  queueRrLoad(name);
+  if (hit) return new Arr(hit.grid.length ? hit.grid : [[""]]); // stale-while-revalidate
+  throw new FormulaError("#N/A", `loading RouteReady ${name}\u2026`);
+}
+
+// Optional column subset by header name: RR.DRIVERS("Name","Status")
+function rrSelect(grid, names) {
+  if (!names.length || !grid.rows.length) return grid;
+  const header = grid.rows[0].map((h) => String(h ?? "").trim().toLowerCase());
+  const idxs = names.map((n) => header.indexOf(String(n).trim().toLowerCase())).filter((i) => i >= 0);
+  if (!idxs.length) return grid;
+  return new Arr(grid.rows.map((row) => idxs.map((i) => row[i])));
+}
+
 const FUNCS_RAW = {
+  // RR.DRIVERS([col\u2026]) / RR.VANS([col\u2026]) \u2014 the DSP's live roster/fleet as a
+  // spilling array (100-list #11). Optional args pick columns by header name.
+  "RR.DRIVERS": (args, ctx) => rrSelect(rrGridArr("drivers"), args.map((a) => fmtScalar(deArr(evalNode(a, ctx))))),
+  "RR.VANS": (args, ctx) => rrSelect(rrGridArr("vans"), args.map((a) => fmtScalar(deArr(evalNode(a, ctx))))),
+  // RR.ROUTES([weekStartISO]) / RR.SCHEDULE \u2014 the scheduled shifts for a week
+  "RR.ROUTES": (args, ctx) => rrGridArr("schedule:" + (args.length ? fmtScalar(deArr(evalNode(args[0], ctx))) : fillNextWeekStart())),
+  "RR.SCHEDULE": (args, ctx) => rrGridArr("schedule:" + (args.length ? fmtScalar(deArr(evalNode(args[0], ctx))) : fillNextWeekStart())),
+  // RR.SCORECARD() \u2014 the latest weekly scorecard rows
+  "RR.SCORECARD": () => rrGridArr("scorecard"),
+  // IMPORTWB("Workbook title or id", "Sheet!A1:C9") \u2014 read a range from
+  // another RouteReady workbook in this DSP (100-list #10).
+  IMPORTWB: (args, ctx) => {
+    if (args.length < 2) throw new FormulaError("#ERROR", "IMPORTWB takes a workbook and a range");
+    const wb = fmtScalar(deArr(evalNode(args[0], ctx)));
+    const ref = fmtScalar(deArr(evalNode(args[1], ctx)));
+    const key = wb + "|" + ref;
+    const hit = WB_IMPORT_CACHE.get(key);
+    if (hit && Date.now() - hit.at < RR_TTL_MS) return new Arr(hit.grid.length ? hit.grid : [[""]]);
+    queueWbImport(wb, ref);
+    if (hit) return new Arr(hit.grid.length ? hit.grid : [[""]]);
+    throw new FormulaError("#N/A", `loading ${wb}\u2026`);
+  },
+
   // In-cell sparkline (100-list #9): =SPARKLINE(B2:M2, "column"). The cell
   // computes to a marked JSON string the painter turns into an inline SVG.
   SPARKLINE: (args, ctx) => {
@@ -4181,7 +4234,8 @@ function hasDynamicRefs(ast) {
 // RFC-4180-ish: quoted values, embedded commas, embedded quotes (""),
 // embedded newlines inside quotes, CRLF/LF/CR line endings, BOM strip.
 
-function parseCsv(text) {
+function parseCsv(text, delimiter) {
+  const D = delimiter && delimiter.length === 1 ? delimiter : ",";
   const rows = [];
   let row = [];
   let field = "";
@@ -4200,7 +4254,7 @@ function parseCsv(text) {
       field += c; i++; continue;
     }
     if (c === '"' && field === "") { inQuotes = true; i++; continue; }
-    if (c === ",") { row.push(field); field = ""; i++; continue; }
+    if (c === D) { row.push(field); field = ""; i++; continue; }
     if (c === "\r") { if (s[i + 1] === "\n") i++; row.push(field); rows.push(row); row = []; field = ""; i++; continue; }
     if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; i++; continue; }
     field += c; i++;
@@ -7708,6 +7762,7 @@ function mountSheetBlock(block, body) {
     const item = sheetEmbeds(g.sheet, key).find((x) => x.id === card.getAttribute("data-wb-embed-id"));
     if (!item) return;
     const action = act.getAttribute("data-wb-embed-act");
+    if (action === "png") { downloadChartPng(card, item); return; }
     if (action === "edit") openEmbedEditor(g, key, item);
     else if (action === "dup") duplicateEmbed(g, key, item);
     else {
@@ -10137,6 +10192,12 @@ const FUNCTION_META = [
   { n: "ARRAYFORMULA", sig: "ARRAYFORMULA(array_expression)", d: "Evaluate as an array" },
   { n: "FILTER", sig: "FILTER(range, condition, …)", d: "Keep rows meeting conditions" },
   { n: "QUERY", sig: "QUERY(data, query, [headers])", d: "Run a query (select/where/group by/order by) over a range" },
+  { n: "RR.DRIVERS", sig: "RR.DRIVERS([col…])", d: "Live: this DSP's active drivers as a spilling table" },
+  { n: "RR.VANS", sig: "RR.VANS([col…])", d: "Live: this DSP's fleet as a spilling table" },
+  { n: "RR.SCHEDULE", sig: "RR.SCHEDULE([weekStart])", d: "Live: scheduled shifts for a week (Mon date)" },
+  { n: "RR.ROUTES", sig: "RR.ROUTES([weekStart])", d: "Live: scheduled routes for a week (alias of RR.SCHEDULE)" },
+  { n: "RR.SCORECARD", sig: "RR.SCORECARD()", d: "Live: recent weekly scorecards" },
+  { n: "IMPORTWB", sig: "IMPORTWB(workbook, \"Sheet!A1:C9\")", d: "Import a range from another RouteReady workbook" },
   { n: "SORT", sig: "SORT(range, [sort_column], [ascending], …)", d: "Sort a range" },
   { n: "SORTN", sig: "SORTN(range, [n], [ties_mode], [sort_column], [ascending], …)", d: "Top-N rows, sorted" },
   { n: "UNIQUE", sig: "UNIQUE(range, [by_column], [exactly_once])", d: "Distinct rows" },
@@ -11076,6 +11137,14 @@ function syncFormulaBar(g) {
 
 // ─── Clipboard ───────────────────────────────────────────────────────────────
 
+// The displayed text of a selected cell (formula result or raw value).
+function selCellText(sheet, r, c) {
+  const cell = sheet.cells.get(cellKey(r, c));
+  let v = cell ? (cell.formula ? (cell.err || String(cell.computed ?? "")) : String(cell.value ?? "")) : "";
+  if (v.startsWith(WB_SPARK_MARK)) v = ""; // sparklines have no text form
+  return v;
+}
+
 function selectionToTsv(g) {
   const { r0, r1, c0, c1 } = selRect(g);
   const sheet = g.sheet;
@@ -11083,15 +11152,59 @@ function selectionToTsv(g) {
   for (let r = r0; r <= r1; r++) {
     const parts = [];
     for (let c = c0; c <= c1; c++) {
-      const cell = sheet.cells.get(cellKey(r, c));
-      let v = cell ? (cell.formula ? (cell.err || String(cell.computed ?? "")) : String(cell.value ?? "")) : "";
-      if (v.startsWith(WB_SPARK_MARK)) v = ""; // sparklines have no text form
+      let v = selCellText(sheet, r, c);
       if (/[\t\n\r]/.test(v)) v = '"' + v.replace(/"/g, '""') + '"';
       parts.push(v);
     }
     lines.push(parts.join("\t"));
   }
   return lines.join("\n");
+}
+
+// Copy the selection as a Markdown or HTML table (100-list #71). Row 0 of the
+// selection is treated as the header.
+function selectionToMarkdown(g) {
+  const { r0, r1, c0, c1 } = selRect(g);
+  const sheet = g.sheet;
+  const rows = [];
+  for (let r = r0; r <= r1; r++) {
+    const cells = [];
+    for (let c = c0; c <= c1; c++) cells.push(selCellText(sheet, r, c).replace(/\|/g, "\\|").replace(/\n/g, " "));
+    rows.push(`| ${cells.join(" | ")} |`);
+  }
+  if (rows.length) {
+    const cols = c1 - c0 + 1;
+    rows.splice(1, 0, `| ${Array(cols).fill("---").join(" | ")} |`);
+  }
+  return rows.join("\n");
+}
+function selectionToHtmlTable(g) {
+  const { r0, r1, c0, c1 } = selRect(g);
+  const sheet = g.sheet;
+  let out = '<table border="1" cellspacing="0" cellpadding="4">';
+  for (let r = r0; r <= r1; r++) {
+    out += "<tr>";
+    for (let c = c0; c <= c1; c++) {
+      const tag = r === r0 ? "th" : "td";
+      out += `<${tag}>${esc(selCellText(sheet, r, c))}</${tag}>`;
+    }
+    out += "</tr>";
+  }
+  return out + "</table>";
+}
+async function copySelectionAs(g, fmt) {
+  const text = fmt === "md" ? selectionToMarkdown(g) : selectionToHtmlTable(g);
+  try {
+    if (fmt === "html" && navigator.clipboard.write && window.ClipboardItem) {
+      await navigator.clipboard.write([new ClipboardItem({
+        "text/html": new Blob([text], { type: "text/html" }),
+        "text/plain": new Blob([selectionToTsv(g)], { type: "text/plain" }),
+      })]);
+    } else {
+      await navigator.clipboard.writeText(text);
+    }
+    _toast(fmt === "md" ? "Copied as Markdown" : "Copied as an HTML table", "success");
+  } catch (_) { _toast("Couldn't copy", "error"); }
 }
 
 // Rich internal clipboard: cell objects (formulas + formats) plus the
@@ -13960,6 +14073,103 @@ function exportSheetCsv(g) {
   _toast("CSV exported", "success");
 }
 
+// Minimal text-table PDF writer (100-list #67): a real PDF, not the browser
+// print dialog. Lays the used range out as a monospaced grid across letter
+// pages, repeating the header row on each page. Dependency-free.
+function pdfEscape(s) { return String(s).replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)"); }
+function buildTablePdf(matrix, opts = {}) {
+  const title = opts.title || "Workbook";
+  const landscape = !!opts.landscape;
+  const PW = landscape ? 792 : 612, PH = landscape ? 612 : 792;
+  const M = 40, fontSize = 8, lineH = 12, charW = fontSize * 0.6;
+  const usableW = PW - 2 * M;
+  const nCols = matrix.reduce((m, row) => Math.max(m, row.length), 0) || 1;
+  // even column widths (in chars), clamped so the row fits the page width
+  const colChars = Math.max(4, Math.floor((usableW / charW) / nCols));
+  const clip = (v) => { const s = String(v ?? "").replace(/[\r\n\t]/g, " "); return s.length > colChars ? s.slice(0, colChars - 1) + "…" : s; };
+  const rowsPerPage = Math.floor((PH - 2 * M - lineH * 2) / lineH);
+  const header = matrix[0] || [];
+  const dataRows = matrix.slice(1);
+  const pages = [];
+  for (let i = 0; i < Math.max(1, dataRows.length); i += rowsPerPage) pages.push(dataRows.slice(i, i + rowsPerPage));
+  const objs = [];
+  const streams = pages.map((pageRows, pi) => {
+    let y = PH - M;
+    let content = `BT /F1 ${fontSize + 2} Tf ${M} ${y} Td (${pdfEscape(title)}) Tj ET\n`;
+    y -= lineH * 1.6;
+    const drawRow = (row, bold) => {
+      let line = "";
+      for (let c = 0; c < nCols; c++) line += clip(row[c]).padEnd(colChars + 1, " ");
+      content += `BT /F${bold ? "2" : "1"} ${fontSize} Tf ${M} ${y} Td (${pdfEscape(line)}) Tj ET\n`;
+      y -= lineH;
+    };
+    if (header.length) drawRow(header, true);
+    for (const row of pageRows) drawRow(row, false);
+    // page number footer (100-list #68)
+    content += `BT /F1 7 Tf ${PW - M - 60} ${M - 14} Td (Page ${pi + 1} of ${pages.length}) Tj ET\n`;
+    return content;
+  });
+  // assemble the PDF objects: catalog, pages, per-page [page, content], 2 fonts
+  const nPages = streams.length;
+  const fontHelv = "<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>";
+  const fontBold = "<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold >>";
+  const parts = [];
+  const kids = [];
+  let objNum = 3 + nPages * 2; // fonts get the last two ids
+  const fontHelvId = objNum + 1, fontBoldId = objNum + 2;
+  for (let i = 0; i < nPages; i++) {
+    const pageId = 3 + i * 2, contentId = 4 + i * 2;
+    kids.push(`${pageId} 0 R`);
+  }
+  objs[1] = `<< /Type /Catalog /Pages 2 0 R >>`;
+  objs[2] = `<< /Type /Pages /Count ${nPages} /Kids [${kids.join(" ")}] >>`;
+  for (let i = 0; i < nPages; i++) {
+    const pageId = 3 + i * 2, contentId = 4 + i * 2;
+    objs[pageId] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PW} ${PH}] /Resources << /Font << /F1 ${fontHelvId} 0 R /F2 ${fontBoldId} 0 R >> >> /Contents ${contentId} 0 R >>`;
+    const s = streams[i];
+    objs[contentId] = `<< /Length ${s.length} >>\nstream\n${s}\nendstream`;
+  }
+  objs[fontHelvId] = fontHelv;
+  objs[fontBoldId] = fontBold;
+  // serialize with an xref table
+  let pdf = "%PDF-1.4\n";
+  const offsets = [];
+  for (let i = 1; i < objs.length; i++) {
+    if (objs[i] == null) continue;
+    offsets[i] = pdf.length;
+    pdf += `${i} 0 obj\n${objs[i]}\nendobj\n`;
+  }
+  const xrefStart = pdf.length;
+  const maxId = objs.length - 1;
+  pdf += `xref\n0 ${maxId + 1}\n0000000000 65535 f \n`;
+  for (let i = 1; i <= maxId; i++) {
+    pdf += offsets[i] != null ? `${String(offsets[i]).padStart(10, "0")} 00000 n \n` : `0000000000 00000 f \n`;
+  }
+  pdf += `trailer\n<< /Size ${maxId + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`;
+  return new TextEncoder().encode(pdf);
+}
+
+function exportSheetPdf(g) {
+  const sheet = g.sheet;
+  const { maxR, maxC } = usedRange(sheet);
+  if (maxR < 0) { _toast("This sheet is empty — nothing to export", "info"); return; }
+  const matrix = [];
+  for (let r = 0; r <= maxR; r++) {
+    const row = [];
+    for (let c = 0; c <= maxC; c++) row.push(sheet.cells.get(cellKey(r, c)) ? displayValue(sheet, r, c) : "");
+    matrix.push(row);
+  }
+  const bytes = buildTablePdf(matrix, { title: `${(WB.wb && WB.wb.title) || "Workbook"} · ${sheet.name}`, landscape: maxC > 6 });
+  const blob = new Blob([bytes], { type: "application/pdf" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `${((WB.wb && WB.wb.title) || "workbook").replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "-").toLowerCase()}-${sheet.name.replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "-").toLowerCase() || "sheet"}.pdf`;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 400);
+  wbLog("pdf.exported", `exported ${sheet.name} as PDF`, { target_type: "sheet", target_id: sheet.id });
+  _toast("PDF exported", "success");
+}
+
 // ─── Print / page layout ─────────────────────────────────────────────────────
 // A live print-preview popup with real page setup — orientation, paper size,
 // margins, fit-to-width scaling, gridlines, a repeated header row, and print
@@ -14032,12 +14242,16 @@ function printSheet(g) {
     table.gridlines td,table.gridlines th{border:1px solid #D1D5DB}
     .wb-page.no-headings .wb-rh,.wb-page.no-headings .wb-colhead{display:none}
     @page{size:letter portrait;margin:14mm}
+    /* page footer with a page counter (100-list #68) — paged-media counters */
+    @page{@bottom-center{content:"${esc(sheet.name)} — page " counter(page) " of " counter(pages);font-family:-apple-system,Segoe UI,sans-serif;font-size:9px;color:#6B7280}}
     @media print{
       body{background:#fff}
       .wb-bar{display:none}
       .wb-page{margin:0;padding:0;box-shadow:none;width:auto;max-width:none}
       thead.norepeat{display:table-row-group}
+      .wb-print-foot{display:block}
     }
+    .wb-print-foot{display:none;position:fixed;bottom:4mm;left:0;right:0;text-align:center;font-size:9px;color:#6B7280}
   </style></head><body>
     <div class="wb-bar">
       <label>Orientation <select id="p-orient">${opt("portrait", "Portrait")}${opt("landscape", "Landscape")}</select></label>
@@ -14056,6 +14270,7 @@ function printSheet(g) {
       <div class="wb-head"><h2>${esc(title)}</h2><p class="sub">${esc(sheet.name)} · ${esc(new Date().toLocaleDateString())}</p></div>
       <table class="gridlines" id="p-table"><thead id="p-thead">${fullT.thead}</thead><tbody id="p-tbody">${fullT.tbody}</tbody></table>
     </div>
+    <div class="wb-print-foot">${esc(sheet.name)} · ${esc(new Date().toLocaleDateString())}</div>
     <script>
       var DATA={sheet:{thead:${JSON.stringify(fullT.thead)},tbody:${JSON.stringify(fullT.tbody)}},sel:${selT ? JSON.stringify({ thead: selT.thead, tbody: selT.tbody }) : "null"}};
       var PAPER={letter:[8.5,11],a4:[8.27,11.69],legal:[8.5,14]},MARG={normal:14,narrow:6,wide:22};
@@ -14063,7 +14278,7 @@ function printSheet(g) {
       function pageStyle(){
         var o=$("p-orient").value,p=$("p-paper").value,m=MARG[$("p-margin").value];
         var st=document.getElementById("p-page-style")||document.head.appendChild(Object.assign(document.createElement("style"),{id:"p-page-style"}));
-        st.textContent="@page{size:"+p+" "+o+";margin:"+m+"mm}";
+        st.textContent="@page{size:"+p+" "+o+";margin:"+m+"mm;@bottom-center{content:'page ' counter(page) ' of ' counter(pages);font-size:9px;color:#6B7280}}";
         return {o:o,p:p,m:m};
       }
       function fit(cfg){
@@ -15491,28 +15706,92 @@ function importCsvInto(g) {
     if (file.size > 5 * 1024 * 1024) { _toast("That file is over 5 MB — split it up first", "error"); return; }
     const reader = new FileReader();
     reader.onload = () => {
-      let matrix;
-      try { matrix = parseCsv(String(reader.result || "")); }
-      catch (e) { _toast("Couldn't parse that CSV file", "error"); return; }
-      if (!matrix.length) { _toast("That CSV file is empty", "warn"); return; }
-      let clipped = false;
-      if (matrix.length > CSV_MAX_ROWS) { matrix = matrix.slice(0, CSV_MAX_ROWS); clipped = true; }
-      matrix = matrix.map((row) => { if (row.length > CSV_MAX_COLS) { clipped = true; return row.slice(0, CSV_MAX_COLS); } return row; });
-      const sheet = g.sheet;
-      const hasData = usedRange(sheet).maxR >= 0;
-      const doImport = () => applyCsvImport(g, matrix, clipped, file.name);
-      if (hasData) {
-        confirmModal({
-          title: "Replace this sheet's data?",
-          body: `Importing <strong>${esc(file.name)}</strong> (${matrix.length} row${matrix.length === 1 ? "" : "s"}) will replace everything currently on “${esc(sheet.name)}”.`,
-          confirmLabel: "Replace and import", danger: true, onConfirm: doImport,
-        });
-      } else doImport();
+      const text = String(reader.result || "");
+      openCsvImportWizard(g, text, file.name);
     };
     reader.onerror = () => _toast("Couldn't read that file", "error");
     reader.readAsText(file);
   });
   input.click();
+}
+
+// CSV import wizard (100-list #69): delimiter picker with a live preview.
+// Encoding is UTF-8 (the FileReader default) with a note; the delimiter is
+// auto-detected from the first line and adjustable.
+function csvGuessDelimiter(text) {
+  const firstLine = text.split(/\r?\n/).find((l) => l.trim()) || "";
+  const counts = { ",": 0, ";": 0, "\t": 0, "|": 0 };
+  let inQ = false;
+  for (const ch of firstLine) { if (ch === '"') inQ = !inQ; else if (!inQ && ch in counts) counts[ch]++; }
+  return Object.entries(counts).sort((a, b) => b[1] - a[1])[0][1] > 0
+    ? Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0] : ",";
+}
+function openCsvImportWizard(g, text, fileName) {
+  document.getElementById("wb-csv-modal")?.remove();
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-csv-modal";
+  const guessed = csvGuessDelimiter(text);
+  const delimVal = (v) => v === "\t" ? "\\t" : v;
+  wrap.innerHTML = `
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Import CSV" style="width:560px">
+      <div class="rr-modal-head">
+        <div class="rr-modal-head-content"><p class="rr-modal-title">Import ${esc(fileName)}</p><p class="rr-modal-sub">Pick the separator; the preview updates as you choose.</p></div>
+        <button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button>
+      </div>
+      <div class="rr-modal-body">
+        <div class="wb-field-row">
+          <label class="wb-field" style="flex:0 0 200px"><span class="wb-field-label">Separator</span>
+            <select class="wb-input" id="wb-csv-delim">
+              <option value="," ${guessed === "," ? "selected" : ""}>Comma ( , )</option>
+              <option value=";" ${guessed === ";" ? "selected" : ""}>Semicolon ( ; )</option>
+              <option value="\\t" ${guessed === "\t" ? "selected" : ""}>Tab</option>
+              <option value="|" ${guessed === "|" ? "selected" : ""}>Pipe ( | )</option>
+            </select></label>
+          <label class="wb-field"><span class="wb-field-label">Encoding</span>
+            <input class="wb-input" value="UTF-8 (auto)" disabled></label>
+        </div>
+        <span class="wb-field-label" style="margin-top:10px">Preview (first rows)</span>
+        <div id="wb-csv-preview" style="overflow:auto;max-height:260px;border:1px solid var(--border,#E5E7EB);border-radius:8px;margin-top:4px"></div>
+      </div>
+      <div class="rr-modal-foot">
+        <button class="rr-modal-btn" type="button" data-wb-close>Cancel</button>
+        <button class="rr-modal-btn primary" type="button" data-wb-confirm>Import</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  const sel = wrap.querySelector("#wb-csv-delim");
+  const previewHost = wrap.querySelector("#wb-csv-preview");
+  const curDelim = () => sel.value === "\\t" ? "\t" : sel.value;
+  const paint = () => {
+    let m;
+    try { m = parseCsv(text, curDelim()); } catch (_) { m = []; }
+    const rows = m.slice(0, 8);
+    previewHost.innerHTML = `<table style="border-collapse:collapse;font-size:12px;width:100%">${rows.map((row, ri) => `<tr>${row.slice(0, 12).map((cell) => `<td style="border:1px solid var(--border,#eee);padding:3px 6px;${ri === 0 ? "font-weight:600;background:var(--surface-2,#f5f6f8)" : ""}">${esc(String(cell).slice(0, 40))}</td>`).join("")}</tr>`).join("")}</table>`;
+  };
+  sel.addEventListener("change", paint);
+  paint();
+  wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") wrap.remove(); });
+  wrap.addEventListener("click", (e) => {
+    if (e.target === wrap || e.target.closest("[data-wb-close]")) { wrap.remove(); return; }
+    if (!e.target.closest("[data-wb-confirm]")) return;
+    let matrix;
+    try { matrix = parseCsv(text, curDelim()); } catch (_) { _toast("Couldn't parse with that separator", "error"); return; }
+    if (!matrix.length) { _toast("Nothing to import with that separator", "warn"); return; }
+    let clipped = false;
+    if (matrix.length > CSV_MAX_ROWS) { matrix = matrix.slice(0, CSV_MAX_ROWS); clipped = true; }
+    matrix = matrix.map((row) => { if (row.length > CSV_MAX_COLS) { clipped = true; return row.slice(0, CSV_MAX_COLS); } return row; });
+    wrap.remove();
+    const sheet = g.sheet;
+    const doImport = () => applyCsvImport(g, matrix, clipped, fileName);
+    if (usedRange(sheet).maxR >= 0) {
+      confirmModal({
+        title: "Replace this sheet's data?",
+        body: `Importing <strong>${esc(fileName)}</strong> (${matrix.length} row${matrix.length === 1 ? "" : "s"}) will replace everything currently on “${esc(sheet.name)}”.`,
+        confirmLabel: "Replace and import", danger: true, onConfirm: doImport,
+      });
+    } else doImport();
+  });
 }
 
 function applyCsvImport(g, matrix, clipped, fileName) {
@@ -15903,8 +16182,8 @@ function pivotToExportSheet(srcSheet, spec, name, position) {
   if (topN > 0) rowKeys = [...p.rowKeys].sort((a, b) => (_pvNum(p.aggOf(b, grandCk, 0)) ?? -Infinity) - (_pvNum(p.aggOf(a, grandCk, 0)) ?? -Infinity)).slice(0, topN);
   const groups = hasCols ? [...p.colKeys.map((ck) => ({ ck, label: ck || "(blank)" })), { ck: null, label: "Grand total" }] : [{ ck: "", label: "" }];
   const rowHdrs = p.rowFields.length ? p.rowFields : ["Total"];
-  const showOf = (vi) => (WB_PIVOT_SHOWS[p.values[vi].show] ? p.values[vi].show : "raw");
-  const vLabel = (vi) => { const v = p.values[vi]; const base = `${WB_PIVOT_AGGS[v.agg] || ""} of ${v.field}`; return showOf(vi) === "raw" ? base : `${base} · ${WB_PIVOT_SHOWS[showOf(vi)]}`; };
+  const showOf = (vi) => (p.values[vi].calc ? "raw" : (WB_PIVOT_SHOWS[p.values[vi].show] ? p.values[vi].show : "raw"));
+  const vLabel = (vi) => { const v = p.values[vi]; if (v.calc) return v.name || "Calc"; const base = `${WB_PIVOT_AGGS[v.agg] || ""} of ${v.field}`; return showOf(vi) === "raw" ? base : `${base} · ${WB_PIVOT_SHOWS[showOf(vi)]}`; };
   const header = [...rowHdrs, ...groups.flatMap((gp) => p.values.map((_, vi) => (hasCols ? `${gp.label} · ${vLabel(vi)}` : vLabel(vi))))];
   const rawM = groups.map((gp) => p.values.map((_, vi) => rowKeys.map((rk) => p.aggOf(rk, gp.ck, vi))));
   const runM = rawM.map((gvs) => gvs.map((col) => { let a = 0; return col.map((v) => { const n = _pvNum(v); if (n != null) a += n; return a; }); }));
@@ -15927,17 +16206,25 @@ function pivotToExportSheet(srcSheet, spec, name, position) {
     const mode = showOf(vi), total = _pvNum(p.aggOf(null, gp.ck, vi));
     gtRow.push(mode === "pct" ? (total ? 100 : "") : mode === "rank" ? "" : (total == null ? "" : total));
   }));
-  const matrix = [header, ...body, gtRow];
+  const includeGt = (espec.gtPos || "bottom") !== "off";
+  const matrix = includeGt ? [header, ...body, gtRow] : [header, ...body];
   const cells = new Map();
   matrix.forEach((row, r) => row.forEach((v, c) => {
     if (v === "" || v == null) return;
     const isNum = typeof v === "number" && isFinite(v);
     const cell = { value: v, type: isNum ? "number" : "text" };
     if (r === 0) cell.format = { bold: true, bg: "header" };
-    else if (r === matrix.length - 1) cell.format = { bold: true };
+    else if (includeGt && r === matrix.length - 1) cell.format = { bold: true };
     cells.set(cellKey(r, c), cell);
   }));
-  return { id: "pvx" + Math.random().toString(36).slice(2, 8), name, position, rowCount: matrix.length, colCount: header.length, cells, meta: {}, colWidths: {} };
+  // 100-list #56: wrap the materialized pivot as a native Excel Table so it
+  // opens filterable + styled in Excel (native PivotTable cache parts are
+  // still out of scope, but this is a first-class table, not a plain range).
+  const dataR1 = includeGt ? matrix.length - 2 : matrix.length - 1; // exclude the grand-total row
+  const meta = (dataR1 >= 1 && header.length >= 1)
+    ? { tables: [{ id: "pvxt", name: (name || "Pivot").replace(/[^\w]/g, "_"), r0: 0, c0: 0, r1: dataR1, c1: header.length - 1, totalRow: false }] }
+    : {};
+  return { id: "pvx" + Math.random().toString(36).slice(2, 8), name, position, rowCount: matrix.length, colCount: header.length, cells, meta, colWidths: {} };
 }
 // Append a values sheet for every pivot so nothing is silently dropped.
 function expandExportSheets(sheets) {
@@ -16616,7 +16903,7 @@ const WB_CHART_PALETTES = {
 };
 const WB_CHART_THEMES = { route: "RouteReady", vibrant: "Vibrant", ocean: "Ocean", sunset: "Sunset", forest: "Forest", berry: "Berry", mono: "Monochrome blue" };
 function chartPalette(ch) { return WB_CHART_PALETTES[ch && ch.theme] || WB_CHART_COLORS; }
-const WB_CHART_TYPES = { column: "Column", bar: "Bar", stackcol: "Stacked column", stackbar: "Stacked bar", line: "Line", area: "Area", combo: "Combo (columns + line)", scatter: "Scatter", pie: "Pie" };
+const WB_CHART_TYPES = { column: "Column", bar: "Bar", stackcol: "Stacked column", stackbar: "Stacked bar", line: "Line", area: "Area", combo: "Combo (columns + line)", scatter: "Scatter", bubble: "Bubble", pie: "Pie", donut: "Donut", radar: "Radar", waterfall: "Waterfall", histogram: "Histogram" };
 
 function sheetCharts(sheet) {
   const v = sheet.meta && sheet.meta.charts;
@@ -16726,7 +17013,8 @@ function chartSvg(sheet, ch, opts = {}) {
   const wrap = (inner, label) => `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${t(ch.title || label)}">${defs ? `<defs>${defs}</defs>` : ""}${inner}</svg>`;
   const dlabel = (x, y, s, cls) => showLabels ? `<text x="${x}" y="${y}" text-anchor="middle" class="wb-chart-dlabel${cls ? " " + cls : ""}">${t(s)}</text>` : "";
 
-  if (ch.type === "pie") {
+  if (ch.type === "pie" || ch.type === "donut") {
+    const donut = ch.type === "donut";
     const s0 = series[0];
     let entries = categories.map((label, i) => ({ label, v: Math.max(0, s0.values[i] ?? 0) })).filter((e) => e.v > 0);
     if (entries.length > 8) {
@@ -16735,7 +17023,7 @@ function chartSvg(sheet, ch, opts = {}) {
     }
     const total = entries.reduce((a, e) => a + e.v, 0);
     if (!total) return { svg: `<div class="wb-chart-empty">Nothing to chart in ${esc(chartRefText(ch))}.</div>`, legend: "" };
-    const CX = W / 2, CY = H / 2, R = Math.min(W, H) * 0.42;
+    const CX = W / 2, CY = H / 2, R = Math.min(W, H) * 0.42, RI = donut ? R * 0.58 : 0;
     let a0 = -Math.PI / 2;
     let paths = "", labels = "";
     entries.forEach((e, i) => {
@@ -16744,47 +17032,144 @@ function chartSvg(sheet, ch, opts = {}) {
       const large = a1 - a0 > Math.PI ? 1 : 0;
       const x0 = CX + R * Math.cos(a0), y0 = CY + R * Math.sin(a0);
       const x1 = CX + R * Math.cos(a1), y1 = CY + R * Math.sin(a1);
-      paths += frac >= 0.999
-        ? `<circle cx="${CX}" cy="${CY}" r="${R}" fill="${color(i)}"><title>${t(e.label)} — ${chartFmt(e.v)} (${Math.round(frac * 100)}%)</title></circle>`
-        : `<path d="M${CX},${CY} L${x0},${y0} A${R},${R} 0 ${large} 1 ${x1},${y1} Z" fill="${color(i)}" stroke="var(--surface)" stroke-width="2"><title>${t(e.label)} — ${chartFmt(e.v)} (${Math.round(frac * 100)}%)</title></path>`;
+      if (donut) {
+        // annular segment (100-list #57)
+        const ix0 = CX + RI * Math.cos(a0), iy0 = CY + RI * Math.sin(a0);
+        const ix1 = CX + RI * Math.cos(a1), iy1 = CY + RI * Math.sin(a1);
+        paths += frac >= 0.999
+          ? `<circle cx="${CX}" cy="${CY}" r="${(R + RI) / 2}" fill="none" stroke="${color(i)}" stroke-width="${R - RI}"><title>${t(e.label)} — ${chartFmt(e.v)} (${Math.round(frac * 100)}%)</title></circle>`
+          : `<path d="M${x0},${y0} A${R},${R} 0 ${large} 1 ${x1},${y1} L${ix1},${iy1} A${RI},${RI} 0 ${large} 0 ${ix0},${iy0} Z" fill="${color(i)}" stroke="var(--surface)" stroke-width="1.5"><title>${t(e.label)} — ${chartFmt(e.v)} (${Math.round(frac * 100)}%)</title></path>`;
+      } else {
+        paths += frac >= 0.999
+          ? `<circle cx="${CX}" cy="${CY}" r="${R}" fill="${color(i)}"><title>${t(e.label)} — ${chartFmt(e.v)} (${Math.round(frac * 100)}%)</title></circle>`
+          : `<path d="M${CX},${CY} L${x0},${y0} A${R},${R} 0 ${large} 1 ${x1},${y1} Z" fill="${color(i)}" stroke="var(--surface)" stroke-width="2"><title>${t(e.label)} — ${chartFmt(e.v)} (${Math.round(frac * 100)}%)</title></path>`;
+      }
       if (showLabels && frac >= 0.05) {
-        const am = (a0 + a1) / 2, lr = R * 0.62;
+        const am = (a0 + a1) / 2, lr = donut ? (R + RI) / 2 : R * 0.62;
         labels += dlabel(CX + lr * Math.cos(am), CY + lr * Math.sin(am) + 3, Math.round(frac * 100) + "%", "on-fill");
       }
       a0 = a1;
     });
+    if (donut) labels += `<text x="${CX}" y="${CY + 4}" text-anchor="middle" class="wb-chart-donut-total">${t(chartFmt(total))}</text>`;
     const legend = entries.map((e, i) =>
       `<span class="wb-chart-key"><span class="wb-chart-swatch" style="background:${color(i)}"></span>${t(e.label)} <span class="wb-chart-keyv">${Math.round((e.v / total) * 100)}%</span></span>`).join("");
-    return { svg: wrap(paths + labels, "Pie chart"), legend };
+    return { svg: wrap(paths + labels, donut ? "Donut chart" : "Pie chart"), legend };
   }
 
-  if (ch.type === "scatter") {
+  if (ch.type === "radar") {
+    // one polygon per series over the categories arranged radially (100-list #57)
+    const CX = W / 2, CY = H / 2 + 4, R = Math.min(W, H) * 0.38;
+    const nAx = categories.length;
+    if (nAx < 3) return { svg: `<div class="wb-chart-empty">Radar charts need at least 3 categories.</div>`, legend: "" };
+    const allV = series.flatMap((s) => s.values).filter((v) => v != null);
+    const maxV = Math.max(1, ...allV.map((v) => Math.abs(v)));
+    const ang = (i) => -Math.PI / 2 + (i / nAx) * Math.PI * 2;
+    const pt = (i, v) => [CX + R * (v / maxV) * Math.cos(ang(i)), CY + R * (v / maxV) * Math.sin(ang(i))];
+    let out = "";
+    for (let ring = 1; ring <= 4; ring++) {
+      const rr = (R * ring) / 4;
+      const pts = categories.map((_, i) => `${(CX + rr * Math.cos(ang(i))).toFixed(1)},${(CY + rr * Math.sin(ang(i))).toFixed(1)}`).join(" ");
+      out += `<polygon points="${pts}" fill="none" stroke="var(--border-subtle)" stroke-width="1"/>`;
+    }
+    categories.forEach((lb, i) => {
+      const [ex, ey] = [CX + R * Math.cos(ang(i)), CY + R * Math.sin(ang(i))];
+      out += `<line x1="${CX}" y1="${CY}" x2="${ex.toFixed(1)}" y2="${ey.toFixed(1)}" stroke="var(--border-subtle)" stroke-width="1"/>`;
+      out += `<text x="${(CX + (R + 12) * Math.cos(ang(i))).toFixed(1)}" y="${(CY + (R + 12) * Math.sin(ang(i))).toFixed(1)}" text-anchor="middle" class="wb-chart-tick">${t(String(lb).slice(0, 8))}</text>`;
+    });
+    series.forEach((s, si) => {
+      const pts = categories.map((_, i) => pt(i, s.values[i] ?? 0));
+      out += `<polygon points="${pts.map((p) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ")}" fill="${color(si)}" fill-opacity="0.16" stroke="${color(si)}" stroke-width="2"/>`;
+    });
+    const legend = series.length > 1 ? series.map((s, si) => `<span class="wb-chart-key"><span class="wb-chart-swatch" style="background:${color(si)}"></span>${t(s.name)}</span>`).join("") : "";
+    return { svg: wrap(out, "Radar chart"), legend };
+  }
+
+  if (ch.type === "histogram") {
+    // auto-bin the first numeric series (Sturges) into frequency columns (#57)
+    const vals = series[0].values.filter((v) => typeof v === "number" && isFinite(v));
+    if (vals.length < 2) return { svg: `<div class="wb-chart-empty">Histogram needs at least 2 numbers.</div>`, legend: "" };
+    const mn = Math.min(...vals), mx = Math.max(...vals);
+    const nBins = Math.max(3, Math.min(20, Math.ceil(Math.log2(vals.length) + 1)));
+    const bw = (mx - mn) / nBins || 1;
+    const bins = new Array(nBins).fill(0);
+    for (const v of vals) { let b = Math.floor((v - mn) / bw); if (b >= nBins) b = nBins - 1; if (b < 0) b = 0; bins[b]++; }
+    const padL = 40, padR = 10, padT = 12, padB = 26;
+    const plotW = W - padL - padR, plotH = H - padT - padB;
+    const maxC = Math.max(...bins);
+    let out = "";
+    for (let gl = 0; gl <= 4; gl++) { const y = padT + plotH - (gl / 4) * plotH; out += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="var(--border-subtle)" stroke-width="1"/><text x="${padL - 6}" y="${y + 3}" text-anchor="end" class="wb-chart-tick">${Math.round((maxC * gl) / 4)}</text>`; }
+    bins.forEach((c, i) => {
+      const x = padL + (i / nBins) * plotW, w = (plotW / nBins) * 0.92;
+      const h = maxC ? (c / maxC) * plotH : 0;
+      out += `<rect x="${x.toFixed(1)}" y="${(padT + plotH - h).toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" fill="${grad(0, "v")}"><title>${chartFmt(mn + i * bw)}–${chartFmt(mn + (i + 1) * bw)}: ${c}</title></rect>`;
+      if (i % Math.ceil(nBins / 6) === 0) out += `<text x="${(x).toFixed(1)}" y="${padT + plotH + 16}" text-anchor="middle" class="wb-chart-tick">${chartFmt(mn + i * bw)}</text>`;
+    });
+    out += `<line x1="${padL}" y1="${padT + plotH}" x2="${W - padR}" y2="${padT + plotH}" stroke="var(--border-strong)" stroke-width="1"/>`;
+    return { svg: wrap(out, "Histogram"), legend: "" };
+  }
+
+  if (ch.type === "waterfall") {
+    // running-total bars: each category adds/subtracts from the prior cumulative
+    // (100-list #57). The last category is treated as a total anchor.
+    const vals = series[0].values.map((v) => (typeof v === "number" ? v : 0));
+    const padL = 46, padR = 10, padT = 12, padB = 30;
+    const plotW = W - padL - padR, plotH = H - padT - padB;
+    let cum = 0; const steps = vals.map((v) => { const start = cum; cum += v; return { start, end: cum, v }; });
+    const lo2 = Math.min(0, ...steps.map((s) => Math.min(s.start, s.end)));
+    const hi2 = Math.max(0, ...steps.map((s) => Math.max(s.start, s.end)));
+    const tk2 = chartNiceTicks(lo2, hi2), yLo = tk2[0], yHi = tk2[tk2.length - 1];
+    const py = (v) => padT + plotH - ((v - yLo) / ((yHi - yLo) || 1)) * plotH;
+    let out = "";
+    for (const tk of tk2) { if (showGrid) out += `<line x1="${padL}" y1="${py(tk)}" x2="${W - padR}" y2="${py(tk)}" stroke="var(--border-subtle)" stroke-width="1"/>`; out += `<text x="${padL - 6}" y="${py(tk) + 3}" text-anchor="end" class="wb-chart-tick">${chartFmt(tk)}</text>`; }
+    const band = plotW / vals.length, bw = band * 0.66;
+    steps.forEach((s, i) => {
+      const x = padL + i * band + (band - bw) / 2;
+      const y0 = py(s.start), y1 = py(s.end);
+      const up = s.v >= 0;
+      const fill = up ? "#16A34A" : "#DC2626";
+      out += `<rect x="${x.toFixed(1)}" y="${Math.min(y0, y1).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1, Math.abs(y1 - y0)).toFixed(1)}" fill="${fill}" fill-opacity="0.85"><title>${t(categories[i])}: ${up ? "+" : ""}${chartFmt(s.v)} → ${chartFmt(s.end)}</title></rect>`;
+      if (i < steps.length - 1) out += `<line x1="${x.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${(x + band).toFixed(1)}" y2="${y1.toFixed(1)}" stroke="var(--border-strong)" stroke-width="1" stroke-dasharray="2 2"/>`;
+      if (showLabels) out += dlabel(x + bw / 2, Math.min(y0, y1) - 4, chartFmt(s.v));
+      out += `<text x="${(x + bw / 2).toFixed(1)}" y="${padT + plotH + 16}" text-anchor="middle" class="wb-chart-tick">${t(String(categories[i]).slice(0, 8))}</text>`;
+    });
+    out += `<line x1="${padL}" y1="${py(0)}" x2="${W - padR}" y2="${py(0)}" stroke="var(--border-strong)" stroke-width="1"/>`;
+    return { svg: wrap(out, "Waterfall chart"), legend: "" };
+  }
+
+  if (ch.type === "scatter" || ch.type === "bubble") {
     // first data column = X (numeric), each further column = a Y series;
-    // if X isn't numeric, fall back to the row index
+    // bubble: the LAST series is the bubble size, not a Y series (100-list #57)
+    const bubble = ch.type === "bubble" && series.length >= 2;
+    const ySeries = bubble ? series.slice(0, -1) : series;
+    const sizeS = bubble ? series[series.length - 1] : null;
     const xs = categories.map((lb, i) => { const n = Number(lb); return isFinite(n) && lb !== "" ? n : i; });
     const padL = 46 + (yTitle ? 16 : 0), padR = 12, padT = 10, padB = 26 + (xTitle ? 16 : 0);
     const plotW = W - padL - padR, plotH = H - padT - padB;
-    const ys = series.flatMap((s) => s.values).filter((v) => v != null);
+    const ys = ySeries.flatMap((s) => s.values).filter((v) => v != null);
     if (!ys.length) return { svg: `<div class="wb-chart-empty">No numeric data in ${esc(chartRefText(ch))} yet.</div>`, legend: "" };
     const xt = chartNiceTicks(Math.min(...xs), Math.max(...xs));
     const yt = chartNiceTicks(Math.min(0, ...ys), Math.max(...ys));
     const xLo = xt[0], xHi = xt[xt.length - 1], yLo = yt[0], yHi = yt[yt.length - 1];
     const px = (v) => padL + ((v - xLo) / (xHi - xLo || 1)) * plotW;
     const py = (v) => padT + plotH - ((v - yLo) / (yHi - yLo || 1)) * plotH;
+    const sizeMax = sizeS ? Math.max(1, ...sizeS.values.map((v) => Math.abs(v) || 0)) : 1;
+    const radiusOf = (i) => sizeS ? 3 + 12 * Math.sqrt(Math.max(0, sizeS.values[i] || 0) / sizeMax) : 3.5;
     let out = "";
     for (const tk of yt) { if (showGrid) out += `<line x1="${padL}" y1="${py(tk)}" x2="${W - padR}" y2="${py(tk)}" stroke="var(--border-subtle)" stroke-width="1"/>`; out += `<text x="${padL - 6}" y="${py(tk) + 3}" text-anchor="end" class="wb-chart-tick">${chartFmt(tk)}</text>`; }
     for (const tk of xt) { out += `<text x="${px(tk)}" y="${padT + plotH + 16}" text-anchor="middle" class="wb-chart-tick">${chartFmt(tk)}</text>`; }
-    series.forEach((s, si) => {
+    ySeries.forEach((s, si) => {
       s.values.forEach((v, i) => {
         if (v == null) return;
-        out += `<circle cx="${px(xs[i])}" cy="${py(v)}" r="3.5" fill="${color(si)}" fill-opacity="0.85"><title>(${chartFmt(xs[i])}, ${chartFmt(v)}) · ${t(s.name)}</title></circle>`;
+        const r = radiusOf(i);
+        out += `<circle cx="${px(xs[i])}" cy="${py(v)}" r="${r.toFixed(1)}" fill="${color(si)}" fill-opacity="${bubble ? 0.55 : 0.85}"><title>(${chartFmt(xs[i])}, ${chartFmt(v)})${bubble ? " · size " + chartFmt(sizeS.values[i] ?? 0) : ""} · ${t(s.name)}</title></circle>`;
       });
     });
+    const series2 = ySeries; // for the legend below
     out += `<line x1="${padL}" y1="${padT + plotH}" x2="${W - padR}" y2="${padT + plotH}" stroke="var(--border-strong)" stroke-width="1"/>`;
     if (xTitle) out += `<text x="${padL + plotW / 2}" y="${H - 5}" text-anchor="middle" class="wb-chart-axt">${t(xTitle)}</text>`;
     if (yTitle) out += `<text x="13" y="${padT + plotH / 2}" text-anchor="middle" transform="rotate(-90 13 ${padT + plotH / 2})" class="wb-chart-axt">${t(yTitle)}</text>`;
-    const legend = series.length > 1 ? series.map((s, si) => `<span class="wb-chart-key"><span class="wb-chart-swatch" style="background:${color(si)}"></span>${t(s.name)}</span>`).join("") : "";
-    return { svg: wrap(out, "Scatter chart"), legend };
+    const legend = series2.length > 1 ? series2.map((s, si) => `<span class="wb-chart-key"><span class="wb-chart-swatch" style="background:${color(si)}"></span>${t(s.name)}</span>`).join("") : "";
+    return { svg: wrap(out, bubble ? "Bubble chart" : "Scatter chart"), legend };
   }
 
   // shared cartesian frame
@@ -16895,7 +17280,9 @@ function chartSvg(sheet, ch, opts = {}) {
           if (showLabels) { const ex = v >= 0 ? x1 + 4 : x0 - 4; out += `<text x="${ex}" y="${off + bw / 2 + 3}" text-anchor="${v >= 0 ? "start" : "end"}" class="wb-chart-dlabel">${t(chartFmt(v))}</text>`; }
         } else {
           const y0 = vy(Math.max(0, v)), y1 = vy(Math.min(0, v));
-          out += chartBarPath(off, y0, bw, Math.max(1, y1 - y0), v >= 0, grad(si, "v"), title);
+          // conditional point color (100-list #61): below-target bars go red
+          const paint = (ch.belowTargetRed && targetV != null && v < targetV) ? "#DC2626" : grad(si, "v");
+          out += chartBarPath(off, y0, bw, Math.max(1, y1 - y0), v >= 0, paint, title);
           if (showLabels) out += dlabel(off + bw / 2, v >= 0 ? y0 - 4 : y1 + 11, chartFmt(v));
         }
       });
@@ -16904,8 +17291,22 @@ function chartSvg(sheet, ch, opts = {}) {
     if (combo && series.length > 1) {
       const s = series[series.length - 1], si = series.length - 1;
       const cx = (i) => padL + ((i + 0.5) / xN) * plotW;
+      // secondary Y-axis (100-list #59): scale the line to its own min/max and
+      // draw a right-hand axis, so a count vs. percentage combo reads correctly
+      const sec = !!ch.secondaryAxis;
+      let vy2 = vy;
+      if (sec) {
+        const lv = s.values.filter((v) => v != null);
+        if (lv.length) {
+          const st2 = chartNiceTicks(Math.min(0, ...lv), Math.max(...lv));
+          const lo2 = st2[0], hi2 = st2[st2.length - 1], sp2 = (hi2 - lo2) || 1;
+          vy2 = (v) => padT + plotH - ((v - lo2) / sp2) * plotH;
+          for (const tk of st2) out += `<text x="${W - padR + 4}" y="${vy2(tk) + 3}" text-anchor="start" class="wb-chart-tick" style="fill:${color(si)}">${chartFmt(tk)}</text>`;
+          out += `<line x1="${W - padR}" y1="${padT}" x2="${W - padR}" y2="${padT + plotH}" stroke="${color(si)}" stroke-width="1" opacity="0.5"/>`;
+        }
+      }
       const pts = [];
-      s.values.forEach((v, i) => { if (v != null) pts.push([cx(i), vy(v), i, v]); });
+      s.values.forEach((v, i) => { if (v != null) pts.push([cx(i), vy2(v), i, v]); });
       if (pts.length) {
         out += `<path d="${pts.map((p, k) => `${k ? "L" : "M"}${p[0]},${p[1]}`).join(" ")}" fill="none" stroke="${color(si)}" stroke-width="2.5" stroke-linejoin="round"/>`;
         for (const [x, y, i, v] of pts) { out += `<circle cx="${x}" cy="${y}" r="3" fill="${color(si)}"><title>${t(categories[i])} · ${t(s.name)}: ${chartFmt(v)}</title></circle>`; if (showLabels && nCat <= 14) out += dlabel(x, y - 6, chartFmt(v)); }
@@ -17306,6 +17707,41 @@ function pivotEmbedInner(g, item, L, src) {
   return { title: esc(item.title || `Pivot · ${pivotRefText(item)}`), body: `${toolbar}${chart}${table}`, cls: "wb-embed-pivot" };
 }
 
+// Download a chart embed's SVG as a PNG (100-list #62): serialize the live
+// <svg>, draw it onto a 2× canvas, and save. Pure client-side, no deps.
+function downloadChartPng(card, item) {
+  const svg = card.querySelector("svg");
+  if (!svg) { _toast("Nothing to export in this widget", "info"); return; }
+  const clone = svg.cloneNode(true);
+  // inline the computed tick/label colors so the detached SVG renders on its own
+  clone.querySelectorAll("text").forEach((el) => { if (!el.getAttribute("fill")) el.setAttribute("fill", "#334155"); });
+  clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  const vb = (svg.getAttribute("viewBox") || "0 0 480 260").split(/\s+/).map(Number);
+  const w = vb[2] || svg.clientWidth || 480, h = vb[3] || svg.clientHeight || 260;
+  const scale = 2;
+  const xml = new XMLSerializer().serializeToString(clone);
+  const svg64 = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(xml)));
+  const img = new Image();
+  img.onload = () => {
+    const cv = document.createElement("canvas");
+    cv.width = w * scale; cv.height = h * scale;
+    const ctx = cv.getContext("2d");
+    ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, cv.width, cv.height);
+    ctx.drawImage(img, 0, 0, cv.width, cv.height);
+    cv.toBlob((blob) => {
+      if (!blob) { _toast("Couldn't render the PNG", "error"); return; }
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = ((item && item.title) || "chart").replace(/[^\w.-]+/g, "-").slice(0, 60) + ".png";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      _toast("Chart downloaded", "success");
+    }, "image/png");
+  };
+  img.onerror = () => _toast("Couldn't render the chart image", "error");
+  img.src = svg64;
+}
+
 function renderCharts(g) {                    // renders every embed kind
   const host = g.els.charts;
   if (!host) return;
@@ -17326,6 +17762,7 @@ function renderCharts(g) {                    // renders every embed kind
     return `<div class="wb-embed wb-embed-${key}${inner.cls ? " " + inner.cls : ""}" data-wb-embed-kind="${key}" data-wb-embed-id="${esc(item.id)}" style="${style}">
       <div class="wb-embed-head" ${WB.canEdit ? 'data-wb-embed-drag title="Drag to move"' : ""}>
         <span class="wb-embed-title">${inner.title}</span>
+        ${key === "charts" ? `<button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-embed-act="png" title="Download as PNG" aria-label="Download chart as PNG"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>` : ""}
         ${WB.canEdit ? `<button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-embed-act="edit" title="Edit" aria-label="Edit"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
         <button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-embed-act="dup" title="Duplicate" aria-label="Duplicate"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
         <button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-embed-act="delete" title="Delete" aria-label="Delete">×</button>` : ""}
@@ -17706,6 +18143,13 @@ function openChartDialog(g, existing) {
           <label class="wb-field"><span class="wb-field-label">Target line <span class="wb-field-opt">optional</span></span>
             <input type="number" class="wb-input" id="wb-chart-target" step="any" value="${existing && existing.target != null && existing.target !== "" ? esc(String(existing.target)) : ""}" placeholder="e.g. 40"></label>
         </div>
+        <div class="wb-field-row">
+          <div class="wb-field"><span class="wb-field-label">Combo / target options</span>
+            <div class="wb-chart-opts">
+              <label class="wb-check"><input type="checkbox" id="wb-chart-secondary" ${existing && existing.secondaryAxis ? "checked" : ""}><span>Secondary Y-axis for the combo line</span></label>
+              <label class="wb-check"><input type="checkbox" id="wb-chart-belowred" ${existing && existing.belowTargetRed ? "checked" : ""}><span>Color below-target columns red</span></label>
+            </div></div>
+        </div>
       </div>
       <div class="rr-modal-foot">
         <button class="rr-modal-btn" type="button" data-wb-close>Cancel</button>
@@ -17735,6 +18179,8 @@ function openChartDialog(g, existing) {
       forecast: Math.max(0, Math.min(24, +wrap.querySelector("#wb-chart-forecast").value || 0)),
       movavg: Math.max(0, Math.min(52, Math.round(+wrap.querySelector("#wb-chart-movavg").value || 0))),
       target: (() => { const raw = String(wrap.querySelector("#wb-chart-target").value).trim(); return raw === "" || !isFinite(+raw) ? null : +raw; })(),
+      secondaryAxis: wrap.querySelector("#wb-chart-secondary").checked,
+      belowTargetRed: wrap.querySelector("#wb-chart-belowred").checked,
       srcSheetId: (wrap.querySelector("#wb-chart-src") && wrap.querySelector("#wb-chart-src").value) || (existing && existing.srcSheetId) || "",
       ...range,
       // keep the on-grid position/size across edits; new charts get placed on render
@@ -18419,8 +18865,26 @@ async function askWorkbookAi(g, question) {
 // first row is a header, and renders an aggregated table below the grid.
 // rows/cols are grouping dimensions; values aggregate a field per cell.
 
-const WB_PIVOT_AGGS = { sum: "Sum", count: "Count", avg: "Average", min: "Min", max: "Max", countunique: "Count unique" };
+const WB_PIVOT_AGGS = { sum: "Sum", count: "Count", avg: "Average", min: "Min", max: "Max", countunique: "Count unique", median: "Median", stdev: "Std dev", var: "Variance", product: "Product" };
 const PIVOT_MAX_ROWS = 20000;
+
+// Date-grouping presets for a pivot row field (100-list #54): bucket a date
+// column by week (Mon-anchored ISO date), month, quarter, or year.
+const WB_PIVOT_DATEGROUP = { none: "Don't group", week: "By week", month: "By month", quarter: "By quarter", year: "By year" };
+function pivotDateBucket(v, mode) {
+  const d = typeof v === "number" ? serialToDate(v) : parseDateLoose(String(v));
+  if (!d || isNaN(d)) return v == null ? "" : String(v);
+  const y = d.getFullYear(), mo = d.getMonth();
+  if (mode === "year") return String(y);
+  if (mode === "quarter") return `${y} Q${Math.floor(mo / 3) + 1}`;
+  if (mode === "month") return `${y}-${String(mo + 1).padStart(2, "0")}`;
+  if (mode === "week") {
+    const day = (d.getDay() + 6) % 7; // Mon=0
+    const monday = new Date(d); monday.setDate(d.getDate() - day);
+    return isoDate(monday);
+  }
+  return v == null ? "" : String(v);
+}
 
 function sheetPivots(sheet) {
   const v = sheet.meta && sheet.meta.pivots;
@@ -18446,12 +18910,26 @@ function pivotSource(sheet, spec) {
 
 function pivotAggregate(agg, vals) {
   const nums = vals.map((v) => cellNumeric(v)).filter((v) => v != null);
+  const mean = () => nums.reduce((a, b) => a + b, 0) / nums.length;
   switch (agg) {
     case "count": return vals.filter((v) => v != null && v !== "").length;
     case "countunique": return new Set(vals.filter((v) => v != null && v !== "").map(String)).size;
-    case "avg": return nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : null;
+    case "avg": return nums.length ? mean() : null;
     case "min": return nums.length ? Math.min(...nums) : null;
     case "max": return nums.length ? Math.max(...nums) : null;
+    // 100-list #51: median, sample stdev/variance, product
+    case "median": {
+      if (!nums.length) return null;
+      const s = nums.slice().sort((a, b) => a - b), m = s.length >> 1;
+      return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+    }
+    case "var": case "stdev": {
+      if (nums.length < 2) return null;
+      const mu = mean();
+      const variance = nums.reduce((a, b) => a + (b - mu) ** 2, 0) / (nums.length - 1);
+      return agg === "var" ? variance : Math.sqrt(variance);
+    }
+    case "product": return nums.length ? nums.reduce((a, b) => a * b, 1) : null;
     case "sum": default: return nums.reduce((a, b) => a + b, 0);
   }
 }
@@ -18492,11 +18970,15 @@ function computePivot(sheet, spec) {
   const { records } = pivotSource(sheet, spec);
   const rowFields = (spec.rows || []).filter(Boolean);
   const colFields = (spec.cols || []).filter(Boolean);
-  const values = (spec.values || []).filter((v) => v && v.field);
+  const values = (spec.values || []).filter((v) => v && (v.field || v.calc));
   if (!values.length) return null;
   const filt = (spec.filters || []).filter((f) => f && f.field && Array.isArray(f.values) && f.values.length);
   const keyed = records.filter((rec) => filt.every((f) => f.values.map(String).includes(String(rec[f.field] ?? ""))));
-  const rowKey = (rec) => rowFields.map((f) => String(rec[f] ?? "")).join(" · ");
+  // date grouping (100-list #54): the first row field can be bucketed by
+  // week/month/quarter/year. Bucket the row-key value for that field only.
+  const dg = spec.dateGroup && spec.dateGroup !== "none" ? spec.dateGroup : null;
+  const dgField = dg && rowFields.length ? rowFields[0] : null;
+  const rowKey = (rec) => rowFields.map((f) => (f === dgField ? pivotDateBucket(rec[f], dg) : String(rec[f] ?? ""))).join(" · ");
   const colKey = (rec) => colFields.map((f) => String(rec[f] ?? "")).join(" · ");
   const rowSeen = new Set(), colSeen = new Set(), rowKeys = [], colKeys = [];
   for (const rec of keyed) {
@@ -18509,6 +18991,21 @@ function computePivot(sheet, spec) {
   const aggOf = (rk, ck, vi) => {
     const v = values[vi];
     const recs = keyed.filter((rec) => (rk == null || rowKey(rec) === rk) && (ck == null || colKey(rec) === ck));
+    // calculated field (100-list #52): a "=A + B" formula over the OTHER value
+    // fields' aggregates in the same cell (referenced by their field names).
+    if (v.calc) {
+      const scope = new Map();
+      values.forEach((vv, j) => {
+        if (j === vi || !vv.field) return;
+        const a = pivotAggregate(vv.agg, recs.map((r) => r[vv.field]));
+        scope.set(String(vv.field).toUpperCase(), a == null ? 0 : a);
+        scope.set(("V" + (j + 1)).toUpperCase(), a == null ? 0 : a); // V1/V2 aliases
+      });
+      try {
+        const out = evalFormula(String(v.calc).startsWith("=") ? v.calc : "=" + v.calc, { rowCount: 1, colCount: 1, getCell: () => null, scope });
+        return typeof out === "number" ? out : (out instanceof Arr ? out.top() : cellNumeric(out));
+      } catch (_) { return null; }
+    }
     return pivotAggregate(v.agg, recs.map((r) => r[v.field]));
   };
   return { rowFields, colFields, values, rowKeys, colKeys, aggOf, records: keyed };
@@ -18521,7 +19018,7 @@ function pivotNumFmt(v) {
 }
 
 // "Show values as" display modes for a pivot value field (Excel-style).
-const WB_PIVOT_SHOWS = { raw: "Raw", pct: "% of total", running: "Running total", rank: "Rank" };
+const WB_PIVOT_SHOWS = { raw: "Raw", pct: "% of column", pctrow: "% of row", running: "Running total", rank: "Rank" };
 const _pvNum = (v) => (typeof v === "number" && isFinite(v) ? v : null);
 function pivotPctFmt(v) {
   if (v == null || !isFinite(v)) return "";
@@ -18530,9 +19027,10 @@ function pivotPctFmt(v) {
 // One display value for a body cell under a "show values as" mode. `raw` is the
 // aggregate; `colTotal` the column's grand total; `running`/`rank` the
 // precomputed cumulative sum and 1-based descending rank for this cell.
-function pivotShowCell(mode, raw, colTotal, running, rank) {
+function pivotShowCell(mode, raw, colTotal, running, rank, rowTotal) {
   switch (mode) {
     case "pct": { const n = _pvNum(raw), d = _pvNum(colTotal); return d ? pivotPctFmt((n == null ? 0 : n) / d * 100) : ""; }
+    case "pctrow": { const n = _pvNum(raw), d = _pvNum(rowTotal); return d ? pivotPctFmt((n == null ? 0 : n) / d * 100) : ""; } // 100-list #51
     case "running": return pivotNumFmt(running);
     case "rank": return rank == null ? "" : String(rank);
     default: return pivotNumFmt(raw);
@@ -18553,8 +19051,8 @@ function pivotTableHtml(sheet, spec) {
   const nv = p.values.length;
   const hasCols = p.colFields.length > 0 && p.colKeys.length > 0;
   const rowHdrs = p.rowFields.length ? p.rowFields : ["Total"];
-  const showOf = (vi) => (WB_PIVOT_SHOWS[p.values[vi].show] ? p.values[vi].show : "raw");
-  const vlab = (vi) => { const m = showOf(vi); const base = `${WB_PIVOT_AGGS[p.values[vi].agg] || ""} of ${p.values[vi].field}`; return esc(m === "raw" ? base : `${base} · ${WB_PIVOT_SHOWS[m]}`); };
+  const showOf = (vi) => (p.values[vi].calc ? "raw" : (WB_PIVOT_SHOWS[p.values[vi].show] ? p.values[vi].show : "raw"));
+  const vlab = (vi) => { const v = p.values[vi]; if (v.calc) return esc(v.name || "Calc"); const m = showOf(vi); const base = `${WB_PIVOT_AGGS[v.agg] || ""} of ${v.field}`; return esc(m === "raw" ? base : `${base} · ${WB_PIVOT_SHOWS[m]}`); };
   // column groups: each colKey, then a Grand Total group (only when cols exist)
   const groups = hasCols ? [...p.colKeys.map((ck) => ({ ck, label: ck || "(blank)" })), { ck: null, label: "Grand total" }] : [{ ck: "", label: null }];
 
@@ -18605,19 +19103,46 @@ function pivotTableHtml(sheet, spec) {
     thead = `<tr>${rowHdrs.map((h) => `<th class="wb-pv-rh">${esc(h)}</th>`).join("")}${p.values.map((_, vi) => `<th class="wb-pv-vh">${vlab(vi)}</th>`).join("")}</tr>`;
   }
 
+  // subtotals per first row dimension (100-list #55), when there are 2 row
+  // fields and the option is on. Insert a subtotal row after each group.
+  const wantSubtotals = spec.subtotals !== false && rowHdrs.length >= 2 && !topN;
+  const subtotalRow = (firstDim) => {
+    const rhCells = `<td class="wb-pv-rk wb-pv-sub" colspan="${rowHdrs.length}">${esc(firstDim)} subtotal</td>`;
+    const cells = groups.map((gp) => p.values.map((_, vi) => {
+      const recs = p.records.filter((rec) => String(rec[p.rowFields[0]] ?? "") === firstDim);
+      const v = p.values[vi];
+      const subRecs = recs.filter((rec) => gp.ck == null || (p.colFields.length ? p.colFields.map((f) => String(rec[f] ?? "")).join(" · ") === gp.ck : true));
+      let val;
+      if (v.calc) {
+        const scope = new Map();
+        p.values.forEach((vv, j) => { if (j === vi || !vv.field) return; const a = pivotAggregate(vv.agg, subRecs.map((r) => r[vv.field])); scope.set(String(vv.field).toUpperCase(), a == null ? 0 : a); scope.set("V" + (j + 1), a == null ? 0 : a); });
+        try { const o = evalFormula(String(v.calc).startsWith("=") ? v.calc : "=" + v.calc, { rowCount: 1, colCount: 1, getCell: () => null, scope }); val = typeof o === "number" ? o : cellNumeric(o); } catch (_) { val = null; }
+      } else val = pivotAggregate(v.agg, subRecs.map((r) => r[v.field]));
+      return `<td class="wb-pv-num wb-pv-sub">${pivotNumFmt(val)}</td>`;
+    }).join("")).join("");
+    return `<tr class="wb-pv-subrow">${rhCells}${cells}</tr>`;
+  };
+
+  let lastFirstDim = null;
   const bodyRows = rowKeys.map((rk, ri) => {
     const parts = p.rowFields.length ? rk.split(" · ") : ["Total"];
+    let out = "";
+    if (wantSubtotals && lastFirstDim != null && parts[0] !== lastFirstDim) out += subtotalRow(lastFirstDim);
+    lastFirstDim = parts[0];
     const rhCells = rowHdrs.map((_, i) => `<td class="wb-pv-rk">${esc(parts[i] ?? "")}</td>`).join("");
     const dataCells = groups.map((gp, gi) => p.values.map((_, vi) => {
       const mode = showOf(vi);
       const raw = rawM[gi][vi][ri];
-      const cell = pivotShowCell(mode, raw, p.aggOf(null, gp.ck, vi), runM[gi][vi][ri], rankM[gi][vi][ri]);
+      // % of row divides by this row's grand-total (the null-ck aggregate)
+      const rowTotal = hasCols ? p.aggOf(rk, null, vi) : raw;
+      const cell = pivotShowCell(mode, raw, p.aggOf(null, gp.ck, vi), runM[gi][vi][ri], rankM[gi][vi][ri], rowTotal);
       const drill = gp.ck === null ? `data-pv-drill data-pv-rk="${esc(rk)}" data-pv-ckall="1" data-pv-vi="${vi}"` : `data-pv-drill data-pv-rk="${esc(rk)}" data-pv-ck="${esc(gp.ck)}" data-pv-vi="${vi}"`;
       const hb = heatBg(vi, gp.ck, raw);
       return `<td class="wb-pv-num wb-pv-drill${hb ? " wb-pv-heat" : ""}" ${drill}${hb} title="Show the source rows behind this number">${cell}</td>`;
     }).join("")).join("");
-    return `<tr>${rhCells}${dataCells}</tr>`;
-  }).join("");
+    out += `<tr>${rhCells}${dataCells}</tr>`;
+    return out;
+  }).join("") + (wantSubtotals && lastFirstDim != null ? subtotalRow(lastFirstDim) : "");
 
   // grand total row — pct reads 100%, rank is meaningless (—), raw/running show the total
   const gtLabel = `<td class="wb-pv-rk wb-pv-gt" colspan="${rowHdrs.length}">Grand total${topN > 0 && rowKeys.length < p.rowKeys.length ? ` · top ${rowKeys.length}` : ""}</td>`;
@@ -18627,9 +19152,11 @@ function pivotTableHtml(sheet, spec) {
     const cell = mode === "pct" ? (_pvNum(total) ? "100%" : "") : mode === "rank" ? "—" : pivotNumFmt(total);
     return `<td class="wb-pv-num wb-pv-gt">${cell}</td>`;
   }).join("")).join("");
-  const foot = `<tr>${gtLabel}${gtCells}</tr>`;
+  // grand-total position (100-list #55): bottom (default), top, or off
+  const gtPos = spec.gtPos === "top" || spec.gtPos === "off" ? spec.gtPos : "bottom";
+  const gtRow = gtPos === "off" ? "" : `<tr class="wb-pv-gtrow">${gtLabel}${gtCells}</tr>`;
 
-  return `<div class="wb-pv-scroll"><table class="wb-pv-table${spec.heatmap ? " is-heatmap" : ""}"><thead>${thead}</thead><tbody>${bodyRows}${foot}</tbody></table></div>`;
+  return `<div class="wb-pv-scroll"><table class="wb-pv-table${spec.heatmap ? " is-heatmap" : ""}"><thead>${thead}</thead><tbody>${gtPos === "top" ? gtRow : ""}${bodyRows}${gtPos === "bottom" ? gtRow : ""}</tbody></table></div>`;
 }
 
 // Source records behind one pivot cell — filtered to its row key, column key
@@ -18800,11 +19327,24 @@ function openPivotDialog(g, existing) {
           <label class="wb-field" style="flex:0 0 138px"><span class="wb-field-label">show</span>
             <select class="wb-input" id="wb-pv-show2">${showOpts(spec.values && spec.values[1] && spec.values[1].show)}</select></label>
         </div>
+        <div class="wb-field-row">
+          <label class="wb-field"><span class="wb-field-label">calculated field <span class="wb-field-opt">optional · formula over the value fields</span></span>
+            <input type="text" class="wb-input" id="wb-pv-calc" value="${esc((spec.values && spec.values.find((v) => v && v.calc) || {}).calc || "")}" placeholder='e.g. =V1 / V2 * 100' spellcheck="false"></label>
+          <label class="wb-field" style="flex:0 0 160px"><span class="wb-field-label">named</span>
+            <input type="text" class="wb-input" id="wb-pv-calcname" value="${esc((spec.values && spec.values.find((v) => v && v.calc) || {}).name || "")}" placeholder="Ratio" maxlength="40"></label>
+        </div>
+        <div class="wb-field-row" style="margin-top:10px">
+          <label class="wb-field"><span class="wb-field-label">Group first row field by dates</span>
+            <select class="wb-input" id="wb-pv-dategroup">${Object.entries(WB_PIVOT_DATEGROUP).map(([k, l]) => `<option value="${k}" ${(spec.dateGroup || "none") === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+          <label class="wb-field"><span class="wb-field-label">Grand total</span>
+            <select class="wb-input" id="wb-pv-gtpos">${[["bottom", "At the bottom"], ["top", "At the top"], ["off", "Hidden"]].map(([k, l]) => `<option value="${k}" ${(spec.gtPos || "bottom") === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+        </div>
         <label class="wb-field" style="margin-top:10px"><span class="wb-field-label">Show top N rows <span class="wb-field-opt">optional · 0 = all</span></span>
           <input type="number" class="wb-input" id="wb-pv-topn" min="0" max="10000" step="1" value="${esc(String(spec.topN || 0))}"></label>
         <div class="wb-field" style="margin-top:10px"><span class="wb-field-label">Options</span>
           <div class="wb-chart-opts">
             <label class="wb-check"><input type="checkbox" id="wb-pv-heatmap" ${existing && existing.heatmap ? "checked" : ""}><span>Heatmap value cells</span></label>
+            <label class="wb-check"><input type="checkbox" id="wb-pv-subtotals" ${spec.subtotals !== false ? "checked" : ""}><span>Subtotals per group (2 row fields)</span></label>
           </div></div>
       </div>
       <div class="rr-modal-foot">
@@ -18853,14 +19393,20 @@ function openPivotDialog(g, existing) {
       { field: wrap.querySelector("#wb-pv-val1").value, agg: wrap.querySelector("#wb-pv-agg1").value, show: wrap.querySelector("#wb-pv-show1").value },
       { field: wrap.querySelector("#wb-pv-val2").value, agg: wrap.querySelector("#wb-pv-agg2").value, show: wrap.querySelector("#wb-pv-show2").value },
     ].filter((v) => v.field);
+    // calculated field (100-list #52): appended as a value with a formula
+    const calc = wrap.querySelector("#wb-pv-calc").value.trim();
+    if (calc) values.push({ calc, name: wrap.querySelector("#wb-pv-calcname").value.trim() || "Calc", agg: "sum", show: "raw" });
     if (!rows.length) { _toast("Pick at least one Rows field", "warn"); return; }
     if (!values.length) { _toast("Pick at least one Values field", "warn"); return; }
     const topN = Math.max(0, Math.min(10000, Math.round(+wrap.querySelector("#wb-pv-topn").value || 0)));
     const srcId = (wrap.querySelector("#wb-pv-src") && wrap.querySelector("#wb-pv-src").value) || (existing && existing.srcSheetId) || srcDef.id;
     const heatmap = !!(wrap.querySelector("#wb-pv-heatmap") && wrap.querySelector("#wb-pv-heatmap").checked);
+    const dateGroup = wrap.querySelector("#wb-pv-dategroup").value || "none";
+    const gtPos = wrap.querySelector("#wb-pv-gtpos").value || "bottom";
+    const subtotals = !!wrap.querySelector("#wb-pv-subtotals").checked;
     // Spread existing first so a pivot's on-grid position (layout) and view
     // state (chart/collapsed) survive edits; new pivots get placed on the grid.
-    const next = { ...(existing || {}), id: existing ? existing.id : "pv" + Math.random().toString(36).slice(2, 8), ...rng, rows, cols, values, topN, srcSheetId: srcId, heatmap, title: existing ? existing.title : "" };
+    const next = { ...(existing || {}), id: existing ? existing.id : "pv" + Math.random().toString(36).slice(2, 8), ...rng, rows, cols, values, topN, srcSheetId: srcId, heatmap, dateGroup, gtPos, subtotals, title: existing ? existing.title : "" };
     if (!next.layout) next.layout = embedDefaultLayout(g, "pivots", rng);
     const pivots = sheetPivots(sheet).filter((p) => p.id !== next.id);
     pivots.push(next);
@@ -20145,6 +20691,8 @@ function openCellContextMenu(g, x, y, kind) {
     cellImgSrc(g.sheet.cells.get(cellKey(r, c))) ? item("view-image", "View image") : "",
     g.sheet.cells.get(cellKey(r, c))?.format?.img ? item("remove-image", "Remove image") : "",
     item("copy-ref", "Copy cell reference"),
+    item("copy-md", "Copy as Markdown"),
+    item("copy-html", "Copy as HTML table"),
     item("paste-values", "Paste values only"),
     item("trace-precedents", "Highlight precedents"),
     item("trace-dependents", "Highlight dependents"),
@@ -20178,6 +20726,8 @@ function openCellContextMenu(g, x, y, kind) {
     switch (act) {
       case "cut": await copySelection(g, "cut"); break;
       case "copy": await copySelection(g); break;
+      case "copy-md": await copySelectionAs(g, "md"); break;
+      case "copy-html": await copySelectionAs(g, "html"); break;
       case "paste": await pasteFromClipboard(g); break;
       case "insert-row-above": restructure(g, "row", rect0.r0, kind === "row" ? nRows : 1); break;
       case "insert-row-below": restructure(g, "row", rect0.r1 + 1, kind === "row" ? nRows : 1); break;
@@ -20837,6 +21387,7 @@ function wbMenuItems(menu, g) {
       { label: "Download", sub: [
         { label: "Microsoft Excel (.xlsx)", act: "file:xlsx", disabled: !g },
         { label: "CSV (current sheet)", act: "file:csv", disabled: !g },
+        { label: "PDF (current sheet)", act: "file:pdf", disabled: !g },
       ] },
       { label: "Print…", act: "file:print", disabled: !g },
       sep,
@@ -20950,6 +21501,12 @@ function wbMenuItems(menu, g) {
           { label: "Vans", act: "data:fill-vans", disabled: !ed || !g },
           { label: "Schedule (this week)", act: "data:fill-schedule", disabled: !ed || !g },
           { label: "Time off / PTO", act: "data:fill-pto", disabled: !ed || !g },
+          sep,
+          { label: "Live formulas — insert =RR.DRIVERS()", act: "data:rr-formula:RR.DRIVERS", disabled: !ed || !g },
+          { label: "Live formulas — insert =RR.VANS()", act: "data:rr-formula:RR.VANS", disabled: !ed || !g },
+          { label: "Live formulas — insert =RR.SCHEDULE()", act: "data:rr-formula:RR.SCHEDULE", disabled: !ed || !g },
+          { label: "Live formulas — insert =RR.SCORECARD()", act: "data:rr-formula:RR.SCORECARD", disabled: !ed || !g },
+          { label: "Import from another workbook…", act: "data:importwb", disabled: !ed || !g },
         ] },
         { label: "Build Schedule from Sheet…", act: "data:fill-build", disabled: !ed || !g },
         { label: "Send selection as checklist to Driver App…", act: "data:checklist-send", disabled: !ed || !g },
@@ -21034,6 +21591,7 @@ function wbMenuAction(act, g) {
     case "file:import-xlsx": if (need()) importXlsxInto(g); return;
     case "file:xlsx": if (need()) exportBlockXlsx(g); return;
     case "file:csv": if (need()) exportSheetCsv(g); return;
+    case "file:pdf": if (need()) exportSheetPdf(g); return;
     case "file:print": if (need()) printSheet(g); return;
     case "file:rename": { const t = document.getElementById("wb-title-input"); if (t) { t.focus(); t.select(); } return; }
     case "file:share": openPanelTab("sharing"); return;
@@ -21108,6 +21666,26 @@ function wbMenuAction(act, g) {
     case "fmt:cells": if (need()) openFormatCellsDialog(g); return;
     case "fmt:clear": if (need()) clearFormatting(g); return;
     case "data:fill-people": if (need()) openPeoplePicker(g); return;
+    case "data:importwb": if (need()) {
+      // 100-list #10: prompt for a workbook + range, drop an IMPORTWB formula
+      promptModal({
+        title: "Import from another workbook", label: "Workbook title (or id)",
+        value: "", placeholder: "e.g. Q3 Roster", submitLabel: "Next",
+        onSubmit: (wbName) => {
+          if (!String(wbName).trim()) return;
+          promptModal({
+            title: "Which range?", label: "Range (Sheet!A1:C20)",
+            value: "Sheet 1!A1:D20", submitLabel: "Insert",
+            onSubmit: (ref) => {
+              const wbEsc = String(wbName).replace(/"/g, '""');
+              const refEsc = String(ref).replace(/"/g, '""');
+              startEdit(g, g.active.r, g.active.c, `=IMPORTWB("${wbEsc}", "${refEsc}")`);
+              commitEdit(g, 1, 0);
+            },
+          });
+        },
+      });
+    } return;
     case "data:fill-vans": if (need()) fillLoadVans(g); return;
     case "data:fill-schedule": if (need()) fillLoadSchedule(g); return;
     case "data:fill-pto": if (need()) fillLoadPto(g); return;
@@ -21197,6 +21775,12 @@ function wbMenuAction(act, g) {
   else if (ns === "fmt" && verb === "fs") formatSelection(g, { fs: +arg });
   else if (ns === "data" && verb === "fv") applyFilterView(g, arg);
   else if (ns === "data" && verb === "fv-del") { deleteFilterView(g, arg); _toast("Filter view deleted", "success"); }
+  else if (ns === "data" && verb === "rr-formula" && g) {
+    // 100-list #11: drop a live RR.* array formula into the active cell
+    startEdit(g, g.active.r, g.active.c, `=${arg}()`);
+    commitEdit(g, 1, 0);
+    _toast("Live formula inserted — data loads in the background", "info");
+  }
 }
 
 function openWbMenu(name, btn) {
@@ -22074,6 +22658,126 @@ function fillWriteTable(g, headers, rows, meta) {
   saveSheetMeta(sheet.id);
   repaintGrid(g);
   renderLiveBar(g);
+}
+
+// ── RR.* / IMPORTWB backing loaders (100-list #10, #11) ──────────────────────
+// Populate RR_CACHE / WB_IMPORT_CACHE from Supabase, then recalc every open
+// grid so the formulas that were waiting on #N/A resolve and repaint.
+function recalcAllGridsAndRepaint() {
+  for (const g of GRIDS.values()) {
+    recalcSheet(g.sheet);
+    computeGeometry(g);
+    repaintGrid(g);
+    scheduleChartRender(g);
+  }
+}
+
+async function queueRrLoad(name) {
+  if (RR_PENDING.has(name)) return;
+  RR_PENDING.add(name);
+  try {
+    const dsp = _dsp();
+    const sb = _sb();
+    if (!dsp || !sb) return;
+    let grid = [];
+    if (name === "drivers") {
+      const res = await sb.from("drivers").select("first_name, last_name, phone, status, transporter_id")
+        .eq("dsp_id", dsp.id).is("archived_at", null).order("last_name").limit(2000);
+      if (res.error) throw res.error;
+      grid = [["Name", "Phone", "Status", "Transporter ID"],
+        ...(res.data || []).map((d) => [[d.first_name, d.last_name].filter(Boolean).join(" "), d.phone || "", d.status || "", d.transporter_id || ""])];
+    } else if (name === "vans") {
+      const res = await sb.from("vehicles").select("name, van_type, operational_status, status, mileage")
+        .eq("dsp_id", dsp.id).is("archived_at", null).order("name").limit(2000);
+      if (res.error) throw res.error;
+      grid = [["Van", "Type", "Status", "Mileage"],
+        ...(res.data || []).map((v) => [v.name || "", v.van_type || "", (v.operational_status === "grounded" || v.status === "out_of_service") ? "Grounded" : "Active", v.mileage ?? ""])];
+    } else if (name.startsWith("schedule:")) {
+      const weekStart = name.slice("schedule:".length) || fillNextWeekStart();
+      const dates = fillWeekDates(weekStart);
+      const res = await sb.from("shifts").select("date, route_code, driver_id, status")
+        .eq("dsp_id", dsp.id).gte("date", dates[0]).lte("date", dates[6]).order("date").order("route_code").limit(5000);
+      if (res.error) throw res.error;
+      const names = await fillDriverNames(dsp);
+      grid = [["Date", "Route", "Driver", "Status"],
+        ...(res.data || []).map((s) => [s.date || "", s.route_code || "", s.driver_id ? (names.get(s.driver_id) || "") : "(open)", s.status || ""])];
+    } else if (name === "scorecard") {
+      const res = await sb.from("scorecards").select("week_start, overall_tier, dcr, dnr_dpmo, pod, cc")
+        .eq("dsp_id", dsp.id).order("week_start", { ascending: false }).limit(52);
+      if (res.error) {
+        // scorecards table may not exist for every DSP — cache an empty grid
+        grid = [["Week", "Tier", "DCR", "DNR DPMO", "POD", "CC"]];
+      } else {
+        grid = [["Week", "Tier", "DCR", "DNR DPMO", "POD", "CC"],
+          ...(res.data || []).map((s) => [s.week_start || "", s.overall_tier || "", s.dcr ?? "", s.dnr_dpmo ?? "", s.pod ?? "", s.cc ?? ""])];
+      }
+    }
+    RR_CACHE.set(name, { grid, at: Date.now() });
+    recalcAllGridsAndRepaint();
+  } catch (e) {
+    console.warn("RR load", name, e && e.message);
+    RR_CACHE.set(name, { grid: [["(couldn't load " + name + ")"]], at: Date.now() });
+    recalcAllGridsAndRepaint();
+  } finally {
+    RR_PENDING.delete(name);
+  }
+}
+
+async function queueWbImport(wbRef, ref) {
+  const key = wbRef + "|" + ref;
+  if (WB_IMPORT_PENDING.has(key)) return;
+  WB_IMPORT_PENDING.add(key);
+  try {
+    const dsp = _dsp();
+    const sb = _sb();
+    if (!dsp || !sb) return;
+    // resolve the workbook by id or (case-insensitive) title, in this DSP
+    let wbRow = null;
+    if (/^[0-9a-f-]{36}$/i.test(wbRef)) {
+      const r = await sb.from("workbooks").select("id, title, dsp_id").eq("id", wbRef).maybeSingle();
+      wbRow = r.data && r.data.dsp_id === dsp.id ? r.data : null;
+    }
+    if (!wbRow) {
+      const r = await sb.from("workbooks").select("id, title, dsp_id").eq("dsp_id", dsp.id).ilike("title", wbRef).limit(1);
+      wbRow = r.data && r.data[0] ? r.data[0] : null;
+    }
+    if (!wbRow) { WB_IMPORT_CACHE.set(key, { grid: [["#REF — no workbook “" + wbRef + "”"]], at: Date.now() }); recalcAllGridsAndRepaint(); return; }
+    // ref is Sheet!A1:C9 or A1:C9 (first sheet); resolve the sheet + rect
+    const bang = ref.indexOf("!");
+    const sheetName = bang >= 0 ? ref.slice(0, bang).replace(/^'|'$/g, "") : null;
+    const a1 = bang >= 0 ? ref.slice(bang + 1) : ref;
+    const shRes = await sb.from("workbook_sheets").select("id, name, position").eq("workbook_id", wbRow.id).order("position");
+    const sheets = shRes.data || [];
+    const target = sheetName ? sheets.find((s) => s.name.trim().toLowerCase() === sheetName.trim().toLowerCase()) : sheets[0];
+    if (!target) { WB_IMPORT_CACHE.set(key, { grid: [["#REF — no sheet"]], at: Date.now() }); recalcAllGridsAndRepaint(); return; }
+    let node;
+    try { node = parseFormula("=" + a1); } catch (_) { node = null; }
+    if (!node || (node.k !== "range" && node.k !== "ref")) { WB_IMPORT_CACHE.set(key, { grid: [["#REF — bad range"]], at: Date.now() }); recalcAllGridsAndRepaint(); return; }
+    const a = node.k === "ref" ? { row: node.row, col: node.col } : node.a;
+    const b = node.k === "ref" ? { row: node.row, col: node.col } : node.b;
+    const r0 = Math.min(a.row, b.row), r1 = Math.min(Math.max(a.row, b.row), r0 + 200);
+    const c0 = Math.min(a.col, b.col), c1 = Math.min(Math.max(a.col, b.col), c0 + 50);
+    const cellRes = await sb.from("workbook_cells").select("row_index, col_index, value, computed, formula")
+      .eq("sheet_id", target.id).gte("row_index", r0).lte("row_index", r1).gte("col_index", c0).lte("col_index", c1);
+    const byKey = new Map((cellRes.data || []).map((row) => [row.row_index + "," + row.col_index, row]));
+    const grid = [];
+    for (let r = r0; r <= r1; r++) {
+      const line = [];
+      for (let c = c0; c <= c1; c++) {
+        const cc = byKey.get(r + "," + c);
+        line.push(cc ? (cc.formula ? (cc.computed ?? "") : (cc.value ?? "")) : "");
+      }
+      grid.push(line);
+    }
+    WB_IMPORT_CACHE.set(key, { grid, at: Date.now() });
+    recalcAllGridsAndRepaint();
+  } catch (e) {
+    console.warn("IMPORTWB", key, e && e.message);
+    WB_IMPORT_CACHE.set(key, { grid: [["(couldn't import)"]], at: Date.now() });
+    recalcAllGridsAndRepaint();
+  } finally {
+    WB_IMPORT_PENDING.delete(key);
+  }
 }
 
 // ── Live data: refreshable operational datasets ──────────────────────────────
@@ -23087,11 +23791,11 @@ function fillDriverAction(g, driverId, act) {
 // not part of the app surface; live.js imports only the view loaders.
 
 export const __engine = {
-  parseFormula, evalFormula, evalAst, extractRefs, bindNames, isValidRangeName, cfScaleColor, buildPasteCell, pasteValueParts, valueSatisfiesRule, dvDateSerial, matchesCriterion, FormulaError, Arr,
+  parseFormula, evalFormula, evalAst, extractRefs, bindNames, isValidRangeName, cfScaleColor, buildPasteCell, pasteValueParts, valueSatisfiesRule, dvDateSerial, matchesCriterion, FormulaError, Arr, rrSelect,
   fillSeries, cycleRefAnchor, errorHint, columnSuggestion, snapshotSheet, applySheetSnapshot,
   colLabel, colIndex, cellRef, parseCellRef,
   dateToSerial, serialToDate, isoDate, parseDateLoose,
-  buildXlsxBytes, parseXlsxBytes, buildPrintTable, formatForDisplay, applyCustomFormat, customFormatColor, solveGoalSeek, filterCondHits, inferSmartTransform,
+  buildXlsxBytes, parseXlsxBytes, buildPrintTable, buildTablePdf, formatForDisplay, applyCustomFormat, customFormatColor, solveGoalSeek, filterCondHits, inferSmartTransform, parseCsv,
   condBarPercent, condIconPick, WB_CF_ICONSETS, isCellProtected, runQuery,
   chartSvg, WB_CHART_TYPES, kpiTileHtml, tableTileHtml, textTileHtml, kpiSparkline, kpiFmt, embedCellNum,
   chartData, aggRange, distinctColumnValues, kpiValue, KPI_AGGS,
