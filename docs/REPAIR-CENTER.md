@@ -419,3 +419,51 @@ first real inbound email + a Resend test bounce are worth watching in
 the function logs after deploy. Invoices are journaled and typed but
 not reconciled — that's Phase 8. Multi-case senders fall back to the
 Fleet Bridge inbox by design.
+
+## 15 · Phase 8 — what shipped
+
+- `supabase/migrations/0491_repair_center_invoices.sql` —
+  `repair_invoices` + `repair_invoice_line_items` (integer cents,
+  server-recomputed totals, totals_mismatch flagged never corrected;
+  lifecycle draft → recorded → settled | disputed, corrected invoices
+  supersede unsettled predecessors, settled is final).
+  `repair_quote_extract_save` replaced: invoice-kind extractions now
+  materialize DRAFT invoices (pinned to the current authorization)
+  under the same fail-closed coercion and reviewed-never-overwritten
+  rules as estimates. `repair_invoice_review` (record/discard),
+  `repair_invoice_manual_add` (paper/phone, enters as recorded),
+  `repair_invoice_settle` — the variance gate: the authoritative
+  variance is derived in SQL from stored cents (NTE cap wins), and
+  ANY positive variance requires an explicit reason that lands on the
+  timeline and in compliance_audit_events; zero tolerance by design.
+  Settling writes repair_cases.invoice_total_cents (dormant since
+  0486). `repair_case_invoices` returns invoices + the authorization
+  snapshot for the reconciliation view.
+- Engine — `buildReconciliation`: conservative line-diff of invoice vs
+  the authorization's APPROVED snapshot lines (declined lines count as
+  unauthorized work), matched/not_authorized/not_invoiced rows with
+  per-line deltas, NTE-cap-aware totals, unauthorized-scope subtotal.
+  INVOICE_STATUS vocab (no lifecycle state is red — red is earned by
+  the derived exceeds-authorization condition). 48 node tests.
+- Dashboard — "Invoice & reconciliation" drawer section (status pills,
+  red "+$X over" badge, variance/dispute notes, Log invoice… manual
+  entry); extracted-invoice review modal (record/discard, source doc
+  one click away); reconcile modal (Authorized vs Invoice vs Δ table
+  with not-authorized tags, red exceeds callout, unauthorized-scope
+  subtotal, reason-gated Accept & settle, note-gated Dispute); queue
+  money cell shows the settled invoice, red with "over authorization"
+  when above the approved total; drawer red callout when the case's
+  settled invoice exceeds its authorization.
+- Verified: 0486→0491 from scratch + 0491 double-applied on local
+  Postgres 16 with all six assertion suites (invoice extraction
+  replacing the empty draft, authorization pinning, recompute, the
+  variance-note gate, audit row, settled-is-final,
+  reviewed-never-overwritten for invoices, no-authorization settles
+  without the gate, dispute→resolve, supersede-spares-settled, guard
+  rails); Playwright reconcile-flow drive with zero console errors.
+
+Phase 8 limits: reconciliation is against the CURRENT authorization
+snapshot (an invoice pinned to an older superseded authorization
+settles against its pinned one server-side); no payment tracking (out
+of MVP scope per §9); line-item dispute granularity is via the note,
+not per-line flags.

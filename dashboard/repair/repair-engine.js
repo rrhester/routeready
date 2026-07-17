@@ -459,6 +459,110 @@ export function buildComparison(quotes) {
   };
 }
 
+// ── Invoice reconciliation (Phase 8) ────────────────────────────────────
+// Mirrors migration 0491's repair_invoices checks.
+export const INVOICE_STATUS_LABEL = {
+  draft: "Extracted — review",
+  recorded: "Recorded",
+  disputed: "Disputed",
+  settled: "Settled",
+  superseded: "Superseded",
+};
+
+// Statuses are calm; RED is reserved for the derived condition
+// "invoice exceeds authorization", not for any lifecycle state.
+export const INVOICE_STATUS_TONE = {
+  draft: "warn",
+  recorded: "info",
+  disputed: "warn",
+  settled: "ok",
+  superseded: "neutral",
+};
+
+// Line-by-line diff of an invoice against the authorization snapshot —
+// display math over server-stored cents (settlement re-derives the
+// authoritative variance in SQL). Rows are matched by the same
+// conservative normalized-description key as quote comparison; a wrong
+// merge is worse than an unmatched row.
+//   rows      — {description, category, invoice_cents, authorized_cents,
+//                delta_cents, state: matched|not_authorized|not_invoiced}
+//   totals    — authorized (cap wins for NTE), invoiced, variance
+//   over      — true when the invoice exceeds the authorization
+//   unauthorized_cents — sum of invoice lines outside the approved scope
+export function buildReconciliation(invoice, authorization) {
+  const invLines = (invoice?.line_items || []).filter((l) => l.category !== "tax");
+  const authLines = (authorization?.lines || [])
+    .filter((l) => l.decision === "approved" && l.category !== "tax");
+
+  const authByKey = new Map();
+  for (const l of authLines) {
+    const key = normalizeLineKey(l.description);
+    if (!key) continue;
+    const cur = authByKey.get(key);
+    if (cur) cur.cents += Math.round(l.line_total_cents || 0);
+    else authByKey.set(key, { description: l.description, category: l.category,
+      cents: Math.round(l.line_total_cents || 0) });
+  }
+
+  const rows = [];
+  const seen = new Set();
+  for (const l of invLines) {
+    const key = normalizeLineKey(l.description);
+    const auth = key ? authByKey.get(key) : null;
+    if (auth && !seen.has(key)) {
+      seen.add(key);
+      const inv = Math.round(l.line_total_cents || 0);
+      rows.push({
+        description: l.description, category: l.category,
+        invoice_cents: inv, authorized_cents: auth.cents,
+        delta_cents: inv - auth.cents, state: "matched",
+      });
+    } else if (auth && seen.has(key)) {
+      // duplicate description within the invoice: extra quantity of an
+      // authorized item — treat the surplus as its own matched row
+      const inv = Math.round(l.line_total_cents || 0);
+      rows.push({
+        description: l.description, category: l.category,
+        invoice_cents: inv, authorized_cents: 0,
+        delta_cents: inv, state: "not_authorized",
+      });
+    } else {
+      rows.push({
+        description: l.description, category: l.category,
+        invoice_cents: Math.round(l.line_total_cents || 0),
+        authorized_cents: null, delta_cents: null, state: "not_authorized",
+      });
+    }
+  }
+  for (const [key, a] of authByKey) {
+    if (seen.has(key)) continue;
+    rows.push({
+      description: a.description, category: a.category,
+      invoice_cents: null, authorized_cents: a.cents,
+      delta_cents: null, state: "not_invoiced",
+    });
+  }
+
+  const authorized = authorization
+    ? (authorization.nte_cap_cents ?? authorization.authorized_total_cents ?? null)
+    : null;
+  const invoiced = invoice?.grand_total_cents ?? invoice?.shop_reported_total_cents ?? null;
+  const variance = varianceCents(authorized, invoiced);
+  const unauthorized = sumCents(rows
+    .filter((r) => r.state === "not_authorized")
+    .map((r) => r.invoice_cents));
+
+  return {
+    rows,
+    authorized_cents: authorized,
+    invoiced_cents: invoiced,
+    variance_cents: variance,
+    over: variance != null && variance > 0,
+    unauthorized_cents: unauthorized,
+    has_authorization: !!authorization,
+  };
+}
+
 // ── Queue helpers ───────────────────────────────────────────────────────
 // Attention rank drives the "Needs attention" list and default queue
 // sort: overdue promises and old grounded vans float to the top.
