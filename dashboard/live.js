@@ -41429,8 +41429,10 @@ async function _loadMcContextSchedule(driverId) {
   setRow("rr-dd-today-v", "rr-dd-today-s", todayShift);
   const tomShift = rows.find((r) => r.date === tomStr);
   setRow("rr-dd-tom-v", "rr-dd-tom-s", tomShift);
-  // Stash for template variables ({{next_shift}}, {{next_route}}, …).
+  // Stash for template variables ({{next_shift}}, {{next_route}}, …),
+  // quick-insert chips (#68) and the thread-header shift context (#72).
   _mcCtxSched = { driverId, today: todayShift || null, tomorrow: tomShift || null };
+  _mcPaintShiftCtx(driverId);
 
   // Shift-status badge — green "Scheduled today" when there's a live shift.
   const badge = document.getElementById("rr-dd-shift");
@@ -42228,6 +42230,10 @@ function _mcEnsureExtrasCss() {
     .rr-mc-incall-form button{background:var(--accent);border:0;color:#fff;border-radius:var(--r-md);width:34px;cursor:pointer;font-size:14px}
     .rr-tel{text-decoration:underline dotted;color:inherit;font-weight:600}
     .rr-mc-bubble.dispatch .rr-tel{color:#fff}
+    /* Batch 7 · dispatch superpowers */
+    .rr-mc-shiftctx{color:var(--accent-text);font-weight:600}
+    .rr-mc-quickchips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:6px 10px}
+    .rr-mc-quickchips::-webkit-scrollbar{display:none}
   `;
   document.head.appendChild(st);
 }
@@ -42705,11 +42711,16 @@ function _mcOpenPlusMenu(anchor, { ta, kind, targetId }) {
     <button type="button" role="menuitem" data-rr-pm="poll">📊<span>Create poll…</span></button>
     <button type="button" role="menuitemcheckbox" data-rr-pm="ccack" aria-checked="${_ccRequireAck}">🫡<span>Require acknowledgement</span><span class="rr-mc-plus-val">${_ccRequireAck ? "On for next post" : "Off"}</span></button>
     <button type="button" role="menuitem" data-rr-pm="board">📋<span>Delivery board…</span></button>` : "";
+  const dmExtras = kind === "dm" ? `
+    <button type="button" role="menuitem" data-rr-pm="shareched">📅<span>Share schedule (7 days)</span></button>
+    <button type="button" role="menuitem" data-rr-pm="shareloc">📍<span>Share a location…</span></button>
+    <button type="button" role="menuitem" data-rr-pm="checkin">🫡<span>Request check-in</span></button>
+    <button type="button" role="menuitem" data-rr-pm="incident">🚨<span>Report incident…</span></button>` : "";
   pop.innerHTML = `
     <button type="button" role="menuitem" data-rr-pm="tpl">📋<span>Insert template…</span></button>
     <button type="button" role="menuitem" data-rr-pm="tplmgr">🗂️<span>Manage templates…</span></button>
     <button type="button" role="menuitem" data-rr-pm="sched">🕐<span>Schedule send…</span></button>
-    <button type="button" role="menuitem" data-rr-pm="dict" data-rr-mc-dict class="${_mcDictation ? "on" : ""}">🎙️<span>${_mcDictation ? "Stop dictation" : "Dictate"}</span></button>${chExtras}
+    <button type="button" role="menuitem" data-rr-pm="dict" data-rr-mc-dict class="${_mcDictation ? "on" : ""}">🎙️<span>${_mcDictation ? "Stop dictation" : "Dictate"}</span></button>${chExtras}${dmExtras}
     <div class="rr-mc-plus-sep"></div>
     <div class="rr-mc-plus-note">Composer settings</div>
     <button type="button" role="menuitemcheckbox" data-rr-pm="enter" aria-checked="${_mcEnterSends()}">⏎<span>Enter sends the message</span><span class="rr-mc-plus-val">${_mcEnterSends() ? "On" : "Off — Ctrl+Enter sends"}</span></button>
@@ -42737,6 +42748,10 @@ function _mcOpenPlusMenu(anchor, { ta, kind, targetId }) {
       else toast("Post a broadcast first — the board tracks who's seen and acknowledged it", "info");
       return;
     }
+    if (act === "shareched") { _mcDismissPops(); _mcInsertScheduleShare(ta); return; }
+    if (act === "shareloc") { _mcDismissPops(); _mcOpenShareLocation(ta); return; }
+    if (act === "checkin") { _mcDismissPops(); _mcSendCheckinRequest(); return; }
+    if (act === "incident") { _mcDismissPops(); _mcOpenIncidentIntake(); return; }
     if (act === "dict") { const on = _mcToggleDictation(ta); b.classList.toggle("on", on); b.querySelector("span").textContent = on ? "Stop dictation" : "Dictate"; return; }
     if (act === "enter") {
       _mcSetPref("rr_msg_enter_sends", _mcEnterSends() ? "0" : "1");
@@ -42834,6 +42849,13 @@ function _mcEnhanceComposer({ form, ta, kind, getTargetId }) {
     ta.dispatchEvent(new Event("input", { bubbles: true }));
   }
   ta.addEventListener("input", () => _mcDraftSave(kind, tid(), ta.value));
+
+  // Quick-insert chips (#68) — DM only, while the composer is empty.
+  if (kind === "dm") {
+    ta.addEventListener("focus", () => { try { _mcShowQuickChips(form, ta); } catch {} });
+    ta.addEventListener("input", () => { if ((ta.value || "").trim()) form.querySelector(".rr-mc-quickchips")?.remove(); });
+    ta.addEventListener("blur", () => setTimeout(() => form.querySelector(".rr-mc-quickchips")?.remove(), 200));
+  }
 
   // Emoji button — sits right before the textarea's following sibling
   // (priority dropdown in DMs, send button in channels).
@@ -44015,7 +44037,11 @@ function _mcOpenMoreMenu(anchor, messageId) {
     <button type="button" data-rr-mm="link">🔗<span>Copy link to message</span></button>
     <button type="button" data-rr-mm="info">ℹ️<span>Message info</span></button>
     <button type="button" data-rr-mm="pin">📌<span>${pinned ? "Unpin from conversation" : "Pin to conversation"}</span></button>
-    <button type="button" data-rr-mm="fwd">↪️<span>Forward…</span></button>`;
+    <button type="button" data-rr-mm="fwd">↪️<span>Forward…</span></button>
+    <div class="rr-mc-plus-sep"></div>
+    <button type="button" data-rr-mm="task">☑️<span>Create a task…</span></button>
+    <button type="button" data-rr-mm="coach">📋<span>Coaching entry…</span></button>
+    <button type="button" data-rr-mm="record">🗂️<span>Save to driver record…</span></button>`;
   _mcPlacePop(pop, anchor);
   pop.addEventListener("click", async (ev) => {
     const b = ev.target.closest("[data-rr-mm]");
@@ -44042,6 +44068,12 @@ function _mcOpenMoreMenu(anchor, messageId) {
       refreshDriverChatThread(false);
     } else if (act === "fwd") {
       _mcOpenForwardModal(m);
+    } else if (act === "task") {
+      _mcOpenTaskFromMessage(m);
+    } else if (act === "coach") {
+      _mcOpenCoachingFromMessage(m, false);
+    } else if (act === "record") {
+      _mcOpenCoachingFromMessage(m, true);
     }
   });
 }
@@ -44594,6 +44626,327 @@ function _mcOpenCallNoteModal(peer, durLbl, transcript) {
   });
 }
 
+// ─── Dispatch-domain superpowers (Batch 7 · #62–72) ──────────────────────
+
+// Build the "share schedule" text for the active driver (#62) — inserted
+// into the composer so the operator can edit before sending.
+async function _mcInsertScheduleShare(ta) {
+  const driverId = _msgInboxSelectedId;
+  const dspId = window.RR?.dsp?.id;
+  if (!driverId || !dspId) return;
+  const fmtD = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const end = new Date(today); end.setDate(end.getDate() + 6);
+  const { data, error } = await sb.from("shifts")
+    .select("date, starts_at, route_code, status")
+    .eq("dsp_id", dspId).eq("driver_id", driverId)
+    .gte("date", fmtD(today)).lte("date", fmtD(end))
+    .order("date");
+  if (error) { toast("Couldn't load the schedule", "warn"); return; }
+  const byDate = new Map((data || []).map((r) => [r.date, r]));
+  const lines = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(today); d.setDate(d.getDate() + i);
+    const key = fmtD(d);
+    const day = d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+    const s = byDate.get(key);
+    if (!s || s.status === "called_off" || s.status === "no_show") {
+      lines.push(`• ${day} — OFF`);
+    } else {
+      const t = s.starts_at ? new Date(s.starts_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
+      lines.push(`• ${day} — ${s.route_code ? "Route " + s.route_code : "Scheduled"}${t ? ", starts " + t : ""}`);
+    }
+  }
+  _mcInsertAtCaret(ta, `📅 Your schedule this week:\n${lines.join("\n")}`);
+}
+
+// Share an address as a map link (#63).
+function _mcOpenShareLocation(ta) {
+  _mcEnsureExtrasCss();
+  document.getElementById("rr-mc-loc-modal")?.remove();
+  const ov = document.createElement("div");
+  ov.className = "rr-mc-modal";
+  ov.id = "rr-mc-loc-modal";
+  ov.innerHTML = `
+    <div class="rr-mc-modal-back"></div>
+    <div class="rr-mc-modal-card" role="dialog" aria-modal="true" aria-label="Share a location" style="width:min(420px,94vw)">
+      <div class="rr-mc-modal-head">Share a location<button type="button" class="rr-mc-modal-x" aria-label="Close">×</button></div>
+      <div class="rr-mc-modal-body">
+        <label class="rr-mc-f"><span>Label (optional)</span><input type="text" data-rr-loc-label maxlength="60" placeholder="Station / customer / staging lot"></label>
+        <label class="rr-mc-f"><span>Address</span><input type="text" data-rr-loc-addr maxlength="200" placeholder="123 Main St, Springfield"></label>
+      </div>
+      <div class="rr-mc-modal-foot">
+        <button type="button" class="btn btn-sm" data-rr-loc-cancel>Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary" data-rr-loc-go>Insert</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelector(".rr-mc-modal-back").addEventListener("click", close);
+  ov.querySelector(".rr-mc-modal-x").addEventListener("click", close);
+  ov.querySelector("[data-rr-loc-cancel]").addEventListener("click", close);
+  ov.querySelector("[data-rr-loc-go]").addEventListener("click", () => {
+    const label = ov.querySelector("[data-rr-loc-label]").value.trim();
+    const addr = ov.querySelector("[data-rr-loc-addr]").value.trim();
+    if (!addr) { toast("Type the address", "warn"); return; }
+    const url = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(addr);
+    _mcInsertAtCaret(ta, `📍 ${label ? label + ": " : ""}${addr}\nNavigate: ${url}`);
+    close();
+  });
+  ov.querySelector("[data-rr-loc-addr]").focus();
+}
+
+// Request a check-in (#64): rides the requires-ack rail — the driver's
+// acknowledgement (timestamped) IS the "I'm here".
+async function _mcSendCheckinRequest() {
+  const driverId = _msgInboxSelectedId;
+  if (!driverId || driverId === "__support__") return;
+  const meta = (_msgInboxList || []).find((t) => String(t.driver_id) === String(driverId)) || {};
+  const ok = await _rrConfirmDialog({
+    title: `Request a check-in from ${meta.name || "this driver"}?`,
+    body: "They get a message asking them to acknowledge when they've arrived — the acknowledgement is timestamped in the thread.",
+    confirmLabel: "Request check-in",
+  });
+  if (!ok) return;
+  const { error } = await sb.rpc("dispatch_chat_send", {
+    p_driver_id: driverId,
+    p_body: "📍 Check-in request from dispatch — tap Acknowledge when you've arrived.",
+    p_priority: "high",
+    p_requires_ack: true,
+  });
+  if (error) { toast("Couldn't send: " + error.message, "warn"); return; }
+  refreshDriverChatThread(false);
+}
+
+// Create a team task from a message (#65).
+async function _mcOpenTaskFromMessage(m) {
+  _mcEnsureExtrasCss();
+  document.getElementById("rr-mc-task-modal")?.remove();
+  const meta = (_msgInboxList || []).find((t) => String(t.driver_id) === String(_msgInboxSelectedId)) || {};
+  const snippet = String(m.body || m.attachment_name || "message").slice(0, 70);
+  const { data: members } = await sb.rpc("team_task_members").then((r) => r, () => ({ data: null }));
+  const ov = document.createElement("div");
+  ov.className = "rr-mc-modal";
+  ov.id = "rr-mc-task-modal";
+  ov.innerHTML = `
+    <div class="rr-mc-modal-back"></div>
+    <div class="rr-mc-modal-card" role="dialog" aria-modal="true" aria-label="Create task from message">
+      <div class="rr-mc-modal-head">Create a task<button type="button" class="rr-mc-modal-x" aria-label="Close">×</button></div>
+      <div class="rr-mc-modal-body">
+        <label class="rr-mc-f"><span>Task</span><input type="text" data-rr-tk-title maxlength="200" value="${escapeHtml(`Follow up with ${meta.name || "driver"}: “${snippet}”`)}"></label>
+        <label class="rr-mc-f"><span>Due</span><input type="datetime-local" data-rr-tk-due></label>
+        <label class="rr-mc-f"><span>Assign to</span>
+          <select data-rr-tk-who style="width:100%;border:1px solid var(--border);border-radius:var(--r-md);padding:8px 10px;font:inherit;font-size:var(--fs-sm);background:var(--canvas)">
+            <option value="">Me</option>
+            ${((members && (members.members || members)) || []).map((mm) => `<option value="${escapeHtml(mm.id || mm.user_id || "")}">${escapeHtml(mm.name || mm.full_name || mm.email || "")}</option>`).join("")}
+          </select>
+        </label>
+      </div>
+      <div class="rr-mc-modal-foot">
+        <button type="button" class="btn btn-sm" data-rr-tk-cancel>Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary" data-rr-tk-go>Create task</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelector(".rr-mc-modal-back").addEventListener("click", close);
+  ov.querySelector(".rr-mc-modal-x").addEventListener("click", close);
+  ov.querySelector("[data-rr-tk-cancel]").addEventListener("click", close);
+  ov.querySelector("[data-rr-tk-go]").addEventListener("click", async () => {
+    const title = ov.querySelector("[data-rr-tk-title]").value.trim();
+    if (!title) return;
+    const dueRaw = ov.querySelector("[data-rr-tk-due]").value;
+    try {
+      const made = await _rrTaskCreate({
+        title,
+        due: dueRaw ? new Date(dueRaw).toISOString() : null,
+        assigneeId: ov.querySelector("[data-rr-tk-who]").value || null,
+        kind: "chat_followup",
+        driverId: _msgInboxSelectedId,
+      });
+      if (!made) throw new Error("not created");
+      toast("Task created", "ok");
+      close();
+    } catch (err) {
+      toast("Couldn't create the task: " + ((err && err.message) || ""), "warn");
+    }
+  });
+}
+
+// Create a coaching entry from a message (#66) / save to record (#67).
+async function _mcOpenCoachingFromMessage(m, asNote) {
+  _mcEnsureExtrasCss();
+  document.getElementById("rr-mc-coach-modal")?.remove();
+  const driverId = _msgInboxSelectedId;
+  const meta = (_msgInboxList || []).find((t) => String(t.driver_id) === String(driverId)) || {};
+  const when = new Date(m.created_at);
+  const quoted = `From chat ${when.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}: “${String(m.body || m.attachment_name || "").slice(0, 400)}”`;
+  const ov = document.createElement("div");
+  ov.className = "rr-mc-modal";
+  ov.id = "rr-mc-coach-modal";
+  ov.innerHTML = `
+    <div class="rr-mc-modal-back"></div>
+    <div class="rr-mc-modal-card" role="dialog" aria-modal="true" aria-label="${asNote ? "Save to driver record" : "Create coaching entry"}">
+      <div class="rr-mc-modal-head">${asNote ? "Save to " : "Coaching entry for "}${escapeHtml(meta.name || "driver")}${asNote ? "'s record" : ""}<button type="button" class="rr-mc-modal-x" aria-label="Close">×</button></div>
+      <div class="rr-mc-modal-body">
+        ${asNote ? "" : `
+        <label class="rr-mc-f"><span>Topic</span>
+          <select data-rr-co-topic style="width:100%;border:1px solid var(--border);border-radius:var(--r-md);padding:8px 10px;font:inherit;font-size:var(--fs-sm);background:var(--canvas)">
+            <option value="attendance">Attendance</option>
+            <option value="safety">Safety</option>
+            <option value="performance">Performance</option>
+            <option value="other" selected>Other</option>
+          </select>
+        </label>`}
+        <label class="rr-mc-f"><span>Summary</span><input type="text" data-rr-co-summary maxlength="200" value="${escapeHtml(asNote ? "Note saved from the chat thread" : "Conversation from the chat thread")}"></label>
+        <label class="rr-mc-f"><span>Notes</span><textarea data-rr-co-notes maxlength="2000">${escapeHtml(quoted)}</textarea></label>
+        <div class="u-subtle" style="font-size:10px">Saved as an internal ${asNote ? "record note" : "verbal-level coaching log"} — not visible to the driver.</div>
+      </div>
+      <div class="rr-mc-modal-foot">
+        <button type="button" class="btn btn-sm" data-rr-co-cancel>Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary" data-rr-co-go>Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelector(".rr-mc-modal-back").addEventListener("click", close);
+  ov.querySelector(".rr-mc-modal-x").addEventListener("click", close);
+  ov.querySelector("[data-rr-co-cancel]").addEventListener("click", close);
+  ov.querySelector("[data-rr-co-go]").addEventListener("click", async () => {
+    const { error } = await sb.from("coachings").insert({
+      dsp_id: window.RR?.dsp?.id,
+      driver_id: driverId,
+      coach_user_id: window.RR?.user?.id,
+      topic: asNote ? "other" : (ov.querySelector("[data-rr-co-topic]")?.value || "other"),
+      type: "in_person",
+      severity: "concern",
+      metadata: { level: "verbal", source: "chat", message_id: m.id },
+      summary: ov.querySelector("[data-rr-co-summary]").value.trim() || null,
+      notes: ov.querySelector("[data-rr-co-notes]").value.trim() || null,
+      driver_visible: false,
+      privacy_tier: "standard",
+    });
+    if (error) { toast("Couldn't save: " + error.message, "warn"); return; }
+    toast(asNote ? "Saved to the driver's record" : "Coaching entry logged", "ok");
+    close();
+  });
+}
+
+// Incident intake (#69): structured record message + follow-up task.
+function _mcOpenIncidentIntake() {
+  _mcEnsureExtrasCss();
+  const driverId = _msgInboxSelectedId;
+  if (!driverId || driverId === "__support__") { toast("Open a driver conversation first", "info"); return; }
+  const meta = (_msgInboxList || []).find((t) => String(t.driver_id) === String(driverId)) || {};
+  document.getElementById("rr-mc-incident-modal")?.remove();
+  const pad = (n) => String(n).padStart(2, "0");
+  const now = new Date();
+  const nowLocal = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const ov = document.createElement("div");
+  ov.className = "rr-mc-modal";
+  ov.id = "rr-mc-incident-modal";
+  ov.innerHTML = `
+    <div class="rr-mc-modal-back"></div>
+    <div class="rr-mc-modal-card" role="dialog" aria-modal="true" aria-label="Report incident">
+      <div class="rr-mc-modal-head">🚨 Incident — ${escapeHtml(meta.name || "driver")}<button type="button" class="rr-mc-modal-x" aria-label="Close">×</button></div>
+      <div class="rr-mc-modal-body">
+        <label class="rr-mc-f"><span>What happened</span><textarea data-rr-in-what maxlength="1200" placeholder="Brief factual description…"></textarea></label>
+        <label class="rr-mc-f"><span>Where</span><input type="text" data-rr-in-where maxlength="200" placeholder="Address / stop / area"></label>
+        <label class="rr-mc-f"><span>When</span><input type="datetime-local" data-rr-in-when value="${nowLocal}"></label>
+        <label class="rr-mc-f"><span>Severity</span>
+          <select data-rr-in-sev style="width:100%;border:1px solid var(--border);border-radius:var(--r-md);padding:8px 10px;font:inherit;font-size:var(--fs-sm);background:var(--canvas)">
+            <option value="minor">Minor — no injury / no damage</option>
+            <option value="moderate">Moderate — damage, no injury</option>
+            <option value="serious">Serious — injury or major damage</option>
+          </select>
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--text)"><input type="checkbox" data-rr-in-task checked> Create a follow-up task for me</label>
+        <div class="u-subtle" style="font-size:10px;margin-top:6px">The report lands in this conversation as a timestamped record. Attach photos with the 📎 in the composer after filing.</div>
+      </div>
+      <div class="rr-mc-modal-foot">
+        <button type="button" class="btn btn-sm" data-rr-in-cancel>Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary" data-rr-in-go>File incident</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelector(".rr-mc-modal-back").addEventListener("click", close);
+  ov.querySelector(".rr-mc-modal-x").addEventListener("click", close);
+  ov.querySelector("[data-rr-in-cancel]").addEventListener("click", close);
+  ov.querySelector("[data-rr-in-go]").addEventListener("click", async () => {
+    const what = ov.querySelector("[data-rr-in-what]").value.trim();
+    const where = ov.querySelector("[data-rr-in-where]").value.trim();
+    const whenRaw = ov.querySelector("[data-rr-in-when]").value;
+    const sev = ov.querySelector("[data-rr-in-sev]").value;
+    if (!what) { toast("Describe what happened", "warn"); return; }
+    const whenLbl = whenRaw ? new Date(whenRaw).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "now";
+    const body = `🚨 INCIDENT REPORT (${sev})\nWhen: ${whenLbl}\nWhere: ${where || "—"}\nWhat: ${what}`;
+    const { error } = await sb.rpc("dispatch_chat_send", {
+      p_driver_id: driverId, p_body: body.slice(0, 2000), p_priority: "high", p_requires_ack: false,
+    });
+    if (error) { toast("Couldn't file: " + error.message, "warn"); return; }
+    if (ov.querySelector("[data-rr-in-task]").checked) {
+      try { await _rrTaskCreate({ title: `Incident follow-up — ${meta.name || "driver"}: ${what.slice(0, 60)}`, kind: "incident", driverId }); } catch {}
+    }
+    toast("Incident filed to the thread", "ok");
+    close();
+    refreshDriverChatThread(false);
+  });
+}
+
+// Quick-insert chips (#68): shown in the reply-bar slot while the DM
+// composer is focused and empty.
+function _mcShowQuickChips(form, ta) {
+  form.querySelector(".rr-mc-quickchips")?.remove();
+  if (_mcReplyTo || (ta.value || "").trim()) return;
+  const driverId = _msgInboxSelectedId;
+  if (!driverId || driverId === "__support__") return;
+  const meta = (_msgInboxList || []).find((t) => String(t.driver_id) === String(driverId)) || {};
+  const chips = [];
+  if (_mcCtxSched && String(_mcCtxSched.driverId) === String(driverId)) {
+    const next = _mcCtxSched.today || _mcCtxSched.tomorrow;
+    if (next) {
+      const t = next.starts_at ? new Date(next.starts_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
+      chips.push([`⏰ Next shift`, `your next shift is ${_mcCtxSched.today ? "today" : "tomorrow"}${t ? " starting " + t : ""}${next.route_code ? " on Route " + next.route_code : ""}`]);
+      if (next.route_code) chips.push([`🚐 Route`, `Route ${next.route_code}`]);
+    }
+  }
+  if (meta.station_code) chips.push([`🏢 Station`, `station ${meta.station_code}`]);
+  chips.push([`📅 Share schedule`, "__schedule__"]);
+  if (!chips.length) return;
+  _mcEnsureExtrasCss();
+  const bar = document.createElement("div");
+  bar.className = "rr-mc-replybar rr-mc-quickchips";
+  bar.setAttribute("aria-label", "Quick inserts");
+  bar.innerHTML = chips.map(([lbl], i) => `<button type="button" class="msg-fb-btn" data-rr-qc="${i}">${escapeHtml(lbl)}</button>`).join("");
+  form.style.position = "relative";
+  form.appendChild(bar);
+  bar.addEventListener("mousedown", (e) => {
+    const b = e.target.closest("[data-rr-qc]");
+    if (!b) return;
+    e.preventDefault();
+    const val = chips[+b.getAttribute("data-rr-qc")][1];
+    bar.remove();
+    if (val === "__schedule__") _mcInsertScheduleShare(ta);
+    else _mcInsertAtCaret(ta, val);
+  });
+}
+
+// Shift context in the thread header (#72) — painted once the schedule
+// cache lands for the open driver.
+function _mcPaintShiftCtx(driverId) {
+  if (!_mcCtxSched || String(_mcCtxSched.driverId) !== String(driverId)) return;
+  const sub = document.querySelector(`.rr-mc-head[data-rr-driver-id="${(window.CSS && CSS.escape) ? CSS.escape(driverId) : driverId}"] .rr-mc-sub`);
+  if (!sub) return;
+  sub.querySelector(".rr-mc-shiftctx")?.remove();
+  const s = _mcCtxSched.today;
+  if (!s || s.status === "called_off" || s.status === "no_show") return;
+  const t = s.starts_at ? new Date(s.starts_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
+  const started = s.starts_at && new Date(s.starts_at).getTime() < Date.now();
+  sub.insertAdjacentHTML("beforeend",
+    ` <span class="rr-mc-shiftctx" title="Today's shift">· ${s.route_code ? "Route " + escapeHtml(s.route_code) : "On shift"}${t ? (started ? " since " : " starts ") + escapeHtml(t) : ""}</span>`);
+}
+
 // ─── Rooms & broadcasts (Batch 4 · #35–44) ───────────────────────────────
 let _ccLastChannelMsgs = []; // loaded channel window (thread view, quotes)
 
@@ -44956,6 +45309,16 @@ async function _mcOpenBroadcastComposer() {
             <option value="today">Scheduled today</option>
             <option value="tomorrow">Scheduled tomorrow</option>
             <option value="not_tomorrow">NOT scheduled tomorrow</option>
+            <option value="noshow_today">Today's no-shows / call-offs</option>
+          </select>
+        </label>
+        <label class="rr-mc-f"><span>Template (optional)</span>
+          <select data-rr-bc-tpl style="width:100%;border:1px solid var(--border);border-radius:var(--r-md);padding:8px 10px;font:inherit;font-size:var(--fs-sm);background:var(--canvas)">
+            <option value="">— none —</option>
+            <option value="weather">Weather advisory</option>
+            <option value="closure">Station closure / delay</option>
+            <option value="system">System notice</option>
+            <option value="noshow">No-show check-in</option>
           </select>
         </label>
         <div data-rr-bc-preview class="u-subtle" style="font-size:var(--fs-xs);margin:-4px 0 10px">Resolving audience…</div>
@@ -44995,13 +45358,19 @@ async function _mcOpenBroadcastComposer() {
     let list = drivers || [];
     if (kind !== "active") {
       const day = new Date();
-      if (kind !== "today") day.setDate(day.getDate() + 1);
+      if (kind !== "today" && kind !== "noshow_today") day.setDate(day.getDate() + 1);
       const { data: shifts } = await sb.from("shifts")
         .select("driver_id, status").eq("dsp_id", dspId).eq("date", fmtD(day));
-      const onDay = new Set((shifts || []).filter((s) => s.status !== "called_off" && s.status !== "no_show").map((s) => String(s.driver_id)));
-      list = kind === "not_tomorrow"
-        ? list.filter((d) => !onDay.has(String(d.id)))
-        : list.filter((d) => onDay.has(String(d.id)));
+      if (kind === "noshow_today") {
+        // #71: exactly the drivers who no-showed or called off today.
+        const bad = new Set((shifts || []).filter((s) => s.status === "called_off" || s.status === "no_show").map((s) => String(s.driver_id)));
+        list = list.filter((d) => bad.has(String(d.id)));
+      } else {
+        const onDay = new Set((shifts || []).filter((s) => s.status !== "called_off" && s.status !== "no_show").map((s) => String(s.driver_id)));
+        list = kind === "not_tomorrow"
+          ? list.filter((d) => !onDay.has(String(d.id)))
+          : list.filter((d) => onDay.has(String(d.id)));
+      }
     }
     audience = list;
     preview.textContent = audience.length
@@ -45010,6 +45379,19 @@ async function _mcOpenBroadcastComposer() {
   };
   audSel.addEventListener("change", resolve);
   resolve();
+
+  // Advisory templates (#70) — prefill the body, still fully editable.
+  const dateLbl = new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+  const BC_TEMPLATES = {
+    weather: `🌩️ Weather advisory (${dateLbl}): conditions on today's routes may be rough — slow down, increase following distance, and message dispatch if a road is impassable. Safety over speed, always.`,
+    closure: `🏢 Station notice (${dateLbl}): [station] is [closed / delayed until HH:MM]. Do not head in until further notice — we'll update you here.`,
+    system: `📣 Notice from dispatch (${dateLbl}): [what changed]. Questions — reply here.`,
+    noshow: `We missed you today — you're marked as a no-show/call-off for ${dateLbl}. Reply here or call dispatch so we can sort out what happened.`,
+  };
+  ov.querySelector("[data-rr-bc-tpl]").addEventListener("change", (ev2) => {
+    const t = BC_TEMPLATES[ev2.target.value];
+    if (t) ov.querySelector("[data-rr-bc-body]").value = t;
+  });
 
   // Voice mode (#57): record once, deliver as a voice note to everyone.
   let bcMode = "text";
