@@ -77,6 +77,7 @@
   .gslot:hover{background:var(--availbg);border-color:var(--accent)}
   .gslot:disabled{opacity:.5;cursor:default}
   .gslot .spots{display:block;font-size:11px;font-weight:600;color:var(--green);margin-top:3px}
+  .gslot .rec{color:#F59E0B;font-size:12px;margin-left:4px}
   .gnone{color:#C4C7C5;font-size:18px;text-align:center;padding:8px 0}
 
   /* states */
@@ -205,6 +206,10 @@ const I18N = {
     verifyPlaceholder: "6-digit code", verifyBad: "That code doesn't match — try again.",
     verifyNeeded: "Enter the code we texted you to confirm this booking.",
     required: "required", confirmHint: "Tap Confirm to lock in this time.",
+    dayFull: "That day just filled up — please pick a different day.",
+    tooLate: "It's too close to your interview to change it online — please reply to the email or text we sent you.",
+    reschedLimit: "This booking can't be changed online anymore — please reply to the email or text we sent you and we'll find a time together.",
+    recommended: "Recommended — keeps the team's day tight",
   },
   es: {
     pick: "Elige una hora para tu cita", minApts: "min por cita",
@@ -226,6 +231,10 @@ const I18N = {
     verifyPlaceholder: "código de 6 dígitos", verifyBad: "Ese código no coincide — inténtalo de nuevo.",
     verifyNeeded: "Escribe el código que te enviamos por SMS para confirmar.",
     required: "obligatorio", confirmHint: "Toca Confirmar para asegurar esta hora.",
+    dayFull: "Ese día se acaba de llenar — elige otro día.",
+    tooLate: "Falta muy poco para tu entrevista para cambiarla en línea — responde al correo o mensaje que te enviamos.",
+    reschedLimit: "Esta reserva ya no se puede cambiar en línea — responde al correo o mensaje que te enviamos y buscamos una hora juntos.",
+    recommended: "Recomendado — mantiene el día del equipo compacto",
   },
 };
 let LANG = (() => {
@@ -292,6 +301,9 @@ function bookErrorCopy(raw) {
   if (s.includes("invalid_or_expired_token")) return "This scheduling link is no longer valid. Please reply to the email or text we sent you for a new one.";
   if (s.includes("verify_bad_code")) return T("verifyBad");
   if (s.includes("verify_required")) return T("verifyNeeded");
+  if (s.includes("day_full")) return T("dayFull");
+  if (s.includes("too_late_to_cancel")) return T("tooLate");
+  if (s.includes("reschedule_limit")) return T("reschedLimit");
   if (s.includes("no_phone")) return "We don't have a phone number on file — reply to the email we sent you instead.";
   if (s.includes("failed to fetch") || s.includes("network")) return "Network hiccup — check your connection and try that time again.";
   return "Couldn't book that time — please pick another.";
@@ -664,10 +676,28 @@ function gridHTML() {
     const items = BYDAY.get(key) || [];
     let body;
     if (items.length) {
+      // Consolidation hint (#15): star the slots at the EDGES of each open
+      // run — booking those keeps the interviewer's remaining free time in
+      // one block instead of fragmenting the day. Pure client-side inference
+      // from the open-slot pattern; only shown when there's a real choice.
+      const starred = new Set();
+      if (items.length > 3) {
+        const ts = items.map(s => new Date(s.slot_start).getTime()).sort((a, b) => a - b);
+        const gaps = ts.slice(1).map((t, i) => t - ts[i]).filter(g => g > 0);
+        const step = gaps.length ? Math.min(...gaps) : 0;
+        if (step > 0) {
+          for (let j = 0; j < ts.length; j++) {
+            const runStart = j === 0 || ts[j] - ts[j - 1] > step;
+            const runEnd = j === ts.length - 1 || ts[j + 1] - ts[j] > step;
+            if (runStart || runEnd) starred.add(ts[j]);
+          }
+        }
+      }
       body = items.map(s => {
         const group = (s.capacity || 1) > 1;
         const spots = group ? `<span class="spots">${esc(s.remaining)} left</span>` : "";
-        return `<button class="gslot" data-start="${esc(s.slot_start)}" data-end="${esc(s.slot_end || "")}" data-session="${esc(s.session_id || "")}" aria-label="${esc(fmtTime(s.slot_start))}, ${esc(fmtDay(s.slot_start))}">${esc(fmtTime(s.slot_start))}${spots}</button>`;
+        const star = starred.has(new Date(s.slot_start).getTime()) ? `<span class="rec" title="${esc(T("recommended"))}" aria-label="${esc(T("recommended"))}">★</span>` : "";
+        return `<button class="gslot" data-start="${esc(s.slot_start)}" data-end="${esc(s.slot_end || "")}" data-session="${esc(s.session_id || "")}" aria-label="${esc(fmtTime(s.slot_start))}, ${esc(fmtDay(s.slot_start))}">${esc(fmtTime(s.slot_start))}${star}${spots}</button>`;
       }).join("");
     } else {
       body = `<div class="gnone">—</div>`;

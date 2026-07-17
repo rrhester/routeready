@@ -33126,3 +33126,11 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 .rr-iv-extras-b label { color: var(--text); font-weight: 600; }
 .rr-iv-extras-b .rr-iv-hint { font-weight: 400; color: var(--text-subtle); font-size: var(--fs-xs); }
 .rr-iv-extras-b input[type="color"] { border: 1px solid var(--border); border-radius: 6px; width: 44px; height: 28px; padding: 2px; background: var(--surface); vertical-align: middle; margin-left: 8px; }
+
+/* ═══ Calendar Wave 4 · scheduling intelligence (2026-07-17) ═════════════ */
+.rr-iv-caps { display: flex; flex-wrap: wrap; gap: 12px; font-size: var(--fs-sm); }
+.rr-iv-caps input { width: 58px; font: inherit; padding: 5px 7px; border: 1px solid var(--border); border-radius: 6px; margin: 0 4px; }
+.rr-iv-pool { font-size: var(--fs-sm); }
+.rr-iv-pool-list { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 6px; }
+.rr-iv-pool-item { font-weight: 400; display: inline-flex; align-items: center; gap: 5px; }
+#rr-ivcal .oc-next-slot-v.is-alt { opacity: .75; font-weight: 500; }
