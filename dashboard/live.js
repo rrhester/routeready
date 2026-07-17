@@ -26583,23 +26583,35 @@ function _ivcalRtEvent(payload) {
 // the number to apply through. Individual dialogs keep their specific
 // fallback copy; this makes the gap visible before a feature is touched.
 let _ivcalSchemaProbed = false;
-const _IVCAL_SCHEMA_EXPECTED = 498;
+// Generic since 0504: rr_schema_version() reads the private.rr_migrations
+// ledger every new migration self-records into — the calendar-only
+// calendar_schema_version() froze at 498 while later migrations kept
+// shipping. Bump when a migration the DASHBOARD depends on lands; the
+// legacy probe stays as fallback until 0504 is applied.
+const _RR_SCHEMA_EXPECTED = 504;
 async function _ivcalSchemaProbe() {
   if (_ivcalSchemaProbed) return;
   _ivcalSchemaProbed = true;
   try { if (sessionStorage.getItem("rr_ivcal_schema_dismissed")) return; } catch (_) {}
   let ver = 0;
   try {
-    const { data, error } = await sb.rpc("calendar_schema_version");
+    const { data, error } = await sb.rpc("rr_schema_version");
     if (!error && typeof data === "number") ver = data;
   } catch (_) {}
-  if (ver >= _IVCAL_SCHEMA_EXPECTED) return;
+  if (!ver) {
+    try {
+      const { data, error } = await sb.rpc("calendar_schema_version");
+      // The legacy probe tops out at 498 — treat its success as "through 498".
+      if (!error && typeof data === "number") ver = data;
+    } catch (_) {}
+  }
+  if (ver >= _RR_SCHEMA_EXPECTED) return;
   const host = document.getElementById("rr-ivcal");
   if (!host || document.getElementById("rr-ivcal-schemanote")) return;
   const note = document.createElement("div");
   note.id = "rr-ivcal-schemanote";
   note.className = "oc-schema-note";
-  note.innerHTML = `<span>Some newer calendar features need database migrations you haven't applied yet — run the SQL through <strong>0${_IVCAL_SCHEMA_EXPECTED}</strong> in the Supabase SQL Editor.</span><button type="button" aria-label="Dismiss">×</button>`;
+  note.innerHTML = `<span>Some newer features need database migrations you haven't applied yet — run the SQL through <strong>0${_RR_SCHEMA_EXPECTED}</strong> in the Supabase SQL Editor.</span><button type="button" aria-label="Dismiss">×</button>`;
   note.querySelector("button").onclick = () => {
     note.remove();
     try { sessionStorage.setItem("rr_ivcal_schema_dismissed", "1"); } catch (_) {}
@@ -33092,6 +33104,16 @@ async function disconnectGoogleCalendar() {
 }
 window.loadGoogleCalendar = loadGoogleCalendar;
 
+// supabase-js functions.invoke wraps non-2xx responses in FunctionsHttpError
+// with the Response on error.context — without this, operators saw the
+// generic "non-2xx status code" instead of the function's actual message.
+async function _rrFnErrBody(error) {
+  try {
+    if (!error || !error.context || typeof error.context.json !== "function") return "";
+    const b = await error.context.json();
+    return (b && (b.error || b.message)) || "";
+  } catch (_) { return ""; }
+}
 async function loadCalAvailabilityEditor() {
   const card = document.getElementById("cal-edit-card");
   const meta = document.getElementById("cal-edit-meta");
@@ -33105,7 +33127,7 @@ async function loadCalAvailabilityEditor() {
   });
 
   if (error || data?.error) {
-    const msg = error?.message || data?.error || "Couldn't load availability";
+    const msg = (await _rrFnErrBody(error)) || data?.error || error?.message || "Couldn't load availability";
     card.innerHTML = `
       <div style="padding:var(--s-6)">
         <div style="font-size:var(--fs-md);color:var(--red);font-weight:600;margin-bottom:var(--s-2)">Couldn't load availability</div>
@@ -33355,7 +33377,7 @@ async function saveCalAvailability() {
   });
 
   if (error || data?.error) {
-    const msg = error?.message || data?.error || "Save failed";
+    const msg = (await _rrFnErrBody(error)) || data?.error || error?.message || "Save failed";
     status.className = "cal-edit-status err";
     status.textContent = msg;
     return;

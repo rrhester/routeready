@@ -11,6 +11,7 @@
 //   TWILIO_AUTH_TOKEN  (for signature verification)
 //   PUBLIC_BASE_URL    (e.g. https://doiwrhkirgblcvuskhno.functions.supabase.co/webhook-twilio)
 import { serviceClient, jsonResponse, badRequest } from "../_shared/supabase.ts";
+import { timingSafeEqual } from "../_shared/http.ts";
 
 async function verifyTwilioSignature(req: Request, rawBody: string): Promise<boolean> {
   const token = Deno.env.get("TWILIO_AUTH_TOKEN");
@@ -30,7 +31,7 @@ async function verifyTwilioSignature(req: Request, rawBody: string): Promise<boo
   );
   const mac = await crypto.subtle.sign("HMAC", key, enc.encode(payload));
   const macB64 = btoa(String.fromCharCode(...new Uint8Array(mac)));
-  return macB64 === sig;
+  return timingSafeEqual(macB64, sig);
 }
 
 Deno.serve(async (req) => {
@@ -80,6 +81,22 @@ Deno.serve(async (req) => {
     let reply: string | null = null;
     if (upper === "STOP" || upper === "STOPALL" || upper === "UNSUBSCRIBE" || upper === "CANCEL" || upper === "QUIT" || upper === "END") {
       reply = `You're unsubscribed and won't receive further ${dspName} messages. Reply START to opt back in.`;
+      // Durable opt-out flag (project-review PR#58) — send-sms checks this
+      // table instead of re-scanning message history, so the STOP can't age
+      // out of a scan window and a later START genuinely re-enables sends.
+      // Best-effort until migration 0502 creates the table (send-sms falls
+      // back to the legacy history scan while it's missing).
+      try {
+        await supa.from("sms_optouts").upsert(
+          { phone: from, dsp_id, opted_out_at: new Date().toISOString(), source: "twilio_stop" },
+          { onConflict: "phone" },
+        );
+      } catch (e) { console.error("sms_optouts upsert failed:", (e as Error)?.message); }
+    } else if (upper === "START" || upper === "UNSTOP" || upper === "YES") {
+      try {
+        await supa.from("sms_optouts").delete().eq("phone", from);
+      } catch (e) { console.error("sms_optouts delete failed:", (e as Error)?.message); }
+      reply = `You're re-subscribed to ${dspName} messages. Reply STOP to opt out.`;
     } else if (upper === "HELP" || upper === "INFO") {
       reply = `${dspName} · Driver hiring updates. Msg & data rates may apply. Reply STOP to opt out.`;
     }

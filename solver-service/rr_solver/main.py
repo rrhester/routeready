@@ -11,6 +11,7 @@ Same token is sent by the dashboard's edge-function dispatcher.
 """
 
 from __future__ import annotations
+import hmac
 
 import logging
 import os
@@ -56,7 +57,7 @@ def require_bearer_token(authorization: str | None = Header(default=None)) -> No
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                             detail="missing bearer token")
     token = authorization.removeprefix("Bearer ").strip()
-    if token != expected:
+    if not hmac.compare_digest(token, expected):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                             detail="invalid bearer token")
 

@@ -22,7 +22,7 @@
 // Auth:  service-role bearer (inbound-email pipeline) or user JWT
 //        (dashboard "Extract" button; RLS-checked via a user client).
 // Env:   ANTHROPIC_API_KEY (+ optional ANTHROPIC_MODEL override).
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { createClient } from "@supabase/supabase-js";
 import { serviceClient, jsonResponse, badRequest } from "../_shared/supabase.ts";
 
 const CORS = {

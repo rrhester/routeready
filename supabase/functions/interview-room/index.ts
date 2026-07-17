@@ -11,6 +11,7 @@
 // room minting hiccuped. (Jitsi was the original provider; old events keep
 // their meet.jit.si URLs and still work.)
 import { serviceClient, jsonResponse } from "../_shared/supabase.ts";
+import { timingSafeEqual } from "../_shared/http.ts";
 
 // MEET_PUBLIC_BASE_URL is Meet-specific on purpose: the deployed
 // PUBLIC_BASE_URL secret is webhook-twilio's own callback URL (see
@@ -46,7 +47,9 @@ async function createRoom(supa: any, dspId: string, title: string): Promise<stri
 }
 
 Deno.serve(async (req) => {
-  if (req.headers.get("x-rr-sync-token") !== Deno.env.get("GOOGLE_SYNC_TRIGGER_TOKEN")) {
+  // Timing-safe compare; an unset env token must REJECT (never match empty).
+  const _syncTok = Deno.env.get("GOOGLE_SYNC_TRIGGER_TOKEN") || "";
+  if (!_syncTok || !timingSafeEqual(req.headers.get("x-rr-sync-token") || "", _syncTok)) {
     return jsonResponse({ error: "unauthorized" }, { status: 401 });
   }
   const { cal_event_id } = await req.json().catch(() => ({}));

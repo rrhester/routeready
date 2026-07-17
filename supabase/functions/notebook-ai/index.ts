@@ -97,8 +97,21 @@ Deno.serve(async (req) => {
   const { data: userData, error: userErr } = await supa.auth.getUser(jwt);
   if (userErr || !userData?.user) return json({ error: "invalid_auth" }, 401);
   const { data: appUser, error: appErr } = await supa
-    .from("app_users").select("id").eq("id", userData.user.id).eq("active", true).maybeSingle();
+    .from("app_users").select("id, dsp_id").eq("id", userData.user.id).eq("active", true).maybeSingle();
   if (appErr || !appUser) return json({ error: "no_membership" }, 403);
+
+  // DB-backed daily cap shared with ai-proxy/analytics-ai (PR#62) — this
+  // endpoint previously had no limiter on the shared Anthropic key.
+  try {
+    const { data: quota, error: qErr } = await supa.rpc("ai_proxy_note_request", {
+      p_dsp_id: (appUser as { dsp_id?: string }).dsp_id,
+      p_default_cap: 200,
+    });
+    if (!qErr && quota && (quota as { allowed?: boolean }).allowed === false) {
+      return json({ error: "rate_limited", detail: "Daily AI request cap reached. Resets at midnight UTC." }, 429);
+    }
+    if (qErr) console.error("ai_proxy_note_request error:", qErr.message);
+  } catch (e) { console.error("ai_proxy_note_request threw:", (e as Error)?.message); }
 
   let body: any;
   try { body = await req.json(); } catch { return json({ error: "invalid_json" }, 400); }

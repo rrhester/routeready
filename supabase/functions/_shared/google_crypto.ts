@@ -11,7 +11,7 @@ function keyBytes(): Uint8Array {
   return raw;
 }
 async function aesKey() {
-  return crypto.subtle.importKey("raw", keyBytes(), { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+  return crypto.subtle.importKey("raw", keyBytes() as BufferSource, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
 }
 const b64 = (u: Uint8Array) => btoa(String.fromCharCode(...u));
 const unb64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));

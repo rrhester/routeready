@@ -1,7 +1,7 @@
 // Shared service-role client for edge functions. Each function imports
 // this and gets a fully-privileged client that bypasses RLS — only use
 // it server-side, behind a webhook signature check or env-gated cron.
-import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 export function serviceClient(): SupabaseClient {
   const url = Deno.env.get("SUPABASE_URL");

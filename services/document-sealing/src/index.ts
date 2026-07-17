@@ -61,6 +61,20 @@ import {
   type PDFPage,
 } from "pdf-lib";
 
+
+// Constant-time string compare for the shared-secret bearer — `!==`
+// short-circuits on the first differing byte. Workers lack Node's
+// crypto.timingSafeEqual, so walk every byte unconditionally.
+function timingSafeEqualStr(a: string, b: string): boolean {
+  const enc = new TextEncoder();
+  const ab = enc.encode(a);
+  const bb = enc.encode(b);
+  const len = Math.max(ab.length, bb.length);
+  let diff = ab.length === bb.length ? 0 : 1;
+  for (let i = 0; i < len; i++) diff |= (ab[i % ab.length] ?? 0) ^ (bb[i % bb.length] ?? 0);
+  return diff === 0;
+}
+
 interface Env {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
@@ -210,7 +224,7 @@ export default {
     // Shared-secret auth between the Postgres trigger and the Worker.
     const auth = req.headers.get("authorization") || "";
     const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-    if (!env.SEALING_SECRET || token !== env.SEALING_SECRET) {
+    if (!env.SEALING_SECRET || !timingSafeEqualStr(token, env.SEALING_SECRET)) {
       return json({ error: "unauthorized" }, 401);
     }
 

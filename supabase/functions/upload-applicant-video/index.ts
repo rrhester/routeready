@@ -49,13 +49,22 @@ Deno.serve(async (req) => {
   // Verify the token resolves to an applicant whose screening isn't closed.
   const { data: app, error: lookupErr } = await supa
     .from("applicants")
-    .select("id, dsp_id, status")
+    .select("id, dsp_id, status, metadata")
     .eq("metadata->tokens->>screening", token)
     .maybeSingle();
 
   if (lookupErr || !app) return jsonRespCors({ error: "invalid_or_expired_token" }, 403);
   if (["rejected", "auto_declined", "hired", "no_show"].includes(app.status)) {
     return jsonRespCors({ error: "screening_closed" }, 410);
+  }
+
+  // Cap uploads per applicant (project-review PR#66): one valid screening
+  // token used to allow UNLIMITED 50 MB uploads to unique paths — a storage
+  // cost/abuse hole. Re-recordings are legitimate; 3 is plenty.
+  const { data: existing } = await supa.storage.from("applicant-videos")
+    .list(`${app.dsp_id}/${app.id}`, { limit: 10 });
+  if ((existing?.length ?? 0) >= 3) {
+    return jsonRespCors({ error: "upload_limit_reached" }, 429);
   }
 
   const ext = baseMime === "video/mp4" ? "mp4" : (baseMime === "video/quicktime" ? "mov" : "webm");
@@ -76,8 +85,13 @@ Deno.serve(async (req) => {
     .createSignedUrl(objectPath, 60 * 60 * 24 * 30);
   if (signErr || !signed) return jsonRespCors({ error: "sign_failed" }, 500);
 
+  // Store the durable object PATH in metadata alongside the (expiring)
+  // signed URL — the 30-day URL goes dead; the path lets the dashboard
+  // re-sign at read time forever.
+  const md = (app as { metadata?: Record<string, unknown> }).metadata ?? {};
+  (md as Record<string, unknown>).video_path = objectPath;
   await supa.from("applicants")
-    .update({ video_url: signed.signedUrl })
+    .update({ video_url: signed.signedUrl, metadata: md })
     .eq("id", app.id);
 
   return jsonRespCors({ ok: true, applicant_id: app.id, video_url: signed.signedUrl });

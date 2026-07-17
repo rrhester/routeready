@@ -79,9 +79,56 @@ chunk). Wave plan and status:
   .github/workflows/** from this tooling get NO Actions runs — ship
   workflow changes in separate tiny PRs (like #3965) so code PRs keep
   full CI.
-- **Wave C — edge functions**: PR#57–63,65–67,60,61,62.
-- **Wave D — DB migrations**: PR#45–56 (+#25 RPC). Next free ordinal
-  0502; paste all SQL in chat; mind duplicate-ordinal rule (PR#45).
+- **Wave C — edge functions**: PR#57–67 — DONE pending CI/merge.
+  _shared/http.ts (corsHeaders/timingSafeEqual/fetchWithTimeout/safeJson)
+  + http_test.ts (5 deno tests, run offline). webhook-apply: secret
+  timing-safe if set, per-phone 24h dedupe, per-DSP hourly autosend cap.
+  send-sms/send-email: fetchWithTimeout + safeJson + requeue-on-network-
+  fail (stuck-'sending' fix); send-sms reads sms_optouts w/ legacy-scan
+  fallback; webhook-twilio writes sms_optouts on STOP, clears on
+  START/UNSTOP/YES. push-fanout: timeouts + 1 retry + failures →
+  push_delivery_failures. webhook-cal: idempotency claim via
+  cal_webhook_events upsert (sends anyway if table missing).
+  Timing-safe compares: twilio/cal/svix x2/bearer/x-rr-sync-token x5
+  (empty env token now REJECTS)/solver hmac.compare_digest/sealing
+  worker. cal-availability: real statuses (404/405/502) + timeout;
+  live.js reads fn error bodies via _rrFnErrBody(error.context).
+  health/driver-document-fetch/box-ingest: stable error codes, detail
+  to logs. analytics-ai+notebook-ai: ai_proxy_note_request daily cap
+  (200) + analytics-ai conversation capped 12 turns, text-blocks-only
+  (client can no longer forge tool_results). upload-applicant-video:
+  max 3 uploads/applicant + metadata.video_path stored for re-signing.
+  deno.json import map (14 files swept to bare specifier). NEEDS
+  MIGRATION 0502 (Wave D): sms_optouts, cal_webhook_events,
+  push_delivery_failures, stuck-'sending' requeue cron — all coded with
+  graceful fallbacks until then. Workflow tweaks shipped separately:
+  #3965, #3967.
+- **Wave D — DB migrations**: PR#45–56 (+#25 RPC) — DONE pending
+  CI/merge. Shipped as 0504_reliability_and_hardening.sql (renumbered
+  from 0502 after other sessions took 0502/0503 — the new ordinal gate
+  caught it) + 0505_gcal_two_way_reassert.sql (0432 content verbatim).
+  0504: sms_optouts, cal_webhook_events, push_delivery_failures,
+  sending_at stamp triggers + requeue-stuck-sends cron (+one-time legacy
+  requeue), cal_event_reminders RLS, client_errors bind/clamp/retention,
+  public.ai_proxy_note_request wrapper (private.* was NEVER PostgREST-
+  callable — the AI cap silently never enforced!), private.rr_migrations
+  ledger (UNIFIED with apply-migrations.sh's) + rr_schema_version() +
+  rr_cron_health(), roster_attendance_counts RPC + index, 5 FK indexes,
+  initplan policy rewrites (shifts/cal_events/driver_messages).
+  apply-migrations.sh: ledger → private schema (migrates+drops public
+  one), BASELINE 0373→0503, 0432 note. live.js banner generalized to
+  rr_schema_version (expect 504; legacy calendar fallback kept).
+  seeds/seed_demo.sql. PR#53 pivoted: the from-scratch run showed
+  Supabase DEFAULT PRIVILEGES make every public function anon-executable
+  (~500 staff RPCs, in-body gates only), so the frozen-allowlist test was
+  unmaintainable — replaced with 0504's
+  `alter default privileges in schema public revoke execute on functions
+  from anon;` → NEW anon-facing RPCs (driver app/public pages) MUST now
+  add an explicit `grant execute ... to anon;` in their migration or
+  anon calls 401. migration-check additions merged via #3969 (its anon
+  test step self-skips; pg_dump artifact step currently produces nothing
+  — client/server version mismatch, fix queued). REMEMBER: paste
+  0504+0505 SQL in chat for the user.
 - **Wave E — dashboard correctness**: PR#9,10,11,12,14,15,16(start),
   17,18,19,20.
 - **Wave F — perf**: PR#21,23,24,28,29,30,31,32.

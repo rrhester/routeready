@@ -20,6 +20,7 @@
 // stored in email_messages.provider_message_id. Unknown ids and
 // unhandled event types return 200 so Resend never retries forever.
 import { serviceClient, jsonResponse, badRequest } from "../_shared/supabase.ts";
+import { timingSafeEqual } from "../_shared/http.ts";
 
 function b64decode(s: string): Uint8Array {
   const bin = atob(s);
@@ -49,7 +50,7 @@ async function verifySvix(
   let key: CryptoKey;
   try {
     key = await crypto.subtle.importKey(
-      "raw", b64decode(keyMaterial),
+      "raw", b64decode(keyMaterial) as BufferSource,
       { name: "HMAC", hash: "SHA-256" }, false, ["sign"],
     );
   } catch {
@@ -62,7 +63,7 @@ async function verifySvix(
     .split(" ")
     .map((part) => part.split(",")[1])
     .filter(Boolean)
-    .some((sig) => sig === expected);
+    .some((sig) => timingSafeEqual(sig, expected));
 }
 
 interface EventPayload {

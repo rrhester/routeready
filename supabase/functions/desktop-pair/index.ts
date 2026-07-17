@@ -18,7 +18,7 @@
 // mint is gated in-function: it requires a valid user access token.
 //
 // Env (auto-injected): SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { createClient } from "@supabase/supabase-js";
 import { serviceClient, jsonResponse, badRequest } from "../_shared/supabase.ts";
 
 const CORS = {

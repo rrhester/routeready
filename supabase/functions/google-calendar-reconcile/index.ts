@@ -5,10 +5,13 @@
 // row's sync status — the fire-gcal-sync trigger then re-pushes the truth.
 // Fired by pg_cron via pg_net (migration 0498); gated by the shared token.
 import { serviceClient, jsonResponse } from "../_shared/supabase.ts";
+import { timingSafeEqual } from "../_shared/http.ts";
 import { getAccessToken, type GCalAccount } from "../_shared/google_calendar.ts";
 
 Deno.serve(async (req) => {
-  if (req.headers.get("x-rr-sync-token") !== Deno.env.get("GOOGLE_SYNC_TRIGGER_TOKEN")) {
+  // Timing-safe compare; an unset env token must REJECT (never match empty).
+  const _syncTok = Deno.env.get("GOOGLE_SYNC_TRIGGER_TOKEN") || "";
+  if (!_syncTok || !timingSafeEqual(req.headers.get("x-rr-sync-token") || "", _syncTok)) {
     return jsonResponse({ error: "unauthorized" }, { status: 401 });
   }
   const supa = serviceClient();

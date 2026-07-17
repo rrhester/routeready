@@ -3,12 +3,15 @@
 // google-calendar-sync. Fired by the cal_events trigger
 // (private.fire_mscal_sync) via pg_net; gated by the shared sync token.
 import { serviceClient, jsonResponse } from "../_shared/supabase.ts";
+import { timingSafeEqual } from "../_shared/http.ts";
 import { getMsAccessToken, msEventCreate, msEventUpdate, msEventDelete, type MsCalAccount } from "../_shared/ms_graph.ts";
 
 const isGone = (e: unknown) => /\b(404|410)\b|not.?found|\bgone\b|ErrorItemNotFound/i.test(String(e));
 
 Deno.serve(async (req) => {
-  if (req.headers.get("x-rr-sync-token") !== Deno.env.get("GOOGLE_SYNC_TRIGGER_TOKEN")) {
+  // Timing-safe compare; an unset env token must REJECT (never match empty).
+  const _syncTok = Deno.env.get("GOOGLE_SYNC_TRIGGER_TOKEN") || "";
+  if (!_syncTok || !timingSafeEqual(req.headers.get("x-rr-sync-token") || "", _syncTok)) {
     return jsonResponse({ error: "unauthorized" }, { status: 401 });
   }
   const body = await req.json().catch(() => ({}));
