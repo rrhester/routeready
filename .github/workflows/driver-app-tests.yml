@@ -15,6 +15,14 @@ on:
     paths:
       - "app/**"
       - "tests/driver-app/**"
+  # Weekly drift run — see booking-e2e.yml.
+  schedule:
+    - cron: '47 9 * * 1'
+
+env:
+  # Pinned — see booking-e2e.yml. Keep the three Playwright workflows on
+  # the same version so they share one browser cache.
+  PLAYWRIGHT_VERSION: 1.61.1
 
 jobs:
   e2e:
@@ -26,9 +34,19 @@ jobs:
         with:
           node-version: 22
       - name: Install test deps
-        run: npm install --no-save @playwright/test http-server
+        run: npm install --no-save @playwright/test@$PLAYWRIGHT_VERSION http-server
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ env.PLAYWRIGHT_VERSION }}
       - name: Install Chromium
+        if: steps.pw-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
+      - name: Install Chromium OS deps (cache hit)
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
       - name: Run driver-app E2E tests
         run: npx playwright test --config tests/driver-app/playwright.config.mjs
       - name: Upload traces on failure

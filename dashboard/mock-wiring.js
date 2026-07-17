@@ -2455,6 +2455,10 @@
     openModal('modal-add-applicant');
     setTimeout(function(){ document.getElementById('aa-fn').focus(); }, 50);
   }
+  // live.js's onboarding ribbon + view-onboarding-ops.frag guard on the
+  // GLOBAL (`typeof openAddApplicantModal === "function"`) — without this
+  // export those "Add applicant" entry points silently did nothing.
+  window.openAddApplicantModal = openAddApplicantModal;
 
   // ─── PDF UPLOAD (Onboarding ribbon) ────────────────────────
   // Stub for now — clicks the hidden file input + surfaces a toast
@@ -2800,19 +2804,9 @@
     toast(name + ' marked as hired · welcome email + SMS sent');
   }
 
-  // ─── ACKNOWLEDGE ALL SAFETY ───────────────────────────────
-  function acknowledgeAllSafety(){
-    closeSafetyQueue();
-    var clearLink = document.querySelector('.action-card[data-action="safety"] .clear-link');
-    if (clearLink) clearLink.click();
-    else toast('All 3 safety events marked acknowledged');
-  }
-  function markAllQualityReviewed(){
-    closeQualityQueue();
-    var clearLink = document.querySelector('.action-card[data-action="quality"] .clear-link');
-    if (clearLink) clearLink.click();
-    else toast('All 8 quality items marked reviewed');
-  }
+  // (acknowledgeAllSafety / markAllQualityReviewed removed 2026-07-17 —
+  // mockup-era, no callers anywhere, and both called closeSafetyQueue /
+  // closeQualityQueue which were never defined, so they'd have thrown.)
 
   // ─── SUBMIT DISPUTE ───────────────────────────────────────
   function submitDispute(){

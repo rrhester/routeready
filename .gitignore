@@ -4,7 +4,10 @@ migration/parsed.json
 
 # Local tooling
 node_modules/
-package-lock.json
+# package-lock.json is COMMITTED (project-review PR#81): without lockfiles
+# every CI run re-resolves floating ranges (typescript ^6, electron ^32,
+# @playwright/test), so releases weren't reproducible and a dependency
+# release could break CI/visual baselines with no code change.
 
 # Capacitor native build artifacts (the ios/ & android/ projects themselves
 # may be committed; these generated outputs should not be)

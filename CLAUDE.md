@@ -35,6 +35,45 @@ Playwright booking e2e (`tests/booking-e2e/`, own workflow). The
 calendar shows a schema-version banner (`calendar_schema_version()`,
 expects 498) until migrations are applied.
 
+## Active task: Project-review 100-list (PR#1–PR#100)
+
+Working through ALL 100 items of `docs/project-review-2026-07.md`
+(whole-project review, items referenced as `PR#NN`), user said
+"do all of them" (2026-07-17). Shipping in themed waves on branch
+`claude/project-review-recommendations-w9lhkj` (reset from main per
+chunk). Wave plan and status:
+
+- **Wave A — CI/workflows + repo hygiene**: PR#64,68,69,71,72,73,77,78,
+  79,80,81,84,85,87,88 — DONE pending CI/merge. Notable: deploy-list
+  drift gate + 11 missing fns added to deploy loops; edge-fn deno-check
+  workflow; flex-capacity CI (+ deleted dead dashboard/flex-capacity.js
+  bundle + browser-entry.ts); solver pytest + sealing tsc gate deploys;
+  lockfiles committed (.gitignore no longer ignores package-lock.json);
+  ESLint no-undef gate (eslint.config.mjs — new cross-file globals must
+  be added to SHARED_APP_GLOBALS); lint found + fixed 3 real bugs:
+  weather_snapshots never wrote (undefined `today`), Add-applicant
+  button no-op (openAddApplicantModal not window-exported), New-DM
+  driver pick no-op (_ddMessageDriver not window-exported); deleted
+  ~300 dead lines (recruiting footer/chooser cluster + LEGACY sched
+  renderer) — kept _rrFitRulesPopover/_rrRightChromeEdge/
+  _rrInstallRulesPopoverStyle which the live popovers still use.
+- **Wave B — security quick wins**: PR#1,2,3,4,6,7,8,13,22,26,27.
+- **Wave C — edge functions**: PR#57–63,65–67,60,61,62.
+- **Wave D — DB migrations**: PR#45–56 (+#25 RPC). Next free ordinal
+  0502; paste all SQL in chat; mind duplicate-ordinal rule (PR#45).
+- **Wave E — dashboard correctness**: PR#9,10,11,12,14,15,16(start),
+  17,18,19,20.
+- **Wave F — perf**: PR#21,23,24,28,29,30,31,32.
+- **Wave G — driver app**: PR#33–44.
+- **Wave H — a11y/UX**: PR#89–96 (check #91 vs merged #3955 first).
+- **Wave I — docs/DX**: PR#97–100.
+- **Wave J — testing depth**: PR#82,83,86.
+
+Notes: other sessions merge to main concurrently — re-verify each item
+against HEAD before implementing; rebase before each PR. Decision items
+resolve minimally (PR#95: delete stray dark block; PR#44: ticket list in
+docs/). Update this tracker every wave.
+
 ## Active task: Workbook 100-list (Excel-parity improvements)
 
 Working through a 100-item list of Workbook (`dashboard/workbook.js`)

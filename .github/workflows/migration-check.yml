@@ -31,7 +31,14 @@ on:
       - 'supabase/migrations/**'
       - 'supabase/tests/**'
       - 'tests/driver-forms/**'
+      - 'scripts/check-migration-ordinals.mjs'
       - '.github/workflows/migration-check.yml'
+  # Weekly drift run: the toolchain floats (CLI releases, base images) and
+  # this workflow doubles as the disaster-recovery rehearsal, so run it on
+  # a schedule too — environment breakage then surfaces on a quiet Monday
+  # instead of inside someone's unrelated PR.
+  schedule:
+    - cron: '17 9 * * 1'
   workflow_dispatch:
 
 concurrency:
@@ -45,9 +52,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: No new duplicate migration ordinals
+        # The 31 historical collisions are grandfathered; any NEW one is
+        # ambiguous for the operator's by-hand apply workflow (the likely
+        # cause of the known 0432 skip). See the script header.
+        run: node scripts/check-migration-ordinals.mjs
+
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # Pinned (was `latest`) so a CLI release can't flip this gate red
+          # under an unrelated PR; the weekly scheduled run is where drift
+          # is allowed to surface. Bump deliberately.
+          version: 2.109.1
 
       - name: Install psql client
         run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client

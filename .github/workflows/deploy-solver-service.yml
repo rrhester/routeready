@@ -8,11 +8,20 @@ name: Deploy solver-service (Fly.io)
 # production. Mirrors the hands-off, no-local-machine pattern of the
 # other deploy-*.yml workflows.
 #
+# The test job runs the full pytest suite (solver-service/tests/ —
+# eligibility parity, CP-SAT objective, trace) on every PR touching the
+# service AND gates the deploy: previously the suite existed but nothing
+# in CI ever ran it, and deploys went straight to flyctl.
+#
 # Required repo secret:
 #   FLY_API_TOKEN — a Fly.io deploy token (flyctl tokens create deploy)
 #                   with access to the rr-solve-ready app.
 
 on:
+  pull_request:
+    paths:
+      - 'solver-service/**'
+      - '.github/workflows/deploy-solver-service.yml'
   push:
     branches: [main]
     paths:
@@ -21,18 +30,44 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: solver-service-deploy
+  group: solver-service-deploy-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: solver-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            solver-service/requirements.txt
+            solver-service/requirements-dev.txt
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: Run pytest
+        run: python -m pytest tests/ -q
+
   deploy:
+    # Deploys only from main (or manual dispatch) and only after the
+    # suite is green — a red solver can no longer ship.
+    if: github.event_name != 'pull_request'
+    needs: test
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: solver-service
     steps:
       - uses: actions/checkout@v4
-      - uses: superfly/flyctl-actions/setup-flyctl@master
+      # Pinned tag (was @master — a moving branch on a production deploy
+      # path). Bump deliberately.
+      - uses: superfly/flyctl-actions/setup-flyctl@1.5
       - name: Deploy to Fly.io
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

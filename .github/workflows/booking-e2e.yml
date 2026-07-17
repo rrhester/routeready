@@ -13,6 +13,15 @@ on:
     paths:
       - "dashboard/booking.html"
       - "tests/booking-e2e/**"
+  # Weekly drift run — surfaces "the world changed" (Playwright/Chromium/
+  # runner image) on a schedule instead of inside an unrelated PR.
+  schedule:
+    - cron: '32 9 * * 1'
+
+env:
+  # Pinned: an unpinned @playwright/test can shift rendering between runs
+  # with no code change. Bump deliberately (and let the browser cache rotate).
+  PLAYWRIGHT_VERSION: 1.61.1
 
 jobs:
   e2e:
@@ -24,11 +33,21 @@ jobs:
         with:
           node-version: 22
       - name: Install test deps
-        run: npm install --no-save @playwright/test http-server esbuild @supabase/supabase-js@2.45.4
+        run: npm install --no-save @playwright/test@$PLAYWRIGHT_VERSION http-server esbuild @supabase/supabase-js@2.45.4
       - name: Bundle supabase-js for route interception
         run: npx esbuild --bundle node_modules/@supabase/supabase-js/dist/module/index.js --format=esm --outfile=tests/booking-e2e/.supabase-esm.js
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ env.PLAYWRIGHT_VERSION }}
       - name: Install Chromium
+        if: steps.pw-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
+      - name: Install Chromium OS deps (cache hit)
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
       - name: Run booking e2e
         run: npx playwright test --config tests/booking-e2e/playwright.config.mjs
       - name: Upload traces on failure
