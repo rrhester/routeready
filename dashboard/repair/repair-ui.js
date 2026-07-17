@@ -26,6 +26,7 @@ import {
   REQUEST_STATUS_LABEL, REQUEST_STATUS_TONE, SHOP_CLASS_LABEL, SHOP_CLASS_TONE,
   QUOTE_STATUS_LABEL, QUOTE_STATUS_TONE,
   AUTH_TYPE_LABEL, AUTH_STATUS_LABEL, AUTH_STATUS_TONE,
+  INVOICE_STATUS_LABEL, INVOICE_STATUS_TONE, buildReconciliation,
   msBetween, formatDuration, daysDown, daysDownTone, promiseState, downSince,
   formatCents, sumCents, attentionScore, filterQueue, sortQueue,
   formatWhen, formatDay, vehicleShortDesc, parseOdometer, ODOMETER_MAX,
@@ -53,6 +54,7 @@ import {
     filters: { search: "", stage: "", station: "", grounded: false, overdue: false, openOnly: true },
     drawerCase: null,
     drawerQuotes: null,    // last repair_case_quotes payload for the open drawer
+    drawerInvoices: null,  // last repair_case_invoices payload
   };
 
   const sb = () => window.sb;
@@ -103,6 +105,11 @@ import {
   };
 
   const moneyCell = (row) => {
+    if (row.invoice_total_cents != null) {
+      const over = row.approved_total_cents != null
+        && row.invoice_total_cents > row.approved_total_cents;
+      return `<span class="rp-strong${over ? " rp-money-over" : ""}">${esc(formatCents(row.invoice_total_cents))}</span><span class="rp-cell-sub${over ? " rp-money-over" : ""}">${over ? "over authorization" : "invoice"}</span>`;
+    }
     if (row.approved_total_cents != null) {
       return `<span class="rp-strong">${esc(formatCents(row.approved_total_cents))}</span><span class="rp-cell-sub">approved</span>`;
     }
@@ -282,7 +289,8 @@ import {
       const who = c ? `${c.case_number} · ${c.vehicle_nickname || c.vehicle_name || ""}` : "";
       const tone = (e.kind === "grounded" || e.kind === "email_bounced") ? "r"
         : (e.kind === "returned_to_service" || e.kind === "ungrounded"
-           || e.kind === "authorization_acknowledged" || e.kind === "vehicle_picked_up") ? "g"
+           || e.kind === "authorization_acknowledged" || e.kind === "vehicle_picked_up"
+           || e.kind === "invoice_settled") ? "g"
         : (e.kind === "stage_changed" || e.kind === "created"
            || e.kind === "authorization_issued"
            || e.kind === "visit_scheduled" || e.kind === "visit_checked_in") ? "b" : "n";
@@ -538,7 +546,8 @@ import {
     return `<div class="rp-tl">` + events.map((e) => {
       const tone = (e.kind === "grounded" || e.kind === "email_bounced") ? "r"
         : (e.kind === "returned_to_service" || e.kind === "ungrounded"
-           || e.kind === "authorization_acknowledged" || e.kind === "vehicle_picked_up") ? "g"
+           || e.kind === "authorization_acknowledged" || e.kind === "vehicle_picked_up"
+           || e.kind === "invoice_settled") ? "g"
         : (e.kind === "stage_changed" || e.kind === "created" || e.kind === "ro_linked"
            || e.kind === "authorization_issued"
            || e.kind === "visit_scheduled" || e.kind === "visit_checked_in") ? "b" : "n";
@@ -656,6 +665,8 @@ import {
           <button type="button" class="rp-drawer-x" data-rp-close aria-label="Close">✕</button>
         </header>
         ${p.state === "overdue" ? `<div class="rp-callout rp-callout-bad">Promised completion passed ${esc(formatDay(p.dueIso))}${esc(c.visit?.current_delay_reason ? ` — ${c.visit.current_delay_reason}` : "")}.</div>` : ""}
+        ${c.invoice_total_cents != null && c.approved_total_cents != null && c.invoice_total_cents > c.approved_total_cents
+          ? `<div class="rp-callout rp-callout-bad">Invoice exceeds the authorization by ${esc(formatCents(c.invoice_total_cents - c.approved_total_cents))}.</div>` : ""}
         ${c.limitation_note ? `<div class="rp-callout rp-callout-warn">Limited use: ${esc(c.limitation_note)}</div>` : ""}
         <div class="rp-drawer-body">
           ${c.description ? `<p class="rp-drawer-desc">${esc(c.description)}</p>` : ""}
@@ -675,6 +686,13 @@ import {
             <button type="button" class="rp-btn rp-btn-primary" data-rp-request-quotes>Request quotes…</button>
             <button type="button" class="rp-btn" data-rp-phone-quote>Log phone quote…</button>
             <button type="button" class="rp-btn" data-rp-authorize="" title="Authorize diagnostics or set a not-to-exceed cap — a quote isn't required">Authorize work…</button>
+          </div>
+          <h4 class="rp-drawer-h4">Invoice &amp; reconciliation</h4>
+          <div class="rp-qsec" id="rr-rp-invoices">
+            <div class="rp-table-empty rp-qsec-loading">Loading…</div>
+          </div>
+          <div class="rp-drawer-actions" style="border-top:none;margin-bottom:0;padding-bottom:0">
+            <button type="button" class="rp-btn" data-rp-log-invoice>Log invoice…</button>
           </div>
           <h4 class="rp-drawer-h4">Attachments</h4>
           <div class="rp-atts" id="rr-rp-atts">${drawerAttachments(c)}</div>
@@ -717,6 +735,19 @@ import {
         if (items) items.hidden = !items.hidden;
         return;
       }
+      if (e.target.closest("[data-rp-log-invoice]")) { openLogInvoiceModal(c); return; }
+      const invReview = e.target.closest("[data-rp-inv-review]");
+      if (invReview) {
+        const inv = (S.drawerInvoices?.invoices || []).find((i) => i.id === invReview.getAttribute("data-rp-inv-review"));
+        if (inv) openInvoiceReviewModal(c, inv);
+        return;
+      }
+      const invRec = e.target.closest("[data-rp-inv-reconcile]");
+      if (invRec) {
+        const inv = (S.drawerInvoices?.invoices || []).find((i) => i.id === invRec.getAttribute("data-rp-inv-reconcile"));
+        if (inv) openReconcileModal(c, inv);
+        return;
+      }
       const reviewBtn = e.target.closest("[data-rp-review]");
       if (reviewBtn) {
         const quote = (S.drawerQuotes?.quotes || []).find((q) => q.id === reviewBtn.getAttribute("data-rp-review"));
@@ -743,7 +774,8 @@ import {
     const fileInput = wrap.querySelector("#rr-rp-att-input");
     if (fileInput) fileInput.addEventListener("change", () => uploadAttachments(c, fileInput.files));
     document.addEventListener("keydown", drawerEsc);
-    loadDrawerQuotes(c.id); // async fill; drawer stays responsive
+    loadDrawerQuotes(c.id);   // async fill; drawer stays responsive
+    loadDrawerInvoices(c.id);
   }
 
   // ── quotes section (drawer) ──────────────────────────────────────────
@@ -1373,6 +1405,273 @@ import {
     }
   }
 
+  // ── invoices & reconciliation (Phase 8) ──────────────────────────────
+  async function loadDrawerInvoices(caseId) {
+    const host = el("rr-rp-invoices");
+    if (!host) return;
+    const { data, error } = await sb().rpc("repair_case_invoices", { p_case_id: caseId });
+    if (!el("rr-rp-invoices")) return; // drawer closed meanwhile
+    if (error || !data) {
+      host.innerHTML = `<div class="rp-table-empty rp-error">Couldn't load invoices · ${esc(error?.message || "try again")}</div>`;
+      return;
+    }
+    S.drawerInvoices = data;
+    renderDrawerInvoices(host, data);
+  }
+
+  function renderDrawerInvoices(host, data) {
+    const invoices = data.invoices || [];
+    const auth = data.authorization;
+    if (!invoices.length) {
+      host.innerHTML = `<div class="rp-table-empty" style="padding:var(--s-2) 0;text-align:left">No invoice yet — it arrives by email or upload (extracted automatically), or log it manually.</div>`;
+      return;
+    }
+    host.innerHTML = invoices.map((inv) => {
+      const rec = buildReconciliation(inv, auth);
+      const pills = [
+        `<span class="status-pill rp-pill-${esc(INVOICE_STATUS_TONE[inv.status] || "neutral")}">${esc(INVOICE_STATUS_LABEL[inv.status] || inv.status)}</span>`,
+        inv.totals_mismatch ? `<span class="status-pill rp-pill-warn" title="The invoice's printed total doesn't match its own line items">Totals differ</span>` : "",
+        rec.over && inv.status !== "superseded"
+          ? `<span class="status-pill rp-pill-bad" title="Invoice total is above the authorized amount">+${esc(formatCents(rec.variance_cents))} over</span>` : "",
+      ].filter(Boolean).join(" ");
+      const sub = [
+        inv.vendor_name || "shop not identified",
+        inv.invoice_number ? `#${inv.invoice_number}` : null,
+        inv.status === "settled" && inv.variance_note ? `variance: ${inv.variance_note}` : null,
+        inv.status === "disputed" && inv.dispute_note ? `dispute: ${inv.dispute_note}` : null,
+      ].filter(Boolean).join(" · ");
+      const action = inv.status === "draft"
+        ? `<button type="button" class="rp-btn rp-btn-sm rp-btn-primary" data-rp-inv-review="${esc(inv.id)}">Review…</button>`
+        : (inv.status === "recorded" || inv.status === "disputed")
+          ? `<button type="button" class="rp-btn rp-btn-sm rp-btn-primary" data-rp-inv-reconcile="${esc(inv.id)}">Reconcile…</button>`
+          : "";
+      return `
+      <div class="rp-qrow${inv.status === "superseded" ? " rp-dim" : ""}">
+        <div class="rp-qrow-main">
+          <span class="rp-strong">Invoice ${pills}</span>
+          <span class="rp-cell-sub">${esc(sub)}</span>
+        </div>
+        <span class="rp-strong rp-qamt">${esc(formatCents(inv.grand_total_cents ?? inv.shop_reported_total_cents))}</span>
+        ${action}
+      </div>`;
+    }).join("");
+  }
+
+  // Draft invoice review — record or discard, numbers never editable.
+  async function openInvoiceReviewModal(c, inv) {
+    injectCss();
+    el("rr-rp-modal")?.remove();
+    const shops = inv.vendor_id ? [] : await loadShops();
+    const wrap = document.createElement("div");
+    wrap.id = "rr-rp-modal";
+    const shopOpts = shops.filter((s) => s.preferred_status !== "blocked")
+      .map((s) => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join("");
+    const srcAtt = (c.attachments || []).find((a) => a.id === inv.extracted_from_attachment_id);
+    const items = (inv.line_items || []).map((li) => `
+      <div class="rp-qli">
+        <span class="rp-qli-desc">${esc(li.description)}</span>
+        <span class="rp-qli-amt">${esc(formatCents(li.line_total_cents))}</span>
+      </div>`).join("");
+    wrap.innerHTML = `
+      <div class="rp-modal-scrim" data-rp-mclose></div>
+      <div class="rp-modal-card rp-modal-wide" role="dialog" aria-modal="true" aria-label="Review extracted invoice">
+        <header class="rp-modal-head"><h3>Review extracted invoice — ${esc(c.case_number)}</h3><button type="button" class="rp-drawer-x" data-rp-mclose aria-label="Close">✕</button></header>
+        <div class="rp-modal-body">
+          <div class="rp-callout rp-callout-warn" style="margin:0 0 var(--s-3)">Read by AI from the document — <strong>check the numbers against the original</strong>. Recording doesn't approve anything; reconciliation against the authorization comes next.</div>
+          <div class="rp-qrow" style="padding-top:0">
+            <div class="rp-qrow-main">
+              <span class="rp-strong">${esc(inv.vendor_name || "Shop not identified")}</span>
+              <span class="rp-cell-sub">${esc([inv.invoice_number ? `#${inv.invoice_number}` : null, `${(inv.line_items || []).length} lines`].filter(Boolean).join(" · "))}</span>
+            </div>
+            ${srcAtt ? `<button type="button" class="rp-btn rp-btn-sm" data-rp-att-path="${esc(srcAtt.storage_path)}" data-rp-att-bucket="${esc(srcAtt.storage_bucket)}">Open document</button>` : ""}
+          </div>
+          ${inv.vendor_id ? "" : `<label class="rp-field" style="margin-bottom:var(--s-3)"><span>Which shop sent this? <em>*</em></span><select id="rr-rp-iv-shop" class="rp-input">${shopOpts || `<option value="">No shops yet</option>`}</select></label>`}
+          <div class="rp-qitems" style="margin:0">${items || `<div class="rp-cell-sub">No line detail was readable.</div>`}</div>
+          <div class="rp-qrow" style="border-bottom:none">
+            <div class="rp-qrow-main"><span class="rp-strong">Computed total</span><span class="rp-cell-sub">recomputed from the lines by the server</span></div>
+            <span class="rp-strong rp-qamt">${esc(formatCents(inv.grand_total_cents))}</span>
+          </div>
+          ${inv.totals_mismatch ? `<div class="rp-callout rp-callout-warn" style="margin:var(--s-2) 0 0">The invoice's printed total (${esc(formatCents(inv.shop_reported_total_cents))}) doesn't match its own line items — flagged, not corrected.</div>` : ""}
+        </div>
+        <footer class="rp-modal-foot">
+          <button type="button" class="rp-btn rp-btn-danger" data-rp-iv-discard>Discard</button>
+          <span style="flex:1"></span>
+          <button type="button" class="rp-btn" data-rp-mclose>Cancel</button>
+          <button type="button" class="rp-btn rp-btn-primary" data-rp-iv-record>Record invoice</button>
+        </footer>
+      </div>`;
+    document.body.appendChild(wrap);
+    wrap.addEventListener("click", async (e) => {
+      if (e.target.closest("[data-rp-mclose]")) { wrap.remove(); return; }
+      const openDoc = e.target.closest("[data-rp-att-path]");
+      if (openDoc) { await openAttachment(openDoc.getAttribute("data-rp-att-bucket"), openDoc.getAttribute("data-rp-att-path")); return; }
+      const record = e.target.closest("[data-rp-iv-record]");
+      const discard = e.target.closest("[data-rp-iv-discard]");
+      if (!record && !discard) return;
+      let vendorId = null;
+      if (record && !inv.vendor_id) {
+        vendorId = wrap.querySelector("#rr-rp-iv-shop")?.value || null;
+        if (!vendorId) { say("Pick the shop this invoice came from", "warn"); return; }
+      }
+      const btn = record || discard;
+      btn.disabled = true;
+      const { error } = await sb().rpc("repair_invoice_review", {
+        p_invoice_id: inv.id,
+        p_action: record ? "record" : "discard",
+        p_vendor_id: vendorId,
+      });
+      btn.disabled = false;
+      if (error) { fail("Couldn't save the review", error); return; }
+      wrap.remove();
+      say(record ? "Invoice recorded — reconcile it next" : "Extraction discarded", record ? "warn" : undefined);
+      loadDrawerInvoices(c.id);
+    });
+  }
+
+  // Reconciliation — the invoice diffed line-by-line against the
+  // authorization snapshot. Display math (engine buildReconciliation);
+  // the settle RPC re-derives the authoritative variance in SQL and
+  // refuses an over-authorization settle without a reason.
+  function openReconcileModal(c, inv) {
+    injectCss();
+    el("rr-rp-modal")?.remove();
+    const auth = S.drawerInvoices?.authorization || null;
+    const rec = buildReconciliation(inv, auth);
+    const wrap = document.createElement("div");
+    wrap.id = "rr-rp-modal";
+    const rowHtml = (r) => {
+      const tag = r.state === "not_authorized"
+        ? ` <span class="status-pill rp-pill-warn">not authorized</span>`
+        : r.state === "not_invoiced" ? ` <span class="rp-cell-sub" style="display:inline">not invoiced</span>` : "";
+      return `<tr class="${r.state === "not_invoiced" ? "rp-dim" : ""}">
+        <td><span class="rp-cmp-desc">${esc(r.description)}</span>${r.category ? `<span class="rp-cell-sub">${esc(String(r.category).replace(/_/g, " "))}</span>` : ""}</td>
+        <td class="num">${r.authorized_cents != null ? esc(formatCents(r.authorized_cents)) : `<span class="rp-cmp-missing">—</span>`}</td>
+        <td class="num">${r.invoice_cents != null ? esc(formatCents(r.invoice_cents)) + tag : `<span class="rp-cmp-missing">—</span>`}</td>
+        <td class="num">${r.delta_cents != null && r.delta_cents !== 0
+          ? `<span class="${r.delta_cents > 0 ? "rp-money-over" : ""}">${r.delta_cents > 0 ? "+" : ""}${esc(formatCents(r.delta_cents))}</span>`
+          : `<span class="rp-cmp-missing">${r.delta_cents === 0 ? "±0" : "—"}</span>`}</td>
+      </tr>`;
+    };
+    wrap.innerHTML = `
+      <div class="rp-modal-scrim" data-rp-mclose></div>
+      <div class="rp-modal-card rp-modal-xwide" role="dialog" aria-modal="true" aria-label="Reconcile invoice">
+        <header class="rp-modal-head"><h3>Reconcile invoice — ${esc(c.case_number)}</h3><button type="button" class="rp-drawer-x" data-rp-mclose aria-label="Close">✕</button></header>
+        <div class="rp-modal-body">
+          ${!rec.has_authorization ? `<div class="rp-callout rp-callout-warn" style="margin:0 0 var(--s-3)">No active authorization on this case — there's nothing to reconcile against. You can still settle, but consider why work happened without an authorization.</div>` : ""}
+          ${rec.over ? `<div class="rp-callout rp-callout-bad" style="margin:0 0 var(--s-3)"><strong>Invoice exceeds the authorization by ${esc(formatCents(rec.variance_cents))}.</strong> Settling requires a reason — it goes on the timeline and the audit log.</div>` : ""}
+          ${rec.unauthorized_cents > 0 ? `<div class="rp-callout rp-callout-warn" style="margin:0 0 var(--s-3)">${esc(formatCents(rec.unauthorized_cents))} of line items fall outside the authorized scope (tagged below).</div>` : ""}
+          <div class="rp-cmp-scroll">
+            <table class="rp-cmp">
+              <thead><tr><th></th><th class="num">Authorized</th><th class="num">Invoice</th><th class="num">Δ</th></tr></thead>
+              <tbody>
+                ${rec.rows.map(rowHtml).join("") || `<tr><td colspan="4" class="rp-cell-sub" style="padding:var(--s-3) 0">No line detail on either side — totals-only reconciliation.</td></tr>`}
+                <tr class="rp-cmp-totalrow">
+                  <td><span class="rp-strong">Total</span></td>
+                  <td class="num rp-strong">${esc(formatCents(rec.authorized_cents))}</td>
+                  <td class="num rp-strong">${esc(formatCents(rec.invoiced_cents))}</td>
+                  <td class="num rp-strong">${rec.variance_cents != null
+                    ? `<span class="${rec.variance_cents > 0 ? "rp-money-over" : ""}">${rec.variance_cents > 0 ? "+" : ""}${esc(formatCents(rec.variance_cents))}</span>` : "—"}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <label class="rp-field" style="margin-top:var(--s-3)"><span>${rec.over ? "Reason for accepting the variance <em>*</em>" : "Note (required to dispute)"}</span>
+            <textarea id="rr-rp-rc-note" class="rp-input rp-input-ta" rows="2" maxlength="500" placeholder="${rec.over ? "e.g. Shop called 7/15 — seized caliper bolt added 0.5h labor, approved by phone" : "e.g. Disputing the second diagnostic charge — already paid on the estimate"}"></textarea>
+          </label>
+        </div>
+        <footer class="rp-modal-foot">
+          <button type="button" class="rp-btn rp-btn-danger" data-rp-rc-dispute>Dispute…</button>
+          <span style="flex:1"></span>
+          <button type="button" class="rp-btn" data-rp-mclose>Cancel</button>
+          <button type="button" class="rp-btn rp-btn-primary" data-rp-rc-accept>Accept &amp; settle</button>
+        </footer>
+      </div>`;
+    document.body.appendChild(wrap);
+    wrap.addEventListener("click", async (e) => {
+      if (e.target.closest("[data-rp-mclose]")) { wrap.remove(); return; }
+      const accept = e.target.closest("[data-rp-rc-accept]");
+      const dispute = e.target.closest("[data-rp-rc-dispute]");
+      if (!accept && !dispute) return;
+      const note = wrap.querySelector("#rr-rp-rc-note").value.trim();
+      if (accept && rec.over && !note) {
+        say("A reason is required to settle above the authorization", "warn");
+        return;
+      }
+      if (dispute && !note) {
+        say("Write what you're disputing first", "warn");
+        return;
+      }
+      const btn = accept || dispute;
+      btn.disabled = true;
+      const { error } = await sb().rpc("repair_invoice_settle", {
+        p_invoice_id: inv.id,
+        p_action: accept ? "accept" : "dispute",
+        p_note: note || null,
+      });
+      btn.disabled = false;
+      if (error) { fail("Couldn't save the reconciliation", error); return; }
+      wrap.remove();
+      say(accept ? "Invoice settled" : "Invoice disputed — logged on the timeline", accept ? undefined : "warn");
+      await refreshDrawer(c.id);
+    });
+  }
+
+  // Manual invoice entry (paper/phone).
+  async function openLogInvoiceModal(c) {
+    injectCss();
+    el("rr-rp-modal")?.remove();
+    const shops = await loadShops();
+    const wrap = document.createElement("div");
+    wrap.id = "rr-rp-modal";
+    const opts = shops.filter((s) => s.preferred_status !== "blocked")
+      .map((s) => `<option value="${esc(s.id)}"${s.id === c.vendor?.id ? " selected" : ""}>${esc(s.name)}</option>`).join("");
+    wrap.innerHTML = `
+      <div class="rp-modal-scrim" data-rp-mclose></div>
+      <div class="rp-modal-card" role="dialog" aria-modal="true" aria-label="Log invoice">
+        <header class="rp-modal-head"><h3>Log invoice — ${esc(c.case_number)}</h3><button type="button" class="rp-drawer-x" data-rp-mclose aria-label="Close">✕</button></header>
+        <div class="rp-modal-body">
+          <label class="rp-field"><span>Shop <em>*</em></span><select id="rr-rp-li-shop" class="rp-input">${opts || `<option value="">No shops yet</option>`}</select></label>
+          <div class="rp-form-grid">
+            <label class="rp-field"><span>Invoice total ($) <em>*</em></span><input id="rr-rp-li-total" class="rp-input" inputmode="decimal" placeholder="e.g. 641.98"></label>
+            <label class="rp-field"><span>Invoice #</span><input id="rr-rp-li-number" class="rp-input" maxlength="60"></label>
+          </div>
+          <label class="rp-field"><span>Notes</span><textarea id="rr-rp-li-notes" class="rp-input rp-input-ta" rows="2" maxlength="1000"></textarea></label>
+        </div>
+        <footer class="rp-modal-foot">
+          <button type="button" class="rp-btn" data-rp-mclose>Cancel</button>
+          <button type="button" class="rp-btn rp-btn-primary" data-rp-li-save>Record invoice</button>
+        </footer>
+      </div>`;
+    document.body.appendChild(wrap);
+    wrap.addEventListener("click", async (e) => {
+      if (e.target.closest("[data-rp-mclose]")) { wrap.remove(); return; }
+      if (!e.target.closest("[data-rp-li-save]")) return;
+      const shopId = wrap.querySelector("#rr-rp-li-shop").value;
+      if (!shopId) { say("Pick a shop", "warn"); return; }
+      const m = parseMoney(wrap.querySelector("#rr-rp-li-total").value);
+      if (!m.ok || m.cents == null) {
+        say(m.reason === "too_large" ? "That total looks wrong — amounts above $1,000,000 aren't accepted"
+          : "Enter the invoice total as a dollar amount, e.g. 641.98", "warn");
+        return;
+      }
+      const btn = e.target.closest("[data-rp-li-save]");
+      btn.disabled = true;
+      const { error } = await sb().rpc("repair_invoice_manual_add", {
+        p_case_id: c.id, p_vendor_id: shopId,
+        p_grand_total_cents: m.cents, p_line_items: [],
+        p_details: {
+          invoice_number: wrap.querySelector("#rr-rp-li-number").value.trim() || null,
+          notes: wrap.querySelector("#rr-rp-li-notes").value.trim() || null,
+        },
+      });
+      btn.disabled = false;
+      if (error) { fail("Couldn't record the invoice", error); return; }
+      wrap.remove();
+      say("Invoice recorded — reconcile it when ready");
+      loadDrawerInvoices(c.id);
+    });
+  }
+
   // ── extracted-quote review (Phase 7) ─────────────────────────────────
   async function doExtractAttachment(c, btn) {
     const attachmentId = btn.getAttribute("data-rp-extract");
@@ -1672,6 +1971,7 @@ import {
     el("rr-rp-drawer")?.remove();
     S.drawerCase = null;
     S.drawerQuotes = null;
+    S.drawerInvoices = null;
   }
 
   async function refreshDrawer(caseId) {
@@ -2041,6 +2341,7 @@ import {
 .rp-auth-card .rp-qitems{margin:var(--s-2) 0 0;background:var(--surface)}
 .rp-auth-actions{display:flex;gap:var(--s-2);flex-wrap:wrap;margin-top:var(--s-2)}
 .rp-auth-hist{padding:var(--s-1) 0}
+.rp-money-over{color:var(--red)}
 .rp-qli-declined{opacity:.6}
 .rp-qli-declined .rp-qli-desc{text-decoration:line-through}
 #rr-rp-modal .rp-modal-xwide{max-width:960px}

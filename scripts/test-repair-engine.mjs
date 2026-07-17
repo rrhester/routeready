@@ -21,6 +21,7 @@ import {
   AUTH_TYPE_LABEL, AUTH_STATUS_LABEL, AUTH_STATUS_TONE,
   parseMoney, MONEY_MAX_CENTS,
   comparableQuotes, normalizeLineKey, buildComparison,
+  INVOICE_STATUS_LABEL, INVOICE_STATUS_TONE, buildReconciliation,
 } from "../dashboard/repair/repair-engine.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -422,6 +423,87 @@ t("buildComparison — single quote produces no warnings", () => {
   const c = buildComparison([cq("a", "Shop A", 100000, [])]);
   assert.equal(c.warnings.length, 0);
   assert.equal(c.quotes.length, 1);
+});
+
+// ── Invoice reconciliation (Phase 8) ────────────────────────────────────
+t("invoice status vocab complete; no lifecycle state is red", () => {
+  for (const k of ["draft", "recorded", "disputed", "settled", "superseded"]) {
+    assert.ok(INVOICE_STATUS_LABEL[k], `label ${k}`);
+    assert.ok(INVOICE_STATUS_TONE[k], `tone ${k}`);
+    assert.notEqual(INVOICE_STATUS_TONE[k], "bad", `${k} must not be red`);
+  }
+});
+
+const authFx = {
+  authorization_type: "selected_lines", nte_cap_cents: null,
+  authorized_total_cents: 51640,
+  lines: [
+    { description: "Front brake pads", category: "part_oem", line_total_cents: 23920, decision: "approved" },
+    { description: "Rotors pair", category: "part_oem", line_total_cents: 27720, decision: "approved" },
+    { description: "Shop supplies", category: "supplies", line_total_cents: 1850, decision: "declined" },
+  ],
+};
+const invFx = (lines, grand) => ({ grand_total_cents: grand, line_items: lines });
+
+t("buildReconciliation — matched lines, per-line deltas, over flag", () => {
+  const r = buildReconciliation(invFx([
+    { description: "Front brake pads", category: "part_oem", line_total_cents: 23920 },
+    { description: "rotors pair", category: "part_oem", line_total_cents: 31220 },
+  ], 55140), authFx);
+  const pads = r.rows.find((x) => x.description === "Front brake pads");
+  assert.equal(pads.state, "matched");
+  assert.equal(pads.delta_cents, 0);
+  const rotors = r.rows.find((x) => /rotors/i.test(x.description));
+  assert.equal(rotors.state, "matched");
+  assert.equal(rotors.delta_cents, 3500);
+  assert.equal(r.authorized_cents, 51640);
+  assert.equal(r.variance_cents, 3500);
+  assert.equal(r.over, true);
+});
+
+t("buildReconciliation — unauthorized work is isolated, declined lines don't count", () => {
+  const r = buildReconciliation(invFx([
+    { description: "Front brake pads", category: "part_oem", line_total_cents: 23920 },
+    { description: "Cabin air filter", category: "part_aftermarket", line_total_cents: 4500 },
+    { description: "Shop supplies", category: "supplies", line_total_cents: 1850 },
+  ], 30270), authFx);
+  const filter = r.rows.find((x) => x.description === "Cabin air filter");
+  assert.equal(filter.state, "not_authorized");
+  // "Shop supplies" was DECLINED in the authorization — invoicing it is
+  // unauthorized work, not a match.
+  const supplies = r.rows.find((x) => x.description === "Shop supplies");
+  assert.equal(supplies.state, "not_authorized");
+  assert.equal(r.unauthorized_cents, 4500 + 1850);
+  const missing = r.rows.find((x) => x.state === "not_invoiced");
+  assert.ok(/rotors/i.test(missing.description), "un-invoiced authorized work listed");
+});
+
+t("buildReconciliation — NTE cap wins; under-cap is not over", () => {
+  const r = buildReconciliation(invFx([
+    { description: "Diagnosis", category: "diagnostic", line_total_cents: 30000 },
+  ], 30000), { authorization_type: "not_to_exceed", nte_cap_cents: 50000,
+               authorized_total_cents: 50000, lines: [] });
+  assert.equal(r.authorized_cents, 50000);
+  assert.equal(r.variance_cents, -20000);
+  assert.equal(r.over, false);
+});
+
+t("buildReconciliation — no authorization: nothing to diff against", () => {
+  const r = buildReconciliation(invFx([
+    { description: "Brakes", category: "labor", line_total_cents: 10000 },
+  ], 10000), null);
+  assert.equal(r.has_authorization, false);
+  assert.equal(r.authorized_cents, null);
+  assert.equal(r.variance_cents, null);
+  assert.equal(r.over, false);
+});
+
+t("buildReconciliation — tax lines never appear as scope", () => {
+  const r = buildReconciliation(invFx([
+    { description: "Front brake pads", category: "part_oem", line_total_cents: 23920 },
+    { description: "Tax", category: "tax", line_total_cents: 1435 },
+  ], 25355), authFx);
+  assert.ok(!r.rows.some((x) => x.category === "tax"));
 });
 
 console.log(`test-repair-engine: ${passed} passed${process.exitCode ? " (with failures)" : ""}`);
