@@ -15517,6 +15517,59 @@ function saveMacros(list) {
   catch (_) { return false; }
 }
 function newMacroId() { return "m" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
+// ── Org macro library (100-list #85) ────────────────────────────────────────
+// A DSP's dispatchers can publish macros to public.workbook_macros so the whole
+// org can load + run them (RLS scopes rows to the caller's DSP; edit/delete is
+// author-or-ops+). The store only shares CODE — running a team macro still hits
+// the same explicit per-run confirmation, and macros still run in the sandbox.
+const MACRO_ORG_CAP = 300;
+async function loadOrgMacros() {
+  const sb = _sb();
+  if (!sb) return [];
+  try {
+    const res = await sb.from("workbook_macros")
+      .select("id, name, description, code, created_by, updated_at")
+      .order("name").limit(MACRO_ORG_CAP);
+    if (res.error) throw res.error;
+    return Array.isArray(res.data) ? res.data : [];
+  } catch (e) {
+    // table not migrated yet, or no access — degrade to local-only silently
+    if (!/workbook_macros|relation|does not exist|schema cache/i.test(String(e && e.message))) console.warn("org macros load:", e && e.message);
+    return [];
+  }
+}
+// Insert (id absent) or update (id present) a team macro. Returns the row or null.
+async function publishOrgMacro(rec) {
+  const sb = _sb(), me = _me();
+  if (!sb || !me || !WB.wb) throw new Error("Sign in with a workbook open to publish.");
+  const name = String(rec.name || "Untitled macro").slice(0, 120);
+  const code = String(rec.code || "").slice(0, 40000);
+  const description = rec.description != null ? String(rec.description).slice(0, 500) : null;
+  let q;
+  if (rec.id) {
+    q = sb.from("workbook_macros").update({ name, code, description }).eq("id", rec.id).select("id, name, description, code, created_by, updated_at").single();
+  } else {
+    q = sb.from("workbook_macros").insert({ dsp_id: WB.wb.dsp_id, name, code, description, created_by: me.id }).select("id, name, description, code, created_by, updated_at").single();
+  }
+  const res = await q;
+  if (res.error) throw res.error;
+  return res.data || null;
+}
+async function deleteOrgMacro(id) {
+  const sb = _sb();
+  if (!sb) return false;
+  const res = await sb.from("workbook_macros").delete().eq("id", id);
+  if (res.error) throw res.error;
+  return true;
+}
+// Author or ops+ may edit/unpublish a team macro (RLS enforces this server-side
+// too; this just gates the affordances).
+function canManageOrgMacro(row) {
+  const me = _me();
+  if (!me) return false;
+  return row.created_by === me.id || ["ops", "owner", "platform_admin"].includes(me.role);
+}
 function macroFmt(v) {
   if (typeof v === "string") return v;
   if (v === undefined) return "undefined";
@@ -15980,6 +16033,9 @@ function openMacrosPanel(g) {
   document.getElementById("wb-macros-modal")?.remove();
   let macros = loadMacros();
   let currentId = null;
+  // Org macro library (#85): team-published macros load alongside local ones.
+  let orgMacros = [];
+  let currentOrgId = null; // set when a team macro is loaded into the editor
 
   const wrap = document.createElement("div");
   wrap.className = "rr-modal-backdrop";
@@ -16028,6 +16084,7 @@ function openMacrosPanel(g) {
         <button class="rr-modal-btn is-danger" type="button" id="wb-macro-del" style="margin-right:auto">Delete</button>
         <span id="wb-macro-status" role="status" aria-live="polite" style="align-self:center;font-size:12px;font-weight:600;margin-right:10px;opacity:0"></span>
         <button class="rr-modal-btn" type="button" data-wb-close>Close</button>
+        <button class="rr-modal-btn" type="button" id="wb-macro-publish" title="Publish this macro to your team's shared library">Publish to team</button>
         <button class="rr-modal-btn" type="button" id="wb-macro-save">Save</button>
         <button class="rr-modal-btn primary" type="button" id="wb-macro-run">▶ Run</button>
       </div>
@@ -16053,19 +16110,51 @@ function openMacrosPanel(g) {
   };
 
   function renderList() {
-    if (!macros.length) { listEl.innerHTML = '<p style="font-size:12px;color:var(--text-subtle);margin:2px 0">No saved macros yet.</p>'; return; }
-    listEl.innerHTML = macros.map((m) =>
-      '<button type="button" class="rr-modal-btn" data-macro="' + esc(m.id) + '" style="justify-content:flex-start;text-align:left;width:100%;' +
-      (m.id === currentId ? "border-color:var(--accent,var(--text));font-weight:600" : "") + '">' + esc(m.name || "Untitled") + "</button>").join("");
+    let html = macros.length
+      ? macros.map((m) =>
+          '<button type="button" class="rr-modal-btn" data-macro="' + esc(m.id) + '" style="justify-content:flex-start;text-align:left;width:100%;' +
+          (m.id === currentId ? "border-color:var(--accent,var(--text));font-weight:600" : "") + '">' + esc(m.name || "Untitled") + "</button>").join("")
+      : '<p style="font-size:12px;color:var(--text-subtle);margin:2px 0">No saved macros yet.</p>';
+    if (orgMacros.length) {
+      html += '<div style="display:flex;align-items:center;gap:6px;margin:10px 0 4px;color:var(--text-subtle);font-size:10.5px;text-transform:uppercase;letter-spacing:.04em"><span>Team</span><span style="flex:1;height:1px;background:var(--border)"></span></div>';
+      html += orgMacros.map((m) => {
+        const sel = m.id === currentOrgId;
+        const del = canManageOrgMacro(m) ? '<span data-orgdel="' + esc(m.id) + '" role="button" tabindex="0" title="Unpublish from team" style="padding:0 5px;cursor:pointer;color:var(--text-subtle);align-self:center">✕</span>' : "";
+        return '<div style="display:flex;align-items:center;gap:2px">'
+          + '<button type="button" class="rr-modal-btn" data-orgmacro="' + esc(m.id) + '" title="Team macro" style="justify-content:flex-start;text-align:left;flex:1;min-width:0;overflow:hidden;' + (sel ? "border-color:var(--accent,var(--text));font-weight:600" : "") + '"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">👥 ' + esc(m.name || "Untitled") + "</span></button>" + del + "</div>";
+      }).join("");
+    }
+    listEl.innerHTML = html;
     listEl.querySelectorAll("[data-macro]").forEach((b) => b.addEventListener("click", () => selectMacro(b.getAttribute("data-macro"))));
+    listEl.querySelectorAll("[data-orgmacro]").forEach((b) => b.addEventListener("click", () => selectOrgMacro(b.getAttribute("data-orgmacro"))));
+    listEl.querySelectorAll("[data-orgdel]").forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); unpublishOrg(b.getAttribute("data-orgdel")); }));
   }
   function selectMacro(id) {
     const m = macros.find((x) => x.id === id);
     if (!m) return;
-    currentId = id; nameEl.value = m.name || ""; codeEl.value = m.code || ""; outEl.textContent = "";
+    currentId = id; currentOrgId = null; nameEl.value = m.name || ""; codeEl.value = m.code || ""; outEl.textContent = "";
     renderList();
   }
-  function newMacro() { currentId = null; nameEl.value = ""; codeEl.value = MACRO_EXAMPLE; outEl.textContent = ""; renderList(); nameEl.focus(); }
+  function selectOrgMacro(id) {
+    const m = orgMacros.find((x) => x.id === id);
+    if (!m) return;
+    currentOrgId = id; currentId = null; nameEl.value = m.name || ""; codeEl.value = m.code || ""; outEl.textContent = "";
+    renderList();
+  }
+  function newMacro() { currentId = null; currentOrgId = null; nameEl.value = ""; codeEl.value = MACRO_EXAMPLE; outEl.textContent = ""; renderList(); nameEl.focus(); }
+  async function refreshOrgMacros() { orgMacros = await loadOrgMacros(); renderList(); }
+  async function unpublishOrg(id) {
+    const m = orgMacros.find((x) => x.id === id);
+    if (!m) return;
+    if (!window.confirm('Unpublish "' + (m.name || "this macro") + '" from the team library? Everyone in your org loses the shared copy.')) return;
+    try {
+      await deleteOrgMacro(id);
+      orgMacros = orgMacros.filter((x) => x.id !== id);
+      if (currentOrgId === id) currentOrgId = null;
+      renderList();
+      flashStatus("Unpublished from team ✓", true);
+    } catch (e) { flashStatus("Couldn't unpublish — " + (e && e.message ? e.message : "no permission"), false); }
+  }
 
   $("#wb-macro-new").addEventListener("click", newMacro);
   // Export / import (100-list #85, lightweight sharing): a full org macro
@@ -16095,6 +16184,31 @@ function openMacrosPanel(g) {
       saveMacros(macros); renderList();
       flashStatus(`Imported ${added} macro${added === 1 ? "" : "s"} ✓`, true);
     }, () => flashStatus("Clipboard read blocked by the browser", false));
+  });
+  // Publish the current editor content to the team library (#85). Updates the
+  // loaded team macro in place when the user may manage it; otherwise inserts a
+  // new one. RLS enforces who can write; the button just surfaces the action.
+  $("#wb-macro-publish").addEventListener("click", async () => {
+    const name = (nameEl.value || "").trim() || "Untitled macro";
+    const code = codeEl.value;
+    if (!code.trim()) { flashStatus("Nothing to publish — the macro is empty", false); return; }
+    const editing = !!(currentOrgId && orgMacros.find((x) => x.id === currentOrgId && canManageOrgMacro(x)));
+    const btn = $("#wb-macro-publish");
+    btn.disabled = true;
+    try {
+      const row = await publishOrgMacro({ id: editing ? currentOrgId : null, name, code });
+      if (row) {
+        const i = orgMacros.findIndex((x) => x.id === row.id);
+        if (i >= 0) orgMacros[i] = row; else orgMacros.unshift(row);
+        orgMacros.sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+        currentOrgId = row.id; currentId = null;
+        renderList();
+        flashStatus(editing ? "Team macro updated ✓" : "Published to team ✓", true);
+        _toast(editing ? "Team macro updated" : "Published to team", "success");
+      }
+    } catch (e) {
+      flashStatus("Couldn't publish — " + (e && e.message ? e.message : "no permission"), false);
+    } finally { btn.disabled = false; }
   });
   $("#wb-macro-save").addEventListener("click", () => {
     const name = (nameEl.value || "").trim() || "Untitled macro";
@@ -16156,6 +16270,7 @@ function openMacrosPanel(g) {
 
   renderList();
   if (macros.length) selectMacro(macros[0].id); else newMacro();
+  refreshOrgMacros(); // pull the team library in the background, then re-render
   setTimeout(() => nameEl.focus(), 0);
 }
 
