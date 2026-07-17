@@ -97,7 +97,9 @@ const RENDER_PLAN_TOOL = {
   },
 } as const;
 
-const SYSTEM_PROMPT = `You are RouteReady's in-workbook analyst. A Delivery Service Partner (DSP) dispatcher is looking at a spreadsheet workbook and asks a natural-language question about the data in it. You are given the workbook's SCHEMA — each sheet's name, row count, and its columns (name, inferred type, and a few sample values). You do NOT get the full data; you get enough to decide WHICH sheet and columns answer the question and HOW to visualize them.
+const SYSTEM_PROMPT = `You are RouteReady's in-workbook analyst. A Delivery Service Partner (DSP) dispatcher is looking at a spreadsheet workbook and asks a natural-language question about the data in it. You are given the workbook's SCHEMA — each sheet's name, row count, and its columns (name, inferred type, a few sample values, and a "stats" object of REAL computed aggregates for the full column). You do NOT get the full data; you get enough to decide WHICH sheet and columns answer the question and HOW to visualize them.
+
+The "stats" object is computed over every row, so its numbers are exact — use them: numeric columns carry {count, sum, avg, min, max}; date columns carry {count, min, max} as YYYY-MM-DD; category/text columns carry {count, distinct, top:[{value,count}]}. When a question can be answered directly from stats ("what's total cost?", "which day has the most routes?"), state the real number in your answer.
 
 Deliver your answer by calling render_plan exactly once. Guidelines:
 - Choose the single sheet that best answers the question (or a couple of widgets across sheets when it genuinely spans them). Reference sheets and columns by their EXACT names from the schema.
@@ -107,9 +109,32 @@ Deliver your answer by calling render_plan exactly once. Guidelines:
   * table — when the user wants to see the rows themselves.
   * insight — an automatic plain-English findings list for a sheet (peak, leader, trend). Good alongside a chart.
 - Keep it to 1–6 widgets. Lead with KPIs, then a chart, then a table.
-- Write the 'answer' as a direct, specific takeaway. It's fine to describe the shape of the data ("Wednesday is consistently the lightest day") but never fabricate exact totals you can't derive from the samples — the widgets compute the real numbers client-side.
+- Write the 'answer' as a direct, specific takeaway. Cite exact numbers when they come from a column's "stats" (those are computed over all rows); otherwise describe the shape of the data ("Wednesday is consistently the lightest day") but never fabricate totals you can't derive from stats or samples — the widgets recompute the real numbers client-side.
 - Always pick real column names. If a needed column doesn't exist, answer with what's available and say so briefly.
 - Suggest 2–4 tailored follow-up questions.`;
+
+// Whitelist the aggregate shape the client computes (100-list #89) so the
+// model gets real numbers, not just samples. Only known keys pass through and
+// numeric values are coerced/bounded, so a malformed client can't bloat the
+// prompt or smuggle arbitrary strings into it.
+function compactStats(raw: any): any {
+  if (!raw || typeof raw !== "object") return undefined;
+  const num = (v: any) => (Number.isFinite(v) ? v : undefined);
+  const out: any = {};
+  if (num(raw.count) !== undefined) out.count = raw.count;
+  for (const k of ["sum", "avg", "min", "max"]) {
+    if (typeof raw[k] === "number" && Number.isFinite(raw[k])) out[k] = raw[k];
+    else if (k === "min" || k === "max") { if (typeof raw[k] === "string") out[k] = String(raw[k]).slice(0, 40); }
+  }
+  if (Number.isFinite(raw.distinct)) out.distinct = raw.distinct;
+  if (Array.isArray(raw.top)) {
+    out.top = raw.top.slice(0, 5).map((t: any) => ({
+      value: String(t?.value ?? "").slice(0, 40),
+      count: Number.isFinite(t?.count) ? t.count : 0,
+    }));
+  }
+  return Object.keys(out).length ? out : undefined;
+}
 
 function compactSchema(raw: any): any[] {
   if (!Array.isArray(raw)) return [];
@@ -117,11 +142,16 @@ function compactSchema(raw: any): any[] {
     sheet: String(s?.sheet ?? "").slice(0, 80),
     rows: Number.isFinite(s?.rows) ? s.rows : undefined,
     columns: Array.isArray(s?.columns)
-      ? s.columns.slice(0, MAX_COLS).map((c: any) => ({
-          name: String(c?.name ?? "").slice(0, 80),
-          type: ["number", "date", "cat", "text"].includes(c?.type) ? c.type : "text",
-          samples: Array.isArray(c?.samples) ? c.samples.slice(0, MAX_SAMPLES).map((v: any) => String(v).slice(0, 40)) : [],
-        }))
+      ? s.columns.slice(0, MAX_COLS).map((c: any) => {
+          const col: any = {
+            name: String(c?.name ?? "").slice(0, 80),
+            type: ["number", "date", "cat", "text"].includes(c?.type) ? c.type : "text",
+            samples: Array.isArray(c?.samples) ? c.samples.slice(0, MAX_SAMPLES).map((v: any) => String(v).slice(0, 40)) : [],
+          };
+          const stats = compactStats(c?.stats);
+          if (stats) col.stats = stats;
+          return col;
+        })
       : [],
   }));
 }

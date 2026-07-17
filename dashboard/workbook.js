@@ -6285,6 +6285,61 @@ function solveGoalSeek(probe, goal, x0) {
   return isFinite(f2) && Math.abs(f2) <= Math.max(tol, 1e-6 * (Math.abs(goal) + 1)) ? x2 : null;
 }
 
+// Multi-variable solver (100-list #88): drive probe(x[]) to `goal` by
+// minimizing |probe - goal| over N inputs, honoring optional [lo,hi] bounds.
+// Gradient-free coordinate descent with a shrinking step — no dependencies,
+// good enough for the smooth objectives spreadsheets produce. Returns the
+// solved input vector, or null if it can't get within tolerance.
+function solveMultiGoal(probe, goal, x0, bounds) {
+  const n = x0.length;
+  if (!n) return null;
+  const lo = (i) => (bounds && bounds[i] && isFinite(bounds[i][0]) ? bounds[i][0] : -Infinity);
+  const hi = (i) => (bounds && bounds[i] && isFinite(bounds[i][1]) ? bounds[i][1] : Infinity);
+  const clamp = (i, v) => Math.max(lo(i), Math.min(hi(i), v));
+  const x = x0.map((v, i) => clamp(i, typeof v === "number" && isFinite(v) ? v : 0));
+  const err = (vec) => { const v = probe(vec); return typeof v === "number" && isFinite(v) ? Math.abs(v - goal) : Infinity; };
+  const tol = 1e-7 + Math.abs(goal) * 1e-7;
+  let best = err(x);
+  if (best <= tol) return x.slice();
+  let step = x.map((v) => (Math.abs(v) > 1e-6 ? Math.abs(v) * 0.25 : 1));
+  for (let iter = 0; iter < 400 && best > tol; iter++) {
+    let improved = false;
+    for (let i = 0; i < n; i++) {
+      for (const dir of [1, -1]) {
+        const trial = x.slice();
+        trial[i] = clamp(i, x[i] + dir * step[i]);
+        if (trial[i] === x[i]) continue;
+        const e = err(trial);
+        if (e < best - 1e-12) { x[i] = trial[i]; best = e; improved = true; break; }
+      }
+    }
+    if (!improved) { step = step.map((s) => s * 0.5); if (step.every((s) => s < 1e-12)) break; }
+  }
+  return best <= Math.max(tol, 1e-4 * (Math.abs(goal) + 1)) ? x.slice() : null;
+}
+
+// What-If Data Tables (100-list #86). A one-variable table substitutes each
+// value in `inputs` into a single input cell and records a formula's result;
+// a two-variable table crosses `rowInputs` × `colInputs` into two input cells.
+// These take a caller-supplied probe so the substitution/recalc/restore dance
+// stays in the dialog and the math stays pure + testable. `probe1(v)` returns
+// the formula result for one input; `probe2(rowVal, colVal)` for two.
+// A non-finite numeric result (NaN/Infinity from a failed probe) becomes null
+// so the table cell renders blank rather than "NaN"; text results pass through.
+function dataTableCell(y) {
+  if (typeof y === "number") return isFinite(y) ? y : null;
+  return y == null ? null : y;
+}
+function computeDataTable1(probe1, inputs) {
+  return (inputs || []).map((v) => dataTableCell(probe1(v)));
+}
+function computeDataTable2(probe2, rowInputs, colInputs) {
+  // Row-major grid: one output row per colInput, one column per rowInput —
+  // matching Excel's layout (row-input values across the top, column-input
+  // values down the side).
+  return (colInputs || []).map((cv) => (rowInputs || []).map((rv) => dataTableCell(probe2(rv, cv))));
+}
+
 // Plain-English explanation for an error cell's hover tooltip.
 const WB_ERROR_HINTS = {
   "#REF": "A cell reference is invalid — a referenced cell may have been deleted.",
@@ -15082,6 +15137,256 @@ function openGoalSeekDialog(g) {
   setTimeout(() => wrap.querySelector(setDefault ? "#wb-gs-to" : "#wb-gs-set")?.focus(), 0);
 }
 
+// What-if data table (100-list #86): substitute each value from an input
+// range into one input cell, record a formula cell's result for each, and
+// write the outputs alongside — a one-variable sensitivity table.
+function openDataTableDialog(g) {
+  if (!WB.canEdit) return;
+  const sheet = g.sheet;
+  const rect = selRect(g);
+  const selRef = `${colLabel(rect.c0)}${rect.r0 + 1}:${colLabel(rect.c1)}${rect.r1 + 1}`;
+  document.getElementById("wb-datatable-modal")?.remove();
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-datatable-modal";
+  wrap.innerHTML = `
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="What-if data table" style="width:460px">
+      <div class="rr-modal-head"><div class="rr-modal-head-content"><p class="rr-modal-title">What-if data table</p><p class="rr-modal-sub">Try a column (or row) of input values through one cell and record a formula's result for each.</p></div><button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button></div>
+      <div class="rr-modal-body">
+        <label class="wb-field"><span class="wb-field-label">Input values — a single column or row</span><input class="wb-input" id="wb-dt-inputs" value="${esc(rect.r0 !== rect.r1 || rect.c0 !== rect.c1 ? selRef : "")}" placeholder="A2:A11" autocomplete="off" spellcheck="false"></label>
+        <label class="wb-field" style="margin-top:10px"><span class="wb-field-label">Substitute into cell</span><input class="wb-input" id="wb-dt-input" placeholder="B1" autocomplete="off" spellcheck="false"></label>
+        <label class="wb-field" style="margin-top:10px"><span class="wb-field-label">Formula cell to record</span><input class="wb-input" id="wb-dt-formula" placeholder="C1" autocomplete="off" spellcheck="false"></label>
+        <label class="wb-field" style="margin-top:10px"><span class="wb-field-label">Write results starting at</span><input class="wb-input" id="wb-dt-out" placeholder="C2" autocomplete="off" spellcheck="false"></label>
+        <p id="wb-dt-msg" style="margin-top:10px;min-height:18px;color:var(--text-subtle);font-size:12px"></p>
+      </div>
+      <div class="rr-modal-foot"><button class="rr-modal-btn" type="button" data-wb-close>Cancel</button><button class="rr-modal-btn primary" type="button" id="wb-dt-run">Fill table</button></div>
+    </div>`;
+  document.body.appendChild(wrap);
+  const close = () => wrap.remove();
+  wrap.addEventListener("click", (e) => { if (e.target === wrap || e.target.closest("[data-wb-close]")) close(); });
+  wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") close(); });
+  wrap.querySelector("#wb-dt-run").addEventListener("click", () => {
+    const msg = wrap.querySelector("#wb-dt-msg");
+    const inRect = parseRangeRefText((wrap.querySelector("#wb-dt-inputs").value || "").trim())
+      || (() => { const c = parseCellRef((wrap.querySelector("#wb-dt-inputs").value || "").trim()); return c ? { r0: c.row, c0: c.col, r1: c.row, c1: c.col } : null; })();
+    const inputRC = parseCellRef((wrap.querySelector("#wb-dt-input").value || "").trim());
+    const formulaRC = parseCellRef((wrap.querySelector("#wb-dt-formula").value || "").trim());
+    const outRC = parseCellRef((wrap.querySelector("#wb-dt-out").value || "").trim());
+    if (!inRect || !inputRC || !formulaRC || !outRC) { msg.textContent = "Enter valid references for every field."; return; }
+    if (inRect.r0 !== inRect.r1 && inRect.c0 !== inRect.c1) { msg.textContent = "Input values must be a single column or a single row."; return; }
+    const vertical = inRect.c0 === inRect.c1;
+    const formulaKey = cellKey(formulaRC.row, formulaRC.col), inputKey = cellKey(inputRC.row, inputRC.col);
+    const formulaCell = sheet.cells.get(formulaKey);
+    if (!formulaCell || !formulaCell.formula) { msg.textContent = "The formula cell must contain a formula."; return; }
+    const inputCell = sheet.cells.get(inputKey);
+    if (inputCell && inputCell.formula) { msg.textContent = "The substitution cell can't contain a formula."; return; }
+    // gather the raw substitution values in order
+    const inputs = [];
+    if (vertical) for (let r = inRect.r0; r <= inRect.r1; r++) { const c = sheet.cells.get(cellKey(r, inRect.c0)); inputs.push(c ? (c.formula ? c.computed : c.value) : ""); }
+    else for (let c = inRect.c0; c <= inRect.c1; c++) { const cc = sheet.cells.get(cellKey(inRect.r0, c)); inputs.push(cc ? (cc.formula ? cc.computed : cc.value) : ""); }
+    if (!inputs.length) { msg.textContent = "The input range is empty."; return; }
+    // probe: substitute → recalc → read the formula cell
+    const origVal = inputCell ? inputCell.value : null, existed = !!inputCell;
+    const ensureInput = () => { let c = sheet.cells.get(inputKey); if (!c) { c = { value: "0", formula: null, type: "number", computed: null, err: null, format: {} }; sheet.cells.set(inputKey, c); } return c; };
+    const probe1 = (v) => {
+      const c = ensureInput(); c.value = String(v ?? ""); c.formula = null; c.computed = null; c.err = null;
+      recalcSheet(sheet, [inputKey]);
+      const t = sheet.cells.get(formulaKey);
+      if (!t || t.err) return null;
+      const raw = t.formula ? t.computed : t.value;
+      const num = cellNumeric(raw);
+      return (typeof num === "number" && isFinite(num)) ? num : raw;
+    };
+    const outputs = computeDataTable1(probe1, inputs);
+    // restore the input cell, then recalc back to the original state
+    const c = sheet.cells.get(inputKey);
+    if (c) { if (!existed) sheet.cells.delete(inputKey); else { c.value = origVal; c.computed = null; c.err = null; } }
+    recalcSheet(sheet);
+    // write the results in the same orientation as the inputs
+    const changes = [];
+    outputs.forEach((y, i) => {
+      const r = vertical ? outRC.row + i : outRC.row, cc = vertical ? outRC.col : outRC.col + i;
+      changes.push({ r, c: cc, cell: cellFromInput(y == null ? "" : String(y), sheet.cells.get(cellKey(r, cc))) });
+    });
+    setCells(g, changes);
+    _toast(`Data table: filled ${outputs.length} result${outputs.length === 1 ? "" : "s"}.`, "success");
+    close();
+  });
+  setTimeout(() => wrap.querySelector("#wb-dt-input")?.focus(), 0);
+}
+
+// Solver (100-list #88): drive one objective formula cell to a target value
+// by changing several input cells at once (multi-variable goal seek).
+function openSolverDialog(g) {
+  if (!WB.canEdit) return;
+  const sheet = g.sheet;
+  const activeRef = colLabel(g.active.c) + (g.active.r + 1);
+  const activeCell = sheet.cells.get(cellKey(g.active.r, g.active.c));
+  document.getElementById("wb-solver-modal")?.remove();
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-solver-modal";
+  wrap.innerHTML = `
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Solver" style="width:460px">
+      <div class="rr-modal-head"><div class="rr-modal-head-content"><p class="rr-modal-title">Solver</p><p class="rr-modal-sub">Change several input cells at once to hit a target in one formula cell.</p></div><button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button></div>
+      <div class="rr-modal-body">
+        <label class="wb-field"><span class="wb-field-label">Objective — a formula cell</span><input class="wb-input" id="wb-sv-obj" value="${esc(activeCell && activeCell.formula ? activeRef : "")}" placeholder="D10" autocomplete="off" spellcheck="false"></label>
+        <label class="wb-field" style="margin-top:10px"><span class="wb-field-label">To value</span><input class="wb-input" id="wb-sv-to" placeholder="100000" autocomplete="off" spellcheck="false"></label>
+        <label class="wb-field" style="margin-top:10px"><span class="wb-field-label">By changing cells — range or comma list</span><input class="wb-input" id="wb-sv-by" placeholder="B2:B5  or  B2,C2,D2" autocomplete="off" spellcheck="false"></label>
+        <div style="display:flex;gap:10px;margin-top:10px">
+          <label class="wb-field" style="flex:1"><span class="wb-field-label">Min (optional)</span><input class="wb-input" id="wb-sv-min" placeholder="—" autocomplete="off" spellcheck="false"></label>
+          <label class="wb-field" style="flex:1"><span class="wb-field-label">Max (optional)</span><input class="wb-input" id="wb-sv-max" placeholder="—" autocomplete="off" spellcheck="false"></label>
+        </div>
+        <p id="wb-sv-msg" style="margin-top:10px;min-height:18px;color:var(--text-subtle);font-size:12px"></p>
+      </div>
+      <div class="rr-modal-foot"><button class="rr-modal-btn" type="button" data-wb-close>Cancel</button><button class="rr-modal-btn primary" type="button" id="wb-sv-run">Solve</button></div>
+    </div>`;
+  document.body.appendChild(wrap);
+  const close = () => wrap.remove();
+  wrap.addEventListener("click", (e) => { if (e.target === wrap || e.target.closest("[data-wb-close]")) close(); });
+  wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") close(); });
+  const parseCellList = (text) => {
+    const out = [], seen = new Set();
+    for (const part of String(text || "").split(",").map((s) => s.trim()).filter(Boolean)) {
+      if (part.includes(":")) { const rr = parseRangeRefText(part); if (!rr) return null; for (let r = rr.r0; r <= rr.r1; r++) for (let cc = rr.c0; cc <= rr.c1; cc++) { const k = r + "," + cc; if (!seen.has(k)) { seen.add(k); out.push({ row: r, col: cc }); } } }
+      else { const rc = parseCellRef(part); if (!rc) return null; const k = rc.row + "," + rc.col; if (!seen.has(k)) { seen.add(k); out.push(rc); } }
+    }
+    return out.length ? out : null;
+  };
+  wrap.querySelector("#wb-sv-run").addEventListener("click", () => {
+    const msg = wrap.querySelector("#wb-sv-msg");
+    const objRC = parseCellRef((wrap.querySelector("#wb-sv-obj").value || "").trim());
+    const goal = Number((wrap.querySelector("#wb-sv-to").value || "").replace(/[$,%\s]/g, ""));
+    const cells = parseCellList(wrap.querySelector("#wb-sv-by").value);
+    const minRaw = (wrap.querySelector("#wb-sv-min").value || "").trim(), maxRaw = (wrap.querySelector("#wb-sv-max").value || "").trim();
+    if (!objRC || !cells) { msg.textContent = "Enter a formula cell and at least one changing cell."; return; }
+    if (!isFinite(goal)) { msg.textContent = "Enter a numeric target value."; return; }
+    if (cells.length > 12) { msg.textContent = "Solver handles up to 12 changing cells; narrow the range."; return; }
+    const objKey = cellKey(objRC.row, objRC.col), objCell = sheet.cells.get(objKey);
+    if (!objCell || !objCell.formula) { msg.textContent = "The objective must contain a formula."; return; }
+    const inputKeys = cells.map((rc) => cellKey(rc.row, rc.col));
+    for (const k of inputKeys) { const c = sheet.cells.get(k); if (c && c.formula) { msg.textContent = "Changing cells can't contain formulas."; return; } }
+    const lo = minRaw === "" ? -Infinity : Number(minRaw.replace(/[$,%\s]/g, ""));
+    const hi = maxRaw === "" ? Infinity : Number(maxRaw.replace(/[$,%\s]/g, ""));
+    if ((minRaw !== "" && !isFinite(lo)) || (maxRaw !== "" && !isFinite(hi))) { msg.textContent = "Min/Max must be numbers or blank."; return; }
+    const bounds = inputKeys.map(() => [lo, hi]);
+    const originals = inputKeys.map((k) => { const c = sheet.cells.get(k); return c ? { existed: true, value: c.value } : { existed: false }; });
+    const x0 = inputKeys.map((k) => { const c = sheet.cells.get(k); return c ? (cellNumeric(c.formula ? c.computed : c.value) ?? 0) : 0; });
+    const ensure = (k) => { let c = sheet.cells.get(k); if (!c) { c = { value: "0", formula: null, type: "number", computed: null, err: null, format: {} }; sheet.cells.set(k, c); } return c; };
+    const probe = (vec) => {
+      vec.forEach((v, i) => { const c = ensure(inputKeys[i]); c.value = String(v); c.formula = null; c.computed = null; c.err = null; });
+      recalcSheet(sheet, inputKeys.slice());
+      const t = sheet.cells.get(objKey);
+      return t && !t.err ? cellNumeric(t.formula ? t.computed : t.value) : NaN;
+    };
+    const sol = solveMultiGoal(probe, goal, x0, bounds);
+    // restore originals, then recalc
+    inputKeys.forEach((k, i) => { const o = originals[i]; if (!o.existed) sheet.cells.delete(k); else { const c = sheet.cells.get(k); if (c) { c.value = o.value; c.computed = null; c.err = null; } } });
+    recalcSheet(sheet);
+    if (sol == null) { repaintGrid(g); msg.textContent = "Couldn't converge. Try adding Min/Max bounds or a closer starting point."; return; }
+    const changes = cells.map((rc, i) => {
+      const raw = sol[i], rounded = Math.abs(raw - Math.round(raw)) < 1e-9 ? Math.round(raw) : parseFloat(raw.toPrecision(12));
+      const prev = sheet.cells.get(inputKeys[i]);
+      return { r: rc.row, c: rc.col, cell: { value: String(rounded), formula: null, type: "number", computed: null, err: null, format: prev && prev.format ? { ...prev.format } : {} } };
+    });
+    setCells(g, changes);
+    const tv = sheet.cells.get(objKey);
+    _toast(`Solver: ${cells.length} cell${cells.length === 1 ? "" : "s"} set → ${colLabel(objRC.col)}${objRC.row + 1} ≈ ${formatForDisplay(tv.computed, tv.format, "formula")}`, "success");
+    close();
+  });
+  setTimeout(() => wrap.querySelector(activeCell && activeCell.formula ? "#wb-sv-to" : "#wb-sv-obj")?.focus(), 0);
+}
+
+// Scenario manager (100-list #87): save named sets of input-cell values and
+// switch between them. Scenarios live in sheet.meta.scenarios (persisted with
+// the sheet — no backend change), each as { id, name, cells:[{r,c,value}] }.
+function sheetScenarios(sheet) {
+  const v = sheet.meta && sheet.meta.scenarios;
+  return Array.isArray(v) ? v : [];
+}
+function writeSheetScenarios(g, list) {
+  g.sheet.meta = { ...(g.sheet.meta || {}), scenarios: list };
+  saveSheetMeta(g.sheet.id);
+}
+function openScenarioDialog(g) {
+  if (!WB.canEdit) return;
+  const sheet = g.sheet;
+  document.getElementById("wb-scenario-modal")?.remove();
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-scenario-modal";
+  wrap.innerHTML = `
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Scenario manager" style="width:460px">
+      <div class="rr-modal-head"><div class="rr-modal-head-content"><p class="rr-modal-title">Scenario manager</p><p class="rr-modal-sub">Save the current input cells as a named scenario, then switch between them.</p></div><button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button></div>
+      <div class="rr-modal-body">
+        <div id="wb-sc-list" style="max-height:260px;overflow:auto"></div>
+        <p id="wb-sc-msg" style="margin-top:8px;min-height:16px;color:var(--text-subtle);font-size:12px"></p>
+      </div>
+      <div class="rr-modal-foot"><button class="rr-modal-btn" type="button" data-wb-close>Close</button><button class="rr-modal-btn primary" type="button" id="wb-sc-add">Save current cells…</button></div>
+    </div>`;
+  document.body.appendChild(wrap);
+  const close = () => wrap.remove();
+  wrap.addEventListener("click", (e) => { if (e.target === wrap || e.target.closest("[data-wb-close]")) close(); });
+  wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") close(); });
+  const msg = wrap.querySelector("#wb-sc-msg");
+  const listHost = wrap.querySelector("#wb-sc-list");
+  const render = () => {
+    const list = sheetScenarios(sheet);
+    if (!list.length) { listHost.innerHTML = `<p style="color:var(--text-subtle);font-size:13px;padding:8px 2px">No scenarios yet. Select the input cells you vary, then “Save current cells…”.</p>`; return; }
+    listHost.innerHTML = list.map((sc) => {
+      const preview = (sc.cells || []).slice(0, 4).map((c) => `${colLabel(c.c)}${c.r + 1}=${esc(String(c.value ?? ""))}`).join(", ");
+      const more = (sc.cells || []).length > 4 ? ` +${sc.cells.length - 4}` : "";
+      return `<div class="wb-sc-row" style="display:flex;align-items:center;gap:8px;padding:8px 2px;border-bottom:1px solid var(--border-subtle)">
+        <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:13px">${esc(sc.name)}</div><div style="color:var(--text-subtle);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(preview)}${more}</div></div>
+        <button class="rr-modal-btn" type="button" data-sc-apply="${esc(sc.id)}" style="padding:4px 10px">Show</button>
+        <button class="rr-modal-btn" type="button" data-sc-del="${esc(sc.id)}" style="padding:4px 8px" aria-label="Delete scenario">✕</button>
+      </div>`;
+    }).join("");
+  };
+  render();
+  listHost.addEventListener("click", (e) => {
+    const applyId = e.target.closest("[data-sc-apply]")?.getAttribute("data-sc-apply");
+    const delId = e.target.closest("[data-sc-del]")?.getAttribute("data-sc-del");
+    if (applyId) {
+      const sc = sheetScenarios(sheet).find((s) => s.id === applyId);
+      if (!sc) return;
+      const changes = (sc.cells || []).map((c) => ({ r: c.r, c: c.c, cell: cellFromInput(c.value == null ? "" : String(c.value), sheet.cells.get(cellKey(c.r, c.c))) }));
+      setCells(g, changes);
+      _toast(`Scenario “${sc.name}” applied`, "success");
+      msg.textContent = `Showing “${sc.name}”.`;
+    } else if (delId) {
+      writeSheetScenarios(g, sheetScenarios(sheet).filter((s) => s.id !== delId));
+      render();
+    }
+  });
+  wrap.querySelector("#wb-sc-add").addEventListener("click", () => {
+    // capture the current, non-formula selected cells as the scenario's inputs
+    const cells = [];
+    forEachSelectedCell(g, (r, c) => {
+      if (cells.length >= 64) return;
+      const cell = sheet.cells.get(cellKey(r, c));
+      if (cell && cell.formula) return; // formulas are outputs, not inputs
+      cells.push({ r, c, value: cell ? (cell.value ?? "") : "" });
+    });
+    if (!cells.length) { msg.textContent = "Select the input cells to capture first (formula cells are skipped)."; return; }
+    promptModal({
+      title: "Name this scenario", label: `Captures ${cells.length} cell${cells.length === 1 ? "" : "s"}`,
+      placeholder: "Best case", submitLabel: "Save",
+      onSubmit: (name) => {
+        name = String(name || "").trim(); if (!name) return;
+        const list = sheetScenarios(sheet).slice();
+        const id = "sc" + Math.random().toString(36).slice(2, 9);
+        const existing = list.findIndex((s) => s.name.toLowerCase() === name.toLowerCase());
+        const rec = { id, name, cells };
+        if (existing >= 0) rec.id = list[existing].id, list[existing] = rec; else list.push(rec);
+        writeSheetScenarios(g, list);
+        render();
+        msg.textContent = `Saved “${name}”.`;
+      },
+    });
+  });
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 //  MACROS — a user-scripting console (Tools ▸ Macros…)
 //
@@ -15185,7 +15490,33 @@ function buildMacroApi(g, logFn) {
     return changes.length;
   };
   // Merge a whitelisted format patch onto a range (preserves existing values).
-  const FMT_KEYS = { bg: 1, fg: 1, bold: 1, italic: 1, underline: 1, strike: 1, align: 1, valign: 1, wrap: 1 };
+  // Expanded for 100-list #83: number formats (num/fmt), borders (bs/border/
+  // bw), indent (ind), rotation (rot).
+  const FMT_KEYS = { bg: 1, fg: 1, bold: 1, italic: 1, underline: 1, strike: 1, align: 1, valign: 1, wrap: 1, num: 1, fmt: 1, border: 1, bw: 1, bs: 1, ind: 1, rot: 1 };
+  // Resolve a sibling sheet by name (100-list #82 cross-sheet).
+  const siblingSheet = (name) => {
+    const s = (WB.sheetsByBlock.get(g.blockId) || []).find((x) => x.name === name);
+    if (!s) throw new Error('No sheet named "' + name + '" in this block.');
+    return s;
+  };
+  // Apply changes to an arbitrary sibling sheet (used by cross-sheet writes).
+  const writeToSheet = (targetSheet, changes) => {
+    ensureEdit();
+    const applied = [];
+    for (const ch of changes) {
+      if (ch.r < 0 || ch.c < 0 || ch.r >= targetSheet.rowCount || ch.c >= targetSheet.colCount) continue;
+      const key = cellKey(ch.r, ch.c);
+      if (ch.cell) targetSheet.cells.set(key, { ...ch.cell, computed: null, err: null });
+      else targetSheet.cells.delete(key);
+      applied.push(key);
+    }
+    if (!applied.length) return 0;
+    recalcWithSiblings(targetSheet, applied);
+    markCellsDirty(targetSheet, applied);
+    const tg = [...GRIDS.values()].find((x) => x.sheet && x.sheet.id === targetSheet.id);
+    if (tg) repaintGrid(tg);
+    return applied.length;
+  };
   const sanitizeFmt = (patch) => {
     if (!patch || typeof patch !== "object") throw new Error("format expects an object, e.g. {bg:'#F4CCCC', bold:true}.");
     const out = {};
@@ -15262,6 +15593,33 @@ function buildMacroApi(g, logFn) {
     },
     clear(a1) { writeRect(rangeRect(a1), () => ""); return this; },
     setFormat(a1, fmt) { formatRect(rangeRect(a1), fmt); return this; },
+    // ── cross-sheet (100-list #82) ──
+    getSheetValues(name, a1) {
+      const s = siblingSheet(name), rect = rangeRect(a1), out = [];
+      for (let r = rect.r0; r <= rect.r1; r++) { const row = []; for (let c = rect.c0; c <= rect.c1; c++) row.push(displayValue(s, r, c)); out.push(row); }
+      return out;
+    },
+    setSheetValue(name, a1, v) {
+      const s = siblingSheet(name), rc = cellRC(a1);
+      return writeToSheet(s, [{ r: rc.row, c: rc.col, cell: cellFromInput(v, s.cells.get(cellKey(rc.row, rc.col))) }]);
+    },
+    setSheetValues(name, anchorA1, vals) {
+      if (!Array.isArray(vals) || !vals.length) throw new Error("setSheetValues expects a non-empty 2D array.");
+      const s = siblingSheet(name), a = cellRC(anchorA1), changes = [];
+      vals.forEach((row, i) => (Array.isArray(row) ? row : [row]).forEach((val, j) => changes.push({ r: a.row + i, c: a.col + j, cell: cellFromInput(val == null ? "" : val, s.cells.get(cellKey(a.row + i, a.col + j))) })));
+      return writeToSheet(s, changes);
+    },
+    // ── structure (100-list #83) ──
+    insertRows(a1, n) { ensureEdit(); const rc = cellRC(a1); restructure(g, "row", rc.row, Math.max(1, Math.min(1000, n || 1))); return this; },
+    deleteRows(a1, n) { ensureEdit(); const rc = cellRC(a1); restructure(g, "row", rc.row, -Math.max(1, Math.min(1000, n || 1))); return this; },
+    insertColumns(a1, n) { ensureEdit(); const rc = cellRC(a1); restructure(g, "col", rc.col, Math.max(1, Math.min(200, n || 1))); return this; },
+    deleteColumns(a1, n) { ensureEdit(); const rc = cellRC(a1); restructure(g, "col", rc.col, -Math.max(1, Math.min(200, n || 1))); return this; },
+    setNumberFormat(a1, code) { formatRect(rangeRect(a1), String(code).trim() ? { num: "custom", fmt: String(code) } : { num: null, fmt: null }); return this; },
+    setBorder(a1, sides) {
+      // sides: "all" | "outline" | "top"… | {t,b,l,r} per-side objects
+      formatRect(rangeRect(a1), typeof sides === "object" ? { bs: sides } : { border: sides || "all" });
+      return this;
+    },
     // ── output ──
     log() { logFn(Array.prototype.map.call(arguments, macroFmt).join(" ")); },
     toast(msg, kind) { _toast(String(msg), kind === "warn" || kind === "success" || kind === "info" ? kind : "info"); },
@@ -15321,6 +15679,11 @@ var workbook = {
   getActiveSheetName: mk('getActiveSheetName'), getSheetNames: mk('getSheetNames'),
   getActiveCell: mk('getActiveCell'), getSelection: mk('getSelection'), sheetInfo: mk('sheetInfo'),
   sheet: mk('sheet'), log: mk('log'), toast: mk('toast'), alert: mk('alert'),
+  // cross-sheet read/write (100-list #82)
+  getSheetValues: mk('getSheetValues'), setSheetValue: mk('setSheetValue'), setSheetValues: mk('setSheetValues'),
+  // structure + richer formatting (100-list #83)
+  insertRows: mk('insertRows'), deleteRows: mk('deleteRows'), insertColumns: mk('insertColumns'), deleteColumns: mk('deleteColumns'),
+  setNumberFormat: mk('setNumberFormat'), setBorder: mk('setBorder'),
   // org data (read-only) — this DSP only, no writes
   getDrivers: mk('getDrivers'), getVehicles: mk('getVehicles'), getSchedule: mk('getSchedule'),
   getTimeOff: mk('getTimeOff'), getDsp: mk('getDsp'), orgData: mk('orgData'),
@@ -15486,6 +15849,15 @@ function runMacroSandboxed(code, g, logFn) {
         case "range.setFormat": api.getRange(args[0]).setFormat(args[1]); return true;
         case "range.clear": api.getRange(args[0]).clear(); return true;
         case "setFormat": api.setFormat(args[0], args[1]); return true;
+        case "getSheetValues": return api.getSheetValues(args[0], args[1]);
+        case "setSheetValue": api.setSheetValue(args[0], args[1], args[2]); return true;
+        case "setSheetValues": return api.setSheetValues(args[0], args[1], args[2]);
+        case "insertRows": api.insertRows(args[0], args[1]); return true;
+        case "deleteRows": api.deleteRows(args[0], args[1]); return true;
+        case "insertColumns": api.insertColumns(args[0], args[1]); return true;
+        case "deleteColumns": api.deleteColumns(args[0], args[1]); return true;
+        case "setNumberFormat": api.setNumberFormat(args[0], args[1]); return true;
+        case "setBorder": api.setBorder(args[0], args[1]); return true;
         case "log": logFn(Array.prototype.map.call(args, macroFmt).join(" ")); return true;
         case "toast": api.toast(args[0], args[1]); return true;
         case "alert": api.alert(args[0]); return true;
@@ -15537,7 +15909,11 @@ function openMacrosPanel(g) {
         <div style="width:180px;flex:0 0 auto;border-right:1px solid var(--border);padding-right:12px;display:flex;flex-direction:column;min-height:0">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
             <span class="wb-field-label" style="margin:0">Saved</span>
-            <button class="rr-modal-btn" type="button" id="wb-macro-new" style="padding:2px 9px">+ New</button>
+            <div style="display:flex;align-items:center;gap:4px">
+              <button class="rr-modal-btn" type="button" id="wb-macro-new" style="padding:2px 9px">+ New</button>
+              <button class="rr-modal-btn" type="button" id="wb-macro-export" title="Copy macro(s) as shareable JSON" aria-label="Export macros" style="padding:2px 7px">⤓</button>
+              <button class="rr-modal-btn" type="button" id="wb-macro-import" title="Import macros from clipboard JSON" aria-label="Import macros" style="padding:2px 7px">⤒</button>
+            </div>
           </div>
           <div id="wb-macro-list" style="flex:1;overflow:auto;min-height:0;display:flex;flex-direction:column;gap:4px"></div>
         </div>
@@ -15552,6 +15928,9 @@ function openMacrosPanel(g) {
               workbook.getRange("A2:C9").getValues() / .setValue(v) / .setValues([[…]]) / .clear()<br>
               workbook.setFormat("A1:G1", {bg:"#F4CCCC", bold:true}) · getRange(…).setBackground("#D9EAD3")<br>
               workbook.setValues("A2", [[1,2],[3,4]]) · clear("A1:C9")<br>
+              <b>Other sheets:</b> await workbook.getSheetValues("Data","A1:C9") · setSheetValue("Data","A1",v) · setSheetValues("Data","A2",[[…]])<br>
+              <b>Structure:</b> await workbook.insertRows("A5",2) · deleteRows("A5",2) · insertColumns("C1",1) · deleteColumns("C1",1)<br>
+              workbook.setNumberFormat("B2:B9","#,##0.00") · setBorder("A1:C3","all"|"outline")<br>
               workbook.getSelection() · getActiveCell() · getActiveSheetName() · getSheetNames()<br>
               workbook.log(…) · toast(msg[, "success"|"warn"|"info"])<br>
               <b>Live org data (read-only):</b> await workbook.getDrivers() · getVehicles() · getSchedule({from,to}) · getTimeOff() · getDsp()<br>
@@ -15607,6 +15986,34 @@ function openMacrosPanel(g) {
   function newMacro() { currentId = null; nameEl.value = ""; codeEl.value = MACRO_EXAMPLE; outEl.textContent = ""; renderList(); nameEl.focus(); }
 
   $("#wb-macro-new").addEventListener("click", newMacro);
+  // Export / import (100-list #85, lightweight sharing): a full org macro
+  // library needs a synced backend table; until then, macros travel as JSON
+  // through the clipboard so a team can share them across browsers/users.
+  $("#wb-macro-export").addEventListener("click", () => {
+    const picked = currentId ? macros.filter((m) => m.id === currentId) : macros;
+    if (!picked.length) { flashStatus("No macros to export", false); return; }
+    const json = JSON.stringify({ rrWorkbookMacros: 1, macros: picked.map((m) => ({ name: m.name || "Untitled", code: m.code || "" })) }, null, 2);
+    const done = () => flashStatus(currentId ? "Copied macro to clipboard ✓" : `Copied ${picked.length} macros ✓`, true);
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(json).then(done, () => flashStatus("Clipboard blocked by the browser", false));
+    else flashStatus("Clipboard unavailable in this browser", false);
+  });
+  $("#wb-macro-import").addEventListener("click", () => {
+    if (!navigator.clipboard || !navigator.clipboard.readText) { flashStatus("Clipboard read unavailable", false); return; }
+    navigator.clipboard.readText().then((txt) => {
+      let data; try { data = JSON.parse(txt); } catch (_) { flashStatus("Clipboard isn't macro JSON", false); return; }
+      const arr = Array.isArray(data) ? data : (data && Array.isArray(data.macros) ? data.macros : null);
+      if (!arr || !arr.length) { flashStatus("No macros found in clipboard", false); return; }
+      let added = 0;
+      for (const m of arr.slice(0, 50)) {
+        if (!m || typeof m.code !== "string") continue;
+        macros.unshift({ id: newMacroId(), name: String(m.name || "Imported macro").slice(0, 80), code: String(m.code).slice(0, 20000), updatedAt: Date.now() });
+        added++;
+      }
+      if (!added) { flashStatus("Nothing importable in clipboard", false); return; }
+      saveMacros(macros); renderList();
+      flashStatus(`Imported ${added} macro${added === 1 ? "" : "s"} ✓`, true);
+    }, () => flashStatus("Clipboard read blocked by the browser", false));
+  });
   $("#wb-macro-save").addEventListener("click", () => {
     const name = (nameEl.value || "").trim() || "Untitled macro";
     const code = codeEl.value;
@@ -18940,6 +19347,50 @@ function autoBuildDashboard(g) {
 
 // A compact, privacy-preserving description of the block's data sheets: names,
 // row counts, and per-column { name, type, samples }.
+// Real computed aggregates for one column (100-list #89): the AI used to see
+// only 4 sample values and had to guess totals ("don't fabricate numbers you
+// can't know"). Ship the actual sum/avg/min/max for numeric columns, the
+// date span for dates, and the top values-by-frequency for categories — so the
+// analyst's narrative can cite grounded numbers instead of hedging.
+function aiColumnStats(sheet, rng, col, kind) {
+  const round = (x) => (!isFinite(x) ? null : Math.abs(x) >= 1000 ? Math.round(x) : parseFloat(x.toPrecision(6)));
+  let count = 0;
+  if (kind === "number") {
+    const nums = [];
+    for (let r = rng.r0 + 1; r <= rng.r1; r++) {
+      const raw = embedCellRaw(sheet, { row: r, col });
+      if (raw == null || String(raw).trim() === "") continue;
+      const n = cellNumeric(raw); if (n != null) nums.push(n);
+    }
+    if (!nums.length) return null;
+    const sum = nums.reduce((a, b) => a + b, 0);
+    return { count: nums.length, sum: round(sum), avg: round(sum / nums.length), min: round(Math.min(...nums)), max: round(Math.max(...nums)) };
+  }
+  if (kind === "date") {
+    let lo = null, hi = null;
+    for (let r = rng.r0 + 1; r <= rng.r1; r++) {
+      const raw = embedCellRaw(sheet, { row: r, col });
+      if (raw == null || String(raw).trim() === "") continue;
+      const s = dvDateSerial(raw); if (s == null) continue; count++;
+      if (lo == null || s < lo) lo = s; if (hi == null || s > hi) hi = s;
+    }
+    if (lo == null) return null;
+    return { count, min: isoDate(serialToDate(lo)), max: isoDate(serialToDate(hi)) };
+  }
+  // text / category → distinct count + the most frequent values
+  const freq = new Map();
+  for (let r = rng.r0 + 1; r <= rng.r1; r++) {
+    const raw = embedCellRaw(sheet, { row: r, col });
+    if (raw == null || String(raw).trim() === "") continue;
+    count++;
+    const k = String(displayValue(sheet, r, col)).slice(0, 40);
+    if (freq.size < 500 || freq.has(k)) freq.set(k, (freq.get(k) || 0) + 1);
+  }
+  if (!freq.size) return null;
+  const top = [...freq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([value, n]) => ({ value, count: n }));
+  return { count, distinct: freq.size, top };
+}
+
 function aiWorkbookSchema(g) {
   return blockDataSheets(g).map((s) => {
     const rng = sheetDataRange(s);
@@ -18949,7 +19400,10 @@ function aiWorkbookSchema(g) {
         const v = displayValue(s, r, c.c);
         if (v != null && String(v).trim() !== "") samples.push(String(v).slice(0, 40));
       }
-      return { name: c.name, type: c.kind, samples };
+      const out = { name: c.name, type: c.kind, samples };
+      const stats = aiColumnStats(s, rng, c.c, c.kind);
+      if (stats) out.stats = stats;
+      return out;
     });
     return { sheet: s.name, rows: Math.max(0, rng.r1 - rng.r0), columns: cols };
   }).filter((s) => s.columns.length);
@@ -21782,6 +22236,9 @@ function wbMenuItems(menu, g) {
         { label: "Protect / unprotect selection", act: "data:protect", disabled: !g || !WB.canAdmin },
         { label: "Protect selection (warning only)", act: "data:protect-warn", disabled: !g || !WB.canAdmin },
         { label: "Goal seek…", act: "data:goalseek", disabled: !ed || !g },
+        { label: "What-if data table…", act: "data:datatable", disabled: !ed || !g },
+        { label: "Solver (multi-cell)…", act: "data:solver", disabled: !ed || !g },
+        { label: "Scenario manager…", act: "data:scenarios", disabled: !ed || !g },
         { label: "Pivot table…", act: "data:pivot", disabled: !ed || !g },
         { label: "Named ranges…", act: "data:names", disabled: !g },
         { label: "Data validation…", act: "data:validation", disabled: !ed || !g },
@@ -21965,6 +22422,9 @@ function wbMenuAction(act, g) {
     case "data:protect": toggleProtectSelection(g); return;
     case "data:protect-warn": toggleProtectSelection(g, "warn"); return;
     case "data:goalseek": if (need()) openGoalSeekDialog(g); return;
+    case "data:datatable": if (need()) openDataTableDialog(g); return;
+    case "data:solver": if (need()) openSolverDialog(g); return;
+    case "data:scenarios": if (need()) openScenarioDialog(g); return;
     case "data:pivot": if (need()) openPivotDialog(g); return;
     case "data:names": if (need()) openNamedRangesDialog(g); return;
     case "data:validation": if (need()) openValidationDialog(g); return;
@@ -24041,13 +24501,13 @@ export const __engine = {
   fillSeries, cycleRefAnchor, errorHint, columnSuggestion, snapshotSheet, applySheetSnapshot,
   colLabel, colIndex, cellRef, parseCellRef,
   dateToSerial, serialToDate, isoDate, parseDateLoose,
-  buildXlsxBytes, parseXlsxBytes, buildPrintTable, buildTablePdf, formatForDisplay, applyCustomFormat, customFormatColor, solveGoalSeek, filterCondHits, inferSmartTransform, parseCsv,
+  buildXlsxBytes, parseXlsxBytes, buildPrintTable, buildTablePdf, formatForDisplay, applyCustomFormat, customFormatColor, solveGoalSeek, solveMultiGoal, computeDataTable1, computeDataTable2, filterCondHits, inferSmartTransform, parseCsv,
   condBarPercent, condIconPick, WB_CF_ICONSETS, isCellProtected, runQuery,
   chartSvg, WB_CHART_TYPES, kpiTileHtml, tableTileHtml, textTileHtml, kpiSparkline, kpiFmt, embedCellNum,
   chartData, aggRange, distinctColumnValues, kpiValue, KPI_AGGS,
   dateRangeSerials, controlPredicate, DATE_PRESETS, findColumnByName,
   linearFit, analyzeColumns, computeInsights,
-  aiWorkbookSchema, aiPlanToSpecs,
+  aiWorkbookSchema, aiColumnStats, aiPlanToSpecs,
   computePivot, pivotAggregate, pivotTableHtml, pivotEffectiveSpec, pivotDrillRecords, pivotChartSvg, ooxmlChartXml, ooxmlDrawingXml, pivotToExportSheet, expandExportSheets,
   autoLinkFor, cellLink, cellInnerHtml,
   selCycle,
