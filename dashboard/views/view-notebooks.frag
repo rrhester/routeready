@@ -71,6 +71,8 @@
 .rrnb-ctxlink{display:flex;align-items:center;gap:6px;font-size:var(--fs-sm);color:var(--accent);
   cursor:pointer;padding:var(--s-2) var(--s-1) var(--s-1)}
 .rrnb-ctxlink svg{width:14px;height:14px}
+.rrnb-ctx-nudge{color:var(--amber,#d97706);font-weight:600}
+.rrnb-ctx-nudge:hover{text-decoration:underline;text-underline-offset:2px}
 .rrnb-ol{list-style:none;margin:0;padding:0}
 .rrnb-ol li{font-size:var(--fs-sm);color:var(--text-muted);padding:3px 0 3px 10px;
   border-left:2px solid transparent;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -3222,8 +3224,12 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       var k = t + ":" + i; if (seen[k]) return; seen[k] = 1;
       recs.push({ type: t, id: i, name: a.getAttribute("data-obj-name") || a.textContent || "record" });
     });
+    // #38 how many auto-detected references still need connecting to a record
+    var unresolved = ed ? ed.querySelectorAll("a.rrnb-objlink-unresolved, a.rrnb-objlink[data-obj-unresolved]").length : 0;
+    var nudge = unresolved ? '<div class="rrnb-ctxlink rrnb-ctx-nudge" data-ctx-resolve title="Auto-connect the suggested driver / van / route references on this page">' +
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-6z"/></svg>' + unresolved + ' to connect</div>' : "";
     if (!recs.length) {
-      host.innerHTML = '<h4>Linked records</h4>' +
+      host.innerHTML = '<h4>Linked records</h4>' + nudge +
         '<div class="rrnb-ctxlink" data-ctx-add>' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>Link a driver, van or route…</div>';
       return;
@@ -3234,7 +3240,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
         '<span class="av" style="background:' + col + '">' + esc(recInitials(r.name)) + '</span>' +
         '<div class="cc"><div class="rn">' + esc(r.name) + '</div><div class="rt">' + esc(r.type) + (r.subject ? ' · this notebook' : '') + '</div></div>' +
         '<span class="go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M9 7h8v8"/></svg></span></div>';
-    }).join("") +
+    }).join("") + nudge +
       '<div class="rrnb-ctxlink" data-ctx-add><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>Link a record…</div>';
   }
   function fillCtxOutline() {
@@ -3286,6 +3292,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     }
     var h = t.closest("[data-ctx-head]");
     if (h) { var el = document.getElementById(h.getAttribute("data-ctx-head")); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
+    if (t.closest("[data-ctx-resolve]")) { try { bulkResolveChips(); } catch (_) {} return; }
     if (t.closest("[data-ctx-add]")) { try { smartLink(true); } catch (_) {} return; }
   }
 
@@ -4102,6 +4109,40 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       pop.classList.add("rrnb-objresolve");
       S._resolveEl = el;
       bindResolveOnce(pop);
+    });
+  }
+  // #39 connect every unresolved chip on the page in one pass. Only auto-links
+  // a chip when there's a confident match (exact name, a single vehicle by
+  // number, or a single fuzzy hit); anything ambiguous is left for a manual pick.
+  function bulkResolveChips() {
+    var ed = $id("rrnb-editor"); if (!ed) return;
+    var chips = [].slice.call(ed.querySelectorAll("a.rrnb-objlink-unresolved, a.rrnb-objlink[data-obj-unresolved]"));
+    if (!chips.length) { notify("Nothing to connect"); return; }
+    ensureEntIndex(function (index) {
+      index = index || [];
+      var linked = 0;
+      chips.forEach(function (el) {
+        var word = el.getAttribute("data-obj-name") || el.textContent || "";
+        var wl = word.toLowerCase(), digits = word.replace(/\D+/g, "");
+        var exact = index.filter(function (e2) { return e2.name.toLowerCase() === wl; });
+        var byDigit = digits ? index.filter(function (e2) { return e2.type === "vehicle" && e2.name.replace(/\D+/g, "") === digits; }) : [];
+        var fuzzy = index.filter(function (e2) { var n = e2.name.toLowerCase(); return n.indexOf(wl) >= 0 || wl.indexOf(n) >= 0; });
+        var pick = exact[0] || (byDigit.length === 1 ? byDigit[0] : null) || (fuzzy.length === 1 ? fuzzy[0] : null);
+        if (pick) {
+          el.setAttribute("data-obj-type", pick.type);
+          el.setAttribute("data-obj-id", pick.id);
+          el.setAttribute("data-obj-name", pick.name);
+          el.removeAttribute("data-obj-unresolved");
+          el.classList.remove("rrnb-objlink-unresolved");
+          el.title = "";
+          linked++;
+        }
+      });
+      if (linked) { scheduleSave(); persistLinks(S.pageId); if (S.page) renderContextRail(S.page, true); }
+      var remaining = chips.length - linked;
+      notify(linked
+        ? ("Connected " + linked + " record" + (linked > 1 ? "s" : "") + (remaining ? " · " + remaining + " still need a manual pick" : ""))
+        : "Couldn't auto-connect these — click a chip to pick its record");
     });
   }
   function bindResolveOnce(pop) {
