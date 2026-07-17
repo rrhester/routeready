@@ -39,8 +39,12 @@ Deno.serve(async (req) => {
   // A driver hailing the push-to-talk radio (no ring/answer handshake — just
   // "someone needs you on the radio").
   const radio = parsed?.radio as { caller_name?: string } | undefined;
+  // Generic staff notification (calendar reminders, unconfirmed escalations —
+  // migration 0497). Optionally targeted to specific staff by email.
+  const notify = parsed?.notify as
+    { title?: string; body?: string; url?: string; emails?: string[] | null } | undefined;
   if (!dspId) return badRequest("dsp_id_required");
-  if (!call && !radio) return badRequest("call_or_radio_required");
+  if (!call && !radio && !notify) return badRequest("call_or_radio_required");
 
   // Dispatch radio kill-switch (operator request 2026-07-13): the radio is
   // hidden in both apps, but driver clients on stale cached builds can still
@@ -49,15 +53,42 @@ Deno.serve(async (req) => {
   if (radio) return jsonResponse({ sent: 0, total: 0, skipped: "radio_disabled" });
 
   const supa = serviceClient();
-  const { data: subs, error: subsErr } = await supa
-    .from("staff_push_subscriptions")
-    .select("endpoint, p256dh, auth")
-    .eq("dsp_id", dspId);
-  if (subsErr) return badRequest(subsErr.message, 500);
+  let subs: { endpoint: string; p256dh: string; auth: string }[] | null = null;
+  if (notify && Array.isArray(notify.emails) && notify.emails.length) {
+    // Target only the named staff members' subscriptions.
+    const emails = notify.emails.map((e) => String(e).toLowerCase()).slice(0, 25);
+    const { data: users, error: uErr } = await supa
+      .from("app_users").select("id, email").eq("dsp_id", dspId).eq("active", true);
+    if (uErr) return badRequest(uErr.message, 500);
+    const ids = (users || [])
+      .filter((u) => u.email && emails.includes(String(u.email).toLowerCase()))
+      .map((u) => u.id);
+    if (!ids.length) return jsonResponse({ sent: 0, total: 0 });
+    const { data, error } = await supa
+      .from("staff_push_subscriptions")
+      .select("endpoint, p256dh, auth")
+      .eq("dsp_id", dspId).in("user_id", ids);
+    if (error) return badRequest(error.message, 500);
+    subs = data;
+  } else {
+    const { data, error: subsErr } = await supa
+      .from("staff_push_subscriptions")
+      .select("endpoint, p256dh, auth")
+      .eq("dsp_id", dspId);
+    if (subsErr) return badRequest(subsErr.message, 500);
+    subs = data;
+  }
   if (!subs || subs.length === 0) return jsonResponse({ sent: 0, total: 0 });
 
   let payload: string;
-  if (radio) {
+  if (notify) {
+    payload = JSON.stringify({
+      title: String(notify.title || "RouteReady").slice(0, 120),
+      body:  String(notify.body || "").slice(0, 300),
+      url:   String(notify.url || "/dashboard/"),
+      type:  "notify",
+    });
+  } else if (radio) {
     payload = JSON.stringify({
       title: "📻 Driver on the radio",
       body:  `${radio.caller_name || "A driver"} needs you on the radio`,
@@ -86,7 +117,10 @@ Deno.serve(async (req) => {
   for (const sub of subs) {
     const subscription = { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } };
     try {
-      const result = await webpush.sendNotification(subscription, payload, { TTL: 60, urgency: "high" });
+      // Calls are drop-dead urgent (60s TTL); notifications can wait out a
+      // brief offline window instead of evaporating.
+      const result = await webpush.sendNotification(subscription, payload,
+        notify ? { TTL: 600, urgency: "normal" } : { TTL: 60, urgency: "high" });
       console.log(`staff push ok endpoint=${sub.endpoint.slice(-12)} status=${result.statusCode}`);
       sent++;
       await supa.from("staff_push_subscriptions")
