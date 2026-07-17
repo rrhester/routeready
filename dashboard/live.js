@@ -40367,6 +40367,10 @@ async function loadDriverChatInbox() {
       document.getElementById("view-messages")?.classList.contains("active") &&
       _msgInboxMode === "direct"
     ) {
+      // #73/#76: with a healthy realtime socket the poll is only a safety
+      // net — stretch it to ~56s instead of hammering every 8s.
+      window._rrMcListTick = (window._rrMcListTick || 0) + 1;
+      if (window._rrChatRealtimeHealthy && (window._rrMcListTick % 7)) return;
       refreshDriverChatList(false);
     } else {
       clearInterval(_msgInboxListTimer); _msgInboxListTimer = null;
@@ -41265,6 +41269,9 @@ async function refreshDriverChatList(autoSelect) {
   // Notification engine + digest badge (#45–48, #53, #54).
   _mcNotifyEngineTick(_msgInboxList);
   _mcPaintDigestBadge();
+  // Connection banner + queued-send flush (#74/#75).
+  _mcPaintConnBanner();
+  _mcFlushOutbox().catch(() => {});
   // Paint the green dot after the rows mount.  Presence state may have
   // already populated by the time the list first renders.
   _presencePaintList();
@@ -41501,6 +41508,9 @@ async function openDriverChatThread(driverId, focus) {
     if (!document.getElementById("view-messages")?.classList.contains("active") || _msgInboxSelectedId !== driverId) {
       clearInterval(_msgInboxThreadTimer); _msgInboxThreadTimer = null; return;
     }
+    // #73/#76: healthy realtime → stretch the safety poll to ~2 min.
+    window._rrMcThreadTick = (window._rrMcThreadTick || 0) + 1;
+    if (window._rrChatRealtimeHealthy && (window._rrMcThreadTick % 4)) return;
     refreshDriverChatThread(false);
   }, 30000);
 }
@@ -42234,6 +42244,10 @@ function _mcEnsureExtrasCss() {
     .rr-mc-shiftctx{color:var(--accent-text);font-weight:600}
     .rr-mc-quickchips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:6px 10px}
     .rr-mc-quickchips::-webkit-scrollbar{display:none}
+    /* Batch 8 · perf: browser-level virtualization for long threads and
+       big rosters (#77/#82) — offscreen bubbles/rows skip layout+paint. */
+    .rr-mc-bubble,.rr-cc-bubble{content-visibility:auto;contain-intrinsic-size:auto 64px}
+    .msg-item{content-visibility:auto;contain-intrinsic-size:auto 58px}
   `;
   document.head.appendChild(st);
 }
@@ -42916,7 +42930,10 @@ async function refreshDriverChatThread(scrollToBottom) {
   // shell, so the skeleton only fires on initial open.
   const isFirstPaint = conv.dataset.rrDriverId !== driverId;
 
-  const [{ data, error }, _reactions, _delivRes, _pinRes, _callRes] = await Promise.all([
+  // Kick the fetch immediately but don't block first paint on it (#79):
+  // a brand-new thread gets a ghost paint from the local cache (or a
+  // skeleton) while the round trip is in flight.
+  const _fetchPromise = Promise.all([
     sb.rpc("dispatch_chat_thread", { p_driver_id: driverId, p_limit: _mcThreadLimit }),
     _mcFetchReactions(driverId),
     sb.rpc("dispatch_chat_delivered", { p_driver_id: driverId }).then((r) => r, () => ({ data: null })),
@@ -42927,6 +42944,11 @@ async function refreshDriverChatThread(scrollToBottom) {
       .order("started_at", { ascending: true }).limit(60)
       .then((r) => r, () => ({ data: null })),
   ]);
+  if (isFirstPaint) { try { _mcInstantPaint(conv, driverId); } catch {} }
+  const [{ data, error }, _reactions, _delivRes, _pinRes, _callRes] = await _fetchPromise;
+  // The operator may have moved on while we awaited — never paint a stale
+  // thread over the one they switched to.
+  if (_msgInboxSelectedId !== driverId) return;
   const _callEvents = (_callRes?.data || []).filter((c) => c.status !== "ringing");
   _mcPins = _pinRes?.data?.pins || [];
   const peerDeliveredAt = _delivRes?.data ? new Date(_delivRes.data).getTime() : 0;
@@ -42943,9 +42965,11 @@ async function refreshDriverChatThread(scrollToBottom) {
   const msgs = data?.messages || [];
   const peerReadAt = data?.peer_last_read_at ? new Date(data.peer_last_read_at).getTime() : 0;
   // Cache the loaded window for the bubble menus (info/forward/copy), the
-  // details-rail "Shared" tab and reply-quote lookups.
+  // details-rail "Shared" tab and reply-quote lookups — plus a slim local
+  // copy for instant reopen paints (#79).
   _mcLastMsgs = msgs;
   _mcLastReadState = { peerReadAt, peerDeliveredAt };
+  _mcThreadCachePut(driverId, msgs);
   // Unread divider (#19): remember the FIRST unread driver message at the
   // moment the thread is opened; the marker holds until the operator
   // switches threads, so the "New messages" line doesn't vanish under
@@ -43266,20 +43290,61 @@ async function refreshDriverChatThread(scrollToBottom) {
         const { error } = await sendOne(body, null, _dispatchPriority, _dispatchRequiresAck, replyTo?.id);
         send.disabled = false;
         if (error) {
+          // Offline / network death (#74): queue the text message and keep
+          // the stub as "queued" instead of failing it.
+          if (_mcIsNetworkError(error)) {
+            _mcQueueOutbox({
+              p_driver_id: sendDriverId, p_body: body,
+              p_priority: _dispatchPriority, p_requires_ack: _dispatchRequiresAck,
+            });
+            const stub = threadEl.querySelector(`[data-rr-stub="${stubId}"]`);
+            if (stub) {
+              stub.classList.remove("pending");
+              stub.querySelector(".rr-mc-time").textContent = "queued — sends when you're back online";
+            }
+            _dispatchRequiresAck = false;
+            _setDispatchPriority("normal");
+            toast("You're offline — the message is queued and will send automatically", "info");
+            return;
+          }
           failStub("send failed · click to retry");
           toast("Couldn't send: " + error.message, "warn");
           return;
         }
       } else {
+        // Upload with live progress + click-to-cancel on the stub (#81).
+        let cancelled = false;
+        const stubEl = () => threadEl.querySelector(`[data-rr-stub="${stubId}"]`);
+        const cancelHandler = (ev) => {
+          if (!ev.target.closest("[data-rr-upcancel]")) return;
+          cancelled = true;
+        };
+        threadEl.addEventListener("click", cancelHandler);
+        const s0 = stubEl();
+        if (s0) {
+          const t0 = s0.querySelector(".rr-mc-time");
+          if (t0) t0.innerHTML = `uploading… <button type="button" data-rr-upcancel style="background:none;border:0;color:inherit;font:inherit;font-weight:700;text-decoration:underline;cursor:pointer;padding:0">Cancel</button>`;
+        }
         for (let fi = 0; fi < staged.length; fi++) {
           // Big photos get downscaled unless the operator flipped HD (#9).
           const f = await _mcMaybeCompressImage(staged[fi].file, staged[fi].hd);
           const safe = f.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80) || "file";
           const dspId = window.RR?.dsp?.id || "unknown";
           const path  = `${dspId}/${sendDriverId}/${Date.now()}-${fi}-${safe}`;
-          const { error: upErr } = await sb.storage
-            .from("driver-chat-attachments").upload(path, f, { contentType: f.type, upsert: false });
+          const { error: upErr } = await _mcUploadWithProgress(path, f, {
+            getCancelled: () => cancelled,
+            onProgress: (p) => {
+              const st = stubEl()?.querySelector(".rr-mc-time");
+              if (st && st.firstChild) st.firstChild.textContent = `uploading ${staged.length > 1 ? `${fi + 1}/${staged.length} ` : ""}${Math.round(p * 100)}% `;
+            },
+          });
+          if (cancelled) {
+            threadEl.removeEventListener("click", cancelHandler);
+            failStub("upload cancelled · click to restore", staged.slice(fi));
+            return;
+          }
           if (upErr) {
+            threadEl.removeEventListener("click", cancelHandler);
             failStub("upload failed · click to retry", staged.slice(fi));
             toast("Upload failed: " + upErr.message, "warn");
             return;
@@ -43293,11 +43358,13 @@ async function refreshDriverChatThread(scrollToBottom) {
           if (error) {
             // Drop the just-uploaded blob so a failed send doesn't orphan it.
             try { await sb.storage.from("driver-chat-attachments").remove([path]); } catch (_) {}
+            threadEl.removeEventListener("click", cancelHandler);
             failStub("send failed · click to retry", staged.slice(fi));
             toast("Couldn't send: " + error.message, "warn");
             return;
           }
         }
+        threadEl.removeEventListener("click", cancelHandler);
         send.disabled = false;
         ta.value = "";
       }
@@ -43317,6 +43384,23 @@ async function refreshDriverChatThread(scrollToBottom) {
 
   const thread = document.getElementById("rr-mc-thread");
   if (!thread) return;
+
+  // #76: if nothing visible changed since the last paint, skip the DOM
+  // rebuild entirely — the safety poll becomes almost free.
+  const _renderSig = msgs.map((m) => m.id + ":" + (m.edited_at || "") + ":" + (m.deleted_at || "") + ":" + (m.acked_at || "")).join("|")
+    + "#" + peerReadAt + "/" + peerDeliveredAt
+    + "#r" + (_reactions || []).map((e) => e.message_id + e.emoji + e.count + (e.mine ? 1 : 0)).join(",")
+    + "#p" + _mcPins.map((p) => p.message_id).join(",")
+    + "#c" + _callEvents.length;
+  if (!isFirstPaint && !scrollToBottom && !_mcFocusMsgId && thread.dataset.rrSig === _renderSig) {
+    if (msgs.some((m) => m.sender_kind === "driver" && m.is_unread)) {
+      sb.rpc("dispatch_chat_mark_read", { p_driver_id: driverId }).then(undefined, () => {});
+    }
+    _presencePaintThreadHead(driverId);
+    _paintMsgHeadStats(driverId);
+    return;
+  }
+  thread.dataset.rrSig = _renderSig;
 
   // ─── Smart scroll anchor ────────────────────────────────────────────
   // Capture whether the operator was pinned within ~120px of the bottom
@@ -43473,7 +43557,7 @@ async function refreshDriverChatThread(scrollToBottom) {
           // own height once src lands, so there's nothing for the
           // browser's scroll-anchor algorithm to "preserve" (which is
           // what was yanking the operator UP to a fixed image position).
-          ? `<img data-rr-mc-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" width="240" height="240" loading="eager" decoding="async" style="max-width:240px;border-radius:var(--r-lg);margin-bottom:6px;cursor:zoom-in" data-rr-mc-lightbox="${escapeHtml(m.id)}"/>`
+          ? `<img data-rr-mc-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" width="240" height="240" loading="lazy" decoding="async" style="max-width:240px;border-radius:var(--r-lg);margin-bottom:6px;cursor:zoom-in" data-rr-mc-lightbox="${escapeHtml(m.id)}"/>`
           : _rrMcAttachCard(m);
       }
       const isDeleted = !!m.deleted_at;
@@ -44371,6 +44455,17 @@ function _mcOpenLightbox(imgEl) {
     img.alt = cur.alt || "";
     ov.querySelector(".rr-lb-count").textContent = imgs.length > 1 ? `${idx + 1} of ${imgs.length}` : "";
     ov.querySelector(".rr-lb-dl").href = cur.src;
+    // Bubbles carry 480px thumbnails (#78) — swap in the full-resolution
+    // signed URL once it resolves.
+    const fullPath = cur.getAttribute("data-rr-mc-attach");
+    if (fullPath) {
+      sb.storage.from("driver-chat-attachments").createSignedUrl(fullPath, 3600).then(({ data }) => {
+        if (data?.signedUrl && imgs[idx] === cur && ov.isConnected) {
+          img.src = data.signedUrl;
+          ov.querySelector(".rr-lb-dl").href = data.signedUrl;
+        }
+      }, () => {});
+    }
     ov.querySelector(".rr-lb-prev").style.visibility = imgs.length > 1 ? "" : "hidden";
     ov.querySelector(".rr-lb-next").style.visibility = imgs.length > 1 ? "" : "hidden";
   };
@@ -44624,6 +44719,157 @@ function _mcOpenCallNoteModal(peer, durLbl, transcript) {
     toast("Call note saved to the thread", "ok");
     if (_msgInboxSelectedId === peer.id) refreshDriverChatThread(false);
   });
+}
+
+// ─── Reliability, realtime & perf (Batch 8 · #73–82) ─────────────────────
+
+// Connection banner (#75) — shown over the conversation list whenever the
+// browser is offline or the realtime socket dropped.
+function _mcPaintConnBanner() {
+  const list = document.getElementById("rr-msg-driver-list");
+  document.getElementById("rr-mc-connbanner")?.remove();
+  if (!list) return;
+  const offline = !navigator.onLine;
+  const rtDown = navigator.onLine && window._rrChatRealtimeHealthy === false;
+  if (!offline && !rtDown) return;
+  const el = document.createElement("div");
+  el.id = "rr-mc-connbanner";
+  el.setAttribute("role", "status");
+  el.style.cssText = "position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:8px;background:" + (offline ? "var(--danger,#dc2626)" : "#b45309") + ";color:#fff;font-size:11px;font-weight:700;padding:6px 12px";
+  el.textContent = offline
+    ? "Offline — messages you send will be queued and delivered when you're back."
+    : "Reconnecting live updates… messages may arrive with a short delay.";
+  list.prepend(el);
+}
+window.addEventListener("online", () => { _mcPaintConnBanner(); _mcFlushOutbox(); });
+window.addEventListener("offline", _mcPaintConnBanner);
+
+// Offline send queue (#74) — text-only DMs survive a dead network in
+// localStorage and flush on reconnect (attachment sends fail visibly
+// instead; blobs don't belong in localStorage).
+function _mcOutboxRead() {
+  try { return JSON.parse(localStorage.getItem("rr_msg_outbox") || "[]"); } catch { return []; }
+}
+function _mcOutboxWrite(list) {
+  try { localStorage.setItem("rr_msg_outbox", JSON.stringify(list.slice(-50))); } catch {}
+}
+function _mcQueueOutbox(params) {
+  const list = _mcOutboxRead();
+  list.push({ params, ts: Date.now() });
+  _mcOutboxWrite(list);
+}
+let _mcFlushing = false;
+async function _mcFlushOutbox() {
+  if (_mcFlushing || !navigator.onLine) return;
+  const list = _mcOutboxRead();
+  if (!list.length) return;
+  _mcFlushing = true;
+  let sent = 0;
+  const remaining = [];
+  for (const item of list) {
+    // Stale queue entries (>24h) are dropped rather than surprising a
+    // driver with a day-old "on my way".
+    if (Date.now() - item.ts > 24 * 3600000) continue;
+    const { error } = await sb.rpc("dispatch_chat_send", item.params).then((r) => r, (e) => ({ error: e || {} }));
+    if (error && /fetch|network|failed|timeout/i.test(error.message || "")) { remaining.push(item); continue; }
+    if (!error) sent++;
+    // Non-network errors (bad driver, too long) are dropped — retrying
+    // forever can't fix them.
+  }
+  _mcOutboxWrite(remaining);
+  _mcFlushing = false;
+  if (sent) {
+    toast(`Sent ${sent} queued message${sent === 1 ? "" : "s"}`, "ok");
+    refreshDriverChatList(false);
+    if (_msgInboxSelectedId) refreshDriverChatThread(false);
+  }
+}
+const _mcIsNetworkError = (error) =>
+  !navigator.onLine || /fetch|network|failed to|timeout|abort/i.test((error && error.message) || "");
+
+// Thread cache (#79) — a slim copy of the last 40 messages per thread so
+// reopening paints instantly, then reconciles against the server.
+function _mcThreadCacheGet(driverId) {
+  try {
+    const all = JSON.parse(localStorage.getItem("rr_thread_cache") || "{}");
+    return all[String(driverId)]?.msgs || null;
+  } catch { return null; }
+}
+function _mcThreadCachePut(driverId, msgs) {
+  try {
+    const all = JSON.parse(localStorage.getItem("rr_thread_cache") || "{}");
+    all[String(driverId)] = {
+      at: Date.now(),
+      msgs: (msgs || []).slice(-40).map((m) => ({
+        id: m.id, sender_kind: m.sender_kind,
+        body: m.deleted_at ? null : (m.body ? String(m.body).slice(0, 500) : null),
+        attachment_name: m.attachment_name || null,
+        deleted_at: m.deleted_at || null,
+        created_at: m.created_at,
+      })),
+    };
+    const keys = Object.keys(all);
+    if (keys.length > 20) keys.sort((a, b) => all[a].at - all[b].at).slice(0, keys.length - 20).forEach((k) => delete all[k]);
+    localStorage.setItem("rr_thread_cache", JSON.stringify(all));
+  } catch {}
+}
+// Ghost paint while the real fetch is in flight — a lightweight shell the
+// real renderer replaces wholesale a beat later.
+function _mcInstantPaint(conv, driverId) {
+  const cached = _mcThreadCacheGet(driverId);
+  const meta = (_msgInboxList || []).find((t) => String(t.driver_id) === String(driverId)) || {};
+  const name = meta.name || "";
+  const initials = (name || "?").split(/\s+/).map((p) => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
+  const ghost = (cached && cached.length)
+    ? cached.map((m) => {
+        const mine = m.sender_kind === "dispatch";
+        const body = m.deleted_at ? "Message deleted" : (m.body || (m.attachment_name ? "📎 " + m.attachment_name : ""));
+        return `<div class="rr-mc-bubble ${mine ? "dispatch" : "driver"}" data-group-pos="single" style="opacity:.75"><div>${escapeHtml(body)}</div><div class="rr-mc-time">${escapeHtml(new Date(m.created_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }))}</div></div>`;
+      }).join("")
+    : `<div class="rr-msg-skeleton">
+        <div class="rr-msg-skeleton-row"><div class="rr-msg-skeleton-bubble" style="width:62%"></div></div>
+        <div class="rr-msg-skeleton-row right"><div class="rr-msg-skeleton-bubble" style="width:48%"></div></div>
+        <div class="rr-msg-skeleton-row"><div class="rr-msg-skeleton-bubble" style="width:38%"></div></div>
+      </div>`;
+  conv.innerHTML = `
+    <div class="rr-mc-shell">
+      <div class="rr-mc-head">
+        <div class="rr-mc-head-avatar avatar-sm">${escapeHtml(initials)}</div>
+        <div class="rr-mc-head-id"><div class="rr-mc-name">${escapeHtml(name)}</div><div class="rr-mc-sub">Loading…</div></div>
+      </div>
+      <div class="rr-mc-thread" style="overflow-y:auto">${ghost}</div>
+      <div style="height:58px"></div>
+    </div>`;
+  const th = conv.querySelector(".rr-mc-thread");
+  if (th) th.scrollTop = th.scrollHeight;
+}
+
+// Upload with progress + cancel (#81): signed upload URL + XHR so we get
+// progress events; falls back to the plain SDK upload when unavailable.
+async function _mcUploadWithProgress(path, file, { onProgress, getCancelled } = {}) {
+  try {
+    const { data, error } = await sb.storage.from("driver-chat-attachments").createSignedUploadUrl(path);
+    if (error || !data?.signedUrl) throw error || new Error("no signed url");
+    await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("PUT", data.signedUrl);
+      xhr.setRequestHeader("content-type", file.type || "application/octet-stream");
+      xhr.setRequestHeader("x-upsert", "false");
+      xhr.upload.onprogress = (ev) => {
+        if (getCancelled && getCancelled()) { try { xhr.abort(); } catch {} return; }
+        if (onProgress && ev.lengthComputable) onProgress(ev.loaded / ev.total);
+      };
+      xhr.onload = () => (xhr.status >= 200 && xhr.status < 300) ? resolve() : reject(new Error("upload " + xhr.status));
+      xhr.onerror = () => reject(new Error("upload failed"));
+      xhr.onabort = () => reject(new Error("cancelled"));
+      xhr.send(file);
+    });
+    return { error: null };
+  } catch (err) {
+    if (getCancelled && getCancelled()) return { error: { message: "cancelled" } };
+    // Fallback: plain upload (no progress).
+    return sb.storage.from("driver-chat-attachments").upload(path, file, { contentType: file.type, upsert: false });
+  }
 }
 
 // ─── Dispatch-domain superpowers (Batch 7 · #62–72) ──────────────────────
@@ -45513,9 +45759,17 @@ document.addEventListener("click", async (e) => {
     root.querySelector("[data-rr-mc-edit-save]").addEventListener("click", async () => {
       const next = ta.value.trim();
       if (!next || next === current) { close(); return; }
-      const { error } = await sb.rpc("dispatch_chat_edit", { p_message_id: id, p_body: next });
-      if (error) { toast("Edit failed: " + error.message, "warn"); return; }
+      // Optimistic apply (#80) — paint the new text immediately, revert on
+      // failure.
+      const prevHtml = bodyEl ? bodyEl.innerHTML : null;
+      if (bodyEl) bodyEl.innerHTML = _mcLinkifyPhones(_mdLite(linkifyEscaped(escapeHtml(next).replace(/\n/g, "<br>"))));
       close();
+      const { error } = await sb.rpc("dispatch_chat_edit", { p_message_id: id, p_body: next });
+      if (error) {
+        if (bodyEl && prevHtml !== null) bodyEl.innerHTML = prevHtml;
+        toast("Edit failed: " + error.message, "warn");
+        return;
+      }
       refreshDriverChatThread(false);
     });
     ta.addEventListener("keydown", (ev) => {
@@ -45667,9 +45921,22 @@ async function _rrMcSignAttachments() {
     const path = el.getAttribute("data-rr-mc-attach");
     el.setAttribute("data-rr-mc-resolved", "1");
     try {
-      const { data, error } = await sb.storage
-        .from("driver-chat-attachments")
-        .createSignedUrl(path, 60 * 60 * 8);
+      let data = null, error = null;
+      // Thumbnail pipeline (#78): bubble images ask for a 480px transform
+      // (storage image transformation). Projects without transforms just
+      // error → fall through to the plain signed URL.
+      if (el.tagName === "IMG" && !window._rrNoImgTransform) {
+        const t = await sb.storage.from("driver-chat-attachments")
+          .createSignedUrl(path, 60 * 60 * 8, { transform: { width: 480, quality: 75 } })
+          .then((r) => r, (e) => ({ error: e || {} }));
+        if (!t.error && t.data?.signedUrl) data = t.data;
+        else window._rrNoImgTransform = true; // stop asking this session
+      }
+      if (!data) {
+        ({ data, error } = await sb.storage
+          .from("driver-chat-attachments")
+          .createSignedUrl(path, 60 * 60 * 8));
+      }
       if (error || !data?.signedUrl) continue;
       if (el.tagName === "IMG") {
         // Bind load/error BEFORE setting src so we never miss the
@@ -46805,7 +47072,7 @@ async function refreshChannelThread(scrollToBottom) {
           // BEFORE any image data lands, so the bubble cannot grow on
           // image load and the scroll-anchor algorithm has nothing to
           // walk up to preserve.
-          ? `<img data-rr-mc-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" width="240" height="240" loading="eager" decoding="async" style="max-width:240px;border-radius:8px;margin-bottom:6px;cursor:zoom-in" onclick="window.open(this.src,'_blank')"/>`
+          ? `<img data-rr-mc-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" width="240" height="240" loading="lazy" decoding="async" style="max-width:240px;border-radius:8px;margin-bottom:6px;cursor:zoom-in" onclick="window.open(this.src,'_blank')"/>`
           : _rrMcAttachCard(m);
       }
       const senderLabel = m.sender_kind === "dispatch"
@@ -50865,9 +51132,20 @@ sb.channel("rr-dashboard")
   .on("postgres_changes", { event: "UPDATE", schema: "public", table: "driver_messages" },         scheduleChatRealtime)
   .on("postgres_changes", { event: "INSERT", schema: "public", table: "driver_channel_messages" }, scheduleChatRealtime)
   .on("postgres_changes", { event: "*",      schema: "public", table: "driver_message_reactions" }, scheduleChatRealtime)
+  // Batch 8 (#73): the newer chat surfaces ride realtime too — pins,
+  // channel acks and poll votes repaint without waiting for a poll.
+  .on("postgres_changes", { event: "*",      schema: "public", table: "driver_message_pins" },        scheduleChatRealtime)
+  .on("postgres_changes", { event: "*",      schema: "public", table: "driver_channel_message_acks" }, scheduleChatRealtime)
+  .on("postgres_changes", { event: "*",      schema: "public", table: "channel_poll_votes" },          scheduleChatRealtime)
   // Checklist submissions — flag alerts + live Responses refresh.
   .on("postgres_changes", { event: "*", schema: "public", table: "checklist_submissions" }, _clfRealtimeSubmission)
-  .subscribe();
+  .subscribe((status) => {
+    // Track socket health (#73/#75): healthy realtime lets the chat polls
+    // stretch way out (they're only a safety net), and the connection
+    // banner reflects drops.
+    window._rrChatRealtimeHealthy = status === "SUBSCRIBED";
+    if (typeof _mcPaintConnBanner === "function") _mcPaintConnBanner();
+  });
 
 window.addEventListener("focus", refreshActiveView);
 setInterval(refreshActiveView, 30 * 1000);
