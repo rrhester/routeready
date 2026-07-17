@@ -174,6 +174,9 @@
 .rrnb-group-hd{display:flex;align-items:center;gap:var(--s-1);padding:var(--s-1) var(--s-2);
   font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.04em;
   color:var(--text-subtle);cursor:pointer}
+.rrnb-collapse-all{width:100%;text-align:left;background:transparent;border:0;color:var(--text-subtle);
+  font-size:var(--fs-xs);cursor:pointer;padding:4px var(--s-2);border-radius:var(--r-md);margin-bottom:2px}
+.rrnb-collapse-all:hover{background:var(--surface-hover);color:var(--text)}
 .rrnb-group-hd .tw{transition:transform .12s}
 .rrnb-group-hd .gnm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rrnb-group-hd .kebab{opacity:0;flex:0 0 auto}
@@ -1253,6 +1256,16 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     }).catch(fail);
   }
 
+  // #65 step to the previous/next page in the visible list (keyboard nav)
+  function switchPage(dir) {
+    var host = $id("rrnb-pagelist"); if (!host) return;
+    var seen = {}, ids = [];
+    [].slice.call(host.querySelectorAll(".rrnb-page[data-page]")).forEach(function (r) { var id = r.getAttribute("data-page"); if (id && !seen[id]) { seen[id] = 1; ids.push(id); } });
+    if (!ids.length) return;
+    var i = ids.indexOf(S.pageId);
+    var next = i < 0 ? (dir > 0 ? 0 : ids.length - 1) : Math.min(ids.length - 1, Math.max(0, i + dir));
+    if (ids[next] && ids[next] !== S.pageId) openPage(ids[next]);
+  }
   function firstPageOf(secId) { if (!S.tree) return null; var p = S.tree.pages.filter(function (x) { return x.section_id === secId; }).sort(bySort)[0]; return p && p.id; }
   function bySort(a, b) { return (a.is_pinned ? -1 : 0) - (b.is_pinned ? -1 : 0) || (a.position - b.position); }
 
@@ -1440,6 +1453,11 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     var byGroup = {}; sections.forEach(function (s) { var g = (s.group_id && liveGroups[s.group_id]) ? s.group_id : "_"; (byGroup[g] = byGroup[g] || []).push(s); });
     var html = "";
     if (!S.readOnly) html += '<button class="rrnb-newpage rrnb-addtop" data-add-section="1">＋ Add section</button>';
+    // #66 collapse / expand every section group in one click
+    if (groups.length) {
+      var anyOpen = groups.some(function (g) { return !S.collapsedGroups[g.id]; });
+      html += '<button class="rrnb-collapse-all" data-toggle-all-groups="' + (anyOpen ? "collapse" : "expand") + '">' + (anyOpen ? "⌄ Collapse all groups" : "› Expand all groups") + '</button>';
+    }
     function secRow(s) {
       var on = s.id === S.activeSection ? " active" : "";
       return '<div class="rrnb-section' + on + '" data-sec="' + s.id + '"><span class="bar" style="background:' + esc(s.color) + '"></span>' +
@@ -1676,6 +1694,8 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     ed.addEventListener("keyup", updateWordCount);
     ed.addEventListener("mouseup", updateWordCount);
     ed.addEventListener("paste", onEditorPaste);
+    ed.addEventListener("mousedown", tableResizeDown);
+    ed.addEventListener("mousemove", tableResizeHover);
     updateWordCount();
     ed.addEventListener("dragover", function (e) { if (DH.dragging) { dhDragOver(e); return; } e.preventDefault(); ed.classList.add("rrnb-drop"); });
     ed.addEventListener("dragleave", function () { ed.classList.remove("rrnb-drop"); });
@@ -4252,6 +4272,65 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     { act: "dup", label: "Duplicate", ic: "⧉" },
     { act: "del", label: "Delete", ic: "✕", danger: true }
   ];
+  // ── Drag a column border to resize a table column (#44) ──────────
+  // Widths persist as a <colgroup> on the table (real saved content), added
+  // lazily the first time a table is resized so untouched tables are unchanged.
+  var TR = { dragging: false, col: null, startX: 0, startW: 0, table: null, startTableW: 0 };
+  function tableEdgeCell(e) {
+    if (S.readOnly || S.editorKind === "tiptap") return null;
+    var cell = e.target && e.target.closest ? e.target.closest("#rrnb-editor td, #rrnb-editor th") : null;
+    if (!cell) return null;
+    var r = cell.getBoundingClientRect();
+    return (e.clientX > r.right - 6 && e.clientX < r.right + 3) ? cell : null;
+  }
+  function ensureColgroup(table) {
+    var cg = table.querySelector("colgroup");
+    if (cg) return cg;
+    var headRow = table.rows[0]; if (!headRow) return null;
+    cg = document.createElement("colgroup");
+    for (var i = 0; i < headRow.cells.length; i++) {
+      var col = document.createElement("col");
+      col.style.width = Math.round(headRow.cells[i].getBoundingClientRect().width) + "px";
+      cg.appendChild(col);
+    }
+    table.insertBefore(cg, table.firstChild);
+    table.style.tableLayout = "fixed";
+    table.style.width = Math.round(table.getBoundingClientRect().width) + "px";
+    return cg;
+  }
+  function tableResizeHover(e) {
+    if (TR.dragging) return;
+    var ed = $id("rrnb-editor"); if (!ed) return;
+    ed.style.cursor = tableEdgeCell(e) ? "col-resize" : "";
+  }
+  function tableResizeDown(e) {
+    var cell = tableEdgeCell(e); if (!cell) return;
+    var table = cell.closest("table"); if (!table) return;
+    var cg = ensureColgroup(table); if (!cg) return;
+    var idx = cell.cellIndex; var col = cg.children[idx]; if (!col) return;
+    TR.dragging = true; TR.col = col; TR.table = table; TR.startX = e.clientX;
+    TR.startW = parseFloat(col.style.width) || cell.getBoundingClientRect().width;
+    TR.startTableW = parseFloat(table.style.width) || table.getBoundingClientRect().width;
+    e.preventDefault();
+    document.addEventListener("mousemove", tableResizeMove, true);
+    document.addEventListener("mouseup", tableResizeUp, true);
+  }
+  function tableResizeMove(e) {
+    if (!TR.dragging) return;
+    var dx = e.clientX - TR.startX;
+    var w = Math.max(40, TR.startW + dx);
+    TR.col.style.width = Math.round(w) + "px";
+    if (TR.table) TR.table.style.width = Math.round(TR.startTableW + (w - TR.startW)) + "px";
+    e.preventDefault();
+  }
+  function tableResizeUp() {
+    if (!TR.dragging) return;
+    TR.dragging = false;
+    document.removeEventListener("mousemove", tableResizeMove, true);
+    document.removeEventListener("mouseup", tableResizeUp, true);
+    var ed = $id("rrnb-editor"); if (ed) ed.style.cursor = "";
+    scheduleSave();
+  }
   // ── Collapsible headings (#16) ───────────────────────────────────
   // Fold hides the blocks under a heading until the next same-or-higher
   // heading. State lives only in the DOM (rrnb-folded / rrnb-fold-hidden
@@ -4609,6 +4688,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       var nn = e.target.closest("[data-new-notebook]"); if (nn) return createNotebookFlow();
       var kb = e.target.closest("[data-menu='section']"); if (kb) { var r = kb.getBoundingClientRect(); return sectionMenu(kb.getAttribute("data-id"), r.left, r.bottom); }
       var gkb = e.target.closest("[data-menu='group']"); if (gkb) { var gr = gkb.getBoundingClientRect(); return groupMenu(gkb.getAttribute("data-id"), gr.left, gr.bottom); }
+      var ta = e.target.closest("[data-toggle-all-groups]"); if (ta) { var collapse = ta.getAttribute("data-toggle-all-groups") === "collapse"; ((S.tree && S.tree.groups) || []).forEach(function (g0) { S.collapsedGroups[g0.id] = collapse; }); return renderSections(); }
       var tg = e.target.closest("[data-toggle]"); if (tg) { var g = tg.getAttribute("data-toggle"); S.collapsedGroups[g] = !S.collapsedGroups[g]; return renderSections(); }
       var add = e.target.closest("[data-add-section]"); if (add) { return S.be.createSection(S.nbId, "New Section", null, PALETTE[(S.tree.sections.length) % PALETTE.length]).then(function (s) { S.activeSection = s.id; return selectNotebook(S.nbId, null); }); }
       var sec = e.target.closest("[data-sec]"); if (sec) {
@@ -4721,7 +4801,11 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     // global shortcuts while the view is active
     document.addEventListener("keydown", function (e) {
       var v = ROOT(); if (!v || !v.classList.contains("active")) return;
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f" && !e.shiftKey) { var s = $id("rrnb-search-input"); if (s) { e.preventDefault(); s.focus(); s.select(); } }
+      // Ctrl/⌘+F focuses the notebook search — but inside the editor it means
+      // find-in-this-page (#81), which onEditorKey handles, so skip here.
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f" && !e.shiftKey && !typingContext()) { var s = $id("rrnb-search-input"); if (s) { e.preventDefault(); s.focus(); s.select(); } }
+      // #65 Ctrl/⌘+↑/↓ steps through the current page list, from anywhere in the view
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown") && S.mode === "notebook") { e.preventDefault(); switchPage(e.key === "ArrowUp" ? -1 : 1); return; }
       if (e.altKey && e.key.toLowerCase() === "n") { e.preventDefault(); if (e.shiftKey) newSection(); else newPage(); }
       if (e.altKey && e.key.toLowerCase() === "q") { e.preventDefault(); quickNote(); }
       if (e.key === "Escape") { hidePop(); hideCtx(); hideAiMenu(); hideImgResize(); }
