@@ -353,6 +353,19 @@
 .rrnb-editor a.rrnb-objlink[data-obj-type="station"]::before{content:"🏢"}
 .rrnb-editor a.rrnb-objlink[data-obj-type="incident"]::before{content:"⚠️"}
 .rrnb-editor a.rrnb-objlink[data-obj-type="shift"]::before{content:"🕒"}
+/* #43 a page link whose target was deleted/moved — reads as broken, fixable */
+.rrnb-editor a.rrnb-pagelink.rrnb-pagelink-broken{background:var(--red-soft,rgba(220,38,38,.1));
+  color:var(--red,#dc2626);text-decoration:line-through;text-decoration-thickness:1px;cursor:context-menu}
+/* #37 record-chip hovercard */
+.rrnb-hovercard{position:fixed;z-index:80;max-width:260px;background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-lg);box-shadow:var(--shadow-pop);padding:10px 12px;font-size:var(--fs-sm)}
+.rrnb-hovercard[hidden]{display:none}
+.rrnb-hovercard .hc-head{display:flex;align-items:center;gap:9px}
+.rrnb-hovercard .hc-av{flex:0 0 auto;width:30px;height:30px;border-radius:8px;color:#fff;font-weight:700;
+  display:inline-flex;align-items:center;justify-content:center;font-size:12px}
+.rrnb-hovercard .hc-nm{font-weight:600;color:var(--text)}
+.rrnb-hovercard .hc-ty{font-size:var(--fs-xs);color:var(--text-subtle);text-transform:capitalize}
+.rrnb-hovercard .hc-open{margin-top:8px;font-size:var(--fs-xs);color:var(--accent)}
 /* web links (auto-detected URLs + Ctrl/⌘-K links): read as clickable */
 .rrnb-editor a.rrnb-weblink{cursor:pointer;border-bottom:1px solid var(--accent-border)}
 .rrnb-editor a.rrnb-weblink:hover{border-bottom-color:var(--accent);text-decoration:underline;text-underline-offset:2px}
@@ -568,6 +581,8 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
 .rrnb-slash-opt.sel,.rrnb-slash-opt:hover{background:var(--accent-soft)}
 .rrnb-slash-opt.mut{color:var(--text-subtle);cursor:default}
 .rrnb-slash-opt.mut:hover{background:transparent}
+.rrnb-slash-opt .sc{margin-left:auto;padding-left:12px;font-size:var(--fs-xs);color:var(--text-subtle);
+  font-variant-numeric:tabular-nums;white-space:nowrap}
 .rrnb-slash-opt .ic{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;
   border-radius:var(--r-sm);background:var(--canvas,rgba(15,23,42,.05));font-size:11px;font-weight:700;
   color:var(--text-muted);flex:0 0 auto}
@@ -1808,8 +1823,11 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     ed.addEventListener("paste", onEditorPaste);
     ed.addEventListener("mousedown", tableResizeDown);
     ed.addEventListener("mousemove", tableResizeHover);
+    ed.addEventListener("mouseover", onChipHover);
+    ed.addEventListener("mouseout", onChipOut);
     updateWordCount();
     recomputeTodoRollups(ed); scanTodoDue(ed);   // #22/#23 render saved nesting counts + due chips
+    scanBrokenLinks(ed);                          // #43 flag page links whose target is gone
     ed.addEventListener("dragover", function (e) { if (DH.dragging) { dhDragOver(e); return; } e.preventDefault(); ed.classList.add("rrnb-drop"); });
     ed.addEventListener("dragleave", function () { ed.classList.remove("rrnb-drop"); });
     ed.addEventListener("drop", function (e) { if (DH.dragging) { dhDrop(e); return; } onEditorDrop(e); });
@@ -2177,6 +2195,51 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     row.appendChild(chip);
   }
   function scanTodoDue(ed) { ed = ed || $id("rrnb-editor"); if (!ed) return; [].slice.call(ed.querySelectorAll(".rrnb-todo[data-due]")).forEach(renderTodoDue); }
+  // #37 hover a resolved record chip → a mini-card. Live status is read from
+  // the already-loaded roster/fleet globals when available (no extra fetch).
+  var _hc = { el: null, chip: null, timer: null };
+  function recStatus(type, id) {
+    try {
+      if (type === "driver") { var d = ((window._rosterRows) || []).filter(function (x) { return String(x.id) === String(id); })[0]; if (d) return d.status || d.state || (d.active === false ? "inactive" : d.active === true ? "active" : null); }
+      if (type === "vehicle") { var v = ((window._fleetRows) || []).filter(function (x) { return String(x.id) === String(id); })[0]; if (v) return v.grounded ? "grounded" : (v.status || (v.archived_at ? "archived" : null)); }
+    } catch (e) {}
+    return null;
+  }
+  function showRecHovercard(chip) {
+    var type = chip.getAttribute("data-obj-type"), id = chip.getAttribute("data-obj-id"), name = chip.getAttribute("data-obj-name") || chip.textContent;
+    if (!type || !id) return;
+    if (!_hc.el) {
+      var x = document.createElement("div"); x.className = "rrnb-hovercard"; x.id = "rrnb-hovercard"; x.hidden = true; document.body.appendChild(x);
+      x.addEventListener("mouseenter", function () { clearTimeout(_hc.timer); });
+      x.addEventListener("mouseleave", hideRecHovercard);
+      _hc.el = x;
+    }
+    var d = _hc.el, st = recStatus(type, id), col = CTX_COLORS[type] || "var(--accent)";
+    d.innerHTML = '<div class="hc-head"><span class="hc-av" style="background:' + col + '">' + esc(recInitials(name)) + '</span>' +
+      '<div class="hc-cc"><div class="hc-nm">' + esc(name) + '</div><div class="hc-ty">' + esc(type) + (st ? ' · ' + esc(st) : '') + '</div></div></div>' +
+      '<div class="hc-open">Click the chip to open the full profile →</div>';
+    d.hidden = false;
+    var r = chip.getBoundingClientRect();
+    d.style.left = Math.max(8, Math.min(window.innerWidth - d.offsetWidth - 8, r.left)) + "px";
+    var top = r.bottom + 6;
+    if (top + d.offsetHeight > window.innerHeight - 8) top = Math.max(8, r.top - d.offsetHeight - 6);
+    d.style.top = top + "px";
+  }
+  function hideRecHovercard() { _hc.timer = setTimeout(function () { if (_hc.el) _hc.el.hidden = true; _hc.chip = null; }, 130); }
+  function onChipHover(e) { var chip = e.target.closest && e.target.closest("a.rrnb-objlink[data-obj-type][data-obj-id]"); if (chip) { clearTimeout(_hc.timer); if (chip !== _hc.chip) { _hc.chip = chip; showRecHovercard(chip); } } }
+  function onChipOut(e) { var chip = e.target.closest && e.target.closest("a.rrnb-objlink"); if (chip) hideRecHovercard(); }
+  // #43 flag same-notebook page links whose target page no longer exists.
+  // The class is view-only (recomputed on load, stripped from saved HTML).
+  function scanBrokenLinks(ed) {
+    ed = ed || $id("rrnb-editor"); if (!ed) return;
+    var live = {}; ((S.tree && S.tree.pages) || []).forEach(function (p) { live[p.id] = 1; });
+    [].slice.call(ed.querySelectorAll("a.rrnb-pagelink[data-page-id]")).forEach(function (a) {
+      var broken = !live[a.getAttribute("data-page-id")];
+      a.classList.toggle("rrnb-pagelink-broken", broken);
+      if (broken) a.title = "This page was deleted or moved — right-click to fix";
+      else if (a.title && /deleted or moved/.test(a.title)) a.removeAttribute("title");
+    });
+  }
   function setTodoDue(row) {
     if (!row) return;
     var cur = row.getAttribute("data-due") || "";
@@ -3083,6 +3146,8 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     // data-todo-indent and data-due are structural and kept.
     clean.querySelectorAll(".rrnb-todo-due").forEach(function (n) { n.remove(); });
     clean.querySelectorAll("[data-rollup]").forEach(function (n) { n.removeAttribute("data-rollup"); });
+    // #43 the broken-link flag is computed per-load, not saved
+    clean.querySelectorAll(".rrnb-pagelink-broken").forEach(function (n) { n.classList.remove("rrnb-pagelink-broken"); if (!n.className) n.removeAttribute("class"); });
     return { title: title.value.trim() || "Untitled Page", content_html: clean.innerHTML, content_text: text, tags: (S.page && S.page.tags) || [] };
   }
   function scheduleSave() {
@@ -3922,6 +3987,17 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     var ed = $id("rrnb-editor");
     var cell = e.target.closest && e.target.closest("td,th");
     if (cell && ed && ed.contains(cell)) { e.preventDefault(); showTableControls(cell); return; }
+    // #43 a broken page link (target deleted/moved): offer a one-click fixer
+    var plink = e.target.closest && e.target.closest("a.rrnb-pagelink.rrnb-pagelink-broken");
+    if (plink && ed && ed.contains(plink)) {
+      e.preventDefault();
+      showCtx(e.clientX, e.clientY, [
+        { act: "relink", label: "Relink to a page…" },
+        { sep: 1 }, { act: "remove", label: "Remove link (keep text)", danger: true }
+      ]);
+      $id("rrnb-ctx")._target = { kind: "pagelink", el: plink };
+      return;
+    }
     // hyperlink: right-click to edit its text/URL, copy, or unlink (skips the
     // record/page/file chips, which have their own click behavior)
     var link = e.target.closest && e.target.closest("a[href]");
@@ -4341,13 +4417,15 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   //  commands the toolbar uses (doCommand / applyBlock), so there's no
   //  parallel code path to keep in sync. Never steals caret focus.
   // ══════════════════════════════════════════════════════════════════
+  // #28 platform mod-key label so the slash menu can show each block's shortcut
+  var MODK = (/Mac|iPhone|iPad/.test((navigator.platform || "")) ? "⌘" : "Ctrl");
   var SLASH_CMDS = [
-    { cmd: "H1", block: true, label: "Heading 1", kw: "heading title h1", ic: "H1" },
-    { cmd: "H2", block: true, label: "Heading 2", kw: "heading subheading h2", ic: "H2" },
-    { cmd: "H3", block: true, label: "Heading 3", kw: "heading h3", ic: "H3" },
-    { cmd: "todo", label: "To-do checklist", kw: "todo task checkbox check", ic: "☑" },
-    { cmd: "insertUnorderedList", label: "Bulleted list", kw: "bullet unordered list ul", ic: "•" },
-    { cmd: "insertOrderedList", label: "Numbered list", kw: "number ordered list ol", ic: "1." },
+    { cmd: "H1", block: true, label: "Heading 1", kw: "heading title h1", ic: "H1", sc: MODK + "+Alt+1" },
+    { cmd: "H2", block: true, label: "Heading 2", kw: "heading subheading h2", ic: "H2", sc: MODK + "+Alt+2" },
+    { cmd: "H3", block: true, label: "Heading 3", kw: "heading h3", ic: "H3", sc: MODK + "+Alt+3" },
+    { cmd: "todo", label: "To-do checklist", kw: "todo task checkbox check", ic: "☑", sc: MODK + "+1" },
+    { cmd: "insertUnorderedList", label: "Bulleted list", kw: "bullet unordered list ul", ic: "•", sc: MODK + "+." },
+    { cmd: "insertOrderedList", label: "Numbered list", kw: "number ordered list ol", ic: "1.", sc: MODK + "+/" },
     { cmd: "quote", label: "Quote", kw: "quote blockquote", ic: "❝" },
     { cmd: "callout", label: "Callout", kw: "callout note tip info highlight", ic: "💡" },
     { cmd: "code", label: "Code block", kw: "code pre monospace", ic: "{ }" },
@@ -4355,7 +4433,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     { cmd: "hr", label: "Divider", kw: "divider hr line rule separator", ic: "—" },
     { cmd: "image", label: "Picture", kw: "image picture photo upload img", ic: "▧" },
     { cmd: "attach", label: "File attachment", kw: "file attach upload document", ic: "📎" },
-    { cmd: "link", label: "Web link", kw: "link url web hyperlink", ic: "🔗" },
+    { cmd: "link", label: "Web link", kw: "link url web hyperlink", ic: "🔗", sc: MODK + "+K" },
     { cmd: "pagelink", label: "Link to page", kw: "page wiki internal link", ic: "❏" },
     { cmd: "smartlink", label: "Link records (drivers, vehicles, routes)", kw: "record driver vehicle route smart link connect", ic: "⚡" },
     { cmd: "toc", label: "Table of contents", kw: "toc contents outline headings", ic: "☰" },
@@ -4376,7 +4454,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   function slashRender() {
     var d = slashEl();
     d.innerHTML = SL.items.length
-      ? SL.items.map(function (it, i) { return '<div class="rrnb-slash-opt' + (i === SL.sel ? " sel" : "") + '" data-si="' + i + '"><span class="ic">' + esc(it.ic) + '</span>' + esc(it.label) + '</div>'; }).join("")
+      ? SL.items.map(function (it, i) { return '<div class="rrnb-slash-opt' + (i === SL.sel ? " sel" : "") + '" data-si="' + i + '"><span class="ic">' + esc(it.ic) + '</span>' + esc(it.label) + (it.sc ? '<span class="sc">' + esc(it.sc) + '</span>' : "") + '</div>'; }).join("")
       : '<div class="rrnb-slash-opt mut">No matching block</div>';
   }
   function slashClose() { SL.open = false; SL.node = null; if (SL.el) SL.el.hidden = true; }
@@ -4884,6 +4962,12 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       if (act === "edit") return editLinkPopover(a);
       if (act === "copy") { try { navigator.clipboard.writeText(a.getAttribute("href") || ""); notify("Link copied"); } catch (e) {} return; }
       if (act === "remove") { if (a.parentNode) { a.parentNode.replaceChild(document.createTextNode(a.textContent || ""), a); scheduleSave(); } return; }
+      return;
+    }
+    if (t.kind === "pagelink") {
+      var pl = t.el; if (!pl || !pl.parentNode) return;
+      if (act === "remove") { pl.parentNode.replaceChild(document.createTextNode(pl.textContent || ""), pl); scheduleSave(); return; }
+      if (act === "relink") { var tn = document.createTextNode(""); pl.parentNode.replaceChild(tn, pl); try { var ed = $id("rrnb-editor"); ed.focus(); var r = document.createRange(); r.setStart(tn, 0); r.collapse(true); var s = window.getSelection(); s.removeAllRanges(); s.addRange(r); } catch (e) {} openPagePicker(); scheduleSave(); return; }
       return;
     }
   }
