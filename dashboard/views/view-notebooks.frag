@@ -176,6 +176,9 @@
   font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.04em;
   color:var(--text-subtle);cursor:pointer}
 .rrnb-group-hd .tw{transition:transform .12s}
+.rrnb-group-hd .gnm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rrnb-group-hd .kebab{opacity:0;flex:0 0 auto}
+.rrnb-group-hd:hover .kebab{opacity:1}
 .rrnb-group.collapsed .tw{transform:rotate(-90deg)}
 .rrnb-group.collapsed .rrnb-section{display:none}
 .rrnb-section{display:flex;align-items:center;gap:var(--s-2);padding:var(--s-2) var(--s-2-5);
@@ -891,6 +894,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       shareSet: function (nb, members) { return rpc("notebook_share_set", { p_notebook_id: nb, p_members: members }); },
       createGroup: function (nb, name) { return rpc("notebook_section_group_create", { p_notebook_id: nb, p_name: name }); },
       createSection: function (nb, name, grp, color) { return rpc("notebook_section_create", { p_notebook_id: nb, p_name: name, p_group_id: grp || null, p_color: color }); },
+      moveSection: function (id, grp, pos) { return rpc("notebook_section_move", { p_id: id, p_group_id: grp || null, p_position: pos == null ? null : pos }); },
       createPage: function (sec, title, parent, level) { return rpc("notebook_page_create", { p_section_id: sec, p_title: title, p_parent_page_id: parent || null, p_level: level || 0 }); },
       getPage: function (id) { return rpc("notebook_page_get", { p_id: id }); },
       savePage: function (id, p, base) { return rpc("notebook_page_save", { p_id: id, p_title: p.title, p_content_html: p.content_html, p_content_text: p.content_text, p_tags: p.tags, p_base_updated_at: base || null }); },
@@ -989,6 +993,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       setNotebookKind: function (id, kind) { var n = db.notebooks.filter(function (x) { return x.id === id; })[0]; if (n) { n.kind = kind === "personal" ? "personal" : "workspace"; persist(); } return P({ id: id, kind: n ? n.kind : kind, my_role: "owner" }); },
       createGroup: function (nbId, name) { var g = { id: uid(), notebook_id: nbId, name: name || "New Group", color: "#64748b", position: db.groups.length }; db.groups.push(g); persist(); return P(g); },
       createSection: function (nbId, name, grp, color) { var s = { id: uid(), notebook_id: nbId, group_id: grp || null, name: name || "New Section", color: color || "#2563eb", position: db.sections.length }; db.sections.push(s); persist(); return P(s); },
+      moveSection: function (id, grp, pos) { var s = db.sections.filter(function (x) { return x.id === id; })[0]; if (s) { s.group_id = grp || null; if (pos != null) s.position = pos; persist(); } return P(); },
       createPage: function (sec, title, parent, level) { var s = db.sections.filter(function (x) { return x.id === sec; })[0]; var now = new Date().toISOString();
         var p = { id: uid(), notebook_id: s ? s.notebook_id : null, section_id: sec, parent_page_id: parent || null, level: level || 0, position: db.pages.length, title: title || "Untitled Page", content_html: "", content_text: "", tags: [], is_pinned: false, created_at: now, updated_at: now };
         db.pages.push(p); persist(); return P(p); },
@@ -1370,7 +1375,8 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     groups.forEach(function (g) {
       var col = S.collapsedGroups[g.id] ? " collapsed" : "";
       html += '<div class="rrnb-group' + col + '" data-grp="' + g.id + '"><div class="rrnb-group-hd" data-toggle="' + g.id + '">' +
-        '<span class="tw">▾</span><span class="gnm">' + esc(g.name) + '</span></div>' +
+        '<span class="tw">▾</span><span class="gnm">' + esc(g.name) + '</span>' +
+        (S.readOnly ? '' : '<button class="rrnb-iconbtn kebab" data-menu="group" data-id="' + g.id + '" title="Group options">⋯</button>') + '</div>' +
         (byGroup[g.id] || []).map(secRow).join("") + '</div>';
     });
     host.innerHTML = html;
@@ -4192,19 +4198,28 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     $id("rrnb-ctx")._target = { kind: "notebook", id: id };
   }
   function sectionMenu(id, x, y) {
-    showCtx(x, y, [
+    var sec = ((S.tree && S.tree.sections) || []).filter(function (x) { return x.id === id; })[0] || {};
+    var groups = (S.tree && S.tree.groups) || [];
+    var items = [
       { act: "rename", label: "Rename section" },
       { act: "recolor", label: "Change color" },
-      { act: "newgroup", label: "New section group" },
-      { sep: 1 }, { act: "del", label: "Delete section", danger: true }
-    ]);
+      { sep: 1 }
+    ];
+    // Move into any existing group the section isn't already in.
+    groups.forEach(function (g) { if (g.id !== sec.group_id) items.push({ act: "movegrp:" + g.id, label: "Move to “" + g.name + "”" }); });
+    if (sec.group_id) items.push({ act: "ungroup", label: "Remove from group" });
+    items.push({ act: "newgroup", label: "＋ New group with this section" });
+    items.push({ sep: 1 }, { act: "del", label: "Delete section", danger: true });
+    showCtx(x, y, items);
     $id("rrnb-ctx")._target = { kind: "section", id: id };
   }
   function groupMenu(id, x, y) {
-    showCtx(x, y, [
-      { act: "rename", label: "Rename group" },
-      { sep: 1 }, { act: "del", label: "Delete group", danger: true }
-    ]);
+    var g = ((S.tree && S.tree.groups) || []).filter(function (x) { return x.id === id; })[0] || {};
+    var loose = ((S.tree && S.tree.sections) || []).filter(function (s) { return s.group_id !== id; });
+    var items = [{ act: "rename", label: "Rename group" }];
+    loose.forEach(function (s) { items.push({ act: "addsec:" + s.id, label: "Add “" + s.name + "” here" }); });
+    items.push({ sep: 1 }, { act: "del", label: "Delete group", danger: true });
+    showCtx(x, y, items);
     $id("rrnb-ctx")._target = { kind: "group", id: id };
   }
   function handleCtx(act) {
@@ -4231,11 +4246,14 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     if (t.kind === "section") {
       if (act === "rename") return editSectionTitle(t.id);
       if (act === "recolor") return recolorSection(t.id);
-      if (act === "newgroup") return S.be.createGroup(S.nbId, "New Group").then(function () { return selectNotebook(S.nbId, S.pageId); });
+      if (act.indexOf("movegrp:") === 0) { var gid = act.slice(8); return S.be.moveSection(t.id, gid).then(function () { S.collapsedGroups[gid] = false; return selectNotebook(S.nbId, S.pageId); }); }
+      if (act === "ungroup") return S.be.moveSection(t.id, null).then(function () { return selectNotebook(S.nbId, S.pageId); });
+      if (act === "newgroup") return S.be.createGroup(S.nbId, "New Group").then(function (g) { var ng = g && (g.id || g); return (ng ? S.be.moveSection(t.id, ng) : Promise.resolve()).then(function () { if (ng) S.collapsedGroups[ng] = false; return selectNotebook(S.nbId, S.pageId); }); });
       if (act === "del") return S.be.deleteItem("section", t.id).then(function () { S.activeSection = null; return selectNotebook(S.nbId, null); });
     }
     if (t.kind === "group") {
       if (act === "rename") return editGroupTitle(t.id);
+      if (act.indexOf("addsec:") === 0) { var sid = act.slice(7); return S.be.moveSection(sid, t.id).then(function () { S.collapsedGroups[t.id] = false; return selectNotebook(S.nbId, S.pageId); }); }
       if (act === "del") return S.be.deleteItem("group", t.id).then(function () { notify("Group deleted — its sections were kept"); return selectNotebook(S.nbId, S.pageId); });
     }
     if (t.kind === "ednode") {
@@ -4346,6 +4364,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       if (S._inlineEditing) return;
       var nn = e.target.closest("[data-new-notebook]"); if (nn) return createNotebookFlow();
       var kb = e.target.closest("[data-menu='section']"); if (kb) { var r = kb.getBoundingClientRect(); return sectionMenu(kb.getAttribute("data-id"), r.left, r.bottom); }
+      var gkb = e.target.closest("[data-menu='group']"); if (gkb) { var gr = gkb.getBoundingClientRect(); return groupMenu(gkb.getAttribute("data-id"), gr.left, gr.bottom); }
       var tg = e.target.closest("[data-toggle]"); if (tg) { var g = tg.getAttribute("data-toggle"); S.collapsedGroups[g] = !S.collapsedGroups[g]; return renderSections(); }
       var add = e.target.closest("[data-add-section]"); if (add) { return S.be.createSection(S.nbId, "New Section", null, PALETTE[(S.tree.sections.length) % PALETTE.length]).then(function (s) { S.activeSection = s.id; return selectNotebook(S.nbId, null); }); }
       var sec = e.target.closest("[data-sec]"); if (sec) {
