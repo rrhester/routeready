@@ -40287,6 +40287,13 @@ async function loadDriverChatInbox() {
   // Kick a presence load in parallel so the chat head's App status /
   // Last active chips have data when the operator clicks into a thread.
   _ensureRosterAppStatusLoaded();
+  // Batch 5: digest bell, operator prefs (quiet hours/keywords/status),
+  // and the urgent-escalation watch.
+  _mcEnsureDigestBell();
+  _mcLoadOpPrefs().then(() => _mcPaintPresenceChip()).catch(() => {});
+  if (_mcEscTimer) clearInterval(_mcEscTimer);
+  _mcEscTimer = setInterval(() => { _mcEscalationTick().catch(() => {}); }, 120000);
+  setTimeout(() => { _mcEscalationTick().catch(() => {}); }, 4000);
   await refreshDriverChatList(true);
   if (_msgInboxListTimer) clearInterval(_msgInboxListTimer);
   _msgInboxListTimer = setInterval(() => {
@@ -40593,6 +40600,7 @@ function _mcOpenRowContextMenu(row, driverId, at) {
     <button type="button" data-rr-cm="unread">●<span>Mark as unread</span></button>
     <button type="button" data-rr-cm="snooze">💤<span>Snooze…</span></button>
     <button type="button" data-rr-cm="label">🏷️<span>Labels…</span></button>
+    <button type="button" data-rr-cm="notif">🔔<span>Notifications</span><span class="rr-mc-plus-val">${{ all: "All", urgent: "Urgent only", off: "Off" }[pref.notify_level || "all"]}</span></button>
     <div class="rr-mc-plus-sep"></div>
     <button type="button" data-rr-cm="mute">${pref.muted ? "🔔" : "🔕"}<span>${pref.muted ? "Unmute" : "Mute"}</span></button>
     <button type="button" data-rr-cm="archive">🗄️<span>${pref.archived ? "Unarchive" : "Archive"}</span></button>`;
@@ -40616,6 +40624,13 @@ function _mcOpenRowContextMenu(row, driverId, at) {
     else if (act === "archive") _mcSetThreadPref(driverId, { archived: !pref.archived });
     else if (act === "snooze") _mcOpenSnoozeMenu(driverId, at);
     else if (act === "label") _mcOpenLabelEditor(driverId);
+    else if (act === "notif") {
+      // Cycle all → urgent-only → off (#45).
+      const order = ["all", "urgent", "off"];
+      const next = order[(order.indexOf(pref.notify_level || "all") + 1) % order.length];
+      _mcSetThreadPref(driverId, { notify_level: next });
+      toast(`Notifications: ${{ all: "all messages", urgent: "urgent + keywords only", off: "off" }[next]}`, "ok");
+    }
   });
 }
 function _mcOpenSnoozeMenu(driverId, at) {
@@ -40698,6 +40713,353 @@ function _mcOpenLabelEditor(driverId) {
     _mcSetThreadPref(driverId, { labels: [...current].slice(0, 12) });
     close();
   });
+}
+
+// ─── Notifications, presence & escalation (Batch 5 · #45–54) ─────────────
+// Operator-level prefs (quiet hours, keyword alerts, tones, presence)
+// from dispatch_operator_msg_prefs (0507), localStorage fallback before
+// the migration lands. The notify engine diffs unread counts on every
+// inbox refresh and fires tones + Web Notifications by the rules:
+// keyword hit > everything; muted/off threads stay silent; quiet hours
+// suppress non-keyword alerts (configurable); urgent-only thread level
+// keeps only urgent-priority messages (and keyword hits).
+let _mcOpPrefs = null;      // operator prefs object
+let _mcOpPrefsServer = null;
+let _mcPrevUnread = null;   // driver_id → unread count from the previous tick
+let _mcEscTimer = null;
+
+function _mcLocalOpPrefs() {
+  try { return JSON.parse(localStorage.getItem("rr_msg_op_prefs") || "{}"); } catch { return {}; }
+}
+async function _mcLoadOpPrefs(force) {
+  if (_mcOpPrefs && !force) return _mcOpPrefs;
+  if (_mcOpPrefsServer !== false) {
+    const res = await sb.rpc("dispatch_operator_msg_prefs_get").then((r) => r, (e) => ({ error: e || {} }));
+    if (!res.error) {
+      _mcOpPrefsServer = true;
+      _mcOpPrefs = res.data?.prefs || {};
+      return _mcOpPrefs;
+    }
+    if (_mcRpcMissing(res.error)) _mcOpPrefsServer = false;
+  }
+  _mcOpPrefs = _mcLocalOpPrefs();
+  return _mcOpPrefs;
+}
+async function _mcSaveOpPrefs(patch) {
+  _mcOpPrefs = { ...(_mcOpPrefs || {}), ...patch };
+  if (_mcOpPrefsServer !== false) {
+    const { error } = await sb.rpc("dispatch_operator_msg_prefs_set", { p_patch: patch })
+      .then((r) => r, (e) => ({ error: e || {} }));
+    if (!error) return;
+    if (!_mcRpcMissing(error)) { toast("Couldn't save settings: " + (error.message || ""), "warn"); return; }
+    _mcOpPrefsServer = false;
+  }
+  try { localStorage.setItem("rr_msg_op_prefs", JSON.stringify(_mcOpPrefs)); } catch {}
+}
+function _mcInQuietHours(prefs, d = new Date()) {
+  const s = prefs?.quiet_start_min, e = prefs?.quiet_end_min;
+  if (s == null || e == null || s === e) return false;
+  const m = d.getHours() * 60 + d.getMinutes();
+  return s < e ? (m >= s && m < e) : (m >= s || m < e); // overnight windows wrap
+}
+
+// Per-priority tones (#53) — synthesized, no audio assets.
+let _mcAudioCtx = null;
+function _mcPlayTone(kind) {
+  if (_mcOpPrefs && _mcOpPrefs.tones_enabled === false) return;
+  try {
+    _mcAudioCtx = _mcAudioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = _mcAudioCtx;
+    const beep = (t0, freq, dur, gainV) => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = "sine";
+      o.frequency.value = freq;
+      g.gain.setValueAtTime(0, t0);
+      g.gain.linearRampToValueAtTime(gainV, t0 + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      o.connect(g).connect(ctx.destination);
+      o.start(t0); o.stop(t0 + dur + 0.02);
+    };
+    const now = ctx.currentTime;
+    if (kind === "urgent") { beep(now, 880, 0.14, 0.16); beep(now + 0.17, 880, 0.14, 0.16); beep(now + 0.34, 1046, 0.2, 0.18); }
+    else if (kind === "keyword") { beep(now, 660, 0.12, 0.15); beep(now + 0.15, 990, 0.18, 0.15); }
+    else if (kind === "high") { beep(now, 740, 0.12, 0.12); beep(now + 0.15, 740, 0.12, 0.12); }
+    else { beep(now, 620, 0.11, 0.09); }
+  } catch {}
+}
+
+// Web Notification with click-through into the thread (#47).
+function _mcWebNotify(title, body, driverId, urgentish) {
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+  try {
+    const n = new Notification(title, {
+      body: String(body || "").slice(0, 140),
+      tag: "rr-msg-" + driverId,
+      renotify: !!urgentish,
+      silent: true, // tones are ours
+    });
+    n.onclick = () => {
+      try { window.focus(); } catch {}
+      try { if (typeof window.goto === "function") window.goto("messages"); } catch {}
+      setTimeout(() => { try { openDriverChatThread(driverId); } catch {} }, 250);
+      n.close();
+    };
+  } catch {}
+}
+
+// The engine: called after each inbox refresh with the fresh thread list.
+function _mcNotifyEngineTick(threads) {
+  const prev = _mcPrevUnread;
+  _mcPrevUnread = new Map((threads || []).map((t) => [String(t.driver_id), t.unread || 0]));
+  if (!prev) return; // first paint — establish the baseline silently
+  const prefs = _mcOpPrefs || {};
+  const kws = (prefs.keywords || []).map((k) => String(k).toLowerCase()).filter(Boolean);
+  const quiet = _mcInQuietHours(prefs);
+  for (const t of threads || []) {
+    const id = String(t.driver_id);
+    const before = prev.get(id) || 0;
+    if ((t.unread || 0) <= before) continue;
+    if (t.last_message?.sender_kind !== "driver") continue;
+    const body = String(t.last_message?.body || "");
+    const kwHit = kws.length && kws.some((k) => body.toLowerCase().includes(k));
+    const tp = _mcThreadPrefs.get(id) || {};
+    if (!kwHit) {
+      if (tp.muted || tp.notify_level === "off") continue;
+      // Thread-level "urgent only": driver messages carry no priority, so
+      // only keyword hits break through this level.
+      if (tp.notify_level === "urgent") continue;
+      if (quiet && prefs.quiet_urgent_only !== false) continue;
+      // Don't ping for the thread the operator is actively reading.
+      if (_msgInboxSelectedId === id && document.visibilityState === "visible"
+          && document.getElementById("view-messages")?.classList.contains("active")) continue;
+    }
+    if (kwHit) {
+      _mcPlayTone("keyword");
+      _mcWebNotify(`⚠️ ${t.name || "Driver"} — keyword alert`, body, id, true);
+      toastAction(`⚠️ ${escapeHtml(t.name || "Driver")}: ${escapeHtml(body.slice(0, 80))}`, {
+        label: "Open", onConfirm: () => openDriverChatThread(id),
+      });
+    } else {
+      _mcPlayTone("normal");
+      _mcWebNotify(`${t.name || "Driver"}`, body, id, false);
+    }
+  }
+}
+
+// Unread digest dropdown (#54) + notification settings entry.
+function _mcOpenDigest(anchor) {
+  _mcDismissPops();
+  _mcEnsureExtrasCss();
+  const unread = (_msgInboxList || []).filter((t) => (t.unread || 0) > 0);
+  const pop = document.createElement("div");
+  pop.className = "rr-mc-pop rr-mc-suggest";
+  pop.style.minWidth = "260px";
+  pop.innerHTML = `<div class="rr-mc-emoji-head" style="padding:7px 10px 5px">Unread conversations</div>`
+    + (unread.length ? unread.slice(0, 12).map((t) =>
+        `<button type="button" data-rr-dg="${escapeHtml(t.driver_id)}">
+          <span class="rr-mc-sug-name">${escapeHtml(t.name || "")}</span>
+          <span class="rr-mc-sug-desc">${escapeHtml(String(t.last_message?.body || "").slice(0, 40))}</span>
+          <span style="margin-left:auto;background:var(--accent);color:#fff;border-radius:999px;font-size:10px;font-weight:700;padding:1px 7px">${t.unread}</span>
+        </button>`).join("")
+      : `<div style="padding:6px 12px 10px;font-size:var(--fs-sm);color:var(--text-subtle)">You're all caught up 🎉</div>`)
+    + `<div class="rr-mc-plus-sep"></div>
+       <button type="button" data-rr-dg-settings>⚙️<span style="margin-left:8px">Notification settings…</span></button>`;
+  _mcPlacePop(pop, anchor);
+  pop.addEventListener("mousedown", (e) => {
+    const s = e.target.closest("[data-rr-dg-settings]");
+    if (s) { e.preventDefault(); _mcDismissPops(); _mcOpenNotifySettings(); return; }
+    const b = e.target.closest("[data-rr-dg]");
+    if (!b) return;
+    e.preventDefault();
+    _mcDismissPops();
+    openDriverChatThread(b.getAttribute("data-rr-dg"));
+  });
+}
+
+// Notification settings hub (#45–#48, #50, #51, #53).
+async function _mcOpenNotifySettings() {
+  _mcEnsureExtrasCss();
+  await _mcLoadOpPrefs(true);
+  const prefs = _mcOpPrefs || {};
+  const { data: dspSet } = await sb.from("dsp_msg_settings").select("autoreply_enabled, autoreply_text").maybeSingle()
+    .then((r) => r, () => ({ data: null }));
+  document.getElementById("rr-mc-notif-modal")?.remove();
+  const toTime = (min) => min == null ? "" : `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+  const ov = document.createElement("div");
+  ov.className = "rr-mc-modal";
+  ov.id = "rr-mc-notif-modal";
+  ov.innerHTML = `
+    <div class="rr-mc-modal-back"></div>
+    <div class="rr-mc-modal-card" role="dialog" aria-modal="true" aria-label="Message notification settings">
+      <div class="rr-mc-modal-head">Messages — notifications &amp; presence<button type="button" class="rr-mc-modal-x" aria-label="Close">×</button></div>
+      <div class="rr-mc-modal-body">
+        ${("Notification" in window && Notification.permission !== "granted")
+          ? `<button type="button" class="btn btn-sm" data-rr-nf-perm style="margin-bottom:12px">Enable desktop notifications</button>` : ""}
+        <div class="rr-mc-emoji-head" style="padding:0 0 6px">My status (#51)</div>
+        <select data-rr-nf-status style="width:100%;border:1px solid var(--border);border-radius:var(--r-md);padding:8px 10px;font:inherit;font-size:var(--fs-sm);background:var(--canvas);margin-bottom:12px">
+          <option value="">Available (default)</option>
+          <option value="busy" ${prefs.presence_status === "busy" ? "selected" : ""}>Busy — heads-down</option>
+          <option value="on_road" ${prefs.presence_status === "on_road" ? "selected" : ""}>On the road</option>
+        </select>
+        <div class="rr-mc-emoji-head" style="padding:0 0 6px">Quiet hours</div>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+          <input type="time" data-rr-nf-qs value="${toTime(prefs.quiet_start_min)}" style="border:1px solid var(--border);border-radius:var(--r-md);padding:6px 8px;font:inherit;font-size:var(--fs-sm)">
+          <span class="u-subtle" style="font-size:var(--fs-sm)">to</span>
+          <input type="time" data-rr-nf-qe value="${toTime(prefs.quiet_end_min)}" style="border:1px solid var(--border);border-radius:var(--r-md);padding:6px 8px;font:inherit;font-size:var(--fs-sm)">
+          <button type="button" class="btn btn-sm" data-rr-nf-qclear>Clear</button>
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--text);margin-bottom:14px">
+          <input type="checkbox" data-rr-nf-kwq ${prefs.quiet_urgent_only === false ? "" : "checked"}> During quiet hours, only keyword alerts break through
+        </label>
+        <div class="rr-mc-emoji-head" style="padding:0 0 6px">Keyword alerts (always break through)</div>
+        <input type="text" data-rr-nf-kw value="${escapeHtml((prefs.keywords || []).join(", "))}" placeholder="accident, injury, police, breakdown" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:var(--r-md);padding:8px 10px;font:inherit;font-size:var(--fs-sm);background:var(--canvas);margin-bottom:14px">
+        <label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--text);margin-bottom:14px">
+          <input type="checkbox" data-rr-nf-tones ${prefs.tones_enabled === false ? "" : "checked"}> Notification sounds <button type="button" class="btn btn-sm" data-rr-nf-test style="margin-left:auto">Test</button>
+        </label>
+        <div class="rr-mc-emoji-head" style="padding:0 0 6px">Auto-reply when dispatch is offline (whole team)</div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--text);margin-bottom:7px">
+          <input type="checkbox" data-rr-nf-ar ${dspSet?.autoreply_enabled ? "checked" : ""}> Auto-reply is on
+        </label>
+        <textarea data-rr-nf-artext maxlength="500" placeholder="Dispatch is offline until 4 AM — call the hotline if urgent." style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:var(--r-md);padding:8px 10px;font:inherit;font-size:var(--fs-sm);background:var(--canvas);min-height:60px">${escapeHtml(dspSet?.autoreply_text || "")}</textarea>
+        <div class="u-subtle" style="font-size:10px;margin-top:4px">Replies at most once per driver per 4 hours, marked as automated.</div>
+      </div>
+      <div class="rr-mc-modal-foot">
+        <button type="button" class="btn btn-sm" data-rr-nf-cancel>Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary" data-rr-nf-save>Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelector(".rr-mc-modal-back").addEventListener("click", close);
+  ov.querySelector(".rr-mc-modal-x").addEventListener("click", close);
+  ov.querySelector("[data-rr-nf-cancel]").addEventListener("click", close);
+  ov.querySelector("[data-rr-nf-perm]")?.addEventListener("click", (e) => {
+    Notification.requestPermission().then(() => e.target.remove());
+  });
+  ov.querySelector("[data-rr-nf-qclear]").addEventListener("click", () => {
+    ov.querySelector("[data-rr-nf-qs]").value = "";
+    ov.querySelector("[data-rr-nf-qe]").value = "";
+  });
+  ov.querySelector("[data-rr-nf-test]").addEventListener("click", () => _mcPlayTone("urgent"));
+  ov.querySelector("[data-rr-nf-save]").addEventListener("click", async () => {
+    const toMin = (v) => {
+      if (!v) return null;
+      const [h, m] = v.split(":").map((x) => parseInt(x, 10));
+      return isNaN(h) ? null : h * 60 + (m || 0);
+    };
+    await _mcSaveOpPrefs({
+      quiet_start_min: toMin(ov.querySelector("[data-rr-nf-qs]").value),
+      quiet_end_min: toMin(ov.querySelector("[data-rr-nf-qe]").value),
+      quiet_urgent_only: ov.querySelector("[data-rr-nf-kwq]").checked,
+      keywords: ov.querySelector("[data-rr-nf-kw]").value.split(",").map((s) => s.trim()).filter(Boolean).slice(0, 20),
+      tones_enabled: ov.querySelector("[data-rr-nf-tones]").checked,
+      presence_status: ov.querySelector("[data-rr-nf-status]").value || null,
+    });
+    const arOn = ov.querySelector("[data-rr-nf-ar]").checked;
+    const arText = ov.querySelector("[data-rr-nf-artext]").value.trim();
+    const { error: arErr } = await sb.rpc("dispatch_msg_settings_set", {
+      p_autoreply_enabled: arOn, p_autoreply_text: arText || null,
+    }).then((r) => r, (e) => ({ error: e || {} }));
+    if (arErr && !_mcRpcMissing(arErr)) toast("Auto-reply didn't save: " + (arErr.message || ""), "warn");
+    else if (arErr) toast("Auto-reply needs migration 0507 — other settings saved", "info");
+    else toast("Notification settings saved", "ok");
+    close();
+    _mcPaintPresenceChip();
+  });
+}
+
+// Small presence chip beside the Messages title (#51).
+function _mcPaintPresenceChip() {
+  const head = document.querySelector(".msg-list-head .msg-list-title");
+  if (!head) return;
+  document.getElementById("rr-mc-presence-chip")?.remove();
+  const st = _mcOpPrefs?.presence_status;
+  if (!st) return;
+  const lbl = st === "busy" ? "Busy" : st === "on_road" ? "On the road" : "";
+  if (!lbl) return;
+  head.insertAdjacentHTML("afterend",
+    `<span id="rr-mc-presence-chip" style="font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;background:var(--accent-soft);color:var(--accent-text);border-radius:999px;padding:2px 8px;margin-left:7px;vertical-align:2px;cursor:pointer" title="Your status — click to change">${escapeHtml(lbl)}</span>`);
+  document.getElementById("rr-mc-presence-chip").addEventListener("click", _mcOpenNotifySettings);
+}
+
+// Inject the digest bell into the static list-head action row (once).
+function _mcEnsureDigestBell() {
+  const actions = document.querySelector(".msg-head-actions");
+  if (!actions || document.getElementById("rr-mc-digest-bell")) return;
+  const btn = document.createElement("button");
+  btn.className = "msg-headbtn";
+  btn.id = "rr-mc-digest-bell";
+  btn.title = "Unread digest & notification settings";
+  btn.setAttribute("aria-label", "Unread digest and notification settings");
+  btn.setAttribute("data-rr-mc-popanchor", "1");
+  btn.style.position = "relative";
+  btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span id="rr-mc-digest-n" style="display:none;position:absolute;top:-3px;right:-3px;background:var(--accent);color:#fff;font-size:9px;font-weight:800;border-radius:999px;min-width:15px;height:15px;line-height:15px;text-align:center;padding:0 3px"></span>`;
+  btn.addEventListener("click", () => _mcOpenDigest(btn));
+  actions.insertBefore(btn, actions.firstElementChild);
+}
+function _mcPaintDigestBadge() {
+  const n = (_msgInboxList || []).reduce((a, t) => a + (t.unread || 0), 0);
+  const el = document.getElementById("rr-mc-digest-n");
+  if (!el) return;
+  el.style.display = n > 0 ? "" : "none";
+  el.textContent = n > 99 ? "99+" : String(n);
+}
+
+// ── Urgent escalation watch (#49) ──
+// Flags dispatch-sent urgent messages the driver hasn't read after 10
+// minutes: one-time tone + notification + an action toast offering an SMS
+// fallback (queued through the existing Twilio pipeline, 0507 RPC).
+function _mcEscSeen() {
+  try { return new Set(JSON.parse(localStorage.getItem("rr_esc_seen") || "[]")); } catch { return new Set(); }
+}
+function _mcEscMark(id) {
+  try {
+    const cur = [..._mcEscSeen()];
+    cur.push(id);
+    localStorage.setItem("rr_esc_seen", JSON.stringify(cur.slice(-200)));
+  } catch {}
+}
+async function _mcEscalationTick() {
+  if (!document.getElementById("view-messages")?.classList.contains("active")) return;
+  const since = new Date(Date.now() - 24 * 3600000).toISOString();
+  const cutoff = Date.now() - 10 * 60000;
+  const [{ data: urgents }, { data: convs }] = await Promise.all([
+    sb.from("driver_messages")
+      .select("id, driver_id, body, created_at")
+      .eq("sender_kind", "dispatch").eq("priority", "urgent")
+      .is("deleted_at", null).gte("created_at", since)
+      .order("created_at", { ascending: false }).limit(40)
+      .then((r) => r, () => ({ data: null })),
+    sb.from("driver_conversations").select("driver_id, driver_last_read_at")
+      .then((r) => r, () => ({ data: null })),
+  ]);
+  if (!urgents || !urgents.length) return;
+  const readAt = new Map((convs || []).map((c) => [String(c.driver_id), c.driver_last_read_at ? new Date(c.driver_last_read_at).getTime() : 0]));
+  const seen = _mcEscSeen();
+  for (const m of urgents) {
+    const t = new Date(m.created_at).getTime();
+    if (t > cutoff) continue;                                  // not old enough yet
+    if ((readAt.get(String(m.driver_id)) || 0) >= t) continue; // driver read it
+    if (seen.has(m.id)) continue;                              // already escalated
+    _mcEscMark(m.id);
+    const meta = (_msgInboxList || []).find((x) => String(x.driver_id) === String(m.driver_id)) || {};
+    const name = meta.name || "Driver";
+    const mins = Math.round((Date.now() - t) / 60000);
+    _mcPlayTone("urgent");
+    _mcWebNotify(`🚨 ${name} hasn't seen your urgent message`, `Sent ${mins}m ago — consider calling or an SMS fallback.`, m.driver_id, true);
+    toastAction(`🚨 ${escapeHtml(name)} hasn't seen your urgent message (${mins}m). Send an SMS fallback?`, {
+      label: "Send SMS",
+      onConfirm: async () => {
+        const { error } = await sb.rpc("dispatch_send_sms_fallback", {
+          p_driver_id: m.driver_id,
+          p_body: `URGENT from dispatch: ${String(m.body || "please check the RouteReady app").slice(0, 500)}`,
+        }).then((r) => r, (e) => ({ error: e || {} }));
+        if (error) toast(_mcRpcMissing(error) ? "SMS fallback needs migration 0507" : ("SMS failed: " + (error.message || "")), "warn");
+        else toast("SMS queued to " + name, "ok");
+      },
+    });
+  }
 }
 
 // One conversation per DSP with RouteReady Support — pinned at the top
@@ -40838,6 +41200,9 @@ async function refreshDriverChatList(autoSelect) {
   list.innerHTML = (_mcListFilter.archived ? "" : supportRow) + listBody;
   _mcWireListFilterBar(list);
   _mcWireRowQuickActions(list);
+  // Notification engine + digest badge (#45–48, #53, #54).
+  _mcNotifyEngineTick(_msgInboxList);
+  _mcPaintDigestBadge();
   // Paint the green dot after the rows mount.  Presence state may have
   // already populated by the time the list first renders.
   _presencePaintList();
