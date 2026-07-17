@@ -194,6 +194,74 @@ begin
     'overlapping approved time off must violate time_off_requests_no_overlap';
 end $$;
 
+-- ── 9. Smart Fill undo (0502): snapshot + optimistic revert ───────────
+do $$
+declare v jsonb; caught boolean := false;
+begin
+  -- Fixture: a completed run that assigned Driver B onto shift 5.
+  insert into public.optimization_runs (id, dsp_id, week_start, trigger_kind, status, input_hash)
+  values ('aaaa1111-0000-4000-8000-0000000000b1',
+          'aaaa1111-0000-4000-8000-000000000001',
+          current_date, 'manual', 'ok', 'undo-test-hash');
+  insert into public.optimization_decisions (run_id, shift_id, driver_id, decision)
+  values ('aaaa1111-0000-4000-8000-0000000000b1',
+          'aaaa1111-0000-4000-8000-000000000005',
+          'aaaa1111-0000-4000-8000-000000000004', 'assigned');
+  -- Board as the run left it: B holds shift 5 (was open before the run).
+  update public.shifts set driver_id = 'aaaa1111-0000-4000-8000-000000000004'
+   where id = 'aaaa1111-0000-4000-8000-000000000005';
+
+  perform public.optimization_run_set_snapshot(
+    'aaaa1111-0000-4000-8000-0000000000b1',
+    jsonb_build_array(jsonb_build_object(
+      'shift_id', 'aaaa1111-0000-4000-8000-000000000005',
+      'driver_id', null)));
+
+  v := public.revert_optimization_run('aaaa1111-0000-4000-8000-0000000000b1');
+  assert (v->>'restored')::int = 1, 'revert must restore the run''s write, got ' || v::text;
+  assert (select driver_id from public.shifts
+           where id = 'aaaa1111-0000-4000-8000-000000000005') is null,
+    'shift must return to its pre-run (open) state';
+
+  -- A second revert must refuse.
+  begin
+    v := public.revert_optimization_run('aaaa1111-0000-4000-8000-0000000000b1');
+  exception when others then
+    caught := sqlerrm like '%already_reverted%';
+  end;
+  assert caught, 'double revert must raise already_reverted';
+end $$;
+
+-- ── 10. Revert keeps dispatcher edits made AFTER the run ─────────────
+do $$
+declare v jsonb;
+begin
+  insert into public.optimization_runs (id, dsp_id, week_start, trigger_kind, status, input_hash)
+  values ('aaaa1111-0000-4000-8000-0000000000b2',
+          'aaaa1111-0000-4000-8000-000000000001',
+          current_date, 'manual', 'ok', 'undo-test-hash-2');
+  insert into public.optimization_decisions (run_id, shift_id, driver_id, decision)
+  values ('aaaa1111-0000-4000-8000-0000000000b2',
+          'aaaa1111-0000-4000-8000-000000000005',
+          'aaaa1111-0000-4000-8000-000000000004', 'assigned');
+  -- A dispatcher has since put Driver A on the shift — the run's write
+  -- (Driver B) is gone, so the revert must NOT touch it.
+  update public.shifts set driver_id = 'aaaa1111-0000-4000-8000-000000000003'
+   where id = 'aaaa1111-0000-4000-8000-000000000005';
+  perform public.optimization_run_set_snapshot(
+    'aaaa1111-0000-4000-8000-0000000000b2',
+    jsonb_build_array(jsonb_build_object(
+      'shift_id', 'aaaa1111-0000-4000-8000-000000000005',
+      'driver_id', null)));
+  v := public.revert_optimization_run('aaaa1111-0000-4000-8000-0000000000b2');
+  assert (v->>'restored')::int = 0 and (v->>'skipped')::int = 1,
+    'edited-since shift must be skipped, got ' || v::text;
+  assert (select driver_id from public.shifts
+           where id = 'aaaa1111-0000-4000-8000-000000000005')
+         = 'aaaa1111-0000-4000-8000-000000000003'::uuid,
+    'the dispatcher''s newer edit must be preserved';
+end $$;
+
 select 'schedule-concurrency: all assertions passed' as result;
 
 rollback;
