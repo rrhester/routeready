@@ -25012,7 +25012,12 @@ async function loadCalendarTab() {
 // A RouteReady-owned calendar (no library, no Google embed) showing this DSP's
 // interview availability (shaded) plus booked interviews, orientations, and
 // one-off group sessions. Rendered in browser-local time (operator ≈ DSP tz).
-let _ivcalView = "workweek";
+// Last-used view is remembered per browser (falls back to Work Week).
+const _IVCAL_VIEWS = ["day", "week", "workweek", "month", "year", "agenda", "split"];
+let _ivcalView = (() => {
+  try { const v = localStorage.getItem("rr_ivcal_view"); return _IVCAL_VIEWS.includes(v) ? v : "workweek"; } catch (_) { return "workweek"; }
+})();
+function _ivcalPersistView() { try { localStorage.setItem("rr_ivcal_view", _ivcalView); } catch (_) {} }
 let _ivcalAnchor = new Date();
 // Lower bound for the events fetch (see loadIvCalendar). ~90 days of history
 // keeps the grid navigable into the recent past while guaranteeing all future
@@ -25118,11 +25123,20 @@ let _ivWork = (() => {
   try { const j = JSON.parse(localStorage.getItem("rr_ivcal_workhours") || "null"); if (j && typeof j.start === "number" && typeof j.end === "number") return { on: !!j.on, start: j.start, end: j.end }; } catch (_) {}
   return { on: false, start: 8 * 60, end: 17 * 60 };   // 8:00 AM – 5:00 PM
 })();
+// Drag/resize/create snap interval in minutes (Outlook offers the same set).
+let _ivSnapMin = (() => {
+  const v = parseInt((typeof localStorage !== "undefined" && localStorage.getItem("rr_ivcal_snap")) || "", 10);
+  return [5, 10, 15, 30].includes(v) ? v : 15;
+})();
+// ISO week numbers in the mini-month, month view and grid corner.
+let _ivWeekNums = (() => { try { return localStorage.getItem("rr_ivcal_weeknums") === "1"; } catch (_) { return false; } })();
 function _ivSavePrefs() {
   try {
     localStorage.setItem("rr_ivcal_weekstart", _ivWeekStartMon ? "mon" : "sun");
     localStorage.setItem("rr_ivcal_clock", _ivClock24 ? "24" : "12");
     localStorage.setItem("rr_ivcal_workhours", JSON.stringify(_ivWork));
+    localStorage.setItem("rr_ivcal_snap", String(_ivSnapMin));
+    localStorage.setItem("rr_ivcal_weeknums", _ivWeekNums ? "1" : "0");
   } catch (_) {}
 }
 // Time-format options honoring the 12/24h preference. Pass extra opts to merge.
@@ -26030,6 +26044,8 @@ async function loadIvCalendar() {
     return;
   }
   _ivcalRender();
+  // A ?ev= deep link opens that event once its row is actually in the cache.
+  _ivcalTryOpenPending();
 }
 window.loadIvCalendar = loadIvCalendar;
 
@@ -26041,7 +26057,7 @@ function _ivcalHourLabel(h) { if (_ivClock24) return String(h).padStart(2,"0") +
 function _ivcalPeriodLabel() {
   const a = _ivcalAnchor;
   if (_ivcalView === "year") return String(a.getFullYear());
-  if (_ivcalView === "day") return a.toLocaleDateString(undefined, { weekday:"long", month:"long", day:"numeric", year:"numeric" });
+  if (_ivcalView === "day" || _ivcalView === "split") return a.toLocaleDateString(undefined, { weekday:"long", month:"long", day:"numeric", year:"numeric" });
   if (_ivcalView === "month") return a.toLocaleDateString(undefined, { month:"long", year:"numeric" });
   if (_ivcalView === "agenda") {
     const s = new Date(a); s.setHours(0,0,0,0);
@@ -26072,8 +26088,19 @@ function _ivcalPeriodLabel() {
 
 function _ivcalNav(dir) {
   const a = new Date(_ivcalAnchor);
-  if (dir === 0) _ivcalAnchor = new Date();
-  else if (_ivcalView === "day") { a.setDate(a.getDate()+dir); _ivcalAnchor = a; }
+  if (dir === 0) {
+    // Second press while already on today re-centres the grid on the now line
+    // (Google behaviour) instead of being a no-op.
+    const t = new Date(); t.setHours(0, 0, 0, 0);
+    const vr = _ivcalViewRange();
+    const wasOnToday = t >= vr.start && t <= vr.end;
+    _ivcalAnchor = new Date();
+    _ivcalMiniAnchor = null;
+    _ivcalRender();
+    if (wasOnToday && !["month", "year", "agenda"].includes(_ivcalView)) _ivcalScrollToNow();
+    return;
+  }
+  else if (_ivcalView === "day" || _ivcalView === "split") { a.setDate(a.getDate()+dir); _ivcalAnchor = a; }
   else if (_ivcalView === "agenda") { a.setDate(a.getDate()+_IVCAL_AGENDA_DAYS*dir); _ivcalAnchor = a; }
   else if (_ivcalView === "week" || _ivcalView === "workweek") { a.setDate(a.getDate()+7*dir); _ivcalAnchor = a; }
   else if (_ivcalView === "year") { a.setFullYear(a.getFullYear()+dir); _ivcalAnchor = a; }
@@ -26089,7 +26116,7 @@ function _ivcalMiniBase() {
 // The date range currently shown in the main view, for highlighting.
 function _ivcalViewRange() {
   const a = _ivcalAnchor;
-  if (_ivcalView === "day") { const s = new Date(a); s.setHours(0,0,0,0); return { start: s, end: s }; }
+  if (_ivcalView === "day" || _ivcalView === "split") { const s = new Date(a); s.setHours(0,0,0,0); return { start: s, end: s }; }
   if (_ivcalView === "agenda") { const s = new Date(a); s.setHours(0,0,0,0); const e = new Date(s); e.setDate(s.getDate()+_IVCAL_AGENDA_DAYS-1); return { start: s, end: e }; }
   if (_ivcalView === "workweek") { const s = _ivMondayOf(a); const e = new Date(s); e.setDate(s.getDate()+4); return { start: s, end: e }; }
   if (_ivcalView === "week") { const s = _ivcalWeekStart(a); const e = new Date(s); e.setDate(s.getDate()+6); e.setHours(0,0,0,0); return { start: s, end: e }; }
@@ -26142,11 +26169,30 @@ function _ivcalMiniMonths() {
     <span class="oc-mini-navs"><button class="oc-mini-nav" data-mini-nav="-1" aria-label="Previous month">‹</button><button class="oc-mini-nav" data-mini-nav="1" aria-label="Next month">›</button></span>
   </div>`;
   const dowLabels = _ivWeekStartMon ? ["M","T","W","T","F","S","S"] : ["S","M","T","W","T","F","S"];
-  const dow = `<div class="oc-mini-row oc-mini-dow">` + dowLabels.map(d => `<span>${d}</span>`).join("") + `</div>`;
+  const dow = `<div class="oc-mini-row oc-mini-dow${_ivWeekNums ? " has-wk" : ""}">${_ivWeekNums ? `<span class="oc-mini-wk" aria-hidden="true"></span>` : ""}` + dowLabels.map(d => `<span>${d}</span>`).join("") + `</div>`;
+  // Density dots: how busy each visible day is (1 dot ≈ 1–2 events, 2 ≈ 3–4,
+  // 3 ≈ 5+), from the same filtered sources the grid paints.
+  const _dCount = {};
+  if (_ivcalCache) {
+    const bump = (arr, key, kind) => (arr || []).forEach(x => {
+      if (kind && !_ivcalFilterOk(x, kind)) return;
+      const t = x[key]; if (!t) return;
+      const iso = _ivcalISODate(new Date(t));
+      _dCount[iso] = (_dCount[iso] || 0) + 1;
+    });
+    bump(_ivcalCache.bookings, "starts_at", "booking");
+    bump(_ivcalCache.sessions, "starts_at", "session");
+  }
   let rows = "";
   const cur = new Date(gridStart);
   for (let w = 0; w < 6; w++) {
     let cells = "";
+    if (_ivWeekNums) {
+      // ISO weeks are defined by their Thursday; with a Sunday week start the
+      // row's Thursday sits 4 days in, with Monday start 3.
+      const thu = new Date(cur); thu.setDate(thu.getDate() + (_ivWeekStartMon ? 3 : 4));
+      cells += `<button class="oc-mini-wk" data-mini-week="${_ivcalISODate(cur)}" title="Week ${_isoWeek(thu)} — open week view" aria-label="Week ${_isoWeek(thu)}">${_isoWeek(thu)}</button>`;
+    }
     for (let i = 0; i < 7; i++) {
       const d = new Date(cur);
       const out = d.getMonth() !== mo;
@@ -26156,10 +26202,12 @@ function _ivcalMiniMonths() {
       // as one continuous band with rounded ends (Outlook-style).
       const rs = inRange && d.getTime() === rng.start.getTime();
       const re = inRange && d.getTime() === new Date(rng.end.getFullYear(), rng.end.getMonth(), rng.end.getDate()).getTime();
-      cells += `<button class="oc-mini-d${out?" out":""}${isToday?" today":""}${inRange?" in-range":""}${rs?" rng-s":""}${re?" rng-e":""}" data-mini-date="${_ivcalISODate(d)}">${d.getDate()}</button>`;
+      const n = _dCount[_ivcalISODate(d)] || 0;
+      const dots = (n && !out) ? `<span class="oc-mini-dots d${n >= 5 ? 3 : n >= 3 ? 2 : 1}" aria-hidden="true"></span>` : "";
+      cells += `<button class="oc-mini-d${out?" out":""}${isToday?" today":""}${inRange?" in-range":""}${rs?" rng-s":""}${re?" rng-e":""}" data-mini-date="${_ivcalISODate(d)}"${n ? ` aria-label="${d.getDate()} — ${n} event${n===1?"":"s"}"` : ""}>${d.getDate()}${dots}</button>`;
       cur.setDate(cur.getDate()+1);
     }
-    rows += `<div class="oc-mini-row">${cells}</div>`;
+    rows += `<div class="oc-mini-row${_ivWeekNums ? " has-wk" : ""}">${cells}</div>`;
   }
   return `<div class="oc-mini oc-mini-solo">${head}${dow}${rows}</div>`;
 }
@@ -26191,6 +26239,10 @@ let _ivcalForceAutoScroll = false;
 // suppress the animations; real navigation (view or period change, tab
 // arrival) clears the tag so the intended one-time fade stays.
 let _ivcalLastPaintSig = null;
+// Per-view scroll memory (in-session): switching week → month → week puts you
+// back where you were, instead of re-running the auto-scroll.
+const _ivcalScrollMem = {};
+let _ivcalLastRenderView = null;
 function _ivcalRender() {
   if (_ivcalRenderedThisFrame) {
     if (!_ivcalRenderPending) {
@@ -26215,6 +26267,7 @@ function _ivcalRenderNow() {
   const inner = _ivcalView === "year" ? _ivcalYear()
     : _ivcalView === "month" ? _ivcalMonth()
     : _ivcalView === "agenda" ? _ivcalAgenda()
+    : _ivcalView === "split" ? _ivcalTimeGridSplit()
     : _ivcalTimeGrid(_ivcalView === "day" ? 1 : (_ivcalView === "workweek" ? 5 : 7));
   const pane = _ivcalSelected ? _ivcalPaneHtml() : "";
 
@@ -26255,6 +26308,7 @@ function _ivcalRenderNow() {
         <div class="oc-bar">${_ivcalSideOpen ? "" : _ivcalCreatePill()}${_barNav}<span class="oc-sp"></span>${_barUtils}</div>
         ${_ivcalAvailNudge()}
         ${inner}
+        ${_ivcalMultiSel.size ? `<div class="oc-bulkbar" role="toolbar" aria-label="Selection actions"><span class="oc-bulk-n">${_ivcalMultiSel.size} selected</span><button type="button" class="oc-btn oc-bulk-cancel" data-ivcal-bulk-cancel>Cancel events</button><button type="button" class="oc-btn" data-ivcal-bulk-clear>Clear</button></div>` : ""}
       </div>
       ${pane}
     </div>`;
@@ -26283,7 +26337,9 @@ function _ivcalRenderNow() {
   if (!_ivcalNowTimer) _ivcalNowTimer = setInterval(_ivcalTickNow, 60000);
   _rrInstallReminderTick();
 
-  host.querySelectorAll("[data-ivcal-view]").forEach(btn => btn.onclick = () => { _ivcalView = btn.getAttribute("data-ivcal-view"); _ivcalRender(); });
+  host.querySelectorAll("[data-ivcal-view]").forEach(btn => btn.onclick = () => { _ivcalView = btn.getAttribute("data-ivcal-view"); _ivcalPersistView(); _ivcalRender(); });
+  host.querySelector("[data-ivcal-bulk-cancel]")?.addEventListener("click", () => _ivcalBulkCancel());
+  host.querySelector("[data-ivcal-bulk-clear]")?.addEventListener("click", () => _ivcalMSelClear());
   host.querySelectorAll("[data-ivcal-side]").forEach(btn => btn.onclick = (e) => { e.stopPropagation(); _ivcalToggleSide(); });
   host.querySelectorAll("[data-ivcal-zoom]").forEach(btn => btn.onclick = () => _ivcalSetZoom(parseInt(btn.getAttribute("data-ivcal-zoom"), 10)));
   host.querySelector("[data-ivcal-search]")?.addEventListener("click", () => _ivcalOpenSearch());
@@ -26479,7 +26535,11 @@ function _ivcalRenderNow() {
       e.dataTransfer.effectAllowed = "copy";
     });
   });
-  host.querySelectorAll(".oc-col[data-ivcal-date]").forEach(col => {
+  // Drop targets: time-grid columns (slot aimed at the drop Y), month cells
+  // and agenda day headers (aimed at midday — the server picks the nearest
+  // genuinely-open slot on that day either way).
+  host.querySelectorAll(".oc-col[data-ivcal-date], .oc-mcell[data-ivcal-date], .oc-ag-day[data-ivcal-date]").forEach(col => {
+    const isTimeCol = col.classList.contains("oc-col");
     col.addEventListener("dragover", (e) => {
       e.preventDefault();
       e.dataTransfer.dropEffect = "copy";
@@ -26494,7 +26554,7 @@ function _ivcalRenderNow() {
       e.preventDefault(); e.stopPropagation();
       const dateISO = col.getAttribute("data-ivcal-date");
       const y = e.clientY - col.getBoundingClientRect().top;
-      const aimMin = _IVCAL_H0 * 60 + (y / _IVCAL_RH) * 60;
+      const aimMin = isTimeCol ? (_IVCAL_H0 * 60 + (y / _IVCAL_RH) * 60) : 12 * 60;
       const nm = rrTitleCaseName(payload.name) || "this candidate";
       try {
         // The server's open-slot list is the source of truth (Codex
@@ -26521,6 +26581,11 @@ function _ivcalRenderNow() {
   host.querySelectorAll("[data-ivcal-id]").forEach(el => {
     el.addEventListener("click", (e) => {
       e.stopPropagation();
+      // Ctrl/Cmd-click adds to the multi-selection instead of opening.
+      if ((e.ctrlKey || e.metaKey) && el.getAttribute("data-ivcal-kind") === "booking") {
+        _ivcalMSelToggle("booking", el.getAttribute("data-ivcal-id"));
+        return;
+      }
       // The task-complete circle toggles done instead of opening the editor.
       if (e.target.closest("[data-oc-task-toggle]")) { _ivcalToggleTask(el.getAttribute("data-ivcal-id")); return; }
       // The hover ⋮ opens the same actions menu as right-click.
@@ -26612,9 +26677,38 @@ function _ivcalRenderNow() {
   _ivcalFitHeightSoon();
   const sc = document.getElementById("rr-ivcal-scroll");
   const _autoScroll = _ivcalForceAutoScroll; _ivcalForceAutoScroll = false;
-  if (sc) { if (_prevScroll != null && !_autoScroll) sc.scrollTop = _prevScroll; else if (_ivcalView !== "month" && _ivcalView !== "year") _ivcalAutoScroll(); else sc.scrollTop = 0; }
+  const _sameView = _ivcalLastRenderView === _ivcalView;
+  if (sc) {
+    if (_prevScroll != null && !_autoScroll && _sameView) sc.scrollTop = _prevScroll;
+    else if (!_autoScroll && _ivcalScrollMem[_ivcalView] != null) sc.scrollTop = _ivcalScrollMem[_ivcalView];
+    else if (_ivcalView !== "month" && _ivcalView !== "year") _ivcalAutoScroll();
+    else sc.scrollTop = 0;
+    // Per-view scroll memory + Ctrl/⌘-scroll (and trackpad pinch) time-scale
+    // zoom anchored on the minute under the cursor.
+    sc.addEventListener("scroll", () => { _ivcalScrollMem[_ivcalView] = sc.scrollTop; }, { passive: true });
+    if (!["month", "year", "agenda"].includes(_ivcalView)) {
+      sc.addEventListener("wheel", (e) => {
+        if (!e.ctrlKey && !e.metaKey) return;
+        e.preventDefault();
+        const rect = sc.getBoundingClientRect();
+        const grid = sc.querySelector(".oc-grid");
+        const headOff = grid ? grid.offsetTop : 0;
+        const minAt = _IVCAL_H0 * 60 + (e.clientY - rect.top + sc.scrollTop - headOff) / _IVCAL_RH * 60;
+        const before = _IVCAL_RH;
+        _ivcalSetZoom(e.deltaY < 0 ? 8 : -8);
+        if (_IVCAL_RH !== before) {
+          const sc2 = document.getElementById("rr-ivcal-scroll");
+          const grid2 = sc2 && sc2.querySelector(".oc-grid");
+          const headOff2 = grid2 ? grid2.offsetTop : 0;
+          if (sc2) sc2.scrollTop = Math.max(0, headOff2 + ((minAt - _IVCAL_H0 * 60) / 60 * _IVCAL_RH) - (e.clientY - rect.top));
+        }
+      }, { passive: false });
+    }
+  }
+  _ivcalLastRenderView = _ivcalView;
   _ivcalInstallKeys();
   _ivcalSyncStripView();
+  _ivcalSyncHash();
   _ivcalEnsureGoogle();
 }
 
@@ -26637,6 +26731,7 @@ function _ivcalSyncStripView(onCal) {
 function _ivcalOnCalendar() { const el = document.querySelector("#rr-ivcal .oc"); return !!(el && el.offsetParent !== null); }
 window.rrIvcalSetView = function (v) {
   _ivcalView = v;
+  _ivcalPersistView();
   if (_ivcalOnCalendar() && _ivcalCache) _ivcalRender();
   else if (typeof window.obSub === "function") window.obSub("calendar");
   else _ivcalRender();
@@ -28449,7 +28544,8 @@ function _ivcalEventBlock(ev, type, lay, conflict) {
   const label = _ivcalEventLabel(ev, type);
   const cat = _ivcalCat(ev, type);
   const rsvp = type === "session" ? "accepted" : (ev.rsvp || "accepted");
-  const sel = _ivcalSelected && _ivcalSelected.kind === kindAttr && String(_ivcalSelected.id) === String(ev.id);
+  const sel = (_ivcalSelected && _ivcalSelected.kind === kindAttr && String(_ivcalSelected.id) === String(ev.id))
+    || _ivcalMultiSel.has(_ivcalMSelKey(kindAttr, ev.id));
   // Tasks (is_task in metadata) render as a checkable Google-style task: a
   // circle you click to complete + the title (struck through when done).
   const isTask = kindAttr === "booking" && ev.metadata && ev.metadata.is_task;
@@ -28459,7 +28555,7 @@ function _ivcalEventBlock(ev, type, lay, conflict) {
     const checkSvg = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
     const check = `<span class="oc-task-check${done ? " on" : ""}" data-oc-task-toggle="1" role="button" tabindex="-1" style="border-color:${tColor}${done ? `;background:${tColor}` : ""}" title="${done ? "Mark not done" : "Mark complete"}">${done ? checkSvg : ""}</span>`;
     const tInner = `<div class="oc-task-line">${check}<span class="oc-task-title">${escapeHtml(time)} ${escapeHtml(label)}</span></div>`;
-    const tRz = `<div class="oc-rz" data-oc-resize></div>`;
+    const tRz = `<div class="oc-rz oc-rz-top" data-oc-resize="top"></div><div class="oc-rz" data-oc-resize></div>`;
     return `<div class="oc-ev oc-ev-task${done ? " is-done" : ""}${sel ? " sel" : ""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" tabindex="0" role="button" aria-label="${escapeHtml(time + " · " + label + (done ? " · done" : ""))}" style="top:${top}px;height:${h}px${_ivcalLayStyle(lay)};border-left-color:${tColor};background:${tColor}14;color:${tColor}" title="${escapeHtml(time + " · " + label + (done ? " · done" : ""))}">${tInner}${tRz}</div>`;
   }
   let icons = "";
@@ -28517,7 +28613,7 @@ function _ivcalEventBlock(ev, type, lay, conflict) {
     inner = `<div class="et"><span class="oc-ev-t">${escapeHtml(time)}</span><span class="oc-ev-dur">${escapeHtml(durTxt)}</span>${ico}</div><div class="en">${escapeHtml(label)}</div>${metaLine}<div class="oc-ev-foot">${chip}</div>`;
   }
   if (h >= 32 && conflictTag) inner += conflictTag;
-  const rz = kindAttr === "booking" ? `<div class="oc-rz" data-oc-resize></div>` : "";
+  const rz = kindAttr === "booking" ? `<div class="oc-rz oc-rz-top" data-oc-resize="top"></div><div class="oc-rz" data-oc-resize></div>` : "";
   // A per-event color (right-click → recolor) wins over the custom-calendar
   // color, which in turn overrides the status-based category palette.
   // Display hue keyed to calendar/kind (see _ivcalHue) so the grid matches
@@ -28702,7 +28798,8 @@ function _ivcalTimeGrid(ndays) {
 
   const _tzFull = (_ivcalCache && _ivcalCache.tz) || "America/Chicago";
   const _tzAbbr = _ivcalTzAbbr(_tzFull, startDay);
-  let head = `<div class="oc-corner"><span class="oc-corner-tz" title="All times shown in ${escapeHtml(_tzFull)}">${escapeHtml(_tzAbbr)}</span></div>`;
+  const _wkNum = _ivWeekNums ? `<span class="oc-corner-wk" title="ISO week number">W${_isoWeek(days[Math.min(3, days.length - 1)])}</span>` : "";
+  let head = `<div class="oc-corner"><span class="oc-corner-tz" title="All times shown in ${escapeHtml(_tzFull)}">${escapeHtml(_tzAbbr)}</span>${_wkNum}</div>`;
   head += days.map(d => {
     const isToday = d.getTime() === today.getTime();
     // Small secondary line, like the Schedule column subhead: how many
@@ -28876,7 +28973,8 @@ function _ivcalMonth() {
         return `<div class="oc-pill oc-pill-google" data-ivcal-glink="${escapeHtml(it.link)}" style="color:${_ivcalGoogleColor}" title="${escapeHtml((gtm?gtm+" ":"")+it.label+" · Google")}"><span class="oc-pdot" style="background:${_ivcalGoogleColor}"></span>${escapeHtml(gtm?gtm+" ":"")}${escapeHtml(it.label)}</div>`;
       }
       const tm = it.t.toLocaleTimeString([], _ivClockOpts());
-      const sel = _ivcalSelected && _ivcalSelected.kind === it.kind && String(_ivcalSelected.id) === String(it.id);
+      const sel = (_ivcalSelected && _ivcalSelected.kind === it.kind && String(_ivcalSelected.id) === String(it.id))
+        || _ivcalMultiSel.has(_ivcalMSelKey(it.kind, it.id));
       // One hue drives the dot (and the pending dashed ring) via --ev-hue so
       // the month dot matches the My-calendars legend and the week grid.
       const hueVar = it.hue ? ` style="--ev-hue:${it.hue}"` : "";
@@ -28891,7 +28989,12 @@ function _ivcalMonth() {
     const more = moreN > 0 ? `<div class="oc-more">+${moreN} more</div>` : "";
     const pillsHtml = items.slice(0, maxPills).map((it) => pillHtml(it)).join("");
     const _wk = d.getDay() === 0 || d.getDay() === 6;
-    cells += `<div class="oc-mcell${out?" out":""}${isToday?" today":""}${_wk?" oc-wknd":""}" data-ivcal-date="${_ivcalISODate(d)}"><div class="oc-mnum">${d.getDate()}</div>${tChips}${pillsHtml}${more}</div>`;
+    let wkChip = "";
+    if (_ivWeekNums && i % 7 === 0) {
+      const thu = new Date(d); thu.setDate(thu.getDate() + (_ivWeekStartMon ? 3 : 4));
+      wkChip = `<span class="oc-mwk" aria-hidden="true" title="ISO week ${_isoWeek(thu)}">W${_isoWeek(thu)}</span>`;
+    }
+    cells += `<div class="oc-mcell${out?" out":""}${isToday?" today":""}${_wk?" oc-wknd":""}" data-ivcal-date="${_ivcalISODate(d)}">${wkChip}<div class="oc-mnum">${d.getDate()}</div>${tChips}${pillsHtml}${more}</div>`;
   }
   return `<div class="oc-cal"><div class="oc-scroll" id="rr-ivcal-scroll"><div class="oc-mhead">${dowHead}</div><div class="oc-mgrid">${cells}</div></div></div>`;
 }
@@ -28926,7 +29029,7 @@ function _ivcalAgenda() {
     items.sort((x,y) => new Date(x.ev.starts_at || x.ev.sortAt) - new Date(y.ev.starts_at || y.ev.sortAt));
     const rows = items.map(({ ev, type }) => _ivcalAgendaRow(ev, type)).join("");
     const isToday = d.getTime() === today.getTime();
-    blocks += `<div class="oc-ag-day${isToday?" today":""}">
+    blocks += `<div class="oc-ag-day${isToday?" today":""}" data-ivcal-date="${_ivcalISODate(d)}">
       <div class="oc-ag-date"><span class="oc-ag-dnum">${d.getDate()}</span><div class="oc-ag-dmeta"><span class="oc-ag-drel">${escapeHtml(relLabel(d))}</span><span class="oc-ag-dmon">${escapeHtml(d.toLocaleDateString(undefined,{month:"short",year:d.getFullYear()!==today.getFullYear()?"numeric":undefined}))}</span></div></div>
       <div class="oc-ag-rows">${rows}</div>
     </div>`;
@@ -28953,7 +29056,8 @@ function _ivcalAgendaRow(ev, type) {
   const cat = _ivcalCat(ev, type);
   // Color rail keyed to the event's calendar/kind (matches the legend + grid).
   const barStyle = ` style="background:${_ivcalHue(ev, type)}"`;
-  const sel = _ivcalSelected && _ivcalSelected.kind === kindAttr && String(_ivcalSelected.id) === String(ev.id);
+  const sel = (_ivcalSelected && _ivcalSelected.kind === kindAttr && String(_ivcalSelected.id) === String(ev.id))
+    || _ivcalMultiSel.has(_ivcalMSelKey(kindAttr, ev.id));
   const isTask = kindAttr === "booking" && ev.metadata && ev.metadata.is_task;
   const done = isTask && ev.metadata.task_done;
   const cam = ev.meeting_url ? `<span class="ei-cam-hit" data-ivcal-room="1" title="Open video" role="button" tabindex="-1">${_IVCAL_CAM_SVG}</span>` : "";
@@ -29617,10 +29721,24 @@ function _ivcalSettingsMenu(btn) {
       </div>
     </div>
     <div class="oc-set-sec">
+      <div class="oc-set-h">Snap events to</div>
+      <div class="oc-set-seg" data-set-snap>
+        <button class="${_ivSnapMin === 5 ? "on" : ""}" data-sn="5">5m</button>
+        <button class="${_ivSnapMin === 10 ? "on" : ""}" data-sn="10">10m</button>
+        <button class="${_ivSnapMin === 15 ? "on" : ""}" data-sn="15">15m</button>
+        <button class="${_ivSnapMin === 30 ? "on" : ""}" data-sn="30">30m</button>
+      </div>
+    </div>
+    <div class="oc-set-sec">
       <label class="oc-set-row"><input type="checkbox" data-set-workon${_ivWork.on ? " checked" : ""}> Shade working hours</label>
       <div class="oc-set-work${_ivWork.on ? "" : " off"}" data-set-workrow>
         <input type="time" data-set-wstart value="${hhmm(_ivWork.start)}"> <span>to</span> <input type="time" data-set-wend value="${hhmm(_ivWork.end)}">
       </div>
+      <label class="oc-set-row"><input type="checkbox" data-set-weeknums${_ivWeekNums ? " checked" : ""}> Show week numbers</label>
+      <button type="button" class="oc-set-link" data-set-print role="menuitem">
+        <span class="oc-set-link-ico"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></span>
+        <span class="oc-set-link-lbl">Print calendar…</span>
+      </button>
     </div>
     <div class="oc-set-sec" data-set-remsec hidden></div>
     <div class="oc-set-sec">
@@ -29670,6 +29788,23 @@ function _ivcalSettingsMenu(btn) {
     _ivClock24 = b.getAttribute("data-ck") === "24";
     menu.querySelectorAll("[data-set-clock] button").forEach(x => x.classList.toggle("on", x === b));
     rerender();
+  });
+  menu.querySelector("[data-set-snap]").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-sn]"); if (!b) return;
+    _ivSnapMin = parseInt(b.getAttribute("data-sn"), 10) || 15;
+    menu.querySelectorAll("[data-set-snap] button").forEach(x => x.classList.toggle("on", x === b));
+    _ivSavePrefs();
+  });
+  menu.querySelector("[data-set-weeknums]").addEventListener("change", (e) => {
+    _ivWeekNums = e.target.checked; rerender();
+  });
+  menu.querySelector("[data-set-print]").addEventListener("click", () => {
+    closeMenu();
+    // Scope the print stylesheet to the calendar for this one print job.
+    document.body.classList.add("rr-print-cal");
+    const done = () => { document.body.classList.remove("rr-print-cal"); window.removeEventListener("afterprint", done); };
+    window.addEventListener("afterprint", done);
+    setTimeout(() => window.print(), 50);
   });
   const workRow = menu.querySelector("[data-set-workrow]");
   menu.querySelector("[data-set-workon]").addEventListener("change", (e) => {
@@ -30061,16 +30196,27 @@ function _ivcalInstallKeys() {
     const tag = (document.activeElement && document.activeElement.tagName) || "";
     if (/INPUT|TEXTAREA|SELECT/.test(tag) || document.activeElement?.isContentEditable) return;
     if (document.getElementById("rr-ivcal-new") || document.getElementById("rr-ivcal-edit") || document.getElementById("rr-em-composer")) return; // editor/composer open
-    if (e.key === "Escape") { if (document.querySelector(".oc-menu,.oc-quick,.oc-hover")) { _ivcalCloseMenus(); } else _ivcalDeselect(); }
-    else if (e.key === "/") { e.preventDefault(); _ivcalOpenSearch(); }
+    const viewKey = { d: "day", w: "week", x: "workweek", m: "month", y: "year", a: "agenda", s: "split" }[e.key.toLowerCase()];
+    if (e.key === "Escape") { if (document.querySelector(".oc-menu,.oc-quick,.oc-hover")) { _ivcalCloseMenus(); } else if (_ivcalMultiSel.size) { _ivcalMSelClear(); } else _ivcalDeselect(); }
+    else if (e.key === "/" && !e.shiftKey) { e.preventDefault(); _ivcalOpenSearch(); }
+    else if (e.key === "?") { e.preventDefault(); _ivcalKbdHelp(); }
+    else if (e.key === "g" || e.key === "G") { e.preventDefault(); _ivcalJumpToDate(); }
     else if (e.key === "n" || e.key === "N") { e.preventDefault(); _ivcalNewEvent(_ivcalISODate(new Date()), 9*60, 9*60+30); }
     else if ((e.key === "e" || e.key === "E") && _ivcalSelected && _ivcalSelected.kind !== "session") { e.preventDefault(); _ivcalEditEvent(_ivcalSelected.kind, _ivcalSelected.id); }
     else if (e.key === "t" || e.key === "T") { _ivcalNav(0); }
+    else if (e.altKey && /^Arrow(Up|Down|Left|Right)$/.test(e.key) && (_ivcalMultiSel.size || (_ivcalSelected && _ivcalSelected.kind !== "session"))) {
+      e.preventDefault();
+      const evs = _ivcalMultiSel.size ? _ivcalMSelEvents() : [_ivcalFindEv(_ivcalSelected.kind, _ivcalSelected.id)].filter(Boolean);
+      const deltaMs = e.key === "ArrowUp" ? -_ivSnapMin * 60000 : e.key === "ArrowDown" ? _ivSnapMin * 60000 : e.key === "ArrowLeft" ? -864e5 : 864e5;
+      _ivcalShiftEvents(evs, deltaMs, evs.length > 1 ? `${evs.length} events moved` : "Event moved");
+    }
     else if (e.key === "ArrowLeft") { e.preventDefault(); _ivcalNav(-1); }
     else if (e.key === "ArrowRight") { e.preventDefault(); _ivcalNav(1); }
+    else if ((e.key === "Delete" || e.key === "Backspace") && _ivcalMultiSel.size) { e.preventDefault(); _ivcalBulkCancel(); }
     else if ((e.key === "Delete" || e.key === "Backspace") && _ivcalSelected) { e.preventDefault(); _ivcalDeleteEvent(_ivcalSelected.kind, _ivcalSelected.id, true); }
     else if ((e.key === "c" || e.key === "C") && (e.metaKey || e.ctrlKey) && _ivcalSelected) { _ivcalClipboard = _ivcalFindEv(_ivcalSelected.kind, _ivcalSelected.id); if (_ivcalClipboard) toast("Event copied", "info"); }
     else if ((e.key === "v" || e.key === "V") && (e.metaKey || e.ctrlKey) && _ivcalClipboard) { e.preventDefault(); _ivcalPaste(); }
+    else if (viewKey && !e.metaKey && !e.ctrlKey && !e.altKey) { e.preventDefault(); _ivcalView = viewKey; _ivcalPersistView(); _ivcalRender(); }
   });
 }
 
@@ -30090,25 +30236,390 @@ async function _ivcalPaste() {
   } catch (e) { toast("Paste failed: " + (e.message || e), "warn"); }
 }
 
+// ── Multi-select (Ctrl/Cmd-click) + bulk actions ───────────────────────────
+// Bookings only — sessions have their own capacity semantics. Selected chips
+// get a ring (.msel); a floating bar offers Cancel/Clear; Alt+arrows nudge
+// the whole selection.
+const _ivcalMultiSel = new Set();          // "kind:id" keys
+const _ivcalMSelKey = (k, id) => `${k}:${id}`;
+function _ivcalMSelToggle(kind, id) {
+  if (kind !== "booking") return;
+  const key = _ivcalMSelKey(kind, id);
+  if (_ivcalMultiSel.has(key)) _ivcalMultiSel.delete(key); else _ivcalMultiSel.add(key);
+  _ivcalRender();
+}
+function _ivcalMSelClear() { if (_ivcalMultiSel.size) { _ivcalMultiSel.clear(); _ivcalRender(); } }
+function _ivcalMSelEvents() {
+  return [..._ivcalMultiSel].map(k => { const i = k.indexOf(":"); return _ivcalFindEv(k.slice(0, i), k.slice(i + 1)); }).filter(Boolean);
+}
+async function _ivcalBulkCancel() {
+  const evs = _ivcalMSelEvents();
+  if (!evs.length) return;
+  if (!(await _rrConfirmDialog({ title: `Cancel ${evs.length} selected event${evs.length === 1 ? "" : "s"}?`, body: "Attendees are not emailed — use a single event's Cancel for a notified cancellation.", confirmLabel: "Cancel events", danger: true }))) return;
+  const prev = evs.map(ev => ({ id: ev.id, status: ev.status }));
+  let ok = 0;
+  for (const ev of evs) {
+    const { error } = await sb.rpc("cancel_cal_event_silent", { p_event_id: ev.id });
+    if (!error) ok++;
+  }
+  _ivcalMultiSel.clear();
+  loadIvCalendar();
+  _ivcalUndoToast(`${ok} event${ok === 1 ? "" : "s"} canceled`, async () => {
+    for (const p of prev) {
+      await sb.from("cal_events").update({ status: p.status || "scheduled", cancelled_at: null, cancellation_reason: null }).eq("id", p.id);
+    }
+  });
+}
+// Shift a set of events by a raw millisecond delta (Alt+arrow nudge). One
+// combined undo covers the whole batch.
+async function _ivcalShiftEvents(evs, deltaMs, msg) {
+  evs = evs.filter(ev => ev && !(ev.metadata && ev.metadata.is_task && false));
+  if (!evs.length) return;
+  const prevs = evs.map(ev => ({ ev, starts_at: ev.starts_at, ends_at: ev.ends_at }));
+  for (const ev of evs) {
+    ev.starts_at = new Date(new Date(ev.starts_at).getTime() + deltaMs).toISOString();
+    if (ev.ends_at) ev.ends_at = new Date(new Date(ev.ends_at).getTime() + deltaMs).toISOString();
+  }
+  _ivcalRender();
+  let failed = false;
+  for (const ev of evs) {
+    const patch = { starts_at: ev.starts_at, ends_at: ev.ends_at };
+    if (ev.series_id) patch.series_exception = true;
+    const { error } = await sb.from("cal_events").update(patch).eq("id", ev.id);
+    if (error) failed = true;
+  }
+  if (failed) { toast("Some events couldn't be moved", "warn"); loadIvCalendar(); return; }
+  _ivcalUndoToast(msg, async () => {
+    for (const p of prevs) {
+      await sb.from("cal_events").update({ starts_at: p.starts_at, ends_at: p.ends_at }).eq("id", p.ev.id);
+    }
+  });
+}
+
+// ── Scroll the grid so the now-line sits in the top third (2nd Today press) ──
+function _ivcalScrollToNow() {
+  const sc = document.getElementById("rr-ivcal-scroll");
+  if (!sc) return;
+  const now = new Date();
+  const min = now.getHours() * 60 + now.getMinutes();
+  const grid = sc.querySelector(".oc-grid");
+  const headOff = grid ? grid.offsetTop : 0;
+  try { sc.scrollTo({ top: Math.max(0, headOff + ((min - _IVCAL_H0 * 60) / 60 * _IVCAL_RH) - 120), behavior: "smooth" }); }
+  catch (_) { sc.scrollTop = Math.max(0, headOff + ((min - _IVCAL_H0 * 60) / 60 * _IVCAL_RH) - 120); }
+}
+
+// ── "Go to date" (G) ────────────────────────────────────────────────────────
+function _ivcalJumpToDate() {
+  document.getElementById("rr-ivcal-jump")?.remove();
+  const back = document.createElement("div");
+  back.id = "rr-ivcal-jump";
+  back.className = "oc-modal-back";
+  back.innerHTML = `<div class="oc-jump" role="dialog" aria-modal="true" aria-label="Go to date">
+    <div class="oc-jump-h">Go to date</div>
+    <input type="date" value="${_ivcalISODate(_ivcalAnchor)}" aria-label="Date">
+    <div class="oc-jump-f"><button type="button" class="oc-btn" data-jump-cancel>Cancel</button><button type="button" class="oc-btn oc-jump-go" data-jump-go>Go</button></div>
+  </div>`;
+  document.body.appendChild(back);
+  const input = back.querySelector("input");
+  input.focus();
+  const close = () => back.remove();
+  const go = () => {
+    const v = input.value; if (!v) return close();
+    const [Y, M, D] = v.split("-").map(Number);
+    _ivcalAnchor = new Date(Y, M - 1, D); _ivcalMiniAnchor = null; close(); _ivcalRender();
+  };
+  back.addEventListener("click", (e) => { if (e.target === back) close(); });
+  back.querySelector("[data-jump-cancel]").addEventListener("click", close);
+  back.querySelector("[data-jump-go]").addEventListener("click", go);
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); go(); } else if (e.key === "Escape") close(); });
+}
+
+// ── Keyboard-shortcut reference (?) ────────────────────────────────────────
+function _ivcalKbdHelp() {
+  document.getElementById("rr-ivcal-kbd")?.remove();
+  const back = document.createElement("div");
+  back.id = "rr-ivcal-kbd";
+  back.className = "oc-modal-back";
+  const row = (k, txt) => `<div class="oc-kbd-row"><span class="oc-kbd-keys">${k.split("+").map(x => `<kbd>${x}</kbd>`).join("+")}</span><span>${txt}</span></div>`;
+  back.innerHTML = `<div class="oc-kbd" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
+    <div class="oc-jump-h">Keyboard shortcuts</div>
+    <div class="oc-kbd-cols">
+      <div>
+        <div class="oc-kbd-sec">Navigate</div>
+        ${row("T", "Today (press again: scroll to now)")}
+        ${row("←", "Previous period")}${row("→", "Next period")}
+        ${row("G", "Go to date…")}
+        <div class="oc-kbd-sec">Views</div>
+        ${row("D", "Day")}${row("W", "Week")}${row("X", "Work week")}
+        ${row("M", "Month")}${row("Y", "Year")}${row("A", "Agenda")}${row("S", "Split day")}
+      </div>
+      <div>
+        <div class="oc-kbd-sec">Events</div>
+        ${row("N", "New event")}${row("E", "Edit selected")}
+        ${row("Del", "Cancel selected")}
+        ${row("Ctrl+C", "Copy event")}${row("Ctrl+V", "Paste event")}
+        ${row("Ctrl+Click", "Multi-select")}
+        ${row("Alt+↑/↓", "Nudge selection earlier/later")}
+        ${row("Alt+←/→", "Move selection a day")}
+        <div class="oc-kbd-sec">Other</div>
+        ${row("/", "Search events")}${row("Esc", "Close / deselect")}${row("?", "This help")}
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(back);
+  back.addEventListener("click", (e) => { if (e.target === back) back.remove(); });
+  document.addEventListener("keydown", function esc(e) { if (e.key === "Escape") { back.remove(); document.removeEventListener("keydown", esc, true); } }, true);
+}
+
+// ── Split day · one column per calendar for the anchor date ────────────────
+// "Whose day is it" at a glance: Interviews / Orientations / Events / Tasks
+// each get a lane, plus one per visible custom calendar and the Google
+// overlay. Lanes are real .oc-col columns (same date), so click-create and
+// vertical drag keep working inside each lane.
+function _ivcalSplitLanes() {
+  const lanes = [
+    { key: "interview", name: "Interviews", match: (ev, type) => type !== "session" && !ev.calendar_id && _ivcalEvKind(ev) === "interview" && !(ev.metadata && ev.metadata.is_task) },
+    { key: "orientation", name: "Orientations & sessions", match: (ev, type) => type === "session" || (!ev.calendar_id && _ivcalEvKind(ev) === "orientation") },
+    { key: "event", name: "Events", match: (ev, type) => type !== "session" && !ev.calendar_id && _ivcalEvKind(ev) === "event" && !(ev.metadata && ev.metadata.is_task) },
+    { key: "tasks", name: "Tasks", match: (ev, type) => type !== "session" && !!(ev.metadata && ev.metadata.is_task) },
+  ];
+  for (const c of ((_ivcalCache && _ivcalCache.calendars) || [])) {
+    if (_ivcalCalVis[c.id] === false) continue;
+    lanes.push({ key: "cal:" + c.id, name: c.name || "Calendar", match: (ev, type) => type !== "session" && String(ev.calendar_id) === String(c.id) });
+  }
+  if (_ivcalGoogleVisible()) lanes.push({ key: "google", name: "Google", google: true });
+  return lanes;
+}
+function _ivcalTimeGridSplit() {
+  const day = new Date(_ivcalAnchor); day.setHours(0, 0, 0, 0);
+  const iso = _ivcalISODate(day);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const isToday = day.getTime() === today.getTime();
+  const now = new Date(); const nowMin = now.getHours() * 60 + now.getMinutes();
+  const gridH = (_IVCAL_H1 - _IVCAL_H0) * _IVCAL_RH;
+  const lanes = _ivcalSplitLanes();
+
+  const _tzFull = (_ivcalCache && _ivcalCache.tz) || "America/Chicago";
+  const _tzAbbr = _ivcalTzAbbr(_tzFull, day);
+  let head = `<div class="oc-corner"><span class="oc-corner-tz" title="All times shown in ${escapeHtml(_tzFull)}">${escapeHtml(_tzAbbr)}</span></div>`;
+  head += lanes.map(l => `<div class="oc-dh oc-dh-lane${isToday ? " today" : ""}"><div class="dow">${escapeHtml(l.name)}</div></div>`).join("");
+
+  let gutter = "";
+  for (let h = _IVCAL_H0; h < _IVCAL_H1; h++) gutter += `<div class="oc-hr" style="height:${_IVCAL_RH}px"><span>${_ivcalHourLabel(h)}</span></div>`;
+
+  const dayBookings = _ivcalDayItems(day, (_ivcalCache && _ivcalCache.bookings) || [], "starts_at");
+  const daySessions = _ivcalDayItems(day, (_ivcalCache && _ivcalCache.sessions) || [], "starts_at");
+  const dayGoogle = _ivcalGoogleVisible() ? _ivcalDayItems(day, (_ivcalCache.googleEvents || []), "sortAt") : [];
+
+  let lines = "";
+  for (let h = _IVCAL_H0; h < _IVCAL_H1; h++) {
+    const y = (h - _IVCAL_H0) * _IVCAL_RH;
+    lines += `<div class="oc-hline" style="top:${y}px"></div><div class="oc-hhline" style="top:${y + _IVCAL_RH / 2}px"></div>`;
+  }
+  const cols = lanes.map((lane, li) => {
+    const timed = [];
+    if (lane.google) {
+      for (const ge of dayGoogle) {
+        if (ge.allDay) continue;
+        const sp = _ivcalMinSpan(ge.start, ge.end);
+        timed.push({ _sm: sp.sm, _em: sp.em, _ce: false, render: (lay, cf) => _ivcalGoogleBlock(ge, -1, lay, cf) });
+      }
+    } else {
+      for (const s of daySessions) {
+        if (!lane.match(s, "session") || !_ivcalFilterOk(s, "session") || _ivcalIsAllDay(s)) continue;
+        const sp = _ivcalMinSpan(s.starts_at, s.ends_at);
+        timed.push({ _sm: sp.sm, _em: sp.em, _ce: true, render: (lay, cf) => _ivcalEventBlock(s, "session", lay, cf) });
+      }
+      for (const b of dayBookings) {
+        if (!lane.match(b, "booking") || !_ivcalFilterOk(b, "booking") || _ivcalIsAllDay(b)) continue;
+        const sp = _ivcalMinSpan(b.starts_at, b.ends_at);
+        timed.push({ _sm: sp.sm, _em: sp.em, _ce: !(b.metadata && b.metadata.is_task), render: (lay, cf) => _ivcalEventBlock(b, "booking", lay, cf) });
+      }
+    }
+    _ivcalLayoutDay(timed);
+    let evs = "";
+    for (const it of timed) evs += it.render(it._lw < 100 ? { lx: it._lx, lw: it._lw } : null, false);
+    // Bookable shading only makes sense on the Interviews lane.
+    let shade = "";
+    if (lane.key === "interview" && _ivcalShowAvail) {
+      const _slotMin = _ivcalCache.slot || 30, _buf = _ivcalCache.buffer || 0;
+      for (const w of _ivcalDayWindows(day)) {
+        const top = _ivcalYpos(w.start_min), bot = _ivcalYpos(w.end_min);
+        if (bot <= top) continue;
+        shade += `<div class="oc-avail" style="top:${top}px;height:${bot - top}px" title="Bookable · ${_slotMin}-min slots"></div>`;
+      }
+    }
+    return `<div class="oc-col oc-col-lane${isToday ? " today" : ""}" data-ivcal-date="${iso}" data-ivcal-lane="${escapeHtml(lane.key)}" style="height:${gridH}px">${shade}${lines}${evs}</div>`;
+  }).join("");
+
+  let nowOverlay = "";
+  if (isToday && nowMin >= _IVCAL_H0 * 60 && nowMin <= _IVCAL_H1 * 60) {
+    nowOverlay = `<div class="oc-now" style="top:${_ivcalYpos(nowMin)}px" aria-hidden="true"><span class="oc-now-lbl">${escapeHtml(now.toLocaleTimeString(undefined, _ivClockOpts()))}</span></div>`;
+  }
+  return `<div class="oc-cal" style="--days:${lanes.length};--rh:${_IVCAL_RH}px">
+    <div class="oc-scroll" id="rr-ivcal-scroll">
+      <div class="oc-stick"><div class="oc-head">${head}</div></div>
+      <div class="oc-grid" style="height:${gridH}px"><div class="oc-gutter">${gutter}</div>${cols}${nowOverlay}</div>
+    </div>
+  </div>`;
+}
+
+// ── Deep links · #onboarding-ops?cal=YYYY-MM-DD&calview=week&ev=<id> ───────
+// The FIRST _ivcalSyncHash call after page load still sees the inbound URL
+// untouched (nothing else rewrites the hash), so it consumes any calendar
+// params there and re-renders — timing-proof against live.js's async boot,
+// where the router IIFE at the bottom of this file runs long after the first
+// calendar paint. Subsequent calls keep the hash mirroring calendar state;
+// replaceState avoids history spam and doesn't retrigger hashchange.
+let _ivcalHashConsumed = false;
+let _ivcalPendingOpen = null;   // event id from a ?ev= deep link, opened once loaded
+function _ivcalSyncHash() {
+  if (!_ivcalOnCalendar()) return;
+  const cur = (location.hash || "").replace(/^#/, "");
+  const qs = cur.split("?")[1] || "";
+  if (!_ivcalHashConsumed && qs) {
+    _ivcalHashConsumed = true;
+    let p = null;
+    try { p = new URLSearchParams(qs); } catch (_) {}
+    if (p && (p.get("cal") || p.get("calview") || p.get("ev"))) {
+      const view = p.get("calview"), date = p.get("cal"), ev = p.get("ev");
+      let changed = false;
+      if (view && _IVCAL_VIEWS.includes(view) && view !== _ivcalView) { _ivcalView = view; _ivcalPersistView(); changed = true; }
+      if (date && /^\d{4}-\d{2}-\d{2}$/.test(date) && date !== _ivcalISODate(_ivcalAnchor)) {
+        const [Y, M, D] = date.split("-").map(Number);
+        _ivcalAnchor = new Date(Y, M - 1, D); _ivcalMiniAnchor = null; changed = true;
+      }
+      if (ev) { _ivcalPendingOpen = ev; changed = true; }
+      if (changed) { _ivcalRender(); _ivcalTryOpenPending(); return; }  // the re-render re-enters syncHash
+    }
+  }
+  _ivcalHashConsumed = true;
+  // Default to the calendar's host view so a copied URL restores it even when
+  // the SPA was navigated without ever writing a hash.
+  const base = cur.split("?")[0] || "onboarding-ops";
+  if (!document.getElementById("view-" + base)) return;
+  try { history.replaceState(null, "", `#${base}?cal=${_ivcalISODate(_ivcalAnchor)}&calview=${encodeURIComponent(_ivcalView)}`); } catch (_) {}
+}
+// Open the ?ev= event once its row is actually in the cache (called from both
+// the hash consumer above and loadIvCalendar, whichever lands last).
+function _ivcalTryOpenPending() {
+  if (!_ivcalPendingOpen || !_ivcalCache) return;
+  const id = _ivcalPendingOpen;
+  const hit = ((_ivcalCache.bookings || []).some(x => String(x.id) === String(id))) ? "booking"
+    : ((_ivcalCache.sessions || []).some(x => String(x.id) === String(id))) ? "session" : null;
+  if (!hit) return;   // rows may still be loading — loadIvCalendar retries
+  _ivcalPendingOpen = null;
+  _ivcalAnchor = new Date(_ivcalFindEv(hit, id).starts_at);
+  _ivcalMiniAnchor = null;
+  _ivcalRender();
+  if (hit === "booking") _ivcalEditEvent(hit, id); else _ivcalSelect(hit, id);
+}
+
+// ── Undo (single-slot) · the last move / resize / cancel can be taken back
+// from an action toast. Restores go through the same plain cal_events write
+// path the action used, so RLS, triggers and realtime behave identically.
+let _ivcalUndoTimer = null;
+function _ivcalUndoToast(msg, undoFn) {
+  document.getElementById("rr-ivcal-undo")?.remove();
+  clearTimeout(_ivcalUndoTimer);
+  const el = document.createElement("div");
+  el.id = "rr-ivcal-undo";
+  el.className = "oc-undo-toast";
+  el.setAttribute("role", "status");
+  el.innerHTML = `<span>${escapeHtml(msg)}</span><button type="button">Undo</button>`;
+  el.querySelector("button").addEventListener("click", async () => {
+    el.remove(); clearTimeout(_ivcalUndoTimer);
+    try { await undoFn(); toast("Undone", "success"); loadIvCalendar(); }
+    catch (e) { toast("Couldn't undo: " + (e.message || e), "warn"); }
+  });
+  document.body.appendChild(el);
+  _ivcalUndoTimer = setTimeout(() => el.remove(), 8000);
+}
+// Optimistic time write: patch the cached row and repaint immediately, persist
+// in the background, roll the cache back on failure. `patch` carries the new
+// starts_at/ends_at (+ series detach); the pre-image of exactly those keys
+// backs both the rollback and the Undo toast.
+async function _ivcalApplyTimePatch(ev, patch, msg) {
+  const prev = {};
+  for (const k of Object.keys(patch)) prev[k] = (k in ev && ev[k] !== undefined) ? ev[k] : null;
+  Object.assign(ev, patch);
+  _ivcalRender();
+  const { error } = await sb.from("cal_events").update(patch).eq("id", ev.id);
+  if (error) {
+    Object.assign(ev, prev);
+    _ivcalRender();
+    toast("Couldn't update: " + (error.message || error), "warn");
+    return false;
+  }
+  _ivcalUndoToast(msg, async () => {
+    const { error: e2 } = await sb.from("cal_events").update(prev).eq("id", ev.id);
+    if (e2) throw e2;
+  });
+  return true;
+}
+
 // ── Drag-to-move, resize, and drag-to-create on the day/week grid ──────────
+// Pointer-events based so it works with mouse, pen AND touch: mouse drags arm
+// immediately; touch arms after a 300ms long-press (before that the gesture
+// stays a native scroll). A non-passive touchmove guard blocks scrolling only
+// while a drag is actually armed.
 let _ivcalDrag = null;            // active drag descriptor
 let _ivcalSuppressClick = false;  // set after a drag so the click doesn't also fire
 let _ivcalDragDocInstalled = false;
-const _ivcalSnap = (min) => Math.round(min / 15) * 15;
+const _ivcalSnap = (min) => Math.round(min / _ivSnapMin) * _ivSnapMin;
 function _ivcalColsNow() { const s = document.getElementById("rr-ivcal-scroll"); return s ? Array.from(s.querySelectorAll(".oc-col[data-ivcal-date]")) : []; }
 function _ivcalYToMin(col, clientY) { const r = col.getBoundingClientRect(); return _IVCAL_H0*60 + ((clientY - r.top) / _IVCAL_RH) * 60; }
 function _ivcalColAt(clientX) { for (const c of _ivcalColsNow()) { const r = c.getBoundingClientRect(); if (clientX >= r.left && clientX < r.right) return c; } return null; }
 const _ivcalTStr = (min) => { const x = new Date(); x.setHours(Math.floor(min/60), ((min%60)+60)%60, 0, 0); return x.toLocaleTimeString([], _ivClockOpts()); };
 
+// Alt-drag drops a COPY at the target instead of moving — same engine as
+// Ctrl-V paste (a free-form calendar event carrying the source title).
+async function _ivcalDuplicateAt(ev, startsISO, endsISO) {
+  const title = ev.kind === "event" ? (ev.title || "Event") : (rrTitleCaseName((ev.applicants||{}).full_name) || (ev.label || "Interview"));
+  const tz = (_ivcalCache && _ivcalCache.tz) || "America/Chicago";
+  const { error } = await sb.rpc("create_calendar_event", {
+    p_title: title, p_starts_at: startsISO, p_ends_at: endsISO,
+    p_invitees: [], p_note: null, p_timezone: tz, p_meeting_url: null,
+    p_body_text: null, p_body_html: null, p_rsvp_token: null,
+  });
+  if (error) throw error;
+  toast("Copy created", "success"); loadIvCalendar();
+}
+// Touch long-press arm: only becomes a drag if the finger stays put for 300ms
+// (a wandering finger stays a native scroll).
+let _ivcalArmT = null;
+function _ivcalArmSoon() {
+  clearTimeout(_ivcalArmT);
+  _ivcalArmT = setTimeout(() => {
+    const d = _ivcalDrag;
+    if (!d || d.armed) return;
+    d.armed = true;
+    if (d.el) d.el.classList.add("dragging");
+    if (navigator.vibrate) { try { navigator.vibrate(10); } catch (_) {} }
+  }, 300);
+}
 function _ivcalInstallDrag() {
   const scroll = document.getElementById("rr-ivcal-scroll");
   if (scroll) {
-    scroll.addEventListener("mousedown", (e) => {
-      if (e.button !== 0) return;
+    scroll.addEventListener("pointerdown", (e) => {
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      if (_ivcalDrag) return;
+      const touch = e.pointerType !== "mouse";
+      const mcell = e.target.closest(".oc-mcell[data-ivcal-date]");
+      const pill = e.target.closest(".oc-pill[data-ivcal-kind]");
       const evEl = e.target.closest(".oc-ev");
-      const onHandle = !!e.target.closest("[data-oc-resize]");
+      const rzEl = e.target.closest("[data-oc-resize]");
       const col = e.target.closest(".oc-col[data-ivcal-date]");
-      if (evEl) {
+      if (pill && mcell) {
+        // Month view: drag a pill onto another day cell (time of day kept).
+        const kind = pill.getAttribute("data-ivcal-kind"), id = pill.getAttribute("data-ivcal-id");
+        if (kind === "session") return;
+        if (!_ivcalFindEv(kind, id)) return;
+        if (!touch) e.preventDefault();
+        _ivcalDrag = { mode: "mmove", el: pill, kind, id, from: mcell.getAttribute("data-ivcal-date"),
+          x0: e.clientX, y0: e.clientY, moved: false, armed: !touch, pid: e.pointerId, alt: false };
+        if (touch) _ivcalArmSoon();
+      } else if (evEl) {
         // The task-complete circle is its own hit target — don't start a drag.
         if (e.target.closest("[data-oc-task-toggle]")) return;
         const kind = evEl.getAttribute("data-ivcal-kind"), id = evEl.getAttribute("data-ivcal-id");
@@ -30116,24 +30627,36 @@ function _ivcalInstallDrag() {
         const ev = _ivcalFindEv(kind, id); if (!ev) return;
         const s = new Date(ev.starts_at), en = ev.ends_at ? new Date(ev.ends_at) : new Date(s.getTime()+30*60000);
         const startMin = s.getHours()*60 + s.getMinutes(), endMin = en.getHours()*60 + en.getMinutes();
-        e.preventDefault();
-        _ivcalDrag = { mode: onHandle ? "resize" : "move", el: evEl, kind, id,
-          startMin, endMin, dur: Math.max(15, endMin - startMin),
+        if (!touch) e.preventDefault();
+        const mode = rzEl ? (rzEl.getAttribute("data-oc-resize") === "top" ? "resize-top" : "resize") : "move";
+        _ivcalDrag = { mode, el: evEl, kind, id,
+          startMin, endMin, dur: Math.max(_ivSnapMin, endMin - startMin),
           x0: e.clientX, y0: e.clientY, moved: false, col: evEl.closest(".oc-col"),
-          grabOffset: e.clientY - evEl.getBoundingClientRect().top };
-      } else if (col) {
+          grabOffset: e.clientY - evEl.getBoundingClientRect().top,
+          armed: !touch, pid: e.pointerId, alt: false };
+        if (touch) _ivcalArmSoon();
+      } else if (col && !touch) {
+        // Drag-to-create stays mouse/pen-only — a touch on an empty column
+        // must remain a scroll.
         const startMin = _ivcalSnap(_ivcalYToMin(col, e.clientY));
-        _ivcalDrag = { mode: "create", col, date: col.getAttribute("data-ivcal-date"), startMin, lo: startMin, hi: startMin + 30, x0: e.clientX, y0: e.clientY, moved: false, ghost: null };
+        _ivcalDrag = { mode: "create", col, date: col.getAttribute("data-ivcal-date"), startMin, lo: startMin, hi: startMin + 30, x0: e.clientX, y0: e.clientY, moved: false, ghost: null, armed: true, pid: e.pointerId };
       }
     });
   }
   if (_ivcalDragDocInstalled) return;
   _ivcalDragDocInstalled = true;
 
-  document.addEventListener("mousemove", (e) => {
-    const d = _ivcalDrag; if (!d) return;
+  document.addEventListener("pointermove", (e) => {
+    const d = _ivcalDrag; if (!d || e.pointerId !== d.pid) return;
+    if (!d.armed) {
+      // Long-press still pending: a wandering finger means scroll, not drag.
+      if (Math.abs(e.clientY - d.y0) > 8 || Math.abs(e.clientX - d.x0) > 8) { clearTimeout(_ivcalArmT); _ivcalDrag = null; }
+      return;
+    }
     if (!d.moved && Math.abs(e.clientY - d.y0) < 4 && Math.abs(e.clientX - d.x0) < 4) return;
     d.moved = true;
+    d.alt = !!e.altKey;
+    if (d.el) d.el.classList.toggle("is-copy", d.alt && (d.mode === "move" || d.mode === "mmove"));
     if (d.mode === "move") {
       d.el.classList.add("dragging");
       const overCol = _ivcalColAt(e.clientX) || d.col; d.curCol = overCol;
@@ -30144,14 +30667,24 @@ function _ivcalInstallDrag() {
       d.el.style.top = _ivcalYpos(ns) + "px";
       d.el.style.height = Math.max(18, _ivcalYpos(ns + d.dur) - _ivcalYpos(ns)) + "px";
     } else if (d.mode === "resize") {
-      const endMin = Math.max(d.startMin + 15, Math.min(_IVCAL_H1*60, _ivcalSnap(_ivcalYToMin(d.col, e.clientY))));
+      const endMin = Math.max(d.startMin + _ivSnapMin, Math.min(_IVCAL_H1*60, _ivcalSnap(_ivcalYToMin(d.col, e.clientY))));
       d.newEnd = endMin;
       d.el.style.height = Math.max(18, _ivcalYpos(endMin) - _ivcalYpos(d.startMin)) + "px";
+    } else if (d.mode === "resize-top") {
+      const startMin = Math.min(d.endMin - _ivSnapMin, Math.max(_IVCAL_H0*60, _ivcalSnap(_ivcalYToMin(d.col, e.clientY))));
+      d.newStart2 = startMin;
+      d.el.style.top = _ivcalYpos(startMin) + "px";
+      d.el.style.height = Math.max(18, _ivcalYpos(d.endMin) - _ivcalYpos(startMin)) + "px";
+    } else if (d.mode === "mmove") {
+      d.el.classList.add("dragging");
+      document.querySelectorAll(".oc-mcell.is-drop").forEach(c => c.classList.remove("is-drop"));
+      const cell = document.elementFromPoint(e.clientX, e.clientY)?.closest?.(".oc-mcell[data-ivcal-date]");
+      if (cell) { cell.classList.add("is-drop"); d.to = cell.getAttribute("data-ivcal-date"); } else d.to = null;
     } else if (d.mode === "create") {
       const overCol = _ivcalColAt(e.clientX) || d.col; d.col = overCol; d.date = overCol.getAttribute("data-ivcal-date");
       const cur = _ivcalSnap(_ivcalYToMin(overCol, e.clientY));
       const lo = Math.max(_IVCAL_H0*60, Math.min(d.startMin, cur));
-      const hi = Math.max(lo + 15, Math.max(d.startMin, cur));
+      const hi = Math.max(lo + _ivSnapMin, Math.max(d.startMin, cur));
       d.lo = lo; d.hi = hi;
       if (!d.ghost) { d.ghost = document.createElement("div"); d.ghost.className = "oc-cghost"; }
       if (d.ghost.parentElement !== overCol) overCol.appendChild(d.ghost);
@@ -30161,31 +30694,59 @@ function _ivcalInstallDrag() {
     }
   });
 
-  document.addEventListener("mouseup", async () => {
+  document.addEventListener("pointerup", async (e) => {
+    clearTimeout(_ivcalArmT);
     const d = _ivcalDrag; _ivcalDrag = null;
-    if (!d || !d.moved) { if (d && d.ghost) d.ghost.remove(); return; }
+    if (!d || e.pointerId !== d.pid) return;
+    document.querySelectorAll(".oc-mcell.is-drop").forEach(c => c.classList.remove("is-drop"));
+    if (d.el) { d.el.classList.remove("dragging", "is-copy"); }
+    if (!d.moved) { if (d.ghost) d.ghost.remove(); return; }
     _ivcalSuppressClick = true;
     const tz = (_ivcalCache && _ivcalCache.tz) || "America/Chicago";
+    const alt = d.alt || !!e.altKey;
     try {
       // Dragging one occurrence of a series detaches it ("just this event"
       // semantics) so series-wide rewrites skip it from now on. series_id
       // only appears post-0431, so the column is guaranteed to exist.
-      const dragged = ((_ivcalCache && _ivcalCache.bookings) || []).find(x => String(x.id) === String(d.id));
-      const detach = (dragged && dragged.series_id) ? { series_exception: true } : {};
-      if (d.mode === "move" && d.newStart != null) {
+      const ev = _ivcalFindEv(d.kind || "booking", d.id);
+      const detach = (ev && ev.series_id) ? { series_exception: true } : {};
+      if (d.mode === "move" && d.newStart != null && ev) {
         const date = (d.curCol || d.col).getAttribute("data-ivcal-date");
-        await sb.from("cal_events").update({ starts_at: _ivLocalToISO(date, _ivMinToHHMM(d.newStart), tz), ends_at: _ivLocalToISO(date, _ivMinToHHMM(d.newStart + d.dur), tz), ...detach }).eq("id", d.id);
-        toast("Moved", "success"); loadIvCalendar();
-      } else if (d.mode === "resize" && d.newEnd != null) {
+        const starts = _ivLocalToISO(date, _ivMinToHHMM(d.newStart), tz);
+        const ends = _ivLocalToISO(date, _ivMinToHHMM(d.newStart + d.dur), tz);
+        if (alt) await _ivcalDuplicateAt(ev, starts, ends);
+        else await _ivcalApplyTimePatch(ev, { starts_at: starts, ends_at: ends, ...detach }, "Event moved");
+      } else if (d.mode === "resize" && d.newEnd != null && ev) {
         const date = d.col.getAttribute("data-ivcal-date");
-        await sb.from("cal_events").update({ ends_at: _ivLocalToISO(date, _ivMinToHHMM(d.newEnd), tz), ...detach }).eq("id", d.id);
-        toast("Updated", "success"); loadIvCalendar();
+        await _ivcalApplyTimePatch(ev, { ends_at: _ivLocalToISO(date, _ivMinToHHMM(d.newEnd), tz), ...detach }, "Event resized");
+      } else if (d.mode === "resize-top" && d.newStart2 != null && ev) {
+        const date = d.col.getAttribute("data-ivcal-date");
+        await _ivcalApplyTimePatch(ev, { starts_at: _ivLocalToISO(date, _ivMinToHHMM(d.newStart2), tz), ...detach }, "Event resized");
+      } else if (d.mode === "mmove" && d.to && ev && (d.to !== d.from || alt)) {
+        const s = new Date(ev.starts_at), en = ev.ends_at ? new Date(ev.ends_at) : new Date(s.getTime()+30*60000);
+        const hm = (x) => _ivMinToHHMM(x.getHours()*60 + x.getMinutes());
+        const starts = _ivLocalToISO(d.to, hm(s), tz), ends = _ivLocalToISO(d.to, hm(en), tz);
+        const toTxt = new Date(d.to + "T00:00:00").toLocaleDateString(undefined, { weekday:"short", month:"short", day:"numeric" });
+        if (alt) await _ivcalDuplicateAt(ev, starts, ends);
+        else await _ivcalApplyTimePatch(ev, { starts_at: starts, ends_at: ends, ...detach }, "Moved to " + toTxt);
       } else if (d.mode === "create") {
         if (d.ghost) d.ghost.remove();
         _ivcalNewEvent(d.date, d.lo, d.hi);
       }
-    } catch (e) { toast("Couldn't update: " + (e.message || e), "warn"); loadIvCalendar(); }
+    } catch (e2) { toast("Couldn't update: " + (e2.message || e2), "warn"); loadIvCalendar(); }
   });
+  document.addEventListener("pointercancel", (e) => {
+    clearTimeout(_ivcalArmT);
+    const d = _ivcalDrag; _ivcalDrag = null;
+    if (!d || e.pointerId !== d.pid) return;
+    document.querySelectorAll(".oc-mcell.is-drop").forEach(c => c.classList.remove("is-drop"));
+    if (d.ghost) d.ghost.remove();
+    if (d.el) d.el.classList.remove("dragging", "is-copy");
+    if (d.moved) _ivcalRender();   // put a mid-drag chip back in place
+  });
+  // Block native scrolling ONLY while a touch drag is armed; everything else
+  // scrolls as usual (that's why this is a targeted guard, not touch-action).
+  document.addEventListener("touchmove", (e) => { if (_ivcalDrag && _ivcalDrag.armed) e.preventDefault(); }, { passive: false });
 }
 
 // ── Native interview availability editor (RouteReady-owned scheduling) ──
@@ -90485,10 +91046,28 @@ document.addEventListener("keydown", (e) => {
     const h = (location.hash || "").replace(/^#/, "").split("?")[0].trim();
     return h && document.getElementById("view-" + h) ? h : null;
   }
+  // Calendar params piggyback on the view hash: #onboarding?cal=…&calview=…&ev=…
+  function calParams() {
+    const q = (location.hash || "").split("?")[1] || "";
+    try {
+      const p = new URLSearchParams(q);
+      return (p.get("cal") || p.get("calview") || p.get("ev")) ? p : null;
+    } catch (_) { return null; }
+  }
   function route(tries) {
     const v = hashView();
     if (v && typeof window.goto === "function") {
       try { window.goto(v); } catch (_) {}
+      // Calendar params: make sure the calendar subtab comes up — the params
+      // themselves are consumed by _ivcalSyncHash on its first run, which is
+      // timing-proof against this IIFE running late in the async boot.
+      if (calParams()) {
+        let ct = 120;
+        (function cping() {
+          if (typeof window.obSub === "function") { try { window.obSub("calendar"); } catch (_) {} return; }
+          if (ct-- > 0) setTimeout(cping, 120);
+        })();
+      }
       // The Notebooks view loads its engine (RRNotebooks) lazily, so goto() may
       // run before loadView() exists. Ping until it's ready and load once — this
       // is what triggers the Meet notes import (loadView guards double-runs).
@@ -90509,5 +91088,11 @@ document.addEventListener("keydown", (e) => {
   window.addEventListener("hashchange", () => {
     const v = hashView();
     if (v && typeof window.goto === "function") { try { window.goto(v); } catch (_) {} }
+    // A manually-edited hash with calendar params re-arms the consumer.
+    if (calParams()) {
+      _ivcalHashConsumed = false;
+      if (typeof window.obSub === "function") { try { window.obSub("calendar"); } catch (_) {} }
+      if (typeof loadIvCalendar === "function" && _ivcalCache) _ivcalRender();
+    }
   });
 })();

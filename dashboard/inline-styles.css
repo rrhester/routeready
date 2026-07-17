@@ -33001,3 +33001,115 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 @media (max-width: 980px) {
   #view-repair .rp-overview-grid { grid-template-columns: 1fr; }
 }
+
+/* ═══ Calendar Wave 1 · grid interactions & views (2026-07-17) ═══════════ */
+
+/* Top-edge resize handle (bottom handle already exists at .oc-rz). */
+#rr-ivcal .oc-rz-top { top: 0; bottom: auto; height: 6px; }
+
+/* Alt-drag duplicates: signal "copy" while the modifier is held. */
+#rr-ivcal .oc-ev.is-copy, #rr-ivcal .oc-pill.is-copy { cursor: copy; outline: 1.5px dashed var(--rr-blue-600); outline-offset: 1px; }
+
+/* Month-view drag: lift the pill, ring the hovered day cell. */
+#rr-ivcal .oc-pill.dragging { opacity: .55; }
+#rr-ivcal .oc-mcell.is-drop { box-shadow: inset 0 0 0 2px var(--rr-blue-600); border-radius: 4px; }
+
+/* Bigger touch targets for the resize handles on coarse pointers. */
+@media (pointer: coarse) {
+  #rr-ivcal .oc-rz { height: 14px; }
+  #rr-ivcal .oc-rz-top { height: 14px; }
+}
+
+/* Undo toast (bottom-center, above everything). */
+.oc-undo-toast {
+  position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%);
+  z-index: 12000; display: flex; align-items: center; gap: 12px;
+  background: var(--text); color: var(--text-inverse);
+  padding: 10px 14px; border-radius: 8px; font-size: var(--fs-sm);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, .35);
+}
+.oc-undo-toast button {
+  background: none; border: 0; color: var(--text-inverse); font-weight: 700;
+  font-size: var(--fs-sm); cursor: pointer; padding: 2px 4px; text-decoration: underline;
+}
+.oc-undo-toast button:hover { opacity: .85; }
+
+/* Multi-select bulk bar. */
+#rr-ivcal .oc-bulkbar {
+  position: sticky; bottom: 8px; z-index: 30;
+  display: flex; align-items: center; gap: 10px;
+  width: max-content; margin: -44px auto 8px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 8px 12px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, .18);
+}
+#rr-ivcal .oc-bulk-n { font-weight: 700; font-size: var(--fs-sm); }
+#rr-ivcal .oc-bulk-cancel { color: var(--red); font-weight: 600; }
+
+/* Modal backdrop shared by Go-to-date and the shortcut help. */
+.oc-modal-back {
+  position: fixed; inset: 0; z-index: 11000; background: rgba(15, 23, 42, .32);
+  display: flex; align-items: flex-start; justify-content: center; padding-top: 120px;
+}
+.oc-jump, .oc-kbd {
+  background: var(--surface); border-radius: 12px; padding: 18px 20px;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, .3); min-width: 260px;
+}
+.oc-jump-h { font-weight: 700; margin-bottom: 12px; font-size: var(--fs-md); }
+.oc-jump input[type="date"] {
+  width: 100%; padding: 8px 10px; border: 1px solid var(--border);
+  border-radius: 8px; font-size: var(--fs-sm);
+}
+.oc-jump-f { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+.oc-modal-back .oc-jump-go { background: var(--accent); color: var(--text-inverse); border-color: transparent; }
+.oc-kbd { max-width: 560px; }
+.oc-kbd-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 28px; }
+.oc-kbd-sec { font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--text-subtle); margin: 10px 0 4px; }
+.oc-kbd-row { display: flex; align-items: center; gap: 10px; font-size: var(--fs-sm); padding: 2px 0; }
+.oc-kbd-keys { min-width: 86px; display: inline-flex; gap: 2px; align-items: center; }
+.oc-kbd kbd {
+  background: var(--surface-secondary); border: 1px solid var(--border);
+  border-bottom-width: 2px; border-radius: 5px; padding: 1px 6px;
+  font-size: var(--fs-xs); font-family: inherit; font-weight: 600;
+}
+
+/* Mini-month density dots + week-number gutter. */
+#rr-ivcal .oc-mini-d { position: relative; }
+#rr-ivcal .oc-mini-dots { position: absolute; left: 50%; transform: translateX(-50%); bottom: 1px; display: flex; gap: 2px; }
+#rr-ivcal .oc-mini-dots::before { content: ""; width: 3px; height: 3px; border-radius: 50%; background: var(--rr-blue-600); }
+#rr-ivcal .oc-mini-dots.d2::after, #rr-ivcal .oc-mini-dots.d3::after { content: ""; width: 3px; height: 3px; border-radius: 50%; background: var(--rr-blue-600); }
+#rr-ivcal .oc-mini-dots.d3 { box-shadow: 6px 0 0 -0.5px var(--rr-blue-600); }
+#rr-ivcal .oc-mini-d.today .oc-mini-dots::before,
+#rr-ivcal .oc-mini-d.today .oc-mini-dots::after { background: var(--text-inverse); }
+#rr-ivcal .oc-mini-solo .oc-mini-row.has-wk { grid-template-columns: 18px repeat(7, 1fr); }
+#rr-ivcal .oc-mini-solo .oc-mini-dow .oc-mini-wk { pointer-events: none; }
+#rr-ivcal .oc-mini-wk {
+  border: 0; background: none; font-size: var(--fs-xs); color: var(--text-subtle);
+  cursor: pointer; padding: 0; text-align: center; font-variant-numeric: tabular-nums;
+}
+#rr-ivcal .oc-mini-wk:hover { color: var(--rr-blue-600); }
+
+/* Week number in the grid corner + month-cell chip. */
+#rr-ivcal .oc-corner-wk { display: block; font-size: var(--fs-xs); color: var(--text-subtle); font-variant-numeric: tabular-nums; }
+#rr-ivcal .oc-mwk { position: absolute; top: 4px; left: 4px; font-size: var(--fs-xs); color: var(--text-subtle); font-variant-numeric: tabular-nums; }
+#rr-ivcal .oc-mcell { position: relative; }
+
+/* Split-day lanes: same anatomy as day columns, lane headers instead of dates. */
+#rr-ivcal .oc-dh-lane .dow { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#rr-ivcal .oc-col-lane + .oc-col-lane { border-left: 1px solid var(--oc-colsep); }
+
+/* Candidate drop-target ring reused on month cells / agenda days. */
+#rr-ivcal .oc-mcell.is-bk-dropover, #rr-ivcal .oc-ag-day.is-bk-dropover { box-shadow: inset 0 0 0 2px var(--rr-blue-600); border-radius: 4px; }
+
+/* Print: only the calendar, expanded, no app chrome. The body-class scope +
+   id selectors outrank the screen rules on specificity alone. */
+@media print {
+  body.rr-print-cal * { visibility: hidden; }
+  body.rr-print-cal #rr-ivcal, body.rr-print-cal #rr-ivcal * { visibility: visible; }
+  body.rr-print-cal #rr-ivcal { position: absolute; left: 0; top: 0; width: 100%; }
+  body.rr-print-cal #rr-ivcal .oc { display: block; }
+  body.rr-print-cal #rr-ivcal .oc-side, body.rr-print-cal #rr-ivcal .oc-bar,
+  body.rr-print-cal #rr-ivcal .oc-bulkbar, body.rr-print-cal .oc-undo-toast { display: none; }
+  body.rr-print-cal #rr-ivcal .oc-scroll { overflow: visible; height: auto; max-height: none; }
+  body.rr-print-cal #rr-ivcal .oc-main { height: auto; }
+}
