@@ -985,6 +985,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       createGroup: function (nb, name) { return rpc("notebook_section_group_create", { p_notebook_id: nb, p_name: name }); },
       createSection: function (nb, name, grp, color) { return rpc("notebook_section_create", { p_notebook_id: nb, p_name: name, p_group_id: grp || null, p_color: color }); },
       moveSection: function (id, grp, pos) { return rpc("notebook_section_move", { p_id: id, p_group_id: grp || null, p_position: pos == null ? null : pos }); },
+      duplicateSection: function (id) { return rpc("notebook_section_duplicate", { p_section_id: id }); },
       createPage: function (sec, title, parent, level) { return rpc("notebook_page_create", { p_section_id: sec, p_title: title, p_parent_page_id: parent || null, p_level: level || 0 }); },
       getPage: function (id) { return rpc("notebook_page_get", { p_id: id }); },
       savePage: function (id, p, base) { return rpc("notebook_page_save", { p_id: id, p_title: p.title, p_content_html: p.content_html, p_content_text: p.content_text, p_tags: p.tags, p_base_updated_at: base || null }); },
@@ -1084,6 +1085,20 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       createGroup: function (nbId, name) { var g = { id: uid(), notebook_id: nbId, name: name || "New Group", color: "#64748b", position: db.groups.length }; db.groups.push(g); persist(); return P(g); },
       createSection: function (nbId, name, grp, color) { var s = { id: uid(), notebook_id: nbId, group_id: grp || null, name: name || "New Section", color: color || "#2563eb", position: db.sections.length }; db.sections.push(s); persist(); return P(s); },
       moveSection: function (id, grp, pos) { var s = db.sections.filter(function (x) { return x.id === id; })[0]; if (s) { s.group_id = grp || null; if (pos != null) s.position = pos; persist(); } return P(); },
+      duplicateSection: function (id) {
+        var src = db.sections.filter(function (x) { return x.id === id; })[0]; if (!src) return P(null);
+        var now = new Date().toISOString();
+        var ns = { id: uid(), notebook_id: src.notebook_id, group_id: src.group_id || null, name: (src.name || "Section") + " (copy)", color: src.color, position: db.sections.length };
+        db.sections.push(ns);
+        var map = {};
+        db.pages.filter(function (p) { return p.section_id === id && !p.deleted_at; })
+          .sort(function (a, b) { return (a.level - b.level) || (a.position - b.position); })
+          .forEach(function (p) {
+            var np = { id: uid(), notebook_id: p.notebook_id, section_id: ns.id, parent_page_id: p.parent_page_id ? (map[p.parent_page_id] || null) : null, level: p.level, position: p.position, title: p.title, content_html: p.content_html, content_text: p.content_text, tags: (p.tags || []).slice(), is_pinned: false, created_at: now, updated_at: now };
+            map[p.id] = np.id; db.pages.push(np);
+          });
+        persist(); return P({ id: ns.id, name: ns.name, color: ns.color, position: ns.position });
+      },
       createPage: function (sec, title, parent, level) { var s = db.sections.filter(function (x) { return x.id === sec; })[0]; var now = new Date().toISOString();
         var p = { id: uid(), notebook_id: s ? s.notebook_id : null, section_id: sec, parent_page_id: parent || null, level: level || 0, position: db.pages.length, title: title || "Untitled Page", content_html: "", content_text: "", tags: [], is_pinned: false, created_at: now, updated_at: now };
         db.pages.push(p); persist(); return P(p); },
@@ -2351,6 +2366,9 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   // after an image lands as base64, quietly move it to storage and slim the page
   function offloadFigure(fig, dataUrl, name) {
     var blob = dataUrlToBlob(dataUrl); if (!blob) return;
+    // #60 warn instead of failing silently at the 25 MB storage cap — the
+    // upload would just no-op and leave a huge base64 image inline.
+    if (blob.size > MAX_STORE_BYTES) { notify('"' + (name || "image") + '" is over 25 MB even after compression — it stays on this device and may not sync to teammates.'); return; }
     mediaUpload(blob, name || "image", function (path) {
       if (!path || !fig || !fig.isConnected) return;
       var img = fig.querySelector("img"); if (!img) return;
@@ -4797,6 +4815,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     var items = [
       { act: "rename", label: "Rename section" },
       { act: "recolor", label: "Change color" },
+      { act: "duplicate", label: "Duplicate section" },
       { sep: 1 }
     ];
     // Move into any existing group the section isn't already in.
@@ -4840,6 +4859,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     if (t.kind === "section") {
       if (act === "rename") return editSectionTitle(t.id);
       if (act === "recolor") return recolorSection(t.id);
+      if (act === "duplicate") return S.be.duplicateSection(t.id).then(function (s) { var ns = s && (s.id || s); if (ns) S.activeSection = ns; return selectNotebook(S.nbId, null); }).then(function () { notify("Section duplicated"); }).catch(fail);
       if (act.indexOf("movegrp:") === 0) { var gid = act.slice(8); return S.be.moveSection(t.id, gid).then(function () { S.collapsedGroups[gid] = false; return selectNotebook(S.nbId, S.pageId); }); }
       if (act === "ungroup") return S.be.moveSection(t.id, null).then(function () { return selectNotebook(S.nbId, S.pageId); });
       if (act === "newgroup") return S.be.createGroup(S.nbId, "New Group").then(function (g) { var ng = g && (g.id || g); return (ng ? S.be.moveSection(t.id, ng) : Promise.resolve()).then(function () { if (ng) S.collapsedGroups[ng] = false; return selectNotebook(S.nbId, S.pageId); }); });
