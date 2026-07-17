@@ -151,7 +151,8 @@
   border-radius:4px;outline:2px solid var(--accent);outline-offset:1px;background:var(--surface)}
 .rrnb-nbcurrent .chev{flex:0 0 auto;color:var(--text-subtle)}
 .rrnb-swatch{width:12px;height:12px;border-radius:3px;background:var(--accent)}
-.rrnb-menu{position:absolute;z-index:40;left:var(--s-2);right:var(--s-2);top:calc(100% - var(--s-1));
+.rrnb-menu{position:absolute;z-index:40;left:var(--s-2);right:auto;top:calc(100% - var(--s-1));
+  min-width:calc(100% - var(--s-2) * 2);width:max-content;max-width:min(360px,calc(100vw - 40px));
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
   box-shadow:var(--shadow-pop);padding:var(--s-1);max-height:60vh;overflow:auto}
 .rrnb-menu[hidden]{display:none}
@@ -333,6 +334,11 @@
 .rrnb-editor th{background:var(--surface-secondary);font-weight:600;text-align:left}
 .rrnb-editor table.rrnb-zebra tbody tr:nth-child(even) td{background:rgba(15,23,42,.035)}
 .rrnb-editor table tr.rrnb-tfoot td{font-weight:600;border-top:2px solid var(--border-strong);color:var(--text)}
+.rrnb-swrow{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.rrnb-swb{width:24px;height:24px;border-radius:6px;border:1px solid var(--border);cursor:pointer;padding:0}
+.rrnb-swb:hover{transform:scale(1.08)}
+.rrnb-swb-clear{background:var(--surface)!important;color:var(--text-muted);font-size:11px;display:grid;place-items:center}
+.rrnb-swb.on{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--accent)}
 .rrnb-editor .rrnb-toc{border:1px solid var(--border);border-radius:var(--r-md);padding:10px 14px;margin:14px 0;
   background:var(--surface-secondary)}
 .rrnb-editor .rrnb-toc-hd{font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;
@@ -842,6 +848,10 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     try { return new Date(iso).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }); }
     catch (e) { return ""; }
   }
+  // favorite (starred) pages — client-side, kept in localStorage
+  function favSet() { try { return JSON.parse(localStorage.getItem("rrnb-favorites") || "[]") || []; } catch (e) { return []; } }
+  function isFav(id) { return favSet().indexOf(id) >= 0; }
+  function toggleFav(id) { var s = favSet(), i = s.indexOf(id); if (i >= 0) s.splice(i, 1); else s.push(id); try { localStorage.setItem("rrnb-favorites", JSON.stringify(s)); } catch (e) {} }
   // esc + wrap query matches in <mark> for search-result highlighting
   function hlText(text, q) {
     var safe = esc(text || "");
@@ -1384,6 +1394,8 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     if (!S.readOnly) html += '<div class="rrnb-pageadd rrnb-pageadd-top"><button class="rrnb-newpage rrnb-addtop" data-add-page="1">＋ Add page  <span style="margin-left:auto;color:var(--text-disabled)">Alt+N</span></button>' +
       '<button class="rrnb-newpage rrnb-tpl-btn" data-density-toggle="1" title="Compact / comfortable list">⇕</button>' +
       '<button class="rrnb-newpage rrnb-tpl-btn" data-template-menu="1" title="New page from a template">▤</button></div>';
+    var favs = ((S.tree && S.tree.pages) || []).filter(function (p) { return isFav(p.id); });
+    if (favs.length) html += '<div class="rrnb-plgroup-hd">★ Favorites</div>' + favs.map(function (p) { return pageRow(p, true); }).join("");
     if (pinned.length) { html += '<div class="rrnb-plgroup-hd">Pinned</div>' + pinned.map(function (p) { return pageRow(p, true); }).join(""); html += '<div class="rrnb-plgroup-hd">Pages</div>'; }
     function walk(p) { html += pageRow(p, false); (kids[p.id] || []).forEach(walk); }
     tops.forEach(walk);
@@ -1463,7 +1475,8 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       '<button class="rrnb-tb" data-cmd="italic" title="Italic (Ctrl+I)"><i>I</i></button>' +
       '<button class="rrnb-tb" data-cmd="underline" title="Underline (Ctrl+U)"><u>U</u></button>' +
       '<button class="rrnb-tb" data-cmd="strikeThrough" title="Strikethrough"><s>S</s></button>' +
-      '<button class="rrnb-tb" data-cmd="highlight" title="Highlight (Ctrl+Shift+H)"><span style="background:var(--amber-soft,rgba(217,119,6,.3));padding:0 3px;border-radius:2px">H</span></button>' +
+      '<button class="rrnb-tb" data-cmd="highlight" title="Highlight color"><span style="background:var(--amber-soft,rgba(217,119,6,.3));padding:0 3px;border-radius:2px">H</span></button>' +
+      '<button class="rrnb-tb" data-cmd="textcolor" title="Text color"><span style="border-bottom:2px solid #dc2626;line-height:1;padding-bottom:1px">A</span></button>' +
       '<button class="rrnb-tb" data-cmd="insertUnorderedList" title="Bulleted list (Ctrl+.)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/><path d="M9 6h11M9 12h11M9 18h11"/></svg></button>' +
       '<button class="rrnb-tb" data-cmd="insertOrderedList" title="Numbered list (Ctrl+/)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 6h11M9 12h11M9 18h11"/><text x="1" y="8" font-size="7" fill="currentColor" stroke="none">1</text><text x="1" y="14" font-size="7" fill="currentColor" stroke="none">2</text><text x="1" y="20" font-size="7" fill="currentColor" stroke="none">3</text></svg></button>' +
       '<button class="rrnb-tb" data-cmd="quote" title="Quote">“</button>' +
@@ -1762,7 +1775,8 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       case "bold": case "italic": case "underline": case "strikeThrough":
       case "insertUnorderedList": case "insertOrderedList": case "undo": case "redo": exec(cmd); break;
       case "removeFormat": exec("removeFormat"); try { exec("hiliteColor", "transparent"); } catch (e) {} exec("unlink"); break;
-      case "highlight": exec("hiliteColor", "#fde68a"); break;
+      case "highlight": openColorMenu("hilite"); return;
+      case "textcolor": openColorMenu("fore"); return;
       case "quote": exec("formatBlock", "<blockquote>"); break;
       case "hr": exec("insertHorizontalRule"); break;
       case "code": insertCodeBlock(); break;
@@ -1893,6 +1907,28 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   }
   function insertCodeBlock() { insertHTMLAtCursor('<pre><code>' + (esc(window.getSelection().toString()) || "​") + '</code></pre><p><br></p>'); }
   function insertCallout() { insertHTMLAtCursor('<div class="rrnb-callout"><span class="ico">💡</span><div>' + (esc(window.getSelection().toString()) || "Note…") + '</div></div><p><br></p>'); }
+  var HILITE_COLORS = ["#fde68a", "#bbf7d0", "#bfdbfe", "#fecaca", "#e9d5ff", "#fed7aa"];
+  var TEXT_COLORS = ["#111827", "#dc2626", "#d97706", "#16a34a", "#2563eb", "#7c3aed", "#6b7280"];
+  function openColorMenu(mode) {
+    var ed = $id("rrnb-editor"); if (ed) ed.focus();
+    var range = savedSelection();
+    var colors = mode === "fore" ? TEXT_COLORS : HILITE_COLORS;
+    var btn = document.querySelector('#rrnb-toolbar [data-cmd="' + (mode === "fore" ? "textcolor" : "highlight") + '"]');
+    var rect = btn ? btn.getBoundingClientRect() : selRect();
+    var swatches = colors.map(function (c) { return '<button class="rrnb-swb" data-color="' + c + '" style="background:' + c + '" title="' + c + '"></button>'; }).join("");
+    var pop = showPop('<label>' + (mode === "fore" ? "Text color" : "Highlight") + '</label><div class="rrnb-swrow">' + swatches +
+      '<button class="rrnb-swb rrnb-swb-clear" data-color="none" title="None">✕</button></div>', rect);
+    pop.onclick = function (e) {
+      var b = e.target.closest("[data-color]"); if (!b) return;
+      var col = b.getAttribute("data-color");
+      $id("rrnb-editor").focus(); restoreSelection(range);
+      try { document.execCommand("styleWithCSS", false, true); } catch (x) {}   // emit <span style> not <font>
+      if (mode === "fore") exec("foreColor", col === "none" ? "inherit" : col);
+      else exec("hiliteColor", col === "none" ? "transparent" : col);
+      try { document.execCommand("styleWithCSS", false, false); } catch (x) {}
+      hidePop(); scheduleSave();
+    };
+  }
   function setCalloutVariant(el, v) {
     el.setAttribute("data-variant", v);
     var icons = { note: "💡", info: "ℹ️", warn: "⚠️", ok: "✅" };
@@ -4124,6 +4160,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       { act: "md", label: "Download as Markdown" }
     ] : [
       { act: "rename", label: "Rename" },
+      { act: "fav", label: isFav(id) ? "★ Unstar" : "☆ Favorite" },
       { act: "pin", label: p.is_pinned ? "Unpin" : "Pin to top" },
       { act: "sub", label: "Make subpage (Tab)" },
       { act: "promote", label: "Promote (Shift+Tab)" },
@@ -4174,6 +4211,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     var t = $id("rrnb-ctx")._target; hideCtx(); if (!t) return;
     if (t.kind === "page") {
       if (act === "rename") return editPageTitle(t.id);
+      if (act === "fav") { toggleFav(t.id); return renderPageList(); }
       if (act === "pin") { var p = pageById(t.id); return S.be.pinPage(t.id, !(p && p.is_pinned)).then(function () { if (p) p.is_pinned = !p.is_pinned; renderPageList(); }); }
       if (act === "print") return printPage(t.id);
       if (act === "md") return exportMarkdown(t.id);
@@ -4218,8 +4256,15 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   function pageById(id) { return ((S.tree && S.tree.pages) || []).filter(function (x) { return x.id === id; })[0]; }
   function recolorSection(id) {
     var s = ((S.tree && S.tree.sections) || []).filter(function (x) { return x.id === id; })[0]; if (!s) return;
-    var cur = PALETTE.indexOf(s.color); var next = PALETTE[(cur + 1) % PALETTE.length];
-    S.be.rename("section", id, s.name, next).then(function () { s.color = next; renderSections(); });
+    var sw = PALETTE.map(function (c) { return '<button class="rrnb-swb' + (c === s.color ? " on" : "") + '" data-color="' + c + '" style="background:' + c + '" title="' + c + '"></button>'; }).join("");
+    var anchor = document.querySelector('#rrnb-sections [data-sec="' + id + '"]');
+    var pop = showPop('<label>Section color</label><div class="rrnb-swrow">' + sw + '</div>', anchor ? anchor.getBoundingClientRect() : selRect());
+    pop.onclick = function (e) {
+      var b = e.target.closest("[data-color]"); if (!b) return;
+      var col = b.getAttribute("data-color");
+      S.be.rename("section", id, s.name, col).then(function () { s.color = col; renderSections(); });
+      hidePop();
+    };
   }
   function renamePrompt(kind, id) {
     var cur = kind === "page" ? (pageById(id) || {}).title
