@@ -40,6 +40,12 @@ update public.workbook_permissions
    and (subject_id is null or subject_id <> dsp_id);
 
 -- ─── #97b · access helpers honor scoped org rows + role rows ────────────────
+-- NB (fix, 2026-07-17): subject_role is TEXT while private.is_staff takes
+-- public.app_role — text has no implicit cast to an enum in function
+-- resolution, so the un-cast call made this file fail every from-zero
+-- apply ("function private.is_staff(uuid, text) does not exist"). The
+-- ::public.app_role casts below are safe: the check constraint above
+-- restricts subject_role to valid enum labels.
 
 create or replace function private.can_view_workbook(p_workbook_id uuid)
 returns boolean
@@ -64,7 +70,7 @@ as $$
               (p.subject_type = 'user' and p.subject_id = auth.uid())
               or (p.subject_type = 'org'  and p.subject_id = w.dsp_id)
               or (p.subject_type = 'role' and p.subject_role is not null
-                  and private.is_staff(w.dsp_id, p.subject_role))
+                  and private.is_staff(w.dsp_id, p.subject_role::public.app_role))
             )
         )
       )
@@ -95,7 +101,7 @@ as $$
               (p.subject_type = 'user' and p.subject_id = auth.uid())
               or (p.subject_type = 'org'  and p.subject_id = w.dsp_id)
               or (p.subject_type = 'role' and p.subject_role is not null
-                  and private.is_staff(w.dsp_id, p.subject_role))
+                  and private.is_staff(w.dsp_id, p.subject_role::public.app_role))
             )
         )
       )
