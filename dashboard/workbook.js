@@ -7812,7 +7812,8 @@ function computeGeometry(g) {
   // visible rows (filter-aware; header row 0 always visible). Every
   // filtered column must accept the row — Excel AutoFilter semantics.
   const rows = [];
-  const rowHidden = (r) => sheet.hiddenRows && sheet.hiddenRows.has(r);
+  const grpRows = groupHiddenSet(sheet, "row");
+  const rowHidden = (r) => (sheet.hiddenRows && sheet.hiddenRows.has(r)) || grpRows.has(r);
   const filters = g.filters && g.filters.size
     ? [...g.filters.entries()].map(([col, f]) => ({ col, needle: f.text ? f.text.toLowerCase() : null, values: f.values || null, cond: f.cond || null, color: f.color || null }))
     : null;
@@ -7841,7 +7842,8 @@ function computeGeometry(g) {
   for (let i = 0; i < rows.length; i++) g.rowY[i + 1] = g.rowY[i] + Math.round(rowH(sheet, rows[i]) * z);
   g.colX = new Array(sheet.colCount + 1);
   g.colX[0] = 0;
-  for (let c = 0; c < sheet.colCount; c++) g.colX[c + 1] = g.colX[c] + Math.round(colW(sheet, c) * z);
+  const grpCols = groupHiddenSet(sheet, "col");
+  for (let c = 0; c < sheet.colCount; c++) g.colX[c + 1] = g.colX[c] + (grpCols.has(c) ? 0 : Math.round(colW(sheet, c) * z));
   // floating widgets can extend past the cells — grow the canvas so the scroll
   // range reaches them (extents are in logical px; scale by zoom)
   let chartW = 0, chartH = 0;
@@ -8255,24 +8257,28 @@ function paintNow(g) {
   const d0 = dispRowAt(g, sy), d1 = Math.min(g.rows.length - 1, dispRowAt(g, sy + vh) + 1);
   const c0 = colAt(g, sx), c1 = Math.min(sheet.colCount - 1, colAt(g, sx + vw) + 1);
 
-  // column headers
+  // column headers (collapsible groups get their toggle on the summary col)
+  const grpColStarts = new Map(sheetGroups(sheet, "col").map((gr) => [gr.from, gr]));
   let colsHtml = "";
   for (let c = c0; c <= c1; c++) {
     const w = g.colX[c + 1] - g.colX[c];
     if (w === 0) continue; // hidden column
     const isSel = c >= Math.min(g.sel.c0, g.sel.c1) && c <= Math.max(g.sel.c0, g.sel.c1);
-    colsHtml += `<div class="wb-hcell wb-hcol ${isSel ? "is-sel" : ""}" data-wb-col="${c}" style="left:${g.colX[c]}px;width:${w}px;height:${HDR_ROW_H}px">${colLabel(c)}<span class="wb-rz-col" data-wb-rzcol="${c}"></span></div>`;
+    const grp = grpColStarts.get(c);
+    colsHtml += `<div class="wb-hcell wb-hcol ${isSel ? "is-sel" : ""}" data-wb-col="${c}" style="left:${g.colX[c]}px;width:${w}px;height:${HDR_ROW_H}px">${grp ? `<button type="button" class="wb-grp" data-wb-grp="col:${grp.id}" title="${grp.collapsed ? "Expand" : "Collapse"} columns ${colLabel(grp.from + 1)}–${colLabel(grp.to)}">${grp.collapsed ? "⊞" : "⊟"}</button>` : ""}${colLabel(c)}<span class="wb-rz-col" data-wb-rzcol="${c}"></span></div>`;
   }
   g.els.colsInner.innerHTML = colsHtml;
   g.els.colsInner.style.transform = `translateX(${-sx}px)`;
 
-  // row headers
+  // row headers (collapsible groups get their toggle on the summary row)
+  const grpRowStarts = new Map(sheetGroups(sheet, "row").map((gr) => [gr.from, gr]));
   let rowsHtml = "";
   for (let di = d0; di <= d1; di++) {
     const r = g.rows[di];
     const h = g.rowY[di + 1] - g.rowY[di];
     const isSel = r >= Math.min(g.sel.r0, g.sel.r1) && r <= Math.max(g.sel.r0, g.sel.r1);
-    rowsHtml += `<div class="wb-hcell wb-hrow ${isSel ? "is-sel" : ""}" data-wb-row="${r}" style="top:${g.rowY[di]}px;height:${h}px;width:${HDR_COL_W}px">${r + 1}<span class="wb-rz-row" data-wb-rzrow="${r}"></span></div>`;
+    const grp = grpRowStarts.get(r);
+    rowsHtml += `<div class="wb-hcell wb-hrow ${isSel ? "is-sel" : ""}" data-wb-row="${r}" style="top:${g.rowY[di]}px;height:${h}px;width:${HDR_COL_W}px">${grp ? `<button type="button" class="wb-grp" data-wb-grp="row:${grp.id}" title="${grp.collapsed ? "Expand" : "Collapse"} rows ${grp.from + 2}–${grp.to + 1}">${grp.collapsed ? "⊞" : "⊟"}</button>` : ""}${r + 1}<span class="wb-rz-row" data-wb-rzrow="${r}"></span></div>`;
   }
   g.els.rowsInner.innerHTML = rowsHtml;
   g.els.rowsInner.style.transform = `translateY(${-sy}px)`;
@@ -8333,7 +8339,7 @@ function paintNow(g) {
       : isDv && dvStyle === "chip"
         ? `<span class="wb-dv-pill ${cell && disp ? "" : "is-empty"}" data-wb-dvchip="${r},${c}" style="${dvColor ? `background:${dvColor};` : ""}">${cell && disp ? esc(disp) : "Select"}<span class="wb-dv-pillarrow">▾</span></span>`
         : cell && disp ? cellInnerHtml(cell, disp) : isDv && dvStyle === "arrow" ? `<span class="wb-dv-chip-empty">Select</span>` : "";
-    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${cell && cell.spill ? "is-spill-origin" : ""} ${inval ? "is-invalid" : ""} ${inval && g.circleInvalid ? "is-circled" : ""} ${isDv ? "is-dv" : ""} ${isDv && dvStyle === "arrow" ? "is-dvarrow" : ""} ${imgSrc || photoRef ? "is-img" : ""} ${receiptRef ? "is-receipt" : ""} ${linkUrl ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${dvFill ? `background:${dvFill};` : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : err ? `title="${esc(cell.err + " — " + errorHint(cell.err))}"` : linkUrl ? `title="${esc(linkUrl)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${condIconFor(sheet, r, c, cell)}${inner}${dvMark}${fltBtn(r, c)}</div>`;
+    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${cell && cell.spill ? "is-spill-origin" : ""} ${inval ? "is-invalid" : ""} ${inval && g.circleInvalid ? "is-circled" : ""} ${isDv ? "is-dv" : ""} ${isDv && dvStyle === "arrow" ? "is-dvarrow" : ""} ${imgSrc || photoRef ? "is-img" : ""} ${receiptRef ? "is-receipt" : ""} ${linkUrl ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${dvFill ? `background:${dvFill};` : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : err ? `title="${esc(cell.err + " — " + errorHint(cell.err))}"` : linkUrl ? `title="${esc(linkUrl)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${cell && cell.format && cell.format.note ? `<span class="wb-nmark" title="${esc(cell.format.note)}"></span>` : ""}${condIconFor(sheet, r, c, cell)}${inner}${dvMark}${fltBtn(r, c)}</div>`;
   };
   let html = "";
   const paintedMerges = new Set();
@@ -12050,7 +12056,30 @@ function condStyleFor(sheet, r, c, cell) {
 }
 
 // Keep rule rectangles anchored through row/column insert/delete.
+function shiftGroupRanges(sheet, axis, index, delta) {
+  const key = axis === "row" ? "rowGroups" : "colGroups";
+  const groups = sheetGroups(sheet, axis);
+  if (!groups.length) return;
+  const cut = delta < 0 ? -delta : 0;
+  const next = [];
+  for (const gr of groups) {
+    let a = gr.from, b = gr.to;
+    if (delta < 0) {
+      if (a >= index && b < index + cut) continue; // fully deleted
+      a = a >= index + cut ? a + delta : a > index ? index : a;
+      b = b >= index + cut ? b + delta : b >= index ? index - 1 : b;
+      if (b <= a) continue; // a one-line group is no group
+    } else {
+      if (a >= index) a += delta;
+      if (b >= index) b += delta;
+    }
+    next.push({ ...gr, from: a, to: b });
+  }
+  sheet.meta = { ...(sheet.meta || {}), [key]: next };
+}
+
 function shiftRuleRanges(sheet, axis, index, delta) {
+  shiftGroupRanges(sheet, axis, index, delta);
   const meta = sheet.meta || {};
   const lo = axis === "row" ? "r0" : "c0", hi = axis === "row" ? "r1" : "c1";
   const cut = delta < 0 ? -delta : 0;
@@ -12583,17 +12612,24 @@ function computeFindMatches(g) {
   f.matches = [];
   if (f.text) {
     const needle = f.matchCase ? f.text : f.text.toLowerCase();
-    const entries = [...g.sheet.cells.entries()].map(([key, cell]) => ({ ...keyRC(key), cell })).sort((a, b) => a.r - b.r || a.c - b.c);
-    for (const { r, c, cell } of entries) {
-      if (dispIndexOfRow(g, r) < 0 || colW(g.sheet, c) === 0) continue; // hidden/filtered out
-      const texts = [];
-      if (cell.formula) { texts.push(String(cell.err ? "" : cell.computed ?? "")); if (f.inFormulas) texts.push(cell.formula); }
-      else texts.push(String(cell.value ?? ""));
-      const hit = texts.some((t) => {
-        const hay = f.matchCase ? t : t.toLowerCase();
-        return f.entire ? hay === needle : hay.includes(needle);
-      });
-      if (hit) f.matches.push({ r, c });
+    // All sheets (100-list #29): sweep every sheet in this block; matches
+    // carry their sheetId and stepping switches sheets as it navigates.
+    const sheetsToSearch = f.allSheets ? (WB.sheetsByBlock.get(g.blockId) || [g.sheet]) : [g.sheet];
+    for (const sh of sheetsToSearch) {
+      const active = sh.id === g.sheet.id;
+      const entries = [...sh.cells.entries()].map(([key, cell]) => ({ ...keyRC(key), cell })).sort((a, b) => a.r - b.r || a.c - b.c);
+      for (const { r, c, cell } of entries) {
+        if (active && (dispIndexOfRow(g, r) < 0 || colW(sh, c) === 0)) continue; // hidden/filtered out
+        if (!active && sh.hiddenRows && sh.hiddenRows.has(r)) continue;
+        const texts = [];
+        if (cell.formula) { texts.push(String(cell.err ? "" : cell.computed ?? "")); if (f.inFormulas) texts.push(cell.formula); }
+        else texts.push(String(cell.value ?? ""));
+        const hit = texts.some((t) => {
+          const hay = f.matchCase ? t : t.toLowerCase();
+          return f.entire ? hay === needle : hay.includes(needle);
+        });
+        if (hit) f.matches.push({ r, c, sheetId: sh.id });
+      }
     }
   }
   f.idx = f.matches.length ? 0 : -1;
@@ -12611,6 +12647,7 @@ function stepFind(g, dir) {
   if (!f || !f.matches.length) { paintFindCount(g); return; }
   f.idx = (f.idx + dir + f.matches.length) % f.matches.length;
   const m = f.matches[f.idx];
+  if (m.sheetId && m.sheetId !== g.sheet.id) switchSheet(g, m.sheetId);
   setActive(g, m.r, m.c);
   paintFindCount(g);
 }
@@ -12626,7 +12663,11 @@ function replaceInText(t, f, replText) {
 
 function replacementFor(g, m, replText) {
   const f = g.find;
-  const cell = g.sheet.cells.get(cellKey(m.r, m.c));
+  // cross-sheet matches replace on their own sheet (100-list #29)
+  const sh = m.sheetId && m.sheetId !== g.sheet.id
+    ? (WB.sheetsByBlock.get(g.blockId) || []).find((x) => x.id === m.sheetId) || g.sheet
+    : g.sheet;
+  const cell = sh.cells.get(cellKey(m.r, m.c));
   if (!cell) return null;
   if (cell.formula) {
     if (!f.inFormulas) return null; // matched the computed result — nothing editable
@@ -12654,13 +12695,24 @@ function replaceCurrent(g, replText) {
 function replaceAll(g, replText) {
   const f = g.find;
   if (!WB.canEdit || !f || !f.matches.length) return;
-  const changes = [];
+  const startSheet = g.sheet.id;
+  const bySheet = new Map();
   let skipped = 0;
   for (const m of f.matches) {
     const change = replacementFor(g, m, replText);
-    if (change) changes.push(change); else skipped++;
+    if (!change) { skipped++; continue; }
+    const sid = m.sheetId || startSheet;
+    if (!bySheet.has(sid)) bySheet.set(sid, []);
+    bySheet.get(sid).push(change);
   }
-  if (changes.length) setCells(g, changes);
+  let changesN = 0;
+  for (const [sid, list] of bySheet) {
+    if (sid !== g.sheet.id) switchSheet(g, sid); // setCells works on the active sheet
+    setCells(g, list);
+    changesN += list.length;
+  }
+  if (g.sheet.id !== startSheet) switchSheet(g, startSheet);
+  const changes = { length: changesN }; // keep the toast below working unchanged
   _toast(changes.length ? `Replaced in ${changes.length} cell${changes.length === 1 ? "" : "s"}${skipped ? ` · ${skipped} formula result${skipped === 1 ? "" : "s"} skipped` : ""}` : "Nothing to replace", changes.length ? "success" : "info");
   computeFindMatches(g);
   paintFindCount(g);
@@ -12688,6 +12740,7 @@ function openFindPanel(g, withReplace) {
       <label><input type="checkbox" data-wb-find-opt="matchCase"> Match case</label>
       <label><input type="checkbox" data-wb-find-opt="entire"> Entire cell</label>
       <label><input type="checkbox" data-wb-find-opt="inFormulas"> Formulas</label>
+      <label><input type="checkbox" data-wb-find-opt="allSheets"> All sheets</label>
       ${ro ? "" : `<button type="button" class="wb-find-toggle" data-wb-find="toggle-replace">Replace…</button>`}
     </div>
     ${ro ? "" : `<div class="wb-find-row wb-find-replace-row">
@@ -12697,7 +12750,7 @@ function openFindPanel(g, withReplace) {
     </div>`}`;
   g.els.grid.appendChild(panel);
   g.els.findPanel = panel;
-  g.find = { text: "", matchCase: false, entire: false, inFormulas: false, matches: [], idx: -1 };
+  g.find = { text: "", matchCase: false, entire: false, inFormulas: false, allSheets: false, matches: [], idx: -1 };
   const input = panel.querySelector("[data-wb-find-input]");
   const rinput = panel.querySelector("[data-wb-find-rinput]");
   panel.addEventListener("keydown", (e) => {
@@ -12870,8 +12923,8 @@ function sortBySpecs(g, specs, opts) {
   repaintGrid(g);
 }
 
-// Custom sort dialog: up to three levels, column labels pulled from the
-// header row so operators pick by name, not letter.
+// Custom sort dialog: up to eight levels (100-list #32), column labels
+// pulled from the header row so operators pick by name, not letter.
 function openSortDialog(g) {
   if (!WB.canEdit) return;
   document.getElementById("wb-sort-modal")?.remove();
@@ -12894,6 +12947,7 @@ function openSortDialog(g) {
         <button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button>
       </div>
       <div class="rr-modal-body">
+        <div id="wb-sort-levels">
         ${[0, 1, 2].map((i) => `
         <div class="wb-field-row">
           <label class="wb-field"><span class="wb-field-label">${i === 0 ? "Sort by" : "Then by"}</span>
@@ -12907,6 +12961,8 @@ function openSortDialog(g) {
               <option value="custom">Custom list…</option>
             </select></label>
         </div>`).join("")}
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm" id="wb-sort-add">+ Add another level</button>
       </div>
       <div class="rr-modal-foot">
         <button class="rr-modal-btn" type="button" data-wb-close>Cancel</button>
@@ -12914,13 +12970,35 @@ function openSortDialog(g) {
       </div>
     </div>`;
   document.body.appendChild(wrap);
+  const SORT_MAX_LEVELS = 8;
+  wrap.querySelector("#wb-sort-add").addEventListener("click", () => {
+    const host = wrap.querySelector("#wb-sort-levels");
+    const i = host.children.length;
+    if (i >= SORT_MAX_LEVELS) { _toast("Eight levels is the limit", "info"); return; }
+    const row = document.createElement("div");
+    row.className = "wb-field-row";
+    row.innerHTML = `
+          <label class="wb-field"><span class="wb-field-label">Then by</span>
+            <select class="wb-input" data-sort-col="${i}"><option value="">—</option>${colOpts(-1)}</select></label>
+          <label class="wb-field" style="flex:0 0 170px"><span class="wb-field-label">Order</span>
+            <select class="wb-input" data-sort-dir="${i}">
+              <option value="asc">A → Z · low → high</option>
+              <option value="desc">Z → A · high → low</option>
+              <option value="weekday">Day of week (Mon → Sun)</option>
+              <option value="month">Month (Jan → Dec)</option>
+              <option value="custom">Custom list…</option>
+            </select></label>`;
+    host.appendChild(row);
+    row.querySelector("select").focus();
+  });
   wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") wrap.remove(); });
   wrap.addEventListener("click", (e) => {
     if (e.target === wrap || e.target.closest("[data-wb-close]")) { wrap.remove(); return; }
     if (e.target.closest("[data-wb-sort-apply]")) {
       const specs = [];
       let needsCustom = null;
-      for (let i = 0; i < 3; i++) {
+      const nLevels = wrap.querySelector("#wb-sort-levels").children.length;
+      for (let i = 0; i < nLevels; i++) {
         const col = wrap.querySelector(`[data-sort-col="${i}"]`).value;
         if (col === "") continue;
         const c = +col;
@@ -13710,6 +13788,142 @@ function deleteFilterView(g, viewId) {
   saveSheetMeta(g.sheet.id);
 }
 
+// ─── Smart Fill from examples (100-list #23) ────────────────────────────────
+// Type two or more transformed values at the top of a column, run Data →
+// Smart Fill, and the rest of the column fills with the inferred pattern.
+// The inference tries a fixed candidate set — copies, case changes,
+// first/last word, initials, before/after a delimiter, and two-column
+// concatenations — and only fills when every example agrees.
+function inferSmartTransform(examples) {
+  if (!Array.isArray(examples) || examples.length < 2) return null;
+  const nCols = examples[0].src.length;
+  const S = (v) => String(v ?? "").trim();
+  const cands = [];
+  const proper = (t) => t.replace(/\w\S*/g, (w) => w[0].toUpperCase() + w.slice(1).toLowerCase());
+  for (let i = 0; i < nCols; i++) {
+    cands.push({ f: (src) => S(src[i]), d: "copy" });
+    cands.push({ f: (src) => S(src[i]).toUpperCase(), d: "UPPERCASE" });
+    cands.push({ f: (src) => S(src[i]).toLowerCase(), d: "lowercase" });
+    cands.push({ f: (src) => proper(S(src[i])), d: "Proper Case" });
+    cands.push({ f: (src) => S(src[i]).split(/\s+/)[0], d: "first word" });
+    cands.push({ f: (src) => S(src[i]).split(/\s+/).slice(-1)[0], d: "last word" });
+    cands.push({ f: (src) => (S(src[i]).match(/[A-Za-z]+/g) || []).map((w) => w[0].toUpperCase()).join(""), d: "initials" });
+    for (const dlm of [" ", ",", "-", "/", "@", ":"]) {
+      cands.push({ f: (src) => S(src[i]).split(dlm)[0].trim(), d: `text before “${dlm}”` });
+      cands.push({ f: (src) => S(src[i]).split(dlm).slice(1).join(dlm).trim(), d: `text after “${dlm}”` });
+    }
+  }
+  for (let i = 0; i < nCols; i++) {
+    for (let j = 0; j < nCols; j++) {
+      if (i === j) continue;
+      for (const sep of [" ", ", ", "-", "/", "", ". "]) {
+        cands.push({ f: (src) => S(src[i]) + sep + S(src[j]), d: "combined columns" });
+      }
+    }
+  }
+  for (const cand of cands) {
+    let hit = true;
+    for (const ex of examples) {
+      let got;
+      try { got = cand.f(ex.src); } catch (_) { hit = false; break; }
+      if (S(got) === "" || S(got) !== S(ex.out)) { hit = false; break; }
+    }
+    if (hit) return cand;
+  }
+  return null;
+}
+
+function smartFillColumn(g) {
+  if (!WB.canEdit) return;
+  const sheet = g.sheet;
+  const target = g.active.c;
+  const { maxR, maxC } = usedRange(sheet);
+  if (maxR < 2) { _toast("Not enough data — fill two example values first", "info"); return; }
+  const srcCols = [];
+  for (let c = 0; c <= Math.min(maxC, 25); c++) if (c !== target) srcCols.push(c);
+  if (!srcCols.length) { _toast("Smart Fill needs at least one other column to read from", "info"); return; }
+  const srcAt = (r) => srcCols.map((c) => filterCellText(sheet, r, c));
+  const examples = [];
+  let r = 1;
+  for (; r <= maxR; r++) {
+    const t = filterCellText(sheet, r, target);
+    if (t === "") break;
+    examples.push({ src: srcAt(r), out: t });
+  }
+  if (examples.length < 2) { _toast("Type at least two example values at the top of the column, then run Smart Fill", "info"); return; }
+  const cand = inferSmartTransform(examples);
+  if (!cand) { _toast("Couldn't find a pattern that matches all your examples", "warn"); return; }
+  const changes = [];
+  for (let rr = r; rr <= maxR; rr++) {
+    if (filterCellText(sheet, rr, target) !== "") continue;
+    const src = srcAt(rr);
+    if (src.every((v) => v === "")) continue;
+    let out;
+    try { out = cand.f(src); } catch (_) { continue; }
+    if (String(out ?? "").trim() === "") continue;
+    changes.push({ r: rr, c: target, cell: cellFromInput(String(out), sheet.cells.get(cellKey(rr, target))) });
+  }
+  if (!changes.length) { _toast("Nothing left to fill in this column", "info"); return; }
+  setCells(g, changes, { validate: true });
+  _toast(`Smart-filled ${changes.length} cell${changes.length === 1 ? "" : "s"} (${cand.d})`, "success");
+}
+
+// ─── Row/column grouping (100-list #19) ─────────────────────────────────────
+// Groups live in sheet.meta.rowGroups / colGroups as {id, from, to,
+// collapsed}. The first row/col of a group is its summary line and carries
+// the collapse toggle in its header; collapsing hides from+1..to.
+function sheetGroups(sheet, axis) {
+  const v = sheet.meta && sheet.meta[axis === "row" ? "rowGroups" : "colGroups"];
+  return Array.isArray(v) ? v : [];
+}
+function groupHiddenSet(sheet, axis) {
+  const out = new Set();
+  for (const gr of sheetGroups(sheet, axis)) {
+    if (!gr.collapsed) continue;
+    for (let i = gr.from + 1; i <= gr.to; i++) out.add(i);
+  }
+  return out;
+}
+function groupSelection(g, axis) {
+  if (!WB.canEdit) return;
+  const rect = selRect(g);
+  const from = axis === "row" ? rect.r0 : rect.c0;
+  const to = axis === "row" ? rect.r1 : rect.c1;
+  if (to - from < 1) { _toast(`Select at least two ${axis === "row" ? "rows" : "columns"} to group`, "info"); return; }
+  const key = axis === "row" ? "rowGroups" : "colGroups";
+  const groups = sheetGroups(g.sheet, axis);
+  if (groups.some((gr) => !(to < gr.from || from > gr.to))) { _toast("Those overlap an existing group — ungroup first", "warn"); return; }
+  g.sheet.meta = { ...(g.sheet.meta || {}), [key]: [...groups, { id: "gr" + Math.random().toString(36).slice(2, 8), from, to, collapsed: false }] };
+  saveSheetMeta(g.sheet.id);
+  repaintGrid(g);
+  _toast(`Grouped — use the ⊟ button on ${axis === "row" ? "row " + (from + 1) : "column " + colLabel(from)} to collapse`, "success");
+}
+function ungroupSelection(g) {
+  if (!WB.canEdit) return;
+  const rect = selRect(g);
+  let removed = 0;
+  for (const [axis, key, a, b] of [["row", "rowGroups", rect.r0, rect.r1], ["col", "colGroups", rect.c0, rect.c1]]) {
+    const groups = sheetGroups(g.sheet, axis);
+    const keep = groups.filter((gr) => b < gr.from || a > gr.to);
+    removed += groups.length - keep.length;
+    if (keep.length !== groups.length) g.sheet.meta = { ...(g.sheet.meta || {}), [key]: keep };
+  }
+  if (!removed) { _toast("No group under the selection", "info"); return; }
+  saveSheetMeta(g.sheet.id);
+  computeGeometry(g);
+  repaintGrid(g);
+}
+function toggleGroup(g, axis, id) {
+  const groups = sheetGroups(g.sheet, axis);
+  const gr = groups.find((x) => x.id === id);
+  if (!gr) return;
+  gr.collapsed = !gr.collapsed;
+  g.sheet.meta = { ...(g.sheet.meta || {}) };
+  if (WB.canEdit) saveSheetMeta(g.sheet.id);
+  computeGeometry(g);
+  repaintGrid(g);
+}
+
 // ─── Slicers (100-list #46) ──────────────────────────────────────────────────
 // Visual filter chips for a column, persisted in sheet.meta.slicers as
 // [{id, col}]. Chips ride the same g.filters state as the AutoFilter, so
@@ -13776,7 +13990,7 @@ function toggleTableBanding(g) {
   if (!WB.canEdit) return;
   const tables = Array.isArray(g.sheet.meta && g.sheet.meta.tables) ? g.sheet.meta.tables : [];
   const t = tables.find((x) => g.active.r >= x.r0 && g.active.r <= x.r1 && g.active.c >= x.c0 && g.active.c <= x.c1);
-  if (!t) { _toast("Click inside a table first (Data \u2192 Create table)", "info"); return; }
+  if (!t) { _toast("Click inside a table first (Data → Create table)", "info"); return; }
   t.banded = !t.banded;
   g.sheet.meta = { ...(g.sheet.meta || {}) };
   saveSheetMeta(g.sheet.id);
@@ -18286,6 +18500,36 @@ function bindGridEvents(g) {
     setZoom(g, Math.round((g.zoom + step) * 100) / 100);
   }, { passive: false });
 
+  // ── touch (100-list #20): two-finger pinch zooms, long-press opens the
+  // cell context menu; scrolling stays native single-finger.
+  let _pinch = null, _press = null;
+  const touchDist = (e) => Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+  grid.addEventListener("touchstart", (e) => {
+    if (e.touches.length === 2) {
+      clearTimeout(_press); _press = null;
+      _pinch = { d: touchDist(e), z: g.zoom };
+      return;
+    }
+    const t = e.touches[0];
+    const el = document.elementFromPoint(t.clientX, t.clientY);
+    if (!el || !el.closest(".wb-cell")) return;
+    clearTimeout(_press);
+    _press = setTimeout(() => {
+      _press = null;
+      el.dispatchEvent(new MouseEvent("contextmenu", { clientX: t.clientX, clientY: t.clientY, bubbles: true, cancelable: true }));
+    }, 550);
+  }, { passive: true });
+  grid.addEventListener("touchmove", (e) => {
+    if (_press) { clearTimeout(_press); _press = null; }
+    if (_pinch && e.touches.length === 2) {
+      e.preventDefault();
+      const scale = touchDist(e) / _pinch.d;
+      setZoom(g, Math.round(_pinch.z * scale * 20) / 20);
+    }
+  }, { passive: false });
+  grid.addEventListener("touchend", () => { clearTimeout(_press); _press = null; _pinch = null; }, { passive: true });
+  grid.addEventListener("touchcancel", () => { clearTimeout(_press); _press = null; _pinch = null; }, { passive: true });
+
   // ── mouse selection / resize ──
   const canvasPos = (e) => {
     const rect = scroll.getBoundingClientRect();
@@ -18293,6 +18537,7 @@ function bindGridEvents(g) {
   };
 
   grid.addEventListener("mousedown", (e) => {
+    if (e.target.closest("[data-wb-grp]")) return; // group toggles act on click
     // right-drag the fill handle → preview, then a fill-options menu on
     // release (Excel). Must run before the context-menu bail below.
     if (e.button === 2 && WB.canEdit && e.target.closest("[data-wb-fillhandle]")) {
@@ -18491,6 +18736,12 @@ function bindGridEvents(g) {
       return;
     }
 
+    const grpBtn = e.target.closest("[data-wb-grp]");
+    if (grpBtn) {
+      const [axis, id] = grpBtn.getAttribute("data-wb-grp").split(":");
+      toggleGroup(g, axis, id);
+      return;
+    }
     const fz = e.target.closest(".wb-gr-frozen-top .wb-cell, .wb-gr-frozen-left .wb-cell, .wb-gr-frozen-corner .wb-cell");
     if (fz) {
       e.preventDefault();
@@ -18707,6 +18958,12 @@ function bindGridEvents(g) {
       return;
     }
     if (meta && (k === "s" || k === "S")) { e.preventDefault(); scheduleCellFlush.flushNow(); return; }
+    if (meta && (k === "k" || k === "K")) { e.preventDefault(); openCommandPalette(g); return; } // command palette (#24)
+    { // user-bound shortcuts run any palette command (100-list #30)
+      const combo = wbComboFromEvent(e);
+      const act = combo && wbCustomKeys()[combo];
+      if (act) { e.preventDefault(); wbMenuAction(act, g); return; }
+    }
     if (meta && e.altKey && (k === "m" || k === "M")) { e.preventDefault(); openCellComment(g, g.active.r, g.active.c); return; } // Sheets' comment shortcut
     if (meta && k === "`") { e.preventDefault(); g.showFormulas = !g.showFormulas; repaintGrid(g); return; } // View → Show → Formulas
     if (meta && (k === "f" || k === "F")) { e.preventDefault(); openFindPanel(g, false); return; }
@@ -19452,6 +19709,7 @@ function openCellContextMenu(g, x, y, kind) {
     item("format-cells", "Format cells…"),
     item("merge-toggle", "Merge / unmerge cells"),
     item("comment", "Add comment"),
+    item("note", g.sheet.cells.get(cellKey(r, c))?.format?.note ? "Edit note…" : "Add note…"),
     item("insert-link", (g.sheet.cells.get(cellKey(r, c))?.format?.link ? "Edit link…" : "Insert link…")),
     g.sheet.cells.get(cellKey(r, c))?.format?.link ? item("open-link", "Open link") : "",
     g.sheet.cells.get(cellKey(r, c))?.format?.link ? item("remove-link", "Remove link") : "",
@@ -19499,6 +19757,23 @@ function openCellContextMenu(g, x, y, kind) {
       case "clear-format": clearFormatting(g); break;
       case "format-cells": openFormatCellsDialog(g); break;
       case "comment": openCellComment(g, r, c); break;
+      case "note": {
+        // plain note (100-list #28): lightweight text on the cell, separate
+        // from threaded comments; shows on hover via the purple corner mark
+        const prevCell = g.sheet.cells.get(cellKey(r, c));
+        promptModal({
+          title: `Note on ${cellRef(r, c)}`, label: "Note (empty removes it)",
+          value: (prevCell && prevCell.format && prevCell.format.note) || "", submitLabel: "Save note",
+          onSubmit: (txt) => {
+            const base = prevCell ? cloneCell(prevCell) : { value: null, formula: null, type: null, format: {} };
+            const fmt = { ...base.format };
+            if (String(txt).trim()) fmt.note = String(txt).trim().slice(0, 500);
+            else delete fmt.note;
+            setCells(g, [{ r, c, cell: { ...base, format: fmt } }]);
+          },
+        });
+        break;
+      }
       case "copy-ref": try { await navigator.clipboard.writeText(ref); _toast(`Copied ${ref}`, "success"); } catch (_) {} break;
       case "resize-col": {
         // clicked inside the selection → resize every selected column
@@ -20010,6 +20285,113 @@ function insertLinkPrompt(g) {
 
 const WB_MENUS = ["File", "Edit", "View", "Insert", "Format", "Data", "Tools", "Help"];
 
+// ─── Command palette (100-list #24) + custom shortcuts (#30) ────────────────
+// Every menu action, searchable under Ctrl+K. The palette rides the same
+// wbMenuItems/wbMenuAction pair as the menu bar, so anything added to a menu
+// is automatically searchable — and bindable to a custom shortcut.
+function paletteCommands(g) {
+  const out = [];
+  for (const menu of WB_MENUS) {
+    const walk = (items, path) => {
+      for (const it of items || []) {
+        if (!it || typeof it !== "object" || !it.label) continue;
+        if (it.sub) { walk(it.sub, path.concat(it.label)); continue; }
+        if (!it.act || it.disabled) continue;
+        out.push({ label: String(it.label).replace(/^✓ /, ""), path: path.join(" › "), act: it.act, kbd: it.kbd || "" });
+      }
+    };
+    walk(wbMenuItems(menu, g), [menu]);
+  }
+  return out;
+}
+
+function wbCustomKeys() {
+  try { const v = JSON.parse(localStorage.getItem("rr-wb-keys") || "{}"); return v && typeof v === "object" ? v : {}; } catch (_) { return {}; }
+}
+function wbComboFromEvent(e) {
+  if (["Control", "Meta", "Shift", "Alt"].includes(e.key)) return null;
+  const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  const parts = [];
+  if (e.ctrlKey || e.metaKey) parts.push("ctrl");
+  if (e.altKey) parts.push("alt");
+  if (e.shiftKey) parts.push("shift");
+  parts.push(k);
+  return parts.join("+");
+}
+
+function openCommandPalette(g) {
+  document.getElementById("wb-palette")?.remove();
+  const cmds = paletteCommands(g);
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-palette";
+  wrap.innerHTML = `
+    <div class="rr-modal-panel wb-palette-panel" role="dialog" aria-modal="true" aria-label="Command palette" style="width:480px">
+      <input type="text" class="wb-input wb-palette-q" id="wb-palette-q" placeholder="Type a command…" autocomplete="off" spellcheck="false" aria-label="Search commands">
+      <div class="wb-palette-list" id="wb-palette-list" role="listbox"></div>
+      <p class="wb-palette-hint">↑↓ choose · Enter runs · ⌨ binds a custom shortcut</p>
+    </div>`;
+  document.body.appendChild(wrap);
+  const input = wrap.querySelector("#wb-palette-q");
+  const list = wrap.querySelector("#wb-palette-list");
+  let filtered = cmds, sel = 0, binding = null;
+  const keysByAct = () => { const m = {}; for (const [combo, act] of Object.entries(wbCustomKeys())) m[act] = combo; return m; };
+  const paint = () => {
+    const bound = keysByAct();
+    list.innerHTML = filtered.slice(0, 40).map((c, i) => `
+      <div class="wb-palette-item ${i === sel ? "is-sel" : ""}" data-pal-i="${i}" role="option" aria-selected="${i === sel}">
+        <span class="wb-palette-label">${esc(c.label)}</span>
+        <span class="wb-palette-path">${esc(c.path)}</span>
+        ${binding === i ? `<span class="wb-palette-kbd is-live">press keys…</span>`
+          : bound[c.act] ? `<span class="wb-palette-kbd">${esc(bound[c.act])}</span>`
+          : c.kbd ? `<span class="wb-palette-kbd">${esc(c.kbd)}</span>` : ""}
+        <button type="button" class="wb-palette-bind" data-pal-bind="${i}" title="Bind a custom shortcut" aria-label="Bind a custom shortcut">⌨</button>
+      </div>`).join("") || `<div class="rr-empty-inline">No matching commands.</div>`;
+  };
+  const run = (i) => {
+    const cmd = filtered[i];
+    if (!cmd) return;
+    wrap.remove();
+    wbMenuAction(cmd.act, g);
+  };
+  input.addEventListener("input", () => {
+    const q = input.value.trim().toLowerCase();
+    filtered = !q ? cmds : cmds.filter((c) => (c.label + " " + c.path).toLowerCase().includes(q));
+    sel = 0; binding = null;
+    paint();
+  });
+  wrap.addEventListener("keydown", (e) => {
+    e.stopPropagation();
+    if (binding != null) {
+      e.preventDefault();
+      if (e.key === "Escape") { binding = null; paint(); return; }
+      const combo = wbComboFromEvent(e);
+      if (!combo) return;
+      const keys = wbCustomKeys();
+      for (const [c2, a2] of Object.entries(keys)) if (a2 === filtered[binding].act) delete keys[c2];
+      keys[combo] = filtered[binding].act;
+      try { localStorage.setItem("rr-wb-keys", JSON.stringify(keys)); } catch (_) {}
+      _toast(`${filtered[binding].label} → ${combo}`, "success");
+      binding = null;
+      paint();
+      return;
+    }
+    if (e.key === "Escape") { wrap.remove(); g.els.grid.focus(); }
+    else if (e.key === "ArrowDown") { e.preventDefault(); sel = Math.min(filtered.length - 1, sel + 1); paint(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); sel = Math.max(0, sel - 1); paint(); }
+    else if (e.key === "Enter") { e.preventDefault(); run(sel); }
+  });
+  wrap.addEventListener("click", (e) => {
+    if (e.target === wrap) { wrap.remove(); return; }
+    const bind = e.target.closest("[data-pal-bind]");
+    if (bind) { binding = +bind.getAttribute("data-pal-bind"); paint(); return; }
+    const item = e.target.closest("[data-pal-i]");
+    if (item) run(+item.getAttribute("data-pal-i"));
+  });
+  paint();
+  setTimeout(() => input.focus(), 30);
+}
+
 function wbMenuItems(menu, g) {
   const ed = WB.canEdit;
   const sep = "—";
@@ -20159,6 +20541,10 @@ function wbMenuItems(menu, g) {
         { label: "Toggle table total row", act: "data:table-totals", disabled: !ed || !g },
         { label: "Toggle table banded rows", act: "data:table-band", disabled: !ed || !g },
         { label: "Add slicer for this column", act: "data:slicer", disabled: !ed || !g },
+        { label: "Smart Fill from examples", act: "data:smartfill", disabled: !ed || !g },
+        { label: "Group rows", act: "data:group-rows", disabled: !ed || !g },
+        { label: "Group columns", act: "data:group-cols", disabled: !ed || !g },
+        { label: "Ungroup", act: "data:ungroup", disabled: !ed || !g },
         { label: "Protect / unprotect selection", act: "data:protect", disabled: !g || !WB.canAdmin },
         { label: "Goal seek…", act: "data:goalseek", disabled: !ed || !g },
         { label: "Pivot table…", act: "data:pivot", disabled: !ed || !g },
@@ -20306,6 +20692,10 @@ function wbMenuAction(act, g) {
     case "data:table-totals": if (need()) toggleTableTotals(g); return;
     case "data:table-band": if (need()) toggleTableBanding(g); return;
     case "data:slicer": if (need()) addSlicer(g); return;
+    case "data:smartfill": if (need()) smartFillColumn(g); return;
+    case "data:group-rows": if (need()) groupSelection(g, "row"); return;
+    case "data:group-cols": if (need()) groupSelection(g, "col"); return;
+    case "data:ungroup": if (need()) ungroupSelection(g); return;
     case "data:protect": toggleProtectSelection(g); return;
     case "data:goalseek": if (need()) openGoalSeekDialog(g); return;
     case "data:pivot": if (need()) openPivotDialog(g); return;
@@ -22258,7 +22648,7 @@ export const __engine = {
   fillSeries, cycleRefAnchor, errorHint, columnSuggestion, snapshotSheet, applySheetSnapshot,
   colLabel, colIndex, cellRef, parseCellRef,
   dateToSerial, serialToDate, isoDate, parseDateLoose,
-  buildXlsxBytes, parseXlsxBytes, buildPrintTable, formatForDisplay, applyCustomFormat, customFormatColor, solveGoalSeek, filterCondHits,
+  buildXlsxBytes, parseXlsxBytes, buildPrintTable, formatForDisplay, applyCustomFormat, customFormatColor, solveGoalSeek, filterCondHits, inferSmartTransform,
   condBarPercent, condIconPick, WB_CF_ICONSETS, isCellProtected, runQuery,
   chartSvg, WB_CHART_TYPES, kpiTileHtml, tableTileHtml, textTileHtml, kpiSparkline, kpiFmt, embedCellNum,
   chartData, aggRange, distinctColumnValues, kpiValue, KPI_AGGS,

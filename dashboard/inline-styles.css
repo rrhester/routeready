@@ -31209,6 +31209,32 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
   background:var(--surface);border:1px solid var(--border,#E5E7EB);border-radius:999px;
   padding:5px 8px 5px 14px;box-shadow:0 4px 14px rgba(15,23,42,.12);
 }
+/* Plain cell notes (100-list #28): purple corner mark, hover shows the text */
+#view-workbooks .wb-nmark{
+  position:absolute;top:0;left:0;width:0;height:0;pointer-events:auto;
+  border-top:6px solid #7C3AED;border-right:6px solid transparent;
+}
+/* Group toggles in the row/col headers (100-list #19) */
+#view-workbooks .wb-grp{
+  border:0;background:none;cursor:pointer;padding:0 3px 0 0;font-size:11px;
+  color:var(--text-subtle);line-height:1;
+}
+#view-workbooks .wb-grp:hover{color:var(--text)}
+/* Command palette (100-list #24) */
+.wb-palette-panel{padding:10px}
+.wb-palette-q{width:100%;box-sizing:border-box;margin-bottom:8px}
+.wb-palette-list{max-height:320px;overflow:auto}
+.wb-palette-item{
+  display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;cursor:pointer;
+}
+.wb-palette-item.is-sel,.wb-palette-item:hover{background:var(--accent-soft,rgba(37,99,235,.08))}
+.wb-palette-label{font-weight:600;font-size:var(--fs-sm)}
+.wb-palette-path{font-size:var(--fs-xs);color:var(--text-subtle);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wb-palette-kbd{font-size:11px;font-family:ui-monospace,Menlo,monospace;color:var(--text-subtle);background:var(--surface-2,#F3F4F6);border-radius:5px;padding:2px 6px}
+.wb-palette-kbd.is-live{color:var(--accent-text,#1D4ED8);background:var(--accent-soft,rgba(37,99,235,.1))}
+.wb-palette-bind{border:0;background:none;cursor:pointer;color:var(--text-subtle);font-size:13px;padding:2px}
+.wb-palette-bind:hover{color:var(--text)}
+.wb-palette-hint{margin:8px 2px 0;font-size:var(--fs-xs);color:var(--text-subtle)}
 /* CF rules list: reorder buttons */
 #view-workbooks .wb-cf-move{border:0;background:none;cursor:pointer;color:var(--text-subtle);padding:2px 4px;font-size:12px}
 #view-workbooks .wb-cf-move:hover{color:var(--text)}

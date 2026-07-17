@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// (also covers Smart Fill inference — see the bottom of this file)
 // Tests for smart fill series + F4 reference-anchor cycling.
 //   node scripts/test-fill.mjs
 import assert from "node:assert/strict";
@@ -61,5 +62,37 @@ ok("no match ⇒ null", cs(5, "xyz"), null);
 ok("numeric typed ⇒ null", cs(5, "4"), null);
 ok("formula typed ⇒ null", cs(5, "=A"), null);
 ok("skips numeric cells", columnSuggestion(colSheet(), 5, 0, "4"), null);
+
+// ── Smart Fill inference (100-list #23) ──────────────────────────────────────
+const { inferSmartTransform } = __engine;
+const infer = (examples, probe) => {
+  const t = inferSmartTransform(examples);
+  return t ? t.f(probe) : null;
+};
+ok("smart fill: concat first+last", infer([
+  { src: ["Sam", "Reyes"], out: "Sam Reyes" },
+  { src: ["Ada", "Okafor"], out: "Ada Okafor" },
+], ["Lee", "Zhang"]), "Lee Zhang");
+ok("smart fill: initials", infer([
+  { src: ["Sam Reyes"], out: "SR" },
+  { src: ["Ada Okafor"], out: "AO" },
+], ["Lee Zhang"]), "LZ");
+ok("smart fill: before @ (email → user)", infer([
+  { src: ["sam@acme.com"], out: "sam" },
+  { src: ["ada@acme.com"], out: "ada" },
+], ["lee@acme.com"]), "lee");
+ok("smart fill: uppercase", infer([
+  { src: ["dtw1"], out: "DTW1" },
+  { src: ["dtw2"], out: "DTW2" },
+], ["lax9"]), "LAX9");
+ok("smart fill: last word", infer([
+  { src: ["Sam Reyes"], out: "Reyes" },
+  { src: ["Ada Okafor"], out: "Okafor" },
+], ["Lee Zhang"]), "Zhang");
+ok("smart fill: one example is not enough", inferSmartTransform([{ src: ["a"], out: "a" }]), null);
+ok("smart fill: contradictory examples ⇒ null", inferSmartTransform([
+  { src: ["Sam"], out: "SAM" },
+  { src: ["Ada"], out: "ada" },
+]), null);
 
 console.log(`✓ fill series + F4: ${n} tests passed`);
