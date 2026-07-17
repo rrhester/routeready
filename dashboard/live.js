@@ -25956,6 +25956,101 @@ function _ivcalGoogleMenu(e) {
   setTimeout(() => document.addEventListener("mousedown", off), 0);
 }
 
+// #42 · Event hover peek — a quiet preview card after a deliberate 450ms
+// hover, Google Calendar-style. OFF by default: the operator had an
+// always-on hover preview removed earlier, so this returns strictly as an
+// opt-in (Settings → "Event hover preview"). Pointer-fine devices only;
+// private events stay masked; the native title tooltip is suppressed while
+// the card shows so the two never stack.
+let _ivHoverPeek = (() => { try { return localStorage.getItem("rr_ivcal_hoverpeek") === "1"; } catch (_) { return false; } })();
+let _ivPeekTimer = null;
+function _ivcalClosePeek() {
+  clearTimeout(_ivPeekTimer); _ivPeekTimer = null;
+  const el = document.getElementById("rr-ivcal-peek");
+  if (el) {
+    if (el._srcEl && el._srcTitle) { try { el._srcEl.setAttribute("title", el._srcTitle); } catch (_) {} }
+    el.remove();
+  }
+}
+function _ivcalShowPeek(block) {
+  const kind = block.getAttribute("data-ivcal-kind") || "booking";
+  if (kind !== "booking") return;
+  const ev = _ivcalFindEv(kind, block.getAttribute("data-ivcal-id"));
+  if (!ev || _ivcalPrivMasked(ev)) return;
+  _ivcalClosePeek();
+
+  const isEvent = ev.kind === "event";
+  const name = isEvent
+    ? ((ev.title || "").trim() || "Event")
+    : `${(ev.applicants && ev.applicants.full_name) || "Applicant"}`;
+  const kindWord = isEvent ? "Event" : ev.kind === "orientation" ? "Orientation" : "Interview";
+  const s = new Date(ev.starts_at);
+  const e2 = ev.ends_at ? new Date(ev.ends_at) : null;
+  const when = s.toLocaleString(_ivDLocale(), { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+    + (e2 ? " – " + e2.toLocaleTimeString([], _ivClockOpts()) : "");
+  const lines = [];
+  if (ev.status === "cancelled") lines.push(`<span class="oc-peek-warn">Cancelled</span>`);
+  else if (ev.status === "no_show") lines.push(`<span class="oc-peek-warn">No-show</span>`);
+  else if (ev.metadata && ev.metadata.running_late) lines.push(`<span class="oc-peek-warn">Running late</span>`);
+  else if (ev.metadata && ev.metadata.confirmed_at) lines.push(`<span class="oc-peek-ok">Candidate confirmed</span>`);
+  if (ev.location && ev.location.trim()) lines.push(escapeHtml(ev.location.trim()));
+  const ivw = ev.metadata && ev.metadata.interviewer && ev.metadata.interviewer.name;
+  if (ivw) lines.push(`Interviewer: ${escapeHtml(ivw)}`);
+  if (_ivcalHttps(ev.meeting_url)) lines.push("Video meeting attached");
+
+  const card = document.createElement("div");
+  card.id = "rr-ivcal-peek";
+  card.className = "oc-peek";
+  card.setAttribute("role", "tooltip");
+  card.innerHTML =
+    `<div class="oc-peek-t">${escapeHtml(name)}</div>` +
+    `<div class="oc-peek-k">${escapeHtml(kindWord)} · ${escapeHtml(when)}</div>` +
+    lines.map(l => `<div class="oc-peek-l">${l}</div>`).join("");
+  document.body.appendChild(card);
+
+  // Beside the block, flipping left / clamping vertically at the edges.
+  const r = block.getBoundingClientRect();
+  const cw = card.offsetWidth, chh = card.offsetHeight;
+  let left = r.right + 8;
+  if (left + cw + 8 > window.innerWidth) left = Math.max(8, r.left - cw - 8);
+  const top = Math.max(8, Math.min(r.top, window.innerHeight - chh - 8));
+  card.style.left = left + "px";
+  card.style.top = top + "px";
+
+  card._srcEl = block;
+  card._srcTitle = block.getAttribute("title") || "";
+  if (card._srcTitle) block.removeAttribute("title");
+  card.addEventListener("mouseleave", (mev) => {
+    const to = mev.relatedTarget;
+    if (to && block.contains(to)) return;
+    _ivcalClosePeek();
+  });
+}
+function _ivcalInstallHoverPeek(host) {
+  if (host._rrPeekWired) return;
+  host._rrPeekWired = true;
+  host.addEventListener("mouseover", (e) => {
+    if (!_ivHoverPeek || _ivcalDrag) return;
+    if (!(window.matchMedia && window.matchMedia("(pointer: fine)").matches)) return;
+    const block = e.target.closest("[data-ivcal-kind][data-ivcal-id]");
+    if (!block) return;
+    const open = document.getElementById("rr-ivcal-peek");
+    if (open && open._srcEl === block) return;
+    clearTimeout(_ivPeekTimer);
+    _ivPeekTimer = setTimeout(() => { if (block.isConnected) _ivcalShowPeek(block); }, 450);
+  });
+  host.addEventListener("mouseout", (e) => {
+    const block = e.target.closest("[data-ivcal-kind][data-ivcal-id]");
+    if (!block) return;
+    const to = e.relatedTarget;
+    const open = document.getElementById("rr-ivcal-peek");
+    if (to && (block.contains(to) || (open && open.contains(to)))) return;
+    _ivcalClosePeek();
+  });
+  host.addEventListener("mousedown", () => _ivcalClosePeek(), true);
+  host.addEventListener("scroll", () => _ivcalClosePeek(), true);
+}
+
 // Inline detail popover for a read-only Google overlay event (#67).
 function _ivcalGooglePeek(e, link) {
   _ivcalCloseMenus();
@@ -26776,6 +26871,8 @@ function _ivcalRenderNow() {
   if (!host || !_ivcalCache) return;
   _rrHiddenLabelSet = _rrHiddenLabelColors();
   _ivcalCloseMenus();
+  _ivcalClosePeek();
+  _ivcalInstallHoverPeek(host);
   const _hadOc = !!host.querySelector(".oc"); // grid already on screen → this is a repaint
   const _prevScroll = document.getElementById("rr-ivcal-scroll") ? document.getElementById("rr-ivcal-scroll").scrollTop : null;
   const seg = (v, t) => `<button class="${_ivcalView===v?"on":""}" data-ivcal-view="${v}">${t}</button>`;
@@ -31149,6 +31246,7 @@ function _ivcalSettingsMenu(btn) {
         <input type="time" data-set-wstart value="${hhmm(_ivWork.start)}"> <span>to</span> <input type="time" data-set-wend value="${hhmm(_ivWork.end)}">
       </div>
       <label class="oc-set-row"><input type="checkbox" data-set-weeknums${_ivWeekNums ? " checked" : ""}> Show week numbers</label>
+      <label class="oc-set-row" title="Show a small preview card after hovering an event for half a second"><input type="checkbox" data-set-hoverpeek${_ivHoverPeek ? " checked" : ""}> Event hover preview</label>
       <button type="button" class="oc-set-link" data-set-print role="menuitem">
         <span class="oc-set-link-ico"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></span>
         <span class="oc-set-link-lbl">Print calendar…</span>
@@ -31257,6 +31355,11 @@ function _ivcalSettingsMenu(btn) {
   });
   menu.querySelector("[data-set-weeknums]").addEventListener("change", (e) => {
     _ivWeekNums = e.target.checked; rerender();
+  });
+  menu.querySelector("[data-set-hoverpeek]").addEventListener("change", (e) => {
+    _ivHoverPeek = e.target.checked;
+    try { localStorage.setItem("rr_ivcal_hoverpeek", _ivHoverPeek ? "1" : "0"); } catch (_) {}
+    if (!_ivHoverPeek) _ivcalClosePeek();
   });
   menu.querySelector("[data-set-print]").addEventListener("click", () => {
     closeMenu();

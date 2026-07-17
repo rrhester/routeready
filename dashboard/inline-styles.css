@@ -33215,3 +33215,15 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
   .rr-ins { min-width: 0; }
   .rr-notify-dlg { min-width: 0; }
 }
+
+/* ═══ Calendar item 42 · opt-in event hover peek (2026-07-17) ════════════ */
+.oc-peek { position: fixed; z-index: 9999; max-width: 280px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 12px 36px rgba(15, 23, 42, 0.22); padding: 10px 12px; font-size: var(--fs-sm); pointer-events: auto; }
+.oc-peek-t { font-weight: 700; color: var(--text); margin-bottom: 2px; }
+.oc-peek-k { color: var(--text-muted); margin-bottom: 4px; }
+.oc-peek-l { color: var(--text-subtle); margin-top: 2px; }
+.oc-peek-warn { color: var(--red); font-weight: 600; }
+.oc-peek-ok { color: var(--green); font-weight: 600; }
+@media (prefers-reduced-motion: no-preference) {
+  .oc-peek { animation: rr-peek-in 120ms ease-out; }
+  @keyframes rr-peek-in { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
+}
