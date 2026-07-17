@@ -7,6 +7,7 @@
 import {
   mdLite, applyShortcodes, shortcodeAt, searchEmoji, EMOJIS, SHORTCODES,
   fillTemplate, matchTemplates, BUILTIN_TEMPLATES, fitDims, shouldCompress, draftKey,
+  parseSearchQuery, hasSearchOps, msgMatchesOps, sortThreads, isSnoozed,
 } from "../dashboard/msg-core.mjs";
 
 let failures = 0;
@@ -99,6 +100,59 @@ eq(shouldCompress("application/pdf", 5 * 1024 * 1024), false, "non-image never")
 console.log("draftKey");
 eq(draftKey("dm", "abc"), "rr_draft_dm_abc", "dm key");
 eq(draftKey("ch", "42"), "rr_draft_ch_42", "channel key");
+
+console.log("parseSearchQuery");
+{
+  const p = parseSearchQuery("route 7 from:driver has:attachment after:2026-07-01");
+  eq(p.text, "route 7", "operators stripped from text");
+  eq(p.from, "driver", "from:driver");
+  eq(p.has, "attachment", "has:attachment");
+  eq(p.after instanceof Date, true, "after parsed to Date");
+  eq(hasSearchOps(p), true, "ops detected");
+}
+eq(parseSearchQuery("from:me late").from, "dispatch", "from:me → dispatch");
+eq(parseSearchQuery("ratio:16:9 test").text, "ratio:16:9 test", "unknown operator stays in text");
+eq(parseSearchQuery("before:notadate x").text, "before:notadate x", "bad date stays in text");
+eq(parseSearchQuery("in:rooms pay").scope, "broadcasts", "in:rooms → broadcasts scope");
+eq(parseSearchQuery("label:VIP").label, "VIP", "label preserved");
+eq(hasSearchOps(parseSearchQuery("plain words")), false, "no ops for plain text");
+
+console.log("msgMatchesOps");
+{
+  const mkMsg = (o) => ({ sender_kind: "driver", body: "on my way", created_at: "2026-07-10T12:00:00Z", ...o });
+  const ops = parseSearchQuery("from:driver way");
+  eq(msgMatchesOps(mkMsg({}), ops), true, "matching sender + text");
+  eq(msgMatchesOps(mkMsg({ sender_kind: "dispatch" }), ops), false, "wrong sender");
+  eq(msgMatchesOps(mkMsg({ body: "nope" }), ops), false, "text miss");
+  const withA = parseSearchQuery("has:image");
+  eq(msgMatchesOps(mkMsg({ attachment_mime: "image/jpeg", attachment_path: "x" }), withA), true, "has:image hit");
+  eq(msgMatchesOps(mkMsg({ attachment_mime: "application/pdf", attachment_path: "x" }), withA), false, "has:image rejects pdf");
+  const before = parseSearchQuery("before:2026-07-01");
+  eq(msgMatchesOps(mkMsg({}), before), false, "July 10 fails before:July 1");
+  eq(msgMatchesOps(mkMsg({ created_at: "2026-06-20T00:00:00Z" }), before), true, "June passes before:July 1");
+}
+
+console.log("sortThreads");
+{
+  const threads = [
+    { name: "Zed", unread: 0, last_at: "2026-07-15T10:00:00Z" },
+    { name: "Amy", unread: 2, last_at: "2026-07-10T10:00:00Z" },
+    { name: "Bob", unread: 0, last_at: "2026-07-16T10:00:00Z" },
+  ];
+  eq(sortThreads(threads, "recent").map((t) => t.name), ["Amy", "Bob", "Zed"], "recent: unread first then latest");
+  eq(sortThreads(threads, "az").map((t) => t.name), ["Amy", "Bob", "Zed"], "az alphabetical");
+  eq(sortThreads(threads, "unread")[0].name, "Amy", "unread first");
+  eq(threads[0].name, "Zed", "input not mutated");
+}
+
+console.log("isSnoozed");
+{
+  const now = new Date("2026-07-17T12:00:00Z").getTime();
+  eq(isSnoozed({ snooze_until: "2026-07-18T00:00:00Z", updated_at: "2026-07-17T09:00:00Z" }, now, "2026-07-16T00:00:00Z"), true, "future snooze, no new msg");
+  eq(isSnoozed({ snooze_until: "2026-07-17T09:00:00Z" }, now, null), false, "expired snooze");
+  eq(isSnoozed({ snooze_until: "2026-07-18T00:00:00Z", updated_at: "2026-07-17T09:00:00Z" }, now, "2026-07-17T10:00:00Z"), false, "new message breaks snooze");
+  eq(isSnoozed(null, now, null), false, "no pref");
+}
 
 console.log("SHORTCODES sanity");
 eq(Object.keys(SHORTCODES).length >= 50, true, "healthy shortcode map");

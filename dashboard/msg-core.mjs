@@ -186,5 +186,101 @@ export function shouldCompress(mime, sizeBytes) {
   return (sizeBytes || 0) > 500 * 1024;
 }
 
+// ── Search query operators (#25) ─────────────────────────────────────────
+// Parses "route 7 from:driver has:attachment after:2026-07-01" into
+// { text, from, has, before, after, scope, label }. Unknown operators stay
+// in the text so a search for "ratio:16:9" isn't silently mangled.
+//   from:  me|you|dispatch → "dispatch";  driver|them → "driver"
+//   has:   attachment|file|image|audio|voice → normalized to attachment/image/audio
+//   before:/after:  YYYY-MM-DD (before is exclusive of that day's start,
+//                   after is inclusive of the day) — returned as Date or null
+//   in:    drivers|dm|hr|rooms|broadcasts → list scope
+//   label: free string (thread labels, #31)
+export function parseSearchQuery(q) {
+  const out = { text: "", from: null, has: null, before: null, after: null, scope: null, label: null };
+  const rest = [];
+  for (const tok of String(q || "").trim().split(/\s+/)) {
+    const m = tok.match(/^(from|has|before|after|in|label):(.+)$/i);
+    if (!m) { if (tok) rest.push(tok); continue; }
+    const key = m[1].toLowerCase(), val = m[2].toLowerCase();
+    if (key === "from") {
+      if (["me", "you", "dispatch", "us"].includes(val)) out.from = "dispatch";
+      else if (["driver", "them", "drivers"].includes(val)) out.from = "driver";
+      else rest.push(tok);
+    } else if (key === "has") {
+      if (["attachment", "file", "files"].includes(val)) out.has = "attachment";
+      else if (["image", "img", "photo", "picture"].includes(val)) out.has = "image";
+      else if (["audio", "voice", "voicenote"].includes(val)) out.has = "audio";
+      else rest.push(tok);
+    } else if (key === "before" || key === "after") {
+      const d = /^\d{4}-\d{2}-\d{2}$/.test(m[2]) ? new Date(m[2] + "T00:00:00") : null;
+      if (d && !isNaN(d.getTime())) {
+        if (key === "before") out.before = d;
+        else { const end = new Date(d); end.setDate(end.getDate() + 1); out.after = d; out.afterEnd = end; }
+      } else rest.push(tok);
+    } else if (key === "in") {
+      if (["drivers", "dm", "dms", "direct"].includes(val)) out.scope = "drivers";
+      else if (["hr"].includes(val)) out.scope = "hr";
+      else if (["room", "rooms", "broadcast", "broadcasts", "channel", "channels"].includes(val)) out.scope = "broadcasts";
+      else rest.push(tok);
+    } else if (key === "label") {
+      out.label = m[2]; // preserve case for display; compare lowercased
+    }
+  }
+  out.text = rest.join(" ");
+  return out;
+}
+export function hasSearchOps(ops) {
+  return !!(ops && (ops.from || ops.has || ops.before || ops.after || ops.label));
+}
+
+// Does a message row (body/sender_kind/attachment_mime/created_at) pass the
+// parsed operators? Used for the operator-filtered search path and for
+// in-thread search (#26).
+export function msgMatchesOps(m, ops) {
+  if (!ops) return true;
+  if (ops.from && m.sender_kind !== ops.from) return false;
+  if (ops.has === "attachment" && !m.attachment_path && !m.attachment_name) return false;
+  if (ops.has === "image" && !String(m.attachment_mime || "").startsWith("image/")) return false;
+  if (ops.has === "audio" && !String(m.attachment_mime || "").startsWith("audio/")) return false;
+  const t = m.created_at ? new Date(m.created_at).getTime() : 0;
+  if (ops.before && t >= ops.before.getTime()) return false;
+  if (ops.after && t < ops.after.getTime()) return false;
+  if (ops.text) {
+    const s = ops.text.toLowerCase();
+    if (!String(m.body || "").toLowerCase().includes(s)
+      && !String(m.attachment_name || "").toLowerCase().includes(s)) return false;
+  }
+  return true;
+}
+
+// ── Conversation list ordering (#32) ─────────────────────────────────────
+// sort: "recent" (unread first, then latest activity — the default),
+// "az", or "unread". Returns a NEW array.
+export function sortThreads(threads, sort) {
+  const list = (threads || []).slice();
+  const byRecent = (a, b) => {
+    if (b.last_at && a.last_at) return new Date(b.last_at) - new Date(a.last_at);
+    if (b.last_at) return 1;
+    if (a.last_at) return -1;
+    return String(a.name || "").localeCompare(String(b.name || ""));
+  };
+  if (sort === "az") list.sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+  else if (sort === "unread") list.sort((a, b) => ((b.unread > 0) - (a.unread > 0)) || byRecent(a, b));
+  else list.sort((a, b) => ((b.unread > 0) - (a.unread > 0)) || byRecent(a, b));
+  return list;
+}
+
+// Snooze state helper (#30): a snoozed thread is hidden until its wake
+// time, EXCEPT when a new message arrived after the snooze was set.
+export function isSnoozed(pref, nowMs, lastAtIso) {
+  if (!pref || !pref.snooze_until) return false;
+  const until = new Date(pref.snooze_until).getTime();
+  if (!(until > nowMs)) return false;
+  if (lastAtIso && pref.updated_at
+      && new Date(lastAtIso).getTime() > new Date(pref.updated_at).getTime()) return false;
+  return true;
+}
+
 // ── Misc ─────────────────────────────────────────────────────────────────
 export function draftKey(kind, id) { return `rr_draft_${kind}_${id}`; }

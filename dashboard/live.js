@@ -19,6 +19,9 @@ import {
   fillTemplate as _mcFillTemplate, matchTemplates as _mcMatchTemplates,
   BUILTIN_TEMPLATES as _MC_BUILTIN_TEMPLATES, fitDims as _mcFitDims,
   shouldCompress as _mcShouldCompress, draftKey as _mcDraftKey,
+  parseSearchQuery as _mcParseSearch, hasSearchOps as _mcHasSearchOps,
+  msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
+  isSnoozed as _mcIsSnoozed,
 } from "./msg-core.mjs?v=b2ebeec00db5";
 import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=b2ebeec00db5";
 import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=b2ebeec00db5";
@@ -39757,17 +39760,38 @@ function _rrWireMsgSearch() {
   const input = document.getElementById("rr-msg-search");
   if (!input || input.dataset.rrWired) return;
   input.dataset.rrWired = "1";
+  input.setAttribute("data-rr-mc-popanchor", "1");
   input.value = _msgSearchQuery;
   input.addEventListener("input", () => {
     _msgSearchQuery = (input.value || "").trim();
     _onMsgSearchChange();
   });
+  // Recent + saved searches dropdown on focus of an empty box (#34).
+  input.addEventListener("focus", () => {
+    if (!(input.value || "").trim()) _mcOpenSearchHistory(input);
+  });
+}
+// Wrap a case-insensitive match of `q` in <mark> inside an ESCAPED string.
+function _mcHighlightSnippet(escaped, q) {
+  const term = String(q || "").trim();
+  if (!term || term.length < 2) return escaped;
+  try {
+    const re = new RegExp("(" + escapeHtml(term).replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ")", "ig");
+    return escaped.replace(re, "<mark>$1</mark>");
+  } catch { return escaped; }
 }
 
 function _onMsgSearchChange() {
   const q = _msgSearchQuery;
   if (_msgSearchTimer) { clearTimeout(_msgSearchTimer); _msgSearchTimer = null; }
   const isDrivers = _msgInboxTab === "drivers";
+  // Operator queries (#25: from:, has:, before:/after:, label:) run their
+  // own filtered search path over the message history.
+  const ops = _mcParseSearch(q);
+  if (isDrivers && _mcHasSearchOps(ops)) {
+    _msgSearchTimer = setTimeout(() => _runOpsChatSearch(ops, q), 250);
+    return;
+  }
   // Drivers tab + ≥2 chars → debounced server search over full history.
   if (isDrivers && q.length >= 2) {
     _msgSearchTimer = setTimeout(() => _runServerChatSearch(q), 250);
@@ -39790,7 +39814,122 @@ async function _runServerChatSearch(q) {
   // Drop stale / superseded / cancelled responses.
   if (seq !== _msgSearchSeq || _msgSearchQuery !== q || _msgInboxTab !== "drivers") return;
   _msgSearchServerRows = error ? [] : (Array.isArray(data) ? data : []);
+  _mcPushRecentSearch(q);
   _renderMsgSearchResults(_msgSearchServerRows, q);
+}
+
+// Operator-filtered search (#25) — a direct RLS-scoped query over
+// driver_messages, so has:attachment / before: / after: / from: work even
+// though the FTS RPC only indexes text. label: filters the thread list by
+// the operator's labels instead.
+async function _runOpsChatSearch(ops, q) {
+  if (_msgInboxTab !== "drivers" || _msgSearchQuery !== q) return;
+  const seq = ++_msgSearchSeq;
+  // Pure label filter → filter the loaded thread rows, no message query.
+  if (ops.label && !ops.text && !ops.from && !ops.has && !ops.before && !ops.after) {
+    const rows = (_msgInboxList || [])
+      .filter((t) => ((_mcThreadPrefs.get(String(t.driver_id)) || {}).labels || [])
+        .some((l) => l.toLowerCase() === ops.label.toLowerCase()))
+      .map((t) => ({
+        driver_id: t.driver_id, name: t.name, station_code: t.station_code,
+        snippet: t.last_message?.body || "", message_at: t.last_at, sender_kind: t.last_message?.sender_kind,
+      }));
+    if (seq !== _msgSearchSeq) return;
+    _msgSearchServerRows = rows;
+    _renderMsgSearchResults(rows, q);
+    return;
+  }
+  let sel = sb.from("driver_messages")
+    .select("id, driver_id, body, created_at, sender_kind, attachment_name, attachment_mime, attachment_path, drivers(full_name, preferred_name)")
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false })
+    .limit(30);
+  if (ops.from) sel = sel.eq("sender_kind", ops.from);
+  if (ops.has === "attachment") sel = sel.not("attachment_path", "is", null);
+  if (ops.has === "image") sel = sel.like("attachment_mime", "image/%");
+  if (ops.has === "audio") sel = sel.like("attachment_mime", "audio/%");
+  if (ops.before) sel = sel.lt("created_at", ops.before.toISOString());
+  if (ops.after) sel = sel.gte("created_at", ops.after.toISOString());
+  if (ops.text) sel = sel.ilike("body", "%" + ops.text.replace(/[%_\\]/g, "\\$&") + "%");
+  const { data, error } = await sel.then((r) => r, (e) => ({ error: e }));
+  if (seq !== _msgSearchSeq || _msgSearchQuery !== q || _msgInboxTab !== "drivers") return;
+  let rows = error ? [] : (data || []).map((m) => ({
+    driver_id: m.driver_id,
+    name: (m.drivers && (m.drivers.preferred_name || m.drivers.full_name)) || "",
+    snippet: m.body || (m.attachment_name ? "📎 " + m.attachment_name : ""),
+    message_at: m.created_at,
+    message_id: m.id,
+    sender_kind: m.sender_kind,
+  }));
+  // Post-filter by thread label when combined with other operators.
+  if (ops.label) {
+    rows = rows.filter((r) => ((_mcThreadPrefs.get(String(r.driver_id)) || {}).labels || [])
+      .some((l) => l.toLowerCase() === ops.label.toLowerCase()));
+  }
+  _msgSearchServerRows = rows;
+  _mcPushRecentSearch(q);
+  _renderMsgSearchResults(rows, q);
+}
+
+// Recent + saved searches (#34).
+function _mcRecentSearches() {
+  try { return JSON.parse(localStorage.getItem("rr_msg_recent_searches") || "[]"); } catch { return []; }
+}
+function _mcPushRecentSearch(q) {
+  q = String(q || "").trim();
+  if (!q || q.length < 2) return;
+  try {
+    const cur = _mcRecentSearches().filter((x) => x !== q);
+    cur.unshift(q);
+    localStorage.setItem("rr_msg_recent_searches", JSON.stringify(cur.slice(0, 8)));
+  } catch {}
+}
+function _mcSavedSearches() {
+  try { return JSON.parse(localStorage.getItem("rr_msg_saved_searches") || "[]"); } catch { return []; }
+}
+function _mcOpenSearchHistory(input) {
+  _mcDismissPops();
+  _mcEnsureExtrasCss();
+  const recents = _mcRecentSearches();
+  const saved = _mcSavedSearches();
+  if (!recents.length && !saved.length) return;
+  const pop = document.createElement("div");
+  pop.className = "rr-mc-pop rr-mc-suggest";
+  pop.innerHTML =
+    (saved.length ? `<div class="rr-mc-emoji-head" style="padding:6px 10px 4px">Saved searches</div>`
+      + saved.map((s) => `<button type="button" data-rr-sh="${escapeHtml(s)}"><span class="rr-mc-sug-name">📌 ${escapeHtml(s)}</span><span data-rr-sh-del="${escapeHtml(s)}" title="Remove" style="margin-left:auto;color:var(--text-subtle)">×</span></button>`).join("") : "")
+    + (recents.length ? `<div class="rr-mc-emoji-head" style="padding:6px 10px 4px">Recent</div>`
+      + recents.map((s) => `<button type="button" data-rr-sh="${escapeHtml(s)}"><span class="rr-mc-sug-desc">${escapeHtml(s)}</span><span data-rr-sh-pin="${escapeHtml(s)}" title="Save this search" style="margin-left:auto;color:var(--text-subtle)">📌</span></button>`).join("") : "")
+    + `<div class="rr-mc-emoji-head" style="padding:7px 10px 6px;border-top:1px solid var(--border);margin-top:4px;text-transform:none;letter-spacing:0;font-weight:500">Tips: from:driver · has:attachment · before:2026-07-01 · label:VIP</div>`;
+  _mcPlacePop(pop, input);
+  pop.addEventListener("mousedown", (ev) => {
+    const del = ev.target.closest("[data-rr-sh-del]");
+    if (del) {
+      ev.preventDefault(); ev.stopPropagation();
+      try { localStorage.setItem("rr_msg_saved_searches", JSON.stringify(_mcSavedSearches().filter((x) => x !== del.getAttribute("data-rr-sh-del")))); } catch {}
+      _mcDismissPops(); _mcOpenSearchHistory(input);
+      return;
+    }
+    const pin = ev.target.closest("[data-rr-sh-pin]");
+    if (pin) {
+      ev.preventDefault(); ev.stopPropagation();
+      const s = pin.getAttribute("data-rr-sh-pin");
+      try {
+        const cur = _mcSavedSearches().filter((x) => x !== s);
+        cur.unshift(s);
+        localStorage.setItem("rr_msg_saved_searches", JSON.stringify(cur.slice(0, 8)));
+      } catch {}
+      _mcDismissPops(); _mcOpenSearchHistory(input);
+      return;
+    }
+    const b = ev.target.closest("[data-rr-sh]");
+    if (!b) return;
+    ev.preventDefault();
+    input.value = b.getAttribute("data-rr-sh");
+    _msgSearchQuery = input.value;
+    _mcDismissPops();
+    _onMsgSearchChange();
+  });
 }
 
 function _renderMsgSearchResults(rows, q) {
@@ -39811,9 +39950,11 @@ function _renderMsgSearchResults(rows, q) {
     // servers (pre-0450) omit message_id — the row still opens, just at
     // the bottom like before.
     const focusAttr = r.message_id ? ` data-rr-focus-msg="${escapeHtml(r.message_id)}" data-rr-focus-at="${escapeHtml(r.message_at || "")}"` : "";
+    // Highlight the matched term inside the (escaped) snippet (#27).
+    const hlTerm = (_mcParseSearch(q).text || q);
     return `<div class="msg-item ${isActive ? "active" : ""}" data-rr-thread="${escapeHtml(r.driver_id)}" data-rr-driver-id="${escapeHtml(r.driver_id)}"${focusAttr}>
       <div class="msg-item-avatar"><div class="avatar-sm">${escapeHtml(initials)}</div><span class="msg-item-presence"></span></div>
-      <div><div class="msg-item-name">${escapeHtml(r.name || "")}${r.station_code ? ` <span class="msg-item-station">· ${escapeHtml(r.station_code)}</span>` : ""}</div><div class="msg-item-preview">${escapeHtml(previewTrunc)}</div></div>
+      <div><div class="msg-item-name">${escapeHtml(r.name || "")}${r.station_code ? ` <span class="msg-item-station">· ${escapeHtml(r.station_code)}</span>` : ""}</div><div class="msg-item-preview">${_mcHighlightSnippet(escapeHtml(previewTrunc), hlTerm)}</div></div>
       <div><div class="msg-item-time">${escapeHtml(_fmtMsgRelative(r.message_at))}</div></div>
     </div>`;
   }).join("");
@@ -40291,6 +40432,274 @@ new MutationObserver(() => {
 })();
 
 
+// ─── Thread prefs + list organization (Batch 3 · #28–34) ─────────────────
+// Per-operator archive / mute / snooze / mark-unread / labels, stored in
+// dispatch_thread_prefs (migration 0505) with a localStorage fallback so
+// the features work (device-locally) before the migration is applied.
+let _mcThreadPrefs = new Map();   // driver_id → pref object
+let _mcPrefsServer = null;        // null unknown → probed on first load
+let _mcListFilter = (() => {
+  try { return { unreadOnly: false, sort: "recent", archived: false, label: null, ...(JSON.parse(localStorage.getItem("rr_msg_list_filter") || "{}")) }; }
+  catch { return { unreadOnly: false, sort: "recent", archived: false, label: null }; }
+})();
+function _mcSaveListFilter() {
+  try { localStorage.setItem("rr_msg_list_filter", JSON.stringify({ unreadOnly: _mcListFilter.unreadOnly, sort: _mcListFilter.sort, label: _mcListFilter.label })); } catch {}
+}
+function _mcLocalPrefsRead() {
+  try { return JSON.parse(localStorage.getItem("rr_thread_prefs_local") || "{}"); } catch { return {}; }
+}
+function _mcLocalPrefsWrite(obj) {
+  try { localStorage.setItem("rr_thread_prefs_local", JSON.stringify(obj)); } catch {}
+}
+async function _mcLoadThreadPrefs() {
+  if (_mcPrefsServer !== false) {
+    const res = await sb.rpc("dispatch_thread_prefs").then((r) => r, (e) => ({ error: e || { message: "network" } }));
+    if (!res.error) {
+      _mcPrefsServer = true;
+      _mcThreadPrefs = new Map((res.data?.prefs || []).map((p) => [String(p.driver_id), p]));
+      return;
+    }
+    if (_mcRpcMissing(res.error)) _mcPrefsServer = false;
+    else return; // transient — keep last known
+  }
+  _mcThreadPrefs = new Map(Object.entries(_mcLocalPrefsRead()));
+}
+async function _mcSetThreadPref(driverId, patch) {
+  const key = String(driverId);
+  const cur = { ..._mcThreadPrefs.get(key) };
+  // Optimistic local apply.
+  if ("archived" in patch) cur.archived = patch.archived;
+  if ("muted" in patch) cur.muted = patch.muted;
+  if ("snooze_until" in patch) cur.snooze_until = patch.snooze_until;
+  if ("mark_unread" in patch) cur.mark_unread = patch.mark_unread;
+  if ("labels" in patch) cur.labels = patch.labels;
+  cur.updated_at = new Date().toISOString();
+  _mcThreadPrefs.set(key, cur);
+  refreshDriverChatList(false);
+  if (_mcPrefsServer !== false) {
+    const { error } = await sb.rpc("dispatch_thread_pref_set", { p_driver_id: driverId, p_patch: patch })
+      .then((r) => r, (e) => ({ error: e || { message: "network" } }));
+    if (!error) return;
+    if (!_mcRpcMissing(error)) { toast("Couldn't save the change: " + (error.message || ""), "warn"); return; }
+    _mcPrefsServer = false;
+  }
+  // Device-local fallback until 0505 is applied.
+  const all = _mcLocalPrefsRead();
+  all[key] = cur;
+  _mcLocalPrefsWrite(all);
+}
+
+// Filter bar under the tab strip: unread-only, sort, labels, archived.
+function _mcAllLabels() {
+  const set = new Set();
+  _mcThreadPrefs.forEach((p) => (p.labels || []).forEach((l) => set.add(l)));
+  return [...set].sort((a, b) => a.localeCompare(b));
+}
+function _mcListFilterBarHtml(archivedCount) {
+  const f = _mcListFilter;
+  const sortLbl = { recent: "Recent", az: "A–Z", unread: "Unread first" }[f.sort] || "Recent";
+  return `<div class="msg-filterbar">
+      <button type="button" class="msg-fb-btn${f.unreadOnly ? " on" : ""}" data-rr-fb="unread" aria-pressed="${f.unreadOnly}">Unread</button>
+      <button type="button" class="msg-fb-btn" data-rr-fb="sort" title="Sort order">${sortLbl} ▾</button>
+      ${_mcAllLabels().length || f.label ? `<button type="button" class="msg-fb-btn${f.label ? " on" : ""}" data-rr-fb="label">${f.label ? escapeHtml(f.label) : "Label"} ▾</button>` : ""}
+      <button type="button" class="msg-fb-btn${f.archived ? " on" : ""}" data-rr-fb="archived" aria-pressed="${f.archived}" title="Show archived">Archived${archivedCount ? ` · ${archivedCount}` : ""}</button>
+    </div>`;
+}
+function _mcWireListFilterBar(list) {
+  list.querySelectorAll("[data-rr-fb]").forEach((b) => b.addEventListener("click", (e) => {
+    const act = b.getAttribute("data-rr-fb");
+    if (act === "unread") { _mcListFilter.unreadOnly = !_mcListFilter.unreadOnly; _mcSaveListFilter(); refreshDriverChatList(false); }
+    else if (act === "archived") { _mcListFilter.archived = !_mcListFilter.archived; refreshDriverChatList(false); }
+    else if (act === "sort") {
+      _mcDismissPops();
+      _mcEnsureExtrasCss();
+      const pop = document.createElement("div");
+      pop.className = "rr-mc-pop rr-mc-plus-menu";
+      pop.innerHTML = ["recent|Recent activity", "az|A–Z", "unread|Unread first"].map((o) => {
+        const [v, l] = o.split("|");
+        return `<button type="button" data-rr-sort="${v}">${_mcListFilter.sort === v ? "✓" : "&nbsp;&nbsp;"}<span>${l}</span></button>`;
+      }).join("");
+      _mcPlacePop(pop, b);
+      pop.addEventListener("click", (ev) => {
+        const s = ev.target.closest("[data-rr-sort]");
+        if (!s) return;
+        _mcListFilter.sort = s.getAttribute("data-rr-sort");
+        _mcSaveListFilter();
+        _mcDismissPops();
+        refreshDriverChatList(false);
+      });
+    } else if (act === "label") {
+      _mcDismissPops();
+      _mcEnsureExtrasCss();
+      const pop = document.createElement("div");
+      pop.className = "rr-mc-pop rr-mc-plus-menu";
+      pop.innerHTML = `<button type="button" data-rr-lf="">${!_mcListFilter.label ? "✓" : "&nbsp;&nbsp;"}<span>All labels</span></button>`
+        + _mcAllLabels().map((l) => `<button type="button" data-rr-lf="${escapeHtml(l)}">${_mcListFilter.label === l ? "✓" : "&nbsp;&nbsp;"}<span>${escapeHtml(l)}</span></button>`).join("");
+      _mcPlacePop(pop, b);
+      pop.addEventListener("click", (ev) => {
+        const s = ev.target.closest("[data-rr-lf]");
+        if (!s) return;
+        _mcListFilter.label = s.getAttribute("data-rr-lf") || null;
+        _mcSaveListFilter();
+        _mcDismissPops();
+        refreshDriverChatList(false);
+      });
+    }
+    e.stopPropagation();
+  }));
+}
+
+// Hover quick actions + right-click context menu on list rows (#33).
+function _mcWireRowQuickActions(list) {
+  list.querySelectorAll(".msg-item[data-rr-thread]").forEach((row) => {
+    const driverId = row.getAttribute("data-rr-thread");
+    row.querySelectorAll("[data-rr-qa]").forEach((b) => {
+      b.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const act = b.getAttribute("data-rr-qa");
+        const pref = _mcThreadPrefs.get(String(driverId)) || {};
+        if (act === "fav") {
+          const on = _rrToggleMsgFav(driverId);
+          _rrFavPending.add(String(driverId));
+          _rrPushFav(driverId, on).finally(() => _rrFavPending.delete(String(driverId)));
+          refreshDriverChatList(false);
+        } else if (act === "mute") {
+          _mcSetThreadPref(driverId, { muted: !pref.muted });
+        } else if (act === "archive") {
+          _mcSetThreadPref(driverId, { archived: !pref.archived });
+          toast(pref.archived ? "Unarchived" : "Archived — new messages bring it back automatically", "ok");
+        } else if (act === "unread") {
+          _mcSetThreadPref(driverId, { mark_unread: true });
+        }
+      });
+    });
+    row.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      _mcOpenRowContextMenu(row, driverId, { x: e.clientX, y: e.clientY });
+    });
+  });
+}
+function _mcOpenRowContextMenu(row, driverId, at) {
+  _mcDismissPops();
+  _mcEnsureExtrasCss();
+  const pref = _mcThreadPrefs.get(String(driverId)) || {};
+  const fav = _rrMsgFavs().has(String(driverId));
+  const pop = document.createElement("div");
+  pop.className = "rr-mc-pop rr-mc-plus-menu";
+  pop.setAttribute("role", "menu");
+  pop.innerHTML = `
+    <button type="button" data-rr-cm="open">💬<span>Open conversation</span></button>
+    <button type="button" data-rr-cm="fav">⭐<span>${fav ? "Remove from favorites" : "Add to favorites"}</span></button>
+    <button type="button" data-rr-cm="unread">●<span>Mark as unread</span></button>
+    <button type="button" data-rr-cm="snooze">💤<span>Snooze…</span></button>
+    <button type="button" data-rr-cm="label">🏷️<span>Labels…</span></button>
+    <div class="rr-mc-plus-sep"></div>
+    <button type="button" data-rr-cm="mute">${pref.muted ? "🔔" : "🔕"}<span>${pref.muted ? "Unmute" : "Mute"}</span></button>
+    <button type="button" data-rr-cm="archive">🗄️<span>${pref.archived ? "Unarchive" : "Archive"}</span></button>`;
+  document.body.appendChild(pop);
+  pop.style.left = Math.min(window.innerWidth - pop.offsetWidth - 8, at.x) + "px";
+  pop.style.top = Math.min(window.innerHeight - pop.offsetHeight - 8, at.y) + "px";
+  pop.addEventListener("click", (ev) => {
+    const b = ev.target.closest("[data-rr-cm]");
+    if (!b) return;
+    const act = b.getAttribute("data-rr-cm");
+    _mcDismissPops();
+    if (act === "open") openDriverChatThread(driverId);
+    else if (act === "fav") {
+      const on = _rrToggleMsgFav(driverId);
+      _rrFavPending.add(String(driverId));
+      _rrPushFav(driverId, on).finally(() => _rrFavPending.delete(String(driverId)));
+      refreshDriverChatList(false);
+    }
+    else if (act === "unread") _mcSetThreadPref(driverId, { mark_unread: true });
+    else if (act === "mute") _mcSetThreadPref(driverId, { muted: !pref.muted });
+    else if (act === "archive") _mcSetThreadPref(driverId, { archived: !pref.archived });
+    else if (act === "snooze") _mcOpenSnoozeMenu(driverId, at);
+    else if (act === "label") _mcOpenLabelEditor(driverId);
+  });
+}
+function _mcOpenSnoozeMenu(driverId, at) {
+  _mcEnsureExtrasCss();
+  const pop = document.createElement("div");
+  pop.className = "rr-mc-pop rr-mc-plus-menu";
+  const opts = [];
+  const in1h = new Date(Date.now() + 3600000);
+  const tonight = new Date(); tonight.setHours(18, 0, 0, 0);
+  const tom = new Date(); tom.setDate(tom.getDate() + 1); tom.setHours(6, 0, 0, 0);
+  const mon = new Date(); mon.setDate(mon.getDate() + ((8 - mon.getDay()) % 7 || 7)); mon.setHours(6, 0, 0, 0);
+  opts.push(["In 1 hour", in1h]);
+  if (tonight.getTime() > Date.now()) opts.push(["This evening 6 PM", tonight]);
+  opts.push(["Tomorrow 6 AM", tom], ["Monday 6 AM", mon]);
+  pop.innerHTML = `<div class="rr-mc-plus-note">Hide until… (a new message brings it back)</div>`
+    + opts.map(([l, d], i) => `<button type="button" data-rr-sn="${d.getTime()}">💤<span>${l}</span></button>`).join("")
+    + `<div class="rr-mc-plus-sep"></div><button type="button" data-rr-sn="0">✖️<span>Clear snooze</span></button>`;
+  document.body.appendChild(pop);
+  pop.style.left = Math.min(window.innerWidth - pop.offsetWidth - 8, at.x) + "px";
+  pop.style.top = Math.min(window.innerHeight - pop.offsetHeight - 8, at.y) + "px";
+  pop.addEventListener("click", (ev) => {
+    const b = ev.target.closest("[data-rr-sn]");
+    if (!b) return;
+    const ts = +b.getAttribute("data-rr-sn");
+    _mcDismissPops();
+    _mcSetThreadPref(driverId, { snooze_until: ts ? new Date(ts).toISOString() : null });
+    if (ts) toast(`Snoozed until ${new Date(ts).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })}`, "ok");
+  });
+}
+function _mcOpenLabelEditor(driverId) {
+  _mcEnsureExtrasCss();
+  document.getElementById("rr-mc-label-modal")?.remove();
+  const pref = _mcThreadPrefs.get(String(driverId)) || {};
+  const current = new Set(pref.labels || []);
+  const known = _mcAllLabels();
+  const ov = document.createElement("div");
+  ov.className = "rr-mc-modal";
+  ov.id = "rr-mc-label-modal";
+  const chip = (l) => `<button type="button" class="msg-fb-btn${current.has(l) ? " on" : ""}" data-rr-lb="${escapeHtml(l)}">${escapeHtml(l)}</button>`;
+  ov.innerHTML = `
+    <div class="rr-mc-modal-back"></div>
+    <div class="rr-mc-modal-card" role="dialog" aria-modal="true" aria-label="Thread labels" style="width:min(380px,94vw)">
+      <div class="rr-mc-modal-head">Labels<button type="button" class="rr-mc-modal-x" aria-label="Close">×</button></div>
+      <div class="rr-mc-modal-body">
+        <div data-rr-lb-chips style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">${known.map(chip).join("") || `<span class="u-subtle" style="font-size:var(--fs-sm)">No labels yet — add one below.</span>`}</div>
+        <label class="rr-mc-f"><span>New label</span><input type="text" data-rr-lb-new maxlength="32" placeholder="e.g. New hire, Payroll, Attendance"></label>
+      </div>
+      <div class="rr-mc-modal-foot">
+        <button type="button" class="btn btn-sm" data-rr-lb-cancel>Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary" data-rr-lb-save>Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelector(".rr-mc-modal-back").addEventListener("click", close);
+  ov.querySelector(".rr-mc-modal-x").addEventListener("click", close);
+  ov.querySelector("[data-rr-lb-cancel]").addEventListener("click", close);
+  const chipsEl = ov.querySelector("[data-rr-lb-chips]");
+  chipsEl.addEventListener("click", (ev) => {
+    const b = ev.target.closest("[data-rr-lb]");
+    if (!b) return;
+    const l = b.getAttribute("data-rr-lb");
+    if (current.has(l)) current.delete(l); else current.add(l);
+    b.classList.toggle("on", current.has(l));
+  });
+  const newInput = ov.querySelector("[data-rr-lb-new]");
+  newInput.addEventListener("keydown", (ev) => {
+    if (ev.key !== "Enter") return;
+    ev.preventDefault();
+    const v = newInput.value.trim().slice(0, 32);
+    if (!v) return;
+    current.add(v);
+    chipsEl.insertAdjacentHTML("beforeend", chip(v));
+    chipsEl.lastElementChild.classList.add("on");
+    newInput.value = "";
+  });
+  ov.querySelector("[data-rr-lb-save]").addEventListener("click", () => {
+    const v = newInput.value.trim().slice(0, 32);
+    if (v) current.add(v);
+    _mcSetThreadPref(driverId, { labels: [...current].slice(0, 12) });
+    close();
+  });
+}
+
 // One conversation per DSP with RouteReady Support — pinned at the top
 // of the Messages inbox so help is one click away without bolting on a
 // separate widget. Same chat surface, same patterns.
@@ -40302,11 +40711,12 @@ async function refreshDriverChatList(autoSelect) {
   if (!list) return;
   // Don't let the 8s inbox poll overwrite active server-search results.
   if (_msgSearchServerActive()) return;
-  // Fetch the driver inbox and the support thread in parallel — the
-  // support thread fuels the pinned "RouteReady Support" row at the top.
+  // Fetch the driver inbox, the support thread and the operator's thread
+  // prefs (archive/mute/snooze/labels, #28–31) in parallel.
   const [{ data, error }, supRes] = await Promise.all([
     sb.rpc("dispatch_chat_threads"),
     sb.rpc("support_thread").then((r) => r, () => ({ data: null })),
+    _mcLoadThreadPrefs(),
   ]);
   _msgSupportData = (supRes && supRes.data) || null;
   if (error) {
@@ -40329,14 +40739,9 @@ async function refreshDriverChatList(autoSelect) {
   _msgInboxList = (data || []).filter(t => t && t.status !== "onboarding");
   // (No early return on an empty driver list — the pinned RouteReady
   // Support row is still rendered below, so the inbox is never empty.)
-  // Sort: unread first, then most-recent activity, then alpha for inactive.
-  _msgInboxList.sort((a, b) => {
-    if ((b.unread > 0) !== (a.unread > 0)) return (b.unread > 0) - (a.unread > 0);
-    if (b.last_at && a.last_at) return new Date(b.last_at) - new Date(a.last_at);
-    if (b.last_at) return 1;
-    if (a.last_at) return -1;
-    return (a.name || "").localeCompare(b.name || "");
-  });
+  // Sort per the operator's preference (#32): unread-first recency by
+  // default, A–Z or strict unread-first when chosen.
+  _msgInboxList = sortThreadsCore(_msgInboxList, _mcListFilter.sort);
   // Favorites (persisted locally) float into their own pinned section.
   const _favSet = _rrMsgFavs();
   const fmtRelative = (iso) => {
@@ -40370,6 +40775,7 @@ async function refreshDriverChatList(autoSelect) {
     </div>`;
 
   const rowHtml = (t) => {
+    const pref = _mcThreadPrefs.get(String(t.driver_id)) || {};
     const initials = (t.name || "").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase() || "?";
     const lastBody = t.last_message?.body
       ? (t.last_message.sender_kind === "dispatch" ? "You: " : "") + t.last_message.body
@@ -40377,19 +40783,61 @@ async function refreshDriverChatList(autoSelect) {
     const lastBodyTrunc = lastBody.length > 60 ? lastBody.slice(0, 57) + "…" : lastBody;
     const isActive = _msgInboxSelectedId === t.driver_id;
     const favStar = _favSet.has(t.driver_id) ? `<span class="msg-item-fav" title="Favorite">${_rrStarSvg(true)}</span>` : "";
-    return `<div class="msg-item ${isActive ? "active" : ""}" data-rr-thread="${t.driver_id}" data-rr-driver-id="${t.driver_id}">
+    const mutedIco = pref.muted ? `<span class="msg-item-muted" title="Muted" aria-label="Muted">🔕</span>` : "";
+    const labelChips = (pref.labels || []).slice(0, 3).map((l) =>
+      `<span class="msg-item-label" data-rr-label-chip="${escapeHtml(l)}">${escapeHtml(l)}</span>`).join("");
+    // Badge: real unread count, or the manual mark-unread dot (#30).
+    const badge = t.unread > 0
+      ? `<div class="msg-item-unread${pref.muted ? " muted" : ""}">${t.unread}</div>`
+      : (pref.mark_unread ? `<div class="msg-item-unread manual" title="Marked unread">●</div>` : "");
+    const quick = `<div class="msg-item-quick">
+        <button type="button" data-rr-qa="fav" title="${_favSet.has(t.driver_id) ? "Unfavorite" : "Favorite"}">${_rrStarSvg(_favSet.has(t.driver_id))}</button>
+        <button type="button" data-rr-qa="unread" title="Mark unread">●</button>
+        <button type="button" data-rr-qa="mute" title="${pref.muted ? "Unmute" : "Mute"}">${pref.muted ? "🔔" : "🔕"}</button>
+        <button type="button" data-rr-qa="archive" title="${pref.archived ? "Unarchive" : "Archive"}">🗄️</button>
+      </div>`;
+    return `<div class="msg-item ${isActive ? "active" : ""}${pref.muted ? " is-muted" : ""}" data-rr-thread="${t.driver_id}" data-rr-driver-id="${t.driver_id}">
       <div class="msg-item-avatar"><div class="avatar-sm">${escapeHtml(initials)}</div><span class="msg-item-presence"></span></div>
-      <div><div class="msg-item-name">${escapeHtml(t.name)}${favStar}${t.station_code ? ` <span class="msg-item-station">· ${escapeHtml(t.station_code)}</span>` : ""}</div><div class="msg-item-preview">${escapeHtml(lastBodyTrunc)}</div></div>
-      <div><div class="msg-item-time">${escapeHtml(fmtRelative(t.last_at))}</div>${t.unread > 0 ? `<div class="msg-item-unread">${t.unread}</div>` : ""}</div>
+      <div><div class="msg-item-name">${escapeHtml(t.name)}${favStar}${mutedIco}${t.station_code ? ` <span class="msg-item-station">· ${escapeHtml(t.station_code)}</span>` : ""}</div><div class="msg-item-preview">${labelChips}${escapeHtml(lastBodyTrunc)}</div></div>
+      <div><div class="msg-item-time">${escapeHtml(fmtRelative(t.last_at))}</div>${badge}</div>
+      ${quick}
     </div>`;
   };
-  const favList = _msgInboxList.filter((t) => _favSet.has(t.driver_id));
-  const restList = _msgInboxList.filter((t) => !_favSet.has(t.driver_id));
+  // Pref-driven visibility (#28 archive, #30 snooze, #32 unread-only,
+  // #31 label filter).
+  const nowMs = Date.now();
+  const prefOf = (t) => _mcThreadPrefs.get(String(t.driver_id)) || {};
+  // Auto-unarchive (#28): a new unread message after the archive action
+  // brings the thread back into the main list.
+  const isArchived = (t) => {
+    const p = prefOf(t);
+    if (!p.archived) return false;
+    if (t.unread > 0 && t.last_at && p.updated_at
+        && new Date(t.last_at).getTime() > new Date(p.updated_at).getTime()) return false;
+    return true;
+  };
+  const archivedList = _msgInboxList.filter(isArchived);
+  let visible = _mcListFilter.archived
+    ? archivedList
+    : _msgInboxList.filter((t) => !isArchived(t) && !_mcIsSnoozed(prefOf(t), nowMs, t.last_at));
+  if (_mcListFilter.unreadOnly) visible = visible.filter((t) => t.unread > 0 || prefOf(t).mark_unread);
+  if (_mcListFilter.label) visible = visible.filter((t) => (prefOf(t).labels || []).some((l) => l.toLowerCase() === _mcListFilter.label.toLowerCase()));
+  const favList = visible.filter((t) => _favSet.has(t.driver_id));
+  const restList = visible.filter((t) => !_favSet.has(t.driver_id));
   const sectionLabel = (txt) => `<div class="msg-list-section">${txt}</div>`;
-  let listBody = "";
-  if (favList.length) listBody += sectionLabel("Favorites") + favList.map(rowHtml).join("");
-  if (restList.length) listBody += (favList.length ? sectionLabel("Recent") : "") + restList.map(rowHtml).join("");
-  list.innerHTML = supportRow + listBody;
+  let listBody = _mcListFilterBarHtml(archivedList.length);
+  if (_mcListFilter.archived) {
+    listBody += sectionLabel(`Archived · ${archivedList.length}`) + (archivedList.length ? visible.map(rowHtml).join("") : `<div class="rr-empty-inline">Nothing archived.</div>`);
+  } else {
+    if (favList.length) listBody += sectionLabel("Favorites") + favList.map(rowHtml).join("");
+    if (restList.length) listBody += (favList.length ? sectionLabel("Recent") : "") + restList.map(rowHtml).join("");
+    if (!favList.length && !restList.length && (_mcListFilter.unreadOnly || _mcListFilter.label)) {
+      listBody += `<div class="rr-empty-inline">No conversations match the current filter.</div>`;
+    }
+  }
+  list.innerHTML = (_mcListFilter.archived ? "" : supportRow) + listBody;
+  _mcWireListFilterBar(list);
+  _mcWireRowQuickActions(list);
   // Paint the green dot after the rows mount.  Presence state may have
   // already populated by the time the list first renders.
   _presencePaintList();
@@ -41299,6 +41747,27 @@ function _mcEnsureExtrasCss() {
     .rr-mc-linkcard .rr-lc-title{font-size:var(--fs-xs);font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .rr-mc-linkcard .rr-lc-desc{font-size:11px;color:var(--text-subtle);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
     .rr-mc-linkcard .rr-lc-host{font-size:10px;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.04em;margin-top:2px}
+    /* Batch 3 · search & organization */
+    .msg-filterbar{display:flex;gap:5px;flex-wrap:wrap;padding:7px 10px 5px;border-bottom:1px solid var(--border)}
+    .msg-fb-btn{background:var(--surface,#fff);border:1px solid var(--border);border-radius:var(--r-pill,999px);padding:3px 10px;font:inherit;font-size:11px;font-weight:600;color:var(--text-subtle);cursor:pointer}
+    .msg-fb-btn:hover{border-color:var(--accent);color:var(--accent-text)}
+    .msg-fb-btn.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-text)}
+    .msg-item{position:relative}
+    .msg-item-quick{position:absolute;right:8px;top:50%;transform:translateY(-50%);display:none;gap:2px;background:var(--surface,#fff);border:1px solid var(--border);border-radius:var(--r-md);padding:2px;box-shadow:0 4px 14px rgba(15,23,42,.12);z-index:4}
+    .msg-item:hover .msg-item-quick,.msg-item:focus-within .msg-item-quick{display:flex}
+    .msg-item-quick button{background:none;border:0;cursor:pointer;font-size:12px;line-height:1;padding:5px 6px;border-radius:var(--r-sm);color:var(--text-subtle)}
+    .msg-item-quick button:hover{background:var(--surface-hover,#f3f4f6);color:var(--text)}
+    .msg-item-muted{margin-left:5px;font-size:10px;opacity:.7}
+    .msg-item.is-muted .msg-item-name,.msg-item.is-muted .msg-item-preview{opacity:.72}
+    .msg-item-unread.muted{background:var(--text-subtle,#94a3b8)}
+    .msg-item-unread.manual{background:var(--accent);font-size:8px;line-height:1;display:flex;align-items:center;justify-content:center}
+    .msg-item-label{display:inline-block;background:var(--accent-soft);color:var(--accent-text);border-radius:4px;font-size:9px;font-weight:700;padding:1px 5px;margin-right:5px;vertical-align:1px;text-transform:uppercase;letter-spacing:.03em}
+    .msg-item-preview mark{background:rgba(250,204,21,.45);color:inherit;border-radius:2px;padding:0 1px}
+    .rr-mc-threadsearch{position:absolute;top:58px;right:12px;left:auto;z-index:40;display:flex;align-items:center;gap:7px;background:var(--surface,#fff);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:0 10px 30px rgba(15,23,42,.16);padding:7px 10px;width:min(430px,calc(100% - 24px))}
+    .rr-mc-threadsearch input{flex:1;min-width:0;border:0;outline:none;font:inherit;font-size:var(--fs-sm);background:transparent;color:var(--text)}
+    .rr-mc-threadsearch button{background:none;border:0;cursor:pointer;color:var(--text-subtle);font-size:14px;line-height:1;padding:3px 5px;border-radius:var(--r-sm)}
+    .rr-mc-threadsearch button:hover{background:var(--surface-hover,#f3f4f6);color:var(--text)}
+    .rr-mc-bubble.search-hit{outline:2px solid rgba(250,204,21,.75);outline-offset:1px}
   `;
   document.head.appendChild(st);
 }
@@ -42008,6 +42477,7 @@ async function refreshDriverChatThread(scrollToBottom) {
             <div class="rr-mc-sub">${_hSub}</div>
           </div>
           <div class="rr-mc-head-actions">
+            <button type="button" class="rr-mc-head-btn" data-rr-mc-search-toggle title="Search this conversation" aria-label="Search this conversation"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
             ${window.RR_RADIO_ENABLED ? `<button type="button" class="rr-mc-head-btn" data-rr-radio title="Dispatch radio (push-to-talk)" aria-label="Dispatch radio"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg></button>` : ""}
             <button type="button" class="rr-mc-head-btn" data-rr-call="audio" title="Voice call" aria-label="Voice call">${_RR_MC_ICONS.phone}</button>
             <button type="button" class="rr-mc-head-btn" data-rr-call="video" title="Video call" aria-label="Video call">${_RR_MC_ICONS.video}</button>
@@ -43389,6 +43859,81 @@ function _mcHandleMsgHash() {
 }
 window.addEventListener("hashchange", _mcHandleMsgHash);
 setTimeout(_mcHandleMsgHash, 1500);
+
+// ─── In-thread search (#26) ──────────────────────────────────────────────
+// A find-in-conversation bar over the open thread: searches the loaded
+// message window (operators from msg-core work here too), steps through
+// hits with highlight + flash, shows "n of m".
+let _mcThreadSearch = null; // { hits: [ids], idx } while the bar is open
+function _mcCloseThreadSearch() {
+  document.getElementById("rr-mc-threadsearch")?.remove();
+  document.querySelectorAll(".rr-mc-bubble.search-hit").forEach((b) => b.classList.remove("search-hit"));
+  _mcThreadSearch = null;
+}
+function _mcThreadSearchGo(delta) {
+  if (!_mcThreadSearch || !_mcThreadSearch.hits.length) return;
+  const n = _mcThreadSearch.hits.length;
+  _mcThreadSearch.idx = ((_mcThreadSearch.idx + delta) % n + n) % n;
+  const id = _mcThreadSearch.hits[_mcThreadSearch.idx];
+  const sel = (window.CSS && CSS.escape) ? CSS.escape(id) : id;
+  const bubble = document.querySelector(`#rr-mc-thread [data-rr-mc-msg="${sel}"]`);
+  const countEl = document.querySelector("#rr-mc-threadsearch [data-rr-ts-count]");
+  if (countEl) countEl.textContent = `${_mcThreadSearch.idx + 1} of ${n}`;
+  if (bubble) {
+    const thread = document.getElementById("rr-mc-thread");
+    if (thread) thread.dataset.rrAnchor = "0";
+    _rrMcFlashBubble(bubble);
+  }
+}
+function _mcRunThreadSearch(q) {
+  document.querySelectorAll(".rr-mc-bubble.search-hit").forEach((b) => b.classList.remove("search-hit"));
+  const countEl = document.querySelector("#rr-mc-threadsearch [data-rr-ts-count]");
+  if (!q || q.length < 2) { _mcThreadSearch = { hits: [], idx: -1 }; if (countEl) countEl.textContent = ""; return; }
+  const ops = _mcParseSearch(q);
+  const hits = (_mcLastMsgs || []).filter((m) => !m.deleted_at && _mcMsgMatchesOps(m, ops)).map((m) => m.id);
+  _mcThreadSearch = { hits, idx: -1 };
+  hits.forEach((id) => {
+    const sel = (window.CSS && CSS.escape) ? CSS.escape(id) : id;
+    document.querySelector(`#rr-mc-thread [data-rr-mc-msg="${sel}"]`)?.classList.add("search-hit");
+  });
+  if (countEl) {
+    countEl.textContent = hits.length
+      ? `${hits.length} hit${hits.length === 1 ? "" : "s"}${(_mcLastMsgs || []).length >= _mcThreadLimit ? " in loaded history" : ""}`
+      : "No matches in loaded history";
+  }
+  if (hits.length) _mcThreadSearchGo(1);
+}
+document.addEventListener("click", (e) => {
+  const tsBtn = e.target.closest("[data-rr-mc-search-toggle]");
+  if (!tsBtn) return;
+  e.preventDefault();
+  if (document.getElementById("rr-mc-threadsearch")) { _mcCloseThreadSearch(); return; }
+  _mcEnsureExtrasCss();
+  const shell = document.querySelector(".rr-mc-shell");
+  if (!shell) return;
+  const bar = document.createElement("div");
+  bar.id = "rr-mc-threadsearch";
+  bar.className = "rr-mc-threadsearch";
+  bar.innerHTML = `
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input type="search" placeholder="Find in conversation… (operators work: from:driver has:image)" aria-label="Find in conversation">
+    <span class="u-subtle" data-rr-ts-count style="font-size:var(--fs-xs);white-space:nowrap"></span>
+    <button type="button" data-rr-ts-prev title="Previous match" aria-label="Previous match">↑</button>
+    <button type="button" data-rr-ts-next title="Next match" aria-label="Next match">↓</button>
+    <button type="button" data-rr-ts-x title="Close" aria-label="Close search">×</button>`;
+  shell.appendChild(bar);
+  const input = bar.querySelector("input");
+  let t = null;
+  input.addEventListener("input", () => { clearTimeout(t); t = setTimeout(() => _mcRunThreadSearch(input.value.trim()), 200); });
+  input.addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter") { ev.preventDefault(); _mcThreadSearchGo(ev.shiftKey ? -1 : 1); }
+    if (ev.key === "Escape") { ev.preventDefault(); _mcCloseThreadSearch(); }
+  });
+  bar.querySelector("[data-rr-ts-prev]").addEventListener("click", () => _mcThreadSearchGo(-1));
+  bar.querySelector("[data-rr-ts-next]").addEventListener("click", () => _mcThreadSearchGo(1));
+  bar.querySelector("[data-rr-ts-x]").addEventListener("click", _mcCloseThreadSearch);
+  input.focus();
+});
 
 // ─── Edit / delete on dispatcher's own bubbles ───────────────────────────
 //
