@@ -4574,14 +4574,21 @@ function namesForSheet(sheet) {
 
 // ─── Access level (client mirror of private.can_*_workbook) ────────────────
 
+const WB_ROLE_RANK = { dispatcher: 1, ops: 2, owner: 3, platform_admin: 3 };
+const WB_ROLE_SHARE_LABELS = { dispatcher: "Dispatchers and up", ops: "Ops and up", owner: "Owners" };
+
 function computeAccess() {
   const self = _me();
   const wb = WB.wb;
   if (!wb || !self) { WB.canEdit = false; WB.canAdmin = false; return; }
-  const mine = WB.permissions.find((p) => p.subject_type === "user" && p.subject_id === self.id);
-  const owner = wb.owner_user_id === self.id;
-  WB.canEdit = owner || wb.visibility === "org" || (mine && (mine.access_level === "edit" || mine.access_level === "admin"));
   const role = self.role;
+  const mine = WB.permissions.find((p) => p.subject_type === "user" && p.subject_id === self.id);
+  // role shares grant by minimum rank (mirror of is_staff in 0489); they cap at edit
+  const roleGrant = WB.permissions.find((p) => p.subject_type === "role" && p.subject_role
+    && (WB_ROLE_RANK[role] || 0) >= (WB_ROLE_RANK[p.subject_role] || 9));
+  const owner = wb.owner_user_id === self.id;
+  const grants = [mine, roleGrant].filter(Boolean);
+  WB.canEdit = owner || wb.visibility === "org" || grants.some((p) => p.access_level === "edit" || p.access_level === "admin");
   WB.canAdmin = owner || role === "ops" || role === "owner" || role === "platform_admin" || (mine && mine.access_level === "admin");
 }
 
@@ -4886,7 +4893,16 @@ async function createWorkbookSnapshot(label, auto) {
     if (ins.error) throw ins.error;
     pruneSnapshots();
     return ins.data ? ins.data.id : null;
-  } catch (e) { console.warn("snapshot save:", e && e.message); if (!auto) _toast("Couldn't save the version — migration 0421 may be pending", "warn"); return null; }
+  } catch (e) {
+    console.warn("snapshot save:", e && e.message);
+    if (!auto) _toast("Couldn't save the version: " + ((e && e.message) || "migration 0421 may be pending"), "warn");
+    else if (!WB._autoSnapWarned) {
+      // auto snapshots fail silently otherwise — say so once per session (100-list #100)
+      WB._autoSnapWarned = true;
+      _toast("Background version saves aren't working — recent versions may be missing", "warn");
+    }
+    return null;
+  }
 }
 
 async function pruneSnapshots() {
@@ -16881,7 +16897,7 @@ async function askWorkbookAi(g, question) {
   if (btn) { btn.disabled = true; btn.classList.add("is-loading"); }
   if (input) input.disabled = true;
   try {
-    const { data, error } = await sb.functions.invoke("workbook-ai", { body: { question, schema } });
+    const { data, error } = await sb.functions.invoke("workbook-ai", { body: { question, schema, workbook_id: WB.wb && WB.wb.id } });
     if (error || !data || data.error || !data.plan) {
       const msg = (error && error.message) || (data && (data.detail || data.error)) || "Unknown error";
       _toast(`AI couldn't answer that: ${msg}`, "warn");
@@ -18965,8 +18981,10 @@ function renderDetailsPanel(body) {
 function renderSharingPanel(body) {
   const wb = WB.wb;
   const userPerms = WB.permissions.filter((p) => p.subject_type === "user");
+  const rolePerms = WB.permissions.filter((p) => p.subject_type === "role" && p.subject_role);
   const canManage = WB.canAdmin;
   const levels = [["view", "View"], ["comment", "Comment"], ["edit", "Edit"], ["admin", "Admin"]];
+  const groupLevels = levels.filter(([k]) => k !== "admin"); // group shares cap at edit (0489)
   body.innerHTML = `
     <div class="wb-share-vis">
       <span class="wb-field-label">Visibility</span>
@@ -18991,7 +19009,17 @@ function renderSharingPanel(body) {
           <button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-permremove="${p.id}" title="Remove access" aria-label="Remove access">×</button>`
           : `<span class="wb-share-level">${esc(p.access_level)}</span>`}
         </div>`).join("")}
-      ${!userPerms.length && wb.visibility === "private" ? `<div class="rr-empty-inline">No one else has access yet.</div>` : ""}
+      ${rolePerms.map((p) => `
+        <div class="wb-share-row" data-wb-perm="${p.id}">
+          <span class="wb-avatar wb-avatar-sm">${esc(initialsOf(WB_ROLE_SHARE_LABELS[p.subject_role] || p.subject_role))}</span>
+          <span class="wb-share-name">${esc(WB_ROLE_SHARE_LABELS[p.subject_role] || p.subject_role)}</span>
+          ${canManage ? `<select class="wb-input wb-share-sel" data-wb-permlevel="${p.id}" aria-label="Access level">
+            ${groupLevels.map(([k, l]) => `<option value="${k}" ${p.access_level === k ? "selected" : ""}>${l}</option>`).join("")}
+          </select>
+          <button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-permremove="${p.id}" title="Remove access" aria-label="Remove access">×</button>`
+          : `<span class="wb-share-level">${esc(p.access_level)}</span>`}
+        </div>`).join("")}
+      ${!userPerms.length && !rolePerms.length && wb.visibility === "private" ? `<div class="rr-empty-inline">No one else has access yet.</div>` : ""}
     </div>
     ${canManage ? `<div class="wb-share-add">
       <select class="wb-input" id="wb-share-user" aria-label="Add person">
@@ -19002,6 +19030,16 @@ function renderSharingPanel(body) {
         ${levels.map(([k, l]) => `<option value="${k}" ${k === "edit" ? "selected" : ""}>${l}</option>`).join("")}
       </select>
       <button type="button" class="btn btn-sm" data-wb-act="share-add">Share</button>
+    </div>
+    <div class="wb-share-add">
+      <select class="wb-input" id="wb-share-role" aria-label="Add a role">
+        <option value="">Add a role…</option>
+        ${Object.entries(WB_ROLE_SHARE_LABELS).filter(([r]) => !rolePerms.some((p) => p.subject_role === r)).map(([r, l]) => `<option value="${esc(r)}">${esc(l)}</option>`).join("")}
+      </select>
+      <select class="wb-input" id="wb-share-role-level" aria-label="Access level">
+        ${groupLevels.map(([k, l]) => `<option value="${k}" ${k === "view" ? "selected" : ""}>${l}</option>`).join("")}
+      </select>
+      <button type="button" class="btn btn-sm" data-wb-act="share-add-role">Share</button>
     </div>` : ""}`;
   if (canManage) {
     body.querySelectorAll('input[name="wb-share-vis"]').forEach((radio) => radio.addEventListener("change", async () => {
@@ -19871,6 +19909,22 @@ function installRootListeners() {
         });
         break;
       }
+      case "share-add-role": {
+        const roleSel = document.getElementById("wb-share-role");
+        const lvlSel = document.getElementById("wb-share-role-level");
+        if (!roleSel || !roleSel.value) break;
+        _sb().from("workbook_permissions").insert({
+          dsp_id: WB.wb.dsp_id, workbook_id: WB.wb.id, subject_type: "role",
+          subject_role: roleSel.value, access_level: lvlSel.value, created_by: _me() ? _me().id : null,
+        }).select().single().then((res) => {
+          if (res.error) { _toast("Couldn't share: " + res.error.message + " — migration 0489 may be pending", "error"); return; }
+          WB.permissions.push(res.data);
+          wbLog("workbook.shared", `shared the workbook with ${WB_ROLE_SHARE_LABELS[roleSel.value] || roleSel.value} (${lvlSel.value})`);
+          computeAccess();
+          renderPanelBody();
+        });
+        break;
+      }
     }
   });
 
@@ -19903,6 +19957,10 @@ function installRootListeners() {
   });
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") flushCells();
+  });
+  // beforeunload is unreliable on iOS Safari; pagehide is the durable signal
+  window.addEventListener("pagehide", () => {
+    if ([...WB.dirtyCells.values()].some((s) => s.size)) flushCells();
   });
   window.addEventListener("resize", () => {
     clearTimeout(WB._resizeT);
