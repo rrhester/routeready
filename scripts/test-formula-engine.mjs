@@ -1404,6 +1404,21 @@ await okA("xlsx round-trip: Excel tables survive as <table> parts", async () => 
   ok("computeDataTable2: crosses row × col inputs, row-major by colInput", () => {
     assert.deepEqual(computeDataTable2((r, c) => r + c, [1, 2], [10, 20]), [[11, 12], [21, 22]]);
   });
+  // Integration: the two-way table's real 2-cell probe over the recalc engine.
+  ok("two-way data table matches a formula through recalcSheet", () => {
+    const { recalcSheet } = __engine;
+    const cells = new Map();
+    const put = (ref, d) => { const rc = parseCellRef(ref); cells.set(rc.row + "," + rc.col, { value: d.f ? null : String(d.v), formula: d.f || null, type: d.f ? null : "number", computed: null, err: null, format: {} }); };
+    put("B1", { v: 0 }); put("B2", { v: 0 }); put("C1", { f: "=B1*B2+1" });
+    const s = { id: "s", blockId: "b", rowCount: 50, colCount: 12, cells };
+    recalcSheet(s);
+    const fKey = "0,2"; // C1
+    const setCell = (key, v) => { let c = s.cells.get(key); if (!c) { c = { value: "0", formula: null, type: "number", computed: null, err: null, format: {} }; s.cells.set(key, c); } c.value = String(v); c.formula = null; c.computed = null; c.err = null; };
+    // matches the dialog: probe2(acrossVal, downVal) → B2=across, B1=down
+    const probe2 = (across, down) => { setCell("1,1", across); setCell("0,1", down); recalcSheet(s, ["0,1", "1,1"]); const t = s.cells.get(fKey); return t && !t.err ? (t.formula ? t.computed : t.value) : null; };
+    const grid = computeDataTable2(probe2, [10, 20], [2, 3]); // rowInputs=across, colInputs=down
+    assert.deepEqual(grid, [[21, 41], [31, 61]]); // down*across+1
+  });
 }
 
 // ── #89 AI schema aggregates: real per-column stats ──────────────────────────
