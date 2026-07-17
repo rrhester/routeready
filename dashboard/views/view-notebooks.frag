@@ -332,6 +332,7 @@
   min-width:60px;vertical-align:top}
 .rrnb-editor th{background:var(--surface-secondary);font-weight:600;text-align:left}
 .rrnb-editor table.rrnb-zebra tbody tr:nth-child(even) td{background:rgba(15,23,42,.035)}
+.rrnb-editor table tr.rrnb-tfoot td{font-weight:600;border-top:2px solid var(--border-strong);color:var(--text)}
 .rrnb-editor .rrnb-toc{border:1px solid var(--border);border-radius:var(--r-md);padding:10px 14px;margin:14px 0;
   background:var(--surface-secondary)}
 .rrnb-editor .rrnb-toc-hd{font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;
@@ -3438,6 +3439,9 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       '<button data-tbl="al-left" title="Align column left">⇤</button><button data-tbl="al-center" title="Align column center">↔</button><button data-tbl="al-right" title="Align column right">⇥</button>' +
       '<button data-tbl="hdr" title="Toggle header row">Header row</button>' +
       '<button data-tbl="zebra" title="Toggle row striping">Striping</button>' +
+      '<button data-tbl="sortA" title="Sort by this column A→Z / low→high">Sort ↑</button><button data-tbl="sortD" title="Sort by this column Z→A / high→low">Sort ↓</button>' +
+      '<button data-tbl="sum" title="Total this column">Σ Sum</button><button data-tbl="avg" title="Average this column">x̄ Avg</button>' +
+      '<button data-tbl="csv" title="Export table as CSV">Export CSV</button>' +
       '<button data-tbl="del" class="danger">Delete table</button></div>', cell.getBoundingClientRect());
     pop.onclick = function (ev) {   // assign (not addEventListener) so reopening doesn't stack handlers
       var b = ev.target.closest("[data-tbl]"); if (!b) return;
@@ -3475,6 +3479,37 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
             c.parentNode.replaceChild(n, c);
           });
         }
+      } else if (act === "sortA" || act === "sortD") {
+        var dir = act === "sortA" ? 1 : -1, body = table.tBodies[0] || table;
+        var drows = [].slice.call(body.rows).filter(function (r) { return !r.classList.contains("rrnb-tfoot") && !(r.cells[0] && r.cells[0].tagName === "TH"); });
+        drows.sort(function (a, b) {
+          var x = ((a.cells[ci] || {}).textContent || "").trim(), y = ((b.cells[ci] || {}).textContent || "").trim();
+          var nx = parseFloat(x.replace(/[^0-9.\-]/g, "")), ny = parseFloat(y.replace(/[^0-9.\-]/g, ""));
+          if (!isNaN(nx) && !isNaN(ny) && x !== "" && y !== "") return (nx - ny) * dir;
+          return x.localeCompare(y) * dir;
+        });
+        drows.forEach(function (r) { body.appendChild(r); });   // keep any tfoot last
+        var tf = table.querySelector("tr.rrnb-tfoot"); if (tf) body.appendChild(tf);
+      } else if (act === "sum" || act === "avg") {
+        var bdy = table.tBodies[0] || table;
+        var vrows = [].slice.call(bdy.rows).filter(function (r) { return !r.classList.contains("rrnb-tfoot") && !(r.cells[0] && r.cells[0].tagName === "TH"); });
+        var nums = vrows.map(function (r) { return parseFloat((((r.cells[ci] || {}).textContent) || "").replace(/[^0-9.\-]/g, "")); }).filter(function (n) { return !isNaN(n); });
+        if (!nums.length) { notify("That column has no numbers to total."); }
+        else {
+          var total = nums.reduce(function (a, b) { return a + b; }, 0);
+          var val = Math.round((act === "sum" ? total : total / nums.length) * 100) / 100;
+          var foot = table.querySelector("tr.rrnb-tfoot");
+          if (!foot) { foot = document.createElement("tr"); foot.className = "rrnb-tfoot"; var cols = (vrows[0] ? vrows[0].cells.length : ci + 1); for (var k = 0; k < cols; k++) foot.appendChild(document.createElement("td")); bdy.appendChild(foot); }
+          while (foot.cells.length <= ci) foot.appendChild(document.createElement("td"));
+          foot.cells[ci].textContent = (act === "sum" ? "Σ " : "x̄ ") + val;
+        }
+      } else if (act === "csv") {
+        var csv = [].slice.call(table.rows).map(function (r) {
+          return [].slice.call(r.cells).map(function (c) { var t = (c.textContent || "").replace(/"/g, '""'); return /[",\n]/.test(t) ? '"' + t + '"' : t; }).join(",");
+        }).join("\r\n");
+        var a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+        a.download = "table.csv"; document.body.appendChild(a); a.click();
+        setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 200);
       }
       hidePop(); scheduleSave();
     };
