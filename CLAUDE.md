@@ -4,9 +4,11 @@
 
 A 100-item improvement list for the interview calendar
 (`dashboard/live.js` `_ivcal*` family, `dashboard/booking.html`,
-`dashboard/rsvp.html`) — COMPLETE as of 2026-07-17, shipped across PRs
-#3932–#3941 in 11 waves. Item #42 (hover peek card) deliberately skipped
-(hover preview was removed earlier at the operator's request).
+`dashboard/rsvp.html`) — COMPLETE (100/100) as of 2026-07-17, shipped
+across PRs #3932–#3941 in 11 waves. Item #42 (hover peek card) was
+initially skipped (hover preview was removed earlier at the operator's
+request) then built on their say-so as a strict OPT-IN — Settings →
+"Event hover preview", default OFF (`rr_ivcal_hoverpeek`).
 
 Migrations **0492–0499 APPLIED by the user 2026-07-17** (after two paste
 gotchas, both fixed: 0496 originally assumed 0432's `last_pulled_at`
@@ -14,13 +16,17 @@ column — their DB skipped 0432, 0496 now re-asserts it; and large
 migrations must be pasted as ONE block or `$$` bodies split). Post-
 migration driver pass green (banner suppressed at v498, migrated RPC
 shapes render). Notes that remain true:
-- Edge fns to (re)deploy as wanted: `google-calendar-sync`,
-  `google-calendar-events`, `send-staff-push` (changed); `microsoft-*`
-  (4, need MS_CLIENT_ID/MS_CLIENT_SECRET/MS_OAUTH_REDIRECT_URI),
-  `booking-captcha` (needs TURNSTILE_SECRET_KEY + `turnstile_site_key`
-  in private.integration_settings), `google-calendar-reconcile` (new).
+- Edge functions AUTO-DEPLOY: the "Deploy Supabase" workflow
+  (deploy-migrations.yml) pushes supabase/** to the live project on every
+  main merge — every run 2026-07-17 succeeded, so all changed/new
+  calendar functions are live. Its DB step no-ops (SUPABASE_DB_URL secret
+  unset) — migrations stay MANUAL, which is why the operator applies SQL
+  by hand. Only runtime SECRETS are manual: MS_CLIENT_ID/MS_CLIENT_SECRET/
+  MS_OAUTH_REDIRECT_URI (Outlook), TURNSTILE_SECRET_KEY +
+  `turnstile_site_key` row (CAPTCHA).
 - Their DB never applied 0432 (gcal two-way pull) — pull cron inactive,
-  "pulled Xm ago" stays blank until they do.
+  "pulled Xm ago" stays blank until they run it (SQL pasted in chat
+  2026-07-17; it is the LATEST revision of fire_gcal_sync, safe late).
 
 New extracted modules with test suites in `npm test`: `cal-tz.mjs`
 (DST math — fixed a real single-pass offset bug), `ivcal-layout.js`
