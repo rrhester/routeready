@@ -104,6 +104,11 @@ create trigger trg_cal_events_mscal_sync
 
 alter table public.google_calendar_accounts
   add column if not exists overlay_calendar_ids jsonb;
+-- Re-assert last_pulled_at (0432) so this migration stands alone on a
+-- database that never applied the two-way-sync migration — same defensive
+-- pattern as 0409. The column stays null until 0432's pull cron runs.
+alter table public.google_calendar_accounts
+  add column if not exists last_pulled_at timestamptz;
 
 create or replace function public.google_calendar_set_overlays(p_ids jsonb)
 returns jsonb language plpgsql security definer set search_path = '' as $$
