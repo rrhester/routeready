@@ -64,7 +64,7 @@ as $$
               (p.subject_type = 'user' and p.subject_id = auth.uid())
               or (p.subject_type = 'org'  and p.subject_id = w.dsp_id)
               or (p.subject_type = 'role' and p.subject_role is not null
-                  and private.is_staff(w.dsp_id, p.subject_role))
+                  and private.is_staff(w.dsp_id, p.subject_role::public.app_role))
             )
         )
       )
@@ -95,7 +95,7 @@ as $$
               (p.subject_type = 'user' and p.subject_id = auth.uid())
               or (p.subject_type = 'org'  and p.subject_id = w.dsp_id)
               or (p.subject_type = 'role' and p.subject_role is not null
-                  and private.is_staff(w.dsp_id, p.subject_role))
+                  and private.is_staff(w.dsp_id, p.subject_role::public.app_role))
             )
         )
       )
