@@ -50,4 +50,14 @@ ok("QUERY via evalFormula", (() => {
   return arr.rows;
 })(), [["Region"], ["West"]]);
 
+// ── LABEL / FORMAT clauses (100-list #7) — columns are A/B/C ──────────────────
+ok("label renames output headers", q("select A, C label A 'Zone', C 'Revenue'"),
+  [["Zone", "Revenue"], ["East", 100], ["West", 250], ["East", 50]]);
+ok("label on an aggregate", q("select A, sum(C) group by A label sum(C) 'Total'"),
+  [["Region", "Total"], ["East", 150], ["West", 250]]);
+ok("format applies a number format to a column", q("select A, C format C '$#,##0.00'"),
+  [["Region", "Sales"], ["East", "$100.00"], ["West", "$250.00"], ["East", "$50.00"]]);
+ok("label + format together", q("select C label C 'Rev' format C '#,##0'"),
+  [["Rev"], ["100"], ["250"], ["50"]]);
+
 console.log(`✓ QUERY: ${n} tests passed`);

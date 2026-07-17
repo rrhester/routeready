@@ -923,6 +923,33 @@ ok("dv list: membership is case-insensitive", () => {
 ok("dv: an empty value always passes (blank is allowed)", () => {
   assert.equal(valueSatisfiesRule({ type: "number", op: ">", v1: "0" }, ""), true);
 });
+ok("filter conditions: numbers and dates (100-list #43)", () => {
+  const { filterCondHits } = __engine;
+  assert.equal(filterCondHits({ op: "gt", v1: "40" }, "45"), true);
+  assert.equal(filterCondHits({ op: "gt", v1: "40" }, "39"), false);
+  assert.equal(filterCondHits({ op: "between", v1: "10", v2: "20" }, "15"), true);
+  assert.equal(filterCondHits({ op: "between", v1: "10", v2: "20" }, "25"), false);
+  assert.equal(filterCondHits({ op: "ge", v1: "2026-07-01" }, "2026-07-15"), true);
+  assert.equal(filterCondHits({ op: "lt", v1: "2026-07-01" }, "2026-07-15"), false);
+  assert.equal(filterCondHits({ op: "eq", v1: "DTW1" }, "dtw1"), true);
+  assert.equal(filterCondHits({ op: "ne", v1: "DTW1" }, "DTW2"), true);
+  assert.equal(filterCondHits({ op: "gt", v1: "40" }, ""), false); // blanks never match
+});
+
+ok("dv range + depend: cascading dropdown filters by the parent column (100-list #16)", () => {
+  // A1:B3 is a (station, route) mapping; column C holds the picked station
+  const sh = mkSheet("Cascade", {
+    A1: { value: "DTW1", type: "text" }, B1: { value: "R1", type: "text" },
+    A2: { value: "DTW1", type: "text" }, B2: { value: "R2", type: "text" },
+    A3: { value: "DTW2", type: "text" }, B3: { value: "R9", type: "text" },
+    C6: { value: "DTW1", type: "text" },
+  });
+  const rule = { type: "range", source: "A1:B3", depend: 2 };
+  assert.equal(valueSatisfiesRule(rule, "R2", sh, 5, 4), true);   // row 6's station is DTW1
+  assert.equal(valueSatisfiesRule(rule, "R9", sh, 5, 4), false);  // R9 belongs to DTW2
+  const flat = { type: "range", source: "A1:B3" };                // no depend → any value in the range
+  assert.equal(valueSatisfiesRule(flat, "R9", sh, 5, 4), true);
+});
 ok("dvDateSerial handles ISO, m/d/y, and numeric serials", () => {
   assert.equal(dvDateSerial("2026-07-05"), dateToSerial(new Date(2026, 6, 5)));
   assert.equal(dvDateSerial(46208), 46208);
@@ -1070,6 +1097,27 @@ const skey = (ref) => { const rc = parseCellRef(ref); return rc.row + "," + rc.c
 const scell = (sh, ref) => sh.cells.get(skey(ref));
 const sspill = (sh, ref) => { const e = sh.spill.get(skey(ref)); return e ? e.value : undefined; };
 
+ok("iterative calc: a circular sum converges instead of #CIRCULAR (100-list #1)", () => {
+  // B1 = A1 + B1*0 ... use a damped convergence: X = (10 + X)/2 → X→10
+  const sh = spillSheet({ A1: "=(10 + A1) / 2" });
+  sh.meta = { iterCalc: { on: true, max: 200, eps: 1e-6 } };
+  __engine.recalcSheet(sh);
+  assert.equal(scell(sh, "A1").err, null);
+  assert.ok(Math.abs(scell(sh, "A1").computed - 10) < 1e-3, "converged to ~10, got " + scell(sh, "A1").computed);
+});
+ok("iterative calc off: the same circular formula is #CIRCULAR", () => {
+  const sh = spillSheet({ A1: "=(10 + A1) / 2" });
+  __engine.recalcSheet(sh);
+  assert.equal(scell(sh, "A1").err, "#CIRCULAR");
+});
+ok("SPARKLINE returns a marked value the painter renders (100-list #9)", () => {
+  const sh = spillSheet({ A1: "1", A2: "5", A3: "3", B1: "=SPARKLINE(A1:A3, \"column\")" });
+  __engine.recalcSheet(sh);
+  const v = scell(sh, "B1").computed;
+  assert.ok(typeof v === "string" && v.includes("SPARK"), "sparkline marker present");
+  assert.ok(v.includes("column"), "carries the chart type");
+});
+
 ok("spill: SEQUENCE(3) fills the column below the origin", () => {
   const sh = spillSheet({ A1: "=SEQUENCE(3)" });
   __engine.recalcSheet(sh);
@@ -1139,10 +1187,14 @@ await okA("xlsx round-trip: values, formula, date, escaping, merges, freeze, wid
     ["3,0", XC("Total", "text")], ["3,1", XF("=SUM(B2:B3)", 17, "number")],
     ["4,0", XC("2026-07-05", "date")],
     ["5,0", XC('say "hi" <ok> & bye', "text")],
+    // per-side borders, arbitrary rotation, indent (100-list #33, #35, #41)
+    ["6,0", XC("edges", "text", { bs: { t: { w: 1, st: "dashed", c: "#DC2626" }, b: { w: 3, st: "solid" } } })],
+    ["6,1", XC("tilted", "text", { rot: -45, ind: 2 })],
   ]);
   const sheets = [
     { name: "Data", cells: s1, colWidths: { 0: 140 }, frozenRows: 1, frozenCols: 0, meta: { merges: [{ r0: 0, c0: 0, r1: 0, c1: 1 }] } },
-    { name: "Sheet Two", cells: new Map([["0,0", XC("second", "text")], ["0,1", XC("3.14", "number")]]), colWidths: {}, frozenRows: 0, frozenCols: 0, meta: {} },
+    // freeze-N panes survive the round trip (100-list #13)
+    { name: "Sheet Two", cells: new Map([["0,0", XC("second", "text")], ["0,1", XC("3.14", "number")]]), colWidths: {}, frozenRows: 3, frozenCols: 2, meta: {} },
   ];
   const parsed = await parseXlsxBytes(buildXlsxBytes(sheets));
   assert.deepEqual(parsed.sheets.map((s) => s.name), ["Data", "Sheet Two"]);
@@ -1157,6 +1209,16 @@ await okA("xlsx round-trip: values, formula, date, escaping, merges, freeze, wid
   assert.deepEqual(d.merges[0], { r0: 0, c0: 0, r1: 0, c1: 1 });
   assert.ok(d.colWidths[0] >= 130 && d.colWidths[0] <= 150);
   assert.equal(findCell(parsed.sheets[1], 0, 1).value, "3.14");
+  assert.equal(parsed.sheets[1].frozenRows, 3);
+  assert.equal(parsed.sheets[1].frozenCols, 2);
+  const edged = findCell(d, 6, 0).format.bs;
+  assert.equal(edged.t.st, "dashed");
+  assert.equal(edged.t.c, "#DC2626");
+  assert.equal(edged.b.w, 3);
+  assert.equal(edged.b.st, "solid");
+  assert.equal(edged.l, undefined);
+  assert.equal(findCell(d, 6, 1).format.rot, -45);
+  assert.equal(findCell(d, 6, 1).format.ind, 2);
 });
 
 await okA("xlsx import: deflate + shared strings (rich-text runs) + date styles", async () => {
