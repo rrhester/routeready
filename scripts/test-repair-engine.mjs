@@ -16,6 +16,7 @@ import {
   formatCents, sumCents, varianceCents, variancePct,
   attentionScore, filterQueue, sortQueue, summarize,
   formatWhen, formatDay, vehicleShortDesc, parseOdometer, ODOMETER_MAX,
+  SHOP_STATUS_FLOW,
   QUOTE_STATUS_LABEL, QUOTE_STATUS_TONE,
   AUTH_TYPE_LABEL, AUTH_STATUS_LABEL, AUTH_STATUS_TONE,
   parseMoney, MONEY_MAX_CENTS,
@@ -275,6 +276,16 @@ t("vehicleShortDesc", () => {
   }), "'22 Ford Transit 250");
   assert.equal(vehicleShortDesc({}), "");
   assert.equal(vehicleShortDesc(null), "");
+});
+
+// ── In-Shop Tracker (Phase 6) ───────────────────────────────────────────
+t("SHOP_STATUS_FLOW is a labeled subset that excludes the guarded states", () => {
+  for (const s of SHOP_STATUS_FLOW) {
+    assert.ok(SHOP_STATUS_LABEL[s], `label for ${s}`);
+    assert.ok(SHOP_STATUS_TONE[s], `tone for ${s}`);
+  }
+  assert.ok(!SHOP_STATUS_FLOW.includes("picked_up"), "pickup is a dedicated action");
+  assert.ok(!SHOP_STATUS_FLOW.includes("awaiting_dropoff"), "pre-check-in state not pickable");
 });
 
 // ── Money input (Phase 5) ───────────────────────────────────────────────

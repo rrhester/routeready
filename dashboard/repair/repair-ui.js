@@ -22,7 +22,7 @@
 import {
   STAGES, STAGE_LABEL, STAGE_TONE, isOpenStage,
   AVAILABILITY_LABEL, AVAILABILITY_TONE,
-  SHOP_STATUS_LABEL, SHOP_STATUS_TONE, CATEGORY_OPTIONS,
+  SHOP_STATUS_LABEL, SHOP_STATUS_TONE, SHOP_STATUS_FLOW, CATEGORY_OPTIONS,
   REQUEST_STATUS_LABEL, REQUEST_STATUS_TONE, SHOP_CLASS_LABEL, SHOP_CLASS_TONE,
   QUOTE_STATUS_LABEL, QUOTE_STATUS_TONE,
   AUTH_TYPE_LABEL, AUTH_STATUS_LABEL, AUTH_STATUS_TONE,
@@ -282,9 +282,10 @@ import {
       const who = c ? `${c.case_number} · ${c.vehicle_nickname || c.vehicle_name || ""}` : "";
       const tone = e.kind === "grounded" ? "r"
         : (e.kind === "returned_to_service" || e.kind === "ungrounded"
-           || e.kind === "authorization_acknowledged") ? "g"
+           || e.kind === "authorization_acknowledged" || e.kind === "vehicle_picked_up") ? "g"
         : (e.kind === "stage_changed" || e.kind === "created"
-           || e.kind === "authorization_issued") ? "b" : "n";
+           || e.kind === "authorization_issued"
+           || e.kind === "visit_scheduled" || e.kind === "visit_checked_in") ? "b" : "n";
       const label = e.kind === "stage_changed" && e.new_value
         ? `${STAGE_LABEL[e.new_value] || e.new_value}`
         : (e.message || e.kind);
@@ -537,9 +538,10 @@ import {
     return `<div class="rp-tl">` + events.map((e) => {
       const tone = e.kind === "grounded" ? "r"
         : (e.kind === "returned_to_service" || e.kind === "ungrounded"
-           || e.kind === "authorization_acknowledged") ? "g"
+           || e.kind === "authorization_acknowledged" || e.kind === "vehicle_picked_up") ? "g"
         : (e.kind === "stage_changed" || e.kind === "created" || e.kind === "ro_linked"
-           || e.kind === "authorization_issued") ? "b" : "n";
+           || e.kind === "authorization_issued"
+           || e.kind === "visit_scheduled" || e.kind === "visit_checked_in") ? "b" : "n";
       const title = e.kind === "stage_changed" && e.new_value
         ? `Stage → ${STAGE_LABEL[e.new_value] || e.new_value}${e.message && e.message !== "Stage changed" ? ` — ${e.message}` : ""}`
         : (e.message || e.kind);
@@ -571,8 +573,12 @@ import {
   function stageActions(c) {
     const next = Array.isArray(c.allowed_next_stages) ? c.allowed_next_stages : [];
     const btns = [];
+    // Dedicated affordances own these: cancel/return buttons below, and
+    // scheduled / at_shop / ready_for_pickup via the In-Shop Tracker so
+    // a stage move never happens without its visit record.
+    const owned = ["cancelled", "returned", "scheduled", "at_shop", "ready_for_pickup"];
     for (const s of next) {
-      if (s === "cancelled" || s === "returned") continue; // dedicated affordances
+      if (owned.includes(s)) continue;
       btns.push(`<button type="button" class="rp-btn" data-rp-stage="${esc(s)}">${esc(STAGE_LABEL[s] || s)}</button>`);
     }
     if (next.includes("returned") || c.stage === "quality_check" || c.stage === "ready_for_pickup") {
@@ -582,6 +588,46 @@ import {
       btns.push(`<button type="button" class="rp-btn rp-btn-danger" data-rp-stage="cancelled">Cancel case</button>`);
     }
     return btns.join("");
+  }
+
+  // ── In-Shop Tracker section (Phase 6) ────────────────────────────────
+  const PRE_SHOP_STAGES = ["reported", "review", "quoting", "quotes_in", "awaiting_approval", "approved", "scheduled"];
+
+  function visitSection(c) {
+    const v = c.visit;
+    const rows = [];
+    const row = (k, val, cls) => rows.push(
+      `<div class="rp-visit-row"><span class="rp-fact-k">${esc(k)}</span><span class="rp-fact-v${cls ? ` ${cls}` : ""}">${val}</span></div>`);
+    const btns = [];
+
+    if (v) {
+      row("Status", shopStatusPill(v.shop_status) || esc(v.shop_status));
+      if (v.appointment_at && !v.dropped_off_at) row("Appointment", esc(formatWhen(v.appointment_at, nowIso())));
+      if (v.dropped_off_at) row("Dropped off", esc(formatWhen(v.dropped_off_at, nowIso())));
+      if (v.shop_work_order_number) row("WO #", esc(v.shop_work_order_number));
+      if (v.service_advisor) row("Advisor", esc(v.service_advisor));
+      if (v.promised_completion_at) row("Promised", esc(formatDay(v.promised_completion_at)));
+      if (v.revised_completion_at) row("Revised", esc(formatDay(v.revised_completion_at)));
+      if (v.current_delay_reason) row("Delay", esc(v.current_delay_reason));
+    }
+
+    if (!v && PRE_SHOP_STAGES.includes(c.stage)) {
+      btns.push(`<button type="button" class="rp-btn rp-btn-primary" data-rp-vis-schedule>Schedule drop-off…</button>`);
+      btns.push(`<button type="button" class="rp-btn" data-rp-vis-checkin title="The van is already at the shop (tow-in / walk-in)">Check in at shop…</button>`);
+    } else if (v && !v.dropped_off_at) {
+      btns.push(`<button type="button" class="rp-btn rp-btn-primary" data-rp-vis-checkin>Check in at shop…</button>`);
+      btns.push(`<button type="button" class="rp-btn" data-rp-vis-schedule>Reschedule…</button>`);
+    } else if (v && v.shop_status !== "picked_up") {
+      btns.push(`<button type="button" class="rp-btn rp-btn-primary" data-rp-vis-update>Update shop status…</button>`);
+      btns.push(`<button type="button" class="rp-btn" data-rp-vis-pickup>Picked up…</button>`);
+    }
+
+    if (!rows.length && !btns.length) {
+      return `<div class="rp-table-empty" style="padding:var(--s-2) 0;text-align:left">${
+        c.stage === "quality_check" ? "Picked up — run the quality check, then return the van to service." : "No shop visit tracked."}</div>`;
+    }
+    return `${rows.length ? `<div class="rp-visit-grid">${rows.join("")}</div>` : ""}
+      ${btns.length ? `<div class="rp-visit-actions">${btns.join("")}</div>` : ""}`;
   }
 
   function drawCaseDrawer(c) {
@@ -617,6 +663,8 @@ import {
             ${!c.ro ? `<button type="button" class="rp-btn" data-rp-link-ro>Open RO</button>` : ""}
             ${typeof window.openFleetDrawer === "function" ? `<button type="button" class="rp-btn" data-rp-fleet>Fleet record</button>` : ""}
           </div>
+          <h4 class="rp-drawer-h4">In-shop tracker</h4>
+          <div class="rp-visit">${visitSection(c)}</div>
           <h4 class="rp-drawer-h4">Quotes &amp; shops</h4>
           <div class="rp-qsec" id="rr-rp-quotes">
             <div class="rp-table-empty rp-qsec-loading">Loading quotes…</div>
@@ -645,6 +693,10 @@ import {
       if (e.target.closest("[data-rp-request-quotes]")) { openRequestModal(c); return; }
       if (e.target.closest("[data-rp-phone-quote]")) { openPhoneQuoteModal(c); return; }
       if (e.target.closest("[data-rp-compare]")) { openCompareModal(c); return; }
+      if (e.target.closest("[data-rp-vis-schedule]")) { openScheduleVisitModal(c); return; }
+      if (e.target.closest("[data-rp-vis-checkin]")) { openCheckinModal(c); return; }
+      if (e.target.closest("[data-rp-vis-update]")) { openVisitUpdateModal(c); return; }
+      if (e.target.closest("[data-rp-vis-pickup]")) { await doVisitPickup(c); return; }
       const authBtn = e.target.closest("[data-rp-authorize]");
       if (authBtn) {
         const qid = authBtn.getAttribute("data-rp-authorize");
@@ -1280,6 +1332,189 @@ import {
     }
   }
 
+  // ── In-Shop Tracker modals (Phase 6) ─────────────────────────────────
+  const pad2 = (n) => String(n).padStart(2, "0");
+  function dtLocalVal(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  }
+  const isoOrNull = (dtLocal) => (dtLocal ? new Date(dtLocal).toISOString() : null);
+
+  async function openScheduleVisitModal(c) {
+    injectCss();
+    el("rr-rp-modal")?.remove();
+    const shops = await loadShops();
+    const wrap = document.createElement("div");
+    wrap.id = "rr-rp-modal";
+    const currentVendor = c.visit?.vendor_id || c.vendor?.id || "";
+    const opts = shops.filter((s) => s.preferred_status !== "blocked")
+      .map((s) => `<option value="${esc(s.id)}"${s.id === currentVendor ? " selected" : ""}>${esc(s.name)}</option>`).join("");
+    const def = new Date(Date.now() + 24 * 3600e3);
+    def.setHours(9, 0, 0, 0);
+    const apptVal = dtLocalVal(c.visit?.appointment_at) || dtLocalVal(def.toISOString());
+    wrap.innerHTML = `
+      <div class="rp-modal-scrim" data-rp-mclose></div>
+      <div class="rp-modal-card" role="dialog" aria-modal="true" aria-label="Schedule drop-off">
+        <header class="rp-modal-head"><h3>${c.visit ? "Reschedule drop-off" : "Schedule drop-off"} — ${esc(c.case_number)}</h3><button type="button" class="rp-drawer-x" data-rp-mclose aria-label="Close">✕</button></header>
+        <div class="rp-modal-body">
+          <label class="rp-field"><span>Shop <em>*</em></span><select id="rr-rp-vs-shop" class="rp-input">${opts || `<option value="">No shops yet</option>`}</select></label>
+          <label class="rp-field"><span>Drop-off appointment <em>*</em></span><input id="rr-rp-vs-when" class="rp-input" type="datetime-local" value="${apptVal}"></label>
+          ${c.towing_required ? `
+          <div class="rp-form-grid">
+            <label class="rp-field"><span>Tow provider</span><input id="rr-rp-vs-tow" class="rp-input" maxlength="120" value="${esc(c.visit?.tow_provider || "")}"></label>
+            <label class="rp-field"><span>Tow reference</span><input id="rr-rp-vs-towref" class="rp-input" maxlength="80" value="${esc(c.visit?.tow_reference || "")}"></label>
+          </div>` : ""}
+          <label class="rp-field"><span>Note (timeline)</span><input id="rr-rp-vs-note" class="rp-input" maxlength="200"></label>
+        </div>
+        <footer class="rp-modal-foot">
+          <button type="button" class="rp-btn" data-rp-mclose>Cancel</button>
+          <button type="button" class="rp-btn rp-btn-primary" data-rp-vs-save>${c.visit ? "Save" : "Schedule"}</button>
+        </footer>
+      </div>`;
+    document.body.appendChild(wrap);
+    wrap.addEventListener("click", async (e) => {
+      if (e.target.closest("[data-rp-mclose]")) { wrap.remove(); return; }
+      if (!e.target.closest("[data-rp-vs-save]")) return;
+      const shop = wrap.querySelector("#rr-rp-vs-shop").value;
+      const when = wrap.querySelector("#rr-rp-vs-when").value;
+      if (!shop) { say("Pick a shop", "warn"); return; }
+      if (!when) { say("Pick the drop-off time", "warn"); return; }
+      const btn = e.target.closest("[data-rp-vs-save]");
+      btn.disabled = true;
+      const { error } = await sb().rpc("repair_visit_schedule", {
+        p_case_id: c.id,
+        p_appointment_at: isoOrNull(when),
+        p_vendor_id: shop,
+        p_tow_provider: wrap.querySelector("#rr-rp-vs-tow")?.value.trim() || null,
+        p_tow_reference: wrap.querySelector("#rr-rp-vs-towref")?.value.trim() || null,
+        p_note: wrap.querySelector("#rr-rp-vs-note").value.trim() || null,
+      });
+      btn.disabled = false;
+      if (error) { fail("Couldn't schedule the drop-off", error); return; }
+      wrap.remove();
+      say("Drop-off scheduled");
+      await refreshDrawer(c.id);
+    });
+  }
+
+  async function openCheckinModal(c) {
+    injectCss();
+    el("rr-rp-modal")?.remove();
+    const needShop = !c.visit?.vendor_id && !c.vendor?.id;
+    const shops = needShop || !c.visit ? await loadShops() : [];
+    const wrap = document.createElement("div");
+    wrap.id = "rr-rp-modal";
+    const currentVendor = c.visit?.vendor_id || c.vendor?.id || "";
+    const opts = shops.filter((s) => s.preferred_status !== "blocked")
+      .map((s) => `<option value="${esc(s.id)}"${s.id === currentVendor ? " selected" : ""}>${esc(s.name)}</option>`).join("");
+    wrap.innerHTML = `
+      <div class="rp-modal-scrim" data-rp-mclose></div>
+      <div class="rp-modal-card" role="dialog" aria-modal="true" aria-label="Check in at shop">
+        <header class="rp-modal-head"><h3>Check in at shop — ${esc(c.case_number)}</h3><button type="button" class="rp-drawer-x" data-rp-mclose aria-label="Close">✕</button></header>
+        <div class="rp-modal-body">
+          ${opts ? `<label class="rp-field"><span>Shop <em>*</em></span><select id="rr-rp-ci-shop" class="rp-input">${opts}</select></label>`
+                 : `<div class="rp-field"><span>Shop</span><div class="rp-fact-v">${esc(c.vendor?.name || "—")}</div></div>`}
+          <label class="rp-field"><span>Dropped off</span><input id="rr-rp-ci-when" class="rp-input" type="datetime-local" value="${dtLocalVal(new Date().toISOString())}"></label>
+          <label class="rp-field"><span>Note (timeline)</span><input id="rr-rp-ci-note" class="rp-input" maxlength="200" placeholder="e.g. Towed in by Bluegrass Towing, keys in drop box"></label>
+          <div class="rp-callout rp-callout-info">Checking in marks the van at the shop and starts the shop clock. The promise date comes next — add it from “Update shop status” once the shop commits.</div>
+        </div>
+        <footer class="rp-modal-foot">
+          <button type="button" class="rp-btn" data-rp-mclose>Cancel</button>
+          <button type="button" class="rp-btn rp-btn-primary" data-rp-ci-save>Check in</button>
+        </footer>
+      </div>`;
+    document.body.appendChild(wrap);
+    wrap.addEventListener("click", async (e) => {
+      if (e.target.closest("[data-rp-mclose]")) { wrap.remove(); return; }
+      if (!e.target.closest("[data-rp-ci-save]")) return;
+      const shopSel = wrap.querySelector("#rr-rp-ci-shop");
+      if (shopSel && !shopSel.value) { say("Pick a shop", "warn"); return; }
+      const btn = e.target.closest("[data-rp-ci-save]");
+      btn.disabled = true;
+      const { error } = await sb().rpc("repair_visit_checkin", {
+        p_case_id: c.id,
+        p_dropped_off_at: isoOrNull(wrap.querySelector("#rr-rp-ci-when").value),
+        p_vendor_id: shopSel?.value || null,
+        p_note: wrap.querySelector("#rr-rp-ci-note").value.trim() || null,
+      });
+      btn.disabled = false;
+      if (error) { fail("Couldn't check the van in", error); return; }
+      wrap.remove();
+      say("Checked in at the shop");
+      await refreshDrawer(c.id);
+    });
+  }
+
+  function openVisitUpdateModal(c) {
+    injectCss();
+    el("rr-rp-modal")?.remove();
+    const v = c.visit || {};
+    const wrap = document.createElement("div");
+    wrap.id = "rr-rp-modal";
+    const statusOpts = SHOP_STATUS_FLOW.map((s) =>
+      `<option value="${esc(s)}"${s === v.shop_status ? " selected" : ""}>${esc(SHOP_STATUS_LABEL[s])}</option>`).join("");
+    wrap.innerHTML = `
+      <div class="rp-modal-scrim" data-rp-mclose></div>
+      <div class="rp-modal-card rp-modal-wide" role="dialog" aria-modal="true" aria-label="Update shop status">
+        <header class="rp-modal-head"><h3>Update shop status — ${esc(c.case_number)}</h3><button type="button" class="rp-drawer-x" data-rp-mclose aria-label="Close">✕</button></header>
+        <div class="rp-modal-body">
+          <div class="rp-form-grid">
+            <label class="rp-field"><span>Status</span><select id="rr-rp-vu-status" class="rp-input">${statusOpts}</select></label>
+            <label class="rp-field"><span>Work order #</span><input id="rr-rp-vu-wo" class="rp-input" maxlength="80" value="${esc(v.shop_work_order_number || "")}"></label>
+            <label class="rp-field"><span>Service advisor</span><input id="rr-rp-vu-advisor" class="rp-input" maxlength="120" value="${esc(v.service_advisor || "")}"></label>
+            <label class="rp-field"><span>Promised completion</span><input id="rr-rp-vu-promised" class="rp-input" type="datetime-local" value="${dtLocalVal(v.promised_completion_at)}"></label>
+            <label class="rp-field"><span>Revised completion</span><input id="rr-rp-vu-revised" class="rp-input" type="datetime-local" value="${dtLocalVal(v.revised_completion_at)}"></label>
+            <label class="rp-field"><span>Delay reason (shown on the queue)</span><input id="rr-rp-vu-delay" class="rp-input" maxlength="300" value="${esc(v.current_delay_reason || "")}" placeholder="e.g. Door cable assembly backordered"></label>
+            <label class="rp-field rp-span2"><span>Note (timeline)</span><input id="rr-rp-vu-note" class="rp-input" maxlength="200" placeholder="e.g. Called shop — tech starts tomorrow morning"></label>
+          </div>
+        </div>
+        <footer class="rp-modal-foot">
+          <button type="button" class="rp-btn" data-rp-mclose>Cancel</button>
+          <button type="button" class="rp-btn rp-btn-primary" data-rp-vu-save>Save update</button>
+        </footer>
+      </div>`;
+    document.body.appendChild(wrap);
+    wrap.addEventListener("click", async (e) => {
+      if (e.target.closest("[data-rp-mclose]")) { wrap.remove(); return; }
+      if (!e.target.closest("[data-rp-vu-save]")) return;
+      const btn = e.target.closest("[data-rp-vu-save]");
+      btn.disabled = true;
+      const { error } = await sb().rpc("repair_visit_update", {
+        p_case_id: c.id,
+        p_patch: {
+          shop_status: wrap.querySelector("#rr-rp-vu-status").value,
+          shop_work_order_number: wrap.querySelector("#rr-rp-vu-wo").value.trim() || null,
+          service_advisor: wrap.querySelector("#rr-rp-vu-advisor").value.trim() || null,
+          promised_completion_at: isoOrNull(wrap.querySelector("#rr-rp-vu-promised").value),
+          revised_completion_at: isoOrNull(wrap.querySelector("#rr-rp-vu-revised").value),
+          current_delay_reason: wrap.querySelector("#rr-rp-vu-delay").value.trim() || null,
+        },
+        p_note: wrap.querySelector("#rr-rp-vu-note").value.trim() || null,
+      });
+      btn.disabled = false;
+      if (error) { fail("Couldn't save the shop update", error); return; }
+      wrap.remove();
+      say("Shop status updated");
+      await refreshDrawer(c.id);
+    });
+  }
+
+  async function doVisitPickup(c) {
+    const ok = typeof window._rrConfirmDialog === "function"
+      ? await window._rrConfirmDialog({
+          title: "Mark picked up?",
+          body: "The van leaves the shop and moves to quality check. Run the QC, then return it to service from this drawer.",
+          confirmLabel: "Picked up" })
+      : window.confirm("Mark the van picked up from the shop?");
+    if (!ok) return;
+    const { error } = await sb().rpc("repair_visit_pickup", { p_case_id: c.id, p_note: null });
+    if (error) { fail("Couldn't record the pickup", error); return; }
+    say("Picked up — quality check next");
+    await refreshDrawer(c.id);
+  }
+
   function drawerEsc(e) { if (e.key === "Escape") closeDrawer(); }
   function closeDrawer() {
     document.removeEventListener("keydown", drawerEsc);
@@ -1647,6 +1882,9 @@ import {
 .rp-qamt{font-variant-numeric:tabular-nums;white-space:nowrap}
 .rp-qitems{border:1px solid var(--border-subtle);border-radius:var(--r-md);padding:var(--s-2) var(--s-3);margin:0 0 var(--s-2);background:var(--canvas)}
 .rp-qhead-row{display:flex;align-items:center;justify-content:space-between;gap:var(--s-2)}
+.rp-visit{margin-bottom:var(--s-3)}
+.rp-visit-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:var(--s-2) var(--s-4);margin-bottom:var(--s-2)}
+.rp-visit-actions{display:flex;gap:var(--s-2);flex-wrap:wrap}
 .rp-auth-card{border:1px solid var(--border);border-radius:var(--r-md);padding:var(--s-2-5) var(--s-3);margin-bottom:var(--s-2);background:var(--canvas)}
 .rp-auth-card .rp-qitems{margin:var(--s-2) 0 0;background:var(--surface)}
 .rp-auth-actions{display:flex;gap:var(--s-2);flex-wrap:wrap;margin-top:var(--s-2)}

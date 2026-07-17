@@ -127,6 +127,15 @@ export const SHOP_STATUS_TONE = {
   picked_up: "neutral",
 };
 
+// Picker order for the In-Shop Tracker's status update. Deliberately
+// excludes 'awaiting_dropoff' (pre-check-in) and 'picked_up' (owned by
+// the dedicated pickup action so its timestamps stay consistent —
+// migration 0489 refuses it through the generic update too).
+export const SHOP_STATUS_FLOW = [
+  "checked_in", "diagnosing", "awaiting_authorization",
+  "parts_hold", "in_repair", "delayed", "ready",
+];
+
 // ── Quote-request status (per shop × case) ──────────────────────────────
 export const REQUEST_STATUS_LABEL = {
   queued: "Queued",

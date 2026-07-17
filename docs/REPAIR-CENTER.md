@@ -323,3 +323,44 @@ Phase 5 limits: acknowledgement rides the quote-request link channel —
 a shop that was only ever phone-quoted gets the email record but
 acknowledges by phone (staff records it via mark_acknowledged); shop
 acknowledgement is a courtesy signal, not a legal e-signature.
+
+## 13 · Phase 6 — what shipped
+
+- `supabase/migrations/0489_repair_center_shop_tracker.sql` — the
+  visit WRITE path over 0486's repair_shop_visits: `repair_visit_
+  schedule` (books the drop-off; blocked shops refused; stage →
+  scheduled when allowed), `repair_visit_checkin` (creates the visit
+  for unscheduled tow-ins; stage/availability → at_shop),
+  `repair_visit_update` (status, WO identity, promise dates — the
+  promise is evented when first set and EVERY revision is evented with
+  old date → new date + delay reason, so the delay history is
+  queryable for shop performance; 'ready' stamps completion and moves
+  the stage), `repair_visit_pickup` (the only writer of picked_up —
+  stage → quality_check). Stage moves go through a shared
+  `_repair_stage_apply` helper that enforces the same transition
+  matrix as repair_case_set_stage. Visit scheduling/ETA/status mirror
+  into the linked repair_orders row (scheduled_at, eta_at,
+  in_progress/awaiting_parts) so the pre-existing compliance clocks
+  keep ticking. `repair_case_return_to_service` re-created with one
+  addition: it closes the open visit, so a direct return-to-service
+  can't strand one.
+- Dashboard — "In-shop tracker" section in the case drawer: status
+  pill, appointment/drop-off, WO#, advisor, promised/revised, delay
+  reason; contextual actions (Schedule drop-off / Reschedule / Check
+  in / Update shop status / Picked up). Generic stage buttons no
+  longer offer scheduled / at_shop / ready_for_pickup — those moves
+  now always create their visit record. SHOP_STATUS_FLOW picker vocab
+  in the engine (42 node tests).
+- Verified: 0486→0489 from scratch + 0489 double-applied on local
+  Postgres 16 with all four assertion suites (schedule guard rails,
+  reschedule reuses the open visit, check-in stage/availability,
+  promise + revision events with reasons, RO mirroring incl.
+  awaiting_parts, ready/pickup stage flips, strand-guard on direct
+  return-to-service, queue projection, non-staff refusal); Playwright
+  drive of the full schedule → check-in → update → pickup flow with
+  zero console errors.
+
+Phase 6 limits: shop-side self-service status updates (the shop
+posting "parts arrived" through the portal) land with the inbound
+email / document-intelligence phase; parts ETAs are tracked via the
+delay reason + revised date rather than a parts subtable.
