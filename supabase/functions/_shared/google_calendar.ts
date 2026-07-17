@@ -16,6 +16,9 @@ export interface GCalAccount {
 export interface EventInput {
   title: string; description: string;
   startsAt: string; endsAt: string | null; timezone?: string | null;
+  // Ask Google to attach a Google Meet conference to the event (the created/
+  // patched event's hangoutLink is then mirrored back onto the cal_event).
+  requestMeet?: boolean;
 }
 
 // Returns a valid access token, refreshing + caching when needed.
@@ -52,12 +55,21 @@ function eventBody(ev: EventInput) {
   const start = new Date(ev.startsAt);
   const end = ev.endsAt ? new Date(ev.endsAt) : new Date(start.getTime() + 30 * 60_000);
   const tz = ev.timezone || "UTC";
-  return {
+  const body: Record<string, unknown> = {
     summary: ev.title,
     description: ev.description || "",
     start: { dateTime: start.toISOString(), timeZone: tz },
     end:   { dateTime: end.toISOString(),   timeZone: tz },
   };
+  if (ev.requestMeet) {
+    body.conferenceData = {
+      createRequest: {
+        requestId: crypto.randomUUID(),
+        conferenceSolutionKey: { type: "hangoutsMeet" },
+      },
+    };
+  }
+  return body;
 }
 
 async function call(token: string, url: string, method: string, body?: unknown) {
@@ -72,10 +84,12 @@ async function call(token: string, url: string, method: string, body?: unknown) 
   return json;
 }
 
+// conferenceDataVersion=1 is required for Google to act on a Meet
+// createRequest; harmless otherwise, but only sent when actually asked.
 export const gcalCreate = (t: string, cal: string, ev: EventInput) =>
-  call(t, `${CAL_BASE}/${encodeURIComponent(cal)}/events`, "POST", eventBody(ev));
+  call(t, `${CAL_BASE}/${encodeURIComponent(cal)}/events${ev.requestMeet ? "?conferenceDataVersion=1" : ""}`, "POST", eventBody(ev));
 export const gcalUpdate = (t: string, cal: string, id: string, ev: EventInput) =>
-  call(t, `${CAL_BASE}/${encodeURIComponent(cal)}/events/${encodeURIComponent(id)}`, "PATCH", eventBody(ev));
+  call(t, `${CAL_BASE}/${encodeURIComponent(cal)}/events/${encodeURIComponent(id)}${ev.requestMeet ? "?conferenceDataVersion=1" : ""}`, "PATCH", eventBody(ev));
 export const gcalDelete = (t: string, cal: string, id: string) =>
   call(t, `${CAL_BASE}/${encodeURIComponent(cal)}/events/${encodeURIComponent(id)}`, "DELETE");
 

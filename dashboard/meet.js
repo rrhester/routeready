@@ -2531,6 +2531,14 @@ async function resolveCode(code) {
       show("done");
       return;
     }
+    // Locked room (0492): the host (or fellow staff) can enter and unlock;
+    // everyone else is held at the door and can retry once it's opened up.
+    if (data.locked && !data.is_host) {
+      $("done-msg").textContent = "This meeting is locked by the host. Ask them to unlock it, then try again.";
+      $("btn-rejoin").style.display = "";
+      show("done");
+      return;
+    }
     state.meeting = data;
     state.isHost = !!data.is_host; // server-computed: auth.uid() = host_id
     // ICE config is DB-driven (migration 0458): STUN by default, TURN
