@@ -4815,6 +4815,7 @@ function markCellsDirty(sheet, keys) {
   if (!WB.dirtyCells.has(sheet.id)) WB.dirtyCells.set(sheet.id, new Set());
   const set = WB.dirtyCells.get(sheet.id);
   keys.forEach((k) => set.add(k));
+  WB._editedSinceSnapshot = true; // drives periodic auto-snapshots (100-list #77)
   markSaveState("dirty");
   scheduleCellFlush();
 }
@@ -5055,8 +5056,16 @@ async function createWorkbookSnapshot(label, auto) {
   if (!wb) return null;
   const payload = [];
   for (const arr of WB.sheetsByBlock.values()) for (const sh of arr) payload.push({ id: sh.id, block_id: sh.blockId, ...snapshotSheet(sh) });
+  // text + checklist blocks ride in a sidecar so restore covers non-sheet
+  // content too (100-list #76). Kept as `__blocks` so old sheet-only
+  // payloads (arrays) still restore unchanged.
+  const blocksSide = WB.blocks.filter((b) => b.type === "text" || b.type === "checklist").map((b) => ({
+    id: b.id, type: b.type, title: b.title || "", content: b.content || {},
+    items: b.type === "checklist" ? (WB.checklistItems || []).filter((it) => it.block_id === b.id).map((it) => ({ id: it.id, text: it.text, done: it.done, position: it.position })) : undefined,
+  }));
+  const body = blocksSide.length ? { sheets: payload, __blocks: blocksSide } : payload;
   try {
-    const ins = await _sb().from("workbook_snapshots").insert({ dsp_id: wb.dsp_id, workbook_id: wb.id, label: String(label || "").slice(0, 120), auto: !!auto, payload, created_by: _me() ? _me().id : null }).select("id").single();
+    const ins = await _sb().from("workbook_snapshots").insert({ dsp_id: wb.dsp_id, workbook_id: wb.id, label: String(label || "").slice(0, 120), auto: !!auto, payload: body, created_by: _me() ? _me().id : null }).select("id").single();
     if (ins.error) throw ins.error;
     pruneSnapshots();
     return ins.data ? ins.data.id : null;
@@ -5072,14 +5081,36 @@ async function createWorkbookSnapshot(label, auto) {
   }
 }
 
+const WB_SNAPSHOT_MANUAL_MAX = 60; // manual versions also get a (generous) cap (100-list #77)
 async function pruneSnapshots() {
   try {
     const res = await _sb().from("workbook_snapshots").select("id, auto, created_at").eq("workbook_id", WB.wb.id).order("created_at", { ascending: false });
     if (res.error || !res.data) return;
+    // prune old AUTO snapshots beyond the recent cap…
     const excess = res.data.slice(WB_SNAPSHOT_MAX).filter((r) => r.auto).map((r) => r.id);
+    // …and old MANUAL snapshots beyond their own generous cap (they no
+    // longer grow unbounded — 100-list #77)
+    const manual = res.data.filter((r) => !r.auto);
+    for (const r of manual.slice(WB_SNAPSHOT_MANUAL_MAX)) excess.push(r.id);
     if (excess.length) await _sb().from("workbook_snapshots").delete().in("id", excess);
   } catch (_) {}
 }
+
+// Periodic auto-snapshots (100-list #77): every 10 minutes, if there have been
+// edits since the last snapshot, capture one. Armed on workbook open, cleared
+// on close.
+let _wbAutoSnapTimer = null;
+function armAutoSnapshots() {
+  disarmAutoSnapshots();
+  if (!WB.canEdit) return;
+  _wbAutoSnapTimer = setInterval(() => {
+    if (!WB.wb || !WB.canEdit) return;
+    if (!WB._editedSinceSnapshot) return;
+    WB._editedSinceSnapshot = false;
+    createWorkbookSnapshot("Autosave", true);
+  }, 10 * 60_000);
+}
+function disarmAutoSnapshots() { if (_wbAutoSnapTimer) { clearInterval(_wbAutoSnapTimer); _wbAutoSnapTimer = null; } }
 
 async function listWorkbookSnapshots() {
   try {
@@ -5096,15 +5127,26 @@ async function saveNamedVersion() {
   if (id) _toast("Version saved", "success");
 }
 
-async function restoreWorkbookSnapshot(snapshotId) {
+// A snapshot payload is either the legacy sheet-only array, or the newer
+// { sheets:[…], __blocks:[…] } shape (100-list #76). This normalizes it.
+function snapshotParts(payload) {
+  if (Array.isArray(payload)) return { sheets: payload, blocks: [] };
+  if (payload && typeof payload === "object") return { sheets: Array.isArray(payload.sheets) ? payload.sheets : [], blocks: Array.isArray(payload.__blocks) ? payload.__blocks : [] };
+  return { sheets: [], blocks: [] };
+}
+
+// Restore the whole workbook, or a single sheet when onlySheetId is given
+// (100-list #79). Non-sheet blocks restore too (#76).
+async function restoreWorkbookSnapshot(snapshotId, onlySheetId) {
   const wb = WB.wb;
   if (!wb || !WB.canEdit) return;
   const res = await _sb().from("workbook_snapshots").select("payload").eq("id", snapshotId).single();
   if (res.error || !res.data) { _toast("Couldn't load that version", "error"); return; }
   await createWorkbookSnapshot("Before restore", true); // restore is itself reversible
-  const payload = Array.isArray(res.data.payload) ? res.data.payload : [];
+  const { sheets: payload, blocks } = snapshotParts(res.data.payload);
   const byId = new Map(payload.filter((s) => s.id).map((s) => [s.id, s]));
   for (const arr of WB.sheetsByBlock.values()) for (const sh of arr) {
+    if (onlySheetId && sh.id !== onlySheetId) continue;
     const snap = byId.get(sh.id) || payload.find((s) => s.name === sh.name && s.position === sh.position);
     if (!snap) continue;
     const dirty = new Set(sh.cells.keys());      // tombstone cells the snapshot doesn't have
@@ -5113,10 +5155,28 @@ async function restoreWorkbookSnapshot(snapshotId) {
     markCellsDirty(sh, [...dirty]);
     saveSheetMeta(sh.id);
   }
+  // restore text/checklist block content (whole-workbook restore only)
+  if (!onlySheetId && blocks.length) {
+    for (const snapBlock of blocks) {
+      const block = WB.blocks.find((b) => b.id === snapBlock.id);
+      if (!block) continue;
+      if (snapBlock.type === "text") {
+        block.content = snapBlock.content || {};
+        try { await _sb().from("workbook_blocks").update({ content: block.content }).eq("id", block.id); } catch (_) {}
+      }
+      if (snapBlock.type === "checklist" && Array.isArray(snapBlock.items)) {
+        // best-effort: update existing items' text/done from the snapshot
+        for (const it of snapBlock.items) {
+          try { await _sb().from("workbook_checklist_items").update({ text: it.text, done: it.done }).eq("id", it.id); } catch (_) {}
+        }
+      }
+    }
+  }
   for (const arr of WB.sheetsByBlock.values()) arr.forEach((sh) => recalcSheet(sh));
   if (scheduleCellFlush.flushNow) await scheduleCellFlush.flushNow();
   for (const gg of GRIDS.values()) { computeGeometry(gg); repaintGrid(gg); syncFormulaBar(gg); scheduleChartRender(gg); }
-  _toast("Version restored", "success");
+  if (!onlySheetId && blocks.length) { WB.pendingStructRefresh = false; renderPanelBody?.(); }
+  _toast(onlySheetId ? "Sheet restored from this version" : "Version restored", "success");
 }
 
 async function openVersionHistory() {
@@ -5124,7 +5184,7 @@ async function openVersionHistory() {
   const wrap = document.createElement("div");
   wrap.className = "rr-modal-backdrop"; wrap.id = "wb-versions-modal";
   wrap.innerHTML = `<div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Version history" style="width:460px">
-    <div class="rr-modal-head"><div class="rr-modal-head-content"><p class="rr-modal-title">Version history</p><p class="rr-modal-sub">Restore the whole workbook to an earlier point.</p></div><button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button></div>
+    <div class="rr-modal-head"><div class="rr-modal-head-content"><p class="rr-modal-title">Version history</p><p class="rr-modal-sub">Restore the workbook — or a single sheet — to an earlier point.</p></div><button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button></div>
     <div class="rr-modal-body"><div id="wb-versions-list">Loading…</div></div>
     <div class="rr-modal-foot"><button class="rr-modal-btn" type="button" data-wb-close>Close</button>${WB.canEdit ? `<button class="rr-modal-btn primary" type="button" id="wb-versions-save">Save current version</button>` : ""}</div>
   </div>`;
@@ -5133,21 +5193,64 @@ async function openVersionHistory() {
   wrap.addEventListener("click", (e) => { if (e.target === wrap || e.target.closest("[data-wb-close]")) close(); });
   wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") close(); });
   const listEl = wrap.querySelector("#wb-versions-list");
+  const activeGridSheet = () => { const g = activeGrid(); return g ? g.sheet : null; };
   const paint = async () => {
     const snaps = await listWorkbookSnapshots();
+    const sh = activeGridSheet();
     listEl.innerHTML = !snaps.length
-      ? `<p style="color:var(--text-subtle);padding:8px 0">No saved versions yet. Edits are captured when you save a version.</p>`
-      : snaps.map((s) => `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 2px;border-bottom:1px solid var(--border,#eef0f3)"><div style="min-width:0"><div style="font-weight:600">${esc(s.label || (s.auto ? "Autosave" : "Version"))}</div><div style="font-size:12px;color:var(--text-subtle)">${esc(userName(s.created_by))} · ${esc(relTime(s.created_at))}${s.auto ? " · auto" : ""}</div></div>${WB.canEdit ? `<button type="button" class="btn btn-sm" data-restore="${s.id}">Restore</button>` : ""}</div>`).join("");
+      ? `<p style="color:var(--text-subtle);padding:8px 0">No saved versions yet. Edits are captured when you save a version, and automatically every 10 minutes while you work.</p>`
+      : snaps.map((s) => `<div style="padding:9px 2px;border-bottom:1px solid var(--border,#eef0f3)"><div style="display:flex;align-items:center;justify-content:space-between;gap:10px"><div style="min-width:0"><div style="font-weight:600">${esc(s.label || (s.auto ? "Autosave" : "Version"))}</div><div style="font-size:12px;color:var(--text-subtle)">${esc(userName(s.created_by))} · ${esc(relTime(s.created_at))}${s.auto ? " · auto" : ""}</div></div>${WB.canEdit ? `<div style="display:flex;gap:6px;flex-shrink:0"><button type="button" class="btn btn-ghost btn-sm" data-diff="${s.id}">Compare</button>${sh ? `<button type="button" class="btn btn-ghost btn-sm" data-restore-sheet="${s.id}" title="Restore only ${esc(sh.name)}">This sheet</button>` : ""}<button type="button" class="btn btn-sm" data-restore="${s.id}">Restore all</button></div>` : ""}</div><div class="wb-diff-slot" data-diff-slot="${s.id}"></div></div>`).join("");
   };
   wrap.querySelector("#wb-versions-save")?.addEventListener("click", async () => { await saveNamedVersion(); paint(); });
   listEl.addEventListener("click", async (e) => {
+    const diffBtn = e.target.closest("[data-diff]");
+    if (diffBtn) { await paintSnapshotDiff(diffBtn.getAttribute("data-diff"), wrap.querySelector(`[data-diff-slot="${diffBtn.getAttribute("data-diff")}"]`)); return; }
+    const sheetBtn = e.target.closest("[data-restore-sheet]");
+    if (sheetBtn) {
+      const sh = activeGridSheet();
+      if (!sh) return;
+      if (!window.confirm(`Restore only “${sh.name}” to this version? Your current state is saved as a version first.`)) return;
+      close();
+      await restoreWorkbookSnapshot(sheetBtn.getAttribute("data-restore-sheet"), sh.id);
+      return;
+    }
     const btn = e.target.closest("[data-restore]");
     if (!btn) return;
-    if (!window.confirm("Restore the workbook to this version? Your current state is saved as a version first, so you can undo this.")) return;
+    if (!window.confirm("Restore the whole workbook to this version? Your current state is saved as a version first, so you can undo this.")) return;
     close();
     await restoreWorkbookSnapshot(btn.getAttribute("data-restore"));
   });
   paint();
+}
+
+// Version diff (100-list #78): count the cells that differ between a snapshot
+// and the current workbook, per sheet.
+async function paintSnapshotDiff(snapshotId, slot) {
+  if (!slot) return;
+  if (slot.dataset.open === "1") { slot.dataset.open = "0"; slot.innerHTML = ""; return; }
+  slot.dataset.open = "1";
+  slot.innerHTML = `<div style="font-size:12px;color:var(--text-subtle);padding:4px 0">Comparing…</div>`;
+  const res = await _sb().from("workbook_snapshots").select("payload").eq("id", snapshotId).single();
+  if (res.error || !res.data) { slot.innerHTML = `<div style="font-size:12px;color:var(--text-subtle)">Couldn't load that version.</div>`; return; }
+  const { sheets } = snapshotParts(res.data.payload);
+  const byId = new Map(sheets.filter((s) => s.id).map((s) => [s.id, s]));
+  const lines = [];
+  for (const arr of WB.sheetsByBlock.values()) for (const sh of arr) {
+    const snap = byId.get(sh.id) || sheets.find((s) => s.name === sh.name);
+    if (!snap) { lines.push(`${esc(sh.name)}: not in this version`); continue; }
+    const snapCells = new Map((snap.cells || []).map((c) => [c.r + "," + c.c, c.formula != null ? c.formula : (c.value ?? "")]));
+    let changed = 0, added = 0, removed = 0;
+    const seen = new Set();
+    for (const [key, cell] of sh.cells) {
+      const rc = keyRC(key); const k = rc.r + "," + rc.c; seen.add(k);
+      const now = cell.formula != null ? cell.formula : (cell.value ?? "");
+      if (!snapCells.has(k)) { if (String(now) !== "") added++; }
+      else if (String(snapCells.get(k)) !== String(now)) changed++;
+    }
+    for (const k of snapCells.keys()) if (!seen.has(k) && String(snapCells.get(k)) !== "") removed++;
+    if (changed || added || removed) lines.push(`${esc(sh.name)}: ${changed} changed, ${added} added, ${removed} removed`);
+  }
+  slot.innerHTML = `<div style="font-size:12px;color:var(--text-subtle);padding:4px 0 2px">${lines.length ? lines.map((l) => `<div>${l}</div>`).join("") : "No cell differences from the current workbook."}</div>`;
 }
 
 async function openWorkbook(id) {
@@ -5723,6 +5826,7 @@ function closeRealtime() {
     WB.channel = null;
   }
   WB.presence = [];
+  disarmAutoSnapshots();
 }
 
 function openRealtime() {
@@ -5742,19 +5846,26 @@ function openRealtime() {
         if (WB.panelOpen && WB.panelTab === "activity") renderPanelBody();
       }
     });
+    // structural edits (100-list #72): a remote sheet's meta/structure or a
+    // block change reloads that piece so charts/CF/freeze/renames appear live
+    ch.on("postgres_changes", { event: "*", schema: "public", table: "workbook_sheets", filter: "workbook_id=eq." + wb.id }, (payload) => onRemoteSheet(payload));
+    ch.on("postgres_changes", { event: "*", schema: "public", table: "workbook_blocks", filter: "workbook_id=eq." + wb.id }, () => refreshBlocksStructure());
     ch.on("presence", { event: "sync" }, () => {
       try {
         const state = ch.presenceState();
-        WB.presence = Object.entries(state).map(([uid, metas]) => ({ id: uid, name: (metas[0] && metas[0].name) || "Teammate" }));
+        // carry each teammate's cursor (sheet + cell) so we can paint it (#73)
+        WB.presence = Object.entries(state).map(([uid, metas]) => ({ id: uid, name: (metas[0] && metas[0].name) || "Teammate", cur: (metas[0] && metas[0].cur) || null }));
         renderPresence();
+        for (const gg of GRIDS.values()) paintRemoteCursors(gg);
       } catch (_) {}
     });
     ch.subscribe((status) => {
       if (status === "SUBSCRIBED") {
-        try { ch.track({ name: self.full_name || "Teammate", at: new Date().toISOString() }); } catch (_) {}
+        try { ch.track({ name: self.full_name || "Teammate", at: new Date().toISOString(), cur: WB._myCursor || null }); } catch (_) {}
       }
     });
     WB.channel = ch;
+    armAutoSnapshots(); // periodic version capture (100-list #77)
   } catch (e) { console.warn("workbook realtime:", e && e.message); }
 }
 
@@ -5763,13 +5874,31 @@ function openRealtime() {
 // but, unlike before, we no longer drop the other user's change *silently*: a
 // cross-user divergence raises a debounced notice so the loser isn't invisible.
 const warnCellConflicts = debounce(() => {
-  const c = WB._conflicts ? WB._conflicts.size : 0;
+  const c = WB._conflictCells ? WB._conflictCells.size : 0;
   if (!c) return;
+  // 100-list #74: the conflicted cells are flagged orange; clicking one lets
+  // the loser keep theirs or take the teammate's value — no full reload
   _toast(c === 1
-    ? "Another editor changed a cell you're editing — your version was kept. Reload to load theirs."
-    : `Another editor changed ${c} cells you're editing — your versions were kept. Reload to load theirs.`, "info");
-  WB._conflicts = new Set();
+    ? "A teammate changed a cell you're editing (flagged orange) — click it to keep yours or take theirs."
+    : `A teammate changed ${c} cells you're editing (flagged orange) — click one to resolve.`, "info");
 }, 1200);
+
+// The teammate's value for a conflicted cell, or undefined.
+function conflictIncoming(sheetId, key) {
+  return WB._conflictCells ? WB._conflictCells.get(sheetId + ":" + key) : undefined;
+}
+// Resolve a conflict: take === true applies the teammate's value, else keep ours.
+function resolveConflict(g, r, c, take) {
+  const key = cellKey(r, c);
+  const inc = conflictIncoming(g.sheet.id, key);
+  WB._conflictCells.delete(g.sheet.id + ":" + key);
+  if (take && inc != null) {
+    const prev = g.sheet.cells.get(key);
+    setCells(g, [{ r, c, cell: cellFromInput(String(inc), prev) }]);
+  } else {
+    repaintGrid(g);
+  }
+}
 
 function onRemoteCell(payload) {
   try {
@@ -5791,7 +5920,8 @@ function onRemoteCell(payload) {
         const incoming = row.formula || row.value;
         const local = cur ? (cur.formula || cur.value) : null;
         if (String(incoming ?? "") !== String(local ?? "")) {
-          (WB._conflicts || (WB._conflicts = new Set())).add(sheet.id + ":" + key);
+          (WB._conflictCells || (WB._conflictCells = new Map())).set(sheet.id + ":" + key, incoming ?? "");
+          if (g) repaintGrid(g);
           warnCellConflicts();
         }
       }
@@ -5803,6 +5933,45 @@ function onRemoteCell(payload) {
     if (g) repaintGrid(g);
   } catch (e) { console.warn("remote cell:", e && e.message); }
 }
+
+// A remote structural change to a sheet (100-list #72): re-read its row and
+// re-apply the structural fields (name, counts, freeze, widths, meta) without
+// disturbing local cell edits. Ignores our own echoes.
+const onRemoteSheet = debounce(async (payload) => {
+  try {
+    const row = payload && (payload.new || payload.old);
+    if (!row || !row.id) return;
+    if (payload.eventType === "DELETE") { WB.pendingStructRefresh = true; return; }
+    const me = _me();
+    if (me && row.updated_by && row.updated_by === me.id) return; // our own echo
+    const res = await _sb().from("workbook_sheets").select("*").eq("id", row.id).maybeSingle();
+    if (res.error || !res.data) return;
+    const sheet = findSheet(row.id);
+    if (!sheet) { refreshBlocksStructure(); return; } // a new sheet appeared
+    const d = res.data;
+    sheet.name = d.name;
+    sheet.rowCount = d.row_count; sheet.colCount = d.col_count;
+    sheet.frozenRows = d.frozen_rows || 0; sheet.frozenCols = d.frozen_cols || 0;
+    sheet.colWidths = d.col_widths || {}; sheet.rowHeights = d.row_heights || {};
+    sheet.meta = d.meta || {};
+    sheet.hiddenRows = new Set(Array.isArray(d.meta && d.meta.hiddenRows) ? d.meta.hiddenRows : [...(sheet.hiddenRows || [])]);
+    sheet.hiddenCols = new Set(Array.isArray(d.meta && d.meta.hiddenCols) ? d.meta.hiddenCols : [...(sheet.hiddenCols || [])]);
+    const g = [...GRIDS.values()].find((x) => x.sheet && x.sheet.id === sheet.id);
+    if (g) { renderSheetTabs(g); computeGeometry(g); repaintGrid(g); scheduleChartRender(g); renderPivots(g); }
+  } catch (e) { console.warn("remote sheet:", e && e.message); }
+}, 300);
+
+// A remote block add/remove/reorder — a full but debounced structure reload.
+const refreshBlocksStructure = debounce(() => {
+  // A gentle reload of the open workbook picks up new/removed blocks; only
+  // when the panel isn't mid-edit to avoid clobbering local work.
+  if (WB.wb && !document.querySelector(".rr-modal-backdrop")) {
+    _toast("A teammate changed this workbook's structure — reloading", "info");
+    openWorkbook(WB.wb.id);
+  } else {
+    WB.pendingStructRefresh = true;
+  }
+}, 800);
 
 const refreshComments = debounce(async () => {
   if (!WB.wb) return;
@@ -6116,6 +6285,61 @@ function solveGoalSeek(probe, goal, x0) {
   return isFinite(f2) && Math.abs(f2) <= Math.max(tol, 1e-6 * (Math.abs(goal) + 1)) ? x2 : null;
 }
 
+// Multi-variable solver (100-list #88): drive probe(x[]) to `goal` by
+// minimizing |probe - goal| over N inputs, honoring optional [lo,hi] bounds.
+// Gradient-free coordinate descent with a shrinking step — no dependencies,
+// good enough for the smooth objectives spreadsheets produce. Returns the
+// solved input vector, or null if it can't get within tolerance.
+function solveMultiGoal(probe, goal, x0, bounds) {
+  const n = x0.length;
+  if (!n) return null;
+  const lo = (i) => (bounds && bounds[i] && isFinite(bounds[i][0]) ? bounds[i][0] : -Infinity);
+  const hi = (i) => (bounds && bounds[i] && isFinite(bounds[i][1]) ? bounds[i][1] : Infinity);
+  const clamp = (i, v) => Math.max(lo(i), Math.min(hi(i), v));
+  const x = x0.map((v, i) => clamp(i, typeof v === "number" && isFinite(v) ? v : 0));
+  const err = (vec) => { const v = probe(vec); return typeof v === "number" && isFinite(v) ? Math.abs(v - goal) : Infinity; };
+  const tol = 1e-7 + Math.abs(goal) * 1e-7;
+  let best = err(x);
+  if (best <= tol) return x.slice();
+  let step = x.map((v) => (Math.abs(v) > 1e-6 ? Math.abs(v) * 0.25 : 1));
+  for (let iter = 0; iter < 400 && best > tol; iter++) {
+    let improved = false;
+    for (let i = 0; i < n; i++) {
+      for (const dir of [1, -1]) {
+        const trial = x.slice();
+        trial[i] = clamp(i, x[i] + dir * step[i]);
+        if (trial[i] === x[i]) continue;
+        const e = err(trial);
+        if (e < best - 1e-12) { x[i] = trial[i]; best = e; improved = true; break; }
+      }
+    }
+    if (!improved) { step = step.map((s) => s * 0.5); if (step.every((s) => s < 1e-12)) break; }
+  }
+  return best <= Math.max(tol, 1e-4 * (Math.abs(goal) + 1)) ? x.slice() : null;
+}
+
+// What-If Data Tables (100-list #86). A one-variable table substitutes each
+// value in `inputs` into a single input cell and records a formula's result;
+// a two-variable table crosses `rowInputs` × `colInputs` into two input cells.
+// These take a caller-supplied probe so the substitution/recalc/restore dance
+// stays in the dialog and the math stays pure + testable. `probe1(v)` returns
+// the formula result for one input; `probe2(rowVal, colVal)` for two.
+// A non-finite numeric result (NaN/Infinity from a failed probe) becomes null
+// so the table cell renders blank rather than "NaN"; text results pass through.
+function dataTableCell(y) {
+  if (typeof y === "number") return isFinite(y) ? y : null;
+  return y == null ? null : y;
+}
+function computeDataTable1(probe1, inputs) {
+  return (inputs || []).map((v) => dataTableCell(probe1(v)));
+}
+function computeDataTable2(probe2, rowInputs, colInputs) {
+  // Row-major grid: one output row per colInput, one column per rowInput —
+  // matching Excel's layout (row-input values across the top, column-input
+  // values down the side).
+  return (colInputs || []).map((cv) => (rowInputs || []).map((rv) => dataTableCell(probe2(rv, cv))));
+}
+
 // Plain-English explanation for an error cell's hover tooltip.
 const WB_ERROR_HINTS = {
   "#REF": "A cell reference is invalid — a referenced cell may have been deleted.",
@@ -6286,7 +6510,7 @@ function recalcCone(sheet, dirtyKeys) {
   }
   const ctx = {
     rowCount: sheet.rowCount, colCount: sheet.colCount,
-    tables: buildTablesRegistry(sheet),
+    tables: tableReg, // reuse the registry built above — nothing mutates it here
     getCell: (r, c, sheetName) => (sheetName ? crossSheetValue(sheet, sheetName, r, c) : engineValue(sheet, r, c)),
     getFormula: (r, c) => { const cell = sheet.cells.get(cellKey(r, c)); return cell && cell.formula ? cell.formula : null; },
     sheetSpan: (a, b) => sheetSpanNames(sheet, a, b),
@@ -7400,7 +7624,7 @@ function checklistItemHtml(it) {
       ${done ? `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>` : ""}
     </button>
     <span class="wb-cl-label">${esc(it.label)}</span>
-    ${it.priority && it.priority !== "normal" ? `<span class="wb-chip is-${it.priority}">${it.priority === "high" ? "High" : "Low"}</span>` : ""}
+    ${it.priority === "high" || it.priority === "low" ? `<span class="wb-chip is-${it.priority}">${it.priority === "high" ? "High" : "Low"}</span>` : ""}
     ${it.due_date ? `<span class="wb-chip ${overdue ? "is-overdue" : ""}" title="Due date">${esc(new Date(it.due_date + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" }))}</span>` : ""}
     ${assignee ? `<span class="wb-avatar wb-avatar-sm" title="Assigned to ${esc(assignee)}">${esc(initialsOf(assignee))}</span>` : ""}
     ${WB.canEdit ? `<button type="button" class="btn btn-ghost btn-icon btn-sm wb-cl-edit" data-wb-act="item-edit" title="Edit item" aria-label="Edit item">
@@ -7581,6 +7805,7 @@ function mountSheetBlock(block, body) {
     </div>
     </div>
     <div class="wb-grid ${ro ? "is-readonly" : ""}" tabindex="0" role="grid" aria-label="${esc(block.title || "Spreadsheet")}" data-wb-gridfocus="${block.id}">
+      <span class="wb-sr-live" data-wb-srlive aria-live="polite" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0"></span>
       <div class="wb-gr-corner" style="width:${HDR_COL_W}px;height:${HDR_ROW_H}px"></div>
       <div class="wb-gr-cols" style="left:${HDR_COL_W}px;height:${HDR_ROW_H}px"><div class="wb-gr-cols-inner"></div></div>
       <div class="wb-gr-rows" style="top:${HDR_ROW_H}px;width:${HDR_COL_W}px"><div class="wb-gr-rows-inner"></div></div>
@@ -8108,6 +8333,14 @@ function computeGeometry(g) {
   const addH = addRow ? 48 : 0;
   if (addRow) addRow.style.top = g.rowY[rows.length] + 6 + "px";
   g.els.canvas.style.height = Math.max(g.rowY[rows.length] + addH, Math.ceil(chartH) + 12) + "px";
+  // Accessibility (100-list #99): declare the logical grid size so a screen
+  // reader announces "row R of N, column C of M" as the user navigates the
+  // virtualized cells (only the visible slice is ever in the DOM).
+  if (g.els.grid) {
+    g.els.grid.setAttribute("aria-rowcount", String(sheet.rowCount));
+    g.els.grid.setAttribute("aria-colcount", String(sheet.colCount));
+    g.els.grid.setAttribute("aria-multiselectable", "true");
+  }
   sizeGrid(g);
 }
 
@@ -8346,6 +8579,19 @@ const WB_COLORS = {
 // Preset keys resolve through the palette; a #RRGGBB value (from the
 // custom picker) passes through directly. Anything else is inert.
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+// Defense-in-depth (100-list #94): an accent color is only ever a hex constant
+// or a var(--token) in every UI path (the KPI dialog writes an enum theme, not
+// free text), but embed specs are stored in Supabase and could be tampered with
+// directly by a malicious collaborator. Validate before a color reaches a
+// style="" attribute so a crafted value like `x"><img onerror=…>` can't break
+// out of the attribute. Returns `fallback` for anything that isn't a plain hex
+// or a var() reference.
+function safeAccentColor(c, fallback) {
+  const s = String(c == null ? "" : c).trim();
+  if (HEX_COLOR_RE.test(s)) return s;
+  if (/^var\(--[a-z0-9-]+\)$/i.test(s)) return s;
+  return fallback;
+}
 function wbColorCss(kind, key) {
   if (HEX_COLOR_RE.test(String(key))) return key;
   return esc(WB_COLORS[kind][key] || (kind === "bg" ? "transparent" : "inherit"));
@@ -8546,7 +8792,7 @@ function paintNow(g) {
     if (w === 0) continue; // hidden column
     const isSel = c >= Math.min(g.sel.c0, g.sel.c1) && c <= Math.max(g.sel.c0, g.sel.c1);
     const grp = grpColStarts.get(c);
-    colsHtml += `<div class="wb-hcell wb-hcol ${isSel ? "is-sel" : ""}" data-wb-col="${c}" style="left:${g.colX[c]}px;width:${w}px;height:${HDR_ROW_H}px">${grp ? `<button type="button" class="wb-grp" data-wb-grp="col:${grp.id}" title="${grp.collapsed ? "Expand" : "Collapse"} columns ${colLabel(grp.from + 1)}–${colLabel(grp.to)}">${grp.collapsed ? "⊞" : "⊟"}</button>` : ""}${colLabel(c)}<span class="wb-rz-col" data-wb-rzcol="${c}"></span></div>`;
+    colsHtml += `<div class="wb-hcell wb-hcol ${isSel ? "is-sel" : ""}" role="columnheader" aria-label="Column ${colLabel(c)}" data-wb-col="${c}" style="left:${g.colX[c]}px;width:${w}px;height:${HDR_ROW_H}px">${grp ? `<button type="button" class="wb-grp" data-wb-grp="col:${grp.id}" title="${grp.collapsed ? "Expand" : "Collapse"} columns ${colLabel(grp.from + 1)}–${colLabel(grp.to)}">${grp.collapsed ? "⊞" : "⊟"}</button>` : ""}${colLabel(c)}<span class="wb-rz-col" data-wb-rzcol="${c}"></span></div>`;
   }
   g.els.colsInner.innerHTML = colsHtml;
   g.els.colsInner.style.transform = `translateX(${-sx}px)`;
@@ -8559,7 +8805,7 @@ function paintNow(g) {
     const h = g.rowY[di + 1] - g.rowY[di];
     const isSel = r >= Math.min(g.sel.r0, g.sel.r1) && r <= Math.max(g.sel.r0, g.sel.r1);
     const grp = grpRowStarts.get(r);
-    rowsHtml += `<div class="wb-hcell wb-hrow ${isSel ? "is-sel" : ""}" data-wb-row="${r}" style="top:${g.rowY[di]}px;height:${h}px;width:${HDR_COL_W}px">${grp ? `<button type="button" class="wb-grp" data-wb-grp="row:${grp.id}" title="${grp.collapsed ? "Expand" : "Collapse"} rows ${grp.from + 2}–${grp.to + 1}">${grp.collapsed ? "⊞" : "⊟"}</button>` : ""}${r + 1}<span class="wb-rz-row" data-wb-rzrow="${r}"></span></div>`;
+    rowsHtml += `<div class="wb-hcell wb-hrow ${isSel ? "is-sel" : ""}" role="rowheader" aria-label="Row ${r + 1}" data-wb-row="${r}" style="top:${g.rowY[di]}px;height:${h}px;width:${HDR_COL_W}px">${grp ? `<button type="button" class="wb-grp" data-wb-grp="row:${grp.id}" title="${grp.collapsed ? "Expand" : "Collapse"} rows ${grp.from + 2}–${grp.to + 1}">${grp.collapsed ? "⊞" : "⊟"}</button>` : ""}${r + 1}<span class="wb-rz-row" data-wb-rzrow="${r}"></span></div>`;
   }
   g.els.rowsInner.innerHTML = rowsHtml;
   g.els.rowsInner.style.transform = `translateY(${-sy}px)`;
@@ -8620,7 +8866,8 @@ function paintNow(g) {
       : isDv && dvStyle === "chip"
         ? `<span class="wb-dv-pill ${cell && disp ? "" : "is-empty"}" data-wb-dvchip="${r},${c}" style="${dvColor ? `background:${dvColor};` : ""}">${cell && disp ? esc(disp) : "Select"}<span class="wb-dv-pillarrow">▾</span></span>`
         : cell && disp ? cellInnerHtml(cell, disp) : isDv && dvStyle === "arrow" ? `<span class="wb-dv-chip-empty">Select</span>` : "";
-    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${cell && cell.spill ? "is-spill-origin" : ""} ${inval ? "is-invalid" : ""} ${inval && g.circleInvalid ? "is-circled" : ""} ${isDv ? "is-dv" : ""} ${isDv && dvStyle === "arrow" ? "is-dvarrow" : ""} ${imgSrc || photoRef ? "is-img" : ""} ${receiptRef ? "is-receipt" : ""} ${linkUrl ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${dvFill ? `background:${dvFill};` : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : err ? `title="${esc(cell.err + " — " + errorHint(cell.err))}"` : linkUrl ? `title="${esc(linkUrl)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${cell && cell.format && cell.format.note ? `<span class="wb-nmark" title="${esc(cell.format.note)}"></span>` : ""}${condIconFor(sheet, r, c, cell)}${inner}${dvMark}${fltBtn(r, c)}</div>`;
+    const conflicted = WB._conflictCells && WB._conflictCells.has(sheet.id + ":" + key);
+    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${cell && cell.spill ? "is-spill-origin" : ""} ${inval ? "is-invalid" : ""} ${inval && g.circleInvalid ? "is-circled" : ""} ${conflicted ? "is-conflict" : ""} ${isDv ? "is-dv" : ""} ${isDv && dvStyle === "arrow" ? "is-dvarrow" : ""} ${imgSrc || photoRef ? "is-img" : ""} ${receiptRef ? "is-receipt" : ""} ${linkUrl ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${dvFill ? `background:${dvFill};` : ""}${condStyleFor(sheet, r, c, cell)}" ${conflicted ? `title="A teammate set this to “${esc(String(conflictIncoming(sheet.id, key)))}” — click to resolve"` : inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : err ? `title="${esc(cell.err + " — " + errorHint(cell.err))}"` : linkUrl ? `title="${esc(linkUrl)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${cell && cell.format && cell.format.note ? `<span class="wb-nmark" title="${esc(cell.format.note)}"></span>` : ""}${conflicted ? `<span class="wb-conflict-mark" title="Conflict — click to resolve"></span>` : ""}${condIconFor(sheet, r, c, cell)}${inner}${dvMark}${fltBtn(r, c)}</div>`;
   };
   let html = "";
   const paintedMerges = new Set();
@@ -10449,6 +10696,7 @@ function renderSheetTabs(g) {
   g.els.selstats = g.els.body.querySelector("[data-wb-selstats]");
   g.els.sbmode = g.els.body.querySelector("[data-wb-sbmode]");
   g.els.sbfilter = g.els.body.querySelector("[data-wb-sbfilter]");
+  g.els.srlive = g.els.body.querySelector("[data-wb-srlive]");
 }
 
 // Sheets' ☰ list: every sheet including hidden ones; picking a hidden
@@ -10499,6 +10747,25 @@ function switchSheet(g, sheetId) {
 
 // ─── Selection + navigation ─────────────────────────────────────────────────
 
+// Announce the focused cell to assistive tech (100-list #99). The grid is a
+// virtualized canvas of divs, so there's no per-cell focus for a screen reader
+// to land on — instead we push "B3, 42" (or "B3, empty") into a polite live
+// region whenever the active cell moves. Debounced so fast arrow-navigation
+// announces the cell you settle on, not every one you pass through.
+let _srAnnounceT = null;
+function announceActiveCell(g, r, c) {
+  const el = g.els && g.els.srlive;
+  if (!el) return;
+  clearTimeout(_srAnnounceT);
+  _srAnnounceT = setTimeout(() => {
+    const sheet = g.sheet;
+    const cell = sheet.cells.get(cellKey(r, c));
+    let val = cell && cell.err ? cell.err : displayValue(sheet, r, c);
+    const has = val != null && String(val).trim() !== "";
+    el.textContent = cellRef(r, c) + (has ? ", " + String(val).slice(0, 120) : ", empty");
+  }, 110);
+}
+
 function setActive(g, r, c, opts) {
   const sheet = g.sheet;
   r = Math.max(0, Math.min(sheet.rowCount - 1, r));
@@ -10515,6 +10782,44 @@ function setActive(g, r, c, opts) {
   repaintGrid(g);
   syncFormulaBar(g);
   if (!opts || opts.scroll !== false) scrollCellIntoView(g, r, c);
+  broadcastCursor(g, r, c);
+  announceActiveCell(g, r, c);
+}
+
+// Broadcast my cursor to teammates via the presence channel (100-list #73),
+// throttled so a drag-select doesn't spam the channel.
+let _cursorBroadcastT = null;
+function broadcastCursor(g, r, c) {
+  WB._myCursor = { sheetId: g.sheet.id, r, c };
+  if (_cursorBroadcastT || !WB.channel) return;
+  _cursorBroadcastT = setTimeout(() => {
+    _cursorBroadcastT = null;
+    const self = _me();
+    try { WB.channel.track({ name: (self && self.full_name) || "Teammate", at: new Date().toISOString(), cur: WB._myCursor }); } catch (_) {}
+  }, 220);
+}
+
+// Paint teammates' cursors as thin colored outlines on the cells they're in.
+const WB_CURSOR_COLORS = ["#DC2626", "#2563EB", "#16A34A", "#D97706", "#7C3AED", "#0E7490"];
+function paintRemoteCursors(g) {
+  const host = g.els.sel;
+  if (!host) return;
+  host.querySelectorAll(".wb-remote-cursor").forEach((el) => el.remove());
+  const me = _me();
+  (WB.presence || []).forEach((p, idx) => {
+    if (!p.cur || (me && p.id === me.id) || p.cur.sheetId !== g.sheet.id) return;
+    const di = dispIndexOfRow(g, p.cur.r);
+    if (di < 0 || p.cur.c < 0 || p.cur.c >= g.sheet.colCount) return;
+    const x = g.colX[p.cur.c], w = g.colX[p.cur.c + 1] - x;
+    const y = g.rowY[di], h = g.rowY[di + 1] - y;
+    if (w === 0) return;
+    const color = WB_CURSOR_COLORS[idx % WB_CURSOR_COLORS.length];
+    const el = document.createElement("div");
+    el.className = "wb-remote-cursor";
+    el.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${w}px;height:${h}px;border:2px solid ${color};pointer-events:none;z-index:6`;
+    el.innerHTML = `<span style="position:absolute;top:-15px;left:-2px;background:${color};color:#fff;font-size:9px;padding:0 4px;border-radius:3px;white-space:nowrap">${esc(String(p.name).split(" ")[0])}</span>`;
+    host.appendChild(el);
+  });
 }
 
 // Select an explicit rectangle (top-left becomes active).
@@ -10766,11 +11071,16 @@ function setCells(g, changes, opts) {
   // changes: [{ r, c, cell: {value, formula, format, type} | null }]
   if (!WB.canEdit || !changes.length) return;
   const sheet = g.sheet;
-  // protected ranges block edits for everyone but workbook admins
+  // protected ranges block edits for everyone but workbook admins — unless the
+  // range is "warning-only" mode (100-list #81), which allows the edit after a
+  // one-time toast rather than rejecting it (Excel's warning-vs-stop protection)
   if (!WB.canAdmin && sheetProtectedRanges(sheet).length) {
+    const strict = (r, c) => sheetProtectedRanges(sheet).some((p) => p.mode !== "warn" && ruleCovers(p, r, c));
+    const warned = changes.some((ch) => !strict(ch.r, ch.c) && isCellProtected(sheet, ch.r, ch.c));
     const before = changes.length;
-    changes = changes.filter((ch) => !isCellProtected(sheet, ch.r, ch.c));
+    changes = changes.filter((ch) => !strict(ch.r, ch.c));
     if (changes.length < before) _toast(changes.length ? "Some cells are in a protected range and weren’t changed" : "That range is protected — only an admin can edit it", "warn");
+    else if (warned) _toast("Heads up — you edited a protected range (warning-only)", "info");
     if (!changes.length) return;
   }
   // strict ("reject") data-validation rules also gate bulk writes when the
@@ -12056,6 +12366,16 @@ function restructure(g, axis, index, delta) {
   const sheet = g.sheet;
   if (axis === "row" && delta < 0 && sheet.rowCount <= 1) return;
   if (axis === "col" && delta < 0 && sheet.colCount <= 1) return;
+  // protected-range delete-through guard (100-list #80): a non-admin can't
+  // delete rows/columns that cross a protected range (deleting the band
+  // would otherwise silently drop protected cells that setCells would block)
+  if (delta < 0 && !WB.canAdmin) {
+    const cut = -delta;
+    const hit = sheetProtectedRanges(sheet).some((p) => axis === "row"
+      ? !(index + cut - 1 < p.r0 || index > p.r1)
+      : !(index + cut - 1 < p.c0 || index > p.c1));
+    if (hit) { _toast("That would delete cells in a protected range — only an admin can", "warn"); return; }
+  }
   cancelEdit(g);
   const oldCells = sheet.cells;
   const next = new Map();
@@ -14690,7 +15010,7 @@ function showColumnStats(g) {
 
 // Lock or unlock the selected range (admins only). Toggles: unprotects if the
 // selection overlaps existing locked ranges, otherwise locks the selection.
-function toggleProtectSelection(g) {
+function toggleProtectSelection(g, mode) {
   if (!WB.canAdmin) { _toast("Only a workbook admin can protect ranges", "warn"); return; }
   const sheet = g.sheet;
   const rect = selRect(g);
@@ -14698,16 +15018,19 @@ function toggleProtectSelection(g) {
   const ranges = sheetProtectedRanges(sheet).slice();
   const overlaps = (m) => !(m.r1 < rect.r0 || m.r0 > rect.r1 || m.c1 < rect.c0 || m.c0 > rect.c1);
   const hit = ranges.filter(overlaps);
-  const next = hit.length
+  // warning-only vs strict (100-list #81); undefined mode = plain toggle (strict)
+  const warn = mode === "warn";
+  const next = hit.length && !warn
     ? ranges.filter((m) => !hit.includes(m))
-    : [...ranges, { id: "pr" + Math.random().toString(36).slice(2, 8), r0: rect.r0, c0: rect.c0, r1: rect.r1, c1: rect.c1 }];
+    : [...ranges.filter((m) => !hit.includes(m)), { id: "pr" + Math.random().toString(36).slice(2, 8), r0: rect.r0, c0: rect.c0, r1: rect.r1, c1: rect.c1, ...(warn ? { mode: "warn" } : {}) }];
   sheet.meta = { ...(sheet.meta || {}), protected: next };
   saveSheetMeta(sheet.id);
   pushStructUndo(g, before);
   repaintGrid(g);
   const refT = colLabel(rect.c0) + (rect.r0 + 1) + (rect.r1 !== rect.r0 || rect.c1 !== rect.c0 ? ":" + colLabel(rect.c1) + (rect.r1 + 1) : "");
-  wbLog("sheet.protect", `${hit.length ? "unprotected" : "protected"} ${refT} in ${sheet.name}`, { target_type: "sheet", target_id: sheet.id });
-  _toast(hit.length ? "Range unprotected" : "Range protected — only admins can edit it now", "success");
+  const unprotected = hit.length && !warn;
+  wbLog("sheet.protect", `${unprotected ? "unprotected" : "protected"} ${refT} in ${sheet.name}`, { target_type: "sheet", target_id: sheet.id });
+  _toast(unprotected ? "Range unprotected" : warn ? "Range protected (warning only — edits are allowed with a heads-up)" : "Range protected — only admins can edit it now", "success");
 }
 
 // Create an Excel-style table from the selection, or remove the table the
@@ -14857,6 +15180,256 @@ function openGoalSeekDialog(g) {
   setTimeout(() => wrap.querySelector(setDefault ? "#wb-gs-to" : "#wb-gs-set")?.focus(), 0);
 }
 
+// What-if data table (100-list #86): substitute each value from an input
+// range into one input cell, record a formula cell's result for each, and
+// write the outputs alongside — a one-variable sensitivity table.
+function openDataTableDialog(g) {
+  if (!WB.canEdit) return;
+  const sheet = g.sheet;
+  const rect = selRect(g);
+  const selRef = `${colLabel(rect.c0)}${rect.r0 + 1}:${colLabel(rect.c1)}${rect.r1 + 1}`;
+  document.getElementById("wb-datatable-modal")?.remove();
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-datatable-modal";
+  wrap.innerHTML = `
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="What-if data table" style="width:460px">
+      <div class="rr-modal-head"><div class="rr-modal-head-content"><p class="rr-modal-title">What-if data table</p><p class="rr-modal-sub">Try a column (or row) of input values through one cell and record a formula's result for each.</p></div><button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button></div>
+      <div class="rr-modal-body">
+        <label class="wb-field"><span class="wb-field-label">Input values — a single column or row</span><input class="wb-input" id="wb-dt-inputs" value="${esc(rect.r0 !== rect.r1 || rect.c0 !== rect.c1 ? selRef : "")}" placeholder="A2:A11" autocomplete="off" spellcheck="false"></label>
+        <label class="wb-field" style="margin-top:10px"><span class="wb-field-label">Substitute into cell</span><input class="wb-input" id="wb-dt-input" placeholder="B1" autocomplete="off" spellcheck="false"></label>
+        <label class="wb-field" style="margin-top:10px"><span class="wb-field-label">Formula cell to record</span><input class="wb-input" id="wb-dt-formula" placeholder="C1" autocomplete="off" spellcheck="false"></label>
+        <label class="wb-field" style="margin-top:10px"><span class="wb-field-label">Write results starting at</span><input class="wb-input" id="wb-dt-out" placeholder="C2" autocomplete="off" spellcheck="false"></label>
+        <p id="wb-dt-msg" style="margin-top:10px;min-height:18px;color:var(--text-subtle);font-size:12px"></p>
+      </div>
+      <div class="rr-modal-foot"><button class="rr-modal-btn" type="button" data-wb-close>Cancel</button><button class="rr-modal-btn primary" type="button" id="wb-dt-run">Fill table</button></div>
+    </div>`;
+  document.body.appendChild(wrap);
+  const close = () => wrap.remove();
+  wrap.addEventListener("click", (e) => { if (e.target === wrap || e.target.closest("[data-wb-close]")) close(); });
+  wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") close(); });
+  wrap.querySelector("#wb-dt-run").addEventListener("click", () => {
+    const msg = wrap.querySelector("#wb-dt-msg");
+    const inRect = parseRangeRefText((wrap.querySelector("#wb-dt-inputs").value || "").trim())
+      || (() => { const c = parseCellRef((wrap.querySelector("#wb-dt-inputs").value || "").trim()); return c ? { r0: c.row, c0: c.col, r1: c.row, c1: c.col } : null; })();
+    const inputRC = parseCellRef((wrap.querySelector("#wb-dt-input").value || "").trim());
+    const formulaRC = parseCellRef((wrap.querySelector("#wb-dt-formula").value || "").trim());
+    const outRC = parseCellRef((wrap.querySelector("#wb-dt-out").value || "").trim());
+    if (!inRect || !inputRC || !formulaRC || !outRC) { msg.textContent = "Enter valid references for every field."; return; }
+    if (inRect.r0 !== inRect.r1 && inRect.c0 !== inRect.c1) { msg.textContent = "Input values must be a single column or a single row."; return; }
+    const vertical = inRect.c0 === inRect.c1;
+    const formulaKey = cellKey(formulaRC.row, formulaRC.col), inputKey = cellKey(inputRC.row, inputRC.col);
+    const formulaCell = sheet.cells.get(formulaKey);
+    if (!formulaCell || !formulaCell.formula) { msg.textContent = "The formula cell must contain a formula."; return; }
+    const inputCell = sheet.cells.get(inputKey);
+    if (inputCell && inputCell.formula) { msg.textContent = "The substitution cell can't contain a formula."; return; }
+    // gather the raw substitution values in order
+    const inputs = [];
+    if (vertical) for (let r = inRect.r0; r <= inRect.r1; r++) { const c = sheet.cells.get(cellKey(r, inRect.c0)); inputs.push(c ? (c.formula ? c.computed : c.value) : ""); }
+    else for (let c = inRect.c0; c <= inRect.c1; c++) { const cc = sheet.cells.get(cellKey(inRect.r0, c)); inputs.push(cc ? (cc.formula ? cc.computed : cc.value) : ""); }
+    if (!inputs.length) { msg.textContent = "The input range is empty."; return; }
+    // probe: substitute → recalc → read the formula cell
+    const origVal = inputCell ? inputCell.value : null, existed = !!inputCell;
+    const ensureInput = () => { let c = sheet.cells.get(inputKey); if (!c) { c = { value: "0", formula: null, type: "number", computed: null, err: null, format: {} }; sheet.cells.set(inputKey, c); } return c; };
+    const probe1 = (v) => {
+      const c = ensureInput(); c.value = String(v ?? ""); c.formula = null; c.computed = null; c.err = null;
+      recalcSheet(sheet, [inputKey]);
+      const t = sheet.cells.get(formulaKey);
+      if (!t || t.err) return null;
+      const raw = t.formula ? t.computed : t.value;
+      const num = cellNumeric(raw);
+      return (typeof num === "number" && isFinite(num)) ? num : raw;
+    };
+    const outputs = computeDataTable1(probe1, inputs);
+    // restore the input cell, then recalc back to the original state
+    const c = sheet.cells.get(inputKey);
+    if (c) { if (!existed) sheet.cells.delete(inputKey); else { c.value = origVal; c.computed = null; c.err = null; } }
+    recalcSheet(sheet);
+    // write the results in the same orientation as the inputs
+    const changes = [];
+    outputs.forEach((y, i) => {
+      const r = vertical ? outRC.row + i : outRC.row, cc = vertical ? outRC.col : outRC.col + i;
+      changes.push({ r, c: cc, cell: cellFromInput(y == null ? "" : String(y), sheet.cells.get(cellKey(r, cc))) });
+    });
+    setCells(g, changes);
+    _toast(`Data table: filled ${outputs.length} result${outputs.length === 1 ? "" : "s"}.`, "success");
+    close();
+  });
+  setTimeout(() => wrap.querySelector("#wb-dt-input")?.focus(), 0);
+}
+
+// Solver (100-list #88): drive one objective formula cell to a target value
+// by changing several input cells at once (multi-variable goal seek).
+function openSolverDialog(g) {
+  if (!WB.canEdit) return;
+  const sheet = g.sheet;
+  const activeRef = colLabel(g.active.c) + (g.active.r + 1);
+  const activeCell = sheet.cells.get(cellKey(g.active.r, g.active.c));
+  document.getElementById("wb-solver-modal")?.remove();
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-solver-modal";
+  wrap.innerHTML = `
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Solver" style="width:460px">
+      <div class="rr-modal-head"><div class="rr-modal-head-content"><p class="rr-modal-title">Solver</p><p class="rr-modal-sub">Change several input cells at once to hit a target in one formula cell.</p></div><button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button></div>
+      <div class="rr-modal-body">
+        <label class="wb-field"><span class="wb-field-label">Objective — a formula cell</span><input class="wb-input" id="wb-sv-obj" value="${esc(activeCell && activeCell.formula ? activeRef : "")}" placeholder="D10" autocomplete="off" spellcheck="false"></label>
+        <label class="wb-field" style="margin-top:10px"><span class="wb-field-label">To value</span><input class="wb-input" id="wb-sv-to" placeholder="100000" autocomplete="off" spellcheck="false"></label>
+        <label class="wb-field" style="margin-top:10px"><span class="wb-field-label">By changing cells — range or comma list</span><input class="wb-input" id="wb-sv-by" placeholder="B2:B5  or  B2,C2,D2" autocomplete="off" spellcheck="false"></label>
+        <div style="display:flex;gap:10px;margin-top:10px">
+          <label class="wb-field" style="flex:1"><span class="wb-field-label">Min (optional)</span><input class="wb-input" id="wb-sv-min" placeholder="—" autocomplete="off" spellcheck="false"></label>
+          <label class="wb-field" style="flex:1"><span class="wb-field-label">Max (optional)</span><input class="wb-input" id="wb-sv-max" placeholder="—" autocomplete="off" spellcheck="false"></label>
+        </div>
+        <p id="wb-sv-msg" style="margin-top:10px;min-height:18px;color:var(--text-subtle);font-size:12px"></p>
+      </div>
+      <div class="rr-modal-foot"><button class="rr-modal-btn" type="button" data-wb-close>Cancel</button><button class="rr-modal-btn primary" type="button" id="wb-sv-run">Solve</button></div>
+    </div>`;
+  document.body.appendChild(wrap);
+  const close = () => wrap.remove();
+  wrap.addEventListener("click", (e) => { if (e.target === wrap || e.target.closest("[data-wb-close]")) close(); });
+  wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") close(); });
+  const parseCellList = (text) => {
+    const out = [], seen = new Set();
+    for (const part of String(text || "").split(",").map((s) => s.trim()).filter(Boolean)) {
+      if (part.includes(":")) { const rr = parseRangeRefText(part); if (!rr) return null; for (let r = rr.r0; r <= rr.r1; r++) for (let cc = rr.c0; cc <= rr.c1; cc++) { const k = r + "," + cc; if (!seen.has(k)) { seen.add(k); out.push({ row: r, col: cc }); } } }
+      else { const rc = parseCellRef(part); if (!rc) return null; const k = rc.row + "," + rc.col; if (!seen.has(k)) { seen.add(k); out.push(rc); } }
+    }
+    return out.length ? out : null;
+  };
+  wrap.querySelector("#wb-sv-run").addEventListener("click", () => {
+    const msg = wrap.querySelector("#wb-sv-msg");
+    const objRC = parseCellRef((wrap.querySelector("#wb-sv-obj").value || "").trim());
+    const goal = Number((wrap.querySelector("#wb-sv-to").value || "").replace(/[$,%\s]/g, ""));
+    const cells = parseCellList(wrap.querySelector("#wb-sv-by").value);
+    const minRaw = (wrap.querySelector("#wb-sv-min").value || "").trim(), maxRaw = (wrap.querySelector("#wb-sv-max").value || "").trim();
+    if (!objRC || !cells) { msg.textContent = "Enter a formula cell and at least one changing cell."; return; }
+    if (!isFinite(goal)) { msg.textContent = "Enter a numeric target value."; return; }
+    if (cells.length > 12) { msg.textContent = "Solver handles up to 12 changing cells; narrow the range."; return; }
+    const objKey = cellKey(objRC.row, objRC.col), objCell = sheet.cells.get(objKey);
+    if (!objCell || !objCell.formula) { msg.textContent = "The objective must contain a formula."; return; }
+    const inputKeys = cells.map((rc) => cellKey(rc.row, rc.col));
+    for (const k of inputKeys) { const c = sheet.cells.get(k); if (c && c.formula) { msg.textContent = "Changing cells can't contain formulas."; return; } }
+    const lo = minRaw === "" ? -Infinity : Number(minRaw.replace(/[$,%\s]/g, ""));
+    const hi = maxRaw === "" ? Infinity : Number(maxRaw.replace(/[$,%\s]/g, ""));
+    if ((minRaw !== "" && !isFinite(lo)) || (maxRaw !== "" && !isFinite(hi))) { msg.textContent = "Min/Max must be numbers or blank."; return; }
+    const bounds = inputKeys.map(() => [lo, hi]);
+    const originals = inputKeys.map((k) => { const c = sheet.cells.get(k); return c ? { existed: true, value: c.value } : { existed: false }; });
+    const x0 = inputKeys.map((k) => { const c = sheet.cells.get(k); return c ? (cellNumeric(c.formula ? c.computed : c.value) ?? 0) : 0; });
+    const ensure = (k) => { let c = sheet.cells.get(k); if (!c) { c = { value: "0", formula: null, type: "number", computed: null, err: null, format: {} }; sheet.cells.set(k, c); } return c; };
+    const probe = (vec) => {
+      vec.forEach((v, i) => { const c = ensure(inputKeys[i]); c.value = String(v); c.formula = null; c.computed = null; c.err = null; });
+      recalcSheet(sheet, inputKeys.slice());
+      const t = sheet.cells.get(objKey);
+      return t && !t.err ? cellNumeric(t.formula ? t.computed : t.value) : NaN;
+    };
+    const sol = solveMultiGoal(probe, goal, x0, bounds);
+    // restore originals, then recalc
+    inputKeys.forEach((k, i) => { const o = originals[i]; if (!o.existed) sheet.cells.delete(k); else { const c = sheet.cells.get(k); if (c) { c.value = o.value; c.computed = null; c.err = null; } } });
+    recalcSheet(sheet);
+    if (sol == null) { repaintGrid(g); msg.textContent = "Couldn't converge. Try adding Min/Max bounds or a closer starting point."; return; }
+    const changes = cells.map((rc, i) => {
+      const raw = sol[i], rounded = Math.abs(raw - Math.round(raw)) < 1e-9 ? Math.round(raw) : parseFloat(raw.toPrecision(12));
+      const prev = sheet.cells.get(inputKeys[i]);
+      return { r: rc.row, c: rc.col, cell: { value: String(rounded), formula: null, type: "number", computed: null, err: null, format: prev && prev.format ? { ...prev.format } : {} } };
+    });
+    setCells(g, changes);
+    const tv = sheet.cells.get(objKey);
+    _toast(`Solver: ${cells.length} cell${cells.length === 1 ? "" : "s"} set → ${colLabel(objRC.col)}${objRC.row + 1} ≈ ${formatForDisplay(tv.computed, tv.format, "formula")}`, "success");
+    close();
+  });
+  setTimeout(() => wrap.querySelector(activeCell && activeCell.formula ? "#wb-sv-to" : "#wb-sv-obj")?.focus(), 0);
+}
+
+// Scenario manager (100-list #87): save named sets of input-cell values and
+// switch between them. Scenarios live in sheet.meta.scenarios (persisted with
+// the sheet — no backend change), each as { id, name, cells:[{r,c,value}] }.
+function sheetScenarios(sheet) {
+  const v = sheet.meta && sheet.meta.scenarios;
+  return Array.isArray(v) ? v : [];
+}
+function writeSheetScenarios(g, list) {
+  g.sheet.meta = { ...(g.sheet.meta || {}), scenarios: list };
+  saveSheetMeta(g.sheet.id);
+}
+function openScenarioDialog(g) {
+  if (!WB.canEdit) return;
+  const sheet = g.sheet;
+  document.getElementById("wb-scenario-modal")?.remove();
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-scenario-modal";
+  wrap.innerHTML = `
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Scenario manager" style="width:460px">
+      <div class="rr-modal-head"><div class="rr-modal-head-content"><p class="rr-modal-title">Scenario manager</p><p class="rr-modal-sub">Save the current input cells as a named scenario, then switch between them.</p></div><button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button></div>
+      <div class="rr-modal-body">
+        <div id="wb-sc-list" style="max-height:260px;overflow:auto"></div>
+        <p id="wb-sc-msg" style="margin-top:8px;min-height:16px;color:var(--text-subtle);font-size:12px"></p>
+      </div>
+      <div class="rr-modal-foot"><button class="rr-modal-btn" type="button" data-wb-close>Close</button><button class="rr-modal-btn primary" type="button" id="wb-sc-add">Save current cells…</button></div>
+    </div>`;
+  document.body.appendChild(wrap);
+  const close = () => wrap.remove();
+  wrap.addEventListener("click", (e) => { if (e.target === wrap || e.target.closest("[data-wb-close]")) close(); });
+  wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") close(); });
+  const msg = wrap.querySelector("#wb-sc-msg");
+  const listHost = wrap.querySelector("#wb-sc-list");
+  const render = () => {
+    const list = sheetScenarios(sheet);
+    if (!list.length) { listHost.innerHTML = `<p style="color:var(--text-subtle);font-size:13px;padding:8px 2px">No scenarios yet. Select the input cells you vary, then “Save current cells…”.</p>`; return; }
+    listHost.innerHTML = list.map((sc) => {
+      const preview = (sc.cells || []).slice(0, 4).map((c) => `${colLabel(c.c)}${c.r + 1}=${esc(String(c.value ?? ""))}`).join(", ");
+      const more = (sc.cells || []).length > 4 ? ` +${sc.cells.length - 4}` : "";
+      return `<div class="wb-sc-row" style="display:flex;align-items:center;gap:8px;padding:8px 2px;border-bottom:1px solid var(--border-subtle)">
+        <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:13px">${esc(sc.name)}</div><div style="color:var(--text-subtle);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(preview)}${more}</div></div>
+        <button class="rr-modal-btn" type="button" data-sc-apply="${esc(sc.id)}" style="padding:4px 10px">Show</button>
+        <button class="rr-modal-btn" type="button" data-sc-del="${esc(sc.id)}" style="padding:4px 8px" aria-label="Delete scenario">✕</button>
+      </div>`;
+    }).join("");
+  };
+  render();
+  listHost.addEventListener("click", (e) => {
+    const applyId = e.target.closest("[data-sc-apply]")?.getAttribute("data-sc-apply");
+    const delId = e.target.closest("[data-sc-del]")?.getAttribute("data-sc-del");
+    if (applyId) {
+      const sc = sheetScenarios(sheet).find((s) => s.id === applyId);
+      if (!sc) return;
+      const changes = (sc.cells || []).map((c) => ({ r: c.r, c: c.c, cell: cellFromInput(c.value == null ? "" : String(c.value), sheet.cells.get(cellKey(c.r, c.c))) }));
+      setCells(g, changes);
+      _toast(`Scenario “${sc.name}” applied`, "success");
+      msg.textContent = `Showing “${sc.name}”.`;
+    } else if (delId) {
+      writeSheetScenarios(g, sheetScenarios(sheet).filter((s) => s.id !== delId));
+      render();
+    }
+  });
+  wrap.querySelector("#wb-sc-add").addEventListener("click", () => {
+    // capture the current, non-formula selected cells as the scenario's inputs
+    const cells = [];
+    forEachSelectedCell(g, (r, c) => {
+      if (cells.length >= 64) return;
+      const cell = sheet.cells.get(cellKey(r, c));
+      if (cell && cell.formula) return; // formulas are outputs, not inputs
+      cells.push({ r, c, value: cell ? (cell.value ?? "") : "" });
+    });
+    if (!cells.length) { msg.textContent = "Select the input cells to capture first (formula cells are skipped)."; return; }
+    promptModal({
+      title: "Name this scenario", label: `Captures ${cells.length} cell${cells.length === 1 ? "" : "s"}`,
+      placeholder: "Best case", submitLabel: "Save",
+      onSubmit: (name) => {
+        name = String(name || "").trim(); if (!name) return;
+        const list = sheetScenarios(sheet).slice();
+        const id = "sc" + Math.random().toString(36).slice(2, 9);
+        const existing = list.findIndex((s) => s.name.toLowerCase() === name.toLowerCase());
+        const rec = { id, name, cells };
+        if (existing >= 0) rec.id = list[existing].id, list[existing] = rec; else list.push(rec);
+        writeSheetScenarios(g, list);
+        render();
+        msg.textContent = `Saved “${name}”.`;
+      },
+    });
+  });
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 //  MACROS — a user-scripting console (Tools ▸ Macros…)
 //
@@ -14960,7 +15533,33 @@ function buildMacroApi(g, logFn) {
     return changes.length;
   };
   // Merge a whitelisted format patch onto a range (preserves existing values).
-  const FMT_KEYS = { bg: 1, fg: 1, bold: 1, italic: 1, underline: 1, strike: 1, align: 1, valign: 1, wrap: 1 };
+  // Expanded for 100-list #83: number formats (num/fmt), borders (bs/border/
+  // bw), indent (ind), rotation (rot).
+  const FMT_KEYS = { bg: 1, fg: 1, bold: 1, italic: 1, underline: 1, strike: 1, align: 1, valign: 1, wrap: 1, num: 1, fmt: 1, border: 1, bw: 1, bs: 1, ind: 1, rot: 1 };
+  // Resolve a sibling sheet by name (100-list #82 cross-sheet).
+  const siblingSheet = (name) => {
+    const s = (WB.sheetsByBlock.get(g.blockId) || []).find((x) => x.name === name);
+    if (!s) throw new Error('No sheet named "' + name + '" in this block.');
+    return s;
+  };
+  // Apply changes to an arbitrary sibling sheet (used by cross-sheet writes).
+  const writeToSheet = (targetSheet, changes) => {
+    ensureEdit();
+    const applied = [];
+    for (const ch of changes) {
+      if (ch.r < 0 || ch.c < 0 || ch.r >= targetSheet.rowCount || ch.c >= targetSheet.colCount) continue;
+      const key = cellKey(ch.r, ch.c);
+      if (ch.cell) targetSheet.cells.set(key, { ...ch.cell, computed: null, err: null });
+      else targetSheet.cells.delete(key);
+      applied.push(key);
+    }
+    if (!applied.length) return 0;
+    recalcWithSiblings(targetSheet, applied);
+    markCellsDirty(targetSheet, applied);
+    const tg = [...GRIDS.values()].find((x) => x.sheet && x.sheet.id === targetSheet.id);
+    if (tg) repaintGrid(tg);
+    return applied.length;
+  };
   const sanitizeFmt = (patch) => {
     if (!patch || typeof patch !== "object") throw new Error("format expects an object, e.g. {bg:'#F4CCCC', bold:true}.");
     const out = {};
@@ -15037,6 +15636,33 @@ function buildMacroApi(g, logFn) {
     },
     clear(a1) { writeRect(rangeRect(a1), () => ""); return this; },
     setFormat(a1, fmt) { formatRect(rangeRect(a1), fmt); return this; },
+    // ── cross-sheet (100-list #82) ──
+    getSheetValues(name, a1) {
+      const s = siblingSheet(name), rect = rangeRect(a1), out = [];
+      for (let r = rect.r0; r <= rect.r1; r++) { const row = []; for (let c = rect.c0; c <= rect.c1; c++) row.push(displayValue(s, r, c)); out.push(row); }
+      return out;
+    },
+    setSheetValue(name, a1, v) {
+      const s = siblingSheet(name), rc = cellRC(a1);
+      return writeToSheet(s, [{ r: rc.row, c: rc.col, cell: cellFromInput(v, s.cells.get(cellKey(rc.row, rc.col))) }]);
+    },
+    setSheetValues(name, anchorA1, vals) {
+      if (!Array.isArray(vals) || !vals.length) throw new Error("setSheetValues expects a non-empty 2D array.");
+      const s = siblingSheet(name), a = cellRC(anchorA1), changes = [];
+      vals.forEach((row, i) => (Array.isArray(row) ? row : [row]).forEach((val, j) => changes.push({ r: a.row + i, c: a.col + j, cell: cellFromInput(val == null ? "" : val, s.cells.get(cellKey(a.row + i, a.col + j))) })));
+      return writeToSheet(s, changes);
+    },
+    // ── structure (100-list #83) ──
+    insertRows(a1, n) { ensureEdit(); const rc = cellRC(a1); restructure(g, "row", rc.row, Math.max(1, Math.min(1000, n || 1))); return this; },
+    deleteRows(a1, n) { ensureEdit(); const rc = cellRC(a1); restructure(g, "row", rc.row, -Math.max(1, Math.min(1000, n || 1))); return this; },
+    insertColumns(a1, n) { ensureEdit(); const rc = cellRC(a1); restructure(g, "col", rc.col, Math.max(1, Math.min(200, n || 1))); return this; },
+    deleteColumns(a1, n) { ensureEdit(); const rc = cellRC(a1); restructure(g, "col", rc.col, -Math.max(1, Math.min(200, n || 1))); return this; },
+    setNumberFormat(a1, code) { formatRect(rangeRect(a1), String(code).trim() ? { num: "custom", fmt: String(code) } : { num: null, fmt: null }); return this; },
+    setBorder(a1, sides) {
+      // sides: "all" | "outline" | "top"… | {t,b,l,r} per-side objects
+      formatRect(rangeRect(a1), typeof sides === "object" ? { bs: sides } : { border: sides || "all" });
+      return this;
+    },
     // ── output ──
     log() { logFn(Array.prototype.map.call(arguments, macroFmt).join(" ")); },
     toast(msg, kind) { _toast(String(msg), kind === "warn" || kind === "success" || kind === "info" ? kind : "info"); },
@@ -15096,6 +15722,11 @@ var workbook = {
   getActiveSheetName: mk('getActiveSheetName'), getSheetNames: mk('getSheetNames'),
   getActiveCell: mk('getActiveCell'), getSelection: mk('getSelection'), sheetInfo: mk('sheetInfo'),
   sheet: mk('sheet'), log: mk('log'), toast: mk('toast'), alert: mk('alert'),
+  // cross-sheet read/write (100-list #82)
+  getSheetValues: mk('getSheetValues'), setSheetValue: mk('setSheetValue'), setSheetValues: mk('setSheetValues'),
+  // structure + richer formatting (100-list #83)
+  insertRows: mk('insertRows'), deleteRows: mk('deleteRows'), insertColumns: mk('insertColumns'), deleteColumns: mk('deleteColumns'),
+  setNumberFormat: mk('setNumberFormat'), setBorder: mk('setBorder'),
   // org data (read-only) — this DSP only, no writes
   getDrivers: mk('getDrivers'), getVehicles: mk('getVehicles'), getSchedule: mk('getSchedule'),
   getTimeOff: mk('getTimeOff'), getDsp: mk('getDsp'), orgData: mk('orgData'),
@@ -15261,6 +15892,15 @@ function runMacroSandboxed(code, g, logFn) {
         case "range.setFormat": api.getRange(args[0]).setFormat(args[1]); return true;
         case "range.clear": api.getRange(args[0]).clear(); return true;
         case "setFormat": api.setFormat(args[0], args[1]); return true;
+        case "getSheetValues": return api.getSheetValues(args[0], args[1]);
+        case "setSheetValue": api.setSheetValue(args[0], args[1], args[2]); return true;
+        case "setSheetValues": return api.setSheetValues(args[0], args[1], args[2]);
+        case "insertRows": api.insertRows(args[0], args[1]); return true;
+        case "deleteRows": api.deleteRows(args[0], args[1]); return true;
+        case "insertColumns": api.insertColumns(args[0], args[1]); return true;
+        case "deleteColumns": api.deleteColumns(args[0], args[1]); return true;
+        case "setNumberFormat": api.setNumberFormat(args[0], args[1]); return true;
+        case "setBorder": api.setBorder(args[0], args[1]); return true;
         case "log": logFn(Array.prototype.map.call(args, macroFmt).join(" ")); return true;
         case "toast": api.toast(args[0], args[1]); return true;
         case "alert": api.alert(args[0]); return true;
@@ -15312,7 +15952,11 @@ function openMacrosPanel(g) {
         <div style="width:180px;flex:0 0 auto;border-right:1px solid var(--border);padding-right:12px;display:flex;flex-direction:column;min-height:0">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
             <span class="wb-field-label" style="margin:0">Saved</span>
-            <button class="rr-modal-btn" type="button" id="wb-macro-new" style="padding:2px 9px">+ New</button>
+            <div style="display:flex;align-items:center;gap:4px">
+              <button class="rr-modal-btn" type="button" id="wb-macro-new" style="padding:2px 9px">+ New</button>
+              <button class="rr-modal-btn" type="button" id="wb-macro-export" title="Copy macro(s) as shareable JSON" aria-label="Export macros" style="padding:2px 7px">⤓</button>
+              <button class="rr-modal-btn" type="button" id="wb-macro-import" title="Import macros from clipboard JSON" aria-label="Import macros" style="padding:2px 7px">⤒</button>
+            </div>
           </div>
           <div id="wb-macro-list" style="flex:1;overflow:auto;min-height:0;display:flex;flex-direction:column;gap:4px"></div>
         </div>
@@ -15327,6 +15971,9 @@ function openMacrosPanel(g) {
               workbook.getRange("A2:C9").getValues() / .setValue(v) / .setValues([[…]]) / .clear()<br>
               workbook.setFormat("A1:G1", {bg:"#F4CCCC", bold:true}) · getRange(…).setBackground("#D9EAD3")<br>
               workbook.setValues("A2", [[1,2],[3,4]]) · clear("A1:C9")<br>
+              <b>Other sheets:</b> await workbook.getSheetValues("Data","A1:C9") · setSheetValue("Data","A1",v) · setSheetValues("Data","A2",[[…]])<br>
+              <b>Structure:</b> await workbook.insertRows("A5",2) · deleteRows("A5",2) · insertColumns("C1",1) · deleteColumns("C1",1)<br>
+              workbook.setNumberFormat("B2:B9","#,##0.00") · setBorder("A1:C3","all"|"outline")<br>
               workbook.getSelection() · getActiveCell() · getActiveSheetName() · getSheetNames()<br>
               workbook.log(…) · toast(msg[, "success"|"warn"|"info"])<br>
               <b>Live org data (read-only):</b> await workbook.getDrivers() · getVehicles() · getSchedule({from,to}) · getTimeOff() · getDsp()<br>
@@ -15382,6 +16029,34 @@ function openMacrosPanel(g) {
   function newMacro() { currentId = null; nameEl.value = ""; codeEl.value = MACRO_EXAMPLE; outEl.textContent = ""; renderList(); nameEl.focus(); }
 
   $("#wb-macro-new").addEventListener("click", newMacro);
+  // Export / import (100-list #85, lightweight sharing): a full org macro
+  // library needs a synced backend table; until then, macros travel as JSON
+  // through the clipboard so a team can share them across browsers/users.
+  $("#wb-macro-export").addEventListener("click", () => {
+    const picked = currentId ? macros.filter((m) => m.id === currentId) : macros;
+    if (!picked.length) { flashStatus("No macros to export", false); return; }
+    const json = JSON.stringify({ rrWorkbookMacros: 1, macros: picked.map((m) => ({ name: m.name || "Untitled", code: m.code || "" })) }, null, 2);
+    const done = () => flashStatus(currentId ? "Copied macro to clipboard ✓" : `Copied ${picked.length} macros ✓`, true);
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(json).then(done, () => flashStatus("Clipboard blocked by the browser", false));
+    else flashStatus("Clipboard unavailable in this browser", false);
+  });
+  $("#wb-macro-import").addEventListener("click", () => {
+    if (!navigator.clipboard || !navigator.clipboard.readText) { flashStatus("Clipboard read unavailable", false); return; }
+    navigator.clipboard.readText().then((txt) => {
+      let data; try { data = JSON.parse(txt); } catch (_) { flashStatus("Clipboard isn't macro JSON", false); return; }
+      const arr = Array.isArray(data) ? data : (data && Array.isArray(data.macros) ? data.macros : null);
+      if (!arr || !arr.length) { flashStatus("No macros found in clipboard", false); return; }
+      let added = 0;
+      for (const m of arr.slice(0, 50)) {
+        if (!m || typeof m.code !== "string") continue;
+        macros.unshift({ id: newMacroId(), name: String(m.name || "Imported macro").slice(0, 80), code: String(m.code).slice(0, 20000), updatedAt: Date.now() });
+        added++;
+      }
+      if (!added) { flashStatus("Nothing importable in clipboard", false); return; }
+      saveMacros(macros); renderList();
+      flashStatus(`Imported ${added} macro${added === 1 ? "" : "s"} ✓`, true);
+    }, () => flashStatus("Clipboard read blocked by the browser", false));
+  });
   $("#wb-macro-save").addEventListener("click", () => {
     const name = (nameEl.value || "").trim() || "Untitled macro";
     const code = codeEl.value;
@@ -17757,7 +18432,8 @@ function renderCharts(g) {                    // renders every embed kind
   host.innerHTML = embeds.map(({ key, item }) => {
     const L = embedLayout(g, key, item);
     const inner = embedInnerHtml(g, key, item, L);
-    const accentVar = inner.accent ? `--tile-accent:${inner.accent};` : "";
+    const accSafe = inner.accent ? safeAccentColor(inner.accent, "") : "";
+    const accentVar = accSafe ? `--tile-accent:${accSafe};` : "";
     const style = `left:${L.x * z}px;top:${L.y * z}px;width:${L.w * z}px;height:${L.h * z}px;${accentVar}`;
     return `<div class="wb-embed wb-embed-${key}${inner.cls ? " " + inner.cls : ""}" data-wb-embed-kind="${key}" data-wb-embed-id="${esc(item.id)}" style="${style}">
       <div class="wb-embed-head" ${WB.canEdit ? 'data-wb-embed-drag title="Drag to move"' : ""}>
@@ -17979,7 +18655,7 @@ function kpiSparkline(sheet, rangeText, color) {
     `<path d="${line}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
 }
 function kpiTileHtml(sheet, spec, rowFilter) {
-  const accent = spec.accent || chartPalette(spec)[0];   // curated override wins
+  const accent = safeAccentColor(spec.accent, "") || chartPalette(spec)[0];   // curated override wins (validated — #94)
   const agg = spec.agg || "cell";
   const num = kpiValue(sheet, spec, rowFilter);
   const raw = agg === "cell" ? embedCellRaw(sheet, spec.valueRef) : num;
@@ -18715,6 +19391,50 @@ function autoBuildDashboard(g) {
 
 // A compact, privacy-preserving description of the block's data sheets: names,
 // row counts, and per-column { name, type, samples }.
+// Real computed aggregates for one column (100-list #89): the AI used to see
+// only 4 sample values and had to guess totals ("don't fabricate numbers you
+// can't know"). Ship the actual sum/avg/min/max for numeric columns, the
+// date span for dates, and the top values-by-frequency for categories — so the
+// analyst's narrative can cite grounded numbers instead of hedging.
+function aiColumnStats(sheet, rng, col, kind) {
+  const round = (x) => (!isFinite(x) ? null : Math.abs(x) >= 1000 ? Math.round(x) : parseFloat(x.toPrecision(6)));
+  let count = 0;
+  if (kind === "number") {
+    const nums = [];
+    for (let r = rng.r0 + 1; r <= rng.r1; r++) {
+      const raw = embedCellRaw(sheet, { row: r, col });
+      if (raw == null || String(raw).trim() === "") continue;
+      const n = cellNumeric(raw); if (n != null) nums.push(n);
+    }
+    if (!nums.length) return null;
+    const sum = nums.reduce((a, b) => a + b, 0);
+    return { count: nums.length, sum: round(sum), avg: round(sum / nums.length), min: round(Math.min(...nums)), max: round(Math.max(...nums)) };
+  }
+  if (kind === "date") {
+    let lo = null, hi = null;
+    for (let r = rng.r0 + 1; r <= rng.r1; r++) {
+      const raw = embedCellRaw(sheet, { row: r, col });
+      if (raw == null || String(raw).trim() === "") continue;
+      const s = dvDateSerial(raw); if (s == null) continue; count++;
+      if (lo == null || s < lo) lo = s; if (hi == null || s > hi) hi = s;
+    }
+    if (lo == null) return null;
+    return { count, min: isoDate(serialToDate(lo)), max: isoDate(serialToDate(hi)) };
+  }
+  // text / category → distinct count + the most frequent values
+  const freq = new Map();
+  for (let r = rng.r0 + 1; r <= rng.r1; r++) {
+    const raw = embedCellRaw(sheet, { row: r, col });
+    if (raw == null || String(raw).trim() === "") continue;
+    count++;
+    const k = String(displayValue(sheet, r, col)).slice(0, 40);
+    if (freq.size < 500 || freq.has(k)) freq.set(k, (freq.get(k) || 0) + 1);
+  }
+  if (!freq.size) return null;
+  const top = [...freq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([value, n]) => ({ value, count: n }));
+  return { count, distinct: freq.size, top };
+}
+
 function aiWorkbookSchema(g) {
   return blockDataSheets(g).map((s) => {
     const rng = sheetDataRange(s);
@@ -18724,7 +19444,10 @@ function aiWorkbookSchema(g) {
         const v = displayValue(s, r, c.c);
         if (v != null && String(v).trim() !== "") samples.push(String(v).slice(0, 40));
       }
-      return { name: c.name, type: c.kind, samples };
+      const out = { name: c.name, type: c.kind, samples };
+      const stats = aiColumnStats(s, rng, c.c, c.kind);
+      if (stats) out.stats = stats;
+      return out;
     });
     return { sheet: s.name, rows: Math.max(0, rng.r1 - rng.r0), columns: cols };
   }).filter((s) => s.columns.length);
@@ -19509,6 +20232,25 @@ function bindGridEvents(g) {
 
   grid.addEventListener("mousedown", (e) => {
     if (e.target.closest("[data-wb-grp]")) return; // group toggles act on click
+    // conflict marker → open the keep-mine / take-theirs resolver (100-list #74)
+    const confMark = e.target.closest(".wb-conflict-mark");
+    if (confMark) {
+      e.preventDefault();
+      const cellEl = confMark.closest(".wb-cell");
+      const r = +cellEl.getAttribute("data-r"), c = +cellEl.getAttribute("data-c");
+      const inc = conflictIncoming(g.sheet.id, cellKey(r, c));
+      const cur = g.sheet.cells.get(cellKey(r, c));
+      confirmModal({
+        title: `Resolve ${cellRef(r, c)}`,
+        body: `A teammate set this cell to <strong>${esc(String(inc))}</strong>. Your value is <strong>${esc(String(cur ? (cur.formula || (cur.value ?? "")) : ""))}</strong>.`,
+        confirmLabel: "Take teammate's value",
+        onConfirm: () => resolveConflict(g, r, c, true),
+      });
+      // "Cancel" on the modal keeps mine but clears the flag
+      const modal = document.getElementById("wb-confirm-modal");
+      modal?.querySelector("[data-wb-close]")?.addEventListener("click", () => resolveConflict(g, r, c, false), { once: true });
+      return;
+    }
     // right-drag the fill handle → preview, then a fill-options menu on
     // release (Excel). Must run before the context-menu bail below.
     if (e.button === 2 && WB.canEdit && e.target.closest("[data-wb-fillhandle]")) {
@@ -21536,7 +22278,11 @@ function wbMenuItems(menu, g) {
         { label: "Ungroup", act: "data:ungroup", disabled: !ed || !g },
         { label: ((g && g.sheet.meta && g.sheet.meta.iterCalc && g.sheet.meta.iterCalc.on) ? "✓ " : "") + "Iterative calculation", act: "data:itercalc", disabled: !ed || !g },
         { label: "Protect / unprotect selection", act: "data:protect", disabled: !g || !WB.canAdmin },
+        { label: "Protect selection (warning only)", act: "data:protect-warn", disabled: !g || !WB.canAdmin },
         { label: "Goal seek…", act: "data:goalseek", disabled: !ed || !g },
+        { label: "What-if data table…", act: "data:datatable", disabled: !ed || !g },
+        { label: "Solver (multi-cell)…", act: "data:solver", disabled: !ed || !g },
+        { label: "Scenario manager…", act: "data:scenarios", disabled: !ed || !g },
         { label: "Pivot table…", act: "data:pivot", disabled: !ed || !g },
         { label: "Named ranges…", act: "data:names", disabled: !g },
         { label: "Data validation…", act: "data:validation", disabled: !ed || !g },
@@ -21718,7 +22464,11 @@ function wbMenuAction(act, g) {
       _toast(on ? "Iterative calculation on — circular formulas now converge (50 iterations, Δ 0.001)" : "Iterative calculation off", "success");
     } return;
     case "data:protect": toggleProtectSelection(g); return;
+    case "data:protect-warn": toggleProtectSelection(g, "warn"); return;
     case "data:goalseek": if (need()) openGoalSeekDialog(g); return;
+    case "data:datatable": if (need()) openDataTableDialog(g); return;
+    case "data:solver": if (need()) openSolverDialog(g); return;
+    case "data:scenarios": if (need()) openScenarioDialog(g); return;
     case "data:pivot": if (need()) openPivotDialog(g); return;
     case "data:names": if (need()) openNamedRangesDialog(g); return;
     case "data:validation": if (need()) openValidationDialog(g); return;
@@ -23795,15 +24545,15 @@ export const __engine = {
   fillSeries, cycleRefAnchor, errorHint, columnSuggestion, snapshotSheet, applySheetSnapshot,
   colLabel, colIndex, cellRef, parseCellRef,
   dateToSerial, serialToDate, isoDate, parseDateLoose,
-  buildXlsxBytes, parseXlsxBytes, buildPrintTable, buildTablePdf, formatForDisplay, applyCustomFormat, customFormatColor, solveGoalSeek, filterCondHits, inferSmartTransform, parseCsv,
+  buildXlsxBytes, parseXlsxBytes, buildPrintTable, buildTablePdf, formatForDisplay, applyCustomFormat, customFormatColor, solveGoalSeek, solveMultiGoal, computeDataTable1, computeDataTable2, filterCondHits, inferSmartTransform, parseCsv,
   condBarPercent, condIconPick, WB_CF_ICONSETS, isCellProtected, runQuery,
   chartSvg, WB_CHART_TYPES, kpiTileHtml, tableTileHtml, textTileHtml, kpiSparkline, kpiFmt, embedCellNum,
   chartData, aggRange, distinctColumnValues, kpiValue, KPI_AGGS,
   dateRangeSerials, controlPredicate, DATE_PRESETS, findColumnByName,
   linearFit, analyzeColumns, computeInsights,
-  aiWorkbookSchema, aiPlanToSpecs,
+  aiWorkbookSchema, aiColumnStats, aiPlanToSpecs,
   computePivot, pivotAggregate, pivotTableHtml, pivotEffectiveSpec, pivotDrillRecords, pivotChartSvg, ooxmlChartXml, ooxmlDrawingXml, pivotToExportSheet, expandExportSheets,
-  autoLinkFor, cellLink, cellInnerHtml,
+  autoLinkFor, cellLink, cellInnerHtml, esc, safeAccentColor,
   selCycle,
   WB_IMG_RE, cellImgSrc,
   planMoveChanges, recalcSheet,

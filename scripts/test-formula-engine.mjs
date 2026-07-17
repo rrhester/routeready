@@ -1378,4 +1378,75 @@ await okA("xlsx round-trip: Excel tables survive as <table> parts", async () => 
   assert.deepEqual([t.r0, t.c0, t.r1, t.c1], [0, 0, 2, 1]);
 });
 
+// ── #86 / #88 What-If: multi-var solver + data-table math ────────────────────
+{
+  const { solveMultiGoal, computeDataTable1, computeDataTable2 } = __engine;
+  ok("solveMultiGoal: two vars reach a linear target", () => {
+    const sol = solveMultiGoal((v) => v[0] + 2 * v[1], 10, [0, 0]);
+    assert.ok(sol, "should converge");
+    near(sol[0] + 2 * sol[1], 10, 2e-3);
+  });
+  ok("solveMultiGoal: honors [lo,hi] bounds", () => {
+    const sol = solveMultiGoal((v) => v[0] * v[0], 4, [3], [[0, 10]]);
+    assert.ok(sol, "should converge");
+    near(sol[0], 2, 1e-3);
+    assert.ok(sol[0] >= 0 && sol[0] <= 10, "stays within bounds");
+  });
+  ok("solveMultiGoal: returns null when the target is unreachable", () => {
+    assert.equal(solveMultiGoal(() => 5, 10, [1, 2, 3]), null);
+  });
+  ok("computeDataTable1: maps each input through the probe", () => {
+    assert.deepEqual(computeDataTable1((v) => v * v, [1, 2, 3]), [1, 4, 9]);
+  });
+  ok("computeDataTable1: passes text through, drops NaN to null", () => {
+    assert.deepEqual(computeDataTable1((v) => (v === 2 ? "hi" : v === 3 ? NaN : v), [1, 2, 3]), [1, "hi", null]);
+  });
+  ok("computeDataTable2: crosses row × col inputs, row-major by colInput", () => {
+    assert.deepEqual(computeDataTable2((r, c) => r + c, [1, 2], [10, 20]), [[11, 12], [21, 22]]);
+  });
+}
+
+// ── #89 AI schema aggregates: real per-column stats ──────────────────────────
+{
+  const { aiColumnStats } = __engine;
+  const mkStatSheet = (col, vals) => {
+    const cells = new Map();
+    vals.forEach((v, i) => cells.set((i + 1) + "," + col, { value: v == null ? null : String(v), formula: null, type: typeof v === "number" ? "number" : "text", computed: null, err: null, format: {} }));
+    return { cells, rowCount: vals.length + 2, colCount: col + 2 };
+  };
+  ok("aiColumnStats: numeric column reports count/sum/avg/min/max", () => {
+    const st = aiColumnStats(mkStatSheet(0, [10, 20, 30]), { r0: 0, c0: 0, r1: 3, c1: 0 }, 0, "number");
+    assert.equal(st.count, 3); assert.equal(st.sum, 60); assert.equal(st.avg, 20);
+    assert.equal(st.min, 10); assert.equal(st.max, 30);
+  });
+  ok("aiColumnStats: category column reports distinct + top-by-frequency", () => {
+    const st = aiColumnStats(mkStatSheet(0, ["A", "B", "A", "A", "C"]), { r0: 0, c0: 0, r1: 5, c1: 0 }, 0, "cat");
+    assert.equal(st.distinct, 3);
+    assert.equal(st.top[0].value, "A"); assert.equal(st.top[0].count, 3);
+  });
+}
+
+// ── #94 hardening: accent-color guard blocks style-attribute injection ───────
+{
+  const { safeAccentColor, esc } = __engine;
+  ok("safeAccentColor: passes a plain 6-digit hex", () => {
+    assert.equal(safeAccentColor("#2563eb", "x"), "#2563eb");
+    assert.equal(safeAccentColor("#FFAA00", "x"), "#FFAA00");
+  });
+  ok("safeAccentColor: passes a var(--token) reference", () => {
+    assert.equal(safeAccentColor("var(--text)", "x"), "var(--text)");
+    assert.equal(safeAccentColor("var(--rr-amber-600)", "x"), "var(--rr-amber-600)");
+  });
+  ok("safeAccentColor: rejects an attribute-breakout payload", () => {
+    assert.equal(safeAccentColor('red"><img src=x onerror=alert(1)>', "SAFE"), "SAFE");
+    assert.equal(safeAccentColor("#zzzzzz", "SAFE"), "SAFE");
+    assert.equal(safeAccentColor("expression(alert(1))", "SAFE"), "SAFE");
+    assert.equal(safeAccentColor("var(--x);background:url(evil)", "SAFE"), "SAFE");
+    assert.equal(safeAccentColor(null, "SAFE"), "SAFE");
+  });
+  ok("esc: neutralizes the five HTML metacharacters", () => {
+    assert.equal(esc('<a href="x" onclick=\'y\'>&</a>'), "&lt;a href=&quot;x&quot; onclick=&#39;y&#39;&gt;&amp;&lt;/a&gt;");
+  });
+}
+
 console.log(`✓ formula engine + xlsx: ${n} tests passed`);

@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Workbook engine fixture</title>
+</head>
+<body>
+  <!--
+    Deterministic, offline harness for the workbook module (100-list #98).
+    workbook.js has no external imports, so it loads with no network. We pull
+    in its __engine exports, run them in a REAL browser (catching browser-only
+    regressions Node's suite can't), and drive a tiny DOM interaction. Results
+    land on window.__wbResults for the Playwright spec to assert against.
+  -->
+  <div id="host"></div>
+  <script type="module">
+    const results = { ok: false, error: null, checks: {} };
+    window.__wbResults = results;
+    try {
+      const { __engine } = await import("/dashboard/workbook.js");
+      const E = __engine;
+
+      // A minimal evaluation context — the shape recalc feeds the engine.
+      const mkCtx = (map) => ({ rowCount: 10, colCount: 5, getCell: (r, c) => (map && map.has(r + "," + c) ? map.get(r + "," + c) : null) });
+
+      // Formula engine runs in-browser
+      results.checks.sum = E.evalFormula("=SUM(1,2,3)*2", mkCtx());   // 12
+      results.checks.upper = E.evalFormula('=UPPER("hi")&"!"', mkCtx()); // HI!
+      results.checks.ifLogic = E.evalFormula("=IF(3>2,10,20)", mkCtx()); // 10
+
+      // Cell references resolve through the ctx
+      results.checks.cellRef = E.evalFormula("=A1+A2", mkCtx(new Map([["0,0", 5], ["1,0", 7]]))); // 12
+
+      // Custom number formatting works in-browser
+      results.checks.fmt = E.applyCustomFormat(1234.5, "#,##0.00", "number"); // 1,234.50
+
+      // XLSX writer produces bytes in a real browser (TextEncoder/deflate path)
+      const cells = new Map([["0,0", { value: "Hi", formula: null, type: "text", format: {} }]]);
+      const bytes = E.buildXlsxBytes([{ name: "S", cells, colWidths: {}, frozenRows: 0, frozenCols: 0, meta: {} }]);
+      results.checks.xlsxBytes = bytes && bytes.length > 0;
+
+      // DOM smoke: an escaped value never becomes live markup
+      const host = document.getElementById("host");
+      const el = document.createElement("div");
+      el.innerHTML = E.esc('<img src=x onerror=alert(1)>');
+      host.appendChild(el);
+      results.checks.escNoInjection = host.querySelectorAll("img").length === 0;
+      results.checks.escText = el.textContent;
+
+      results.ok = true;
+    } catch (e) {
+      results.error = String((e && e.stack) || e);
+    } finally {
+      window.__wbReady = true;
+    }
+  </script>
+</body>
+</html>

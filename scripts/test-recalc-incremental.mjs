@@ -108,5 +108,12 @@ equiv("array/spill forces full recompute", { A1: "1", B1: "=SEQUENCE(3)", C1: "=
 equiv("dynamic INDIRECT forces full recompute", { A1: "7", A2: "=A1", B1: '=INDIRECT("A1")' }, "A1", "42");
 // 14. editing the cell an array formula spills near
 equiv("array origin edited", { B1: "=SEQUENCE({n})".replace("{n}", "3"), A1: "5" }, "B1", "=SEQUENCE(4)");
+// 15. OFFSET is a dynamic ref ⇒ cone path must bail; editing a cell the OFFSET
+//     resolves to still updates its dependent (only the full path sees it).
+equiv("dynamic OFFSET forces full recompute", { A1: "1", A2: "2", A3: "9", B1: "=OFFSET(A1,2,0)", C1: "=B1+1" }, "A3", "50");
+// 16. INDIRECT target edited by name — the value the pointer resolves to changes
+equiv("INDIRECT target edited", { A1: "5", B1: "A1", C1: "=INDIRECT(B1)", D1: "=C1*2" }, "A1", "11");
+// 17. edit turns a plain formula INTO a dynamic-ref formula (bail must kick in)
+equiv("edit introduces INDIRECT", { A1: "3", A2: "=A1+1", B1: "=A2*2" }, "A2", '=INDIRECT("A1")+100');
 
 console.log(`✓ incremental recalc equivalence: ${n} scenarios matched full recompute`);

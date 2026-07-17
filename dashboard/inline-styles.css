@@ -46,6 +46,7 @@
   --rr-amber-700: #b45309;
   --rr-amber-800: #92400e;
   --rr-amber-100: #fef3c7;
+  --rr-conflict: #EA580C; /* realtime conflict flag (100-list #74) */
   --rr-red-50: #fef2f2;
 
   /* ── Primitive palette (design-system pay-down; values are canonical) ── */
@@ -31213,6 +31214,12 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 #view-workbooks .wb-nmark{
   position:absolute;top:0;left:0;width:0;height:0;pointer-events:auto;
   border-top:6px solid #7C3AED;border-right:6px solid transparent;
+}
+/* Realtime conflict flag (100-list #74): orange cell + a clickable corner */
+#view-workbooks .wb-cell.is-conflict{box-shadow:inset 0 0 0 2px var(--rr-conflict)}
+#view-workbooks .wb-conflict-mark{
+  position:absolute;top:0;right:0;width:0;height:0;cursor:pointer;
+  border-top:9px solid var(--rr-conflict);border-left:9px solid transparent;
 }
 /* Group toggles in the row/col headers (100-list #19) */
 #view-workbooks .wb-grp{
