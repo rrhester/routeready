@@ -21,7 +21,7 @@ import {
   shouldCompress as _mcShouldCompress, draftKey as _mcDraftKey,
   parseSearchQuery as _mcParseSearch, hasSearchOps as _mcHasSearchOps,
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
-  isSnoozed as _mcIsSnoozed,
+  isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
 } from "./msg-core.mjs?v=b2ebeec00db5";
 import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=b2ebeec00db5";
 import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=b2ebeec00db5";
@@ -42154,6 +42154,18 @@ function _mcEnsureExtrasCss() {
     .rr-cc-poll-lbl{position:relative;z-index:1;flex:1}
     .rr-cc-poll-n{position:relative;z-index:1;font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600}
     .rr-cc-poll-meta{font-size:10px;color:var(--text-subtle);margin-top:2px}
+    /* Batch 6 · calls & voice */
+    .rr-mc-callchip{align-self:center;display:flex;align-items:center;gap:8px;background:var(--surface,#fff);border:1px solid var(--border);border-radius:var(--r-pill,999px);padding:4px 13px;margin:6px 0;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle)}
+    .rr-mc-callchip.missed{color:var(--danger,#dc2626);border-color:rgba(220,38,38,.35)}
+    .rr-mc-callchip button{background:none;border:0;color:var(--accent-text);font:inherit;font-weight:700;cursor:pointer;padding:0 2px}
+    .rr-mc-callchip button:hover{text-decoration:underline}
+    .rr-mc-incall{position:fixed;right:18px;bottom:18px;z-index:9500;width:min(300px,calc(100vw - 36px));background:var(--surface,#fff);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:0 14px 40px rgba(15,23,42,.22);overflow:hidden}
+    .rr-mc-incall-head{background:var(--accent);color:#fff;font-size:var(--fs-xs);font-weight:700;padding:7px 12px}
+    .rr-mc-incall-form{display:flex;gap:6px;padding:8px}
+    .rr-mc-incall-form input{flex:1;min-width:0;border:1px solid var(--border);border-radius:var(--r-md);padding:7px 9px;font:inherit;font-size:var(--fs-sm)}
+    .rr-mc-incall-form button{background:var(--accent);border:0;color:#fff;border-radius:var(--r-md);width:34px;cursor:pointer;font-size:14px}
+    .rr-tel{text-decoration:underline dotted;color:inherit;font-weight:600}
+    .rr-mc-bubble.dispatch .rr-tel{color:#fff}
   `;
   document.head.appendChild(st);
 }
@@ -42820,12 +42832,18 @@ async function refreshDriverChatThread(scrollToBottom) {
   // shell, so the skeleton only fires on initial open.
   const isFirstPaint = conv.dataset.rrDriverId !== driverId;
 
-  const [{ data, error }, _reactions, _delivRes, _pinRes] = await Promise.all([
+  const [{ data, error }, _reactions, _delivRes, _pinRes, _callRes] = await Promise.all([
     sb.rpc("dispatch_chat_thread", { p_driver_id: driverId, p_limit: _mcThreadLimit }),
     _mcFetchReactions(driverId),
     sb.rpc("dispatch_chat_delivered", { p_driver_id: driverId }).then((r) => r, () => ({ data: null })),
     sb.rpc("dispatch_chat_pins", { p_driver_id: driverId }).then((r) => r, () => ({ data: null })),
+    // Call events with this driver (#55/#56) — own rows only (RLS).
+    sb.from("calls").select("call_id, direction, media, status, started_at, ended_at")
+      .eq("peer_kind", "driver").eq("peer_id", String(driverId))
+      .order("started_at", { ascending: true }).limit(60)
+      .then((r) => r, () => ({ data: null })),
   ]);
+  const _callEvents = (_callRes?.data || []).filter((c) => c.status !== "ringing");
   _mcPins = _pinRes?.data?.pins || [];
   const peerDeliveredAt = _delivRes?.data ? new Date(_delivRes.data).getTime() : 0;
   if (error) {
@@ -43305,15 +43323,33 @@ async function refreshDriverChatThread(scrollToBottom) {
   const _showDelivAt = (lastReadDispatchIdx < 0 && lastDeliveredDispatchIdx >= 0) ? lastDeliveredDispatchIdx : -1;
   const _showSentAt = (lastReadDispatchIdx < 0 && _showDelivAt < 0) ? lastDispatchIdx : -1;
 
+  // Call chips (#55/#56) interleave with bubbles by time. Only calls
+  // within the loaded window (or after its start) are shown.
+  let _callIdx = 0;
+  const _oldestMs = msgs.length ? new Date(msgs[0].created_at).getTime() : 0;
+  while (_callIdx < _callEvents.length
+         && new Date(_callEvents[_callIdx].started_at).getTime() < _oldestMs) _callIdx++;
+  const _emitCallsBefore = (untilMs) => {
+    let out = "";
+    while (_callIdx < _callEvents.length
+           && new Date(_callEvents[_callIdx].started_at).getTime() <= untilMs) {
+      out += _mcCallChipHtml(_callEvents[_callIdx]);
+      _callIdx++;
+    }
+    return out;
+  };
+
   let html = "";
   if (msgs.length === 0) {
     html = renderEmpty();
+    html += _emitCallsBefore(Infinity);
   } else {
     let lastSender = null;
     let lastTimeMs = 0;
     let lastDateKey = "";
     msgs.forEach((m, i) => {
       const t = new Date(m.created_at);
+      html += _emitCallsBefore(t.getTime());
       const time = t.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
       const dateKey = t.toDateString();
       if (dateKey !== lastDateKey) {
@@ -43385,9 +43421,9 @@ async function refreshDriverChatThread(scrollToBottom) {
       if (isDeleted) {
         bodyHtml = `<div class="rr-mc-deleted-body">Message deleted</div>`;
       } else if (m.body) {
-        // escape → linkify → markdown-lite (#10); mdLite only touches the
-        // text runs between tags, so anchors and entities are safe.
-        bodyHtml = `<div>${_mdLite(linkifyEscaped(escapeHtml(m.body).replace(/\n/g, "<br>")))}</div>`;
+        // escape → linkify → markdown-lite (#10) → tel: links (#60); each
+        // pass only touches text runs between tags.
+        bodyHtml = `<div>${_mcLinkifyPhones(_mdLite(linkifyEscaped(escapeHtml(m.body).replace(/\n/g, "<br>"))))}</div>`;
       }
       // Hover actions — reply / react / more on every live bubble; edit +
       // delete only on the dispatcher's own bubbles within the 15-minute
@@ -43443,6 +43479,8 @@ async function refreshDriverChatThread(scrollToBottom) {
         html += `<div class="rr-mc-read-receipt sent">✓ Sent</div>`;
       }
     });
+    // Calls newer than the last message (#55).
+    html += _emitCallsBefore(Infinity);
   }
 
   // Preserve the jump pill + bottom sentinel across the re-render (both
@@ -44346,6 +44384,154 @@ document.addEventListener("click", (e) => {
   input.focus();
 });
 
+// ─── Calls & voice (Batch 6 · #55–61) ────────────────────────────────────
+
+// System chip for a call event in the DM timeline (#55/#56).
+function _mcCallChipHtml(c) {
+  const t = new Date(c.started_at);
+  const time = t.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  const mediaLbl = c.media === "audio" ? "Voice call" : "Video call";
+  const missed = ["missed", "declined", "cancelled"].includes(c.status);
+  let label;
+  if (missed) {
+    label = c.direction === "outgoing"
+      ? `${mediaLbl} — no answer`
+      : `Missed ${mediaLbl.toLowerCase()}`;
+  } else {
+    let dur = "";
+    if (c.ended_at) {
+      const s = Math.max(0, Math.round((new Date(c.ended_at) - t) / 1000));
+      dur = ` · ${Math.floor(s / 60)}m ${s % 60}s`;
+    }
+    label = `${mediaLbl}${dur}`;
+  }
+  return `<div class="rr-mc-callchip${missed ? " missed" : ""}" data-rr-anchor-skip>
+      <span class="rr-mc-callchip-ic">${c.media === "audio" ? "📞" : "📹"}</span>
+      <span>${escapeHtml(label)} · ${escapeHtml(time)}</span>
+      ${missed ? `<button type="button" data-rr-callback="${escapeHtml(c.media || "video")}">Call back</button>` : ""}
+    </div>`;
+}
+document.addEventListener("click", (e) => {
+  const cb = e.target.closest("[data-rr-callback]");
+  if (!cb) return;
+  const id = _msgInboxSelectedId;
+  if (!id || id === "__support__") return;
+  const meta = (_msgInboxList || []).find((t) => String(t.driver_id) === String(id)) || {};
+  rrPlaceCall({ kind: "driver", id, name: meta.name || "Driver" }, cb.getAttribute("data-rr-callback"));
+});
+
+// Watch a live call window (#56 outcome note, #59 in-call quick messages,
+// #61 operator-side transcript). Polls the popup for closure; while open,
+// a floating mini-composer sends DMs to the driver without leaving the
+// call.
+let _mcCallWatch = null;
+function _mcCallSessionWatch(win, peer, media) {
+  if (!win || !peer || peer.kind !== "driver") return;
+  _mcEnsureExtrasCss();
+  if (_mcCallWatch) { try { _mcCallWatch.stop(); } catch {} }
+  const startedAt = Date.now();
+  // Operator-side transcript, best-effort (#61). May be unavailable while
+  // another window holds the mic — fails silently.
+  let srText = "";
+  let sr = null;
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (SR) {
+    try {
+      sr = new SR();
+      sr.continuous = true;
+      sr.interimResults = false;
+      sr.lang = navigator.language || "en-US";
+      sr.onresult = (ev) => {
+        for (let i = ev.resultIndex; i < ev.results.length; i++) {
+          if (ev.results[i].isFinal) srText += (srText ? " " : "") + ev.results[i][0].transcript.trim();
+        }
+      };
+      sr.onerror = () => {};
+      sr.start();
+    } catch { sr = null; }
+  }
+  // Floating in-call quick-message widget (#59).
+  const widget = document.createElement("div");
+  widget.id = "rr-mc-incall";
+  widget.className = "rr-mc-incall";
+  widget.innerHTML = `
+    <div class="rr-mc-incall-head">${media === "audio" ? "📞" : "📹"} On a call with ${escapeHtml(peer.name || "driver")}</div>
+    <form class="rr-mc-incall-form">
+      <input type="text" maxlength="500" placeholder="Send a quick message…" aria-label="Message during call">
+      <button type="submit" aria-label="Send">➤</button>
+    </form>`;
+  document.body.appendChild(widget);
+  widget.querySelector("form").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const input = widget.querySelector("input");
+    const body = input.value.trim();
+    if (!body) return;
+    input.value = "";
+    const { error } = await sb.rpc("dispatch_chat_send", { p_driver_id: peer.id, p_body: _mcApplyShortcodes(body), p_priority: "normal", p_requires_ack: false });
+    if (error) { toast("Couldn't send: " + error.message, "warn"); input.value = body; }
+    else if (_msgInboxSelectedId === peer.id) refreshDriverChatThread(false);
+  });
+  const timer = setInterval(() => {
+    let closed = false;
+    try { closed = !!win.closed; } catch { closed = true; }
+    if (!closed) return;
+    stop();
+    const secs = Math.round((Date.now() - startedAt) / 1000);
+    const durLbl = `${Math.floor(secs / 60)}m ${secs % 60}s`;
+    // Refresh the thread so the call chip appears, then offer the note.
+    if (_msgInboxSelectedId === peer.id) refreshDriverChatThread(false);
+    toastAction(`Call with ${escapeHtml(peer.name || "driver")} ended (${durLbl}) — add a note to the thread?`, {
+      label: "Add note",
+      onConfirm: () => _mcOpenCallNoteModal(peer, durLbl, srText),
+    });
+  }, 2000);
+  const stop = () => {
+    clearInterval(timer);
+    widget.remove();
+    try { sr && sr.stop(); } catch {}
+    _mcCallWatch = null;
+  };
+  _mcCallWatch = { stop };
+}
+function _mcOpenCallNoteModal(peer, durLbl, transcript) {
+  _mcEnsureExtrasCss();
+  document.getElementById("rr-mc-callnote")?.remove();
+  const ov = document.createElement("div");
+  ov.className = "rr-mc-modal";
+  ov.id = "rr-mc-callnote";
+  ov.innerHTML = `
+    <div class="rr-mc-modal-back"></div>
+    <div class="rr-mc-modal-card" role="dialog" aria-modal="true" aria-label="Call note">
+      <div class="rr-mc-modal-head">Call note — ${escapeHtml(peer.name || "driver")} (${escapeHtml(durLbl)})<button type="button" class="rr-mc-modal-x" aria-label="Close">×</button></div>
+      <div class="rr-mc-modal-body">
+        <label class="rr-mc-f"><span>Note (lands in the conversation)</span><textarea data-rr-cn-text maxlength="1500">${escapeHtml(transcript ? transcript.slice(0, 1200) : "")}</textarea></label>
+        ${transcript ? `<div class="u-subtle" style="font-size:10px">Pre-filled from your side of the call (best-effort dictation) — edit before saving.</div>` : ""}
+      </div>
+      <div class="rr-mc-modal-foot">
+        <button type="button" class="btn btn-sm" data-rr-cn-cancel>Discard</button>
+        <button type="button" class="btn btn-sm btn-primary" data-rr-cn-save>Save to thread</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelector(".rr-mc-modal-back").addEventListener("click", close);
+  ov.querySelector(".rr-mc-modal-x").addEventListener("click", close);
+  ov.querySelector("[data-rr-cn-cancel]").addEventListener("click", close);
+  ov.querySelector("[data-rr-cn-save]").addEventListener("click", async () => {
+    const note = ov.querySelector("[data-rr-cn-text]").value.trim();
+    if (!note) { close(); return; }
+    const { error } = await sb.rpc("dispatch_chat_send", {
+      p_driver_id: peer.id,
+      p_body: `📞 Call note (${durLbl}): ${note}`.slice(0, 2000),
+      p_priority: "normal", p_requires_ack: false,
+    });
+    if (error) { toast("Couldn't save: " + error.message, "warn"); return; }
+    close();
+    toast("Call note saved to the thread", "ok");
+    if (_msgInboxSelectedId === peer.id) refreshDriverChatThread(false);
+  });
+}
+
 // ─── Rooms & broadcasts (Batch 4 · #35–44) ───────────────────────────────
 let _ccLastChannelMsgs = []; // loaded channel window (thread view, quotes)
 
@@ -44381,6 +44567,26 @@ document.addEventListener("click", (e) => {
   if (ab) { _ccOpenDeliveryBoard(ab.getAttribute("data-rr-cc-ackboard")); return; }
   const info = e.target.closest("[data-rr-cc-info]");
   if (info) { _ccOpenRoomInfo(info.getAttribute("data-rr-cc-info")); return; }
+  // Group call from a room (#58): mint a Meet room, post the join link to
+  // the channel, open the meeting window.
+  const meet = e.target.closest("[data-rr-cc-meet]");
+  if (meet) {
+    (async () => {
+      meet.disabled = true;
+      const channelId = meet.getAttribute("data-rr-cc-meet");
+      const { data, error } = await sb.rpc("meet_create", { p_title: null }).then((r) => r, (err) => ({ error: err }));
+      meet.disabled = false;
+      if (error || !data?.code) { toast("Couldn't start the meeting: " + (error?.message || ""), "warn"); return; }
+      const link = new URL("meet.html?m=" + encodeURIComponent(data.code), location.href).href;
+      await sb.rpc("dispatch_channel_post", {
+        p_channel_id: channelId,
+        p_body: `📹 Group call started — join here: ${link}`,
+      }).then((r) => r, () => ({}));
+      refreshChannelThread(false);
+      rrOpenMeetWindow("meet.html?m=" + encodeURIComponent(data.code));
+    })();
+    return;
+  }
 });
 
 // Poll rendering (#41): swap the "📊 question" body for a live poll block.
@@ -44691,7 +44897,19 @@ async function _mcOpenBroadcastComposer() {
           </select>
         </label>
         <div data-rr-bc-preview class="u-subtle" style="font-size:var(--fs-xs);margin:-4px 0 10px">Resolving audience…</div>
+        <div class="msg-list-tabs" role="tablist" aria-label="Broadcast type" style="margin:0 0 10px">
+          <button type="button" class="msg-list-tab active" data-rr-bc-mode="text" role="tab" aria-selected="true">Text</button>
+          <button type="button" class="msg-list-tab" data-rr-bc-mode="voice" role="tab" aria-selected="false">Voice message</button>
+        </div>
         <label class="rr-mc-f"><span>Message</span><textarea data-rr-bc-body maxlength="2000" placeholder="Type the broadcast…"></textarea></label>
+        <div data-rr-bc-voice style="display:none;margin-bottom:11px">
+          <div style="display:flex;align-items:center;gap:9px">
+            <button type="button" class="btn btn-sm" data-rr-bc-rec>🎤 Record</button>
+            <span class="u-subtle" data-rr-bc-rec-t style="font-size:var(--fs-sm)"></span>
+          </div>
+          <audio data-rr-bc-audio controls style="display:none;width:100%;margin-top:8px"></audio>
+          <div class="u-subtle" style="font-size:10px;margin-top:4px">Record once — every driver in the audience gets it as a voice message (voicemail drop).</div>
+        </div>
         <label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--text)"><input type="checkbox" data-rr-bc-ack> Require acknowledgement</label>
       </div>
       <div class="rr-mc-modal-foot">
@@ -44730,22 +44948,78 @@ async function _mcOpenBroadcastComposer() {
   };
   audSel.addEventListener("change", resolve);
   resolve();
+
+  // Voice mode (#57): record once, deliver as a voice note to everyone.
+  let bcMode = "text";
+  let bcBlob = null, bcMime = "", bcRec = null, bcStream = null, bcT0 = 0, bcTimer = null;
+  const recBtn = ov.querySelector("[data-rr-bc-rec]");
+  const recT = ov.querySelector("[data-rr-bc-rec-t]");
+  const audioEl = ov.querySelector("[data-rr-bc-audio]");
+  ov.querySelectorAll("[data-rr-bc-mode]").forEach((b) => b.addEventListener("click", () => {
+    bcMode = b.getAttribute("data-rr-bc-mode");
+    ov.querySelectorAll("[data-rr-bc-mode]").forEach((x) => { x.classList.toggle("active", x === b); x.setAttribute("aria-selected", x === b ? "true" : "false"); });
+    ov.querySelector("[data-rr-bc-voice]").style.display = bcMode === "voice" ? "" : "none";
+  }));
+  recBtn?.addEventListener("click", async () => {
+    if (bcRec && bcRec.state === "recording") { try { bcRec.stop(); } catch {} return; }
+    try { bcStream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch { toast("Microphone permission is needed", "warn"); return; }
+    const chunks = [];
+    try { bcRec = new MediaRecorder(bcStream); } catch { toast("Recording isn't supported here", "warn"); return; }
+    bcRec.addEventListener("dataavailable", (e2) => { if (e2.data?.size) chunks.push(e2.data); });
+    bcRec.addEventListener("stop", () => {
+      clearInterval(bcTimer);
+      try { bcStream.getTracks().forEach((t) => t.stop()); } catch {}
+      bcMime = bcRec.mimeType || "audio/webm";
+      bcBlob = new Blob(chunks, { type: bcMime });
+      recBtn.textContent = "🎤 Re-record";
+      recT.textContent = "";
+      audioEl.src = URL.createObjectURL(bcBlob);
+      audioEl.style.display = "";
+    });
+    bcBlob = null;
+    audioEl.style.display = "none";
+    recBtn.textContent = "⏹ Stop";
+    bcT0 = Date.now();
+    bcTimer = setInterval(() => {
+      const s = Math.floor((Date.now() - bcT0) / 1000);
+      recT.textContent = `Recording ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+      if (s >= 180) { try { bcRec.stop(); } catch {} }
+    }, 250);
+    bcRec.start();
+  });
+
   ov.querySelector("[data-rr-bc-send]").addEventListener("click", async (ev) => {
     const btn = ev.currentTarget;
     const body = _mcApplyShortcodes(ov.querySelector("[data-rr-bc-body]").value.trim());
     const reqAck = ov.querySelector("[data-rr-bc-ack]").checked;
-    if (!body) { toast("Type the message first", "warn"); return; }
+    if (bcMode === "voice" && !bcBlob) { toast("Record the voice message first", "warn"); return; }
+    if (bcMode === "text" && !body) { toast("Type the message first", "warn"); return; }
     if (!audience.length) { toast("The audience is empty", "warn"); return; }
     const ok = await _rrConfirmDialog({
       title: `Send to ${audience.length} driver${audience.length === 1 ? "" : "s"}?`,
-      body: "Each gets it as a direct message.",
+      body: bcMode === "voice" ? "Each gets it as a voice message in their chat." : "Each gets it as a direct message.",
       confirmLabel: "Send broadcast",
     });
     if (!ok) return;
     btn.disabled = true;
+    const ext = bcMime.includes("mp4") || bcMime.includes("aac") ? "m4a" : bcMime.includes("ogg") ? "ogg" : "webm";
     let sent = 0;
     for (const d of audience) {
-      const { error } = await sb.rpc("dispatch_chat_send", { p_driver_id: d.id, p_body: body, p_priority: "normal", p_requires_ack: reqAck });
+      let attachment = null;
+      if (bcMode === "voice") {
+        const path = `${dspId}/${d.id}/${Date.now()}-vbcast.${ext}`;
+        const { error: upErr } = await sb.storage.from("driver-chat-attachments")
+          .upload(path, bcBlob, { contentType: bcMime, upsert: false });
+        if (upErr) { btn.textContent = `Sending… ${sent}/${audience.length}`; continue; }
+        attachment = { path, mime: bcMime, name: "Voice message", size: bcBlob.size };
+      }
+      const { error } = await sb.rpc("dispatch_chat_send", {
+        p_driver_id: d.id, p_body: body || null,
+        p_attachment_path: attachment?.path || null, p_attachment_mime: attachment?.mime || null,
+        p_attachment_name: attachment?.name || null, p_attachment_size_bytes: attachment?.size || null,
+        p_priority: "normal", p_requires_ack: reqAck,
+      });
       if (!error) sent++;
       btn.textContent = `Sending… ${sent}/${audience.length}`;
     }
@@ -45389,9 +45663,9 @@ function _ccRenderBody(raw, mentioned) {
     html = html.split(nm).join(`<span class="rr-cc-mention">${nm}</span>`);
   });
   html = html.replace(/\n/g, "<br>");
-  // escape → mentions → linkify → markdown-lite (#10); mdLite only touches
-  // text runs between tags, so mention spans and anchors survive.
-  return _mdLite(linkifyEscaped(html));
+  // escape → mentions → linkify → markdown-lite (#10) → tel: links (#60);
+  // each pass only touches text runs between tags.
+  return _mcLinkifyPhones(_mdLite(linkifyEscaped(html)));
 }
 
 // Bookmark toggle button for a bubble (kind = 'driver' | 'channel').
@@ -45766,6 +46040,7 @@ async function refreshChannelThread(scrollToBottom) {
             <div class="rr-cc-sub">${memberCount} member${memberCount === 1 ? "" : "s"}${stationLine}${meta.archived_at ? " · archived" : ""}</div>
           </div>
           <div class="rr-cc-head-actions">
+            <button class="btn btn-sm" data-rr-cc-meet="${escapeHtml(channelId)}" title="Start a group call — the join link is posted to the room">📹 Meet</button>
             <button class="btn btn-sm rr-cc-mute-btn${_ccMutedIds.has(channelId) ? " muted" : ""}" data-rr-channel-mute="${escapeHtml(channelId)}" title="${_ccMutedIds.has(channelId) ? "Muted — click to unmute" : "Mute this channel"}" aria-label="${_ccMutedIds.has(channelId) ? "Unmute channel" : "Mute channel"}">${_ccMutedIds.has(channelId) ? "Muted" : "Mute"}</button>
             <button class="btn btn-sm" data-rr-channel-members="${escapeHtml(channelId)}">Members</button>
             <button class="btn btn-sm" data-rr-cc-info="${escapeHtml(channelId)}" title="Room details">Info</button>
@@ -49548,7 +49823,13 @@ function _rrCallOpenRoom(room, media, replace) {
   if (replace) { try { location.href = url; return; } catch {} }
   // Desktop calls open the traditional meeting-sized window (the
   // FaceTime treatment is phone-only, operator request 2026-07-13).
-  rrOpenMeetWindow(url);
+  // Capture the peer BEFORE teardown clears it, and watch the popup for
+  // the in-call quick-message widget + end-of-call note (#56/#59/#61).
+  const _peer = _rrCall.peer;
+  const _win = rrOpenMeetWindow(url);
+  if (_win && _peer && typeof _mcCallSessionWatch === "function") {
+    _mcCallSessionWatch(_win, _peer, media);
+  }
 }
 
 // base64url → Uint8Array (VAPID application server key).

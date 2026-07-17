@@ -8,6 +8,7 @@ import {
   mdLite, applyShortcodes, shortcodeAt, searchEmoji, EMOJIS, SHORTCODES,
   fillTemplate, matchTemplates, BUILTIN_TEMPLATES, fitDims, shouldCompress, draftKey,
   parseSearchQuery, hasSearchOps, msgMatchesOps, sortThreads, isSnoozed,
+  linkifyPhones,
 } from "../dashboard/msg-core.mjs";
 
 let failures = 0;
@@ -153,6 +154,15 @@ console.log("isSnoozed");
   eq(isSnoozed({ snooze_until: "2026-07-18T00:00:00Z", updated_at: "2026-07-17T09:00:00Z" }, now, "2026-07-17T10:00:00Z"), false, "new message breaks snooze");
   eq(isSnoozed(null, now, null), false, "no pref");
 }
+
+console.log("linkifyPhones");
+eq(linkifyPhones("call 555-867-5309 now"), 'call <a href="tel:5558675309" class="rr-tel">555-867-5309</a> now', "dashed number");
+eq(linkifyPhones("call (555) 867-5309"), 'call <a href="tel:5558675309" class="rr-tel">(555) 867-5309</a>', "parenthesized area code");
+eq(linkifyPhones("+1 555.867.5309"), '<a href="tel:+15558675309" class="rr-tel">+1 555.867.5309</a>', "country code + dots");
+eq(linkifyPhones("order 12345678 shipped"), "order 12345678 shipped", "8-digit id untouched");
+eq(linkifyPhones("route 123-4567"), "route 123-4567", "7-digit fragment untouched");
+eq(linkifyPhones('<a href="x">555-867-5309</a>'), '<a href="x">555-867-5309</a>', "number inside an anchor untouched");
+eq(linkifyPhones("no digits here"), "no digits here", "no digits fast path");
 
 console.log("SHORTCODES sanity");
 eq(Object.keys(SHORTCODES).length >= 50, true, "healthy shortcode map");

@@ -282,5 +282,34 @@ export function isSnoozed(pref, nowMs, lastAtIso) {
   return true;
 }
 
+// ── Phone-number linkify (#60) ───────────────────────────────────────────
+// Turns US-style phone numbers in ALREADY-ESCAPED html into tel: links.
+// Same tag-safety contract as mdLite: only text runs between tags are
+// touched, so an existing <a> (or a number inside an attribute) is never
+// double-wrapped.
+const PHONE_RE = /(^|[\s(>])(\+?1[-. ]?)?(\(?\d{3}\)?[-. ]?\d{3}[-. ]?\d{4})(?=$|[\s).,!?;:<])/g;
+export function linkifyPhones(escapedHtml) {
+  const s = String(escapedHtml ?? "");
+  if (!s || !/\d{3}/.test(s)) return s;
+  const parts = s.split(/(<[^>]+>)/);
+  let out = "";
+  let inAnchor = 0;
+  for (const p of parts) {
+    if (p.startsWith("<") && p.endsWith(">")) {
+      if (/^<a[\s>]/i.test(p)) inAnchor++;
+      else if (/^<\/a>/i.test(p)) inAnchor = Math.max(0, inAnchor - 1);
+      out += p;
+      continue;
+    }
+    out += inAnchor ? p : p.replace(PHONE_RE, (m, pre, cc, num) => {
+      const digits = (cc || "") + num;
+      const tel = digits.replace(/[^\d+]/g, "");
+      if (tel.replace(/^\+?1/, "").length !== 10) return m; // not a real US number
+      return `${pre}<a href="tel:${tel}" class="rr-tel">${(cc || "") + num}</a>`;
+    });
+  }
+  return out;
+}
+
 // ── Misc ─────────────────────────────────────────────────────────────────
 export function draftKey(kind, id) { return `rr_draft_${kind}_${id}`; }
