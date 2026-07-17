@@ -873,16 +873,17 @@ function _paintHeaderAccount() {
 }
 _paintHeaderAccount();
 
-// ── Real header notifications · v1 ─────────────────────────────────
-// Paints PENDING time-off requests into #rr-notif-list and lights the
-// bell dot. Replaces the retired mockup items — a signed-in operator
-// must never see fake operational data. Swap-offer notifications can
-// join once their query shape is confirmed.
+// ── Real header notifications · v2 ─────────────────────────────────
+// Paints PENDING time-off requests plus recent cover-offer and swap
+// responses (accepted / declined / blocked, last 48h) into
+// #rr-notif-list and lights the bell dot. Replaces the retired mockup
+// items — a signed-in operator must never see fake operational data.
 async function _rrLoadNotifications() {
   const list = document.getElementById("rr-notif-list");
   if (!list || !window.RR?.dsp?.id) return;
   try {
-    const [toRes, drvRes] = await Promise.all([
+    const sinceIso = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
+    const [toRes, drvRes, offRes, swpRes] = await Promise.all([
       sb.from("time_off_requests")
         .select("id, driver_id, start_date, end_date, status, created_at")
         .eq("dsp_id", window.RR.dsp.id)
@@ -890,15 +891,26 @@ async function _rrLoadNotifications() {
         .order("created_at", { ascending: false })
         .limit(8),
       sb.from("drivers").select("id, full_name, preferred_name").eq("dsp_id", window.RR.dsp.id),
+      // Driver responses to Cover offers (dispatcher-read RLS, 0198).
+      sb.from("shift_offers")
+        .select("id, driver_id, status, responded_at, shift:shift_id (date, route_code)")
+        .eq("dsp_id", window.RR.dsp.id)
+        .in("status", ["accepted", "declined"])
+        .gte("responded_at", sinceIso)
+        .order("responded_at", { ascending: false })
+        .limit(5),
+      // Peer swap outcomes (dispatcher-read RLS, 0203).
+      sb.from("shift_swap_requests")
+        .select("id, requester_driver_id, target_driver_id, status, block_reason, responded_at")
+        .eq("dsp_id", window.RR.dsp.id)
+        .in("status", ["accepted", "declined", "blocked"])
+        .gte("responded_at", sinceIso)
+        .order("responded_at", { ascending: false })
+        .limit(5),
     ]);
     if (toRes.error) return;   // leave the honest empty state
     const nameById = new Map((drvRes.data || []).map((d) => [d.id, d.preferred_name || d.full_name || "Driver"]));
-    const items = (toRes.data || []);
-    const dot = document.querySelector('#rr-hdr-notif .dot');
-    // block (not '') — the stylesheet hides the dot by default, so an
-    // empty inline value would fall back to display:none (Codex P2).
-    if (dot) dot.style.display = items.length ? "block" : "none";
-    if (!items.length) return; // keep "You're all caught up"
+    const nm = (id) => nameById.get(id) || "Driver";
     const fmt = (iso) => new Date(iso + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
     const _rrRelTime = (ts) => {
       if (!ts) return "";
@@ -908,12 +920,44 @@ async function _rrLoadNotifications() {
       if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
       return `${Math.floor(s / 86400)}d ago`;
     };
-    list.innerHTML = items.map((r) => `
-      <div class="notif-item" data-rr-notif-timeoff="1">
-        <div class="notif-icon amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
-        <div><div class="notif-title">${escapeHtml(nameById.get(r.driver_id) || "Driver")} · time off request</div><div class="notif-msg">${fmt(r.start_date)} – ${fmt(r.end_date)} awaiting approval</div><div class="notif-time">${_rrRelTime(r.created_at)}</div></div>
+    const CAL_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>';
+    const SWAP_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>';
+    // Merge: pending PTO first (needs action), then responses by recency.
+    const items = (toRes.data || []).map((r) => ({
+      at: r.created_at,
+      icon: "amber", svg: CAL_SVG,
+      title: `${nm(r.driver_id)} · time off request`,
+      msg: `${fmt(r.start_date)} – ${fmt(r.end_date)} awaiting approval`,
+    }));
+    for (const o of (offRes.data || [])) {
+      items.push({
+        at: o.responded_at,
+        icon: o.status === "accepted" ? "green" : "amber", svg: CAL_SVG,
+        title: `Cover offer ${o.status}`,
+        msg: `${nm(o.driver_id)}${o.shift?.date ? ` · ${fmt(o.shift.date)}` : ""}${o.shift?.route_code ? ` · ${o.shift.route_code}` : ""}`,
+      });
+    }
+    for (const w of (swpRes.data || [])) {
+      items.push({
+        at: w.responded_at,
+        icon: w.status === "accepted" ? "green" : "amber", svg: SWAP_SVG,
+        title: `Shift swap ${w.status}`,
+        msg: w.status === "blocked"
+          ? `${nm(w.requester_driver_id)} ↔ ${nm(w.target_driver_id)} · blocked (${w.block_reason || "compliance"})`
+          : `${nm(w.requester_driver_id)} ↔ ${nm(w.target_driver_id)}`,
+      });
+    }
+    const dot = document.querySelector('#rr-hdr-notif .dot');
+    // block (not '') — the stylesheet hides the dot by default, so an
+    // empty inline value would fall back to display:none (Codex P2).
+    if (dot) dot.style.display = items.length ? "block" : "none";
+    if (!items.length) return; // keep "You're all caught up"
+    list.innerHTML = items.map((it) => `
+      <div class="notif-item" data-rr-notif-sched="1">
+        <div class="notif-icon ${it.icon}">${it.svg}</div>
+        <div><div class="notif-title">${escapeHtml(it.title)}</div><div class="notif-msg">${escapeHtml(it.msg)}</div><div class="notif-time">${_rrRelTime(it.at)}</div></div>
       </div>`).join("");
-    list.querySelectorAll("[data-rr-notif-timeoff]").forEach((el) => el.addEventListener("click", () => {
+    list.querySelectorAll("[data-rr-notif-sched]").forEach((el) => el.addEventListener("click", () => {
       window._rrGotoSubIntent = { view: "schedule", sub: "requests" };
       window.goto?.("schedule");
       window.closePopovers?.();
@@ -84167,9 +84211,124 @@ function _renderSchedRequestsActive() {
   // RIGHT — three operational reports.
   try { _renderRequestsReports(); }
   catch (e) { console.warn("_renderRequestsReports:", e); }
+  // Swaps & covers — the live peer-to-peer marketplace queue (100-list
+  // #56; replaces the old hardcoded mock panel).
+  try { _renderSchedSwapsPanel(); }
+  catch (e) { console.warn("_renderSchedSwapsPanel:", e); }
   _renderSchedRequestsKpis();
 }
 window._rrRenderSchedRequestsActive = _renderSchedRequestsActive;
+
+// ── Swaps & covers panel (Requests view) ─────────────────────────────
+// Live dispatcher view of shift_swap_requests + shift_offers (both are
+// dispatcher-readable via RLS, 0203/0198): pending items with expiry
+// countdown + cancel, then recent outcomes. Renders into a card
+// appended to the Requests split; names resolve from _schedDriverList
+// with a bell-style fallback map.
+async function _renderSchedSwapsPanel() {
+  const split = document.querySelector("#sched-sub-requests .sched-requests-split");
+  if (!split || !window.RR?.dsp?.id) return;
+  let host = document.getElementById("rr-sched-swaps-panel");
+  if (!host) {
+    host = document.createElement("section");
+    host.className = "sched-requests-card";
+    host.id = "rr-sched-swaps-panel";
+    host.innerHTML = `<div class="sched-requests-card-body" id="rr-sched-swaps-body"><div class="rr-loading">Loading swaps &amp; covers…</div></div>`;
+    split.appendChild(host);
+  }
+  const body = document.getElementById("rr-sched-swaps-body");
+  if (!body) return;
+  const sinceIso = new Date(Date.now() - 14 * 86400 * 1000).toISOString();
+  const [swpRes, offRes, drvRes] = await Promise.all([
+    sb.from("shift_swap_requests")
+      .select("id, requester_driver_id, requester_shift_id, target_driver_id, target_shift_id, status, message, block_reason, expires_at, responded_at, created_at, req_shift:requester_shift_id (date, route_code), tgt_shift:target_shift_id (date, route_code)")
+      .eq("dsp_id", window.RR.dsp.id)
+      .or(`status.eq.pending,created_at.gte.${sinceIso}`)
+      .order("created_at", { ascending: false })
+      .limit(30),
+    sb.from("shift_offers")
+      .select("id, driver_id, status, expires_at, responded_at, created_at, projected_ot_hours, shift:shift_id (date, route_code)")
+      .eq("dsp_id", window.RR.dsp.id)
+      .or(`status.eq.pending,created_at.gte.${sinceIso}`)
+      .order("created_at", { ascending: false })
+      .limit(30),
+    (window._schedDriverList && window._schedDriverList.length)
+      ? Promise.resolve({ data: null })
+      : sb.from("drivers").select("id, full_name, preferred_name").eq("dsp_id", window.RR.dsp.id),
+  ]);
+  if (swpRes.error && offRes.error) {
+    body.innerHTML = `<div class="rr-empty-inline">Couldn't load swaps &amp; covers.</div>`;
+    return;
+  }
+  const fallback = new Map((drvRes?.data || []).map((d) => [d.id, d.preferred_name || d.full_name || "Driver"]));
+  const nm = (id) => {
+    const d = (window._schedDriverList || []).find((x) => x.id === id);
+    if (d && typeof displayDriverName === "function") return displayDriverName(d);
+    return fallback.get(id) || "Driver";
+  };
+  const fmt = (iso) => iso ? new Date(iso + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : "";
+  const expIn = (ts) => {
+    const ms = new Date(ts).getTime() - Date.now();
+    if (ms <= 0) return "expiring";
+    const h = Math.floor(ms / 3600000);
+    return h >= 24 ? `${Math.floor(h / 24)}d left` : (h >= 1 ? `${h}h left` : `${Math.max(1, Math.floor(ms / 60000))}m left`);
+  };
+  const chip = (status) => {
+    const tone = status === "accepted" ? "background:rgba(16,124,90,.12);color:#107C5A"
+      : status === "pending" ? "background:rgba(37,99,235,.10);color:var(--accent-text,#2563EB)"
+      : "background:rgba(107,114,128,.12);color:#6B7280";
+    return `<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;${tone}">${escapeHtml(status)}</span>`;
+  };
+  const rows = [];
+  for (const w of (swpRes.data || [])) {
+    rows.push({
+      at: w.responded_at || w.created_at,
+      pending: w.status === "pending",
+      html: `
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 2px;border-bottom:1px solid var(--border)">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:var(--fs-sm);font-weight:600;color:var(--text)">${escapeHtml(nm(w.requester_driver_id))} ↔ ${escapeHtml(nm(w.target_driver_id))} · swap</div>
+            <div class="u-xs-subtle">${escapeHtml(fmt(w.req_shift?.date))}${w.req_shift?.route_code ? " · " + escapeHtml(w.req_shift.route_code) : ""} ⇄ ${escapeHtml(fmt(w.tgt_shift?.date))}${w.tgt_shift?.route_code ? " · " + escapeHtml(w.tgt_shift.route_code) : ""}${w.status === "blocked" && w.block_reason ? ` · blocked: ${escapeHtml(w.block_reason)}` : ""}</div>
+          </div>
+          ${chip(w.status)}
+          ${w.status === "pending" ? `<span class="u-xs-subtle">${escapeHtml(expIn(w.expires_at))}</span><button class="btn btn-sm" data-rr-swap-cancel="${escapeHtml(w.id)}" style="color:var(--red)">Cancel</button>` : ""}
+        </div>`,
+    });
+  }
+  for (const o of (offRes.data || [])) {
+    rows.push({
+      at: o.responded_at || o.created_at,
+      pending: o.status === "pending",
+      html: `
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 2px;border-bottom:1px solid var(--border)">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:var(--fs-sm);font-weight:600;color:var(--text)">${escapeHtml(nm(o.driver_id))} · cover offer</div>
+            <div class="u-xs-subtle">${escapeHtml(fmt(o.shift?.date))}${o.shift?.route_code ? " · " + escapeHtml(o.shift.route_code) : ""}${o.projected_ot_hours ? ` · ~${escapeHtml(String(o.projected_ot_hours))}h OT` : ""}</div>
+          </div>
+          ${chip(o.status)}
+          ${o.status === "pending" ? `<span class="u-xs-subtle">${escapeHtml(expIn(o.expires_at))}</span><button class="btn btn-sm" data-rr-offer-cancel="${escapeHtml(o.id)}" style="color:var(--red)">Cancel</button>` : ""}
+        </div>`,
+    });
+  }
+  rows.sort((a, b) => (b.pending - a.pending) || String(b.at).localeCompare(String(a.at)));
+  body.innerHTML = `
+    <div style="font-size:var(--fs-md);font-weight:700;color:var(--text);padding:2px 2px 8px">Swaps &amp; covers</div>
+    ${rows.length ? rows.map((r) => r.html).join("") : '<div class="rr-empty-inline">No swap or cover activity in the last 14 days.</div>'}`;
+  body.querySelectorAll("[data-rr-swap-cancel]").forEach((b) => b.addEventListener("click", async () => {
+    b.disabled = true;
+    const { error } = await sb.rpc("dispatch_swap_cancel", { p_swap_id: b.getAttribute("data-rr-swap-cancel") });
+    if (error) { toast(error.message || "Couldn't cancel swap", "warn"); b.disabled = false; return; }
+    toast("Swap cancelled", "success");
+    _renderSchedSwapsPanel();
+  }));
+  body.querySelectorAll("[data-rr-offer-cancel]").forEach((b) => b.addEventListener("click", async () => {
+    b.disabled = true;
+    const { error } = await sb.rpc("cover_shift_cancel", { p_offer_id: b.getAttribute("data-rr-offer-cancel") });
+    if (error) { toast(error.message || "Couldn't cancel offer", "warn"); b.disabled = false; return; }
+    toast("Offer cancelled", "success");
+    _renderSchedSwapsPanel();
+  }));
+}
 
 // PTO report button — now a card-header action on the PTO panel.
 // Delegated so it survives panel re-renders.

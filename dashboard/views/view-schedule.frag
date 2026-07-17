@@ -2102,40 +2102,10 @@
              sub-views were removed: nothing routes to them and they only
              contained sample data. -->
 
-        <div class="sched-subview" id="sched-sub-swaps" style="display:none">
-          <div class="section">
-            <div class="section-head">
-              <h2 class="section-title">Pending swaps</h2>
-              <span class="section-sub">2 requests · review before publish</span>
-            </div>
-
-            <div class="approval-card">
-              <div class="approval-icon swap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></div>
-              <div>
-                <div class="approval-title">Tasha Reyes ↔ Marcus Hill · Friday May 4</div>
-                <div class="approval-msg">Tasha wants to swap her <strong>KMO2-08C</strong> shift for Marcus's <strong>KMO2-15A</strong>. Both qualified for the routes. Marcus has accepted.</div>
-                <div class="approval-meta"><span>Requested by Tasha 3h ago</span><span>·</span><span>Marcus accepted 2h ago</span></div>
-              </div>
-              <div class="approval-actions">
-                <button class="btn btn-sm">Deny</button>
-                <button class="btn btn-primary btn-sm">Approve swap</button>
-              </div>
-            </div>
-
-            <div class="approval-card">
-              <div class="approval-icon swap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></div>
-              <div>
-                <div class="approval-title">Jordan Beckett · drop Wednesday</div>
-                <div class="approval-msg">Jordan posted Wed May 2 (KMO3-04D) as available for swap. <strong>2 drivers offered to take it</strong> (Devon Patterson, Asha Thornton).</div>
-                <div class="approval-meta"><span>Posted yesterday</span><span>·</span><span>2 offers waiting</span></div>
-              </div>
-              <div class="approval-actions">
-                <button class="btn btn-sm">Decline</button>
-                <button class="btn btn-primary btn-sm">Choose driver</button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <!-- SWAPS · the static mock "Pending swaps" subview (fake names/data,
+             nothing routed to it) was removed 2026-07-17. The LIVE swaps &
+             covers queue renders inside the Requests subview
+             (#rr-sched-swaps-panel, _renderSchedSwapsPanel in live.js). -->
 
         <!-- AVAILABILITY MATRIX -->
         <!-- (Static "4-week coverage forecast" mockup removed — unreachable,
