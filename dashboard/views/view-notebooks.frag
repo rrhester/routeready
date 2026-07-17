@@ -151,10 +151,9 @@
   border-radius:4px;outline:2px solid var(--accent);outline-offset:1px;background:var(--surface)}
 .rrnb-nbcurrent .chev{flex:0 0 auto;color:var(--text-subtle)}
 .rrnb-swatch{width:12px;height:12px;border-radius:3px;background:var(--accent)}
-.rrnb-menu{position:absolute;z-index:40;left:var(--s-2);right:auto;top:calc(100% - var(--s-1));
-  min-width:calc(100% - var(--s-2) * 2);width:max-content;max-width:min(360px,calc(100vw - 40px));
+.rrnb-menu{position:fixed;z-index:60;width:max-content;max-width:min(420px,calc(100vw - 40px));
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
-  box-shadow:var(--shadow-pop);padding:var(--s-1);max-height:60vh;overflow:auto}
+  box-shadow:var(--shadow-pop);padding:var(--s-1);max-height:60vh;overflow-y:auto;overflow-x:hidden}
 .rrnb-menu[hidden]{display:none}
 .rrnb-menu-item{display:flex;align-items:center;gap:var(--s-2);padding:var(--s-2) var(--s-2-5);
   border-radius:var(--r-md);cursor:pointer;font-size:var(--fs-base);color:var(--text)}
@@ -248,6 +247,7 @@
 .rrnb-metaline{display:flex;align-items:center;gap:var(--s-3);font-size:var(--fs-xs);
   color:var(--text-subtle);border-bottom:1px solid var(--border);padding-bottom:var(--s-3);
   margin-bottom:var(--s-3)}
+.rrnb-wc{color:var(--text-subtle);white-space:nowrap;font-variant-numeric:tabular-nums}
 .rrnb-save{display:inline-flex;align-items:center;gap:6px}
 .rrnb-save .dot{width:7px;height:7px;border-radius:50%;background:var(--green)}
 .rrnb-save.saving .dot{background:var(--amber)}
@@ -1214,6 +1214,21 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     html += '<div class="rrnb-menu-sep"></div><div class="rrnb-menu-item rrnb-menu-add" data-new="1">＋ New notebook</div>' +
       '<div class="rrnb-menu-item rrnb-menu-add" data-new-private="1" title="Only you can see it, until you share it">🔒 New private notebook</div>';
     m.innerHTML = html;
+    if (!m.hidden) positionNbMenu();
+  }
+  // The picker menu is position:fixed so it can grow past the narrow rail
+  // without being clipped by the rail's overflow. Anchor it under the button
+  // each time it opens, and nudge it back in-bounds near screen edges.
+  function positionNbMenu() {
+    var m = $id("rrnb-nb-menu"), btn = $id("rrnb-nb-current"); if (!m || !btn || m.hidden) return;
+    var r = btn.getBoundingClientRect();
+    m.style.minWidth = Math.round(r.width) + "px";
+    m.style.left = Math.round(r.left) + "px";
+    m.style.top = Math.round(r.bottom + 4) + "px";
+    var mw = m.offsetWidth;
+    if (r.left + mw > window.innerWidth - 12) m.style.left = Math.max(12, window.innerWidth - mw - 12) + "px";
+    var mh = m.offsetHeight;
+    if (r.bottom + 4 + mh > window.innerHeight - 12 && r.top - 4 - mh > 12) m.style.top = Math.round(r.top - 4 - mh) + "px";
   }
 
   // ── rename a notebook inline, right in the picker header ─────────────
@@ -1555,6 +1570,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
         '<div class="rrnb-pdate" id="rrnb-pdate">' + esc(pageDateLine(p)) + '</div>' +
         '<div class="rrnb-metaline"><span class="rrnb-save" id="rrnb-save"><span class="dot"></span><span id="rrnb-save-txt">Saved</span></span>' +
           '<span id="rrnb-author">' + esc(p.author || "") + '</span>' +
+          '<span class="rrnb-wc" id="rrnb-wc" title="Words and characters — select text to count just the selection"></span>' +
           '<span class="rrnb-presence" id="rrnb-presence" hidden><span class="pdot"></span><span id="rrnb-presence-txt"></span></span>' +
           '<button class="rrnb-metabtn" id="rrnb-history-btn" type="button" title="Page version history">' +
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 8v4l3 2"/></svg>History</button>' +
@@ -1577,7 +1593,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     title.addEventListener("keydown", stopTypingLeak);
     title.addEventListener("keyup", stopTypingLeak);
     title.addEventListener("keypress", stopTypingLeak);
-    ed.addEventListener("input", function () { mdInline(); slashScan(); scheduleSave(); autoLinkify(); positionImgResize(); scheduleCtxRefresh(); });
+    ed.addEventListener("input", function () { mdInline(); slashScan(); scheduleSave(); autoLinkify(); positionImgResize(); scheduleCtxRefresh(); updateWordCount(); });
     ed.addEventListener("keydown", onEditorKey);
     ed.addEventListener("click", onEditorClick);
     ed.addEventListener("contextmenu", onEditorCtx);
@@ -1587,7 +1603,10 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     if (dictBtn && (window.SpeechRecognition || window.webkitSpeechRecognition)) dictBtn.hidden = false;
     ed.addEventListener("keyup", refreshToolbarState);
     ed.addEventListener("mouseup", refreshToolbarState);
+    ed.addEventListener("keyup", updateWordCount);
+    ed.addEventListener("mouseup", updateWordCount);
     ed.addEventListener("paste", onEditorPaste);
+    updateWordCount();
     ed.addEventListener("dragover", function (e) { if (DH.dragging) { dhDragOver(e); return; } e.preventDefault(); ed.classList.add("rrnb-drop"); });
     ed.addEventListener("dragleave", function () { ed.classList.remove("rrnb-drop"); });
     ed.addEventListener("drop", function (e) { if (DH.dragging) { dhDrop(e); return; } onEditorDrop(e); });
@@ -2281,6 +2300,17 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     var ed = $id("rrnb-editor"); if (!ed) return;
     ed.querySelectorAll("figure.rrnb-fig figcaption").forEach(function (c) { c.setAttribute("contenteditable", "true"); });
   }
+  // Word / character count for the meta line (#10). Counts the current
+  // selection when there is one, otherwise the whole page.
+  function updateWordCount() {
+    var ed = $id("rrnb-editor"), el = $id("rrnb-wc"); if (!ed || !el) return;
+    var sel = window.getSelection();
+    var selText = sel && sel.rangeCount && !sel.isCollapsed && ed.contains(sel.anchorNode) ? String(sel) : "";
+    var text = selText || ed.innerText || ed.textContent || "";
+    var words = (text.match(/\S+/g) || []).length;
+    var chars = text.replace(/\s+$/, "").replace(/^\s+/, "").length;
+    el.textContent = words + (words === 1 ? " word" : " words") + " · " + chars + (chars === 1 ? " char" : " chars") + (selText ? " selected" : "");
+  }
   function onEditorPaste(e) {
     var items = (e.clipboardData && e.clipboardData.items) || [];
     for (var i = 0; i < items.length; i++) {
@@ -2288,9 +2318,19 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
         var f = items[i].getAsFile(); if (f) { e.preventDefault(); insertImageFile(f); return; }
       }
     }
+    var txt = e.clipboardData && e.clipboardData.getData && e.clipboardData.getData("text/plain");
+    // Plain-text paste (#14): Ctrl/⌘+Shift+V armed the flag — drop all source
+    // styling by inserting just the text, then still linkify any bare URL.
+    if (S._plainPaste) {
+      S._plainPaste = false; e.preventDefault();
+      if (txt != null) exec("insertText", txt);
+      WEB_URL_RE.lastIndex = 0;
+      if (txt && WEB_URL_RE.test(txt)) setTimeout(function () { linkifyUrls(false); }, 0);
+      scheduleSave(); updateWordCount();
+      return;
+    }
     // Let the browser drop the text in first, then linkify any pasted URL so a
     // pasted "https://…" becomes clickable right away (not after a typing pause).
-    var txt = e.clipboardData && e.clipboardData.getData && e.clipboardData.getData("text/plain");
     WEB_URL_RE.lastIndex = 0;
     if (txt && WEB_URL_RE.test(txt)) setTimeout(function () { linkifyUrls(false); }, 0);
   }
@@ -2623,6 +2663,8 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       if (e.key === "3") { e.preventDefault(); applyBlock("H3"); return; }
       if (e.key === "0") { e.preventDefault(); applyBlock("P"); return; }
     }
+    // Ctrl/⌘+Shift+V: arm a plain-text paste, then let the native paste fire.
+    if (mod && e.shiftKey && !e.altKey && e.key.toLowerCase() === "v") { S._plainPaste = true; setTimeout(function () { S._plainPaste = false; }, 1000); return; }
     if (mod && e.shiftKey && e.key.toLowerCase() === "h") { e.preventDefault(); exec("hiliteColor", "#fde68a"); scheduleSave(); return; }
     // "[[" opens the page picker
     if (e.key === "[") {
@@ -3843,14 +3885,14 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     { cmd: "H2", block: true, label: "Heading 2", kw: "heading subheading h2", ic: "H2" },
     { cmd: "H3", block: true, label: "Heading 3", kw: "heading h3", ic: "H3" },
     { cmd: "todo", label: "To-do checklist", kw: "todo task checkbox check", ic: "☑" },
-    { cmd: "insertUnorderedList", label: "Bulleted list", kw: "bullet unordered list", ic: "•" },
-    { cmd: "insertOrderedList", label: "Numbered list", kw: "number ordered list", ic: "1." },
+    { cmd: "insertUnorderedList", label: "Bulleted list", kw: "bullet unordered list ul", ic: "•" },
+    { cmd: "insertOrderedList", label: "Numbered list", kw: "number ordered list ol", ic: "1." },
     { cmd: "quote", label: "Quote", kw: "quote blockquote", ic: "❝" },
     { cmd: "callout", label: "Callout", kw: "callout note tip info highlight", ic: "💡" },
     { cmd: "code", label: "Code block", kw: "code pre monospace", ic: "{ }" },
-    { cmd: "table", label: "Table", kw: "table grid rows columns", ic: "▦" },
+    { cmd: "table", label: "Table", kw: "table grid rows columns tbl", ic: "▦" },
     { cmd: "hr", label: "Divider", kw: "divider hr line rule separator", ic: "—" },
-    { cmd: "image", label: "Picture", kw: "image picture photo upload", ic: "▧" },
+    { cmd: "image", label: "Picture", kw: "image picture photo upload img", ic: "▧" },
     { cmd: "attach", label: "File attachment", kw: "file attach upload document", ic: "📎" },
     { cmd: "link", label: "Web link", kw: "link url web hyperlink", ic: "🔗" },
     { cmd: "pagelink", label: "Link to page", kw: "page wiki internal link", ic: "❏" },
@@ -4317,7 +4359,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
 
     // notebook picker
     var cur = $id("rrnb-nb-current");
-    if (cur) cur.addEventListener("click", function () { if (S._nbEditing) return; var m = $id("rrnb-nb-menu"); m.hidden = !m.hidden; });
+    if (cur) cur.addEventListener("click", function () { if (S._nbEditing) return; var m = $id("rrnb-nb-menu"); m.hidden = !m.hidden; if (!m.hidden) positionNbMenu(); });
     // inline rename: double-click the header name to edit it in place
     var nmEl = $id("rrnb-nb-name");
     if (nmEl) {
