@@ -33117,3 +33117,12 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 /* ═══ Calendar Wave 2 · composer & editing (2026-07-17) ══════════════════ */
 #rr-ivcal-new .rr-ne-tmplrow { display: flex; flex-wrap: wrap; gap: 6px; }
 #rr-ivcal-new .rr-ne-tmplrow:empty { display: none; }
+
+/* ═══ Calendar Wave 3 · booking page extras editor (2026-07-17) ══════════ */
+.rr-iv-extras { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin: 10px 0 4px; }
+.rr-iv-extras summary { cursor: pointer; font-size: var(--fs-sm); font-weight: 600; color: var(--text-muted); }
+.rr-iv-extras-b { display: flex; flex-direction: column; gap: 10px; padding-top: 10px; font-size: var(--fs-sm); }
+.rr-iv-extras-b textarea { width: 100%; font: inherit; font-size: var(--fs-sm); padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; resize: vertical; margin-top: 4px; }
+.rr-iv-extras-b label { color: var(--text); font-weight: 600; }
+.rr-iv-extras-b .rr-iv-hint { font-weight: 400; color: var(--text-subtle); font-size: var(--fs-xs); }
+.rr-iv-extras-b input[type="color"] { border: 1px solid var(--border); border-radius: 6px; width: 44px; height: 28px; padding: 2px; background: var(--surface); vertical-align: middle; margin-left: 8px; }

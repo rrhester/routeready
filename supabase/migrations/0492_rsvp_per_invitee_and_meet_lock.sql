@@ -41,7 +41,7 @@ declare
   v_anchor   text := split_part(coalesce(p_token, ''), '.', 1);
   v_ev       public.cal_events;
   v_new      text;
-  v_dsp_name text;
+  v_dsp      public.dsps;
   v_email    text;
   v_md       jsonb;
   v_prop_at  timestamptz;
@@ -118,7 +118,7 @@ begin
     end if;
   end if;
 
-  select coalesce(name, 'RouteReady') into v_dsp_name from public.dsps where id = v_ev.dsp_id;
+  select * into v_dsp from public.dsps where id = v_ev.dsp_id;
 
   return jsonb_build_object(
     'ok', true,
@@ -130,9 +130,11 @@ begin
     'title', v_ev.title,
     'starts_at', v_ev.starts_at,
     'ends_at', v_ev.ends_at,
-    'timezone', v_ev.timezone,
+    -- DSP-timezone fallback preserved from 0403 — never hardcode Chicago for
+    -- a DSP that isn't in it.
+    'timezone', coalesce(v_ev.timezone, v_dsp.timezone, 'America/Chicago'),
     'meeting_url', v_ev.meeting_url,
-    'dsp_name', v_dsp_name
+    'dsp_name', coalesce(v_dsp.name, 'RouteReady')
   );
 end;
 $$;
