@@ -6510,7 +6510,7 @@ function recalcCone(sheet, dirtyKeys) {
   }
   const ctx = {
     rowCount: sheet.rowCount, colCount: sheet.colCount,
-    tables: buildTablesRegistry(sheet),
+    tables: tableReg, // reuse the registry built above — nothing mutates it here
     getCell: (r, c, sheetName) => (sheetName ? crossSheetValue(sheet, sheetName, r, c) : engineValue(sheet, r, c)),
     getFormula: (r, c) => { const cell = sheet.cells.get(cellKey(r, c)); return cell && cell.formula ? cell.formula : null; },
     sheetSpan: (a, b) => sheetSpanNames(sheet, a, b),
