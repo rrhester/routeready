@@ -5740,7 +5740,8 @@ function cleanNum(x) {
 // trailing-comma scaling (each trailing comma ÷1000 → K/M/…), decimals, %,
 // quoted / escaped / symbol literals, and date-time tokens. Bracket tags
 // ([Red], [$-409], [>100]) are parsed; numeric conditions pick a section,
-// colors are ignored (in-cell text color isn't themed through this path).
+// section colors paint the cell text via customFormatColor (cellStyle),
+// and elapsed-time brackets ([h]/[mm]/[ss]) accumulate past their unit.
 const CUSTOM_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const CUSTOM_DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -5762,6 +5763,9 @@ function customLiteralize(s) {
   return s.replace(/\[[^\]]*\]/g, "").replace(/\\(.)/g, "$1").replace(/"([^"]*)"/g, "$1");
 }
 function isDateSection(body) {
+  // elapsed-time brackets ([h], [mm], [ss]) are time sections even though
+  // the bracket strip below would hide them (100-list #42)
+  if (/\[(h+|m+|s+)\]/i.test(body.replace(/"[^"]*"/g, ""))) return true;
   const s = body.replace(/"[^"]*"/g, "").replace(/\[[^\]]*\]/g, "").replace(/\\./g, "");
   if (/[#0?]/.test(s)) return false;           // digit placeholders ⇒ numeric
   return /[yd]/i.test(s) || (/[hs]/i.test(s) && /m/i.test(s)) || /[hs]/i.test(s);
@@ -5818,7 +5822,18 @@ function renderDateSection(serial, body) {
   while (i < body.length) {
     if (body[i] === '"') { const e = body.indexOf('"', i + 1); out += body.slice(i + 1, e < 0 ? body.length : e); i = e < 0 ? body.length : e + 1; continue; }
     if (body[i] === "\\") { out += body[i + 1] || ""; i += 2; continue; }
-    if (body[i] === "[") { const e = body.indexOf("]", i); i = e < 0 ? body.length : e + 1; continue; }
+    if (body[i] === "[") {
+      const e = body.indexOf("]", i);
+      const inner = e < 0 ? "" : body.slice(i + 1, e);
+      i = e < 0 ? body.length : e + 1;
+      // elapsed-time tokens accumulate past their unit instead of wrapping,
+      // so a 30.5-hour duration sum shows 30:30 not 6:30 (100-list #42)
+      const totalSec = Math.max(0, Math.round(serial * 86400));
+      if (/^h+$/i.test(inner)) { out += String(Math.floor(totalSec / 3600)).padStart(inner.length, "0"); seen.push("h"); }
+      else if (/^m+$/i.test(inner)) { out += String(Math.floor(totalSec / 60)).padStart(inner.length, "0"); seen.push("h"); }
+      else if (/^s+$/i.test(inner)) { out += String(totalSec).padStart(inner.length, "0"); seen.push("s"); }
+      continue;
+    }
     const rest = body.slice(i).toLowerCase();
     const tok = toks.find((t) => rest.startsWith(t));
     if (!tok) { out += body[i]; i++; continue; }
@@ -5875,6 +5890,34 @@ function applyCustomFormat(value, code, type) {
   if (sec == null) sec = pos;
   if (isDateSection(sec)) return renderDateSection(ser, sec);
   return sign + renderNumericSection(Math.abs(n), sec);
+}
+
+// [Red]-style bracket colors: the color of the section a value formats
+// through (100-list #34). Mirrors applyCustomFormat's section selection;
+// null when the code names no color. Hues are tamed for a white canvas.
+const CUSTOM_FORMAT_COLORS = { black: "#000000", red: "#DC2626", green: "#15803D", blue: "#1D4ED8", magenta: "#C026D3", cyan: "#0E7490", yellow: "#B45309", white: "#FFFFFF" };
+const CUSTOM_COLOR_RE = /\[(black|red|green|blue|magenta|cyan|yellow|white)\]/i;
+function customFormatColor(value, code, type) {
+  if (!code || !CUSTOM_COLOR_RE.test(code)) return null;
+  const colorOf = (s) => { const m = s != null && CUSTOM_COLOR_RE.exec(s); return m ? CUSTOM_FORMAT_COLORS[m[1].toLowerCase()] : null; };
+  const secs = splitCustomSections(code);
+  let num = cellNumeric(value);
+  let dateSerial = num;
+  if (num == null && type !== "text") {
+    const d = parseDateLoose(String(value));
+    if (d) dateSerial = dateToSerial(d);
+  }
+  if (num == null && dateSerial == null) return secs.length >= 4 ? colorOf(secs[3]) : null;
+  const n = num != null ? num : dateSerial;
+  for (const s of secs) { const c = sectionCondition(s); if (c && condHolds(c, n)) return colorOf(s); }
+  const plain = secs.filter((s) => !sectionCondition(s));
+  const pos = plain[0] != null ? plain[0] : secs[0];
+  const neg = plain.length > 1 ? plain[1] : null, zero = plain.length > 2 ? plain[2] : null;
+  let sec;
+  if (n > 0 || (n === 0 && zero == null)) sec = pos;
+  else if (n < 0) sec = neg != null ? neg : pos;
+  else sec = zero;
+  return colorOf(sec == null ? pos : sec);
 }
 
 // ── Goal Seek ────────────────────────────────────────────────────────────────
@@ -7628,9 +7671,17 @@ function sheetToolbarHtml(block, ro) {
           <button type="button" class="popover-item" data-wb-border="right" role="menuitem">Right border</button>
           <button type="button" class="popover-item" data-wb-border="none" role="menuitem">No borders</button>
           <div class="popover-section"></div>
-          <button type="button" class="popover-item" data-wb-bw="1" role="menuitem"><span class="wb-bw-sample" style="border-top-width:1px"></span>Thin line</button>
+          <button type="button" class="popover-item is-on" data-wb-bw="1" role="menuitem"><span class="wb-bw-sample" style="border-top-width:1px"></span>Thin line</button>
           <button type="button" class="popover-item" data-wb-bw="2" role="menuitem"><span class="wb-bw-sample" style="border-top-width:2px"></span>Medium line</button>
           <button type="button" class="popover-item" data-wb-bw="3" role="menuitem"><span class="wb-bw-sample" style="border-top-width:3px"></span>Thick line</button>
+          <div class="popover-section"></div>
+          <button type="button" class="popover-item is-on" data-wb-bst="solid" role="menuitem"><span class="wb-bw-sample" style="border-top-style:solid"></span>Solid</button>
+          <button type="button" class="popover-item" data-wb-bst="dashed" role="menuitem"><span class="wb-bw-sample" style="border-top-style:dashed"></span>Dashed</button>
+          <button type="button" class="popover-item" data-wb-bst="dotted" role="menuitem"><span class="wb-bw-sample" style="border-top-style:dotted"></span>Dotted</button>
+          <div class="popover-section"></div>
+          <div class="wb-bcolor-row" role="group" aria-label="Border color">
+            ${[["#000000", "Black"], ["#6B7280", "Gray"], ["#DC2626", "Red"], ["#2563EB", "Blue"], ["#16A34A", "Green"], ["#D97706", "Amber"]].map(([hex, name], i) => `<button type="button" class="wb-bcolor-sw ${i === 0 ? "is-on" : ""}" data-wb-bcolor="${hex}" style="background:${hex}" title="${name} border" aria-label="${name} border"></button>`).join("")}
+          </div>
         </div></span>
     </div>
     <div class="wb-tgrp">${btn("merge", "Merge / unmerge cells", `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="1"/><path d="M9 12h6"/><path d="M7 9l-2 3 2 3"/><path d="M17 9l2 3-2 3"/></svg>`)}${btn("insert-link", "Insert link (Ctrl+click opens)", `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`)}${btn("comment-cell", "Comment on the active cell", `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`)}${btn("insert-chart", "Insert chart from the selection", `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="4" y1="20" x2="20" y2="20"/><rect x="6" y="10" width="3" height="7"/><rect x="11" y="6" width="3" height="11"/><rect x="16" y="13" width="3" height="4"/></svg>`)}</div>
@@ -7821,9 +7872,29 @@ function cellStyle(sheet, r, c, cell) {
   if (f.bg === "header") s += "background:var(--canvas);font-weight:600;";
   if (f.fg) s += `color:${wbColorCss("fg", f.fg)};`;
   else if (f.link) s += "color:var(--accent, #2563EB);";
+  // [Red]-style custom-format section color wins over the font color,
+  // like Excel (100-list #34)
+  if (f.fmt && cell && CUSTOM_COLOR_RE.test(f.fmt)) {
+    const cfc = customFormatColor(cell.formula ? (cell.err ? null : cell.computed) : cell.value, f.fmt, cell.type);
+    if (cfc) s += `color:${cfc};`;
+  }
   if (f.wrap) s += "white-space:normal;line-height:1.3;";
-  // applied borders read solid black, like Excel's default border ink;
-  // format.bw picks the line weight (1 thin · 2 medium · 3 thick)
+  // indent steps the left padding (left-aligned content only, like Excel)
+  if (Number.isInteger(f.ind) && f.ind > 0) s += `padding-left:${7 + Math.min(8, f.ind) * 14}px;`;
+  // per-side borders (100-list #33): f.bs = {t,b,l,r}, each {w:1|2|3,
+  // st:"solid"|"dashed"|"dotted", c:"#RRGGBB"}. Cells are border-box, so a
+  // real CSS border simply replaces the gridline on that side and dashed/
+  // dotted render natively.
+  if (f.bs && typeof f.bs === "object") {
+    const side = (sd) => `${sd.w === 2 ? 2 : sd.w === 3 ? 3 : 1}px ${sd.st === "dashed" ? "dashed" : sd.st === "dotted" ? "dotted" : "solid"} ${typeof sd.c === "string" && HEX_COLOR_RE.test(sd.c) ? sd.c : "#000"}`;
+    if (f.bs.t) s += `border-top:${side(f.bs.t)};`;
+    if (f.bs.b) s += `border-bottom:${side(f.bs.b)};`;
+    if (f.bs.l) s += `border-left:${side(f.bs.l)};`;
+    if (f.bs.r) s += `border-right:${side(f.bs.r)};`;
+    return s;
+  }
+  // legacy single-value borders keep rendering exactly as before, so old
+  // cells stay pixel-identical; format.bw picks the line weight
   const bw = f.bw === 2 || f.bw === 3 ? f.bw : 1;
   const bAll = bw === 1 ? 1 : bw === 2 ? 2 : 3;
   const bEdge = bw === 1 ? 1.5 : bw === 2 ? 2.5 : 4;
@@ -7847,7 +7918,9 @@ function cellInnerHtml(cell, disp) {
   const body = safe
     ? `<a class="wb-cell-link" href="${esc(safe)}" target="_blank" rel="noopener noreferrer" draggable="false">${esc(disp)}</a>`
     : esc(disp);
-  if (f && (f.rot === 45 || f.rot === 90)) return `<span class="wb-rot" style="transform:rotate(-${f.rot}deg)">${body}</span>`;
+  // any angle from -90 to 90 (100-list #35); positive rotates counter-clockwise
+  const rot = f && Number.isFinite(+f.rot) ? Math.max(-90, Math.min(90, Math.round(+f.rot))) : 0;
+  if (rot) return `<span class="wb-rot" style="transform:rotate(${-rot}deg)">${body}</span>`;
   return body;
 }
 
@@ -8547,12 +8620,8 @@ function openFormatCellsDialog(g) {
               <option value="top" ${f.valign === "top" ? "selected" : ""}>Top</option>
               <option value="bottom" ${f.valign === "bottom" ? "selected" : ""}>Bottom</option>
             </select></label>
-          <label class="wb-field"><span class="wb-field-label">Rotation</span>
-            <select class="wb-input" id="wb-fmt-rot">
-              <option value="" ${!f.rot ? "selected" : ""}>None</option>
-              <option value="45" ${f.rot === 45 ? "selected" : ""}>Tilt 45°</option>
-              <option value="90" ${f.rot === 90 ? "selected" : ""}>Vertical</option>
-            </select></label>
+          <label class="wb-field"><span class="wb-field-label">Rotation (°, -90 to 90)</span>
+            <input type="number" class="wb-input" id="wb-fmt-rot" min="-90" max="90" step="5" value="${Number.isFinite(+f.rot) && f.rot ? +f.rot : 0}"></label>
         </div>
         <div class="wb-field"><span class="wb-field-label">Style</span>
           <div class="wb-fmt-checks">
@@ -11214,6 +11283,105 @@ function deleteCellsShift(g, dir) {
 
 // ─── Formatting ──────────────────────────────────────────────────────────────
 
+// ── Cell styles gallery (100-list #36) ──────────────────────────────────────
+// Named one-click looks, applied as plain format patches so they stack with
+// (and are overridable by) manual formatting.
+const WB_CELL_STYLES = {
+  title: { label: "Title", patch: { bold: true, fs: 18 } },
+  heading: { label: "Heading", patch: { bold: true, fs: 14, border: "bottom", bw: 2 } },
+  good: { label: "Good", patch: { bg: "#D9EAD3", fg: "#166534" } },
+  bad: { label: "Bad", patch: { bg: "#F4CCCC", fg: "#B91C1C" } },
+  neutral: { label: "Neutral", patch: { bg: "#FFF2CC", fg: "#92400E" } },
+  note: { label: "Note", patch: { bg: "#F3F4F6", fg: "#6B7280", italic: true } },
+  currency: { label: "Currency", patch: { num: "currency" } },
+  percent: { label: "Percent", patch: { num: "percent" } },
+  comma: { label: "Comma (thousands)", patch: { num: "custom", fmt: "#,##0.00" } },
+  date: { label: "Date", patch: { num: "date" } },
+};
+
+// ── Alternating colors (100-list #37) ───────────────────────────────────────
+// One click drops a "banding" conditional-format rule on the selection: odd
+// offsets from the range top get a soft tint (row 1 of the range is treated
+// as a header and stays clear). Managed/removable in the CF rules list.
+function applyBandingRule(g) {
+  if (!WB.canEdit) return;
+  let rect = selRect(g);
+  if (rect.r0 === rect.r1 && rect.c0 === rect.c1) {
+    const { maxR, maxC } = usedRange(g.sheet);
+    rect = { r0: 0, r1: Math.max(1, maxR), c0: 0, c1: Math.max(0, maxC) };
+  }
+  const rules = sheetRules(g.sheet, "condFormat");
+  const rule = { id: "cf" + Math.random().toString(36).slice(2, 8), type: "banding", style: "blue", r0: rect.r0, c0: rect.c0, r1: rect.r1, c1: rect.c1 };
+  rules.push(rule);
+  setSheetRules(g, "condFormat", rules);
+  wbLog("sheet.condformat", `added alternating colors on ${ruleRefText(rule)} in ${g.sheet.name}`, { target_type: "sheet", target_id: g.sheet.id });
+  _toast("Alternating colors applied — manage the rule under Conditional formatting", "success");
+}
+
+// ── Borders (100-list #33) ──────────────────────────────────────────────────
+// Per-side model: format.bs = { t, b, l, r }, each { w: 1|2|3, st: "solid"|
+// "dashed"|"dotted", c: "#RRGGBB" }. applyBorders merges sides into the
+// existing set (Top then Bottom keeps both — unlike the old single-value
+// overwrite) with Excel's edge semantics: top/bottom/left/right act on the
+// selection's edge, outline wraps it, all grids every cell.
+function legacyBorderSides(f) {
+  if (!f || !f.border) return {};
+  const sd = { w: f.bw === 2 || f.bw === 3 ? f.bw : 1, st: "solid", c: "#000000" };
+  if (f.border === "all" || f.border === "outline") return { t: { ...sd }, b: { ...sd }, l: { ...sd }, r: { ...sd } };
+  const k = f.border === "top" ? "t" : f.border === "bottom" ? "b" : f.border === "left" ? "l" : "r";
+  return { [k]: { ...sd } };
+}
+
+function applyBorders(g, mode, opt) {
+  if (!WB.canEdit) return;
+  const sheet = g.sheet;
+  const { r0, r1, c0, c1 } = selRect(g);
+  const o = opt || g.borderOpt || {};
+  const sd = {
+    w: o.w === 2 || o.w === 3 ? o.w : 1,
+    st: o.st === "dashed" || o.st === "dotted" ? o.st : "solid",
+    c: typeof o.c === "string" && HEX_COLOR_RE.test(o.c) ? o.c : "#000000",
+  };
+  const changes = [];
+  for (let r = r0; r <= r1; r++) {
+    for (let c = c0; c <= c1; c++) {
+      const touched = mode === "none" || mode === "all"
+        || (mode === "outline" && (r === r0 || r === r1 || c === c0 || c === c1))
+        || (mode === "top" && r === r0) || (mode === "bottom" && r === r1)
+        || (mode === "left" && c === c0) || (mode === "right" && c === c1);
+      if (!touched) continue;
+      const prev = sheet.cells.get(cellKey(r, c));
+      const base = prev ? cloneCell(prev) : { value: null, formula: null, type: null, format: {} };
+      const fmt = { ...base.format };
+      let bs = fmt.bs && typeof fmt.bs === "object" ? JSON.parse(JSON.stringify(fmt.bs)) : legacyBorderSides(fmt);
+      if (mode === "none") bs = {};
+      else if (mode === "all") bs = { t: { ...sd }, b: { ...sd }, l: { ...sd }, r: { ...sd } };
+      else {
+        if (r === r0 && (mode === "outline" || mode === "top")) bs.t = { ...sd };
+        if (r === r1 && (mode === "outline" || mode === "bottom")) bs.b = { ...sd };
+        if (c === c0 && (mode === "outline" || mode === "left")) bs.l = { ...sd };
+        if (c === c1 && (mode === "outline" || mode === "right")) bs.r = { ...sd };
+      }
+      delete fmt.border; delete fmt.bw; // sides supersede the legacy single value
+      if (Object.keys(bs).length) fmt.bs = bs; else delete fmt.bs;
+      if (JSON.stringify(fmt) === JSON.stringify(base.format)) continue;
+      if (!prev && !Object.keys(fmt).length) continue;
+      changes.push({ r, c, cell: { ...base, format: fmt } });
+    }
+  }
+  if (changes.length) setCells(g, changes);
+}
+
+// The border popover's weight/style/color pickers stage into g.borderOpt;
+// the side buttons then apply it.
+function setBorderOpt(g, btn, patch) {
+  g.borderOpt = { w: 1, st: "solid", c: "#000000", ...(g.borderOpt || {}), ...patch };
+  const pop = btn.closest(".popover");
+  if (!pop) return;
+  const attr = "w" in patch ? "data-wb-bw" : "st" in patch ? "data-wb-bst" : "data-wb-bcolor";
+  pop.querySelectorAll(`[${attr}]`).forEach((b) => b.classList.toggle("is-on", b === btn));
+}
+
 function formatSelection(g, patch) {
   if (!WB.canEdit) return;
   const sheet = g.sheet;
@@ -11767,6 +11935,15 @@ function condStyleFor(sheet, r, c, cell) {
       }
       continue;
     }
+    if (rule.type === "banding") {
+      // alternating colors: odd offsets from the range top tint; the first
+      // row of the range reads as a header and stays clear (100-list #37)
+      if ((r - rule.r0) % 2 === 1) {
+        const stb = WB_CF_STYLES[rule.style] || WB_CF_STYLES.blue;
+        out = `background:${stb.bg};`;
+      }
+      continue;
+    }
     const raw = cell ? (cell.formula ? (cell.err ? null : cell.computed) : cell.value) : null;
     if (condRuleHits(rule, raw)) {
       const st = WB_CF_STYLES[rule.style] || WB_CF_STYLES.amber;
@@ -12197,6 +12374,10 @@ function openCondFormatDialog(g) {
             const set = WB_CF_ICONSETS[rule.icons] || WB_CF_ICONSETS.arrows;
             swatch = `<span class="wb-cf-swatch" style="background:transparent;font-size:11px;letter-spacing:1px">${set.map((x) => `<span style="color:${x.c}">${x.g}</span>`).join("")}</span>`;
             what = "Icon set";
+          } else if (rule.type === "banding") {
+            const st = WB_CF_STYLES[rule.style] || WB_CF_STYLES.blue;
+            swatch = `<span class="wb-cf-swatch" style="background:repeating-linear-gradient(180deg,transparent 0 4px,${st.bg} 4px 8px)"></span>`;
+            what = "Alternating colors";
           } else {
             const st = WB_CF_STYLES[rule.style] || WB_CF_STYLES.amber;
             swatch = `<span class="wb-cf-swatch" style="background:${st.bg};color:${st.fg}">Aa</span>`;
@@ -14843,10 +15024,20 @@ function buildXlsxBytes(sheets) {
   const borderXml = (edges, style) => `<border>` +
     ["left", "right", "top", "bottom"].map((e) => (edges.includes(e) ? `<${e} style="${style || "thin"}">${BORDER_EDGE}</${e}>` : `<${e}/>`)).join("") +
     `<diagonal/></border>`;
+  // per-side borders (format.bs): each side carries its own OOXML style +
+  // color (100-list #33)
+  const bsStyleToken = (sd) => sd.st === "dotted" ? "dotted"
+    : sd.st === "dashed" ? (sd.w >= 2 ? "mediumDashed" : "dashed")
+    : sd.w === 3 ? "thick" : sd.w === 2 ? "medium" : "thin";
+  const bsSideXml = (e, sd) => !sd ? `<${e}/>`
+    : `<${e} style="${bsStyleToken(sd)}"><color rgb="FF${(typeof sd.c === "string" && HEX_COLOR_RE.test(sd.c) ? sd.c.slice(1) : "000000").toUpperCase()}"/></${e}>`;
+  const bsBorderXml = (bs) => `<border>` +
+    bsSideXml("left", bs.l) + bsSideXml("right", bs.r) + bsSideXml("top", bs.t) + bsSideXml("bottom", bs.b) +
+    `<diagonal/></border>`;
   const borders = [borderXml([])];
   const borderIdx = new Map([["", 0]]);
   const xfs = [`<xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>`];
-  const xfIdx = new Map([["0|0|0||0||0|0", 0]]);
+  const xfIdx = new Map([["0|0|0||0||0|0|0", 0]]);
 
   // Differential formats (dxf) for conditional-formatting rules, and a global
   // priority counter (Excel wants unique priorities). CF/DV styles mirror the
@@ -14894,27 +15085,41 @@ function buildXlsxBytes(sheets) {
       fills.push(`<fill><patternFill patternType="solid"><fgColor rgb="${bgHex}"/><bgColor indexed="64"/></patternFill></fill>`);
       fillIdx.set(bgHex, fillId);
     }
-    // per-cell borders: all/outline both mean every edge of the cell;
-    // format.bw maps to OOXML line styles (thin/medium/thick)
-    const bSide = ["all", "outline", "top", "bottom", "left", "right"].includes(f.border) ? f.border : "";
-    const bStyle = bSide ? (f.bw === 3 ? "thick" : f.bw === 2 ? "medium" : "thin") : "";
-    const bKey = bSide ? `${bSide}|${bStyle}` : "";
-    let borderId = borderIdx.get(bKey);
-    if (borderId == null) {
-      borderId = borders.length;
-      borders.push(borderXml(bSide === "all" || bSide === "outline" ? ["left", "right", "top", "bottom"] : [bSide], bStyle));
-      borderIdx.set(bKey, borderId);
+    // per-cell borders: the per-side model (f.bs) exports each side's own
+    // style + color; the legacy single f.border/f.bw keeps its old mapping
+    let borderId;
+    if (f.bs && typeof f.bs === "object" && (f.bs.t || f.bs.b || f.bs.l || f.bs.r)) {
+      const bKey = "bs|" + JSON.stringify(f.bs);
+      borderId = borderIdx.get(bKey);
+      if (borderId == null) {
+        borderId = borders.length;
+        borders.push(bsBorderXml(f.bs));
+        borderIdx.set(bKey, borderId);
+      }
+    } else {
+      const bSide = ["all", "outline", "top", "bottom", "left", "right"].includes(f.border) ? f.border : "";
+      const bStyle = bSide ? (f.bw === 3 ? "thick" : f.bw === 2 ? "medium" : "thin") : "";
+      const bKey = bSide ? `${bSide}|${bStyle}` : "";
+      borderId = borderIdx.get(bKey);
+      if (borderId == null) {
+        borderId = borders.length;
+        borders.push(borderXml(bSide === "all" || bSide === "outline" ? ["left", "right", "top", "bottom"] : [bSide], bStyle));
+        borderIdx.set(bKey, borderId);
+      }
     }
     const align = f.align || "";
     const valign = f.valign === "middle" ? "center" : f.valign || "";
-    const rot = f.rot === 45 || f.rot === 90 ? f.rot : 0;
+    // OOXML textRotation: 0-90 counter-clockwise; 91-180 encodes clockwise
+    const rotRaw = Number.isFinite(+f.rot) ? Math.max(-90, Math.min(90, Math.round(+f.rot))) : 0;
+    const rot = rotRaw < 0 ? 90 - rotRaw : rotRaw;
     const wrap = f.wrap ? 1 : 0;
-    const xfKey = `${numId}|${fontId}|${fillId}|${align}|${wrap}|${valign}|${rot}|${borderId}`;
+    const ind = Number.isInteger(f.ind) && f.ind > 0 ? Math.min(8, f.ind) : 0;
+    const xfKey = `${numId}|${fontId}|${fillId}|${align}|${wrap}|${valign}|${rot}|${borderId}|${ind}`;
     let s = xfIdx.get(xfKey);
     if (s == null) {
       s = xfs.length;
-      const alignXml = align || wrap || valign || rot
-        ? `<alignment${align ? ` horizontal="${align}"` : ""}${valign ? ` vertical="${valign}"` : ""}${wrap ? ` wrapText="1"` : ""}${rot ? ` textRotation="${rot}"` : ""}/>`
+      const alignXml = align || wrap || valign || rot || ind
+        ? `<alignment${align ? ` horizontal="${align}"` : ""}${valign ? ` vertical="${valign}"` : ""}${wrap ? ` wrapText="1"` : ""}${rot ? ` textRotation="${rot}"` : ""}${ind ? ` indent="${ind}"` : ""}/>`
         : "";
       xfs.push(`<xf numFmtId="${numId}" fontId="${fontId}" fillId="${fillId}" borderId="${borderId}"${numId ? ` applyNumberFormat="1"` : ""}${fontId ? ` applyFont="1"` : ""}${fillId ? ` applyFill="1"` : ""}${borderId ? ` applyBorder="1"` : ""}${alignXml ? ` applyAlignment="1"` : ""}>${alignXml}</xf>`);
       xfIdx.set(xfKey, s);
@@ -15206,12 +15411,30 @@ function parseXlsxFill(xml) {
   return hex ? { bg: hex } : {};
 }
 function parseXlsxBorder(xml) {
-  const present = [], styles = [];
+  const sideKey = { left: "l", right: "r", top: "t", bottom: "b" };
+  const sides = {}, present = [], styles = [];
+  let fancy = false; // any dash/dot style or a non-black color → per-side model
   for (const e of ["left", "right", "top", "bottom"]) {
-    const m = new RegExp(`<${e}\\b[^>]*style="([^"]+)"`).exec(xml);
-    if (m) { present.push(e); styles.push(m[1]); }
+    const m = new RegExp(`<${e}\\b[^>]*style="([^"]+)"([\\s\\S]*?)(?:</${e}>|/>)`).exec(xml);
+    if (!m) continue;
+    const st = m[1];
+    present.push(e); styles.push(st);
+    const sd = {
+      w: st === "thick" ? 3 : /^medium/.test(st) || st === "double" ? 2 : 1,
+      st: /dot/i.test(st) ? "dotted" : /dash/i.test(st) ? "dashed" : "solid",
+    };
+    const cm = /<color[^>]*rgb="([0-9A-Fa-f]{6,8})"/.exec(m[2] || "");
+    const hex = cm ? xlsxArgbToHex(cm[1]) : null;
+    if (hex && hex.toLowerCase() !== "#000000") { sd.c = hex.toUpperCase(); fancy = true; }
+    if (sd.st !== "solid") fancy = true;
+    sides[sideKey[e]] = sd;
   }
   if (!present.length) return {};
+  // mixed side styles also need the per-side model (100-list #33); a plain
+  // uniform black border keeps the legacy single-value shape so old
+  // workbooks round-trip byte-identically
+  const uniform = present.length === 4 && new Set(styles).size === 1;
+  if (fancy || (!uniform && present.length > 1)) return { bs: sides };
   const w = (s) => (s === "thick" ? 3 : s === "medium" || s === "double" ? 2 : 1);
   const bw = Math.max(...styles.map(w));
   const out = { border: present.length === 4 ? "all" : present[0] };
@@ -15267,7 +15490,10 @@ export async function parseXlsxBytes(buf) {
         const h = /horizontal="([^"]+)"/.exec(al[1]); if (h) fmt.align = h[1];
         const v = /vertical="([^"]+)"/.exec(al[1]); if (v && v[1] !== "bottom") fmt.valign = v[1] === "center" ? "middle" : v[1];
         if (/wrapText="1"/.test(al[1])) fmt.wrap = true;
-        const rot = /textRotation="(\d+)"/.exec(al[1]); if (rot && (+rot[1] === 45 || +rot[1] === 90)) fmt.rot = +rot[1];
+        // any angle: 0-90 is counter-clockwise, 91-180 encodes clockwise (#35)
+        const rot = /textRotation="(\d+)"/.exec(al[1]);
+        if (rot) { const rv = +rot[1]; const deg = rv > 90 ? 90 - rv : rv; if (deg && deg >= -90 && deg <= 90) fmt.rot = deg; }
+        const indM = /indent="(\d+)"/.exec(al[1]); if (indM && +indM[1] > 0) fmt.ind = Math.min(8, +indM[1]);
       }
       // a genuinely custom code (our exports use ids ≥165) round-trips verbatim
       // as format.fmt; otherwise map to the preset class (dates via cell.type)
@@ -18396,9 +18622,15 @@ function bindGridEvents(g) {
       return;
     }
     const borderBtn = e.target.closest("[data-wb-border]");
-    if (borderBtn) { const v = borderBtn.getAttribute("data-wb-border"); formatSelection(g, { border: v === "none" ? null : v }); closeAllPopovers(); return; }
+    if (borderBtn) { applyBorders(g, borderBtn.getAttribute("data-wb-border")); closeAllPopovers(); return; }
+    // weight/style/color stage into g.borderOpt and keep the popover open,
+    // so you pick the line first and then the side to draw it on
     const bwBtn = e.target.closest("[data-wb-bw]");
-    if (bwBtn) { const w = +bwBtn.getAttribute("data-wb-bw"); formatSelection(g, { bw: w === 1 ? null : w }); closeAllPopovers(); return; }
+    if (bwBtn) { setBorderOpt(g, bwBtn, { w: +bwBtn.getAttribute("data-wb-bw") }); return; }
+    const bstBtn = e.target.closest("[data-wb-bst]");
+    if (bstBtn) { setBorderOpt(g, bstBtn, { st: bstBtn.getAttribute("data-wb-bst") }); return; }
+    const bcBtn = e.target.closest("[data-wb-bcolor]");
+    if (bcBtn) { setBorderOpt(g, bcBtn, { c: bcBtn.getAttribute("data-wb-bcolor") }); return; }
     const freezeBtn = e.target.closest("[data-wb-freeze]");
     if (freezeBtn) { setFreeze(g, freezeBtn.getAttribute("data-wb-freeze")); closeAllPopovers(); return; }
     const fnItem = e.target.closest("[data-wb-fn]");
@@ -19542,7 +19774,10 @@ function wbMenuItems(menu, g) {
         sep,
         ...[["1", "Thin line"], ["2", "Medium line"], ["3", "Thick line"]].map(([v, label]) => ({ label, act: "fmt:bw:" + v, disabled: !ed || !g })),
       ] },
-      { label: "Rotation", sub: [["", "None"], ["45", "Tilt 45°"], ["90", "Vertical"]].map(([v, label]) => ({ label, act: "fmt:rot:" + v, disabled: !ed || !g })) },
+      { label: "Cell styles", sub: Object.entries(WB_CELL_STYLES).map(([k, st]) => ({ label: st.label, act: "fmt:style:" + k, disabled: !ed || !g })) },
+      { label: "Alternating colors", act: "fmt:banding", disabled: !ed || !g },
+      { label: "Indent", sub: [{ label: "Increase indent", act: "fmt:indent:1", disabled: !ed || !g }, { label: "Decrease indent", act: "fmt:indent:-1", disabled: !ed || !g }] },
+      { label: "Rotation", sub: [["", "None"], ["30", "Tilt 30°"], ["45", "Tilt 45°"], ["60", "Tilt 60°"], ["90", "Vertical"], ["-45", "Tilt down 45°"], ["custom", "Custom angle…"]].map(([v, label]) => ({ label, act: "fmt:rot:" + v, disabled: !ed || !g })) },
       { label: "Font size", sub: [8, 10, 12, 13, 14, 18, 24].map((n) => ({ label: String(n) + " px", act: "fmt:fs:" + n, disabled: !ed || !g })) },
       sep,
       { label: "Merge cells", act: "fmt:merge", disabled: !ed || !g },
@@ -19762,9 +19997,24 @@ function wbMenuAction(act, g) {
   else if (ns === "fmt" && verb === "tog") toggleFormat(g, arg);
   else if (ns === "fmt" && verb === "align") formatSelection(g, { align: arg });
   else if (ns === "fmt" && verb === "valign") formatSelection(g, { valign: arg });
-  else if (ns === "fmt" && verb === "border") formatSelection(g, { border: arg || null });
-  else if (ns === "fmt" && verb === "bw") formatSelection(g, { bw: +arg === 1 ? null : +arg });
-  else if (ns === "fmt" && verb === "rot") formatSelection(g, { rot: +arg || null });
+  else if (ns === "fmt" && verb === "border") applyBorders(g, arg || "none");
+  else if (ns === "fmt" && verb === "bw") { g.borderOpt = { st: "solid", c: "#000000", ...(g.borderOpt || {}), w: +arg }; }
+  else if (ns === "fmt" && verb === "rot") {
+    if (arg === "custom") {
+      promptModal({
+        title: "Text rotation", label: "Angle in degrees (-90 to 90; positive tilts up)",
+        kind: "number", min: -90, max: 90, value: 45, submitLabel: "Rotate",
+        onSubmit: (deg) => formatSelection(g, { rot: deg || null }),
+      });
+    } else formatSelection(g, { rot: +arg || null });
+  }
+  else if (ns === "fmt" && verb === "style") { const st = WB_CELL_STYLES[arg]; if (st) formatSelection(g, st.patch); }
+  else if (ns === "fmt" && verb === "banding") applyBandingRule(g);
+  else if (ns === "fmt" && verb === "indent") {
+    const cur = (g.sheet.cells.get(cellKey(g.active.r, g.active.c)) || {}).format || {};
+    const next = Math.max(0, Math.min(8, (Number.isInteger(cur.ind) ? cur.ind : 0) + (+arg)));
+    formatSelection(g, { ind: next || null });
+  }
   else if (ns === "fmt" && verb === "fs") formatSelection(g, { fs: +arg });
   else if (ns === "data" && verb === "fv") applyFilterView(g, arg);
   else if (ns === "data" && verb === "fv-del") { deleteFilterView(g, arg); _toast("Filter view deleted", "success"); }
@@ -21662,7 +21912,7 @@ export const __engine = {
   fillSeries, cycleRefAnchor, errorHint, columnSuggestion, snapshotSheet, applySheetSnapshot,
   colLabel, colIndex, cellRef, parseCellRef,
   dateToSerial, serialToDate, isoDate, parseDateLoose,
-  buildXlsxBytes, parseXlsxBytes, buildPrintTable, formatForDisplay, applyCustomFormat, solveGoalSeek,
+  buildXlsxBytes, parseXlsxBytes, buildPrintTable, formatForDisplay, applyCustomFormat, customFormatColor, solveGoalSeek,
   condBarPercent, condIconPick, WB_CF_ICONSETS, isCellProtected, runQuery,
   chartSvg, WB_CHART_TYPES, kpiTileHtml, tableTileHtml, textTileHtml, kpiSparkline, kpiFmt, embedCellNum,
   chartData, aggRange, distinctColumnValues, kpiValue, KPI_AGGS,

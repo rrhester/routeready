@@ -70,6 +70,26 @@ ok("iconset high third", pick("arrows", { min: 0, max: 90 }, 80), "▲");
 ok("iconset traffic set", pick("traffic", { min: 0, max: 3 }, 3), "●");
 ok("iconset unknown set falls back to arrows", pick("nope", { min: 0, max: 9 }, 8), "▲");
 
+// ── elapsed-time brackets (100-list #42) ────────────────────────────────────
+// [h]/[mm]/[ss] accumulate past their unit instead of wrapping at 24h/60m.
+ok("[h]:mm over 24h", f(30.5 / 24, "[h]:mm"), "30:30");
+ok("[h]:mm exactly 24h", f(1, "[h]:mm"), "24:00");
+ok("[h]:mm under an hour", f(0.5 / 24, "[h]:mm"), "0:30");
+ok("[hh]:mm pads", f(2.25 / 24, "[hh]:mm"), "02:15");
+ok("[mm]:ss total minutes", f(90.5 / 1440, "[mm]:ss"), "90:30");
+ok("[ss] total seconds", f(75 / 86400, "[ss]"), "75");
+ok("plain h:mm still wraps at 24h", f(30.5 / 24, "h:mm"), "6:30");
+
+// ── [Red]-style section colors (100-list #34) ───────────────────────────────
+const { customFormatColor } = __engine;
+ok("negative section [Red]", customFormatColor(-12, "#,##0;[Red]-#,##0", "number"), "#DC2626");
+ok("positive section uncolored", customFormatColor(12, "#,##0;[Red]-#,##0", "number"), null);
+ok("positive section [Blue]", customFormatColor(12, "[Blue]#,##0;[Red]-#,##0", "number"), "#1D4ED8");
+ok("conditional section color", customFormatColor(150, "[>100][Green]0;0", "number"), "#15803D");
+ok("conditional not met", customFormatColor(50, "[>100][Green]0;0", "number"), null);
+ok("no color tags → null", customFormatColor(-5, "#,##0.00", "number"), null);
+ok("zero section color", customFormatColor(0, "0;-0;[Magenta]0", "number"), "#C026D3");
+
 // ── protected ranges ─────────────────────────────────────────────────────────
 const { isCellProtected } = __engine;
 const protSheet = { meta: { protected: [{ r0: 1, c0: 1, r1: 3, c1: 3 }] } };

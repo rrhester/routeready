@@ -1153,6 +1153,9 @@ await okA("xlsx round-trip: values, formula, date, escaping, merges, freeze, wid
     ["3,0", XC("Total", "text")], ["3,1", XF("=SUM(B2:B3)", 17, "number")],
     ["4,0", XC("2026-07-05", "date")],
     ["5,0", XC('say "hi" <ok> & bye', "text")],
+    // per-side borders, arbitrary rotation, indent (100-list #33, #35, #41)
+    ["6,0", XC("edges", "text", { bs: { t: { w: 1, st: "dashed", c: "#DC2626" }, b: { w: 3, st: "solid" } } })],
+    ["6,1", XC("tilted", "text", { rot: -45, ind: 2 })],
   ]);
   const sheets = [
     { name: "Data", cells: s1, colWidths: { 0: 140 }, frozenRows: 1, frozenCols: 0, meta: { merges: [{ r0: 0, c0: 0, r1: 0, c1: 1 }] } },
@@ -1174,6 +1177,14 @@ await okA("xlsx round-trip: values, formula, date, escaping, merges, freeze, wid
   assert.equal(findCell(parsed.sheets[1], 0, 1).value, "3.14");
   assert.equal(parsed.sheets[1].frozenRows, 3);
   assert.equal(parsed.sheets[1].frozenCols, 2);
+  const edged = findCell(d, 6, 0).format.bs;
+  assert.equal(edged.t.st, "dashed");
+  assert.equal(edged.t.c, "#DC2626");
+  assert.equal(edged.b.w, 3);
+  assert.equal(edged.b.st, "solid");
+  assert.equal(edged.l, undefined);
+  assert.equal(findCell(d, 6, 1).format.rot, -45);
+  assert.equal(findCell(d, 6, 1).format.ind, 2);
 });
 
 await okA("xlsx import: deflate + shared strings (rich-text runs) + date styles", async () => {
