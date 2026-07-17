@@ -6,6 +6,9 @@
 <meta name="theme-color" content="#FFFFFF">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
+<meta property="og:title" content="You're invited">
+<meta property="og:description" content="Respond to your invitation — accept, decline, or propose a new time.">
+<meta property="og:type" content="website">
 <title>Respond to your invitation</title>
 <style>
     @font-face{font-family:'Inter';font-style:normal;font-weight:400 700;font-display:swap;src:url(../app/fonts/inter-var-latin.woff2) format('woff2')}
@@ -53,6 +56,11 @@
   @keyframes s{to{transform:rotate(360deg)}}
   @media (prefers-reduced-motion:reduce){.spin{animation:none}}
   .foot{text-align:center;font-size:12px;color:var(--subtle);margin-top:22px}
+  .langtog{position:absolute;top:14px;right:16px;appearance:none;border:1px solid var(--border);background:#fff;color:var(--muted);
+    font:inherit;font-size:12px;font-weight:700;border-radius:999px;padding:5px 12px;cursor:pointer}
+  .langtog:hover{background:#F1F3F4}
+  .addcal{display:inline-block;margin-top:4px;color:var(--accent);font-weight:600;font-size:13px;text-decoration:none}
+  .addcal:hover{text-decoration:underline}
 </style>
 </head>
 <body>
@@ -61,10 +69,10 @@
       <div class="logo" id="logo">R</div>
       <div>
         <div class="hdr-t" id="hdr-t">RouteReady</div>
-        <div class="hdr-s">Interview invitation</div>
+        <div class="hdr-s" id="hdr-s">Invitation</div>
       </div>
     </div>
-    <div id="root"><div class="spin"></div></div>
+    <div id="root" aria-live="polite"><div class="spin"></div></div>
     <div class="foot">Powered by RouteReady</div>
   </div>
 
@@ -82,9 +90,113 @@ const pathMatch = location.pathname.match(/^\/rsvp\/([^/?#]+)/);
 const token = params.get("t") || params.get("token") || (pathMatch && pathMatch[1]) || "";
 const preset = (params.get("r") || "").toLowerCase(); // optional ?r=accept|decline
 
+// EN/ES, same pattern as booking.html: ?lang= wins, then the sticky choice,
+// then the browser language.
+const I18N = {
+  en: {
+    subtitle: "Invitation", docTitle: "Respond to your invitation",
+    invalidTitle: "This invitation link looks invalid",
+    goneTitle: "This event is no longer active",
+    goneBody: "This invitation was cancelled or is no longer available. If you think this is a mistake, reply to the email or text we sent you.",
+    pastTitle: "This invitation has passed", pastWas: "was scheduled for",
+    confirmed: "You're confirmed", declined: "You've declined", declinedBody: "We've let the team know.",
+    change: "Change my response", proposeInstead: "Propose a new time instead",
+    join: "Join the video meeting →", invited: "You're invited",
+    accept: "Accept", decline: "Decline",
+    tapToConfirm: (w) => `Tap <b>${w}</b> to confirm your response.`,
+    noneWork: "None of these work? Propose a new time",
+    proposeNote: "Anything the team should know? (optional)",
+    localTz: "Times are in your local timezone.", send: "Send suggestion", future: "Pick a future time",
+    proposeSent: "Suggestion sent — the team will confirm or follow up by email.",
+    proposeUnavail: "Proposing a time isn't available yet — please reply to the invitation email instead.",
+    netErr: "Couldn't send that — check your connection and try again.",
+    saveErr: "Couldn't save your response — check your connection and try again.",
+    yourIv: "Your interview", addCal: "Add to Google Calendar", addIcs: "Download .ics (Apple/Outlook)",
+    joinWord: "Join the video meeting", toggle: "Español",
+  },
+  es: {
+    subtitle: "Invitación", docTitle: "Responde a tu invitación",
+    invalidTitle: "Este enlace de invitación no parece válido",
+    goneTitle: "Este evento ya no está activo",
+    goneBody: "Esta invitación fue cancelada o ya no está disponible. Si crees que es un error, responde al correo o mensaje que te enviamos.",
+    pastTitle: "Esta invitación ya pasó", pastWas: "estaba programada para",
+    confirmed: "Confirmado", declined: "Has rechazado", declinedBody: "Le avisamos al equipo.",
+    change: "Cambiar mi respuesta", proposeInstead: "Proponer otra hora",
+    join: "Unirse a la videollamada →", invited: "Estás invitado",
+    accept: "Aceptar", decline: "Rechazar",
+    tapToConfirm: (w) => `Toca <b>${w}</b> para confirmar tu respuesta.`,
+    noneWork: "¿No te sirven? Propón otra hora",
+    proposeNote: "¿Algo que el equipo deba saber? (opcional)",
+    localTz: "Las horas están en tu zona horaria local.", send: "Enviar sugerencia", future: "Elige una hora futura",
+    proposeSent: "Sugerencia enviada — el equipo confirmará o te contactará por correo.",
+    proposeUnavail: "Proponer otra hora aún no está disponible — responde al correo de la invitación.",
+    netErr: "No se pudo enviar — revisa tu conexión e inténtalo de nuevo.",
+    saveErr: "No se pudo guardar tu respuesta — revisa tu conexión e inténtalo de nuevo.",
+    yourIv: "Tu entrevista", addCal: "Añadir a Google Calendar", addIcs: "Descargar .ics (Apple/Outlook)",
+    joinWord: "Unirse a la videollamada", toggle: "English",
+  },
+};
+let LANG = (() => {
+  const q = (params.get("lang") || "").toLowerCase();
+  if (q === "es" || q === "en") { try { localStorage.setItem("rr_rsvp_lang", q); } catch (_) {} return q; }
+  try { const s = localStorage.getItem("rr_rsvp_lang"); if (s === "es" || s === "en") return s; } catch (_) {}
+  return (navigator.language || "").toLowerCase().startsWith("es") ? "es" : "en";
+})();
+const T = (k) => (I18N[LANG] && I18N[LANG][k]) ?? I18N.en[k];
+const LOCALE = () => (LANG === "es" ? "es" : "en-US");
+let LAST_EV = null;   // last payload, so the language toggle can re-render
+function applyLang() {
+  document.documentElement.lang = LANG;
+  document.title = T("docTitle");
+  document.getElementById("hdr-s").textContent = T("subtitle");
+  const bt = document.querySelector(".langtog");
+  if (bt) bt.textContent = T("toggle");
+}
+(function installLangToggle() {
+  const bt = document.createElement("button");
+  bt.className = "langtog"; bt.type = "button";
+  bt.addEventListener("click", () => {
+    LANG = LANG === "es" ? "en" : "es";
+    try { localStorage.setItem("rr_rsvp_lang", LANG); } catch (_) {}
+    applyLang();
+    if (LAST_EV) renderEvent(LAST_EV);
+  });
+  document.body.appendChild(bt);
+  applyLang();
+})();
+
+// One-click add-to-calendar for the accepted state (mirrors booking.html —
+// TEMPLATE render URL + an RFC 5545 data href, no backend involved).
+function gcalUrl(ev) {
+  const fmt = (iso) => new Date(iso).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+  const end = ev.ends_at || new Date(new Date(ev.starts_at).getTime() + 30 * 60000).toISOString();
+  const p = new URLSearchParams({
+    action: "TEMPLATE", text: ev.title || T("yourIv"),
+    dates: `${fmt(ev.starts_at)}/${fmt(end)}`,
+    details: safeUrl(ev.meeting_url) ? T("joinWord") + ": " + safeUrl(ev.meeting_url) : "",
+  });
+  return "https://calendar.google.com/calendar/render?" + p.toString();
+}
+function icsHref(ev) {
+  const fmt = (iso) => new Date(iso).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+  const end = ev.ends_at || new Date(new Date(ev.starts_at).getTime() + 30 * 60000).toISOString();
+  const escT = (s) => String(s || "").replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
+  const lines = [
+    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//RouteReady//RSVP//EN", "BEGIN:VEVENT",
+    "UID:" + fmt(ev.starts_at) + "-" + Math.random().toString(36).slice(2) + "@gorouteready.com",
+    "DTSTAMP:" + fmt(new Date().toISOString()),
+    "DTSTART:" + fmt(ev.starts_at),
+    "DTEND:" + fmt(end),
+    "SUMMARY:" + escT(ev.title || T("yourIv")),
+    safeUrl(ev.meeting_url) ? "DESCRIPTION:" + escT(T("joinWord") + ": " + safeUrl(ev.meeting_url)) : "",
+    "END:VEVENT", "END:VCALENDAR",
+  ].filter(Boolean);
+  return "data:text/calendar;charset=utf-8," + encodeURIComponent(lines.join("\r\n"));
+}
+
 function tzPretty(tz) {
   try {
-    const long = new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "long" }).formatToParts(new Date()).find(p => p.type === "timeZoneName")?.value || "";
+    const long = new Intl.DateTimeFormat(LOCALE(), { timeZone: tz, timeZoneName: "long" }).formatToParts(new Date()).find(p => p.type === "timeZoneName")?.value || "";
     const city = String(tz).replace(/^[^/]+\//, "").replace(/_/g, " ");
     return long ? `${long}${city ? " · " + city : ""}` : city;
   } catch (_) { return String(tz || "").replace(/^[^/]+\//, "").replace(/_/g, " "); }
@@ -96,8 +208,8 @@ const safeUrl = (u) => (/^https:\/\//i.test(String(u || "")) ? String(u) : "");
 function fmtWhen(ev) {
   const tz = ev.timezone || "America/Chicago";
   const s = new Date(ev.starts_at);
-  const date = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday:"long", month:"long", day:"numeric", year:"numeric" }).format(s);
-  const t = (d) => new Intl.DateTimeFormat("en-US", { timeZone: tz, hour:"numeric", minute:"2-digit" }).format(d);
+  const date = new Intl.DateTimeFormat(LOCALE(), { timeZone: tz, weekday:"long", month:"long", day:"numeric", year:"numeric" }).format(s);
+  const t = (d) => new Intl.DateTimeFormat(LOCALE(), { timeZone: tz, hour:"numeric", minute:"2-digit" }).format(d);
   const time = t(s) + (ev.ends_at ? " – " + t(new Date(ev.ends_at)) : "");
   return { date, time, tz };
 }
@@ -105,7 +217,7 @@ const isPast = (ev) => { try { return new Date(ev.ends_at || ev.starts_at).getTi
 const isLive = (ev) => ev.status === "scheduled" || ev.status === "rescheduled";
 
 function showError(msg) {
-  root.innerHTML = `<div class="card"><div class="msg"><strong>This invitation link looks invalid</strong><span class="err">${esc(msg)}</span></div></div>`;
+  root.innerHTML = `<div class="card"><div class="msg"><strong>${esc(T("invalidTitle"))}</strong><span class="err">${esc(msg)}</span></div></div>`;
 }
 // A terminal, non-actionable state (cancelled / passed) — no live buttons.
 function showState(strong, span, kind) {
@@ -116,18 +228,18 @@ function showState(strong, span, kind) {
 }
 
 function renderEvent(ev) {
+  LAST_EV = ev;
   if (ev.dsp_name) { document.getElementById("hdr-t").textContent = ev.dsp_name; document.getElementById("logo").textContent = (ev.dsp_name[0] || "R").toUpperCase(); }
   const { date, time, tz } = fmtWhen(ev);
 
   // Cancelled / removed event: never show working Accept/Decline (they'd no-op).
   if (!isLive(ev)) {
-    showState("This event is no longer active",
-      "This invitation was cancelled or is no longer available. If you think this is a mistake, reply to the email or text we sent you.", "no");
+    showState(T("goneTitle"), esc(T("goneBody")), "no");
     return;
   }
   // Past event.
   if (isPast(ev)) {
-    showState("This invitation has passed", `${esc(ev.title || "Your interview")} was scheduled for ${esc(date)}.`, "no");
+    showState(T("pastTitle"), `${esc(ev.title || T("yourIv"))} ${esc(T("pastWas"))} ${esc(date)}.`, "no");
     return;
   }
 
@@ -135,15 +247,17 @@ function renderEvent(ev) {
   // fall back to the event-level state.
   const myR = ev.my_rsvp || ev.rsvp;
   const join = (myR === "accepted" && safeUrl(ev.meeting_url))
-    ? `<a class="join" href="${esc(safeUrl(ev.meeting_url))}" target="_blank" rel="noreferrer noopener">Join the video meeting →</a>` : "";
-  const changeLink = `<button class="changelink" data-change>Change my response</button>`;
+    ? `<a class="join" href="${esc(safeUrl(ev.meeting_url))}" target="_blank" rel="noreferrer noopener">${esc(T("join"))}</a>` : "";
+  const changeLink = `<button class="changelink" data-change>${esc(T("change"))}</button>`;
 
   if (myR === "accepted") {
     root.innerHTML = `<div class="card"><div class="result">
       <div class="ico ok"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
-      <strong>You're confirmed</strong><span>${esc(ev.title || "Your interview")}</span>
+      <strong>${esc(T("confirmed"))}</strong><span>${esc(ev.title || T("yourIv"))}</span>
       <div class="when" style="margin-top:12px"><b>${esc(date)}</b></div><div class="when">${esc(time)}</div><div class="tz">${esc(tzPretty(tz))}</div>
       ${join}
+      <div style="margin-top:10px"><a class="addcal" href="${esc(gcalUrl(ev))}" target="_blank" rel="noreferrer noopener">📅 ${esc(T("addCal"))}</a>
+        &nbsp;·&nbsp; <a class="addcal" href="${icsHref(ev)}" download="invitation.ics">${esc(T("addIcs"))}</a></div>
       <div>${changeLink}</div>
     </div></div>`;
     root.querySelector("[data-change]")?.addEventListener("click", () => renderPending(ev, "decline"));
@@ -152,9 +266,9 @@ function renderEvent(ev) {
   if (myR === "declined") {
     root.innerHTML = `<div class="card"><div class="result">
       <div class="ico no"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div>
-      <strong>You've declined</strong><span>We've let the team know.</span>
+      <strong>${esc(T("declined"))}</strong><span>${esc(T("declinedBody"))}</span>
       <div>${changeLink}</div>
-      <div><button class="changelink" data-propose>Propose a new time instead</button></div>
+      <div><button class="changelink" data-propose>${esc(T("proposeInstead"))}</button></div>
       <div id="rsvp-propose"></div>
     </div></div>`;
     root.querySelector("[data-change]")?.addEventListener("click", () => renderPending(ev, "accept"));
@@ -170,18 +284,18 @@ function renderEvent(ev) {
 // silently RSVP.
 function renderPending(ev, presel) {
   const { date, time, tz } = fmtWhen(ev);
-  const hint = presel ? `<div class="confirmhint">Tap <b>${presel === "accept" ? "Accept" : "Decline"}</b> to confirm your response.</div>` : "";
+  const hint = presel ? `<div class="confirmhint">${T("tapToConfirm")(presel === "accept" ? T("accept") : T("decline"))}</div>` : "";
   root.innerHTML = `<div class="card">
-    <h1 class="title">${esc(ev.title || "You're invited")}</h1>
+    <h1 class="title">${esc(ev.title || T("invited"))}</h1>
     <div class="when"><b>${esc(date)}</b></div>
     <div class="when">${esc(time)}</div>
     <div class="tz">${esc(tzPretty(tz))}</div>
     <div class="row">
-      <button class="btn accept${presel === "accept" ? " sel" : ""}" data-r="accept">Accept</button>
-      <button class="btn decline${presel === "decline" ? " sel" : ""}" data-r="decline">Decline</button>
+      <button class="btn accept${presel === "accept" ? " sel" : ""}" data-r="accept">${esc(T("accept"))}</button>
+      <button class="btn decline${presel === "decline" ? " sel" : ""}" data-r="decline">${esc(T("decline"))}</button>
     </div>
     ${hint}
-    <div style="text-align:center"><button class="changelink" data-propose>None of these work? Propose a new time</button></div>
+    <div style="text-align:center"><button class="changelink" data-propose>${esc(T("noneWork"))}</button></div>
     <div id="rsvp-propose"></div>
     <div id="rsvp-err" class="inlineerr"></div>
   </div>`;
@@ -200,9 +314,9 @@ function renderPropose(ev) {
       <input type="date" name="d" required min="${today}" style="flex:1;padding:10px;border:1px solid var(--border);border-radius:8px;font:inherit">
       <input type="time" name="t" required style="flex:1;padding:10px;border:1px solid var(--border);border-radius:8px;font:inherit">
     </div>
-    <input type="text" name="n" maxlength="200" placeholder="Anything the team should know? (optional)" style="padding:10px;border:1px solid var(--border);border-radius:8px;font:inherit">
-    <div style="font-size:12px;color:var(--subtle)">Times are in your local timezone.</div>
-    <button class="btn accept" type="submit">Send suggestion</button>
+    <input type="text" name="n" maxlength="200" placeholder="${esc(T("proposeNote"))}" style="padding:10px;border:1px solid var(--border);border-radius:8px;font:inherit">
+    <div style="font-size:12px;color:var(--subtle)">${esc(T("localTz"))}</div>
+    <button class="btn accept" type="submit">${esc(T("send"))}</button>
   </form>`;
   host.querySelector("form").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -210,17 +324,17 @@ function renderPropose(ev) {
     const d = f.elements.d.value, t = f.elements.t.value;
     if (!d || !t) return;
     const when = new Date(`${d}T${t}`);
-    if (isNaN(when.getTime()) || when.getTime() < Date.now()) { f.querySelector("button").textContent = "Pick a future time"; return; }
+    if (isNaN(when.getTime()) || when.getTime() < Date.now()) { f.querySelector("button").textContent = T("future"); return; }
     f.querySelector("button").disabled = true;
     try {
       const { data, error } = await sb.rpc("rsvp_respond", { p_token: token, p_proposal: { starts_at: when.toISOString(), note: f.elements.n.value || "" } });
       if (error) throw error;
       if (!data || data.ok === false) throw new Error((data && data.error) || "not found");
-      host.innerHTML = `<div class="confirmhint" style="color:var(--green);font-weight:600">Suggestion sent — the team will confirm or follow up by email.</div>`;
+      host.innerHTML = `<div class="confirmhint" style="color:var(--green);font-weight:600">${esc(T("proposeSent"))}</div>`;
     } catch (err) {
       const msg = /p_proposal|rsvp_respond|schema cache|PGRST202/i.test(String(err && err.message || err))
-        ? "Proposing a time isn't available yet — please reply to the invitation email instead."
-        : "Couldn't send that — check your connection and try again.";
+        ? T("proposeUnavail")
+        : T("netErr");
       host.innerHTML = `<div class="inlineerr">${esc(msg)}</div>`;
     }
   });
@@ -240,7 +354,7 @@ async function respond(resp) {
     // A transient network error must NOT brick the page or claim the link is
     // invalid — keep the buttons and show an inline, retryable message.
     console.warn("rsvp failed:", e && (e.message || e));
-    if (errEl) errEl.textContent = "Couldn't save your response — check your connection and try again.";
+    if (errEl) errEl.textContent = T("saveErr");
     btns.forEach(b => b.disabled = false);
   }
 }
