@@ -237,6 +237,14 @@
   text-overflow:ellipsis;box-shadow:0 4px 10px -8px rgba(0,0,0,.35)}
 .rrnb-stickytitle[hidden]{display:none}
 .rrnb-stickytitle:hover{color:var(--accent)}
+/* #16 collapsible headings — chevron in the left gutter; state is view-only */
+.rrnb-editor h1,.rrnb-editor h2,.rrnb-editor h3{position:relative}
+.rrnb-editor h1::before,.rrnb-editor h2::before,.rrnb-editor h3::before{
+  content:"▾";position:absolute;left:-0.92em;top:0.14em;font-size:.62em;color:var(--text-subtle);
+  opacity:0;cursor:pointer;transition:opacity .1s;-webkit-user-select:none;user-select:none}
+.rrnb-editor h1:hover::before,.rrnb-editor h2:hover::before,.rrnb-editor h3:hover::before{opacity:.65}
+.rrnb-editor h1.rrnb-folded::before,.rrnb-editor h2.rrnb-folded::before,.rrnb-editor h3.rrnb-folded::before{content:"▸";opacity:.9}
+.rrnb-fold-hidden{display:none !important}
 .rrnb-page .pin{flex:0 0 auto;color:var(--amber);opacity:0}
 .rrnb-page.pinned .pin{opacity:1}
 .rrnb-page .kebab{opacity:0;flex:0 0 auto}
@@ -2010,8 +2018,16 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   function onEditorClick(e) {
     var box = e.target.closest(".rrnb-todo-box");
     if (box) { var row = box.closest(".rrnb-todo"); row.setAttribute("data-checked", row.getAttribute("data-checked") === "1" ? "0" : "1"); box.textContent = row.getAttribute("data-checked") === "1" ? "✓" : ""; scheduleSave(); return; }
-    var img = e.target.closest("img");
     var ed = $id("rrnb-editor");
+    // #16: clicking the fold chevron in a heading's left gutter toggles the fold
+    if (ed && !S.readOnly) {
+      var hh = topBlockOf(e.target, ed);
+      if (hh && /^H[123]$/.test(hh.tagName)) {
+        var hr = hh.getBoundingClientRect();
+        if (e.clientX < hr.left && e.clientX > hr.left - 26) { e.preventDefault(); toggleFoldHeading(hh); return; }
+      }
+    }
+    var img = e.target.closest("img");
     if (ed) ed.querySelectorAll("figure.rrnb-fig.sel, img.sel").forEach(function (f) { f.classList.remove("sel"); });
     hideImgResize();
     if (img) { if (S.readOnly) { openLightbox(img.src, img.getAttribute("alt")); return; } var fig = img.closest("figure.rrnb-fig") || img; fig.classList.add("sel"); showImgResize(fig, img); openImageSize(fig, img); return; }
@@ -2802,9 +2818,14 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     ed.querySelectorAll("figure.rrnb-fig[data-ocr]").forEach(function (f) {
       var t = f.getAttribute("data-ocr"); if (t) text += "\n[image] " + t;
     });
-    // strip the transient image-selection highlight so it never persists
+    // #16: folded blocks are display:none, so innerText drops them — add their
+    // text back so full-text search still sees content hidden under a fold.
+    ed.querySelectorAll(".rrnb-fold-hidden").forEach(function (el) { var t = el.textContent; if (t) text += "\n" + t; });
+    // strip transient view-only state so it never persists into saved HTML:
+    // the image-selection highlight and the collapsible-heading fold classes.
     var clean = ed.cloneNode(true);
     clean.querySelectorAll("figure.rrnb-fig.sel, img.sel").forEach(function (n) { n.classList.remove("sel"); });
+    clean.querySelectorAll(".rrnb-folded, .rrnb-fold-hidden").forEach(function (n) { n.classList.remove("rrnb-folded", "rrnb-fold-hidden"); if (!n.className) n.removeAttribute("class"); });
     return { title: title.value.trim() || "Untitled Page", content_html: clean.innerHTML, content_text: text, tags: (S.page && S.page.tags) || [] };
   }
   function scheduleSave() {
@@ -4182,12 +4203,31 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     { act: "dup", label: "Duplicate", ic: "⧉" },
     { act: "del", label: "Delete", ic: "✕", danger: true }
   ];
-  var BM = { el: null, block: null };
+  // ── Collapsible headings (#16) ───────────────────────────────────
+  // Fold hides the blocks under a heading until the next same-or-higher
+  // heading. State lives only in the DOM (rrnb-folded / rrnb-fold-hidden
+  // classes) and is stripped from the saved HTML, so it never persists.
+  function recomputeFolds() {
+    var ed = $id("rrnb-editor"); if (!ed) return;
+    var stack = []; // levels of folded headings currently causing a hide
+    dhBlocks(ed).forEach(function (el) {
+      var isH = /^H[1-6]$/.test(el.tagName), lvl = isH ? +el.tagName.slice(1) : 99;
+      if (isH) { while (stack.length && lvl <= stack[stack.length - 1]) stack.pop(); }
+      el.classList.toggle("rrnb-fold-hidden", stack.length > 0);
+      if (isH && el.classList.contains("rrnb-folded")) stack.push(lvl);
+    });
+  }
+  function toggleFoldHeading(h) {
+    if (!h || !/^H[123]$/.test(h.tagName)) return;
+    h.classList.toggle("rrnb-folded");
+    recomputeFolds();
+  }
+  var BM = { el: null, block: null, items: null };
   function blockMenuEl() {
     if (BM.el) return BM.el;
     var m = document.createElement("div"); m.className = "rrnb-slash rrnb-blockmenu"; m.id = "rrnb-blockmenu"; m.hidden = true;
     m.addEventListener("mousedown", function (e) { e.preventDefault(); });
-    m.addEventListener("click", function (e) { var r = e.target.closest("[data-bi]"); if (r) blockAction(BLOCK_ACTIONS[+r.getAttribute("data-bi")]); });
+    m.addEventListener("click", function (e) { var r = e.target.closest("[data-bi]"); if (r) blockAction((BM.items || BLOCK_ACTIONS)[+r.getAttribute("data-bi")]); });
     document.body.appendChild(m);
     document.addEventListener("mousedown", function (e) { if (!BM.el || BM.el.hidden) return; if (BM.el.contains(e.target) || (DH.el && DH.el.contains(e.target))) return; closeBlockMenu(); });
     BM.el = m; return m;
@@ -4196,7 +4236,13 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     if (!DH.block || S.readOnly || S.editorKind === "tiptap") return;
     BM.block = DH.block;
     var m = blockMenuEl();
-    m.innerHTML = BLOCK_ACTIONS.map(function (a, i) {
+    var items = BLOCK_ACTIONS;
+    if (/^H[123]$/.test(BM.block.tagName)) {
+      var folded = BM.block.classList.contains("rrnb-folded");
+      items = [{ act: "fold", label: folded ? "Unfold section" : "Fold section", ic: folded ? "▸" : "▾" }, { sep: true }].concat(BLOCK_ACTIONS);
+    }
+    BM.items = items;
+    m.innerHTML = items.map(function (a, i) {
       if (a.head) return '<div class="rrnb-bm-head">' + esc(a.label) + '</div>';
       if (a.sep) return '<div class="rrnb-bm-sep"></div>';
       return '<div class="rrnb-slash-opt' + (a.danger ? " danger" : "") + '" data-bi="' + i + '"><span class="ic">' + esc(a.ic) + '</span>' + esc(a.label) + '</div>';
@@ -4211,6 +4257,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   function blockAction(a) {
     var blk = BM.block; var ed = $id("rrnb-editor");
     if (!a || !blk || !ed) { closeBlockMenu(); return; }
+    if (a.act === "fold") { toggleFoldHeading(blk); closeBlockMenu(); return; }
     if (a.act === "turn") {
       var nb2 = convertBlock(blk, a.arg);
       if (nb2) { ed.focus(); try { var rg = document.createRange(); rg.selectNodeContents(nb2.tagName === "UL" || nb2.tagName === "OL" ? (nb2.querySelector("li") || nb2) : nb2); rg.collapse(false); var s = window.getSelection(); s.removeAllRanges(); s.addRange(rg); } catch (e3) {} }
