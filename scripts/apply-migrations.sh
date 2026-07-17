@@ -17,7 +17,13 @@
 # ───────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
-BASELINE="0373"   # last migration applied by hand; <= this is adopted, > this is run
+# Last migration KNOWN applied by hand; <= this is adopted (recorded, never
+# executed), > this is run. Kept current per-wave — with the old stale value
+# ("0373" while hand-applies reached 0501) enabling the runner would have
+# re-executed 130+ migrations, including the deliberately-skipped
+# 0432_gcal_two_way_sync (whose content now ships as 0505; adopting 0432
+# below is CORRECT — never re-run the 0432 FILE).
+BASELINE="0503"
 
 if [ -z "${SUPABASE_DB_URL:-}" ]; then
   echo "SUPABASE_DB_URL not set — skipping auto-apply (add the secret to enable it)."
@@ -27,24 +33,38 @@ fi
 run()  { psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -tA "$@"; }
 runf() { psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1     -f "$1"; }
 
-run -c "create table if not exists public.rr_migrations (
+# Ledger lives in the PRIVATE schema (project-review PR#48): public.
+# rr_migrations was reachable through PostgREST with no RLS the moment
+# SUPABASE_DB_URL is configured — and a deleted ledger row would cause
+# re-application of that migration on the next deploy. Migrates any
+# legacy public-schema ledger rows across, then drops the exposed table.
+run -c "create schema if not exists private;" >/dev/null
+run -c "create table if not exists private.rr_migrations (
           filename text primary key,
           applied_at timestamptz not null default now());" >/dev/null
+run -c "do \$\$ begin
+          if exists (select 1 from pg_tables where schemaname='public' and tablename='rr_migrations') then
+            insert into private.rr_migrations(filename, applied_at)
+              select filename, applied_at from public.rr_migrations
+              on conflict (filename) do nothing;
+            drop table public.rr_migrations;
+          end if;
+        end \$\$;" >/dev/null
 
 applied=0
 for f in $(ls supabase/migrations/*.sql | sort); do
   base="$(basename "$f")"
   num="${base%%_*}"
-  if [ "$(run -c "select 1 from public.rr_migrations where filename='${base}'")" = "1" ]; then
+  if [ "$(run -c "select 1 from private.rr_migrations where filename='${base}'")" = "1" ]; then
     continue
   fi
   if [[ "$num" < "$BASELINE" || "$num" == "$BASELINE" ]]; then
     echo "adopt  $base"
-    run -c "insert into public.rr_migrations(filename) values ('${base}') on conflict do nothing;" >/dev/null
+    run -c "insert into private.rr_migrations(filename) values ('${base}') on conflict do nothing;" >/dev/null
   else
     echo "APPLY  $base"
     runf "$f"
-    run -c "insert into public.rr_migrations(filename) values ('${base}');" >/dev/null
+    run -c "insert into private.rr_migrations(filename) values ('${base}');" >/dev/null
     applied=$((applied+1))
   fi
 done
