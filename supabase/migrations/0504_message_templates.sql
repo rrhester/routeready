@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────
--- Migration 0503 · Message templates (Messages 100-list · Batch 1, #3/#4)
+-- Migration 0504 · Message templates (Messages 100-list · Batch 1, #3/#4)
 --
 -- Canned replies for the dispatch composer. A template belongs to a DSP;
 -- `shared = true` templates are visible to every staff member, private

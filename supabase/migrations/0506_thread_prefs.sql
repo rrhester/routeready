@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────
--- Migration 0505 · Messages 100-list Batch 3 (#28 archive, #29 mute,
+-- Migration 0506 · Messages 100-list Batch 3 (#28 archive, #29 mute,
 -- #30 mark-unread + snooze, #31 labels) — per-OPERATOR thread preferences.
 --
 -- Each staff member gets their own archive/mute/snooze/label state per

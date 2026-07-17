@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────
--- Migration 0504 · Messages 100-list Batch 2 (#13 replies, #15 emoji
+-- Migration 0505 · Messages 100-list Batch 2 (#13 replies, #15 emoji
 -- reactions, #18 pins, #20 edit history) for the driver ↔ dispatch 1:1 chat.
 --
 -- 1. reply_to_message_id on driver_messages + dispatch_chat_send accepts

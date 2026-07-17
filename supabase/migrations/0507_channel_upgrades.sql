@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────
--- Migration 0506 · Messages 100-list Batch 4 (rooms & broadcasts)
+-- Migration 0507 · Messages 100-list Batch 4 (rooms & broadcasts)
 --
 --   #36 announcement-only rooms   → driver_channels.announcement_only +
 --                                   driver_channel_post gate + update RPC
