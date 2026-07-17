@@ -2634,7 +2634,7 @@ function runQuery(grid, queryStr, headerRows) {
     const groups = new Map();
     const keys = groupBy || [];
     for (const row of rows) {
-      const k = keys.map((i) => String(row[i] ?? "")).join(" ");
+      const k = keys.map((i) => String(row[i] ?? "")).join("\u0000"); // NUL separator: group keys can't collide
       if (!groups.has(k)) groups.set(k, []);
       groups.get(k).push(row);
     }
@@ -15904,8 +15904,8 @@ function pivotToExportSheet(srcSheet, spec, name, position) {
   if (topN > 0) rowKeys = [...p.rowKeys].sort((a, b) => (_pvNum(p.aggOf(b, grandCk, 0)) ?? -Infinity) - (_pvNum(p.aggOf(a, grandCk, 0)) ?? -Infinity)).slice(0, topN);
   const groups = hasCols ? [...p.colKeys.map((ck) => ({ ck, label: ck || "(blank)" })), { ck: null, label: "Grand total" }] : [{ ck: "", label: "" }];
   const rowHdrs = p.rowFields.length ? p.rowFields : ["Total"];
-  const showOf = (vi) => (WB_PIVOT_SHOWS[p.values[vi].show] ? p.values[vi].show : "raw");
-  const vLabel = (vi) => { const v = p.values[vi]; const base = `${WB_PIVOT_AGGS[v.agg] || ""} of ${v.field}`; return showOf(vi) === "raw" ? base : `${base} · ${WB_PIVOT_SHOWS[showOf(vi)]}`; };
+  const showOf = (vi) => (p.values[vi].calc ? "raw" : (WB_PIVOT_SHOWS[p.values[vi].show] ? p.values[vi].show : "raw"));
+  const vLabel = (vi) => { const v = p.values[vi]; if (v.calc) return v.name || "Calc"; const base = `${WB_PIVOT_AGGS[v.agg] || ""} of ${v.field}`; return showOf(vi) === "raw" ? base : `${base} · ${WB_PIVOT_SHOWS[showOf(vi)]}`; };
   const header = [...rowHdrs, ...groups.flatMap((gp) => p.values.map((_, vi) => (hasCols ? `${gp.label} · ${vLabel(vi)}` : vLabel(vi))))];
   const rawM = groups.map((gp) => p.values.map((_, vi) => rowKeys.map((rk) => p.aggOf(rk, gp.ck, vi))));
   const runM = rawM.map((gvs) => gvs.map((col) => { let a = 0; return col.map((v) => { const n = _pvNum(v); if (n != null) a += n; return a; }); }));
@@ -15928,17 +15928,25 @@ function pivotToExportSheet(srcSheet, spec, name, position) {
     const mode = showOf(vi), total = _pvNum(p.aggOf(null, gp.ck, vi));
     gtRow.push(mode === "pct" ? (total ? 100 : "") : mode === "rank" ? "" : (total == null ? "" : total));
   }));
-  const matrix = [header, ...body, gtRow];
+  const includeGt = (espec.gtPos || "bottom") !== "off";
+  const matrix = includeGt ? [header, ...body, gtRow] : [header, ...body];
   const cells = new Map();
   matrix.forEach((row, r) => row.forEach((v, c) => {
     if (v === "" || v == null) return;
     const isNum = typeof v === "number" && isFinite(v);
     const cell = { value: v, type: isNum ? "number" : "text" };
     if (r === 0) cell.format = { bold: true, bg: "header" };
-    else if (r === matrix.length - 1) cell.format = { bold: true };
+    else if (includeGt && r === matrix.length - 1) cell.format = { bold: true };
     cells.set(cellKey(r, c), cell);
   }));
-  return { id: "pvx" + Math.random().toString(36).slice(2, 8), name, position, rowCount: matrix.length, colCount: header.length, cells, meta: {}, colWidths: {} };
+  // 100-list #56: wrap the materialized pivot as a native Excel Table so it
+  // opens filterable + styled in Excel (native PivotTable cache parts are
+  // still out of scope, but this is a first-class table, not a plain range).
+  const dataR1 = includeGt ? matrix.length - 2 : matrix.length - 1; // exclude the grand-total row
+  const meta = (dataR1 >= 1 && header.length >= 1)
+    ? { tables: [{ id: "pvxt", name: (name || "Pivot").replace(/[^\w]/g, "_"), r0: 0, c0: 0, r1: dataR1, c1: header.length - 1, totalRow: false }] }
+    : {};
+  return { id: "pvx" + Math.random().toString(36).slice(2, 8), name, position, rowCount: matrix.length, colCount: header.length, cells, meta, colWidths: {} };
 }
 // Append a values sheet for every pivot so nothing is silently dropped.
 function expandExportSheets(sheets) {
@@ -18420,8 +18428,26 @@ async function askWorkbookAi(g, question) {
 // first row is a header, and renders an aggregated table below the grid.
 // rows/cols are grouping dimensions; values aggregate a field per cell.
 
-const WB_PIVOT_AGGS = { sum: "Sum", count: "Count", avg: "Average", min: "Min", max: "Max", countunique: "Count unique" };
+const WB_PIVOT_AGGS = { sum: "Sum", count: "Count", avg: "Average", min: "Min", max: "Max", countunique: "Count unique", median: "Median", stdev: "Std dev", var: "Variance", product: "Product" };
 const PIVOT_MAX_ROWS = 20000;
+
+// Date-grouping presets for a pivot row field (100-list #54): bucket a date
+// column by week (Mon-anchored ISO date), month, quarter, or year.
+const WB_PIVOT_DATEGROUP = { none: "Don't group", week: "By week", month: "By month", quarter: "By quarter", year: "By year" };
+function pivotDateBucket(v, mode) {
+  const d = typeof v === "number" ? serialToDate(v) : parseDateLoose(String(v));
+  if (!d || isNaN(d)) return v == null ? "" : String(v);
+  const y = d.getFullYear(), mo = d.getMonth();
+  if (mode === "year") return String(y);
+  if (mode === "quarter") return `${y} Q${Math.floor(mo / 3) + 1}`;
+  if (mode === "month") return `${y}-${String(mo + 1).padStart(2, "0")}`;
+  if (mode === "week") {
+    const day = (d.getDay() + 6) % 7; // Mon=0
+    const monday = new Date(d); monday.setDate(d.getDate() - day);
+    return isoDate(monday);
+  }
+  return v == null ? "" : String(v);
+}
 
 function sheetPivots(sheet) {
   const v = sheet.meta && sheet.meta.pivots;
@@ -18447,12 +18473,26 @@ function pivotSource(sheet, spec) {
 
 function pivotAggregate(agg, vals) {
   const nums = vals.map((v) => cellNumeric(v)).filter((v) => v != null);
+  const mean = () => nums.reduce((a, b) => a + b, 0) / nums.length;
   switch (agg) {
     case "count": return vals.filter((v) => v != null && v !== "").length;
     case "countunique": return new Set(vals.filter((v) => v != null && v !== "").map(String)).size;
-    case "avg": return nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : null;
+    case "avg": return nums.length ? mean() : null;
     case "min": return nums.length ? Math.min(...nums) : null;
     case "max": return nums.length ? Math.max(...nums) : null;
+    // 100-list #51: median, sample stdev/variance, product
+    case "median": {
+      if (!nums.length) return null;
+      const s = nums.slice().sort((a, b) => a - b), m = s.length >> 1;
+      return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+    }
+    case "var": case "stdev": {
+      if (nums.length < 2) return null;
+      const mu = mean();
+      const variance = nums.reduce((a, b) => a + (b - mu) ** 2, 0) / (nums.length - 1);
+      return agg === "var" ? variance : Math.sqrt(variance);
+    }
+    case "product": return nums.length ? nums.reduce((a, b) => a * b, 1) : null;
     case "sum": default: return nums.reduce((a, b) => a + b, 0);
   }
 }
@@ -18493,11 +18533,15 @@ function computePivot(sheet, spec) {
   const { records } = pivotSource(sheet, spec);
   const rowFields = (spec.rows || []).filter(Boolean);
   const colFields = (spec.cols || []).filter(Boolean);
-  const values = (spec.values || []).filter((v) => v && v.field);
+  const values = (spec.values || []).filter((v) => v && (v.field || v.calc));
   if (!values.length) return null;
   const filt = (spec.filters || []).filter((f) => f && f.field && Array.isArray(f.values) && f.values.length);
   const keyed = records.filter((rec) => filt.every((f) => f.values.map(String).includes(String(rec[f.field] ?? ""))));
-  const rowKey = (rec) => rowFields.map((f) => String(rec[f] ?? "")).join(" · ");
+  // date grouping (100-list #54): the first row field can be bucketed by
+  // week/month/quarter/year. Bucket the row-key value for that field only.
+  const dg = spec.dateGroup && spec.dateGroup !== "none" ? spec.dateGroup : null;
+  const dgField = dg && rowFields.length ? rowFields[0] : null;
+  const rowKey = (rec) => rowFields.map((f) => (f === dgField ? pivotDateBucket(rec[f], dg) : String(rec[f] ?? ""))).join(" · ");
   const colKey = (rec) => colFields.map((f) => String(rec[f] ?? "")).join(" · ");
   const rowSeen = new Set(), colSeen = new Set(), rowKeys = [], colKeys = [];
   for (const rec of keyed) {
@@ -18510,6 +18554,21 @@ function computePivot(sheet, spec) {
   const aggOf = (rk, ck, vi) => {
     const v = values[vi];
     const recs = keyed.filter((rec) => (rk == null || rowKey(rec) === rk) && (ck == null || colKey(rec) === ck));
+    // calculated field (100-list #52): a "=A + B" formula over the OTHER value
+    // fields' aggregates in the same cell (referenced by their field names).
+    if (v.calc) {
+      const scope = new Map();
+      values.forEach((vv, j) => {
+        if (j === vi || !vv.field) return;
+        const a = pivotAggregate(vv.agg, recs.map((r) => r[vv.field]));
+        scope.set(String(vv.field).toUpperCase(), a == null ? 0 : a);
+        scope.set(("V" + (j + 1)).toUpperCase(), a == null ? 0 : a); // V1/V2 aliases
+      });
+      try {
+        const out = evalFormula(String(v.calc).startsWith("=") ? v.calc : "=" + v.calc, { rowCount: 1, colCount: 1, getCell: () => null, scope });
+        return typeof out === "number" ? out : (out instanceof Arr ? out.top() : cellNumeric(out));
+      } catch (_) { return null; }
+    }
     return pivotAggregate(v.agg, recs.map((r) => r[v.field]));
   };
   return { rowFields, colFields, values, rowKeys, colKeys, aggOf, records: keyed };
@@ -18522,7 +18581,7 @@ function pivotNumFmt(v) {
 }
 
 // "Show values as" display modes for a pivot value field (Excel-style).
-const WB_PIVOT_SHOWS = { raw: "Raw", pct: "% of total", running: "Running total", rank: "Rank" };
+const WB_PIVOT_SHOWS = { raw: "Raw", pct: "% of column", pctrow: "% of row", running: "Running total", rank: "Rank" };
 const _pvNum = (v) => (typeof v === "number" && isFinite(v) ? v : null);
 function pivotPctFmt(v) {
   if (v == null || !isFinite(v)) return "";
@@ -18531,9 +18590,10 @@ function pivotPctFmt(v) {
 // One display value for a body cell under a "show values as" mode. `raw` is the
 // aggregate; `colTotal` the column's grand total; `running`/`rank` the
 // precomputed cumulative sum and 1-based descending rank for this cell.
-function pivotShowCell(mode, raw, colTotal, running, rank) {
+function pivotShowCell(mode, raw, colTotal, running, rank, rowTotal) {
   switch (mode) {
     case "pct": { const n = _pvNum(raw), d = _pvNum(colTotal); return d ? pivotPctFmt((n == null ? 0 : n) / d * 100) : ""; }
+    case "pctrow": { const n = _pvNum(raw), d = _pvNum(rowTotal); return d ? pivotPctFmt((n == null ? 0 : n) / d * 100) : ""; } // 100-list #51
     case "running": return pivotNumFmt(running);
     case "rank": return rank == null ? "" : String(rank);
     default: return pivotNumFmt(raw);
@@ -18554,8 +18614,8 @@ function pivotTableHtml(sheet, spec) {
   const nv = p.values.length;
   const hasCols = p.colFields.length > 0 && p.colKeys.length > 0;
   const rowHdrs = p.rowFields.length ? p.rowFields : ["Total"];
-  const showOf = (vi) => (WB_PIVOT_SHOWS[p.values[vi].show] ? p.values[vi].show : "raw");
-  const vlab = (vi) => { const m = showOf(vi); const base = `${WB_PIVOT_AGGS[p.values[vi].agg] || ""} of ${p.values[vi].field}`; return esc(m === "raw" ? base : `${base} · ${WB_PIVOT_SHOWS[m]}`); };
+  const showOf = (vi) => (p.values[vi].calc ? "raw" : (WB_PIVOT_SHOWS[p.values[vi].show] ? p.values[vi].show : "raw"));
+  const vlab = (vi) => { const v = p.values[vi]; if (v.calc) return esc(v.name || "Calc"); const m = showOf(vi); const base = `${WB_PIVOT_AGGS[v.agg] || ""} of ${v.field}`; return esc(m === "raw" ? base : `${base} · ${WB_PIVOT_SHOWS[m]}`); };
   // column groups: each colKey, then a Grand Total group (only when cols exist)
   const groups = hasCols ? [...p.colKeys.map((ck) => ({ ck, label: ck || "(blank)" })), { ck: null, label: "Grand total" }] : [{ ck: "", label: null }];
 
@@ -18606,19 +18666,46 @@ function pivotTableHtml(sheet, spec) {
     thead = `<tr>${rowHdrs.map((h) => `<th class="wb-pv-rh">${esc(h)}</th>`).join("")}${p.values.map((_, vi) => `<th class="wb-pv-vh">${vlab(vi)}</th>`).join("")}</tr>`;
   }
 
+  // subtotals per first row dimension (100-list #55), when there are 2 row
+  // fields and the option is on. Insert a subtotal row after each group.
+  const wantSubtotals = spec.subtotals !== false && rowHdrs.length >= 2 && !topN;
+  const subtotalRow = (firstDim) => {
+    const rhCells = `<td class="wb-pv-rk wb-pv-sub" colspan="${rowHdrs.length}">${esc(firstDim)} subtotal</td>`;
+    const cells = groups.map((gp) => p.values.map((_, vi) => {
+      const recs = p.records.filter((rec) => String(rec[p.rowFields[0]] ?? "") === firstDim);
+      const v = p.values[vi];
+      const subRecs = recs.filter((rec) => gp.ck == null || (p.colFields.length ? p.colFields.map((f) => String(rec[f] ?? "")).join(" · ") === gp.ck : true));
+      let val;
+      if (v.calc) {
+        const scope = new Map();
+        p.values.forEach((vv, j) => { if (j === vi || !vv.field) return; const a = pivotAggregate(vv.agg, subRecs.map((r) => r[vv.field])); scope.set(String(vv.field).toUpperCase(), a == null ? 0 : a); scope.set("V" + (j + 1), a == null ? 0 : a); });
+        try { const o = evalFormula(String(v.calc).startsWith("=") ? v.calc : "=" + v.calc, { rowCount: 1, colCount: 1, getCell: () => null, scope }); val = typeof o === "number" ? o : cellNumeric(o); } catch (_) { val = null; }
+      } else val = pivotAggregate(v.agg, subRecs.map((r) => r[v.field]));
+      return `<td class="wb-pv-num wb-pv-sub">${pivotNumFmt(val)}</td>`;
+    }).join("")).join("");
+    return `<tr class="wb-pv-subrow">${rhCells}${cells}</tr>`;
+  };
+
+  let lastFirstDim = null;
   const bodyRows = rowKeys.map((rk, ri) => {
     const parts = p.rowFields.length ? rk.split(" · ") : ["Total"];
+    let out = "";
+    if (wantSubtotals && lastFirstDim != null && parts[0] !== lastFirstDim) out += subtotalRow(lastFirstDim);
+    lastFirstDim = parts[0];
     const rhCells = rowHdrs.map((_, i) => `<td class="wb-pv-rk">${esc(parts[i] ?? "")}</td>`).join("");
     const dataCells = groups.map((gp, gi) => p.values.map((_, vi) => {
       const mode = showOf(vi);
       const raw = rawM[gi][vi][ri];
-      const cell = pivotShowCell(mode, raw, p.aggOf(null, gp.ck, vi), runM[gi][vi][ri], rankM[gi][vi][ri]);
+      // % of row divides by this row's grand-total (the null-ck aggregate)
+      const rowTotal = hasCols ? p.aggOf(rk, null, vi) : raw;
+      const cell = pivotShowCell(mode, raw, p.aggOf(null, gp.ck, vi), runM[gi][vi][ri], rankM[gi][vi][ri], rowTotal);
       const drill = gp.ck === null ? `data-pv-drill data-pv-rk="${esc(rk)}" data-pv-ckall="1" data-pv-vi="${vi}"` : `data-pv-drill data-pv-rk="${esc(rk)}" data-pv-ck="${esc(gp.ck)}" data-pv-vi="${vi}"`;
       const hb = heatBg(vi, gp.ck, raw);
       return `<td class="wb-pv-num wb-pv-drill${hb ? " wb-pv-heat" : ""}" ${drill}${hb} title="Show the source rows behind this number">${cell}</td>`;
     }).join("")).join("");
-    return `<tr>${rhCells}${dataCells}</tr>`;
-  }).join("");
+    out += `<tr>${rhCells}${dataCells}</tr>`;
+    return out;
+  }).join("") + (wantSubtotals && lastFirstDim != null ? subtotalRow(lastFirstDim) : "");
 
   // grand total row — pct reads 100%, rank is meaningless (—), raw/running show the total
   const gtLabel = `<td class="wb-pv-rk wb-pv-gt" colspan="${rowHdrs.length}">Grand total${topN > 0 && rowKeys.length < p.rowKeys.length ? ` · top ${rowKeys.length}` : ""}</td>`;
@@ -18628,9 +18715,11 @@ function pivotTableHtml(sheet, spec) {
     const cell = mode === "pct" ? (_pvNum(total) ? "100%" : "") : mode === "rank" ? "—" : pivotNumFmt(total);
     return `<td class="wb-pv-num wb-pv-gt">${cell}</td>`;
   }).join("")).join("");
-  const foot = `<tr>${gtLabel}${gtCells}</tr>`;
+  // grand-total position (100-list #55): bottom (default), top, or off
+  const gtPos = spec.gtPos === "top" || spec.gtPos === "off" ? spec.gtPos : "bottom";
+  const gtRow = gtPos === "off" ? "" : `<tr class="wb-pv-gtrow">${gtLabel}${gtCells}</tr>`;
 
-  return `<div class="wb-pv-scroll"><table class="wb-pv-table${spec.heatmap ? " is-heatmap" : ""}"><thead>${thead}</thead><tbody>${bodyRows}${foot}</tbody></table></div>`;
+  return `<div class="wb-pv-scroll"><table class="wb-pv-table${spec.heatmap ? " is-heatmap" : ""}"><thead>${thead}</thead><tbody>${gtPos === "top" ? gtRow : ""}${bodyRows}${gtPos === "bottom" ? gtRow : ""}</tbody></table></div>`;
 }
 
 // Source records behind one pivot cell — filtered to its row key, column key
@@ -18801,11 +18890,24 @@ function openPivotDialog(g, existing) {
           <label class="wb-field" style="flex:0 0 138px"><span class="wb-field-label">show</span>
             <select class="wb-input" id="wb-pv-show2">${showOpts(spec.values && spec.values[1] && spec.values[1].show)}</select></label>
         </div>
+        <div class="wb-field-row">
+          <label class="wb-field"><span class="wb-field-label">calculated field <span class="wb-field-opt">optional · formula over the value fields</span></span>
+            <input type="text" class="wb-input" id="wb-pv-calc" value="${esc((spec.values && spec.values.find((v) => v && v.calc) || {}).calc || "")}" placeholder='e.g. =V1 / V2 * 100' spellcheck="false"></label>
+          <label class="wb-field" style="flex:0 0 160px"><span class="wb-field-label">named</span>
+            <input type="text" class="wb-input" id="wb-pv-calcname" value="${esc((spec.values && spec.values.find((v) => v && v.calc) || {}).name || "")}" placeholder="Ratio" maxlength="40"></label>
+        </div>
+        <div class="wb-field-row" style="margin-top:10px">
+          <label class="wb-field"><span class="wb-field-label">Group first row field by dates</span>
+            <select class="wb-input" id="wb-pv-dategroup">${Object.entries(WB_PIVOT_DATEGROUP).map(([k, l]) => `<option value="${k}" ${(spec.dateGroup || "none") === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+          <label class="wb-field"><span class="wb-field-label">Grand total</span>
+            <select class="wb-input" id="wb-pv-gtpos">${[["bottom", "At the bottom"], ["top", "At the top"], ["off", "Hidden"]].map(([k, l]) => `<option value="${k}" ${(spec.gtPos || "bottom") === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+        </div>
         <label class="wb-field" style="margin-top:10px"><span class="wb-field-label">Show top N rows <span class="wb-field-opt">optional · 0 = all</span></span>
           <input type="number" class="wb-input" id="wb-pv-topn" min="0" max="10000" step="1" value="${esc(String(spec.topN || 0))}"></label>
         <div class="wb-field" style="margin-top:10px"><span class="wb-field-label">Options</span>
           <div class="wb-chart-opts">
             <label class="wb-check"><input type="checkbox" id="wb-pv-heatmap" ${existing && existing.heatmap ? "checked" : ""}><span>Heatmap value cells</span></label>
+            <label class="wb-check"><input type="checkbox" id="wb-pv-subtotals" ${spec.subtotals !== false ? "checked" : ""}><span>Subtotals per group (2 row fields)</span></label>
           </div></div>
       </div>
       <div class="rr-modal-foot">
@@ -18854,14 +18956,20 @@ function openPivotDialog(g, existing) {
       { field: wrap.querySelector("#wb-pv-val1").value, agg: wrap.querySelector("#wb-pv-agg1").value, show: wrap.querySelector("#wb-pv-show1").value },
       { field: wrap.querySelector("#wb-pv-val2").value, agg: wrap.querySelector("#wb-pv-agg2").value, show: wrap.querySelector("#wb-pv-show2").value },
     ].filter((v) => v.field);
+    // calculated field (100-list #52): appended as a value with a formula
+    const calc = wrap.querySelector("#wb-pv-calc").value.trim();
+    if (calc) values.push({ calc, name: wrap.querySelector("#wb-pv-calcname").value.trim() || "Calc", agg: "sum", show: "raw" });
     if (!rows.length) { _toast("Pick at least one Rows field", "warn"); return; }
     if (!values.length) { _toast("Pick at least one Values field", "warn"); return; }
     const topN = Math.max(0, Math.min(10000, Math.round(+wrap.querySelector("#wb-pv-topn").value || 0)));
     const srcId = (wrap.querySelector("#wb-pv-src") && wrap.querySelector("#wb-pv-src").value) || (existing && existing.srcSheetId) || srcDef.id;
     const heatmap = !!(wrap.querySelector("#wb-pv-heatmap") && wrap.querySelector("#wb-pv-heatmap").checked);
+    const dateGroup = wrap.querySelector("#wb-pv-dategroup").value || "none";
+    const gtPos = wrap.querySelector("#wb-pv-gtpos").value || "bottom";
+    const subtotals = !!wrap.querySelector("#wb-pv-subtotals").checked;
     // Spread existing first so a pivot's on-grid position (layout) and view
     // state (chart/collapsed) survive edits; new pivots get placed on the grid.
-    const next = { ...(existing || {}), id: existing ? existing.id : "pv" + Math.random().toString(36).slice(2, 8), ...rng, rows, cols, values, topN, srcSheetId: srcId, heatmap, title: existing ? existing.title : "" };
+    const next = { ...(existing || {}), id: existing ? existing.id : "pv" + Math.random().toString(36).slice(2, 8), ...rng, rows, cols, values, topN, srcSheetId: srcId, heatmap, dateGroup, gtPos, subtotals, title: existing ? existing.title : "" };
     if (!next.layout) next.layout = embedDefaultLayout(g, "pivots", rng);
     const pivots = sheetPivots(sheet).filter((p) => p.id !== next.id);
     pivots.push(next);

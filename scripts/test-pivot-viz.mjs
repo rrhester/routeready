@@ -267,4 +267,46 @@ await okA("a dashboard pivot exports its data via srcSheetId (not the empty grid
   assert.ok(pv.cells.some((c) => Number(c.value) === 350), "grand total 350 read from the source sheet, not the empty dashboard grid");
 });
 
+// ── new aggregations (100-list #51) ──────────────────────────────────────────
+const { pivotAggregate } = __engine;
+ok("pivot median / stdev / var / product (100-list #51)", () => {
+  assert.equal(pivotAggregate("median", [1, 2, 3, 4]), 2.5);
+  assert.equal(pivotAggregate("median", [5, 1, 3]), 3);
+  assert.equal(pivotAggregate("product", [2, 3, 4]), 24);
+  // sample variance of [2,4,6] = 4; stdev = 2
+  assert.equal(pivotAggregate("var", [2, 4, 6]), 4);
+  assert.equal(pivotAggregate("stdev", [2, 4, 6]), 2);
+  assert.equal(pivotAggregate("stdev", [5]), null); // needs 2+ points
+});
+
+// ── date grouping (100-list #54) ─────────────────────────────────────────────
+ok("pivot date grouping buckets by month/quarter/week (100-list #54)", () => {
+  const ds = sheetFrom([
+    ["Day", "N"],
+    ["2026-07-06", 10],
+    ["2026-07-20", 5],
+    ["2026-08-03", 7],
+  ]);
+  const spec = { r0: 0, c0: 0, r1: 3, c1: 1, rows: ["Day"], cols: [], values: [{ field: "N", agg: "sum" }], dateGroup: "month" };
+  const p = computePivot(ds, spec);
+  assert.ok(p.rowKeys.includes("2026-07"), "July bucket");
+  assert.ok(p.rowKeys.includes("2026-08"), "August bucket");
+  assert.equal(p.aggOf("2026-07", "", 0), 15); // 10 + 5
+});
+
+// ── calculated field (100-list #52) ──────────────────────────────────────────
+ok("pivot calculated field over value aggregates (100-list #52)", () => {
+  const cs = sheetFrom([
+    ["Zone", "Rev", "Cost"],
+    ["A", 100, 60],
+    ["A", 200, 100],
+    ["B", 50, 20],
+  ]);
+  const spec = { r0: 0, c0: 0, r1: 3, c1: 2, rows: ["Zone"], cols: [],
+    values: [{ field: "Rev", agg: "sum" }, { field: "Cost", agg: "sum" }, { calc: "=Rev - Cost", name: "Margin" }] };
+  const p = computePivot(cs, spec);
+  assert.equal(p.aggOf("A", "", 2), 140); // (100+200) - (60+100)
+  assert.equal(p.aggOf("B", "", 2), 30);  // 50 - 20
+});
+
 console.log(`✓ pivot-viz + chart-viz: ${n} checks passed`);
