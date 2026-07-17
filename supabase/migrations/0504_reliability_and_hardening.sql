@@ -22,6 +22,7 @@
 --      the dashboard fetching 20,000 raw shift rows every 30 s
 --  11. Missing FK indexes on cascade paths (PR#50)
 --  12. Initplan-wrapped RLS on hot tables (PR#49)
+--  13. Anon default-privilege revoke for future functions (PR#53)
 --
 -- Idempotent: safe to re-run in full if a paste partially applied.
 -- ───────────────────────────────────────────────────────────────────────
@@ -374,6 +375,17 @@ drop policy if exists "driver_messages_tenant_r" on public.driver_messages;
 create policy "driver_messages_tenant_r"
   on public.driver_messages for select
   using (dsp_id = (select private.current_dsp_id()));
+
+-- ── 13 · future functions are NOT anon-executable by default (PR#53) ────
+-- Supabase's default privileges grant EXECUTE to anon on every function
+-- created in public — which is why ~500 staff RPCs show as
+-- anon-executable and rely solely on in-body auth gates. Existing
+-- functions keep their grants (nothing breaks); FUTURE functions start
+-- anon-locked, so an anon-facing RPC now requires an explicit
+--   grant execute on function public.X to anon;
+-- in its migration — a visible, reviewable line instead of an invisible
+-- default. (Authenticated/service_role defaults are unchanged.)
+alter default privileges in schema public revoke execute on functions from anon;
 
 -- Self-record.
 insert into private.rr_migrations (filename)
