@@ -332,6 +332,16 @@
   min-width:60px;vertical-align:top}
 .rrnb-editor th{background:var(--surface-secondary);font-weight:600;text-align:left}
 .rrnb-editor table.rrnb-zebra tbody tr:nth-child(even) td{background:rgba(15,23,42,.035)}
+.rrnb-editor .rrnb-toc{border:1px solid var(--border);border-radius:var(--r-md);padding:10px 14px;margin:14px 0;
+  background:var(--surface-secondary)}
+.rrnb-editor .rrnb-toc-hd{font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--text-subtle);margin-bottom:6px}
+.rrnb-editor .rrnb-toc ul{list-style:none;margin:0;padding:0}
+.rrnb-editor .rrnb-toc li{padding:2px 0}
+.rrnb-editor .rrnb-toc-l1{padding-left:16px}
+.rrnb-editor .rrnb-toc-l2{padding-left:32px}
+.rrnb-editor .rrnb-toclink{color:var(--accent);cursor:pointer;border-bottom:0}
+.rrnb-editor .rrnb-toclink:hover{text-decoration:underline}
 .rrnb-editor mark{background:var(--amber-soft,rgba(217,119,6,.18));border-radius:2px;padding:0 1px}
 .rrnb-editor img{max-width:100%;border-radius:var(--r-md);margin:var(--s-1) 0}
 /* figures (pasted / dropped images) */
@@ -1747,6 +1757,9 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       case "hr": exec("insertHorizontalRule"); break;
       case "code": insertCodeBlock(); break;
       case "callout": insertCallout(); break;
+      case "date": insertHTMLAtCursor(esc(new Date().toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" })) + "&nbsp;"); break;
+      case "now": insertHTMLAtCursor(esc(new Date().toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })) + "&nbsp;"); break;
+      case "toc": insertTOC(); break;
       case "todo": insertTodo(); break;
       case "table": openTablePicker(); break;
       case "image": pickFile("image/*", true); break;
@@ -1870,6 +1883,18 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   }
   function insertCodeBlock() { insertHTMLAtCursor('<pre><code>' + (esc(window.getSelection().toString()) || "​") + '</code></pre><p><br></p>'); }
   function insertCallout() { insertHTMLAtCursor('<div class="rrnb-callout"><span class="ico">💡</span><div>' + (esc(window.getSelection().toString()) || "Note…") + '</div></div><p><br></p>'); }
+  // Table of contents built from the page's current headings; links scroll to them.
+  function insertTOC() {
+    var ed = $id("rrnb-editor"); if (!ed) return;
+    var hs = [].slice.call(ed.querySelectorAll("h1,h2,h3"));
+    if (!hs.length) { notify("Add some headings first — the table of contents is built from them."); return; }
+    var items = hs.map(function (h) {
+      if (!h.id) h.id = "h-" + uid();
+      var lvl = h.tagName === "H2" ? 1 : h.tagName === "H3" ? 2 : 0;
+      return '<li class="rrnb-toc-l' + lvl + '"><a class="rrnb-toclink" data-toc="' + h.id + '" href="#' + h.id + '">' + esc(h.textContent || "Untitled") + '</a></li>';
+    }).join("");
+    insertHTMLAtCursor('<div class="rrnb-toc" contenteditable="false"><div class="rrnb-toc-hd">Contents</div><ul>' + items + '</ul></div><p><br></p>');
+  }
 
   function onEditorClick(e) {
     var box = e.target.closest(".rrnb-todo-box");
@@ -1879,6 +1904,8 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     if (ed) ed.querySelectorAll("figure.rrnb-fig.sel, img.sel").forEach(function (f) { f.classList.remove("sel"); });
     hideImgResize();
     if (img) { if (S.readOnly) { openLightbox(img.src, img.getAttribute("alt")); return; } var fig = img.closest("figure.rrnb-fig") || img; fig.classList.add("sel"); showImgResize(fig, img); openImageSize(fig, img); return; }
+    var toc = e.target.closest("[data-toc]");
+    if (toc) { e.preventDefault(); var th = document.getElementById(toc.getAttribute("data-toc")); if (th) th.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
     var fl = e.target.closest("a.rrnb-file");
     if (fl) {
       var mp = fl.getAttribute("data-media-path");
@@ -3709,7 +3736,10 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     { cmd: "attach", label: "File attachment", kw: "file attach upload document", ic: "📎" },
     { cmd: "link", label: "Web link", kw: "link url web hyperlink", ic: "🔗" },
     { cmd: "pagelink", label: "Link to page", kw: "page wiki internal link", ic: "❏" },
-    { cmd: "smartlink", label: "Link records (drivers, vehicles, routes)", kw: "record driver vehicle route smart link connect", ic: "⚡" }
+    { cmd: "smartlink", label: "Link records (drivers, vehicles, routes)", kw: "record driver vehicle route smart link connect", ic: "⚡" },
+    { cmd: "toc", label: "Table of contents", kw: "toc contents outline headings", ic: "☰" },
+    { cmd: "date", label: "Date (today)", kw: "date today calendar", ic: "📅" },
+    { cmd: "now", label: "Timestamp (now)", kw: "time now timestamp clock", ic: "🕒" }
   ];
   var SL = { open: false, node: null, at: 0, items: [], sel: 0, el: null };
   function slashEl() {
