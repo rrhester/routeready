@@ -271,7 +271,7 @@
 // v185 · Security wave: Meet links carry the driver session token in the
 // URL #fragment (out of server logs); login brand tile + precache use the
 // 26 KB icons/icon-192.png instead of the 347 KB Icon.png.
-const SHELL_CACHE = "rr-app-shell-v185";
+const SHELL_CACHE = "rr-app-shell-b0852a059432";
 const SHELL_FILES = [
   "./",
   "index.html",

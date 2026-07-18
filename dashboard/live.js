@@ -8,11 +8,11 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=b2ebeec00db5";
-import { assessPlan as rrAssessLaborPlan, driversNeeded as rrDriversNeeded, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=b2ebeec00db5";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=b2ebeec00db5";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=b2ebeec00db5";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=b2ebeec00db5";
+import { planScheduleWeek } from "./scheduling-engine.js?v=b0852a059432";
+import { assessPlan as rrAssessLaborPlan, driversNeeded as rrDriversNeeded, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=b0852a059432";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=b0852a059432";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=b0852a059432";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=b0852a059432";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -23,9 +23,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=b2ebeec00db5";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=b2ebeec00db5";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=b2ebeec00db5";
+} from "./msg-core.mjs?v=b0852a059432";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=b0852a059432";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=b0852a059432";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -42184,7 +42184,12 @@ function _mcEnsureExtrasCss() {
     .rr-md-code{font-family:ui-monospace,Menlo,monospace;font-size:.92em;background:rgba(127,127,127,.16);border-radius:4px;padding:0 4px}
     .rr-mc-bubble.dispatch .rr-md-code{background:rgba(255,255,255,.22)}
     .rr-md-bullet{display:inline-block;width:1em;color:currentColor;opacity:.75}
-    .rr-mc-shell,.rr-cc-shell{position:relative}
+    /* NOTE: never re-add ".rr-mc-shell{position:relative}" here — the base
+       rule pins the shell with position:absolute;inset:0, and this later
+       stylesheet overriding it to relative collapses the pane to content
+       height, pushing the composer below the fold (live regression
+       2026-07-18: "there is nowhere to type"). Absolute is already a
+       containing block for the undo pill / thread-search overlays. */
     .rr-mc-undo-pill{position:absolute;left:50%;transform:translateX(-50%);bottom:76px;z-index:60;display:flex;align-items:center;gap:10px;background:var(--text,#111827);color:#fff;border-radius:var(--r-pill,999px);padding:8px 8px 8px 16px;font-size:var(--fs-sm);box-shadow:0 10px 30px rgba(15,23,42,.3)}
     .rr-mc-undo-pill button{background:rgba(255,255,255,.16);border:0;color:#fff;font:inherit;font-weight:700;border-radius:var(--r-pill,999px);padding:5px 14px;cursor:pointer}
     .rr-mc-undo-pill button:hover{background:rgba(255,255,255,.28)}
