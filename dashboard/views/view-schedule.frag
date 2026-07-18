@@ -1663,6 +1663,7 @@
               <span class="rr-tgt-gap-card-value" id="rr-tgt-gap-card-main">—</span>
               <span class="rr-tgt-gap-card-sub" id="rr-tgt-gap-card-sub" hidden></span>
             </div>
+            <span id="rr-tgt-save-status" class="rr-tgt-save-status" aria-live="polite"></span>
             <button type="button" class="rr-tgt-save-plan" id="rr-tgt-save-plan">Save Plan</button>
             <span class="rr-tgt-chrome-host" id="rr-tgt-chrome-host"></span>
           </div>
@@ -2377,6 +2378,10 @@
                   <span class="rr-tgt-13w-badge" title="Amazon's term for the 13-week DSP route plan horizon">13-week plan</span>
                 </div>
                 <p class="rr-tgt-13w-sub">Model route demand and staffing requirements.</p>
+              </div>
+              <div class="rr-tgt-13w-actions">
+                <button class="btn btn-sm" type="button" id="rr-tgt-adjust-btn" title="Scale a range of weeks by a percentage (every day and wave, undoable)">Adjust…</button>
+                <button class="btn btn-sm" type="button" id="rr-tgt-seed-btn" title="Fill weeks that have no plan yet from the last 4 weeks' average per-weekday pattern">Seed empty weeks</button>
               </div>
             </div>
             <div id="rr-sched-targets-13week-host">

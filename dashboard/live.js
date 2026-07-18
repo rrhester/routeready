@@ -52741,8 +52741,11 @@ function _rrOkamiWeekRowHtml(w) {
   const detail = expandable
     ? `<tr class="okami-detail" id="okami-detail-${w}"><td colspan="8" id="okami-detail-content-${w}" tabindex="-1"></td></tr>`
     : "";
+  const rowActs = w < RR_OKAMI_WEEKS - 1
+    ? `<span class="rr-tgt-row-acts"><button type="button" data-rr-okami-copy-next="${w}" title="Copy this week's day-by-day plan to next week">→</button><button type="button" data-rr-okami-fill-rest="${w}" title="Fill every later week with this week's day-by-day plan">⇊</button></span>`
+    : "";
   return `<tr id="okami-row-${w}">
-    <td>${expandBtn}<div class="plan-week-label" style="display:inline-block;vertical-align:middle"></div><div class="plan-week-dates"></div><span class="rr-tgt-week-chips"></span></td>
+    <td>${expandBtn}<div class="plan-week-label" style="display:inline-block;vertical-align:middle"></div><div class="plan-week-dates"></div><span class="rr-tgt-week-chips"></span>${rowActs}</td>
     <td class="center"><input class="plan-route-input" inputmode="numeric" autocomplete="off" data-rr-okami-week-idx="${w}"/></td>
     <td class="center"><div class="plan-calc"></div></td>
     <td class="center"><div class="plan-calc"></div></td>
@@ -52953,19 +52956,33 @@ async function _renderOkamiLiveImpl() {
   const totalsByDate = new Map();
   const filledByDate = new Map();
   const typeTotalsByWeekIdx = Array.from({ length: RR_OKAMI_WEEKS }, () => ({}));
+  // Per-(date × station × wave × type) demand buckets — the exact rows
+  // okami_set_target upserts. Copy/fill/adjust/undo (the plan-editing
+  // ops) read + restore THESE so per-day and per-wave structure survives
+  // bulk edits instead of being flattened.
+  const bucketsByDate = new Map();
   const startNoonUtc = Date.parse(_okamiStart + "T12:00:00Z");
   for (const c of cells) {
     totalsByDate.set(c.date, (totalsByDate.get(c.date) || 0) + (c.target_routes || 0));
     filledByDate.set(c.date, (filledByDate.get(c.date) || 0) + (c.filled || 0));
     const wIdx = Math.floor(Math.round((Date.parse(c.date + "T12:00:00Z") - startNoonUtc) / 86400000) / 7);
-    if (wIdx >= 0 && wIdx < RR_OKAMI_WEEKS && Array.isArray(c.targets_by_wave)) {
-      const bucket = typeTotalsByWeekIdx[wIdx];
+    if (Array.isArray(c.targets_by_wave)) {
+      const typeBucket = wIdx >= 0 && wIdx < RR_OKAMI_WEEKS ? typeTotalsByWeekIdx[wIdx] : null;
       for (const t of c.targets_by_wave) {
         const code = t?.service_type_code || "SP";
-        bucket[code] = (bucket[code] || 0) + (t?.target_routes || 0);
+        if (typeBucket) typeBucket[code] = (typeBucket[code] || 0) + (t?.target_routes || 0);
+        if (!bucketsByDate.has(c.date)) bucketsByDate.set(c.date, []);
+        bucketsByDate.get(c.date).push({
+          stationId: c.station_id,
+          waveIndex: t?.wave_index ?? 0,
+          serviceTypeId: t?.service_type_id ?? null,
+          code,
+          value: t?.target_routes || 0,
+        });
       }
     }
   }
+  window._rrOkamiBucketsByDate = bucketsByDate;
   // Cache for fast slider re-renders (no network round-trip per drag tick).
   _okamiTotalsByDateCache = totalsByDate;
   _okamiStartCache = start;
@@ -53187,10 +53204,16 @@ let _okamiSaveTimers = new Map();
 const _okamiDirtyWeeks = new Set();
 
 function _setOkamiSaveStatus(text, kind) {
-  const el = document.getElementById("rr-okami-save-status");
-  if (!el) return;
-  el.textContent = text || "";
-  el.style.color = kind === "warn" ? "var(--red)" : kind === "ok" ? "var(--green)" : "var(--text-subtle)";
+  // Twin surfaces: the OKAMI page header and the Targets toolbar (the
+  // Targets sub-view never shows the OKAMI header, so typing feedback
+  // was invisible there).
+  const color = kind === "warn" ? "var(--red)" : kind === "ok" ? "var(--green)" : "var(--text-subtle)";
+  for (const id of ["rr-okami-save-status", "rr-tgt-save-status"]) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    el.textContent = text || "";
+    el.style.color = color;
+  }
 }
 
 function bindOkamiHandlers() {
@@ -53333,41 +53356,125 @@ function bindOkamiHandlers() {
   window.renderOkamiDailyPanel = renderOkamiDailyPanel;
 }
 
-async function saveOkamiWeek(w, routesMax) {
+// saveOkamiWeek (the old typed-value writer) was folded into
+// _rrOkamiSetWeeksFlat below — same single-station write pattern, now
+// with validation, a flatten confirm, and undo.
+
+// ─── Targets plan editing · validation, flatten-confirm, undo, bulk ops ────
+//
+// Every editing operation (typed week value, paste, copy-forward, fill,
+// percent adjust, seed) goes through _rrOkamiApplyWrites: a list of
+// (date × station × wave × type) bucket writes carrying their PRIOR
+// values, so one op = one undo. Buckets come from _rrOkamiBucketsByDate
+// (built during render from okami_grid), which is what okami_set_target
+// upserts — per-day and per-wave structure survives bulk edits.
+
+const RR_OKAMI_MAX_ROUTES = 400; // sanity clamp for a single day's routes
+
+function _rrOkamiWeekIso(w, d = 0) {
+  return fmtIsoDate(addDays(new Date((window._okamiStart || _okamiStart) + "T12:00:00"), w * 7 + d));
+}
+
+async function _rrOkamiEnsureStations() {
+  if (_okamiStations && _okamiStations.length) return _okamiStations;
   const dspId = window.RR?.dsp?.id;
-  if (!dspId) return;
-  if (!_okamiStart) return;
-  const weekStart = addDays(new Date(_okamiStart + "T12:00:00"), w * 7);
+  if (!dspId) return [];
+  const { data, error } = await sb.from("stations")
+    .select("id, code, active").eq("dsp_id", dspId).eq("active", true).order("code");
+  if (error) { toast("Stations load failed: " + error.message, "warn"); return []; }
+  _okamiStations = data || [];
+  return _okamiStations;
+}
 
-  if (!_okamiStations || _okamiStations.length === 0) {
-    const { data, error } = await sb.from("stations")
-      .select("id, code, active").eq("dsp_id", dspId).eq("active", true);
-    if (error) { toast("Save failed: " + error.message, "warn"); return; }
-    _okamiStations = data || [];
-  }
-  if (_okamiStations.length === 0) {
-    toast("No stations configured — add a station before setting OKAMI", "warn");
-    return;
-  }
+let _rrOkamiLastOp = null;
+let _rrOkamiStatusClearTimer = null;
+function _rrOkamiFlashStatus(text, kind) {
+  _setOkamiSaveStatus(text, kind);
+  if (_rrOkamiStatusClearTimer) clearTimeout(_rrOkamiStatusClearTimer);
+  if (kind === "ok") _rrOkamiStatusClearTimer = setTimeout(() => _setOkamiSaveStatus(""), 4000);
+}
 
-  // Single-station mode: full value to first station, zero out the rest.
-  // set_okami_week_demand wrote to ALL stations which inflated the displayed
-  // peak by N× when multiple active stations existed.
-  const target = Math.max(0, parseInt(routesMax, 10) || 0);
-  const calls = [];
-  for (let d = 0; d < 7; d++) {
-    const iso = fmtIsoDate(addDays(weekStart, d));
-    _okamiStations.forEach((s, idx) => {
-      calls.push(sb.rpc("okami_set_target", { p_date: iso, p_station_id: s.id, p_target: idx === 0 ? target : 0 }));
+async function _rrOkamiApplyWrites(writes, opts = {}) {
+  if (!writes.length) return { ok: true };
+  _rrOkamiFlashStatus(opts.statusLabel || "Saving…");
+  const CHUNK = 20;
+  for (let i = 0; i < writes.length; i += CHUNK) {
+    const res = await Promise.all(writes.slice(i, i + CHUNK).map((x) =>
+      sb.rpc("okami_set_target", {
+        p_date: x.iso,
+        p_station_id: x.stationId,
+        p_target: Math.max(0, Math.round(x.value)),
+        p_wave_index: x.waveIndex || 0,
+        p_service_type_id: x.serviceTypeId || null,
+      })));
+    const bad = res.find((r) => r.error);
+    if (bad) {
+      _rrOkamiFlashStatus("Save failed", "warn");
+      toast("Save failed: " + bad.error.message, "warn");
+      return { ok: false };
+    }
+  }
+  _rrOkamiFlashStatus("Saved ✓", "ok");
+  return { ok: true };
+}
+
+async function _rrOkamiCommitOp(writes, label) {
+  const r = await _rrOkamiApplyWrites(writes);
+  if (!r.ok) return false;
+  _rrOkamiLastOp = { label, writes };
+  if (typeof toastAction === "function") {
+    toastAction(label, {
+      kind: "info",
+      timeout: 8000,
+      actions: [
+        { label: "Undo", primary: true, onClick: () => _rrOkamiUndoLastOp() },
+        { label: "OK" },
+      ],
     });
   }
-  const results = await Promise.all(calls);
-  const firstErr = results.find(r => r.error);
-  if (firstErr) { toast("Save failed: " + firstErr.error.message, "warn"); return; }
+  await renderOkamiLive();
+  return true;
+}
+
+async function _rrOkamiUndoLastOp() {
+  const op = _rrOkamiLastOp;
+  if (!op) return;
+  _rrOkamiLastOp = null;
+  const inverse = op.writes.map((x) => ({ ...x, value: x.prev, prev: x.value }));
+  const r = await _rrOkamiApplyWrites(inverse, { statusLabel: "Undoing…" });
+  if (r.ok) toast("Undone", "success");
   await renderOkamiLive();
 }
 
-// Debounced save when the operator types into a Routes (max) cell.
+// Flat week set — what typing in the Routes cell means: full value to the
+// first station's wave-0 default bucket for all 7 days, zero to other
+// stations' (mirrors saveOkamiWeek), with prior values captured.
+function _rrOkamiFlatWrites(w, val) {
+  const buckets = window._rrOkamiBucketsByDate || new Map();
+  const writes = [];
+  for (let d = 0; d < 7; d++) {
+    const iso = _rrOkamiWeekIso(w, d);
+    const dayBuckets = buckets.get(iso) || [];
+    _okamiStations.forEach((s, idx) => {
+      const prevEntry = dayBuckets.find((b) => b.stationId === s.id && (b.waveIndex || 0) === 0 && b.code === "SP");
+      writes.push({
+        iso, stationId: s.id, waveIndex: 0, serviceTypeId: prevEntry?.serviceTypeId || null,
+        value: idx === 0 ? val : 0,
+        prev: prevEntry ? prevEntry.value : 0,
+      });
+    });
+  }
+  return writes;
+}
+
+async function _rrOkamiSetWeeksFlat(entries, label) {
+  const stations = await _rrOkamiEnsureStations();
+  if (!stations.length) { toast("No stations configured — add a station before setting targets", "warn"); return; }
+  await _rrOkamiCommitOp(entries.flatMap((en) => _rrOkamiFlatWrites(en.w, en.val)), label);
+}
+
+// Debounced save when the operator types into a Routes (max) cell —
+// validated, and confirmed when it would flatten per-day variation.
 const _okamiWeekSaveTimers = new Map();
 document.addEventListener("input", (e) => {
   const inp = e.target.closest("input.plan-route-input");
@@ -53376,9 +53483,259 @@ document.addEventListener("input", (e) => {
   if (!Number.isFinite(w) || w < 0) return;
   const prev = _okamiWeekSaveTimers.get(w);
   if (prev) clearTimeout(prev);
-  _okamiWeekSaveTimers.set(w, setTimeout(() => {
-    saveOkamiWeek(w, parseInt(inp.value, 10) || 0);
+  _okamiWeekSaveTimers.set(w, setTimeout(async () => {
+    _okamiWeekSaveTimers.delete(w);
+    const mw = window._rrOkamiModel?.weeks?.[w];
+    const raw = String(inp.value || "").trim();
+    // Cleared mid-edit is not a save — the old parseInt(...)||0 silently
+    // zeroed all 7 days when the operator emptied the cell.
+    if (raw === "") return;
+    let val = parseInt(raw, 10);
+    if (!Number.isFinite(val) || val < 0) {
+      if (mw) inp.value = mw.routesMax;
+      toast("Routes must be a whole number ≥ 0", "warn");
+      return;
+    }
+    if (val > RR_OKAMI_MAX_ROUTES) {
+      val = RR_OKAMI_MAX_ROUTES;
+      inp.value = String(val);
+      toast(`Capped at ${RR_OKAMI_MAX_ROUTES} routes/day`, "warn");
+    }
+    // Typing sets ALL 7 days. If the week currently varies by day this is
+    // destructive — say so before doing it.
+    const dayVals = [];
+    for (let d = 0; d < 7; d++) dayVals.push(_okamiTotalsByDateCache?.get(_rrOkamiWeekIso(w, d)) || 0);
+    const varies = dayVals.length && Math.max(...dayVals) !== Math.min(...dayVals);
+    if (varies && typeof _rrConfirmDialog === "function") {
+      const okc = await _rrConfirmDialog({
+        title: "Overwrite all 7 days?",
+        body: `${mw?.label || "This week"} varies by day (${Math.min(...dayVals)}–${Math.max(...dayVals)} routes). Typing here sets every day to ${val}. Use the row's drill-down to edit single days.`,
+        confirmLabel: "Set all 7 days",
+        danger: true,
+      });
+      if (!okc) {
+        if (mw) inp.value = String(mw.routesMax);
+        return;
+      }
+    }
+    await _rrOkamiSetWeeksFlat([{ w, val }], `${mw?.label || `Week ${w + 1}`} set to ${val} for all 7 days`);
   }, 600));
+});
+
+// Spreadsheet keyboard flow on the Routes column: ↑/↓ move between weeks,
+// Enter commits (debounce fires) and advances, Esc restores the value.
+document.addEventListener("keydown", (e) => {
+  const inp = e.target.closest && e.target.closest("input.plan-route-input");
+  if (!inp) return;
+  const w = parseInt(inp.dataset.rrOkamiWeekIdx ?? "-1", 10);
+  if (!Number.isFinite(w) || w < 0) return;
+  if (e.key === "ArrowDown" || e.key === "Enter") {
+    e.preventDefault();
+    const next = document.querySelector(`input.plan-route-input[data-rr-okami-week-idx="${w + 1}"]`);
+    if (next) { next.focus(); if (next.select) next.select(); }
+    else inp.blur();
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    const prevInp = document.querySelector(`input.plan-route-input[data-rr-okami-week-idx="${w - 1}"]`);
+    if (prevInp) { prevInp.focus(); if (prevInp.select) prevInp.select(); }
+  } else if (e.key === "Escape") {
+    const mw = window._rrOkamiModel?.weeks?.[w];
+    if (mw) inp.value = String(mw.routesMax);
+    inp.blur();
+  }
+});
+
+// Paste a column of numbers (from Excel/Sheets) into a Routes cell —
+// values distribute down the rows from that week.
+document.addEventListener("paste", (e) => {
+  const inp = e.target.closest && e.target.closest("input.plan-route-input");
+  if (!inp) return;
+  const w = parseInt(inp.dataset.rrOkamiWeekIdx ?? "-1", 10);
+  if (!Number.isFinite(w) || w < 0) return;
+  const text = e.clipboardData?.getData("text") || "";
+  const nums = text.split(/[\s,;]+/).filter(Boolean)
+    .map((s) => parseInt(s.replace(/[^\d-]/g, ""), 10))
+    .filter((n) => Number.isFinite(n) && n >= 0);
+  if (nums.length < 2) return; // single value → normal typing flow
+  e.preventDefault();
+  const span = Math.min(nums.length, RR_OKAMI_WEEKS - w);
+  const entries = nums.slice(0, span).map((val, i) => ({ w: w + i, val: Math.min(val, RR_OKAMI_MAX_ROUTES) }));
+  const weeks = window._rrOkamiModel?.weeks || [];
+  const first = weeks[w]?.label || `wk ${w + 1}`;
+  const last = weeks[w + span - 1]?.label || `wk ${w + span}`;
+  (async () => {
+    const okc = typeof _rrConfirmDialog !== "function" || await _rrConfirmDialog({
+      title: `Paste ${span} week${span === 1 ? "" : "s"}?`,
+      body: `Sets ${first}–${last} to ${entries.map((x) => x.val).join(", ")} — each value fills all 7 days of its week.`,
+      confirmLabel: "Paste",
+    });
+    if (!okc) return;
+    await _rrOkamiSetWeeksFlat(entries, `Pasted ${span} week${span === 1 ? "" : "s"} (${first}–${last})`);
+  })();
+});
+
+// Copy-forward — exact per-bucket copy (day-by-day, wave-by-wave), so
+// variation survives. Union of source+target buckets means stale target
+// demand is overwritten, not merged.
+function _rrOkamiCopyWrites(srcW, dstW) {
+  const buckets = window._rrOkamiBucketsByDate || new Map();
+  const writes = [];
+  for (let d = 0; d < 7; d++) {
+    const dstIso = _rrOkamiWeekIso(dstW, d);
+    const src = buckets.get(_rrOkamiWeekIso(srcW, d)) || [];
+    const dst = buckets.get(dstIso) || [];
+    const keyOf = (b) => `${b.stationId}|${b.waveIndex || 0}|${b.serviceTypeId || ""}`;
+    const merged = new Map();
+    for (const b of src) merged.set(keyOf(b), { ...b, srcVal: b.value, dstVal: 0 });
+    for (const b of dst) {
+      const k = keyOf(b);
+      if (merged.has(k)) merged.get(k).dstVal = b.value;
+      else merged.set(k, { ...b, srcVal: 0, dstVal: b.value });
+    }
+    for (const m of merged.values()) {
+      if (m.srcVal === m.dstVal) continue;
+      writes.push({ iso: dstIso, stationId: m.stationId, waveIndex: m.waveIndex || 0, serviceTypeId: m.serviceTypeId || null, value: m.srcVal, prev: m.dstVal });
+    }
+  }
+  return writes;
+}
+
+document.addEventListener("click", (e) => {
+  const copyBtn = e.target.closest && e.target.closest("[data-rr-okami-copy-next]");
+  const fillBtn = e.target.closest && e.target.closest("[data-rr-okami-fill-rest]");
+  if (!copyBtn && !fillBtn) return;
+  e.preventDefault();
+  const w = parseInt(copyBtn ? copyBtn.dataset.rrOkamiCopyNext : fillBtn.dataset.rrOkamiFillRest, 10);
+  const weeks = window._rrOkamiModel?.weeks || [];
+  const src = weeks[w];
+  if (!src || src.unplanned) { toast("Nothing to copy — this week has no plan yet", "warn"); return; }
+  (async () => {
+    if (copyBtn) {
+      const dst = weeks[w + 1];
+      if (!dst) return;
+      await _rrOkamiCommitOp(_rrOkamiCopyWrites(w, w + 1), `Copied ${src.label} → ${dst.label}`);
+    } else {
+      const targets = weeks.slice(w + 1);
+      if (!targets.length) return;
+      const okc = typeof _rrConfirmDialog !== "function" || await _rrConfirmDialog({
+        title: `Fill ${targets.length} later week${targets.length === 1 ? "" : "s"}?`,
+        body: `Copies ${src.label}'s day-by-day plan into ${targets[0].label}–${targets[targets.length - 1].label}, overwriting whatever they have now.`,
+        confirmLabel: "Fill weeks",
+        danger: true,
+      });
+      if (!okc) return;
+      await _rrOkamiCommitOp(
+        targets.flatMap((t) => _rrOkamiCopyWrites(w, t.idx)),
+        `Filled ${targets.length} week${targets.length === 1 ? "" : "s"} from ${src.label}`);
+    }
+  })();
+});
+
+// Bulk percent adjust — scales every demand bucket of the chosen week
+// range (peak ramps: "raise W32–W36 by 10%").
+function _rrOkamiAdjustHtml() {
+  const weeks = window._rrOkamiModel?.weeks || [];
+  const opts = weeks.map((w) => `<option value="${w.idx}">${escapeHtml(w.label)} · ${escapeHtml(w.dates)}</option>`).join("");
+  const optsLast = weeks.map((w) => `<option value="${w.idx}" ${w.idx === weeks.length - 1 ? "selected" : ""}>${escapeHtml(w.label)} · ${escapeHtml(w.dates)}</option>`).join("");
+  return `<div class="pa-pop-h">Adjust route plan</div>
+    <div style="padding:12px 14px;display:grid;gap:8px;font-size:var(--fs-sm)">
+      <label style="display:flex;align-items:center;justify-content:space-between;gap:8px">From <select class="form-input form-input-sm" id="rr-tgt-adj-from">${opts}</select></label>
+      <label style="display:flex;align-items:center;justify-content:space-between;gap:8px">To <select class="form-input form-input-sm" id="rr-tgt-adj-to">${optsLast}</select></label>
+      <label style="display:flex;align-items:center;justify-content:space-between;gap:8px">Change <span style="display:inline-flex;align-items:center;gap:4px"><input class="form-input form-input-sm" id="rr-tgt-adj-pct" type="number" step="1" min="-90" max="200" value="10" style="width:70px;text-align:right"/> %</span></label>
+      <button class="btn btn-primary btn-sm" type="button" data-rr-okami-adjust-apply>Apply</button>
+      <div style="font-size:var(--fs-xs);color:var(--text-subtle)">Scales every day (and wave) of each week. Undoable.</div>
+    </div>`;
+}
+document.addEventListener("click", (e) => {
+  const openBtn = e.target.closest && e.target.closest("#rr-tgt-adjust-btn");
+  if (openBtn) {
+    e.preventDefault();
+    if (typeof _paOpenPopover === "function") _paOpenPopover(openBtn, _rrOkamiAdjustHtml());
+    return;
+  }
+  const apply = e.target.closest && e.target.closest("[data-rr-okami-adjust-apply]");
+  if (!apply) return;
+  e.preventDefault();
+  const from = parseInt(document.getElementById("rr-tgt-adj-from")?.value ?? "0", 10) || 0;
+  const to = parseInt(document.getElementById("rr-tgt-adj-to")?.value ?? "0", 10) || 0;
+  const pct = parseInt(document.getElementById("rr-tgt-adj-pct")?.value ?? "0", 10) || 0;
+  if (typeof _paClosePop === "function") _paClosePop();
+  if (!pct) return;
+  const lo = Math.min(from, to), hi = Math.max(from, to);
+  const weeks = (window._rrOkamiModel?.weeks || []).filter((w) => w.idx >= lo && w.idx <= hi && !w.unplanned);
+  if (!weeks.length) { toast("No planned weeks in that range", "warn"); return; }
+  const buckets = window._rrOkamiBucketsByDate || new Map();
+  const factor = 1 + pct / 100;
+  const writes = [];
+  for (const wk of weeks) {
+    for (let d = 0; d < 7; d++) {
+      const iso = _rrOkamiWeekIso(wk.idx, d);
+      for (const b of buckets.get(iso) || []) {
+        if (!b.value) continue;
+        const nv = Math.max(0, Math.round(b.value * factor));
+        if (nv === b.value) continue;
+        writes.push({ iso, stationId: b.stationId, waveIndex: b.waveIndex || 0, serviceTypeId: b.serviceTypeId || null, value: nv, prev: b.value });
+      }
+    }
+  }
+  if (!writes.length) { toast("Nothing to adjust in that range", "info"); return; }
+  const label = `${pct > 0 ? "+" : ""}${pct}% on ${weeks[0].label}–${weeks[weeks.length - 1].label}`;
+  _rrOkamiCommitOp(writes, label);
+});
+
+// Seed empty weeks from history — trailing 4 weeks' per-weekday average
+// (staffed shifts preferred, planned targets as fallback), so empty
+// future weeks start from evidence instead of zero.
+async function _rrOkamiSeedEmptyWeeks() {
+  const weeks = window._rrOkamiModel?.weeks || [];
+  const empty = weeks.filter((w) => w.unplanned);
+  if (!empty.length) { toast("Every week already has a plan — nothing to seed", "info"); return; }
+  const stations = await _rrOkamiEnsureStations();
+  if (!stations.length) { toast("No stations configured", "warn"); return; }
+  const anchor = window._okamiStart || _okamiStart;
+  const histStart = fmtIsoDate(addDays(new Date(anchor + "T12:00:00"), -28));
+  const { data, error } = await sb.rpc("okami_grid", { p_start: histStart, p_weeks: 4 });
+  if (error) { toast("History load failed: " + error.message, "warn"); return; }
+  const dateAgg = new Map();
+  for (const c of data || []) {
+    const cur = dateAgg.get(c.date) || { filled: 0, target: 0 };
+    cur.filled += c.filled || 0;
+    cur.target += c.target_routes || 0;
+    dateAgg.set(c.date, cur);
+  }
+  const byDow = Array.from({ length: 7 }, () => ({ filled: [], target: [] }));
+  for (const [iso, v] of dateAgg) {
+    if (iso >= anchor) continue; // only the past counts as history
+    const dow = new Date(iso + "T12:00:00").getDay();
+    if (v.filled > 0) byDow[dow].filled.push(v.filled);
+    if (v.target > 0) byDow[dow].target.push(v.target);
+  }
+  const avg = (a) => (a.length ? Math.round(a.reduce((s, n) => s + n, 0) / a.length) : 0);
+  const dowVal = byDow.map((b) => avg(b.filled) || avg(b.target));
+  if (!dowVal.some((n) => n > 0)) { toast("No route history in the last 4 weeks to seed from", "warn"); return; }
+  const dowNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const okc = typeof _rrConfirmDialog !== "function" || await _rrConfirmDialog({
+    title: `Seed ${empty.length} empty week${empty.length === 1 ? "" : "s"}?`,
+    body: `Fills ${empty.map((w) => w.label).join(", ")} with the last 4 weeks' average pattern — ${dowNames.map((n, i) => `${n} ${dowVal[i]}`).join(" · ")}.`,
+    confirmLabel: "Seed weeks",
+  });
+  if (!okc) return;
+  const writes = [];
+  for (const wk of empty) {
+    for (let d = 0; d < 7; d++) {
+      const iso = _rrOkamiWeekIso(wk.idx, d);
+      const val = dowVal[new Date(iso + "T12:00:00").getDay()];
+      if (!val) continue;
+      writes.push({ iso, stationId: stations[0].id, waveIndex: 0, serviceTypeId: null, value: val, prev: 0 });
+    }
+  }
+  await _rrOkamiCommitOp(writes, `Seeded ${empty.length} week${empty.length === 1 ? "" : "s"} from history`);
+}
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest && e.target.closest("#rr-tgt-seed-btn");
+  if (!btn) return;
+  e.preventDefault();
+  _rrOkamiSeedEmptyWeeks();
 });
 
 // ─── OKAMI · daily drill-down panel (PR C) ─────────────────────────────────
