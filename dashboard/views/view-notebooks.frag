@@ -400,6 +400,15 @@
 .rrnb-hovercard .hc-nm{font-weight:600;color:var(--text)}
 .rrnb-hovercard .hc-ty{font-size:var(--fs-xs);color:var(--text-subtle);text-transform:capitalize}
 .rrnb-hovercard .hc-open{margin-top:8px;font-size:var(--fs-xs);color:var(--accent)}
+/* #34 web-link preview card */
+.rrnb-linkcard{position:fixed;z-index:80;max-width:300px;background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-lg);box-shadow:var(--shadow-pop);padding:9px 12px;font-size:var(--fs-sm)}
+.rrnb-linkcard[hidden]{display:none}
+.rrnb-linkcard .lc-host{display:flex;align-items:center;gap:5px;font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600}
+.rrnb-linkcard .lc-glyph{font-size:11px}
+.rrnb-linkcard .lc-title{margin-top:3px;font-weight:600;color:var(--text);line-height:1.35}
+.rrnb-linkcard .lc-desc{margin-top:3px;font-size:var(--fs-xs);color:var(--text-muted);line-height:1.45;
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 /* web links (auto-detected URLs + Ctrl/⌘-K links): read as clickable */
 .rrnb-editor a.rrnb-weblink{cursor:pointer;border-bottom:1px solid var(--accent-border)}
 .rrnb-editor a.rrnb-weblink:hover{border-bottom-color:var(--accent);text-decoration:underline;text-underline-offset:2px}
@@ -552,6 +561,14 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   color:var(--text-subtle);background:var(--surface-secondary);border-radius:var(--r-pill);
   padding:1px 7px;user-select:none}
 .rrnb-todo-due.overdue{color:var(--red,#dc2626);background:var(--red-soft,rgba(220,38,38,.12))}
+/* #24 assignee chip on a to-do */
+.rrnb-todo-assignee{flex:0 0 auto;align-self:center;margin-left:6px;display:inline-flex;align-items:center;gap:4px;
+  font-size:11px;font-weight:600;color:var(--accent-text);background:var(--accent-soft);border-radius:var(--r-pill);
+  padding:1px 8px 1px 2px;user-select:none}
+.rrnb-todo-assignee .av{width:16px;height:16px;border-radius:50%;background:var(--accent);color:var(--rr-white);
+  display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:700}
+.rrnb-asgav{width:20px;height:20px;border-radius:50%;background:var(--accent);color:var(--rr-white);
+  display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;margin-right:7px;flex:0 0 auto}
 
 /* callout */
 .rrnb-editor .rrnb-callout{display:flex;gap:var(--s-2);margin:var(--s-2) 0;padding:var(--s-2) var(--s-3);
@@ -869,7 +886,9 @@ body.rrnb-dark-nb #rrnb-blockmenu,
 body.rrnb-dark-nb #rrnb-cmdk,
 body.rrnb-dark-nb #rrnb-toast,
 body.rrnb-dark-nb #rrnb-undotoast,
-body.rrnb-dark-nb #rrnb-hovercard{
+body.rrnb-dark-nb #rrnb-hovercard,
+body.rrnb-dark-nb #rrnb-linkcard,
+body.rrnb-dark-nb #rrnb-selcmt{
   --canvas:#0f1216;
   --surface:#1a1e24;
   --surface-secondary:#232830;
@@ -2011,7 +2030,7 @@ body.rrnb-dark-nb #rrnb-hovercard{
     ed.addEventListener("mouseover", onChipHover);
     ed.addEventListener("mouseout", onChipOut);
     updateWordCount();
-    recomputeTodoRollups(ed); scanTodoDue(ed);   // #22/#23 render saved nesting counts + due chips
+    recomputeTodoRollups(ed); scanTodoDue(ed); scanTodoAssignee(ed);   // #22/#23/#24 saved counts + due + assignee chips
     scanBrokenLinks(ed);                          // #43 flag page links whose target is gone
     ed.addEventListener("dragover", function (e) { if (DH.dragging) { dhDragOver(e); return; } e.preventDefault(); ed.classList.add("rrnb-drop"); });
     ed.addEventListener("dragleave", function () { ed.classList.remove("rrnb-drop"); });
@@ -2404,6 +2423,37 @@ body.rrnb-dark-nb #rrnb-hovercard{
     row.appendChild(chip);
   }
   function scanTodoDue(ed) { ed = ed || $id("rrnb-editor"); if (!ed) return; [].slice.call(ed.querySelectorAll(".rrnb-todo[data-due]")).forEach(renderTodoDue); }
+  // #24 assign a to-do to a teammate. data-assignee-id / -name persist (structural);
+  // the avatar chip is view-only (rendered fresh, stripped from saved HTML).
+  function renderTodoAssignee(row) {
+    if (!row) return;
+    var ex = row.querySelector(".rrnb-todo-assignee"); if (ex) ex.remove();
+    var id = row.getAttribute("data-assignee-id"), nm = row.getAttribute("data-assignee-name");
+    if (!id || !nm) return;
+    var chip = document.createElement("span");
+    chip.className = "rrnb-todo-assignee"; chip.setAttribute("contenteditable", "false");
+    chip.innerHTML = '<span class="av">' + esc(recInitials(nm)) + '</span>' + esc(nm.split(" ")[0]);
+    chip.title = "Assigned to " + nm;
+    row.appendChild(chip);
+  }
+  function scanTodoAssignee(ed) { ed = ed || $id("rrnb-editor"); if (!ed) return; [].slice.call(ed.querySelectorAll(".rrnb-todo[data-assignee-id]")).forEach(renderTodoAssignee); }
+  function setTodoAssignee(row) {
+    if (!row || S.readOnly) return;
+    ensureCommentStaff();
+    var staff = S._cmtStaff || [];
+    if (!staff.length) { notify("No teammates to assign yet"); return; }
+    var cur = row.getAttribute("data-assignee-id") || "";
+    var list = staff.map(function (s) {
+      return '<div class="rrnb-pop-opt' + (s.user_id === cur ? " sel" : "") + '" data-assign-id="' + esc(s.user_id) + '" data-assign-name="' + esc(s.name) + '"><span class="rrnb-asgav">' + esc(recInitials(s.name)) + '</span>' + esc(s.name) + '</div>';
+    }).join("");
+    var pop = showPop('<label>Assign to</label><div class="rrnb-pop-list">' + list + '</div>', row.getBoundingClientRect());
+    pop.addEventListener("click", function (e) {
+      var b = e.target.closest("[data-assign-id]"); if (!b) return;
+      row.setAttribute("data-assignee-id", b.getAttribute("data-assign-id"));
+      row.setAttribute("data-assignee-name", b.getAttribute("data-assign-name"));
+      renderTodoAssignee(row); hidePop(); scheduleSave();
+    });
+  }
   // #37 hover a resolved record chip → a mini-card. Live status is read from
   // the already-loaded roster/fleet globals when available (no extra fetch).
   var _hc = { el: null, chip: null, timer: null };
@@ -2435,8 +2485,52 @@ body.rrnb-dark-nb #rrnb-hovercard{
     d.style.top = top + "px";
   }
   function hideRecHovercard() { _hc.timer = setTimeout(function () { if (_hc.el) _hc.el.hidden = true; _hc.chip = null; }, 130); }
-  function onChipHover(e) { var chip = e.target.closest && e.target.closest("a.rrnb-objlink[data-obj-type][data-obj-id]"); if (chip) { clearTimeout(_hc.timer); if (chip !== _hc.chip) { _hc.chip = chip; showRecHovercard(chip); } } }
-  function onChipOut(e) { var chip = e.target.closest && e.target.closest("a.rrnb-objlink"); if (chip) hideRecHovercard(); }
+  // #34 hover a web link → a preview card (source host + title + description),
+  // unfurled by the link-preview edge fn and cached per URL for the session.
+  var _lc = { el: null, a: null, timer: null };
+  function linkCardEl() {
+    if (_lc.el) return _lc.el;
+    var x = document.createElement("div"); x.className = "rrnb-linkcard"; x.id = "rrnb-linkcard"; x.hidden = true;
+    x.addEventListener("mouseenter", function () { clearTimeout(_lc.timer); });
+    x.addEventListener("mouseleave", hideLinkCard);
+    document.body.appendChild(x); _lc.el = x; return x;
+  }
+  function positionLinkCard(a, d) {
+    var r = a.getBoundingClientRect();
+    d.style.left = Math.max(8, Math.min(window.innerWidth - d.offsetWidth - 8, r.left)) + "px";
+    var top = r.bottom + 6; if (top + d.offsetHeight > window.innerHeight - 8) top = Math.max(8, r.top - d.offsetHeight - 6);
+    d.style.top = top + "px";
+  }
+  function hostOf(url) { try { return new URL(url).hostname.replace(/^www\./, ""); } catch (e) { return url; } }
+  function showLinkCard(a) {
+    var url = a.href; if (!url) return;
+    var d = linkCardEl(), host = hostOf(url);
+    function paint(meta) {
+      d.innerHTML = '<div class="lc-host"><span class="lc-glyph">🌐</span>' + esc(meta && meta.host ? meta.host : host) + '</div>' +
+        (meta && meta.title ? '<div class="lc-title">' + esc(meta.title) + '</div>' : '') +
+        (meta ? (meta.description ? '<div class="lc-desc">' + esc(meta.description) + '</div>' : '') : '<div class="lc-desc">Loading preview…</div>');
+      d.hidden = false; positionLinkCard(a, d);
+    }
+    var cache = S._linkPrev || (S._linkPrev = {});
+    if (cache[url]) { paint(cache[url]); return; }
+    paint(null); // loading state
+    var sb = aiFn(); if (!sb) { paint({ title: "", description: "", host: host }); return; }
+    sb.functions.invoke("link-preview", { body: { url: url } }).then(function (res) {
+      var m = (res && res.data) || {}; cache[url] = { title: m.title || "", description: m.description || "", host: m.host || host };
+      if (_lc.a === a && d && !d.hidden) paint(cache[url]);
+    }).catch(function () { cache[url] = { title: "", description: "", host: host }; if (_lc.a === a && d && !d.hidden) paint(cache[url]); });
+  }
+  function hoverLink(a) { clearTimeout(_lc.timer); if (a === _lc.a && _lc.el && !_lc.el.hidden) return; _lc.a = a; _lc.timer = setTimeout(function () { showLinkCard(a); }, 350); }
+  function hideLinkCard() { _lc.timer = setTimeout(function () { if (_lc.el) _lc.el.hidden = true; _lc.a = null; }, 130); }
+  function onChipHover(e) {
+    var chip = e.target.closest && e.target.closest("a.rrnb-objlink[data-obj-type][data-obj-id]");
+    if (chip) { clearTimeout(_hc.timer); if (chip !== _hc.chip) { _hc.chip = chip; showRecHovercard(chip); } return; }
+    var lk = e.target.closest && e.target.closest("a.rrnb-weblink"); if (lk) hoverLink(lk);
+  }
+  function onChipOut(e) {
+    if (e.target.closest && e.target.closest("a.rrnb-objlink")) hideRecHovercard();
+    if (e.target.closest && e.target.closest("a.rrnb-weblink")) hideLinkCard();
+  }
   // #43 flag same-notebook page links whose target page no longer exists.
   // The class is view-only (recomputed on load, stripped from saved HTML).
   function scanBrokenLinks(ed) {
@@ -3406,8 +3500,9 @@ body.rrnb-dark-nb #rrnb-hovercard{
     clean.querySelectorAll("figure.rrnb-fig.sel, img.sel").forEach(function (n) { n.classList.remove("sel"); });
     clean.querySelectorAll(".rrnb-folded, .rrnb-fold-hidden").forEach(function (n) { n.classList.remove("rrnb-folded", "rrnb-fold-hidden"); if (!n.className) n.removeAttribute("class"); });
     // #22/#23: fold-in the transient to-do roll-up count + rendered due chip;
-    // data-todo-indent and data-due are structural and kept.
+    // data-todo-indent, data-due and data-assignee-* are structural and kept.
     clean.querySelectorAll(".rrnb-todo-due").forEach(function (n) { n.remove(); });
+    clean.querySelectorAll(".rrnb-todo-assignee").forEach(function (n) { n.remove(); });
     clean.querySelectorAll("[data-rollup]").forEach(function (n) { n.removeAttribute("data-rollup"); });
     // #43 the broken-link flag is computed per-load, not saved
     clean.querySelectorAll(".rrnb-pagelink-broken").forEach(function (n) { n.classList.remove("rrnb-pagelink-broken"); if (!n.className) n.removeAttribute("class"); });
@@ -4395,7 +4490,8 @@ body.rrnb-dark-nb #rrnb-hovercard{
       var items = [];
       if (isCallout) items.push({ act: "cv-note", label: "💡 Note" }, { act: "cv-info", label: "ℹ️ Info" }, { act: "cv-warn", label: "⚠️ Warning" }, { act: "cv-ok", label: "✅ Success" }, { sep: 1 });
       else if (isHr) items.push({ act: "dv-solid", label: "Solid line" }, { act: "dv-dotted", label: "Dotted line" }, { act: "dv-thick", label: "Thick line" }, { sep: 1 });
-      else if (isTodo) { items.push({ act: "due-set", label: node.getAttribute("data-due") ? "Change due date…" : "Set due date…" }); if (node.getAttribute("data-due")) items.push({ act: "due-clear", label: "Clear due date" }); items.push({ sep: 1 }); }
+      else if (isTodo) { items.push({ act: "due-set", label: node.getAttribute("data-due") ? "Change due date…" : "Set due date…" }); if (node.getAttribute("data-due")) items.push({ act: "due-clear", label: "Clear due date" });
+        items.push({ act: "assign-set", label: node.getAttribute("data-assignee-id") ? "Reassign…" : "Assign to…" }); if (node.getAttribute("data-assignee-id")) items.push({ act: "assign-clear", label: "Unassign" }); items.push({ sep: 1 }); }
       items.push({ act: "del", label: "Delete " + label, danger: true });
       showCtx(e.clientX, e.clientY, items);
       $id("rrnb-ctx")._target = { kind: "ednode", el: node };
@@ -5344,6 +5440,8 @@ body.rrnb-dark-nb #rrnb-hovercard{
       if (act.indexOf("dv-") === 0 && t.el) { t.el.setAttribute("data-style", act.slice(3)); scheduleSave(); return; }
       if (act === "due-set" && t.el) { setTodoDue(t.el); return; }
       if (act === "due-clear" && t.el) { t.el.removeAttribute("data-due"); renderTodoDue(t.el); scheduleSave(); return; }
+      if (act === "assign-set" && t.el) { setTodoAssignee(t.el); return; }
+      if (act === "assign-clear" && t.el) { t.el.removeAttribute("data-assignee-id"); t.el.removeAttribute("data-assignee-name"); renderTodoAssignee(t.el); scheduleSave(); return; }
       return;
     }
     if (t.kind === "seltable") { if (act === "totable") linesToTable(t.range, t.text); return; }
