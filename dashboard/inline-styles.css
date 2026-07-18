@@ -16449,7 +16449,7 @@ body.rr-cmdk-open{ overflow:hidden }
             box-shadow:0 1px 2px rgba(15,23,42,.05);
           }
           #view-schedule .shift-chip{
-            border-radius:14px;
+            border-radius:0;
           }
           #view-schedule .sched-week-nav{
             border-radius:999px;
@@ -20927,7 +20927,7 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .shift-chip{
             flex:1;
             padding:5px 8px 6px 9px;
-            border-radius:3px;
+            border-radius:0;
             background:var(--sch-card-bg);
             border:1px solid var(--sch-card-border);
             border-left:2px solid var(--sch-blue);
@@ -28990,7 +28990,10 @@ body.rr-cmdk-open{ overflow:hidden }
 
 /* ── Schedule cards (shift chips) · defined tile + soft hover lift ────── */
 #view-schedule.rrx-schedule .shift-chip {
-  border-radius: 10px !important;
+  /* Square corners (operator request 2026-07-18). This is the EFFECTIVE
+     rule for the schedule card corner — it outranks schedule-rrx.css's
+     copy (same specificity, but inline-styles.css loads later). */
+  border-radius: 0 !important;
   transition: transform 180ms cubic-bezier(.2, 0, .2, 1),
               box-shadow 180ms cubic-bezier(.2, 0, .2, 1),
               border-color 180ms ease, background-color 180ms ease !important;
