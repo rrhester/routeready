@@ -761,6 +761,15 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   color:var(--text-subtle);font-size:var(--fs-xs);font-weight:600;cursor:pointer}
 .rrnb-metabtn:hover{color:var(--accent);border-color:var(--accent)}
 .rrnb-metabtn svg{width:12px;height:12px}
+/* #84 @mention inbox button + unread badge + list items */
+.rrnb-mb-at{font-weight:800;font-size:13px;line-height:1}
+.rrnb-mb-badge{display:inline-flex;align-items:center;justify-content:center;min-width:15px;height:15px;padding:0 4px;
+  border-radius:8px;background:var(--red);color:#fff;font-size:10px;font-weight:700;line-height:1}
+.rrnb-mb-badge[hidden]{display:none}
+.rrnb-mn-item{padding:6px 8px;border-radius:var(--r-md);cursor:pointer}
+.rrnb-mn-item:hover{background:var(--surface-hover)}
+.rrnb-mn-item .mn-hd{font-size:var(--fs-sm);color:var(--text)}
+.rrnb-mn-item .mn-sn{font-size:var(--fs-xs);color:var(--text-subtle);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
 
 /* floating table controls */
 .rrnb-tablectl{display:flex;gap:4px;flex-wrap:wrap}
@@ -1185,7 +1194,9 @@ body.rrnb-dark-nb #rrnb-selcmt{
       commentReact: function (id, emoji, on) { return rpc("notebook_comment_react", { p_comment_id: id, p_emoji: emoji, p_on: on }); },
       commentResolve: function (id, on) { return rpc("notebook_comment_resolve", { p_id: id, p_resolved: !!on }); },
       commentDelete: function (id) { return rpc("notebook_comment_delete", { p_id: id }); },
-      commentCounts: function (ids) { return rpc("notebook_comment_counts", { p_page_ids: ids || [] }); }
+      commentCounts: function (ids) { return rpc("notebook_comment_counts", { p_page_ids: ids || [] }); },
+      mentionsUnread: function () { return rpc("notebook_mentions_unread"); },
+      mentionRead: function (id) { return rpc("notebook_mention_read", { p_id: id || null }); }
     };
   }
 
@@ -1329,7 +1340,9 @@ body.rrnb-dark-nb #rrnb-selcmt{
         persist(); return P(); },
       commentResolve: function (id, on) { var c = (db.comments || []).filter(function (x) { return x.id === id; })[0]; if (c) { c.resolved = !!on; persist(); } return P(); },
       commentDelete: function (id) { db.comments = (db.comments || []).filter(function (x) { return x.id !== id && x.parent_id !== id; }); persist(); return P(); },
-      commentCounts: function (ids) { var m = {}; (db.comments || []).forEach(function (c) { if (!c.resolved && (ids || []).indexOf(c.page_id) >= 0) m[c.page_id] = (m[c.page_id] || 0) + 1; }); return P(m); }
+      commentCounts: function (ids) { var m = {}; (db.comments || []).forEach(function (c) { if (!c.resolved && (ids || []).indexOf(c.page_id) >= 0) m[c.page_id] = (m[c.page_id] || 0) + 1; }); return P(m); },
+      mentionsUnread: function () { return P([]); },
+      mentionRead: function () { return P(); }
     };
   }
 
@@ -1801,6 +1814,47 @@ body.rrnb-dark-nb #rrnb-selcmt{
     if (S._cmtCounts) paintCommentBadges(S._cmtCounts); // instant repaint from cache
     S.be.commentCounts(ids).then(function (map) { S._cmtCounts = map || {}; paintCommentBadges(S._cmtCounts); }).catch(function () {});
   }
+  // #84 @mention inbox — unread mentions of the current user, deep-linking to
+  // the page + comment thread. The count badge lives on the meta-toolbar @ btn.
+  function refreshMentions() {
+    if (!S.be || !S.be.mentionsUnread) return P();
+    return S.be.mentionsUnread().then(function (rows) {
+      S._mentions = rows || [];
+      var badge = $id("rrnb-mentions-badge");
+      if (badge) {
+        if (S._mentions.length) { badge.textContent = S._mentions.length > 9 ? "9+" : String(S._mentions.length); badge.hidden = false; }
+        else badge.hidden = true;
+      }
+      return S._mentions;
+    }).catch(function () { return []; });
+  }
+  function clearPageMentions(pid) {
+    var mine = (S._mentions || []).filter(function (m) { return m.page_id === pid; });
+    if (!mine.length || !S.be.mentionRead) return;
+    Promise.all(mine.map(function (m) { return S.be.mentionRead(m.id).catch(function () {}); })).then(refreshMentions);
+  }
+  function openMentionsInbox(anchor) {
+    var rows = S._mentions || [];
+    var body = rows.length
+      ? '<div class="rrnb-pop-list">' + rows.map(function (m) {
+          return '<div class="rrnb-mn-item" data-mn-open="' + esc(m.id) + '" data-mn-page="' + esc(m.page_id) + '" data-mn-nb="' + esc(m.notebook_id || "") + '">' +
+            '<div class="mn-hd"><b>' + esc(m.by || "A teammate") + '</b> · ' + esc(m.page_title || "a page") + '</div>' +
+            '<div class="mn-sn">' + esc(m.snippet || "") + '</div></div>';
+        }).join("") + '</div><div class="rrnb-pop-row"><button class="rrnb-pop-btn ghost" data-mn-readall="1">Mark all read</button></div>'
+      : '<div class="rrnb-pop-opt" style="color:var(--text-subtle)">No unread mentions</div>';
+    var pop = showPop('<label>Mentions of you</label>' + body, anchor.getBoundingClientRect());
+    pop.addEventListener("click", function (e) {
+      var it = e.target.closest("[data-mn-open]");
+      if (it) {
+        var id = it.getAttribute("data-mn-open"), pg = it.getAttribute("data-mn-page"), nb = it.getAttribute("data-mn-nb");
+        hidePop(); if (S.be.mentionRead) S.be.mentionRead(id).then(refreshMentions);
+        if (nb && nb !== S.nbId) { S.activeSection = null; selectNotebook(nb, pg); } else { openPage(pg); }
+        setTimeout(function () { ctxToggle(true); }, 300);
+        return;
+      }
+      if (e.target.closest("[data-mn-readall]")) { hidePop(); if (S.be.mentionRead) S.be.mentionRead(null).then(refreshMentions); return; }
+    });
+  }
   // #93 a consistent, friendly empty state (icon + title + optional hint).
   // `hint` may contain small inline HTML (e.g. a shortcut in <b>).
   function emptyStateHTML(icon, title, hint) {
@@ -2012,6 +2066,7 @@ body.rrnb-dark-nb #rrnb-selcmt{
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 6h18M3 18h18"/><path d="M8 10v4M16 10v4"/></svg>Width</button>' +
           '<button class="rrnb-metabtn" id="rrnb-cmdk-btn" type="button" title="Command palette (Ctrl / ⌘ K)">' +
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>Search</button>' +
+          '<button class="rrnb-metabtn" id="rrnb-mentions-btn" type="button" title="Mentions of you"><span class="rrnb-mb-at">@</span><span class="rrnb-mb-badge" id="rrnb-mentions-badge" hidden></span>Mentions</button>' +
           '<button class="rrnb-metabtn" id="rrnb-dark-btn" type="button" title="Dark mode" aria-pressed="false">' +
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>Dark</button>' +
           '<button class="rrnb-metabtn" id="rrnb-ctx-toggle" type="button" title="Toggle the context panel (linked records, outline, backlinks)">' +
@@ -2042,6 +2097,8 @@ body.rrnb-dark-nb #rrnb-selcmt{
     var ckb = $id("rrnb-cmdk-btn"); if (ckb) ckb.addEventListener("click", function () { openCommandPalette(); });
     var dkb = $id("rrnb-dark-btn"); if (dkb) dkb.addEventListener("click", toggleNbDark);
     applyNbDark();
+    var mnb = $id("rrnb-mentions-btn"); if (mnb) mnb.addEventListener("click", function () { openMentionsInbox(mnb); });
+    refreshMentions().then(function () { if (S.pageId) clearPageMentions(S.pageId); }); // opening a page = you saw its mentions
     var ctb = $id("rrnb-ctx-toggle"); if (ctb) ctb.addEventListener("click", function () { ctxToggle(); });
     var dictBtn = $id("rrnb-toolbar") && $id("rrnb-toolbar").querySelector('[data-cmd="dictate"]');
     if (dictBtn && (window.SpeechRecognition || window.webkitSpeechRecognition)) dictBtn.hidden = false;
