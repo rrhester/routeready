@@ -14,6 +14,7 @@ import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClose
 import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=821ca8d0df83";
 import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=821ca8d0df83";
 import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=821ca8d0df83";
+import { isChecklistComplete } from "./checklist-core.mjs?v=821ca8d0df83";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -84268,14 +84269,10 @@ async function _clToggleItem(itemId) {
 
   // Status reconciliation — only re-render the full drawer if the
   // parent instance status actually flipped (which changes the chip).
-  const allReq = items.filter(i => i.required);
   const wasCompleted = _clOpenInstance.status === "completed";
-  // Mirror private.checklist_instance_reconcile: complete when every
-  // required item is done; if there are no required items, fall back to
-  // "every item done" so all-optional checklists can still finish.
-  const shouldBeCompleted = allReq.length > 0
-    ? allReq.every(i => i.completed_at)
-    : (items.length > 0 && items.every(i => i.completed_at));
+  // Shared with scripts/test-checklist-completion.mjs via checklist-core.mjs
+  // (single source of the private.checklist_instance_reconcile rule; PR#19).
+  const shouldBeCompleted = isChecklistComplete(items, (i) => !!i.completed_at);
   let statusChanged = false;
   if (shouldBeCompleted && !wasCompleted) {
     _clOpenInstance.status = "completed";
