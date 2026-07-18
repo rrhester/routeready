@@ -74,8 +74,15 @@ builder (live.js ~70135) now renders a `Helper` badge in the route eyebrow
 an XL route's two chips read "XL" (driver seat) and "XL · Helper" (helper
 seat). shift_kind already flows via the schedule_grid RPC (0269).
 
-**Still DEFERRED:** driver-app ("My schedule") helper label — the operator
-grid shows it; the driver-side card doesn't yet call out a helper seat.
+**SHIPPED — driver-app helper label:** app/app.js `shiftCardHtml` (schedule
+row) + `_shiftMetaCells` (today spotlight) now show a `Helper` chip/cell when
+`shiftKind === 'helper'` (driver_my_schedule already returns shift_kind per
+0269). CSS `.sc-chip-helper` / `.sc-cell-v--helper` in app/styles.css use the
+`--accent` tokens (distinct from teal training / amber road). Helper stays a
+normal swappable shift (not lumped with onboarding). SHELL_CACHE auto-busts
+via bust-cache.mjs — no manual bump.
+
+**Still DEFERRED:** nothing outstanding on the XL model.
 
 ## DONE: Calendar 100-list (Onboarding → Calendar improvements)
 
