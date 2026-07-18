@@ -163,3 +163,5 @@
   Cache-Control: public, max-age=31536000, immutable
 /dashboard/cal-tz.mjs
   Cache-Control: public, max-age=31536000, immutable
+/dashboard/rr-dates.mjs
+  Cache-Control: public, max-age=31536000, immutable

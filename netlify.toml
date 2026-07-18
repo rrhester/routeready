@@ -299,3 +299,8 @@
   for = "/dashboard/cal-tz.mjs"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/dashboard/rr-dates.mjs"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

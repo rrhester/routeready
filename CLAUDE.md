@@ -129,8 +129,21 @@ chunk). Wave plan and status:
   test step self-skips; pg_dump artifact step currently produces nothing
   — client/server version mismatch, fix queued). REMEMBER: paste
   0504+0505 SQL in chat for the user.
-- **Wave E — dashboard correctness**: PR#9,10,11,12,14,15,16(start),
-  17,18,19,20.
+- **Wave E — dashboard correctness**: batch 1 DONE (PR#9,10,11,14,15) —
+  fmtIsoDate now LOCAL not UTC (the "today = tomorrow after 7pm" bug),
+  extracted to tested dashboard/rr-dates.mjs (fmtIsoDate/startOfWeek/
+  addDays/isoWeek + scripts/test-rr-dates.mjs, 11 tests); isoWeekNumber
+  deduped into isoWeek; startOfWeekMonday renamed (24 sites); _rrSwallow
+  telemetry helper + rpcOrToast wrapper added (+ mark_applicant_email_sent
+  converted as the pattern example); _rrTextToHtml esc now covers "/'
+  (was an href attribute-breakout hazard) + target/rel added;
+  view-notebooks.frag esc now covers '. rr-dates.mjs added to npm test,
+  bust-cache implicitly (live.js ref), immutable headers both hosts.
+  DEFERRED (need browser-verified standalone PRs — too risky to sweep
+  blind on 92k-line live.js): PR#12 goto dispatcher (7 wrappers), PR#16
+  mock-wiring retirement, PR#17 notebooks.frag→module, PR#18 typeof
+  sweep (560 sites), PR#19 forecast extraction. PR#20 (RR namespace) =
+  convention note only.
 - **Wave F — perf**: PR#21,23,24,28,29,30,31,32.
 - **Wave G — driver app**: PR#33–44.
 - **Wave H — a11y/UX**: PR#89–96 (check #91 vs merged #3955 first).
