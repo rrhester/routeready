@@ -12,7 +12,170 @@
 --
 -- Signature changes drop the old function first so PostgREST never sees
 -- ambiguous overloads. Idempotent throughout.
+--
+-- ⚠️ Section 0 re-asserts migration 0484's scheduled_messages table and its
+-- list/cancel/flush RPCs verbatim: at least one live DB skipped 0484 (same
+-- failure mode as 0432/0496), and this migration's `alter table` + recurrence
+-- flush assume it exists. `dispatch_schedule_message` and
+-- `private.flush_scheduled_messages` are NOT re-asserted here — section 8
+-- recreates both with recurrence support. All idempotent; a DB that already
+-- ran 0484 is untouched by section 0.
 -- ─────────────────────────────────────────────────────────────────────────
+
+-- ── 0. Re-assert 0484 · scheduled_messages (skipped on some live DBs) ──
+
+create table if not exists public.scheduled_messages (
+  id                     uuid primary key default gen_random_uuid(),
+  dsp_id                 uuid not null references public.dsps(id) on delete cascade,
+  created_by             uuid not null references auth.users(id) on delete cascade,
+  target_kind            text not null check (target_kind in ('driver','channel')),
+  driver_id              uuid references public.drivers(id) on delete cascade,
+  channel_id             uuid references public.driver_channels(id) on delete cascade,
+  body                   text,
+  attachment_path        text,
+  attachment_mime        text,
+  attachment_name        text,
+  attachment_size_bytes  int,
+  priority               text not null default 'normal',
+  requires_ack           boolean not null default false,
+  mention_driver_ids     uuid[],
+  send_at                timestamptz not null,
+  status                 text not null default 'pending' check (status in ('pending','sent','canceled','failed')),
+  sent_message_id        uuid,
+  error                  text,
+  created_at             timestamptz not null default now(),
+  sent_at                timestamptz,
+  check (
+    (target_kind = 'driver'  and driver_id  is not null and channel_id is null) or
+    (target_kind = 'channel' and channel_id is not null and driver_id  is null)
+  ),
+  check (
+    (body is not null and length(trim(body)) > 0) or attachment_path is not null
+  )
+);
+create index if not exists scheduled_messages_due_idx
+  on public.scheduled_messages (send_at) where status = 'pending';
+create index if not exists scheduled_messages_dsp_idx
+  on public.scheduled_messages (dsp_id, status, send_at desc);
+
+alter table public.scheduled_messages enable row level security;
+drop policy if exists "scheduled_messages_tenant_r" on public.scheduled_messages;
+create policy "scheduled_messages_tenant_r"
+  on public.scheduled_messages for select
+  using (dsp_id = private.current_dsp_id());
+grant select on public.scheduled_messages to authenticated;
+
+-- 0b. Pending + recently-resolved scheduled messages for the DSP (0484 §3b).
+create or replace function public.dispatch_scheduled_list()
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_dsp  uuid := private.current_dsp_id();
+  v_rows jsonb;
+begin
+  if v_dsp is null then raise exception 'unauthorized' using errcode = '42501'; end if;
+
+  select coalesce(jsonb_agg(row_to_json(t) order by t.send_at), '[]'::jsonb) into v_rows
+  from (
+    select s.id, s.target_kind, s.driver_id, s.channel_id, s.body,
+           s.attachment_name, s.priority, s.requires_ack, s.send_at, s.status,
+           s.created_at, s.sent_at,
+           case when s.target_kind = 'driver'  then dn.full_name end as driver_name,
+           case when s.target_kind = 'channel' then c.name end       as channel_name
+      from public.scheduled_messages s
+      left join public.drivers dn         on dn.id = s.driver_id
+      left join public.driver_channels c  on c.id  = s.channel_id
+     where s.dsp_id = v_dsp
+       and (s.status = 'pending' or s.sent_at > now() - interval '2 days')
+  ) t;
+
+  return jsonb_build_object('scheduled', v_rows);
+end;
+$$;
+grant execute on function public.dispatch_scheduled_list() to authenticated;
+
+-- 0c. Cancel a still-pending scheduled message (0484 §3c).
+create or replace function public.dispatch_scheduled_cancel(p_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_dsp uuid := private.current_dsp_id();
+  v_n   int;
+begin
+  if v_dsp is null then raise exception 'unauthorized' using errcode = '42501'; end if;
+  if not private.is_staff(v_dsp, 'dispatcher') then raise exception 'forbidden' using errcode = '42501'; end if;
+
+  update public.scheduled_messages
+     set status = 'canceled', sent_at = now()
+   where id = p_id and dsp_id = v_dsp and status = 'pending';
+  get diagnostics v_n = row_count;
+  if v_n = 0 then raise exception 'not_cancelable' using errcode = 'P0002'; end if;
+  return jsonb_build_object('id', p_id, 'status', 'canceled');
+end;
+$$;
+grant execute on function public.dispatch_scheduled_cancel(uuid) to authenticated;
+
+-- 0d. Staff-callable flush fallback (0484 §4b). The flush worker itself
+-- (private.flush_scheduled_messages) is created in section 8 below.
+create or replace function public.dispatch_flush_scheduled()
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_dsp uuid := private.current_dsp_id();
+  v_n   int;
+begin
+  if v_dsp is null then raise exception 'unauthorized' using errcode = '42501'; end if;
+  if not private.is_staff(v_dsp) then raise exception 'forbidden' using errcode = '42501'; end if;
+  v_n := private.flush_scheduled_messages();
+  return jsonb_build_object('sent', v_n);
+end;
+$$;
+grant execute on function public.dispatch_flush_scheduled() to authenticated;
+
+-- 0e. pg_cron minute job (0484 §5; best-effort, no-op if pg_cron is absent).
+do $$ begin
+  perform cron.unschedule('flush-scheduled-messages');
+exception when others then null; end $$;
+do $$ begin
+  perform cron.schedule('flush-scheduled-messages', '* * * * *', 'select private.flush_scheduled_messages();');
+exception when others then null; end $$;
+
+-- 0f. Re-assert 0481's mentions table too — the flush worker inserts into it
+-- for channel sends, and a DB that skipped 0484 may have skipped 0481 as
+-- well. Table/RLS/realtime only; 0481's mention RPCs aren't needed by 0509.
+create table if not exists public.driver_channel_message_mentions (
+  id                  uuid primary key default gen_random_uuid(),
+  message_id          uuid not null references public.driver_channel_messages(id) on delete cascade,
+  channel_id          uuid not null references public.driver_channels(id) on delete cascade,
+  dsp_id              uuid not null references public.dsps(id) on delete cascade,
+  mentioned_driver_id uuid not null references public.drivers(id) on delete cascade,
+  created_at          timestamptz not null default now(),
+  unique (message_id, mentioned_driver_id)
+);
+create index if not exists driver_channel_msg_mention_msg_idx
+  on public.driver_channel_message_mentions (message_id);
+create index if not exists driver_channel_msg_mention_chan_idx
+  on public.driver_channel_message_mentions (channel_id);
+create index if not exists driver_channel_msg_mention_drv_idx
+  on public.driver_channel_message_mentions (mentioned_driver_id, created_at desc);
+alter table public.driver_channel_message_mentions enable row level security;
+drop policy if exists "driver_channel_msg_mention_tenant_r" on public.driver_channel_message_mentions;
+create policy "driver_channel_msg_mention_tenant_r"
+  on public.driver_channel_message_mentions for select
+  using (dsp_id = private.current_dsp_id());
+grant select on public.driver_channel_message_mentions to authenticated;
+do $$ begin
+  alter publication supabase_realtime add table public.driver_channel_message_mentions;
+exception when duplicate_object then null; end $$;
 
 -- ── 1. Columns ──
 alter table public.driver_channels
