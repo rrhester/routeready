@@ -1,0 +1,54 @@
+name: login-e2e
+
+# End-to-end login flow (tests/login-e2e) — drives the real
+# dashboard/login.html against a stubbed Supabase. Guards the ?next=
+# open-redirect sanitization + the auth mode machine.
+on:
+  pull_request:
+    paths:
+      - "dashboard/login.html"
+      - "tests/login-e2e/**"
+      - ".github/workflows/login-e2e.yml"
+  push:
+    branches: [main]
+    paths:
+      - "dashboard/login.html"
+      - "tests/login-e2e/**"
+  schedule:
+    - cron: '52 9 * * 1'
+
+env:
+  PLAYWRIGHT_VERSION: 1.61.1
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install test deps
+        run: npm install --no-save @playwright/test@$PLAYWRIGHT_VERSION http-server
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ env.PLAYWRIGHT_VERSION }}
+      - name: Install Chromium
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+      - name: Install Chromium OS deps (cache hit)
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+      - name: Run login e2e
+        run: npx playwright test --config tests/login-e2e/playwright.config.mjs
+      - name: Upload traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: login-e2e-results
+          path: test-results/
+          retention-days: 14
