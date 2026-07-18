@@ -3953,7 +3953,7 @@ body.rr-sched-ultra-compact #view-schedule.rrx-schedule .shift-chip {
   padding: 1px 4px !important;
   line-height: 1 !important;
   min-height: 0 !important;
-  border-radius: 3px !important;
+  border-radius: 0 !important;
 }
 /* Operator wants the full driver schedule (route / wave / van / badges)
    visible in Ultra-compact too — so these are no longer hidden. Cells
@@ -4093,7 +4093,7 @@ body.rr-sched-super-compact #view-schedule.rrx-schedule .shift-chip {
   padding: 0 3px !important;
   line-height: 1 !important;
   min-height: 0 !important;
-  border-radius: 3px !important;
+  border-radius: 0 !important;
 }
 /* KEEP every shift detail visible — time range, wave, and van — just
    shrink them. This is the whole point of the tier: max drivers, no
