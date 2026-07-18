@@ -49,6 +49,43 @@ export function driversNeeded(routesPeak, opts = {}) {
   return Math.ceil(routes * dpr * (1 + pad / 100));
 }
 
+// ── XL routes ────────────────────────────────────────────────────────────────
+// A standard route staffs one driver + one backup (driversPerRoute, default
+// 2). An XL route DISPATCHES with two people on the road — one XL-certified
+// driver and one helper (no cert) — so, backups included, it staffs FOUR:
+// two XL-certified drivers plus two helpers. The extra helper seat is why an
+// XL route costs double a standard route in the staffing plan.
+export const XL_DRIVERS_PER_ROUTE   = 4; // total bodies staffed per XL route
+export const XL_CERTIFIED_PER_ROUTE = 2; // of those four, must hold xl_certified
+// helpers per XL route = XL_DRIVERS_PER_ROUTE − XL_CERTIFIED_PER_ROUTE (= 2).
+
+// driversNeeded, but for a peak-day route MIX that separates XL routes from
+// standard ones. `mix` = { standard, xl } route counts on the week's busiest
+// (peak) day. Standard routes cost `driversPerRoute` each; XL routes cost
+// `xlDriversPerRoute` each, of which `xlCertifiedPerRoute` must be XL-
+// certified and the rest are helpers. The pad is a whole-plan buffer, so it
+// applies uniformly to every seat (certified or helper).
+//
+// Returns { total, xlCertified, xlHelpers, standardRoutes, xlRoutes }.
+// `total` is the authoritative bodies-needed number and stays byte-identical
+// to driversNeeded(standard, …) when xl == 0, so a DSP with no XL routes sees
+// no change. The `xlCertified` / `xlHelpers` sub-totals are each rounded up
+// independently (conservative), so they can sum to slightly more than the XL
+// share of `total`; treat them as "at least this many of that kind".
+export function driversNeededMix(mix, opts = {}) {
+  const std = Math.max(0, Number(mix && mix.standard) || 0);
+  const xl  = Math.max(0, Number(mix && mix.xl) || 0);
+  const dpr    = clamp(Number(opts.driversPerRoute), 1, 5, 2);
+  const xlDpr  = clamp(Number(opts.xlDriversPerRoute), 2, 8, XL_DRIVERS_PER_ROUTE);
+  const xlCert = clamp(Number(opts.xlCertifiedPerRoute), 0, xlDpr, XL_CERTIFIED_PER_ROUTE);
+  const pad    = clamp(Number(opts.padPct), 0, 200, 0);
+  const mult   = 1 + pad / 100;
+  const total       = Math.ceil((std * dpr + xl * xlDpr) * mult);
+  const xlCertified = Math.ceil(xl * xlCert * mult);
+  const xlHelpers   = Math.ceil(xl * (xlDpr - xlCert) * mult);
+  return { total, xlCertified, xlHelpers, standardRoutes: std, xlRoutes: xl };
+}
+
 // ── Supply ─────────────────────────────────────────────────────────────────
 
 // Effective supply for a future week = bodies on payroll, minus onboarding
@@ -119,9 +156,24 @@ export function assessPlan(weeks, opts = {}) {
 
   const assessed = (weeks || []).map((w, i) => {
     const idx = Number.isFinite(Number(w.idx)) ? Number(w.idx) : i;
-    const needed = demandOverride && Number.isFinite(Number(w.routesMax))
-      ? driversNeeded(w.routesMax, demandOverride)
-      : Math.max(0, Number(w.needed) || 0);
+    // When the sandbox overrides demand (dpr / pad), recompute needed from
+    // the route counts. Prefer the XL-aware peak-day mix when the caller
+    // carried one; XL routes keep their 4-per-route cost (driversNeededMix's
+    // default) even as the standard dpr dial moves. Weeks without a mix fall
+    // back to the flat single-count path.
+    const overrideMix = demandOverride && w.routesMix
+      ? driversNeededMix(w.routesMix, demandOverride)
+      : null;
+    const needed = overrideMix
+      ? overrideMix.total
+      : (demandOverride && Number.isFinite(Number(w.routesMax))
+        ? driversNeeded(w.routesMax, demandOverride)
+        : Math.max(0, Number(w.needed) || 0));
+    // Of the drivers needed, how many must be XL-certified — recomputed under
+    // an override, else passed through from the caller's own XL-aware render.
+    const xlCertifiedNeeded = overrideMix
+      ? overrideMix.xlCertified
+      : Math.max(0, Number(w.xlCertifiedNeeded) || 0);
     const supply = effectiveSupply(idx, w.avail, {
       onboardingNotReady: notReadyBy[w.weekStartIso] || 0,
       weeklyAttritionRate: opts.weeklyAttritionRate,
@@ -142,7 +194,7 @@ export function assessPlan(weeks, opts = {}) {
     const hireByStatus = gap >= 0 || !hireByIso ? null
       : (hireByIso >= todayIso ? "open" : "past");
     return {
-      ...w, idx, needed, supply, effAvail: supply.effective,
+      ...w, idx, needed, xlCertifiedNeeded, supply, effAvail: supply.effective,
       gap, kind, coveragePct, hireByIso, hireByStatus,
     };
   });
