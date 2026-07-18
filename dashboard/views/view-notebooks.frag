@@ -593,6 +593,22 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
 .rrnb-slash-opt.sel,.rrnb-slash-opt:hover{background:var(--accent-soft)}
 .rrnb-slash-opt.mut{color:var(--text-subtle);cursor:default}
 .rrnb-slash-opt.mut:hover{background:transparent}
+/* #31 command palette */
+.rrnb-cmdk{position:fixed;inset:0;z-index:200;background:rgba(15,23,42,.35);display:flex;
+  align-items:flex-start;justify-content:center;padding-top:12vh}
+.rrnb-cmdk[hidden]{display:none}
+.rrnb-cmdk-box{width:min(560px,92vw);max-height:64vh;display:flex;flex-direction:column;background:var(--surface);
+  border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-pop);overflow:hidden}
+.rrnb-cmdk-box input{border:0;border-bottom:1px solid var(--border);outline:none;background:transparent;
+  color:var(--text);font-size:var(--fs-lg);padding:14px 16px;width:100%;box-sizing:border-box}
+.rrnb-cmdk-list{overflow-y:auto;padding:6px}
+.rrnb-cmdk-hd{font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.04em;color:var(--text-subtle);
+  font-weight:700;padding:8px 10px 4px}
+.rrnb-cmdk-opt{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--r-md);cursor:pointer;color:var(--text)}
+.rrnb-cmdk-opt.sel,.rrnb-cmdk-opt:hover{background:var(--accent-soft)}
+.rrnb-cmdk-opt .ic{width:22px;text-align:center;flex:0 0 auto}
+.rrnb-cmdk-opt .lb{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rrnb-cmdk-empty{padding:16px;text-align:center;color:var(--text-subtle);font-size:var(--fs-sm)}
 .rrnb-slash-opt .sc{margin-left:auto;padding-left:12px;font-size:var(--fs-xs);color:var(--text-subtle);
   font-variant-numeric:tabular-nums;white-space:nowrap}
 .rrnb-slash-opt .ic{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;
@@ -1800,6 +1816,8 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 8v4l3 2"/></svg>History</button>' +
           '<button class="rrnb-metabtn" id="rrnb-width-btn" type="button" title="Reading width">' +
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 6h18M3 18h18"/><path d="M8 10v4M16 10v4"/></svg>Width</button>' +
+          '<button class="rrnb-metabtn" id="rrnb-cmdk-btn" type="button" title="Command palette (Ctrl / ⌘ K)">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>Search</button>' +
           '<button class="rrnb-metabtn" id="rrnb-ctx-toggle" type="button" title="Toggle the context panel (linked records, outline, backlinks)">' +
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg>Context</button></div>' +
         '<div class="rrnb-editor" id="rrnb-editor" contenteditable="true" spellcheck="true" data-ph="Type anywhere. Everything autosaves.">' + (p.content_html || "") + '</div>' +
@@ -1825,6 +1843,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     ed.addEventListener("contextmenu", onEditorCtx);
     var hb = $id("rrnb-history-btn"); if (hb) hb.addEventListener("click", openHistory);
     var wb = $id("rrnb-width-btn"); if (wb) wb.addEventListener("click", function () { openReadingWidth(wb); });
+    var ckb = $id("rrnb-cmdk-btn"); if (ckb) ckb.addEventListener("click", function () { openCommandPalette(); });
     var ctb = $id("rrnb-ctx-toggle"); if (ctb) ctb.addEventListener("click", function () { ctxToggle(); });
     var dictBtn = $id("rrnb-toolbar") && $id("rrnb-toolbar").querySelector('[data-cmd="dictate"]');
     if (dictBtn && (window.SpeechRecognition || window.webkitSpeechRecognition)) dictBtn.hidden = false;
@@ -5258,6 +5277,8 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       // Ctrl/⌘+F focuses the notebook search — but inside the editor it means
       // find-in-this-page (#81), which onEditorKey handles, so skip here.
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f" && !e.shiftKey && !typingContext()) { var s = $id("rrnb-search-input"); if (s) { e.preventDefault(); s.focus(); s.select(); } }
+      // #31 Ctrl/⌘+K command palette — outside the editor (inside, Ctrl+K = insert link)
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k" && !e.shiftKey && !e.altKey && !typingContext()) { e.preventDefault(); openCommandPalette(); return; }
       // #65 Ctrl/⌘+↑/↓ steps through the current page list, from anywhere in the view
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown") && S.mode === "notebook") { e.preventDefault(); switchPage(e.key === "ArrowUp" ? -1 : 1); return; }
       if (e.altKey && e.key.toLowerCase() === "n") { e.preventDefault(); if (e.shiftKey) newSection(); else newPage(); }
@@ -5752,6 +5773,62 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     renderPageList();
     S.be.movePage(pageId, { section_id: sectionId, parent_page_id: null, level: 0, position: d.position })
       .then(function () { notify("Page moved"); }).catch(fail);
+  }
+  // #31/#80 command palette — quick actions + fuzzy jump-to-page (Ctrl/⌘+K)
+  var CMDK = { items: [], sel: 0 };
+  function openCommandPalette() {
+    var ov = $id("rrnb-cmdk");
+    if (!ov) {
+      ov = document.createElement("div"); ov.id = "rrnb-cmdk"; ov.className = "rrnb-cmdk"; ov.hidden = true;
+      ov.innerHTML = '<div class="rrnb-cmdk-box"><input id="rrnb-cmdk-in" placeholder="Jump to a page or run a command…" autocomplete="off" spellcheck="false" /><div class="rrnb-cmdk-list" id="rrnb-cmdk-list"></div></div>';
+      document.body.appendChild(ov);
+      ov.addEventListener("mousedown", function (e) { if (e.target === ov) closeCommandPalette(); });
+      var inp = ov.querySelector("#rrnb-cmdk-in");
+      inp.addEventListener("input", function () { CMDK.sel = 0; renderCmdk(inp.value); });
+      inp.addEventListener("keydown", cmdkKey);
+      ov.querySelector("#rrnb-cmdk-list").addEventListener("mousedown", function (e) { var r = e.target.closest("[data-ci]"); if (r) { e.preventDefault(); runCmdk(+r.getAttribute("data-ci")); } });
+    }
+    ov.hidden = false; CMDK.sel = 0;
+    var i2 = $id("rrnb-cmdk-in"); i2.value = ""; renderCmdk(""); i2.focus();
+  }
+  function closeCommandPalette() { var ov = $id("rrnb-cmdk"); if (ov) ov.hidden = true; }
+  function cmdkActions() {
+    var a = [];
+    if (!S.readOnly) { a.push({ label: "New page", ic: "＋", run: newPage }); a.push({ label: "New section", ic: "＋", run: newSection }); a.push({ label: "Quick note", ic: "⚡", run: quickNote }); }
+    a.push({ label: "Toggle context panel", ic: "▥", run: function () { ctxToggle(); } });
+    a.push({ label: "Recent pages", ic: "🕘", run: function () { S.mode = "recent"; renderRecent(); } });
+    a.push({ label: "Recycle bin", ic: "🗑", run: function () { S.mode = "recycle"; renderPageList(); } });
+    return a;
+  }
+  function renderCmdk(q) {
+    q = (q || "").trim().toLowerCase();
+    var items = [];
+    cmdkActions().forEach(function (a) { if (!q || a.label.toLowerCase().indexOf(q) >= 0) items.push({ kind: "action", label: a.label, ic: a.ic, run: a.run }); });
+    ((S.tree && S.tree.pages) || []).filter(function (p) { return !q || (p.title || "").toLowerCase().indexOf(q) >= 0; }).slice(0, 25)
+      .forEach(function (p) { items.push({ kind: "page", label: p.title || "Untitled Page", ic: "❏", id: p.id }); });
+    CMDK.items = items;
+    if (CMDK.sel >= items.length) CMDK.sel = Math.max(0, items.length - 1);
+    var list = $id("rrnb-cmdk-list"); if (!list) return;
+    if (!items.length) { list.innerHTML = '<div class="rrnb-cmdk-empty">No matching command or page</div>'; return; }
+    var lastKind = "";
+    list.innerHTML = items.map(function (it, i) {
+      var hdr = ""; if (it.kind !== lastKind) { hdr = '<div class="rrnb-cmdk-hd">' + (it.kind === "action" ? "Commands" : "Pages") + "</div>"; lastKind = it.kind; }
+      return hdr + '<div class="rrnb-cmdk-opt' + (i === CMDK.sel ? " sel" : "") + '" data-ci="' + i + '"><span class="ic">' + esc(it.ic) + '</span><span class="lb">' + esc(it.label) + '</span></div>';
+    }).join("");
+    var sel = list.querySelector(".rrnb-cmdk-opt.sel"); if (sel && sel.scrollIntoView) sel.scrollIntoView({ block: "nearest" });
+  }
+  function cmdkKey(e) {
+    e.stopPropagation();
+    if (e.key === "ArrowDown") { e.preventDefault(); CMDK.sel = Math.min(CMDK.items.length - 1, CMDK.sel + 1); renderCmdk($id("rrnb-cmdk-in").value); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); CMDK.sel = Math.max(0, CMDK.sel - 1); renderCmdk($id("rrnb-cmdk-in").value); }
+    else if (e.key === "Enter") { e.preventDefault(); runCmdk(CMDK.sel); }
+    else if (e.key === "Escape") { e.preventDefault(); closeCommandPalette(); }
+  }
+  function runCmdk(i) {
+    var it = CMDK.items[i]; if (!it) return;
+    closeCommandPalette();
+    if (it.kind === "action" && it.run) { try { it.run(); } catch (e) {} return; }
+    if (it.kind === "page" && it.id) { S.mode = "notebook"; var p = pageById(it.id); if (p && p.section_id) S.activeSection = p.section_id; renderPageList(); openPage(it.id); }
   }
   function typingContext() {
     var a = document.activeElement;
