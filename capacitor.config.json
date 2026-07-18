@@ -2,17 +2,25 @@
   "appId": "com.gorouteready.driver",
   "appName": "RouteReady",
   "webDir": "app",
-  "bundledWebRuntime": false,
   "ios": {
     "contentInset": "always",
-    "backgroundColor": "#0b1220"
+    "backgroundColor": "#ffffff"
   },
   "android": {
-    "backgroundColor": "#0b1220"
+    "backgroundColor": "#ffffff"
   },
   "plugins": {
     "PushNotifications": {
       "presentationOptions": ["badge", "sound", "alert"]
+    },
+    "SplashScreen": {
+      "backgroundColor": "#ffffff",
+      "showSpinner": false,
+      "launchAutoHide": true
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#ffffff"
     }
   }
 }

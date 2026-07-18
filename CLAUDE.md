@@ -156,7 +156,20 @@ chunk). Wave plan and status:
   CSS dedupe (cascade-order risk), PR#31 shell shrink, PR#32 PNG
   quantization (needs pngquant), PR#28 sw changelog (low value on the
   recovery SW).
-- **Wave G — driver app**: PR#33–44.
+- **Wave G — driver app**: batch 1 DONE (PR#33,34,36,38,40) — SW shell
+  fetch races a 3.5s timeout then serves cached shell (stalled-cell
+  launches); pushsubscriptionchange handler re-subscribes + re-registers
+  (SW holds url/anon/token in IDB; added urlBase64ToUint8Array + VAPID
+  fetch fallback); 4 schedule pollers skip while document.hidden;
+  reg.update() + ensurePushSubscription re-assert on refreshOnFocus (iOS
+  PWAs resume without 'load'); controllerchange → one-time reload (skips
+  if a sheet/modal/dirty-form open); capacitor.config white chrome +
+  StatusBar(DARK)/SplashScreen config, dropped dead bundledWebRuntime.
+  SHELL_CACHE v185→v186. DEFERRED: PR#35 (125-site rpc() wrapper — too
+  many to sweep safely), PR#39 (Capacitor haptics/badge bridge — needs
+  native test), PR#41 (rem type scale — touches 141 font-sizes), PR#42
+  (app.js split + lazy scanner), PR#43 (offline attachments). PR#44
+  (redesign tickets) → Wave I docs.
 - **Wave H — a11y/UX**: PR#89–96 (check #91 vs merged #3955 first).
 - **Wave I — docs/DX**: PR#97–100.
 - **Wave J — testing depth**: PR#82,83,86.
