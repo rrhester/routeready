@@ -3119,6 +3119,16 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.shift-chip-tr
   box-shadow: 0 1px 0 var(--rr-route-c-trainer_trainee) !important;
   --rr-route-t: var(--rr-route-t-trainer_trainee);
 }
+/* Helper seat on an XL route (shift_kind 'helper'). Keyed off
+   data-rr-shift-kind and placed AFTER the XL service-code rule so a helper
+   chip shows its OWN color rather than the XL color (a helper chip also
+   carries data-rr-service-code="XL"). */
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-kind="helper"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: var(--rr-route-c-helper) !important;
+  border-color: color-mix(in srgb, var(--rr-route-c-helper) 78%, var(--rr-slate-900)) !important;
+  box-shadow: 0 1px 0 var(--rr-route-c-helper) !important;
+  --rr-route-t: var(--rr-route-t-helper);
+}
 
 /* PTO / time-off chips are clickable — clicking one offers to remove the
    approved time off (driver changed their mind). Signal that affordance
@@ -3149,8 +3159,8 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff .shif
    dark picks, ink on light picks; gray-900 fallback preserves the
    old look until the popover JS publishes the vars). Standard
    (no-override) chips keep the default light styling. */
-body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip:is([data-rr-route-class="rescue"],[data-rr-route-class="nursery"],[data-rr-service-code="XL"],[data-rr-route-class="other"],[data-rr-route-class="reduction"],[data-rr-route-class="cycle_1"],[data-rr-route-class="cycle_2"],[data-rr-route-class="backup"],[data-rr-shift-kind="training"],[data-rr-shift-kind="ride_along"],.shift-chip-training):not(.swap):not(.off):not(.open):not(.add-here),
-body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip:is([data-rr-route-class="rescue"],[data-rr-route-class="nursery"],[data-rr-service-code="XL"],[data-rr-route-class="other"],[data-rr-route-class="reduction"],[data-rr-route-class="cycle_1"],[data-rr-route-class="cycle_2"],[data-rr-route-class="backup"],[data-rr-shift-kind="training"],[data-rr-shift-kind="ride_along"],.shift-chip-training):not(.swap):not(.off):not(.open):not(.add-here) *,
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip:is([data-rr-route-class="rescue"],[data-rr-route-class="nursery"],[data-rr-service-code="XL"],[data-rr-route-class="other"],[data-rr-route-class="reduction"],[data-rr-route-class="cycle_1"],[data-rr-route-class="cycle_2"],[data-rr-route-class="backup"],[data-rr-shift-kind="training"],[data-rr-shift-kind="ride_along"],[data-rr-shift-kind="helper"],.shift-chip-training):not(.swap):not(.off):not(.open):not(.add-here),
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip:is([data-rr-route-class="rescue"],[data-rr-route-class="nursery"],[data-rr-service-code="XL"],[data-rr-route-class="other"],[data-rr-route-class="reduction"],[data-rr-route-class="cycle_1"],[data-rr-route-class="cycle_2"],[data-rr-route-class="backup"],[data-rr-shift-kind="training"],[data-rr-shift-kind="ride_along"],[data-rr-shift-kind="helper"],.shift-chip-training):not(.swap):not(.off):not(.open):not(.add-here) *,
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff,
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff * {
   color: var(--rr-route-t, var(--rr-gray-900)) !important;
