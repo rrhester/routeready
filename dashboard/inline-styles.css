@@ -22095,6 +22095,37 @@ body.rr-cmdk-open{ overflow:hidden }
             .rr-tgt-save-status{font-size:var(--fs-xs);color:var(--text-subtle);white-space:nowrap;font-variant-numeric:tabular-nums}
             /* Gap pills open the per-week explainer. */
             #view-schedule #sched-sub-targets .rr-tgt-13w .plan-gap{cursor:pointer}
+            /* Rules-for-week chip · names the week the per-week rules edit. */
+            #view-schedule #rr-sched-targets-kpis .rr-tgt-rules-week .rr-tgt-rules-week-label{
+              font-size:var(--fs-sm);font-weight:700;color:var(--text);white-space:nowrap;
+            }
+            #view-schedule #rr-sched-targets-kpis .rr-tgt-rules-fwd{
+              margin-left:6px;border:1px solid var(--border);background:var(--surface);
+              color:var(--text-subtle);font-size:var(--fs-9);font-weight:600;
+              padding:2px 6px;border-radius:999px;cursor:pointer;white-space:nowrap;
+            }
+            #view-schedule #rr-sched-targets-kpis .rr-tgt-rules-fwd:hover{
+              background:var(--canvas);color:var(--text-muted);border-color:var(--border-strong);
+            }
+            /* Apply-rules button · dirty accent only when rule edits are
+               unsaved; calm otherwise. */
+            #view-schedule #rr-sched-targets-kpis .rr-tgt-save-plan:not(.rr-tgt-save-plan--dirty){
+              filter:saturate(.35);
+            }
+            #view-schedule #rr-sched-targets-kpis .rr-tgt-save-plan[aria-busy="true"]{opacity:.6;cursor:progress}
+            /* Gap card · visible click-through + loading shimmer. */
+            #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card-link{
+              font-size:var(--fs-9);font-weight:600;color:var(--accent);white-space:nowrap;
+            }
+            #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card-link[hidden]{display:none}
+            #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card.is-loading .rr-tgt-gap-card-sub{
+              color:transparent;border-radius:4px;
+              background:linear-gradient(90deg,var(--canvas) 25%,var(--border) 50%,var(--canvas) 75%);
+              background-size:200% 100%;animation:rr-okami-shimmer 1.2s linear infinite;
+            }
+            @media (prefers-reduced-motion: reduce){
+              #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card.is-loading .rr-tgt-gap-card-sub{animation:none}
+            }
             /* Narrow widths · toolbar wraps in defined order, table scrolls
                horizontally inside its host instead of squeezing columns. */
             @media (max-width: 1280px){

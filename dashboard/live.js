@@ -3734,7 +3734,7 @@ function _rrAssessOkamiPlan(weeks, overrides) {
   const o = overrides || {};
   return rrAssessLaborPlan(weeks, {
     todayIso: fmtIsoDate(new Date()),
-    hireLeadDays: Number.isFinite(o.hireLeadDays) ? o.hireLeadDays : RR_OKAMI_HIRE_LEAD_DAYS,
+    hireLeadDays: Number.isFinite(o.hireLeadDays) ? o.hireLeadDays : _rrHireLeadDays(),
     calloutRate: Number.isFinite(o.calloutRate) ? o.calloutRate : (rates.calloutRate || 0),
     weeklyAttritionRate: Number.isFinite(o.weeklyAttritionRate) ? o.weeklyAttritionRate : (rates.weeklyAttritionRate || 0),
     onboardingNotReadyByWeek: _rrOnboardingNotReadyByWeek(weeks),
@@ -4125,7 +4125,7 @@ function _rrIntelRenderRiskForecast(view) {
   const c = window._rrRfCalc || (window._rrRfCalc = {});
   const seedCallout = c.calloutPct ?? Math.round(((shellRates?.calloutRate) || 0) * 100);
   const seedAttr    = c.attrPct    ?? Number((100 * ((shellRates?.weeklyAttritionRate) || 0)).toFixed(1));
-  const seedLead    = c.leadDays   ?? RR_OKAMI_HIRE_LEAD_DAYS;
+  const seedLead    = c.leadDays   ?? _rrHireLeadDays();
   const seedDpr     = c.dpr        ?? (shellRates?.driversPerRoute ?? 2);
   const seedPad     = c.padPct     ?? Math.max(0, Math.min(50, Number(window.RR?.dsp?.metadata?.staffing?.plan_pad_pct ?? 10) || 0));
   const seedHires   = c.hires      ?? 0;
@@ -4240,7 +4240,7 @@ function _rrRenderRiskForecastOut(view, weeks) {
   const rates = window._rrForecastRates || null;
   const overrides = _rrRfOverrides();
   const activeCalloutPct = Math.round((Number.isFinite(overrides.calloutRate) ? overrides.calloutRate : (rates?.calloutRate || 0)) * 100);
-  const activeLeadDays = Number.isFinite(overrides.hireLeadDays) ? overrides.hireLeadDays : RR_OKAMI_HIRE_LEAD_DAYS;
+  const activeLeadDays = Number.isFinite(overrides.hireLeadDays) ? overrides.hireLeadDays : _rrHireLeadDays();
   const A  = _rrAssessOkamiPlan(weeks, overrides);
   const aw = A.weeks;
   const thisWeek = aw[0];
@@ -4566,7 +4566,7 @@ function _rrUfAppsNeeded(gap, e2ePct) {
 function _rrUfEntryDeadline(weekIdx, funnelDays) {
   const iso = _rrOkamiWeekStartIso(weekIdx);
   if (!iso) return null;
-  const d = addDays(new Date(iso + "T12:00:00"), -(RR_OKAMI_HIRE_LEAD_DAYS + funnelDays));
+  const d = addDays(new Date(iso + "T12:00:00"), -(_rrHireLeadDays() + funnelDays));
   return { date: d, label: fmtMD(d), overdue: d < new Date() };
 }
 
@@ -52611,7 +52611,14 @@ async function loadOkamiView() {
 // ─── OKAMI · 13-week list (live render + save) ─────────────────────────────
 
 const RR_OKAMI_WEEKS = 13;
-const RR_OKAMI_HIRE_LEAD_DAYS = 28; // training/onboarding lead time
+const RR_OKAMI_HIRE_LEAD_DAYS = 28; // default training/onboarding lead time
+// Hire lead time is a per-DSP setting (dsps.metadata.staffing.
+// hire_lead_days, editable in the Drivers-needed ⓘ popover) — it drives
+// every hire-by deadline and the reachable/unreachable-week split.
+function _rrHireLeadDays() {
+  const v = Number(window.RR?.dsp?.metadata?.staffing?.hire_lead_days);
+  return Number.isFinite(v) && v >= 7 && v <= 120 ? Math.round(v) : RR_OKAMI_HIRE_LEAD_DAYS;
+}
 
 // isoWeekNumber was byte-identical to isoWeek (now in rr-dates.mjs) — use isoWeek.
 
@@ -53100,9 +53107,30 @@ function _rrOkamiFormulaHtml() {
         <div><b>Drivers per route</b> — ${dpr} · set in Hiring settings (1 primary + backups)</div>
         <div><b>Plan pad</b> — ${pad}% · extra <i>hires</i> buffer, the slider on the OKAMI page</div>
         <div><b>Cushion</b>${cushion != null ? ` — ${cushion}%` : ""} · different thing: adds extra <i>shifts</i> when the schedule is built, not extra drivers</div>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><b>Hire lead time</b> —
+          <input class="form-input form-input-sm" id="rr-tgt-hire-lead" type="number" min="7" max="120" step="1" value="${_rrHireLeadDays()}" style="width:60px;text-align:right"/>
+          days · training/onboarding runway behind every hire-by deadline</div>
       </div>
     </div>`;
 }
+// Persist the hire lead time on dsps.metadata (same pattern as the Plan
+// Pad slider), then repaint every surface that uses it.
+let _rrHireLeadSaveTimer = null;
+document.addEventListener("input", (e) => {
+  if (e.target?.id !== "rr-tgt-hire-lead") return;
+  const v = Math.max(7, Math.min(120, parseInt(e.target.value, 10) || RR_OKAMI_HIRE_LEAD_DAYS));
+  if (window.RR?.dsp?.metadata) {
+    window.RR.dsp.metadata.staffing = { ...(window.RR.dsp.metadata.staffing || {}), hire_lead_days: v };
+  }
+  if (_rrHireLeadSaveTimer) clearTimeout(_rrHireLeadSaveTimer);
+  _rrHireLeadSaveTimer = setTimeout(async () => {
+    const dspId = window.RR?.dsp?.id;
+    if (!dspId) return;
+    await sb.from("dsps").update({ metadata: window.RR.dsp.metadata || {} }).eq("id", dspId);
+    if (window._okamiStart) window._rrOkamiAnchorOverride = window._okamiStart;
+    try { await renderOkamiLive(); } catch (_) {}
+  }, 600);
+});
 document.addEventListener("click", (e) => {
   const btn = e.target.closest && e.target.closest(".rr-tgt-th-info");
   if (!btn) return;
@@ -53245,6 +53273,7 @@ async function _renderOkamiLiveImpl() {
   const modelWeeks = [];
 
   const todayIso = fmtIsoDate(new Date());
+  const leadDays = _rrHireLeadDays();
   // Onboarding readiness list (hire_date ≤ week start = road-ready, the
   // staffing outlook's convention). Until the rates load lands, every
   // onboarding driver counts as not-ready — the loader's repaint hook
@@ -53287,7 +53316,7 @@ async function _renderOkamiLiveImpl() {
 
     const needed  = unplanned ? 0 : rrDriversNeeded(routesMax, { driversPerRoute: _fcDpr, padPct });
     const gap     = avail - needed;
-    const hireBy  = addDays(weekStart, -RR_OKAMI_HIRE_LEAD_DAYS);
+    const hireBy  = addDays(weekStart, -leadDays);
 
     const labelEl = row.querySelector(".plan-week-label");
     const datesEl = row.querySelector(".plan-week-dates");
@@ -53391,7 +53420,7 @@ async function _renderOkamiLiveImpl() {
         // Severity class drives the graduated red (or green) gap pill on the
         // Targets page (scoped CSS; standalone OKAMI leaves the gap unstyled).
         _rrApplyGapClass(gapEl, gap);
-        if (gap < 0) gapEl.title += ` · hire by ${fmtMD(hireBy)} (${RR_OKAMI_HIRE_LEAD_DAYS}-day lead)`;
+        if (gap < 0) gapEl.title += ` · hire by ${fmtMD(hireBy)} (${leadDays}-day lead)`;
       }
     }
 
@@ -54431,6 +54460,16 @@ async function loadSchedulingSettings() {
   if (tgBlockEl) tgBlockEl.value = s.default_block_hours ?? 10;
   if (tgCushEl)  tgCushEl.value  = s.cushion_pct ?? 10;
   if (tgLeadEl)  tgLeadEl.value  = s.report_lead_minutes ?? 0;
+  // Name the week these per-week rules belong to — above a 13-week table
+  // they otherwise read as global knobs.
+  const tgWeekLbl = document.getElementById("rr-tgt-rules-week-label");
+  if (tgWeekLbl && _schedStart) {
+    const wkDate = new Date(_schedStart + "T12:00:00");
+    tgWeekLbl.textContent = `W${isoWeek(wkDate)}${s.is_inherited ? " · inherited" : ""}`;
+    tgWeekLbl.title = s.is_inherited
+      ? `Week of ${fmtMD(wkDate)} — showing rules inherited from an earlier week; saving makes them this week's own`
+      : `Week of ${fmtMD(wkDate)} — this week has its own saved rules`;
+  }
 
   // Read-only attendance rate label next to the cushion field. Operator
   // looks at it and decides their own cushion %. No click handler, no
@@ -54909,6 +54948,8 @@ async function _okamiSettingsTriggerSave(inputEl) {
   if (res?.ok) {
     _flashOkamiTargetsStatus("Saved", "var(--green)");
     setTimeout(() => { _flashOkamiTargetsStatus("", ""); }, 1800);
+    // Auto-save landed — the Apply-rules button's dirty accent clears.
+    try { _rrTgtMarkRulesClean(); _rrTgtWaveDirty = false; } catch (_) {}
   } else {
     _flashOkamiTargetsStatus(res?.error || "Save failed", "var(--red)");
     setTimeout(() => { _flashOkamiTargetsStatus("", ""); }, 3000);
@@ -55221,10 +55262,16 @@ function _rrRefreshTargetsGapCard() {
     if (unplannedCount > 0) subEl.textContent += ` · ${unplannedCount} wk${unplannedCount === 1 ? "" : "s"} unplanned`;
     subEl.hidden = false;
   }
+  // Initial paint runs before the forecast rates land — shimmer the sub
+  // line instead of letting the number visibly re-compose in stages.
+  card.classList.toggle("is-loading", !window._rrForecastRates);
   // A short plan gets a click-through to the full Risk forecast analysis
   // (per-week narrative, hire-by dates, simulation deltas).
   const clickable = worst < 0 && typeof _rrIntelShow === "function";
   card.classList.toggle("is-clickable", clickable);
+  // Visible affordance — hover-only clickability is invisible.
+  const linkEl = document.getElementById("rr-tgt-gap-card-link");
+  if (linkEl) linkEl.hidden = !clickable;
   if (clickable) {
     card.setAttribute("role", "button");
     card.setAttribute("tabindex", "0");
@@ -55270,13 +55317,107 @@ function _rrApplyGapClass(gapEl, gap) {
   gapEl.title = `Short ${m} driver${m === 1 ? "" : "s"}${sev === 3 ? " — severe" : sev === 2 ? " — significant" : ""}`;
 }
 
-// Save Plan · Targets auto-saves per week as you type, so this re-commits the
-// plan settings (block / cushion / report / waves) and confirms.
-document.addEventListener("click", (e) => {
-  if (!e.target.closest || !e.target.closest("#rr-tgt-save-plan")) return;
+// Apply rules · routes auto-save as you type; this button's real job is
+// "save Block/Cushion/Report + waves for the visible week AND rebuild
+// that week's unassigned shifts" (upsert → regenerate → cushion). It
+// used to toast 'Plan saved' unconditionally — before the save resolved
+// and even when it failed. Now: in-flight state, outcome from the
+// actual result, and a dirty accent only when there are unsaved rule
+// edits (routes never make it dirty — they're already saved).
+function _rrTgtMarkRulesDirty() {
+  document.getElementById("rr-tgt-save-plan")?.classList.add("rr-tgt-save-plan--dirty");
+}
+function _rrTgtMarkRulesClean() {
+  document.getElementById("rr-tgt-save-plan")?.classList.remove("rr-tgt-save-plan--dirty");
+}
+document.addEventListener("input", (e) => {
+  if (!e.target.closest) return;
+  if ((e.target.id && (_RR_TARGETS_SUB_SETTING_IDS.has(e.target.id) || _RR_OKAMI_SETTING_IDS.has(e.target.id)))
+      || e.target.closest("#rr-set-waves")) {
+    _rrTgtMarkRulesDirty();
+  }
+});
+document.addEventListener("click", async (e) => {
+  const btn = e.target.closest && e.target.closest("#rr-tgt-save-plan");
+  if (!btn) return;
   e.preventDefault();
-  if (typeof _saveScheduleSettings === "function") _saveScheduleSettings({ source: "nav" });
-  if (typeof toast === "function") toast("Plan saved", "success");
+  if (btn.disabled || typeof _saveScheduleSettings !== "function") return;
+  const week = window._rrOkamiModel?.weeks?.[0]?.label
+    || (typeof _schedStart === "string" && _schedStart ? `wk of ${fmtMD(new Date(_schedStart + "T12:00:00"))}` : "this week");
+  btn.disabled = true;
+  btn.setAttribute("aria-busy", "true");
+  const prevLabel = btn.textContent;
+  btn.textContent = "Applying…";
+  try {
+    const res = await _saveScheduleSettings({ source: "nav" });
+    if (res?.ok) {
+      _rrTgtWaveDirty = false;
+      _rrTgtMarkRulesClean();
+      const cushionNote = res.cushionDelta > 0 ? ` (+${res.cushionDelta} cushion)` : "";
+      toast(`Rules applied — ${week} shifts rebuilt${cushionNote}`, "success");
+    } else {
+      toast(`Apply failed: ${res?.error || "unknown error"}`, "warn");
+    }
+  } finally {
+    btn.disabled = false;
+    btn.removeAttribute("aria-busy");
+    btn.textContent = prevLabel;
+  }
+});
+
+// "→ all" · apply the visible week's rules to every remaining week of
+// the 13-week horizon. Settings rows only — deliberately NO
+// regenerate/cushion per week (that deletes and rebuilds unassigned
+// shifts 12 times); each week's shifts rebuild when it is applied/built.
+function _rrTgtRulesPayload(weekStartIso) {
+  const num = (id, dflt) => {
+    const v = parseInt(document.getElementById(id)?.value ?? "", 10);
+    return Number.isFinite(v) ? v : dflt;
+  };
+  const waves = Array.from(document.querySelectorAll("#rr-set-waves [data-rr-wave-time]"))
+    .map((el) => ({ start: el.value || "07:00" }));
+  const tiebreakRaw = document.getElementById("rr-set-pref-tiebreaker")?.value;
+  return {
+    week_start: weekStartIso,
+    default_block_hours: num("rr-set-block-hours", 10),
+    cushion_pct: num("rr-set-cushion-pct", 0),
+    max_days_per_week: Math.max(0, Math.min(7, num("rr-set-max-days", 5))),
+    report_lead_minutes: Math.max(0, Math.min(120, num("rr-set-report-lead", 0))),
+    allow_availability_override: !!document.getElementById("rr-set-availability-override")?.checked,
+    preference_tiebreaker: ["least_loaded", "seniority", "fairness"].includes(tiebreakRaw) ? tiebreakRaw : "least_loaded",
+    waves: waves.length ? waves : [{ start: "07:00" }],
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+  };
+}
+document.addEventListener("click", async (e) => {
+  const btn = e.target.closest && e.target.closest("#rr-tgt-rules-fwd");
+  if (!btn) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const weeks = (window._rrOkamiModel?.weeks || []).slice(1);
+  if (!weeks.length) { toast("No later weeks in the horizon", "warn"); return; }
+  const okc = typeof _rrConfirmDialog !== "function" || await _rrConfirmDialog({
+    title: `Apply these rules to ${weeks.length} later weeks?`,
+    body: `Copies this week's Block / Cushion / Report time / Wave times to ${weeks[0].label}–${weeks[weeks.length - 1].label} as each week's own settings. Their shifts are NOT rebuilt now — that happens when each week is applied or built.`,
+    confirmLabel: "Apply to all",
+  });
+  if (!okc) return;
+  btn.disabled = true;
+  _flashOkamiTargetsStatus("Applying to later weeks…", "var(--text-subtle)");
+  try {
+    for (const wk of weeks) {
+      const { error } = await sb.rpc("upsert_scheduling_settings", { p_payload: _rrTgtRulesPayload(wk.weekStartIso) });
+      if (error) throw error;
+    }
+    _flashOkamiTargetsStatus("Rules applied to all weeks", "var(--green)");
+    setTimeout(() => _flashOkamiTargetsStatus("", ""), 2500);
+    toast(`Rules copied to ${weeks.length} weeks`, "success");
+  } catch (err) {
+    _flashOkamiTargetsStatus("Apply-forward failed", "var(--red)");
+    toast("Apply-forward failed: " + (err?.message || err), "warn");
+  } finally {
+    btn.disabled = false;
+  }
 });
 
 // The shared top-right chrome (⋯ overflow menu + bell + avatar) lives in the
@@ -55358,6 +55499,53 @@ window._rrMoveRosterSearchToStrip = _rrMoveRosterSearchToStrip;
 // The editors inside are the live popover nodes, so their handlers (add/remove
 // wave, service toggle/rename, Save) keep working — clicks inside a menu stay
 // "inside" so editing never dismisses the dropdown.
+//
+// Wave edits only persist via Save — closing the menu mid-edit used to
+// discard typed wave times silently. Any close path now runs through
+// _rrTgtCloseMenus, which asks Apply/Discard first when dirty.
+let _rrTgtWaveDirty = false;
+document.addEventListener("input", (e) => {
+  if (e.target.closest && e.target.closest("#rr-set-waves")) _rrTgtWaveDirty = true;
+});
+document.addEventListener("click", (e) => {
+  if (!e.target.closest) return;
+  if (e.target.closest("#rr-set-add-wave") || e.target.closest("[data-rr-remove-wave]")) _rrTgtWaveDirty = true;
+  if (e.target.closest("#rr-set-sched-save")) _rrTgtWaveDirty = false; // explicit save
+});
+
+function _rrTgtMenusOpen() {
+  return ["rr-tgt-waves-menu", "rr-tgt-st-menu"]
+    .map((id) => document.getElementById(id))
+    .filter((m) => m && !m.hidden);
+}
+function _rrTgtHideMenus() {
+  for (const id of ["rr-tgt-waves-menu", "rr-tgt-st-menu"]) {
+    const m = document.getElementById(id); if (m && !m.hidden) m.hidden = true;
+  }
+  for (const id of ["rr-tgt-waves-btn", "rr-tgt-st-btn"]) {
+    const b = document.getElementById(id); if (b) b.setAttribute("aria-expanded", "false");
+  }
+}
+async function _rrTgtCloseMenus() {
+  if (!_rrTgtMenusOpen().length) return true;
+  const wavesOpen = !document.getElementById("rr-tgt-waves-menu")?.hidden;
+  if (wavesOpen && _rrTgtWaveDirty && typeof _rrConfirmDialog === "function") {
+    const apply = await _rrConfirmDialog({
+      title: "Apply wave changes?",
+      body: "You edited the wave start times but didn't save. Apply saves them and rebuilds this week's unassigned shifts; Discard restores the saved times.",
+      confirmLabel: "Apply",
+      cancelLabel: "Discard",
+    });
+    _rrTgtWaveDirty = false;
+    if (apply) {
+      if (typeof _saveScheduleSettings === "function") await _saveScheduleSettings({ source: "nav" });
+    } else if (typeof loadSchedulingSettings === "function") {
+      try { loadSchedulingSettings(); } catch (_) {}
+    }
+  }
+  _rrTgtHideMenus();
+  return true;
+}
 document.addEventListener("click", (e) => {
   const toggle = e.target.closest && e.target.closest("#rr-tgt-waves-btn, #rr-tgt-st-btn");
   if (toggle) {
@@ -55365,25 +55553,36 @@ document.addEventListener("click", (e) => {
     const isWaves   = toggle.id === "rr-tgt-waves-btn";
     const menu      = document.getElementById(isWaves ? "rr-tgt-waves-menu" : "rr-tgt-st-menu");
     const otherMenu = document.getElementById(isWaves ? "rr-tgt-st-menu"    : "rr-tgt-waves-menu");
-    const otherBtn  = document.getElementById(isWaves ? "rr-tgt-st-btn"     : "rr-tgt-waves-btn");
-    if (otherMenu) otherMenu.hidden = true;
-    if (otherBtn)  otherBtn.setAttribute("aria-expanded", "false");
-    if (menu) {
-      const willOpen = menu.hidden;
-      menu.hidden = !willOpen;
-      toggle.setAttribute("aria-expanded", String(willOpen));
-    }
+    const willOpen  = menu ? menu.hidden : false;
+    // Closing (or switching away from) a dirty waves menu goes through
+    // the guard; opening is immediate.
+    const closingWaves = (!isWaves && otherMenu && !otherMenu.hidden) || (isWaves && !willOpen);
+    const proceed = () => {
+      _rrTgtHideMenus();
+      if (menu && willOpen) {
+        menu.hidden = false;
+        toggle.setAttribute("aria-expanded", "true");
+      }
+    };
+    if (closingWaves && _rrTgtWaveDirty) { _rrTgtCloseMenus().then(() => { if (willOpen && menu) { menu.hidden = false; toggle.setAttribute("aria-expanded", "true"); } }); }
+    else proceed();
     return;
   }
   // Click outside the menus (and not on a pill toggle) closes any open one.
   if (!e.target.closest || !e.target.closest(".rr-tgt-kpi-menu-wrap")) {
-    for (const id of ["rr-tgt-waves-menu", "rr-tgt-st-menu"]) {
-      const m = document.getElementById(id); if (m && !m.hidden) m.hidden = true;
-    }
-    for (const id of ["rr-tgt-waves-btn", "rr-tgt-st-btn"]) {
-      const b = document.getElementById(id); if (b) b.setAttribute("aria-expanded", "false");
-    }
+    if (_rrTgtMenusOpen().length) _rrTgtCloseMenus();
   }
+});
+// Esc closes the open dropdown and returns focus to its pill.
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  const open = _rrTgtMenusOpen();
+  if (!open.length) return;
+  const isWaves = open[0].id === "rr-tgt-waves-menu";
+  e.preventDefault();
+  _rrTgtCloseMenus().then(() => {
+    document.getElementById(isWaves ? "rr-tgt-waves-btn" : "rr-tgt-st-btn")?.focus();
+  });
 });
 
 // Ensure the OKAMI 13-week table is back inside #view-okami before

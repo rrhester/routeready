@@ -1601,6 +1601,18 @@
              the Targets rules (Block / Cushion / Report time) become
              individual KPI pills with inline number inputs. -->
         <div id="rr-sched-targets-kpis" class="sched-kpi-pills tcp-kpi" role="group" aria-label="Targets rules" style="display:none">
+          <!-- Which week the rules edit · Block/Cushion/Report/Waves are
+               PER-WEEK settings (scheduling_settings_for_week) — without
+               this chip they read as global knobs over a 13-week table. -->
+          <div class="rr-tgt-kpi rr-tgt-rules-week" id="rr-tgt-rules-week" title="Block, Cushion, Report time and Wave times are per-week rules — they apply to the week shown here. Weeks without their own rules inherit from the most recent earlier week.">
+            <div class="rr-tgt-kpi-text">
+              <div class="rr-tgt-kpi-label">Rules for</div>
+              <div class="rr-tgt-kpi-val">
+                <span class="rr-tgt-rules-week-label" id="rr-tgt-rules-week-label">—</span>
+                <button type="button" class="rr-tgt-rules-fwd" id="rr-tgt-rules-fwd" title="Apply this week's rules to every remaining week of the 13-week plan (settings only — shifts rebuild when each week is applied)">→ all</button>
+              </div>
+            </div>
+          </div>
           <div class="rr-tgt-kpi">
             <div class="rr-tgt-kpi-text">
               <div class="rr-tgt-kpi-label">Block</div>
@@ -1662,9 +1674,10 @@
               <span class="rr-tgt-gap-card-label">Forecast gap</span>
               <span class="rr-tgt-gap-card-value" id="rr-tgt-gap-card-main">—</span>
               <span class="rr-tgt-gap-card-sub" id="rr-tgt-gap-card-sub" hidden></span>
+              <span class="rr-tgt-gap-card-link" id="rr-tgt-gap-card-link" hidden>View analysis →</span>
             </div>
             <span id="rr-tgt-save-status" class="rr-tgt-save-status" aria-live="polite"></span>
-            <button type="button" class="rr-tgt-save-plan" id="rr-tgt-save-plan">Save Plan</button>
+            <button type="button" class="rr-tgt-save-plan" id="rr-tgt-save-plan" title="Save this week's rules (Block / Cushion / Report / Waves) and rebuild its unassigned shifts">Apply rules</button>
             <span class="rr-tgt-chrome-host" id="rr-tgt-chrome-host"></span>
           </div>
         </div><!-- /#rr-sched-targets-kpis -->
