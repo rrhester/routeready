@@ -40,13 +40,53 @@ expects 498) until migrations are applied.
 STATUS 2026-07-17: all 10 waves A–J shipped one batch each and MERGED
 (PRs #3964,3966,3968,3970,3973,3975,3976,3979,3980,3982 + workflow minis
 #3965,3967,3969,3983). ~75/100 items shipped; ~25 DEFERRED with explicit
-reasons (the risky live.js monolith refactors PR#12/16/17/18/19/20,
-CSS/lazy-load perf PR#21/23/28/31/32, driver rpc-wrapper/rem/split
-PR#35/39/41/42/43, a11y ratchet/token PR#93/94/96, node:test migration +
-visual-regression breadth PR#83/86). Migrations 0504+0505 pasted in chat
-+ APPLIED by user. Each deferred item needs its own browser-verified PR —
-they were held back to avoid blind regressions on the 92k-line file, NOT
-because they're low-value. Per-wave detail below.
+reasons. Migrations 0504+0505 pasted in chat + APPLIED by user.
+
+**Wave K — 2026-07-18: deferred-item cleanup pass (MERGED):**
+- **PR#41** rem type scale (#3988) — app font-size tokens px→rem.
+- **PR#83** parallel test runner (#3990) — `npm test` → scripts/run-tests.mjs
+  (globs test-*.mjs, runs concurrent, per-suite PASS/FAIL, no `&&`-chain
+  masking). Low-risk form of the node:test migration.
+- **PR#28** sw.js changelog trim (#3993) — dashboard/sw.js 103,887→5,589 B
+  (dropped the 200+ entry deploy-nonce changelog served no-cache every nav;
+  kept RECOVERY-MODE doc + all handlers byte-exact).
+- **PR#93+#94** design/a11y ratchet extension (#3994 + workflow paths #3995)
+  — design-lint.mjs now scans dashboard/live.js + public/shell HTML (not
+  just 6 CSS + app.js); added a11y axes positiveTabindex(0) + imgNoAlt(0,
+  fixed the QR-print img); comment/inline-block-comment stripping kills
+  false positives; baseline rawHex 2393/important 3962/rawFontSize 883/
+  inlineStyle 3850. NEW: a live.js/HTML PR that adds a raw hex/!important/
+  inline style/positive tabindex/alt-less img now FAILS the ratchet — use a
+  token/alt or `design-lint.mjs --update` with justification.
+- **PR#31 (partial)** netlify.toml cache comment (#3996) — corrected the
+  stale "~17k lines of CSS inlined" claim (CSS is external+?v= now). Shell-
+  shrink main work still deferred.
+- **PR#19 (partial)** checklist test de-drift (#3998) — extracted the
+  completion rule to dashboard/checklist-core.mjs; live.js + test-checklist-
+  completion.mjs both call it (no more hand-mirrored copy). Forecast/sim
+  extraction (live.js:3661–4900) still deferred.
+
+**STILL DEFERRED after Wave K — each needs something this headless env
+can't provide (browser QA on the live monolith / a device / tooling / the
+operator's design eye). NOT low-value; do NOT blind-ship on the production
+dashboard:**
+- Live.js/app.js monolith refactors needing browser QA: **PR#12** goto
+  dispatcher, **PR#16** mock-wiring retirement, **PR#17** notebooks.frag→
+  module, **PR#18** typeof-guard sweep (560 sites), **PR#19** forecast/sim
+  extraction, **PR#21** lazy-load per-view (workbook/reports), **PR#23** CSS
+  dedupe + unused-selector coverage pass, **PR#35** driver rpc() wrapper
+  (125 sites), **PR#42** app.js split, **PR#43** offline attachments.
+- Design judgment on external pages: **PR#96** public token unify — NOTE
+  booking.html's palette (#202124/#5F6368/#DADCE0 + "Google Sans") is an
+  INTENTIONAL Google-Calendar look, not accidental drift; unifying it to the
+  dashboard neutral would change an external candidate-facing aesthetic.
+- Native device test: **PR#39** Capacitor haptics/badge bridge.
+- Flaky-baseline risk: **PR#86** broaden visual regression.
+- Blocked by tooling (absent in this env): **PR#32** PNG quantization
+  (no pngquant/oxipng/optipng/sharp).
+- Convention-only (no code): **PR#20** window.RR namespace.
+
+Per-wave A–J detail below.
 
 Working through ALL 100 items of `docs/project-review-2026-07.md`
 (whole-project review, items referenced as `PR#NN`), user said
