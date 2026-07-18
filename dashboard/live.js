@@ -52699,6 +52699,7 @@ function _okamiRecomputeFromCache(padPct) {
     }
   }
   _rrOkamiRenderTfoot();
+  try { _rrOkamiRenderTrend(); } catch (_) { /* chart host is Targets-only */ }
   try { _rrRefreshTargetsGapCard(); } catch (_) { /* gap card is optional */ }
 }
 let _okamiCushionPct = 10;
@@ -52746,7 +52747,7 @@ function _rrOkamiWeekRowHtml(w) {
     : "";
   return `<tr id="okami-row-${w}">
     <td>${expandBtn}<div class="plan-week-label" style="display:inline-block;vertical-align:middle"></div><div class="plan-week-dates"></div><span class="rr-tgt-week-chips"></span>${rowActs}</td>
-    <td class="center"><input class="plan-route-input" inputmode="numeric" autocomplete="off" data-rr-okami-week-idx="${w}"/></td>
+    <td class="center"><input class="plan-route-input" inputmode="numeric" autocomplete="off" data-rr-okami-week-idx="${w}"/><span class="rr-tgt-spark-slot"></span></td>
     <td class="center"><div class="plan-calc"></div></td>
     <td class="center"><div class="plan-calc"></div></td>
     <td class="center"><div class="plan-gap"></div></td>
@@ -52832,14 +52833,242 @@ function _rrOkamiRenderTfoot() {
   const totalRoutes = weeks.reduce((s, w) => s + (w.weekRoutes || 0), 0);
   let peak = null;
   for (const w of planned) if (!peak || w.routesMax > peak.routesMax) peak = w;
+
+  // Hiring pace — the per-week gaps imply a schedule, not one lump sum.
+  // Cumulative requirement = running max of the (effective-supply)
+  // shortfall; each increase is a hiring step with its own deadline.
+  let paceHtml = "";
+  try {
+    if (planned.some((w) => w.gap < 0) && typeof _rrAssessOkamiPlan === "function") {
+      const A = _rrAssessOkamiPlan(planned);
+      let run = 0;
+      const steps = [];
+      for (const x of (A?.weeks || [])) {
+        if (x.gap >= 0) continue;
+        const req = -x.gap;
+        if (req > run) {
+          steps.push({ add: req - run, byIso: x.hireByIso, past: x.hireByStatus === "past", label: x.label });
+          run = req;
+        }
+      }
+      if (steps.length) {
+        const fmtBy = (iso) => (iso ? fmtMD(new Date(iso + "T12:00:00")) : "—");
+        const shown = steps.slice(0, 4);
+        paceHtml = `<tr class="rr-okami-pace-row"><td colspan="8" title="Cumulative hires needed, from the effective-supply forecast (attrition, callouts and onboarding readiness folded in). One hire covers every later week.">
+          <span class="rr-okami-foot-item" style="font-weight:600;color:var(--text-muted)">Hiring pace</span>
+          ${shown.map((s) => `<span class="rr-okami-foot-item">+${s.add} ${s.past ? `for ${escapeHtml(s.label)} (window passed — OT/flex)` : `by <b>${fmtBy(s.byIso)}</b> (${escapeHtml(s.label)})`}</span>`).join("")}
+          ${steps.length > shown.length ? `<span class="rr-okami-foot-item">… ${steps.length - shown.length} more step${steps.length - shown.length === 1 ? "" : "s"}</span>` : ""}
+          <span class="rr-okami-foot-item" style="color:var(--text-subtle)">${run} total</span>
+        </td></tr>`;
+      }
+    }
+  } catch (_) { /* pace line is best-effort */ }
+
   foot.innerHTML = `<tr class="rr-okami-foot-row"><td colspan="8">
     <span class="rr-okami-foot-item"><b>${totalRoutes.toLocaleString()}</b> routes planned</span>
     ${peak ? `<span class="rr-okami-foot-item">peak <b>${peak.routesMax}</b>/day (${escapeHtml(peak.label)})</span>` : ""}
     <span class="rr-okami-foot-item"><b>${covered}</b> wk covered</span>
     <span class="rr-okami-foot-item"><b>${short}</b> wk short</span>
     ${unplanned ? `<span class="rr-okami-foot-item"><b>${unplanned}</b> wk unplanned</span>` : ""}
-  </td></tr>`;
+  </td></tr>${paceHtml}`;
 }
+
+// Gap-pill click → per-week explanation popover: the demand math, the
+// supply breakdown, and what would close the gap.
+function _rrOkamiGapExplainHtml(mw) {
+  const rates = window._rrForecastRates || {};
+  const dpr = rates.driversPerRoute ?? 2;
+  const pad = Math.max(0, Math.min(50, Number(window.RR?.dsp?.metadata?.staffing?.plan_pad_pct ?? 10) || 0));
+  if (mw.unplanned) {
+    return `<div class="pa-pop-h">${escapeHtml(mw.label)} · ${escapeHtml(mw.dates)}</div>
+      <div style="padding:12px 14px;font-size:var(--fs-sm);line-height:1.5">
+        No routes planned this week yet — type a peak in the Routes column,
+        paste a column of values, or use <b>Seed empty weeks</b> above the table.
+      </div>`;
+  }
+  const supplyLine = [`${mw.payroll ?? mw.avail} on payroll`]
+    .concat(mw.onTimeOff ? [`− ${mw.onTimeOff} time-off`] : [])
+    .concat(mw.notReadyOnboarding ? [`− ${mw.notReadyOnboarding} onboarding`] : [])
+    .join(" ");
+  const short = mw.gap < 0 ? -mw.gap : 0;
+  const routeCut = short ? Math.ceil(short / (dpr * (1 + pad / 100))) : 0;
+  const closeHtml = short
+    ? `<div style="margin-top:8px"><b>To close −${short}:</b>
+        <div>· hire ${short} (by ${escapeHtml(mw.hireBy || "—")})</div>
+        <div>· or trim the peak by ~${routeCut} route${routeCut === 1 ? "" : "s"}/day</div>
+        <div>· or cover with OT/flex — see the Risk forecast</div></div>`
+    : `<div style="margin-top:8px;color:var(--rr-green-700)">Covered with ${mw.gap} spare driver${mw.gap === 1 ? "" : "s"}.</div>`;
+  return `<div class="pa-pop-h">${escapeHtml(mw.label)} · ${escapeHtml(mw.dates)}</div>
+    <div style="padding:12px 14px;font-size:var(--fs-xs);line-height:1.6;color:var(--text-muted)">
+      <div><b>Demand</b> · peak ${mw.routesMax}/day → ceil(${mw.routesMax} × ${dpr} × ${(1 + pad / 100).toFixed(2)}) = <b>${mw.needed}</b> drivers</div>
+      <div><b>Supply</b> · ${escapeHtml(supplyLine)} = <b>${mw.avail}</b> route-ready</div>
+      <div><b>Gap</b> · <b>${mw.gap >= 0 ? "+" : ""}${mw.gap}</b></div>
+      ${closeHtml}
+    </div>`;
+}
+document.addEventListener("click", (e) => {
+  const gapEl = e.target.closest && e.target.closest("#okami-tbody .plan-gap");
+  if (!gapEl) return;
+  const row = gapEl.closest("tr");
+  if (!row || !row.parentElement) return;
+  const idx = Array.from(row.parentElement.querySelectorAll("tr:not(.okami-detail)")).indexOf(row);
+  const mw = window._rrOkamiModel?.weeks?.[idx];
+  if (!mw || typeof _paOpenPopover !== "function") return;
+  _paOpenPopover(gapEl, _rrOkamiGapExplainHtml(mw));
+});
+
+// ─── Needed-vs-available trend chart (Targets page) ────────────────────────
+// One small line chart above the table: demand (amber) vs route-ready
+// supply (blue) across the 13 weeks, shortfall shaded red between the
+// lines. Series colors validated (CVD + contrast) against the light
+// surface; identity is never color-alone (legend + direct end-labels).
+const RR_TGT_TREND_DEMAND = "#B45309"; // amber-700 · drivers needed
+const RR_TGT_TREND_SUPPLY = "#2563EB"; // blue-600  · drivers available
+
+function _rrOkamiRenderTrend() {
+  const host = document.getElementById("rr-tgt-trend");
+  if (!host) return;
+  const weeks = window._rrOkamiModel?.weeks || [];
+  const planned = weeks.filter((w) => !w.unplanned);
+  if (planned.length < 2) { host.hidden = true; host.innerHTML = ""; return; }
+  host.hidden = false;
+
+  const W = Math.max(360, host.clientWidth ? host.clientWidth - 26 : 780);
+  const H = 132, padL = 34, padR = 66, padT = 12, padB = 20;
+  const innerW = W - padL - padR, innerH = H - padT - padB;
+  const n = weeks.length;
+  const yMax = Math.max(10, ...planned.map((w) => Math.max(w.needed, w.avail)));
+  const yNice = Math.ceil(yMax / 20) * 20;
+  const x = (i) => padL + (n <= 1 ? 0 : (i / (n - 1)) * innerW);
+  const y = (v) => padT + innerH - (Math.max(0, v) / yNice) * innerH;
+
+  // Split into consecutive planned runs so a mid-horizon unplanned week
+  // breaks the line instead of bridging it.
+  const runs = [];
+  let cur = [];
+  for (const w of weeks) {
+    if (w.unplanned) { if (cur.length) { runs.push(cur); cur = []; } }
+    else cur.push(w);
+  }
+  if (cur.length) runs.push(cur);
+
+  const pathOf = (run, val) => run.map((w, i) => `${i ? "L" : "M"}${x(w.idx).toFixed(1)},${y(val(w)).toFixed(1)}`).join("");
+  let paths = "", shortfall = "";
+  for (const run of runs) {
+    paths += `<path d="${pathOf(run, (w) => w.needed)}" fill="none" stroke="${RR_TGT_TREND_DEMAND}" stroke-width="2" stroke-linejoin="round"/>`;
+    paths += `<path d="${pathOf(run, (w) => w.avail)}" fill="none" stroke="${RR_TGT_TREND_SUPPLY}" stroke-width="2" stroke-linejoin="round"/>`;
+    // Shortfall band: needed line down to avail line over short stretches.
+    let seg = [];
+    const flush = () => {
+      if (seg.length >= 2) {
+        const top = seg.map((w) => `${x(w.idx).toFixed(1)},${y(w.needed).toFixed(1)}`);
+        const bot = seg.slice().reverse().map((w) => `${x(w.idx).toFixed(1)},${y(w.avail).toFixed(1)}`);
+        shortfall += `<polygon points="${top.concat(bot).join(" ")}" fill="rgba(220,38,38,.10)"/>`;
+      }
+      seg = [];
+    };
+    for (const w of run) { if (w.gap < 0) seg.push(w); else flush(); }
+    flush();
+  }
+
+  // Recessive grid: three horizontal lines + muted tick labels.
+  let grid = "";
+  for (const frac of [0, 0.5, 1]) {
+    const gy = padT + innerH - frac * innerH;
+    grid += `<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W - padR}" y2="${gy.toFixed(1)}" stroke="#EEF1F5" stroke-width="1"/>`;
+    grid += `<text x="${padL - 6}" y="${(gy + 3).toFixed(1)}" text-anchor="end" font-size="9" fill="var(--text-subtle)">${Math.round(yNice * frac)}</text>`;
+  }
+  let xLabels = "";
+  for (const w of weeks) {
+    xLabels += `<text x="${x(w.idx).toFixed(1)}" y="${H - 6}" text-anchor="middle" font-size="9" fill="var(--text-subtle)">${escapeHtml(w.label)}</text>`;
+  }
+  // Trailing/interior unplanned zones get a light wash + label.
+  let zones = "";
+  const unplannedRuns = [];
+  cur = [];
+  for (const w of weeks) {
+    if (w.unplanned) cur.push(w);
+    else { if (cur.length) { unplannedRuns.push(cur); cur = []; } }
+  }
+  if (cur.length) unplannedRuns.push(cur);
+  for (const z of unplannedRuns) {
+    const x0 = z[0].idx === 0 ? padL : (x(z[0].idx - 1) + x(z[0].idx)) / 2;
+    const x1 = z[z.length - 1].idx === n - 1 ? W - padR : (x(z[z.length - 1].idx) + x(z[z.length - 1].idx + 1)) / 2;
+    zones += `<rect x="${x0.toFixed(1)}" y="${padT}" width="${(x1 - x0).toFixed(1)}" height="${innerH}" fill="var(--canvas)"/>`;
+    zones += `<text x="${((x0 + x1) / 2).toFixed(1)}" y="${(padT + innerH / 2).toFixed(1)}" text-anchor="middle" font-size="9" fill="var(--text-subtle)">no plan</text>`;
+  }
+  // Direct end-labels on the last planned point of the last run.
+  const lastRun = runs[runs.length - 1];
+  const lastW = lastRun[lastRun.length - 1];
+  const endLabels =
+    `<text x="${(x(lastW.idx) + 5).toFixed(1)}" y="${(y(lastW.needed) + 3).toFixed(1)}" font-size="9" font-weight="600" fill="${RR_TGT_TREND_DEMAND}">Needed</text>` +
+    `<text x="${(x(lastW.idx) + 5).toFixed(1)}" y="${(y(lastW.avail) + (Math.abs(y(lastW.avail) - y(lastW.needed)) < 10 ? 12 : 3)).toFixed(1)}" font-size="9" font-weight="600" fill="${RR_TGT_TREND_SUPPLY}">Available</text>`;
+  // Hover slots: one transparent hit rect per week + a guide line.
+  let slots = "";
+  for (const w of weeks) {
+    const half = n <= 1 ? innerW : innerW / (n - 1) / 2;
+    const sx = Math.max(padL, x(w.idx) - half);
+    const sw = Math.min(W - padR, x(w.idx) + half) - sx;
+    slots += `<rect x="${sx.toFixed(1)}" y="${padT}" width="${sw.toFixed(1)}" height="${innerH}" fill="transparent" data-rr-trend-idx="${w.idx}"/>`;
+  }
+
+  host.innerHTML = `
+    <div class="rr-tgt-trend-legend">
+      <span><i style="background:${RR_TGT_TREND_DEMAND}"></i>Drivers needed</span>
+      <span><i style="background:${RR_TGT_TREND_SUPPLY}"></i>Available (route-ready)</span>
+      <span><i style="background:rgba(220,38,38,.25)"></i>Shortfall</span>
+    </div>
+    <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Needed versus available drivers across the 13-week plan">
+      ${zones}${grid}${shortfall}${paths}${endLabels}
+      <line id="rr-tgt-trend-guide" y1="${padT}" y2="${padT + innerH}" stroke="var(--border-strong)" stroke-width="1" visibility="hidden"/>
+      ${slots}
+    </svg>
+    <div class="rr-tgt-trend-tip" hidden></div>`;
+}
+
+// Hover tooltip for the trend chart (delegated; markup re-renders freely).
+document.addEventListener("pointerover", (e) => {
+  const slot = e.target.closest && e.target.closest("[data-rr-trend-idx]");
+  const host = document.getElementById("rr-tgt-trend");
+  if (!host) return;
+  const tip = host.querySelector(".rr-tgt-trend-tip");
+  const guide = document.getElementById("rr-tgt-trend-guide");
+  if (!slot) { if (tip && !tip.hidden && !host.contains(e.target)) { tip.hidden = true; guide?.setAttribute("visibility", "hidden"); } return; }
+  const w = window._rrOkamiModel?.weeks?.[parseInt(slot.dataset.rrTrendIdx, 10)];
+  if (!w || !tip) return;
+  tip.innerHTML = w.unplanned
+    ? `<b>${escapeHtml(w.label)}</b> · ${escapeHtml(w.dates)}<br>No plan yet`
+    : `<b>${escapeHtml(w.label)}</b> · ${escapeHtml(w.dates)}<br>Needed ${w.needed} · Available ${w.avail} · Gap ${w.gap >= 0 ? "+" : ""}${w.gap}`;
+  tip.hidden = false;
+  const slotRect = slot.getBoundingClientRect();
+  const hostRect = host.getBoundingClientRect();
+  const cx = slotRect.left + slotRect.width / 2 - hostRect.left;
+  tip.style.left = Math.max(4, Math.min(cx - tip.offsetWidth / 2, hostRect.width - tip.offsetWidth - 4)) + "px";
+  tip.style.top = "26px";
+  if (guide) {
+    const svg = guide.closest("svg");
+    const svgRect = svg.getBoundingClientRect();
+    const gx = slotRect.left + slotRect.width / 2 - svgRect.left;
+    guide.setAttribute("x1", gx);
+    guide.setAttribute("x2", gx);
+    guide.setAttribute("visibility", "visible");
+  }
+});
+document.addEventListener("pointerout", (e) => {
+  const host = document.getElementById("rr-tgt-trend");
+  if (!host || (e.relatedTarget && host.contains(e.relatedTarget))) return;
+  const tip = host.querySelector(".rr-tgt-trend-tip");
+  if (tip) tip.hidden = true;
+  document.getElementById("rr-tgt-trend-guide")?.setAttribute("visibility", "hidden");
+});
+let _rrTrendResizeTimer = null;
+window.addEventListener("resize", () => {
+  if (_rrTrendResizeTimer) clearTimeout(_rrTrendResizeTimer);
+  _rrTrendResizeTimer = setTimeout(() => {
+    const host = document.getElementById("rr-tgt-trend");
+    if (host && !host.hidden) _rrOkamiRenderTrend();
+  }, 200);
+});
 
 // "Drivers needed" header ⓘ — the formula with the DSP's live numbers,
 // and where each dial lives. Also spells out Cushion vs Plan Pad (two
@@ -53033,9 +53262,11 @@ async function _renderOkamiLiveImpl() {
 
     // Routes per day across the week → peak (drives staffing) + total.
     let routesMax = 0, weekRoutes = 0;
+    const dayVals = [];
     for (let d = 0; d < 7; d++) {
       const iso = fmtIsoDate(addDays(weekStart, d));
       const t = totalsByDate.get(iso) || 0;
+      dayVals.push(t);
       weekRoutes += t;
       if (t > routesMax) routesMax = t;
     }
@@ -53102,6 +53333,20 @@ async function _renderOkamiLiveImpl() {
       input.title = "Type a value to set all 7 days. Use the drill-down panel for per-day variation.";
       input.setAttribute("aria-label", `Peak routes per day, week of ${fmtMD(weekStart)}`);
       input.dataset.rrOkamiWeekIdx = String(w);
+    }
+
+    // 7-day sparkline next to the Routes input — the week's shape at a
+    // glance (flat vs weekend-heavy vs one-day spike). Peak day accented.
+    const sparkSlot = row.querySelector(".rr-tgt-spark-slot");
+    if (sparkSlot) {
+      if (unplanned) {
+        sparkSlot.innerHTML = "";
+      } else {
+        const sparkTitle = RR_DAY_SHORT.map((nm, i) => `${nm} ${dayVals[i]}`).join(" · ");
+        sparkSlot.innerHTML = `<span class="rr-tgt-spark" title="${escapeHtml(sparkTitle)}">` +
+          dayVals.map((v) => `<i style="height:${Math.max(2, Math.round((v / Math.max(routesMax, 1)) * 14))}px${v === routesMax ? ";background:var(--rr-blue-600)" : ""}"></i>`).join("") +
+          `</span>`;
+      }
     }
 
     // Demand context: the formula with live numbers + avg-day + type mix,
@@ -53194,6 +53439,7 @@ async function _renderOkamiLiveImpl() {
 
   window._rrOkamiModel = { startIso: _okamiStart, weeks: modelWeeks };
   _rrOkamiRenderTfoot();
+  try { _rrOkamiRenderTrend(); } catch (_) { /* chart host is Targets-only */ }
 
   // Keep the Targets gap card in lockstep with the fresh model.
   try { if (typeof _rrRefreshTargetsGapCard === "function") _rrRefreshTargetsGapCard(); } catch (_) {}

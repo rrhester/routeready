@@ -9042,6 +9042,19 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-tgt-evt-chip{background:#FEF3C7;color:#92400E}
 .rr-tgt-actual-chip{background:var(--canvas);border:1px solid var(--border);color:var(--text-muted);font-variant-numeric:tabular-nums}
 .okami-table tbody tr:hover .rr-tgt-row-acts{opacity:1}
+/* 7-day sparkline beside each Routes input. */
+.rr-tgt-spark{display:inline-flex;align-items:flex-end;gap:1px;height:14px;margin-left:7px;vertical-align:middle}
+.rr-tgt-spark i{width:3px;background:var(--border-strong);border-radius:1px 1px 0 0;display:inline-block}
+/* Hiring-pace footer line under the totals. */
+.rr-okami-pace-row > td{padding:6px 18px 9px;color:var(--text-subtle);font-size:var(--fs-xs);border-top:1px dashed var(--border);font-variant-numeric:tabular-nums}
+/* Needed-vs-available trend card above the table. */
+.rr-tgt-trend{position:relative;margin:0 4px 10px;padding:10px 12px 4px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg)}
+.rr-tgt-trend[hidden]{display:none}
+.rr-tgt-trend svg{display:block;max-width:100%}
+.rr-tgt-trend-legend{display:flex;gap:14px;font-size:var(--fs-xs);color:var(--text-muted);margin-bottom:2px;flex-wrap:wrap}
+.rr-tgt-trend-legend i{display:inline-block;width:10px;height:3px;border-radius:2px;margin-right:5px;vertical-align:middle}
+.rr-tgt-trend-tip{position:absolute;pointer-events:none;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-md);box-shadow:var(--shadow-pop);padding:6px 9px;font-size:var(--fs-xs);color:var(--text);z-index:5;white-space:nowrap}
+.rr-tgt-trend-tip[hidden]{display:none}
 .rr-tgt-avail-sub{font-size:var(--fs-9);color:var(--text-subtle);line-height:1.3;margin-top:1px;white-space:nowrap}
 .rr-tgt-th-info{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;margin-left:5px;border-radius:50%;border:1px solid var(--border-strong);background:transparent;color:var(--text-subtle);font-size:10px;font-weight:700;line-height:1;cursor:pointer;vertical-align:middle;padding:0}
 .rr-tgt-th-info:hover{background:var(--canvas);color:var(--text-muted)}
@@ -22080,6 +22093,22 @@ body.rr-cmdk-open{ overflow:hidden }
             /* Save/typing status in the Targets toolbar (twin of the OKAMI
                header status). */
             .rr-tgt-save-status{font-size:var(--fs-xs);color:var(--text-subtle);white-space:nowrap;font-variant-numeric:tabular-nums}
+            /* Gap pills open the per-week explainer. */
+            #view-schedule #sched-sub-targets .rr-tgt-13w .plan-gap{cursor:pointer}
+            /* Narrow widths · toolbar wraps in defined order, table scrolls
+               horizontally inside its host instead of squeezing columns. */
+            @media (max-width: 1280px){
+              #view-schedule #rr-sched-targets-kpis{flex-wrap:wrap;row-gap:8px}
+              #view-schedule #rr-sched-targets-kpis .rr-tgt-toolbar-right{margin-left:auto}
+            }
+            @media (max-width: 920px){
+              #view-schedule #sched-sub-targets #rr-sched-targets-13week-host{overflow-x:auto}
+              #view-schedule #sched-sub-targets .rr-tgt-13w .okami-table{min-width:640px}
+              #view-schedule #sched-sub-targets .rr-tgt-13w .okami-table td:first-child,
+              #view-schedule #sched-sub-targets .rr-tgt-13w .okami-table th:first-child{
+                position:sticky;left:0;background:var(--rr-white);z-index:3;
+              }
+            }
             #view-schedule #sched-sub-targets .rr-tgt-13w-empty{
               padding:var(--s-3) 0;font-size:var(--fs-sm);color:var(--text-subtle);
             }

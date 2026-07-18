@@ -2384,6 +2384,10 @@
                 <button class="btn btn-sm" type="button" id="rr-tgt-seed-btn" title="Fill weeks that have no plan yet from the last 4 weeks' average per-weekday pattern">Seed empty weeks</button>
               </div>
             </div>
+            <!-- Needed-vs-available trend · rendered by _rrOkamiRenderTrend
+                 from the published 13-week model; hidden until ≥2 weeks
+                 have a plan. -->
+            <div id="rr-tgt-trend" class="rr-tgt-trend" hidden></div>
             <div id="rr-sched-targets-13week-host">
               <div class="rr-tgt-13w-empty">Loading 13-week plan…</div>
             </div>
