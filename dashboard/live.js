@@ -8907,6 +8907,11 @@ function _ivToggleRules(force) {
   const toggle = document.getElementById("rr-iv-rules-toggle");
   if (!pop) return false;
   const next = (typeof force === "boolean") ? force : pop.hidden;
+  // Closing with unsaved availability edits loses them — make that a choice.
+  if (!next && !pop.hidden && _ivEditorDirty) {
+    if (!confirm("Discard unsaved availability changes?")) return false;
+    _ivEditorDirty = false;
+  }
   pop.hidden = !next;
   if (toggle) toggle.setAttribute("aria-expanded", next ? "true" : "false");
   if (next && typeof loadInterviewAvailabilityEditor === "function") loadInterviewAvailabilityEditor();
@@ -9294,7 +9299,13 @@ document.addEventListener("click", (e) => {
       && !e.target.closest("#rr-iv-rules-popover")
       && !e.target.closest("#rr-iv-rules-toggle")
       && !e.target.closest("#rr-ivcal-setmenu")
-      && !e.target.closest("#rr-ob-rules-chooser")) {
+      && !e.target.closest("#rr-ob-rules-chooser")
+      // Dialogs the editor itself opens (preview, embed, confirms) sit outside
+      // the popover in the DOM — clicking them must not close the editor.
+      && !e.target.closest("#rr-bp-preview")
+      && !e.target.closest("#rr-ivcal-embed")
+      && !e.target.closest("#rr-confirm-modal")
+      && !e.target.closest("#rr-confirm-backdrop")) {
     _ivToggleRules(false);
   }
 });
@@ -30411,6 +30422,7 @@ function _ivcalPaneHtml() {
     isRRMeet ? `<button class="oc-btn" data-oc-pane="lock" title="Lock or unlock the meeting room for guests">🔒 Room lock</button>` : "",
     type !== "session" ? `<button class="oc-btn" data-oc-pane="cancel">✖ Cancel</button>` : "",
     type !== "session" ? `<button class="oc-btn" data-oc-pane="history" title="See every change made to this event">🕘 History</button>` : "",
+    a && ev.applicant_id ? `<button class="oc-btn" data-oc-pane="blink" title="Copy this candidate's personal booking link">🔗 Booking link</button>` : "",
     a && ev.applicant_id ? `<button class="oc-btn" data-oc-pane="applicant">Open applicant</button>` : "",
   ].filter(Boolean).join("");
   return `<div class="oc-pane">
@@ -30493,6 +30505,7 @@ function _ivcalWirePane(host) {
     else if (act === "lock" && ev.meeting_url) _ivcalToggleRoomLock(ev);
     else if (act === "cancel") _ivcalDeleteEvent(sel.kind, sel.id, true);
     else if (act === "history") _ivcalHistoryDialog(ev.id);
+    else if (act === "blink" && ev.applicant_id) _ivcalBookingLink(ev.applicant_id, false);
     else if (act === "applicant" && ev.applicant_id) _ivcalOpenApplicant(ev.applicant_id);
   });
 }
@@ -31679,7 +31692,7 @@ async function _rrOpenDateOverrides() {
       <button type="button" class="btn btn-primary btn-sm" id="rr-ovr-add-btn">Add</button>
     </div>
     <div class="rr-lbl-list" id="rr-ovr-list"><div class="rr-loading">Loading…</div></div>
-    <div class="rr-lbl-foot"><span style="flex:1"></span><button type="button" class="btn btn-sm" data-ovr-close>Done</button></div>
+    <div class="rr-lbl-foot"><button type="button" class="btn btn-sm" id="rr-ovr-holidays" title="Close every upcoming U.S. federal holiday in the next year">Add US holidays</button><span style="flex:1"></span><button type="button" class="btn btn-sm" data-ovr-close>Done</button></div>
   </div>`;
   document.body.appendChild(back);
   const close = () => { back.remove(); document.removeEventListener("keydown", onEsc); };
@@ -31696,12 +31709,14 @@ async function _rrOpenDateOverrides() {
   const fmtMin = (m) => { const h = Math.floor(m / 60), mn = m % 60, ap = h < 12 ? "AM" : "PM", h12 = ((h + 11) % 12) + 1; return `${h12}:${String(mn).padStart(2, "0")} ${ap}`; };
   const hhmmToMin = (s) => { const [h, m] = String(s || "").split(":").map(Number); return (h || 0) * 60 + (m || 0); };
 
+  let curDates = new Set();   // dates already overridden (for the holidays helper)
   async function refresh() {
     let rows = [];
     try {
       const { data, error } = await sb.rpc("interview_overrides_list");
       if (error) throw error;
       rows = data || [];
+      curDates = new Set(rows.map(o => o.override_date));
     } catch (e) {
       const missing = /does not exist|schema cache|pgrst202|not find the function/i.test(JSON.stringify(e));
       listEl.innerHTML = `<div class="rr-iv-err">${missing ? "Update needed — run the latest Supabase migration to enable date overrides." : "Couldn't load: " + escapeHtml(e.message || String(e))}</div>`;
@@ -31710,7 +31725,7 @@ async function _rrOpenDateOverrides() {
     if (!rows.length) { listEl.innerHTML = `<div class="oc-cals-empty" style="padding:12px">No date overrides yet. Add one above to close a holiday or set special hours.</div>`; return; }
     listEl.innerHTML = rows.map(o => {
       let desc;
-      if (o.is_closed) desc = `<span style="color:var(--red,#B91C1C);font-weight:600">Closed all day</span>`;
+      if (o.is_closed) desc = `<span style="color:var(--red,#B91C1C);font-weight:600">Closed all day</span>${o.note ? ` — ${escapeHtml(o.note)}` : ""}`;
       else {
         const wins = Array.isArray(o.windows) ? o.windows : [];
         desc = wins.length ? wins.map(w => `${fmtMin(w.start_min)} – ${fmtMin(w.end_min)}`).join(", ") : "Custom hours";
@@ -31752,6 +31767,38 @@ async function _rrOpenDateOverrides() {
       const missing = /does not exist|schema cache|pgrst202|not find the function/i.test(JSON.stringify(e));
       toast(missing ? "Update needed — run the latest Supabase migration." : "Couldn't save: " + (e.message || e), "warn");
     } finally { btn.disabled = false; }
+  });
+
+  // One click closes the coming year's U.S. federal holidays (observed dates)
+  // that aren't already overridden, each noted with the holiday's name.
+  back.querySelector("#rr-ovr-holidays").addEventListener("click", async () => {
+    const found = [];
+    const d = new Date(); d.setHours(12, 0, 0, 0);
+    for (let i = 0; i < 366; i++) {
+      const name = _rrUSHoliday(d);
+      const iso = _ivcalISODate(d);
+      if (name && !curDates.has(iso)) found.push({ iso, name });
+      d.setDate(d.getDate() + 1);
+    }
+    if (!found.length) { toast("All upcoming federal holidays are already covered", "info"); return; }
+    const names = found.map(h => `${h.name} (${new Date(h.iso + "T00:00:00").toLocaleDateString(_ivDLocale(), { month: "short", day: "numeric" })})`).join(", ");
+    if (!(await _rrConfirmDialog({
+      title: `Close ${found.length} upcoming holiday${found.length === 1 ? "" : "s"}?`,
+      body: `Booking closes all day on: ${names}. Remove any of them from the list afterward to keep that day open.`,
+      confirmLabel: "Close holidays",
+    }))) return;
+    const btn = back.querySelector("#rr-ovr-holidays"); btn.disabled = true;
+    let ok = 0, err = null;
+    for (const h of found) {
+      const { error } = await sb.rpc("interview_override_set", { p_date: h.iso, p_is_closed: true, p_windows: [], p_note: h.name });
+      if (error) { err = error; break; }
+      ok++;
+    }
+    btn.disabled = false;
+    if (err) toast(`Saved ${ok} of ${found.length} — ` + (err.message || err), "warn");
+    else toast(`${ok} holiday${ok === 1 ? "" : "s"} closed for booking`, "success");
+    await refresh();
+    if (typeof loadIvCalendar === "function") loadIvCalendar();
   });
 
   refresh();
@@ -32673,6 +32720,7 @@ function _ivShowCopyMenu(btn, srcDay, srcWins, applyFn) {
 let _ivCurSchedId = null;   // the named schedule currently being edited
 let _ivLegacyMode = false;  // true until the 0400 named-schedules migration is applied
 let _ivWinsOverride = null; // one-shot: hours copied from another schedule, shown unsaved
+let _ivEditorDirty = false; // unsaved availability edits (guards the popover close)
 async function loadInterviewAvailabilityEditor() {
   const body = document.getElementById("rr-iv-body");
   if (!body) return;
@@ -32715,7 +32763,8 @@ async function loadInterviewAvailabilityEditor() {
   }
   // "Copy hours from…" hand-off: show another schedule's weekly hours in the
   // day rows, unsaved, so the owner can review and Save to keep them.
-  if (_ivWinsOverride) { schedWins = _ivWinsOverride; _ivWinsOverride = null; }
+  if (_ivWinsOverride) { schedWins = _ivWinsOverride; _ivWinsOverride = null; _ivEditorDirty = true; }
+  else _ivEditorDirty = false;
   const cfg = sched || {};
   const tz = cfg.timezone || "America/Chicago";
   const slot = cfg.slot_minutes || 30, lead = cfg.min_lead_hours ?? 12, windowDays = cfg.window_days ?? 21, buffer = cfg.buffer_minutes ?? 0;
@@ -32895,6 +32944,20 @@ async function loadInterviewAvailabilityEditor() {
   body.querySelector(".rr-iv-maxday")?.addEventListener("input", refreshWeekCap);
   refreshWeekCap();
 
+  // Unsaved-changes tracking: any weekly-availability edit arms the popover's
+  // close guard and shows it in the status span. The group-session add row and
+  // the two selects that navigate away manage themselves.
+  const markDirty = () => {
+    _ivEditorDirty = true;
+    const st = document.getElementById("rr-iv-save-status");
+    if (st && st.textContent !== "Saving…") { st.textContent = "Unsaved changes"; st.className = "rr-iv-save-status"; }
+  };
+  ["input", "change"].forEach(evName => body.addEventListener(evName, (e) => {
+    if (e.target.closest("#rr-iv-add-sess") || e.target.closest(".rr-iv-copyfrom-sel") || e.target.closest(".rr-iv-sched-pick")) return;
+    markDirty();
+  }));
+  if (_ivEditorDirty) { const st = document.getElementById("rr-iv-save-status"); if (st) st.textContent = "Unsaved changes"; }
+
   // Preview / embed the booking page being edited (same dialogs the calendar
   // settings menu offers, reachable from where the hours are actually set).
   body.querySelector(".rr-iv-preview")?.addEventListener("click", () => _ivcalBookingPreview(_ivCurSchedId, schedName));
@@ -32925,6 +32988,7 @@ async function loadInterviewAvailabilityEditor() {
     tgt.querySelector(".rr-iv-wins").innerHTML = srcWins.map(w => winRow({ start_min: w.start, end_min: w.end, capacity: w.cap }, true)).join("");
     tgt.querySelectorAll("input:not(.rr-iv-on), .rr-iv-winx, .rr-iv-addwin, .rr-iv-copy").forEach(el => { el.disabled = false; });
     refreshWeekCap();
+    markDirty();
   };
   body.querySelectorAll(".rr-iv-day").forEach(row => {
     const setOn = (on) => {
@@ -32961,6 +33025,10 @@ async function loadInterviewAvailabilityEditor() {
   });
   // Switch schedules (and "+ New") — reload the editor for the chosen one.
   body.querySelector(".rr-iv-sched-pick")?.addEventListener("change", (e) => {
+    if (_ivEditorDirty && !confirm("Discard unsaved availability changes?")) {
+      e.target.value = _ivCurSchedId || "__new";
+      return;
+    }
     _ivCurSchedId = e.target.value || "__new";
     loadInterviewAvailabilityEditor();
   });
@@ -33077,6 +33145,7 @@ async function _ivSave(body) {
       if (error) throw error;
       if (savedId) _ivCurSchedId = savedId;
     }
+    _ivEditorDirty = false;
     if (st){ st.textContent="Saved ✓"; st.className="rr-iv-save-status ok"; }
     toast(_ivLegacyMode ? "Availability saved" : "Schedule saved","success");
     // Reload the editor (refreshes the schedule list + active flag) and the grid
