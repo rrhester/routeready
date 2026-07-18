@@ -59,10 +59,12 @@ let _previewSession = null;
 // product direction; revert this block to restore the read-only preview.
 
 // ── Service worker registration ─────────────────────────────────────
+let _swReg = null;
 if ("serviceWorker" in navigator && !PREVIEW) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("./sw.js")
       .then((reg) => {
+        _swReg = reg;
         syncSwSession(readSession());
         // Force the SW to check for an updated sw.js on every load.
         // iOS otherwise holds onto a stale SW for 24h+, which leaves
@@ -71,6 +73,26 @@ if ("serviceWorker" in navigator && !PREVIEW) {
         try { reg.update(); } catch (_) {}
       })
       .catch((err) => console.warn("SW reg failed:", err));
+  });
+  // A new SW took control → the app.js/CSS the page is running may now be
+  // stale against evolving RPC shapes (project-review PR#38). A one-time
+  // quiet toast lets the driver refresh on their terms instead of hitting
+  // silent breakage. Guard against the initial control on first load.
+  let _swControllerSeen = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (!_swControllerSeen) { _swControllerSeen = true; return; }
+    // Reload once, on the next idle, so the page runs the app.js the new SW
+    // now serves instead of drifting stale against evolving RPC shapes. A
+    // guard flag prevents a reload loop; skip while the driver is mid-task
+    // (a form/checkout open) so we never yank an in-progress action.
+    if (window.__rrSwReloaded) return;
+    try {
+      const busy = document.querySelector(".sheet.open, .modal.open, [data-rr-form-dirty='1']");
+      if (busy) { toast("Update ready — reopen the app to refresh", "info"); return; }
+      window.__rrSwReloaded = true;
+      toast("Updating…", "info");
+      setTimeout(() => { try { location.reload(); } catch (_) {} }, 800);
+    } catch (_) {}
   });
 }
 
@@ -1312,6 +1334,20 @@ if (typeof window !== "undefined") {
     // stops receiving call invites until they open Messages. Safe to call
     // even when the socket survived (Android / desktop): it just re-subscribes.
     try { _drvPresenceRewire(); } catch (_) {}
+    // Check for a newer SW on foreground (project-review PR#38): installed
+    // iOS PWAs resume from freeze WITHOUT firing 'load', so the load-time
+    // reg.update() never runs and a driver who keeps the app open all shift
+    // runs stale app.js. The controllerchange handler above lands the refresh.
+    try { _swReg?.update?.(); } catch (_) {}
+    // Re-assert the push subscription if permission is already granted, so a
+    // rotated/expired subscription gets re-registered even if the driver
+    // never opens Chat (pairs with the SW's pushsubscriptionchange handler).
+    try {
+      if (s?.token && typeof ensurePushSubscription === "function"
+          && "Notification" in window && Notification.permission === "granted") {
+        ensurePushSubscription(s);
+      }
+    } catch (_) {}
   };
   window.addEventListener("focus", refreshOnFocus);
   window.addEventListener("pageshow", refreshOnFocus);
@@ -2097,7 +2133,7 @@ function _shiftConfirmStart(token) {
     } catch (err) { /* swallow — try again next tick */ }
   };
   tick();
-  _shiftConfirmTimer = setInterval(tick, 30000);
+  _shiftConfirmTimer = setInterval(() => { if (!document.hidden) tick(); }, 30000);
 }
 
 // ── Live updates · instant delivery instead of 15–30s polling ────────
@@ -2201,7 +2237,9 @@ function _coverOfferStart(token) {
   _coverOfferTeardown();
   const pull = () => _coverOfferRefresh(token);
   pull();
-  _coverOfferTimer = setInterval(pull, 15000);
+  // Skip ticks while the tab/app is backgrounded (project-review PR#36) —
+  // _rrLiveRefresh + refreshOnFocus catch it up on return. Saves battery/data.
+  _coverOfferTimer = setInterval(() => { if (!document.hidden) pull(); }, 15000);
 }
 async function _coverOfferRefresh(token) {
   const slot = document.getElementById("rr-cover-offer-slot");
@@ -2274,7 +2312,7 @@ function _pickupListStart(token) {
   _pickupListTeardown();
   const pull = () => _pickupListRefresh(token);
   pull();
-  _pickupTimer = setInterval(pull, 20000);
+  _pickupTimer = setInterval(() => { if (!document.hidden) pull(); }, 20000);
 }
 async function _pickupListRefresh(token) {
   const slot = document.getElementById("rr-pickup-slot");
@@ -2352,7 +2390,7 @@ function _swapInboxStart(token) {
   _swapInboxTeardown();
   const pull = () => _swapInboxRefresh(token);
   pull();
-  _swapInboxTimer = setInterval(pull, 20000);
+  _swapInboxTimer = setInterval(() => { if (!document.hidden) pull(); }, 20000);
 }
 async function _swapInboxRefresh(token) {
   const slot = document.getElementById("rr-swap-incoming-slot");
