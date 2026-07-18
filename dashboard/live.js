@@ -8,12 +8,12 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=42c651a7788d";
-import { assessPlan as rrAssessLaborPlan, driversNeeded as rrDriversNeeded, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=42c651a7788d";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=42c651a7788d";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=42c651a7788d";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=42c651a7788d";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=42c651a7788d";
+import { planScheduleWeek } from "./scheduling-engine.js?v=8dcd319303ce";
+import { assessPlan as rrAssessLaborPlan, driversNeeded as rrDriversNeeded, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=8dcd319303ce";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=8dcd319303ce";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=8dcd319303ce";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=8dcd319303ce";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=8dcd319303ce";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -24,9 +24,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=42c651a7788d";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=42c651a7788d";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=42c651a7788d";
+} from "./msg-core.mjs?v=8dcd319303ce";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=8dcd319303ce";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=8dcd319303ce";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -3689,6 +3689,16 @@ function _rrEnsureForecastRates() {
     };
     window._rrForecastRates = rates;
     // Repaint the surfaces that fold these in, if they're on screen.
+    // The 13-week table itself uses dpr + onboarding hire dates now, so
+    // a first render that ran on defaults gets refreshed too.
+    try {
+      if (window._rrOkamiModel && typeof renderOkamiLive === "function") {
+        // Keep the table on its current anchor — a plain re-render would
+        // snap _okamiStart back to the actual current week.
+        if (window._okamiStart) window._rrOkamiAnchorOverride = window._okamiStart;
+        renderOkamiLive();
+      }
+    } catch (_) {}
     try { if (typeof _rrRefreshTargetsGapCard === "function") _rrRefreshTargetsGapCard(); } catch (_) {}
     try {
       if (typeof _rrIntelActiveName !== "undefined" && _rrIntelActiveName === "risk-forecast") {
@@ -3724,7 +3734,7 @@ function _rrAssessOkamiPlan(weeks, overrides) {
   const o = overrides || {};
   return rrAssessLaborPlan(weeks, {
     todayIso: fmtIsoDate(new Date()),
-    hireLeadDays: Number.isFinite(o.hireLeadDays) ? o.hireLeadDays : RR_OKAMI_HIRE_LEAD_DAYS,
+    hireLeadDays: Number.isFinite(o.hireLeadDays) ? o.hireLeadDays : _rrHireLeadDays(),
     calloutRate: Number.isFinite(o.calloutRate) ? o.calloutRate : (rates.calloutRate || 0),
     weeklyAttritionRate: Number.isFinite(o.weeklyAttritionRate) ? o.weeklyAttritionRate : (rates.weeklyAttritionRate || 0),
     onboardingNotReadyByWeek: _rrOnboardingNotReadyByWeek(weeks),
@@ -3868,7 +3878,12 @@ function _rrReadOkamiWeeks() {
           simOnTimeOff = sim.onTimeOff;
         }
       }
-      const effectiveAvail = simAvail != null ? simAvail : w.avail;
+      // `avail` here feeds forecast-core's assessPlan, which subtracts
+      // onboarding-not-ready itself (onboardingNotReadyByWeek) — so pass
+      // the raw payroll-minus-time-off number (availRaw), not the table's
+      // route-ready display value, or onboarding would be deducted twice.
+      const baseAvail = w.availRaw != null ? w.availRaw : w.avail;
+      const effectiveAvail = simAvail != null ? simAvail : baseAvail;
       const effectiveGap   = effectiveAvail - w.needed;
       return {
         idx: w.idx, label: w.label, dates: w.dates, needed: w.needed,
@@ -3877,8 +3892,10 @@ function _rrReadOkamiWeeks() {
         avail: effectiveAvail,
         gap: effectiveGap,
         gapKind: effectiveGap >= 0 ? "ok" : "bad",
+        unplanned: !!w.unplanned,
         statusText: w.statusText, statusKind: w.statusKind, hireBy: w.hireBy,
-        plannedAvail: w.avail,
+        plannedAvail: baseAvail,
+        readyAvail: w.avail,
         simAvail, simOnPto, simOnTimeOff,
         isSimulated: simAvail != null,
       };
@@ -3898,6 +3915,10 @@ function _rrReadOkamiWeeks() {
   const rows = document.querySelectorAll("#okami-tbody > tr:not(.okami-detail)");
   const weeks = [];
   rows.forEach((row, idx) => {
+    // Skeleton / error rows have no gap cell — they are not weeks (the
+    // error row used to scrape as one healthy zero-demand week and keep
+    // the gap card alive on a dead table).
+    if (!row.querySelector(".plan-gap")) return;
     const label = (row.querySelector(".plan-week-label")?.textContent || "").trim();
     const dates = (row.querySelector(".plan-week-dates")?.textContent || "").trim();
     const cells = row.querySelectorAll("td");
@@ -4108,7 +4129,7 @@ function _rrIntelRenderRiskForecast(view) {
   const c = window._rrRfCalc || (window._rrRfCalc = {});
   const seedCallout = c.calloutPct ?? Math.round(((shellRates?.calloutRate) || 0) * 100);
   const seedAttr    = c.attrPct    ?? Number((100 * ((shellRates?.weeklyAttritionRate) || 0)).toFixed(1));
-  const seedLead    = c.leadDays   ?? RR_OKAMI_HIRE_LEAD_DAYS;
+  const seedLead    = c.leadDays   ?? _rrHireLeadDays();
   const seedDpr     = c.dpr        ?? (shellRates?.driversPerRoute ?? 2);
   const seedPad     = c.padPct     ?? Math.max(0, Math.min(50, Number(window.RR?.dsp?.metadata?.staffing?.plan_pad_pct ?? 10) || 0));
   const seedHires   = c.hires      ?? 0;
@@ -4223,7 +4244,7 @@ function _rrRenderRiskForecastOut(view, weeks) {
   const rates = window._rrForecastRates || null;
   const overrides = _rrRfOverrides();
   const activeCalloutPct = Math.round((Number.isFinite(overrides.calloutRate) ? overrides.calloutRate : (rates?.calloutRate || 0)) * 100);
-  const activeLeadDays = Number.isFinite(overrides.hireLeadDays) ? overrides.hireLeadDays : RR_OKAMI_HIRE_LEAD_DAYS;
+  const activeLeadDays = Number.isFinite(overrides.hireLeadDays) ? overrides.hireLeadDays : _rrHireLeadDays();
   const A  = _rrAssessOkamiPlan(weeks, overrides);
   const aw = A.weeks;
   const thisWeek = aw[0];
@@ -4549,7 +4570,7 @@ function _rrUfAppsNeeded(gap, e2ePct) {
 function _rrUfEntryDeadline(weekIdx, funnelDays) {
   const iso = _rrOkamiWeekStartIso(weekIdx);
   if (!iso) return null;
-  const d = addDays(new Date(iso + "T12:00:00"), -(RR_OKAMI_HIRE_LEAD_DAYS + funnelDays));
+  const d = addDays(new Date(iso + "T12:00:00"), -(_rrHireLeadDays() + funnelDays));
   return { date: d, label: fmtMD(d), overdue: d < new Date() };
 }
 
@@ -52606,7 +52627,14 @@ async function loadOkamiView() {
 // ─── OKAMI · 13-week list (live render + save) ─────────────────────────────
 
 const RR_OKAMI_WEEKS = 13;
-const RR_OKAMI_HIRE_LEAD_DAYS = 28; // training/onboarding lead time
+const RR_OKAMI_HIRE_LEAD_DAYS = 28; // default training/onboarding lead time
+// Hire lead time is a per-DSP setting (dsps.metadata.staffing.
+// hire_lead_days, editable in the Drivers-needed ⓘ popover) — it drives
+// every hire-by deadline and the reachable/unreachable-week split.
+function _rrHireLeadDays() {
+  const v = Number(window.RR?.dsp?.metadata?.staffing?.hire_lead_days);
+  return Number.isFinite(v) && v >= 7 && v <= 120 ? Math.round(v) : RR_OKAMI_HIRE_LEAD_DAYS;
+}
 
 // isoWeekNumber was byte-identical to isoWeek (now in rr-dates.mjs) — use isoWeek.
 
@@ -52651,28 +52679,50 @@ function _okamiRecomputeFromCache(padPct) {
   const allOkamiRows = okTbody
     ? Array.from(okTbody.querySelectorAll("tr:not(.okami-detail)"))
     : [];
-  for (let w = 0; w < allOkamiRows.length; w++) {
+  // Same demand formula as the full render — the slider used to hardcode
+  // the 2× baseline while the render used the hiring-settings ratio, so
+  // dragging the Pad silently changed the drivers-per-route assumption.
+  const dpr = window._rrForecastRates?.driversPerRoute ?? 2;
+  const modelWeeks = window._rrOkamiModel?.weeks || null;
+  for (let w = 0; w < Math.min(allOkamiRows.length, RR_OKAMI_WEEKS); w++) {
     const row = allOkamiRows[w];
+    // Skeleton / error rows have no gap cell — nothing to recompute into.
+    if (!row.querySelector(".plan-gap")) continue;
     const weekStart = addDays(_okamiStartCache, w * 7);
     let routesMax = 0;
     for (let d = 0; d < 7; d++) {
       const t = _okamiTotalsByDateCache.get(fmtIsoDate(addDays(weekStart, d))) || 0;
       if (t > routesMax) routesMax = t;
     }
-    const needed = routesMax > 0 ? Math.ceil(routesMax * 2 * (1 + padPct / 100)) : 0;
-    const gap = _okamiActiveCount - needed;
+    const unplanned = routesMax === 0;
+    const needed = unplanned ? 0 : rrDriversNeeded(routesMax, { driversPerRoute: dpr, padPct });
+    // Per-week projected availability from the model (the full render
+    // computed it from the horizon RPC); flat count only as a fallback.
+    const avail = modelWeeks?.[w]?.avail ?? _okamiActiveCount;
+    const gap = avail - needed;
     const tdCells = row.querySelectorAll("td");
-    if (tdCells[2]) tdCells[2].innerHTML = `<div class="plan-calc">${needed}</div>`;
-    if (tdCells[3]) tdCells[3].innerHTML = `<div class="plan-calc">${_okamiActiveCount}</div>`;
+    if (tdCells[2]) {
+      const calc = tdCells[2].querySelector(".plan-calc");
+      if (calc) calc.textContent = unplanned ? "—" : String(needed);
+    }
     const gapEl = tdCells[4]?.querySelector(".plan-gap");
-    if (gapEl) {
+    if (gapEl && !unplanned) {
+      gapEl.classList.remove("rr-tgt-gap-unplanned");
       gapEl.textContent = (gap >= 0 ? "+" : "") + gap;
       gapEl.classList.remove("ok", "warn", "bad");
       // Severity class drives the graduated red (or green) gap pill on the
       // Targets page (scoped CSS; standalone OKAMI leaves the gap unstyled).
       _rrApplyGapClass(gapEl, gap);
     }
+    // Keep the published model in lockstep — the gap card + Risk Forecast
+    // read the model, and it used to go stale mid-drag.
+    if (modelWeeks && modelWeeks[w]) {
+      modelWeeks[w].needed = needed;
+      modelWeeks[w].gap = gap;
+    }
   }
+  _rrOkamiRenderTfoot();
+  try { _rrOkamiRenderTrend(); } catch (_) { /* chart host is Targets-only */ }
   try { _rrRefreshTargetsGapCard(); } catch (_) { /* gap card is optional */ }
 }
 let _okamiCushionPct = 10;
@@ -52690,6 +52740,488 @@ window.renderOkamiLive = renderOkamiLive;
 // operator just typed. Make it a no-op — the document-level input
 // delegate handles the debounced save + re-render.
 window.recalcOkami = function () { /* no-op */ };
+
+// ─── 13-week table · model-driven row builder ──────────────────────────────
+// The tbody used to be 13 hand-written mockup rows the renderer rewrote
+// in place; an RPC failure left the mockup's fake numbers on screen
+// looking real. Rows are now generated here. The DOM contract every
+// existing consumer relies on is preserved:
+//   · week rows are `tr:not(.okami-detail)` inside #okami-tbody, in
+//     document order = week index (sim annotations, Plan-Pad recompute,
+//     DOM-fallback readers, mock pipeline all index this way)
+//   · 8 <td>s per row: Week | Routes input | Needed | Available | Gap |
+//     Strategy | Hire by | Status (cols 6–8 stay CSS-hidden)
+//   · weeks 0–(RR_OKAMI_DAILY_WEEKS-1) keep #okami-row-N +
+//     .okami-expand-btn + tr.okami-detail (#okami-detail-N /
+//     #okami-detail-content-N) — the per-day drill-down window stays
+//     4 weeks (operator preference; deliberately NOT extended to all 13)
+const RR_OKAMI_DAILY_WEEKS = 4;
+
+// Station filter (multi-station DSPs) · null = all stations summed.
+let _rrOkamiStationFilter = null;
+function _rrOkamiRenderStationFilter(stationsInGrid) {
+  const acts = document.querySelector(".rr-tgt-13w-actions");
+  if (!acts) return;
+  let wrap = document.getElementById("rr-tgt-station-wrap");
+  if (!stationsInGrid || stationsInGrid.length <= 1) { if (wrap) wrap.remove(); return; }
+  if (!wrap) {
+    wrap = document.createElement("span");
+    wrap.id = "rr-tgt-station-wrap";
+    wrap.innerHTML = `<select class="form-input form-input-sm" id="rr-tgt-station-sel" title="Filter the plan to one station. Available stays fleet-wide — drivers aren't station-locked here." aria-label="Station filter"></select>`;
+    acts.insertBefore(wrap, acts.firstChild);
+  }
+  const sel = wrap.querySelector("select");
+  sel.innerHTML = `<option value="">All stations</option>` + stationsInGrid
+    .map((s) => `<option value="${escapeHtml(s.id)}"${_rrOkamiStationFilter === s.id ? " selected" : ""}>${escapeHtml(s.code)}</option>`).join("");
+}
+document.addEventListener("change", (e) => {
+  if (e.target?.id !== "rr-tgt-station-sel") return;
+  _rrOkamiStationFilter = e.target.value || null;
+  if (window._okamiStart) window._rrOkamiAnchorOverride = window._okamiStart;
+  renderOkamiLive();
+});
+
+function _rrOkamiWeekRowHtml(w) {
+  const expandable = w < RR_OKAMI_DAILY_WEEKS;
+  const expandBtn = expandable
+    ? `<button class="okami-expand-btn" type="button" onclick="okamiToggleDaily(${w})" aria-label="Expand daily plan" aria-expanded="false" aria-controls="okami-detail-content-${w}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg></button>`
+    : "";
+  const detail = expandable
+    ? `<tr class="okami-detail" id="okami-detail-${w}"><td colspan="8" id="okami-detail-content-${w}" tabindex="-1"></td></tr>`
+    : "";
+  const copyActs = w < RR_OKAMI_WEEKS - 1
+    ? `<button type="button" data-rr-okami-copy-next="${w}" title="Copy this week's day-by-day plan to next week">→</button><button type="button" data-rr-okami-fill-rest="${w}" title="Fill every later week with this week's day-by-day plan">⇊</button>`
+    : "";
+  const rowActs = `<span class="rr-tgt-row-acts">${copyActs}<button type="button" data-rr-okami-build="${w}" title="Build this week's shifts from the plan (regenerate + cushion)">⚙</button></span>`;
+  return `<tr id="okami-row-${w}">
+    <td>${expandBtn}<div class="plan-week-label" style="display:inline-block;vertical-align:middle"></div><div class="plan-week-dates"></div><span class="rr-tgt-week-chips"></span>${rowActs}</td>
+    <td class="center"><input class="plan-route-input" inputmode="numeric" autocomplete="off" data-rr-okami-week-idx="${w}"/><span class="rr-tgt-spark-slot"></span></td>
+    <td class="center"><div class="plan-calc"></div></td>
+    <td class="center"><div class="plan-calc"></div></td>
+    <td class="center"><div class="plan-gap"></div></td>
+    <td class="center"><div class="strategy-pills"><span class="u-sm-muted"></span></div></td>
+    <td class="center"><div class="plan-calc"></div></td>
+    <td><span class="u-sm-muted" data-rr-okami-status></span></td>
+  </tr>${detail}`;
+}
+
+function _rrOkamiEnsureRows(tbody) {
+  if (tbody.dataset.rrOkamiBuilt === "1") return;
+  let html = "";
+  for (let w = 0; w < RR_OKAMI_WEEKS; w++) html += _rrOkamiWeekRowHtml(w);
+  tbody.innerHTML = html;
+  delete tbody.dataset.rrOkamiSkel;
+  tbody.dataset.rrOkamiBuilt = "1";
+}
+
+// Loading skeleton while okami_grid is in flight. Only on first load /
+// after an error — once live rows exist they update in place with no
+// flash. The frag ships the same skeleton statically for the pre-JS gap.
+function _rrOkamiShowSkeleton(tbody) {
+  if (tbody.dataset.rrOkamiBuilt === "1" || tbody.dataset.rrOkamiSkel === "1") return;
+  tbody.innerHTML = Array.from({ length: RR_OKAMI_WEEKS }, () =>
+    `<tr class="rr-okami-skel-row"><td colspan="8"><div class="rr-okami-skel"></div></td></tr>`).join("");
+  tbody.dataset.rrOkamiSkel = "1";
+}
+
+// Failed load → an explicit error row + Retry, and a nulled model so the
+// gap card / Risk Forecast can't keep reading a stale plan.
+function _rrOkamiShowError(tbody, msg) {
+  delete tbody.dataset.rrOkamiBuilt;
+  delete tbody.dataset.rrOkamiSkel;
+  window._rrOkamiModel = null;
+  tbody.innerHTML = `<tr class="rr-okami-err-row"><td colspan="8"><div class="rr-okami-err"><span>Couldn't load the route plan — ${escapeHtml(msg || "network error")}</span><button class="btn btn-sm" type="button" data-rr-okami-retry>Retry</button></div></td></tr>`;
+  const foot = document.getElementById("okami-tfoot");
+  if (foot) foot.innerHTML = "";
+  try { _rrOkamiRenderTrend(); } catch (_) { /* hides on null model */ }
+  try { _rrRefreshTargetsGapCard(); } catch (_) { /* card just hides */ }
+}
+document.addEventListener("click", (e) => {
+  if (!e.target.closest || !e.target.closest("[data-rr-okami-retry]")) return;
+  e.preventDefault();
+  renderOkamiLive();
+});
+
+// US holidays that reliably move parcel volume — computed from date
+// rules (no network). Used for the small week-row event chips.
+function _rrUsHolidayName(d) {
+  const m = d.getMonth(), day = d.getDate(), dow = d.getDay();
+  const nth = Math.floor((day - 1) / 7) + 1; // 1-based occurrence of this weekday in the month
+  if (m === 0 && day === 1) return "New Year's Day";
+  if (m === 0 && dow === 1 && nth === 3) return "MLK Day";
+  if (m === 1 && dow === 1 && nth === 3) return "Presidents' Day";
+  if (m === 4 && dow === 1 && day >= 25) return "Memorial Day";
+  if (m === 5 && day === 19) return "Juneteenth";
+  if (m === 6 && day === 4) return "Independence Day";
+  if (m === 8 && dow === 1 && nth === 1) return "Labor Day";
+  if (m === 10 && dow === 4 && nth === 4) return "Thanksgiving";
+  if (m === 11 && day === 25) return "Christmas Day";
+  return null;
+}
+function _rrUsHolidaysInWeek(weekStart) {
+  const out = [];
+  for (let d = 0; d < 7; d++) {
+    const date = addDays(weekStart, d);
+    const name = _rrUsHolidayName(date);
+    if (name) out.push({ name, label: fmtMD(date) });
+  }
+  return out;
+}
+
+// Footer summary line — totals across the horizon (reads the published
+// model, so it stays correct after Plan-Pad recomputes too).
+function _rrOkamiRenderTfoot() {
+  const foot = document.getElementById("okami-tfoot");
+  if (!foot) return;
+  const weeks = window._rrOkamiModel?.weeks || [];
+  if (!weeks.length) { foot.innerHTML = ""; return; }
+  const planned = weeks.filter((w) => w.routesMax > 0);
+  const short = planned.filter((w) => w.gap < 0).length;
+  const covered = planned.length - short;
+  const unplanned = weeks.length - planned.length;
+  const totalRoutes = weeks.reduce((s, w) => s + (w.weekRoutes || 0), 0);
+  let peak = null;
+  for (const w of planned) if (!peak || w.routesMax > peak.routesMax) peak = w;
+
+  // Hiring pace — the per-week gaps imply a schedule, not one lump sum.
+  // Cumulative requirement = running max of the (effective-supply)
+  // shortfall; each increase is a hiring step with its own deadline.
+  let paceHtml = "";
+  try {
+    if (planned.some((w) => w.gap < 0) && typeof _rrAssessOkamiPlan === "function") {
+      // Assess on availRaw — forecast-core deducts onboarding readiness
+      // itself; the model's route-ready `avail` would double-deduct.
+      const A = _rrAssessOkamiPlan(planned.map((w) => ({ ...w, avail: w.availRaw ?? w.avail })));
+      let run = 0;
+      const steps = [];
+      for (const x of (A?.weeks || [])) {
+        if (x.gap >= 0) continue;
+        const req = -x.gap;
+        if (req > run) {
+          steps.push({ add: req - run, byIso: x.hireByIso, past: x.hireByStatus === "past", label: x.label });
+          run = req;
+        }
+      }
+      if (steps.length) {
+        const fmtBy = (iso) => (iso ? fmtMD(new Date(iso + "T12:00:00")) : "—");
+        const shown = steps.slice(0, 4);
+        paceHtml = `<tr class="rr-okami-pace-row"><td colspan="8" title="Cumulative hires needed, from the effective-supply forecast (attrition, callouts and onboarding readiness folded in). One hire covers every later week.">
+          <span class="rr-okami-foot-item" style="font-weight:600;color:var(--text-muted)">Hiring pace</span>
+          ${shown.map((s) => `<span class="rr-okami-foot-item">+${s.add} ${s.past ? `for ${escapeHtml(s.label)} (window passed — OT/flex)` : `by <b>${fmtBy(s.byIso)}</b> (${escapeHtml(s.label)})`}</span>`).join("")}
+          ${steps.length > shown.length ? `<span class="rr-okami-foot-item">… ${steps.length - shown.length} more step${steps.length - shown.length === 1 ? "" : "s"}</span>` : ""}
+          <span class="rr-okami-foot-item" style="color:var(--text-subtle)">${run} total</span>
+        </td></tr>`;
+      }
+    }
+  } catch (_) { /* pace line is best-effort */ }
+
+  foot.innerHTML = `<tr class="rr-okami-foot-row"><td colspan="8">
+    <span class="rr-okami-foot-item"><b>${totalRoutes.toLocaleString()}</b> routes planned</span>
+    ${peak ? `<span class="rr-okami-foot-item">peak <b>${peak.routesMax}</b>/day (${escapeHtml(peak.label)})</span>` : ""}
+    <span class="rr-okami-foot-item"><b>${covered}</b> wk covered</span>
+    <span class="rr-okami-foot-item"><b>${short}</b> wk short</span>
+    ${unplanned ? `<span class="rr-okami-foot-item"><b>${unplanned}</b> wk unplanned</span>` : ""}
+  </td></tr>${paceHtml}`;
+}
+
+// Gap-pill click → per-week explanation popover: the demand math, the
+// supply breakdown, and what would close the gap.
+function _rrOkamiGapExplainHtml(mw) {
+  const rates = window._rrForecastRates || {};
+  const dpr = rates.driversPerRoute ?? 2;
+  const pad = Math.max(0, Math.min(50, Number(window.RR?.dsp?.metadata?.staffing?.plan_pad_pct ?? 10) || 0));
+  if (mw.unplanned) {
+    return `<div class="pa-pop-h">${escapeHtml(mw.label)} · ${escapeHtml(mw.dates)}</div>
+      <div style="padding:12px 14px;font-size:var(--fs-sm);line-height:1.5">
+        No routes planned this week yet — type a peak in the Routes column,
+        paste a column of values, or use <b>Seed empty weeks</b> above the table.
+      </div>`;
+  }
+  const supplyLine = [`${mw.payroll ?? mw.avail} on payroll`]
+    .concat(mw.onTimeOff ? [`− ${mw.onTimeOff} time-off`] : [])
+    .concat(mw.notReadyOnboarding ? [`− ${mw.notReadyOnboarding} onboarding`] : [])
+    .join(" ");
+  const short = mw.gap < 0 ? -mw.gap : 0;
+  const routeCut = short ? Math.ceil(short / (dpr * (1 + pad / 100))) : 0;
+  const closeHtml = short
+    ? `<div style="margin-top:8px"><b>To close −${short}:</b>
+        <div>· hire ${short} (by ${escapeHtml(mw.hireBy || "—")})</div>
+        <div>· or trim the peak by ~${routeCut} route${routeCut === 1 ? "" : "s"}/day</div>
+        <div>· or cover with OT/flex — see the Risk forecast</div>
+        <div style="margin-top:8px"><button class="btn btn-sm" type="button" data-rr-tgt-open-hiring>Open hiring pipeline →</button></div></div>`
+    : `<div style="margin-top:8px;color:var(--rr-green-700)">Covered with ${mw.gap} spare driver${mw.gap === 1 ? "" : "s"}.</div>`;
+  return `<div class="pa-pop-h">${escapeHtml(mw.label)} · ${escapeHtml(mw.dates)}</div>
+    <div style="padding:12px 14px;font-size:var(--fs-xs);line-height:1.6;color:var(--text-muted)">
+      <div><b>Demand</b> · peak ${mw.routesMax}/day → ceil(${mw.routesMax} × ${dpr} × ${(1 + pad / 100).toFixed(2)}) = <b>${mw.needed}</b> drivers</div>
+      <div><b>Supply</b> · ${escapeHtml(supplyLine)} = <b>${mw.avail}</b> route-ready</div>
+      <div><b>Gap</b> · <b>${mw.gap >= 0 ? "+" : ""}${mw.gap}</b></div>
+      ${closeHtml}
+      <div style="margin-top:8px"><button class="btn btn-sm" type="button" data-rr-tgt-history="${mw.idx}">Edit history</button></div>
+    </div>`;
+}
+
+// Who changed this week's plan — reads okami_demand_audit (migration
+// 0513: audit trigger on okami_demand + week-scoped feed).
+document.addEventListener("click", async (e) => {
+  const btn = e.target.closest && e.target.closest("[data-rr-tgt-history]");
+  if (!btn) return;
+  e.preventDefault();
+  const mw = window._rrOkamiModel?.weeks?.[parseInt(btn.dataset.rrTgtHistory, 10)];
+  if (!mw) return;
+  const { data, error } = await sb.rpc("okami_demand_audit", { p_week_start: mw.weekStartIso, p_limit: 60 });
+  if (error) {
+    const msg = /does not exist|404|function/i.test(error.message || "")
+      ? "Edit history needs migration 0513 applied"
+      : "History load failed: " + error.message;
+    toast(msg, "warn");
+    return;
+  }
+  const rows = (data || []).map((r) => {
+    const when = r.occurred_at ? new Date(r.occurred_at) : null;
+    const whenTxt = when ? `${fmtMD(when)} ${when.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}` : "—";
+    const who = r.actor_email ? escapeHtml(String(r.actor_email).split("@")[0]) : "system";
+    const day = r.demand_date ? fmtMD(new Date(r.demand_date + "T12:00:00")) : "—";
+    const wave = r.wave_index > 0 ? ` · wave ${r.wave_index + 1}` : "";
+    const before = r.target_before == null ? "∅" : r.target_before;
+    const after = r.target_after == null ? "∅" : r.target_after;
+    return `<div style="display:flex;justify-content:space-between;gap:10px;padding:3px 0;border-bottom:1px solid var(--border)">
+      <span style="color:var(--text-subtle);white-space:nowrap">${whenTxt}</span>
+      <span style="flex:1;min-width:0">${who}</span>
+      <span style="white-space:nowrap">${escapeHtml(day)}${wave}: ${before} → <b>${after}</b></span>
+    </div>`;
+  }).join("");
+  if (typeof _paOpenPopover === "function") {
+    _paOpenPopover(btn, `<div class="pa-pop-h">${escapeHtml(mw.label)} · edit history</div>
+      <div style="padding:10px 14px;font-size:var(--fs-xs);max-height:280px;overflow-y:auto;min-width:300px;font-variant-numeric:tabular-nums">
+        ${rows || `<div style="color:var(--text-subtle)">No recorded edits for this week yet. Edits are recorded once migration 0513 is applied.</div>`}
+      </div>`);
+  }
+});
+document.addEventListener("click", (e) => {
+  const gapEl = e.target.closest && e.target.closest("#okami-tbody .plan-gap");
+  if (!gapEl) return;
+  const row = gapEl.closest("tr");
+  if (!row || !row.parentElement) return;
+  const idx = Array.from(row.parentElement.querySelectorAll("tr:not(.okami-detail)")).indexOf(row);
+  const mw = window._rrOkamiModel?.weeks?.[idx];
+  if (!mw || typeof _paOpenPopover !== "function") return;
+  _paOpenPopover(gapEl, _rrOkamiGapExplainHtml(mw));
+});
+
+// ─── Needed-vs-available trend chart (Targets page) ────────────────────────
+// One small line chart above the table: demand (amber) vs route-ready
+// supply (blue) across the 13 weeks, shortfall shaded red between the
+// lines. Series colors validated (CVD + contrast) against the light
+// surface; identity is never color-alone (legend + direct end-labels).
+const RR_TGT_TREND_DEMAND = "#B45309"; // amber-700 · drivers needed
+const RR_TGT_TREND_SUPPLY = "#2563EB"; // blue-600  · drivers available
+
+function _rrOkamiRenderTrend() {
+  const host = document.getElementById("rr-tgt-trend");
+  if (!host) return;
+  const weeks = window._rrOkamiModel?.weeks || [];
+  const planned = weeks.filter((w) => !w.unplanned);
+  if (planned.length < 2) { host.hidden = true; host.innerHTML = ""; return; }
+  host.hidden = false;
+
+  const W = Math.max(360, host.clientWidth ? host.clientWidth - 26 : 780);
+  const H = 132, padL = 34, padR = 66, padT = 12, padB = 20;
+  const innerW = W - padL - padR, innerH = H - padT - padB;
+  const n = weeks.length;
+  const yMax = Math.max(10, ...planned.map((w) => Math.max(w.needed, w.avail)));
+  const yNice = Math.ceil(yMax / 20) * 20;
+  const x = (i) => padL + (n <= 1 ? 0 : (i / (n - 1)) * innerW);
+  const y = (v) => padT + innerH - (Math.max(0, v) / yNice) * innerH;
+
+  // Split into consecutive planned runs so a mid-horizon unplanned week
+  // breaks the line instead of bridging it.
+  const runs = [];
+  let cur = [];
+  for (const w of weeks) {
+    if (w.unplanned) { if (cur.length) { runs.push(cur); cur = []; } }
+    else cur.push(w);
+  }
+  if (cur.length) runs.push(cur);
+
+  const pathOf = (run, val) => run.map((w, i) => `${i ? "L" : "M"}${x(w.idx).toFixed(1)},${y(val(w)).toFixed(1)}`).join("");
+  let paths = "", shortfall = "";
+  for (const run of runs) {
+    paths += `<path d="${pathOf(run, (w) => w.needed)}" fill="none" stroke="${RR_TGT_TREND_DEMAND}" stroke-width="2" stroke-linejoin="round"/>`;
+    paths += `<path d="${pathOf(run, (w) => w.avail)}" fill="none" stroke="${RR_TGT_TREND_SUPPLY}" stroke-width="2" stroke-linejoin="round"/>`;
+    // Shortfall band: needed line down to avail line over short stretches.
+    let seg = [];
+    const flush = () => {
+      if (seg.length >= 2) {
+        const top = seg.map((w) => `${x(w.idx).toFixed(1)},${y(w.needed).toFixed(1)}`);
+        const bot = seg.slice().reverse().map((w) => `${x(w.idx).toFixed(1)},${y(w.avail).toFixed(1)}`);
+        shortfall += `<polygon points="${top.concat(bot).join(" ")}" fill="rgba(220,38,38,.10)"/>`;
+      }
+      seg = [];
+    };
+    for (const w of run) { if (w.gap < 0) seg.push(w); else flush(); }
+    flush();
+  }
+
+  // Recessive grid: three horizontal lines + muted tick labels.
+  let grid = "";
+  for (const frac of [0, 0.5, 1]) {
+    const gy = padT + innerH - frac * innerH;
+    grid += `<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W - padR}" y2="${gy.toFixed(1)}" stroke="#EEF1F5" stroke-width="1"/>`;
+    grid += `<text x="${padL - 6}" y="${(gy + 3).toFixed(1)}" text-anchor="end" font-size="9" fill="var(--text-subtle)">${Math.round(yNice * frac)}</text>`;
+  }
+  let xLabels = "";
+  for (const w of weeks) {
+    xLabels += `<text x="${x(w.idx).toFixed(1)}" y="${H - 6}" text-anchor="middle" font-size="9" fill="var(--text-subtle)">${escapeHtml(w.label)}</text>`;
+  }
+  // Trailing/interior unplanned zones get a light wash + label.
+  let zones = "";
+  const unplannedRuns = [];
+  cur = [];
+  for (const w of weeks) {
+    if (w.unplanned) cur.push(w);
+    else { if (cur.length) { unplannedRuns.push(cur); cur = []; } }
+  }
+  if (cur.length) unplannedRuns.push(cur);
+  for (const z of unplannedRuns) {
+    const x0 = z[0].idx === 0 ? padL : (x(z[0].idx - 1) + x(z[0].idx)) / 2;
+    const x1 = z[z.length - 1].idx === n - 1 ? W - padR : (x(z[z.length - 1].idx) + x(z[z.length - 1].idx + 1)) / 2;
+    zones += `<rect x="${x0.toFixed(1)}" y="${padT}" width="${(x1 - x0).toFixed(1)}" height="${innerH}" fill="var(--canvas)"/>`;
+    zones += `<text x="${((x0 + x1) / 2).toFixed(1)}" y="${(padT + innerH / 2).toFixed(1)}" text-anchor="middle" font-size="9" fill="var(--text-subtle)">no plan</text>`;
+  }
+  // Direct end-labels on the last planned point of the last run.
+  const lastRun = runs[runs.length - 1];
+  const lastW = lastRun[lastRun.length - 1];
+  const endLabels =
+    `<text x="${(x(lastW.idx) + 5).toFixed(1)}" y="${(y(lastW.needed) + 3).toFixed(1)}" font-size="9" font-weight="600" fill="${RR_TGT_TREND_DEMAND}">Needed</text>` +
+    `<text x="${(x(lastW.idx) + 5).toFixed(1)}" y="${(y(lastW.avail) + (Math.abs(y(lastW.avail) - y(lastW.needed)) < 10 ? 12 : 3)).toFixed(1)}" font-size="9" font-weight="600" fill="${RR_TGT_TREND_SUPPLY}">Available</text>`;
+  // Hover slots: one transparent hit rect per week + a guide line.
+  let slots = "";
+  for (const w of weeks) {
+    const half = n <= 1 ? innerW : innerW / (n - 1) / 2;
+    const sx = Math.max(padL, x(w.idx) - half);
+    const sw = Math.min(W - padR, x(w.idx) + half) - sx;
+    slots += `<rect x="${sx.toFixed(1)}" y="${padT}" width="${sw.toFixed(1)}" height="${innerH}" fill="transparent" data-rr-trend-idx="${w.idx}"/>`;
+  }
+
+  host.innerHTML = `
+    <div class="rr-tgt-trend-legend">
+      <span><i style="background:${RR_TGT_TREND_DEMAND}"></i>Drivers needed</span>
+      <span><i style="background:${RR_TGT_TREND_SUPPLY}"></i>Available (route-ready)</span>
+      <span><i style="background:rgba(220,38,38,.25)"></i>Shortfall</span>
+    </div>
+    <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Needed versus available drivers across the 13-week plan">
+      ${zones}${grid}${shortfall}${paths}${endLabels}
+      <line id="rr-tgt-trend-guide" y1="${padT}" y2="${padT + innerH}" stroke="var(--border-strong)" stroke-width="1" visibility="hidden"/>
+      ${slots}
+    </svg>
+    <div class="rr-tgt-trend-tip" hidden></div>`;
+}
+
+// Hover tooltip for the trend chart (delegated; markup re-renders freely).
+document.addEventListener("pointerover", (e) => {
+  const slot = e.target.closest && e.target.closest("[data-rr-trend-idx]");
+  const host = document.getElementById("rr-tgt-trend");
+  if (!host) return;
+  const tip = host.querySelector(".rr-tgt-trend-tip");
+  const guide = document.getElementById("rr-tgt-trend-guide");
+  if (!slot) { if (tip && !tip.hidden && !host.contains(e.target)) { tip.hidden = true; guide?.setAttribute("visibility", "hidden"); } return; }
+  const w = window._rrOkamiModel?.weeks?.[parseInt(slot.dataset.rrTrendIdx, 10)];
+  if (!w || !tip) return;
+  tip.innerHTML = w.unplanned
+    ? `<b>${escapeHtml(w.label)}</b> · ${escapeHtml(w.dates)}<br>No plan yet`
+    : `<b>${escapeHtml(w.label)}</b> · ${escapeHtml(w.dates)}<br>Needed ${w.needed} · Available ${w.avail} · Gap ${w.gap >= 0 ? "+" : ""}${w.gap}`;
+  tip.hidden = false;
+  const slotRect = slot.getBoundingClientRect();
+  const hostRect = host.getBoundingClientRect();
+  const cx = slotRect.left + slotRect.width / 2 - hostRect.left;
+  tip.style.left = Math.max(4, Math.min(cx - tip.offsetWidth / 2, hostRect.width - tip.offsetWidth - 4)) + "px";
+  tip.style.top = "26px";
+  if (guide) {
+    const svg = guide.closest("svg");
+    const svgRect = svg.getBoundingClientRect();
+    const gx = slotRect.left + slotRect.width / 2 - svgRect.left;
+    guide.setAttribute("x1", gx);
+    guide.setAttribute("x2", gx);
+    guide.setAttribute("visibility", "visible");
+  }
+});
+document.addEventListener("pointerout", (e) => {
+  const host = document.getElementById("rr-tgt-trend");
+  if (!host || (e.relatedTarget && host.contains(e.relatedTarget))) return;
+  const tip = host.querySelector(".rr-tgt-trend-tip");
+  if (tip) tip.hidden = true;
+  document.getElementById("rr-tgt-trend-guide")?.setAttribute("visibility", "hidden");
+});
+let _rrTrendResizeTimer = null;
+window.addEventListener("resize", () => {
+  if (_rrTrendResizeTimer) clearTimeout(_rrTrendResizeTimer);
+  _rrTrendResizeTimer = setTimeout(() => {
+    const host = document.getElementById("rr-tgt-trend");
+    if (host && !host.hidden) _rrOkamiRenderTrend();
+  }, 200);
+});
+
+// "Drivers needed" header ⓘ — the formula with the DSP's live numbers,
+// and where each dial lives. Also spells out Cushion vs Plan Pad (two
+// different percent-buffers that operators regularly conflate: cushion
+// adds SHIFTS at schedule build; pad adds HIRES to the staffing plan).
+function _rrOkamiEnhanceHeader() {
+  const table = document.querySelector(".plan-table-wrap .okami-table");
+  if (!table) return;
+  const th = table.querySelectorAll("thead th")[2];
+  if (!th || th.querySelector(".rr-tgt-th-info")) return;
+  th.insertAdjacentHTML("beforeend",
+    ` <button class="rr-tgt-th-info" type="button" aria-label="How Drivers needed is calculated" title="How is this calculated?">?</button>`);
+}
+function _rrOkamiFormulaHtml() {
+  const rates = window._rrForecastRates || {};
+  const dpr = rates.driversPerRoute ?? 2;
+  const pad = Math.max(0, Math.min(50, Number(window.RR?.dsp?.metadata?.staffing?.plan_pad_pct ?? 10) || 0));
+  const cushionRaw = Number(window._rrEffectiveSettings?.cushion_pct);
+  const cushion = Number.isFinite(cushionRaw) ? cushionRaw : null;
+  const wk = (window._rrOkamiModel?.weeks || []).find((w) => !w.unplanned);
+  const example = wk
+    ? `<div style="margin:8px 0;color:var(--text)">e.g. ${escapeHtml(wk.label)}: ceil(${wk.routesMax} × ${dpr} × ${(1 + pad / 100).toFixed(2)}) = <b>${wk.needed}</b></div>`
+    : "";
+  return `<div class="pa-pop-h">Drivers needed</div>
+    <div style="padding:12px 14px;line-height:1.5">
+      <div style="font-family:var(--font-mono,monospace);font-size:var(--fs-xs);color:var(--text-muted)">ceil( peak routes/day × drivers-per-route × (1 + plan pad) )</div>
+      ${example}
+      <div style="margin-top:8px;display:grid;gap:6px;font-size:var(--fs-xs);color:var(--text-muted)">
+        <div><b>Drivers per route</b> — ${dpr} · set in Hiring settings (1 primary + backups)</div>
+        <div><b>Plan pad</b> — ${pad}% · extra <i>hires</i> buffer, the slider on the OKAMI page</div>
+        <div><b>Cushion</b>${cushion != null ? ` — ${cushion}%` : ""} · different thing: adds extra <i>shifts</i> when the schedule is built, not extra drivers</div>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><b>Hire lead time</b> —
+          <input class="form-input form-input-sm" id="rr-tgt-hire-lead" type="number" min="7" max="120" step="1" value="${_rrHireLeadDays()}" style="width:60px;text-align:right"/>
+          days · training/onboarding runway behind every hire-by deadline</div>
+      </div>
+    </div>`;
+}
+// Persist the hire lead time on dsps.metadata (same pattern as the Plan
+// Pad slider), then repaint every surface that uses it.
+let _rrHireLeadSaveTimer = null;
+document.addEventListener("input", (e) => {
+  if (e.target?.id !== "rr-tgt-hire-lead") return;
+  const v = Math.max(7, Math.min(120, parseInt(e.target.value, 10) || RR_OKAMI_HIRE_LEAD_DAYS));
+  if (window.RR?.dsp?.metadata) {
+    window.RR.dsp.metadata.staffing = { ...(window.RR.dsp.metadata.staffing || {}), hire_lead_days: v };
+  }
+  if (_rrHireLeadSaveTimer) clearTimeout(_rrHireLeadSaveTimer);
+  _rrHireLeadSaveTimer = setTimeout(async () => {
+    const dspId = window.RR?.dsp?.id;
+    if (!dspId) return;
+    await sb.from("dsps").update({ metadata: window.RR.dsp.metadata || {} }).eq("id", dspId);
+    if (window._okamiStart) window._rrOkamiAnchorOverride = window._okamiStart;
+    try { await renderOkamiLive(); } catch (_) {}
+  }, 600);
+});
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest && e.target.closest(".rr-tgt-th-info");
+  if (!btn) return;
+  e.preventDefault();
+  e.stopPropagation();
+  if (typeof _paOpenPopover === "function") _paOpenPopover(btn, _rrOkamiFormulaHtml());
+});
 
 async function _renderOkamiLiveImpl() {
   const tbody = document.getElementById("okami-tbody");
@@ -52717,25 +53249,103 @@ async function _renderOkamiLiveImpl() {
   window._okamiStart = _okamiStart;
   const start = new Date(_okamiStart + "T12:00:00");
 
-  const [gridRes, drvRes] = await Promise.all([
+  // First load (or reload after an error): skeleton while the RPC is in
+  // flight. Existing live rows are left in place — they update below
+  // with no flash.
+  _rrOkamiShowSkeleton(tbody);
+
+  const [gridRes, drvRes, onbRes, horizonRes] = await Promise.all([
     sb.rpc("okami_grid", { p_start: _okamiStart, p_weeks: RR_OKAMI_WEEKS }),
     sb.from("drivers")
       .select("id, status", { count: "exact", head: true })
       .eq("dsp_id", dspId)
       .in("status", ["active", "onboarding"]),
+    // Onboarding split — they're on payroll but not route-ready, so the
+    // Available column separates them instead of silently counting them.
+    sb.from("drivers")
+      .select("id", { count: "exact", head: true })
+      .eq("dsp_id", dspId)
+      .eq("status", "onboarding"),
+    // Per-week availability projection (payroll minus approved time-off
+    // overlapping each week) — the same RPC the Risk-Forecast Simulate
+    // uses, now folded into the base table so "Available" is a per-week
+    // projection instead of one flat snapshot repeated 13 times.
+    sb.rpc("active_drivers_for_horizon", { p_first_week_start: _okamiStart, p_weeks: RR_OKAMI_WEEKS }),
   ]);
 
-  if (gridRes.error) { console.warn("okami_grid:", gridRes.error.message); return; }
-  if (drvRes.error)  { console.warn("driver count:", drvRes.error.message); return; }
+  if (gridRes.error || drvRes.error) {
+    const msg = gridRes.error?.message || drvRes.error?.message;
+    _rrSwallow("okami load", gridRes.error || drvRes.error);
+    _rrOkamiShowError(tbody, msg);
+    return;
+  }
+  // The projection + onboarding split are enrichments — if either fails
+  // (older DB, transient error) the table falls back to the flat count.
+  if (onbRes.error) _rrSwallow("okami onboarding count", onbRes.error);
+  if (horizonRes.error) _rrSwallow("okami availability horizon", horizonRes.error);
 
   const cells = gridRes.data || [];
   _okamiActiveCount = drvRes.count || 0;
+  const onboardingCount = onbRes.error ? 0 : (onbRes.count || 0);
+  // week_start ISO → { total_active, on_time_off, on_pto, available }
+  const availByWeek = new Map(
+    (horizonRes.error ? [] : horizonRes.data || []).map((r) => [String(r.week_start), r]));
+  window._rrOkamiCounts = { total: _okamiActiveCount, onboarding: onboardingCount };
 
-  // Sum target_routes per ISO date across all stations.
-  const totalsByDate = new Map();
-  for (const c of cells) {
-    totalsByDate.set(c.date, (totalsByDate.get(c.date) || 0) + (c.target_routes || 0));
+  // Sum target_routes + filled per ISO date across all stations, and
+  // per-week service-type mix from targets_by_wave.
+  // Multi-station DSPs get a station filter (the grid is per-station;
+  // summing hides one station being badly short). When set, every cache
+  // below is built from the filtered rows, so the table, editing ops,
+  // chart and tfoot all follow — Available stays fleet-wide (drivers
+  // aren't per-station here) and the surfaces note that.
+  const stationsInGrid = [];
+  {
+    const seen = new Set();
+    for (const c of cells) {
+      if (c.station_id && !seen.has(c.station_id)) {
+        seen.add(c.station_id);
+        stationsInGrid.push({ id: c.station_id, code: c.station_code || "?" });
+      }
+    }
+    stationsInGrid.sort((a, b) => String(a.code).localeCompare(String(b.code)));
+    if (_rrOkamiStationFilter && !seen.has(_rrOkamiStationFilter)) _rrOkamiStationFilter = null;
   }
+  const useCells = _rrOkamiStationFilter
+    ? cells.filter((c) => c.station_id === _rrOkamiStationFilter)
+    : cells;
+  _rrOkamiRenderStationFilter(stationsInGrid);
+
+  const totalsByDate = new Map();
+  const filledByDate = new Map();
+  const typeTotalsByWeekIdx = Array.from({ length: RR_OKAMI_WEEKS }, () => ({}));
+  // Per-(date × station × wave × type) demand buckets — the exact rows
+  // okami_set_target upserts. Copy/fill/adjust/undo (the plan-editing
+  // ops) read + restore THESE so per-day and per-wave structure survives
+  // bulk edits instead of being flattened.
+  const bucketsByDate = new Map();
+  const startNoonUtc = Date.parse(_okamiStart + "T12:00:00Z");
+  for (const c of useCells) {
+    totalsByDate.set(c.date, (totalsByDate.get(c.date) || 0) + (c.target_routes || 0));
+    filledByDate.set(c.date, (filledByDate.get(c.date) || 0) + (c.filled || 0));
+    const wIdx = Math.floor(Math.round((Date.parse(c.date + "T12:00:00Z") - startNoonUtc) / 86400000) / 7);
+    if (Array.isArray(c.targets_by_wave)) {
+      const typeBucket = wIdx >= 0 && wIdx < RR_OKAMI_WEEKS ? typeTotalsByWeekIdx[wIdx] : null;
+      for (const t of c.targets_by_wave) {
+        const code = t?.service_type_code || "SP";
+        if (typeBucket) typeBucket[code] = (typeBucket[code] || 0) + (t?.target_routes || 0);
+        if (!bucketsByDate.has(c.date)) bucketsByDate.set(c.date, []);
+        bucketsByDate.get(c.date).push({
+          stationId: c.station_id,
+          waveIndex: t?.wave_index ?? 0,
+          serviceTypeId: t?.service_type_id ?? null,
+          code,
+          value: t?.target_routes || 0,
+        });
+      }
+    }
+  }
+  window._rrOkamiBucketsByDate = bucketsByDate;
   // Cache for fast slider re-renders (no network round-trip per drag tick).
   _okamiTotalsByDateCache = totalsByDate;
   _okamiStartCache = start;
@@ -52750,14 +53360,11 @@ async function _renderOkamiLiveImpl() {
   if (padInput && Number(padInput.value) !== padPct) padInput.value = padPct;
   if (padLabel) padLabel.textContent = `${padPct}%`;
 
-  // Mockup only assigned id='okami-row-N' to the first three rows; rows
-  // 3..12 had no id, so the older lookup silently skipped them and W21
-  // through W30 never got their labels rewritten. Use every non-detail
-  // row inside #okami-tbody in document order instead.
-  const okTbody = document.getElementById("okami-tbody");
-  const allOkamiRows = okTbody
-    ? Array.from(okTbody.querySelectorAll("tr:not(.okami-detail)"))
-    : [];
+  // Build (or keep) the generated rows, then fill them. Week rows are
+  // every non-detail row inside #okami-tbody in document order.
+  _rrOkamiEnsureRows(tbody);
+  _rrOkamiEnhanceHeader();
+  const allOkamiRows = Array.from(tbody.querySelectorAll("tr:not(.okami-detail)"));
 
   // Kick the shared forecast-rates load (drivers-per-route ratio, callout /
   // attrition rates). First render may run on defaults; the repaint hooks
@@ -52771,35 +53378,94 @@ async function _renderOkamiLiveImpl() {
   // not the table's DOM). Rebuilt whole on every render.
   const modelWeeks = [];
 
+  const todayIso = fmtIsoDate(new Date());
+  const leadDays = _rrHireLeadDays();
+  // Onboarding readiness list (hire_date ≤ week start = road-ready, the
+  // staffing outlook's convention). Until the rates load lands, every
+  // onboarding driver counts as not-ready — the loader's repaint hook
+  // re-renders once real hire dates are known.
+  const onbList = Array.isArray(window._rrForecastRates?.onboarding)
+    ? window._rrForecastRates.onboarding : null;
+
   for (let w = 0; w < RR_OKAMI_WEEKS; w++) {
     const row = allOkamiRows[w];
     if (!row) continue;
     const weekStart = addDays(start, w * 7);
     const weekEnd   = addDays(weekStart, 6);
+    const weekStartIso = fmtIsoDate(weekStart);
+    const weekEndIso   = fmtIsoDate(weekEnd);
 
-    // Routes per day across the week, then peak.
-    let routesMax = 0;
+    // Routes per day across the week → peak (drives staffing) + total.
+    let routesMax = 0, weekRoutes = 0;
+    const dayVals = [];
     for (let d = 0; d < 7; d++) {
       const iso = fmtIsoDate(addDays(weekStart, d));
       const t = totalsByDate.get(iso) || 0;
+      dayVals.push(t);
+      weekRoutes += t;
       if (t > routesMax) routesMax = t;
     }
+    // A week with zero routes has no plan — rendering it as a healthy
+    // green surplus made "no data" look like "covered through October".
+    const unplanned = routesMax === 0;
 
-    const needed  = rrDriversNeeded(routesMax, { driversPerRoute: _fcDpr, padPct });
-    const gap     = _okamiActiveCount - needed;
-    const hireBy  = addDays(weekStart, -RR_OKAMI_HIRE_LEAD_DAYS);
+    // Per-week availability: payroll minus approved time-off (horizon
+    // RPC), minus onboarding drivers not yet road-ready that week.
+    const hz = availByWeek.get(weekStartIso);
+    const payroll  = hz ? (hz.total_active ?? _okamiActiveCount) : _okamiActiveCount;
+    const offCount = hz ? (hz.on_time_off || 0) : 0;
+    const availRaw = hz ? Math.max(0, hz.available ?? _okamiActiveCount) : _okamiActiveCount;
+    const notReady = onbList
+      ? onbList.filter((o) => !o.hire_date || o.hire_date > weekStartIso).length
+      : onboardingCount;
+    const avail = Math.max(0, availRaw - notReady);
 
-    // Update week label + dates (without disturbing the expand button or tags).
+    const needed  = unplanned ? 0 : rrDriversNeeded(routesMax, { driversPerRoute: _fcDpr, padPct });
+    const gap     = avail - needed;
+    const hireBy  = addDays(weekStart, -leadDays);
+
     const labelEl = row.querySelector(".plan-week-label");
     const datesEl = row.querySelector(".plan-week-dates");
     if (labelEl) labelEl.textContent = `W${isoWeek(weekStart)}`;
     if (datesEl) datesEl.textContent = `${fmtMD(weekStart)}–${weekEnd.getDate()}`;
 
-    // Routes (max) is now READ-ONLY — operator edits per-day in the
-    // daily drill-down panel and Routes (max) reflects the peak day.
-    // Editing the cell directly used to overwrite all 7 days, which
-    // destroyed per-day variation. Set readOnly + light styling so it
-    // looks like a display value, not an input.
+    // "You are here" + month boundary + holiday context on the week cell.
+    const isNow = todayIso >= weekStartIso && todayIso <= weekEndIso;
+    row.classList.toggle("rr-tgt-now-row", isNow);
+    const monthTurns = w > 0 && weekStart.getMonth() !== addDays(start, (w - 1) * 7).getMonth();
+    row.classList.toggle("rr-tgt-month-start", monthTurns);
+    const chipsEl = row.querySelector(".rr-tgt-week-chips");
+    if (chipsEl) {
+      const holidays = _rrUsHolidaysInWeek(weekStart);
+      // Current week also shows plan-vs-actual to date: assigned shifts
+      // vs planned routes over the elapsed days.
+      let actualChip = "";
+      if (isNow && !unplanned) {
+        let plannedSoFar = 0, filledSoFar = 0;
+        for (let d = 0; d < 7; d++) {
+          const iso = fmtIsoDate(addDays(weekStart, d));
+          if (iso > todayIso) break;
+          plannedSoFar += totalsByDate.get(iso) || 0;
+          filledSoFar  += filledByDate.get(iso) || 0;
+        }
+        if (plannedSoFar > 0) actualChip = `<span class="rr-tgt-actual-chip" title="Assigned shifts vs planned routes, week to date">${filledSoFar}/${plannedSoFar} filled</span>`;
+      }
+      // Onboarding graduations landing this week — the supply-side event
+      // that explains an Available step-up between rows.
+      let joinChip = "";
+      if (onbList && w > 0) {
+        const prevIso = fmtIsoDate(addDays(weekStart, -7));
+        const grads = onbList.filter((o) => o.hire_date && o.hire_date <= weekStartIso && o.hire_date > prevIso).length;
+        if (grads > 0) joinChip = `<span class="rr-tgt-join-chip" title="${grads} onboarding driver${grads === 1 ? "" : "s"} become route-ready this week">+${grads} join</span>`;
+      }
+      chipsEl.innerHTML =
+        (isNow ? `<span class="rr-tgt-now-chip">This week</span>` : "") +
+        actualChip +
+        joinChip +
+        (monthTurns ? `<span class="rr-tgt-month-chip">${weekStart.toLocaleDateString(undefined, { month: "short" })}</span>` : "") +
+        holidays.map((h) => `<span class="rr-tgt-evt-chip" title="${escapeHtml(h.label)} · demand-relevant holiday">${escapeHtml(h.name)}</span>`).join("");
+    }
+
     const input = row.querySelector(".plan-route-input");
     if (input) {
       // Don't clobber a value the operator is mid-edit. This render runs after
@@ -52808,37 +53474,79 @@ async function _renderOkamiLiveImpl() {
       // "Routes (max) keeps changing as I type" bug. Only sync the displayed
       // peak when the field isn't focused.
       if (document.activeElement !== input) input.value = routesMax;
-      input.readOnly = false;
-      input.style.background = "";
-      input.style.border = "";
-      input.style.cursor = "";
       input.title = "Type a value to set all 7 days. Use the drill-down panel for per-day variation.";
+      input.setAttribute("aria-label", `Peak routes per day, week of ${fmtMD(weekStart)}`);
       input.dataset.rrOkamiWeekIdx = String(w);
     }
 
+    // 7-day sparkline next to the Routes input — the week's shape at a
+    // glance (flat vs weekend-heavy vs one-day spike). Peak day accented.
+    const sparkSlot = row.querySelector(".rr-tgt-spark-slot");
+    if (sparkSlot) {
+      if (unplanned) {
+        sparkSlot.innerHTML = "";
+      } else {
+        const sparkTitle = RR_DAY_SHORT.map((nm, i) => `${nm} ${dayVals[i]}`).join(" · ");
+        sparkSlot.innerHTML = `<span class="rr-tgt-spark" title="${escapeHtml(sparkTitle)}">` +
+          dayVals.map((v) => `<i style="height:${Math.max(2, Math.round((v / Math.max(routesMax, 1)) * 14))}px${v === routesMax ? ";background:var(--rr-blue-600)" : ""}"></i>`).join("") +
+          `</span>`;
+      }
+    }
+
+    // Demand context: the formula with live numbers + avg-day + type mix,
+    // shown where the number is (header ⓘ opens the full explainer).
+    const avgDay = weekRoutes ? Math.round(weekRoutes / 7) : 0;
+    const mixEntries = Object.entries(typeTotalsByWeekIdx[w] || {}).filter(([, v]) => v > 0);
+    let mixText = "";
+    if (mixEntries.length > 1) {
+      const mixTotal = mixEntries.reduce((s, [, v]) => s + v, 0);
+      mixText = " · mix " + mixEntries.sort((a, b) => b[1] - a[1])
+        .map(([code, v]) => `${code} ${Math.round((v / mixTotal) * 100)}%`).join(", ");
+    }
+    const neededTitle = unplanned
+      ? "No routes planned this week yet"
+      : `ceil(peak ${routesMax} × ${_fcDpr} drivers/route × ${(1 + padPct / 100).toFixed(2)} pad) = ${needed} · avg day ${avgDay} routes${mixText}`;
+
+    const availTitle = [`${payroll} on payroll`]
+      .concat(offCount ? [`− ${offCount} approved time-off`] : [])
+      .concat(notReady ? [`− ${notReady} onboarding (not route-ready yet)`] : [])
+      .join(" ");
+
     const tdCells = row.querySelectorAll("td");
     // [0]=Week, [1]=Routes input, [2]=Needed, [3]=Available, [4]=Gap, [5]=Strategy, [6]=Hire by, [7]=Status
-    if (tdCells[2]) tdCells[2].innerHTML = `<div class="plan-calc">${needed}</div>`;
-    if (tdCells[3]) tdCells[3].innerHTML = `<div class="plan-calc">${_okamiActiveCount}</div>`;
+    if (tdCells[2]) tdCells[2].innerHTML = unplanned
+      ? `<div class="plan-calc" title="${escapeHtml(neededTitle)}" style="color:var(--text-subtle)">—</div>`
+      : `<div class="plan-calc" title="${escapeHtml(neededTitle)}">${needed}</div>`;
+    if (tdCells[3]) tdCells[3].innerHTML =
+      `<div class="plan-calc" title="${escapeHtml(availTitle)}">${avail}</div>`
+      + (notReady ? `<div class="rr-tgt-avail-sub" title="On payroll, still onboarding — they join Available from their road-ready week">+${notReady} onboarding</div>` : "");
 
-    // Plain numbers — no color codes / pills (operator wanted less noise).
     const gapEl = tdCells[4]?.querySelector(".plan-gap");
     if (gapEl) {
-      gapEl.textContent = (gap >= 0 ? "+" : "") + gap;
-      gapEl.classList.remove("ok", "warn", "bad");
-      // Severity class drives the graduated red (or green) gap pill on the
-      // Targets page (scoped CSS; standalone OKAMI leaves the gap unstyled).
-      _rrApplyGapClass(gapEl, gap);
+      if (unplanned) {
+        gapEl.textContent = "No plan";
+        gapEl.classList.remove("ok", "warn", "bad", "rr-tgt-gap-pos", "rr-tgt-gap-s1", "rr-tgt-gap-s2", "rr-tgt-gap-s3");
+        gapEl.classList.add("rr-tgt-gap-unplanned");
+        gapEl.title = "No routes planned this week yet — type a peak or use the daily editor";
+      } else {
+        gapEl.classList.remove("rr-tgt-gap-unplanned");
+        gapEl.textContent = (gap >= 0 ? "+" : "") + gap;
+        gapEl.classList.remove("ok", "warn", "bad");
+        // Severity class drives the graduated red (or green) gap pill on the
+        // Targets page (scoped CSS; standalone OKAMI leaves the gap unstyled).
+        _rrApplyGapClass(gapEl, gap);
+        if (gap < 0) gapEl.title += ` · hire by ${fmtMD(hireBy)} (${leadDays}-day lead)`;
+      }
     }
 
     const stratEl = tdCells[5]?.querySelector(".strategy-pills");
     if (stratEl) {
-      const text = gap >= 0 ? "Hold" : (gap >= -10 ? "+8h OT" : "Hire");
+      const text = unplanned ? "—" : gap >= 0 ? "Hold" : (gap >= -10 ? "+8h OT" : "Hire");
       stratEl.innerHTML = `<span class="u-sm-muted">${text}</span>`;
     }
 
     const hireByEl = tdCells[6]?.querySelector(".plan-calc");
-    const hireByText = gap >= 0 ? "—" : fmtMD(hireBy);
+    const hireByText = unplanned || gap >= 0 ? "—" : fmtMD(hireBy);
     if (hireByEl) {
       hireByEl.textContent = hireByText;
     }
@@ -52846,38 +53554,42 @@ async function _renderOkamiLiveImpl() {
     // Status text uses the single forecast vocabulary (audit #84):
     // On track / Watch / At risk — same words as the Risk Forecast view
     // and the gap card, driven by the same coverage thresholds.
-    const statusText = gap >= 0
-      ? "On track"
-      : RR_FC_LABEL[(needed > 0 && _okamiActiveCount / needed < 0.80) ? "risk" : "watch"];
-    const statusPill = tdCells[7]?.querySelector(".plan-status-pill");
-    if (statusPill) {
-      statusPill.classList.remove("ok", "warn", "bad");
-      statusPill.outerHTML = `<span class="u-sm-muted">${statusText}</span>`;
-    }
+    const statusText = unplanned
+      ? "No plan yet"
+      : gap >= 0
+        ? "On track"
+        : RR_FC_LABEL[(needed > 0 && avail / needed < 0.80) ? "risk" : "watch"];
+    const statusEl = row.querySelector("[data-rr-okami-status]");
+    if (statusEl) statusEl.textContent = statusText;
 
     modelWeeks.push({
       idx: w,
-      weekStartIso: fmtIsoDate(weekStart),
+      weekStartIso,
       label: `W${isoWeek(weekStart)}`,
       dates: `${fmtMD(weekStart)}–${weekEnd.getDate()}`,
-      routesMax, needed,
-      avail: _okamiActiveCount,
+      routesMax, weekRoutes, needed,
+      avail,
+      availRaw,
+      payroll,
+      onTimeOff: offCount,
+      notReadyOnboarding: notReady,
       gap,
+      unplanned,
       hireBy: hireByText,
       statusText,
-      statusKind: gap >= 0 ? "ok" : (needed > 0 && _okamiActiveCount / needed < 0.80 ? "risk" : "tight"),
+      statusKind: unplanned ? "unplanned" : gap >= 0 ? "ok" : (needed > 0 && avail / needed < 0.80 ? "risk" : "tight"),
     });
   }
 
-  window._rrOkamiModel = { startIso: _okamiStart, weeks: modelWeeks };
-
-  // Update top hires-needed summary cell, if present. One hire covers a
-  // seat in every subsequent week, so this is the DEEPEST weekly shortfall
-  // — never the sum of weekly gaps (that unit is driver-weeks).
-  let peakHires = 0;
-  for (const mw of modelWeeks) if (mw.gap < 0 && -mw.gap > peakHires) peakHires = -mw.gap;
-  const sumValue = document.querySelector(".okami-summary-grid .okami-sum:first-child .okami-sum-value");
-  if (sumValue) sumValue.textContent = peakHires;
+  window._rrOkamiModel = {
+    startIso: _okamiStart,
+    weeks: modelWeeks,
+    stationFilter: _rrOkamiStationFilter
+      ? (stationsInGrid.find((s) => s.id === _rrOkamiStationFilter)?.code || "station")
+      : null,
+  };
+  _rrOkamiRenderTfoot();
+  try { _rrOkamiRenderTrend(); } catch (_) { /* chart host is Targets-only */ }
 
   // Keep the Targets gap card in lockstep with the fresh model.
   try { if (typeof _rrRefreshTargetsGapCard === "function") _rrRefreshTargetsGapCard(); } catch (_) {}
@@ -52888,10 +53600,16 @@ let _okamiSaveTimers = new Map();
 const _okamiDirtyWeeks = new Set();
 
 function _setOkamiSaveStatus(text, kind) {
-  const el = document.getElementById("rr-okami-save-status");
-  if (!el) return;
-  el.textContent = text || "";
-  el.style.color = kind === "warn" ? "var(--red)" : kind === "ok" ? "var(--green)" : "var(--text-subtle)";
+  // Twin surfaces: the OKAMI page header and the Targets toolbar (the
+  // Targets sub-view never shows the OKAMI header, so typing feedback
+  // was invisible there).
+  const color = kind === "warn" ? "var(--red)" : kind === "ok" ? "var(--green)" : "var(--text-subtle)";
+  for (const id of ["rr-okami-save-status", "rr-tgt-save-status"]) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    el.textContent = text || "";
+    el.style.color = color;
+  }
 }
 
 function bindOkamiHandlers() {
@@ -53003,8 +53721,29 @@ function bindOkamiHandlers() {
     if (!detail || !btn) return;
     const isOpen = detail.classList.toggle("open");
     btn.classList.toggle("expanded", isOpen);
-    if (isOpen) renderOkamiDailyPanel(weekIdx);
+    btn.setAttribute("aria-expanded", String(isOpen));
+    if (isOpen) {
+      renderOkamiDailyPanel(weekIdx);
+      // Land keyboard/SR focus in the opened panel; Esc (delegate below)
+      // closes it and hands focus back to the chevron.
+      const content = document.getElementById(`okami-detail-content-${weekIdx}`);
+      if (content) { content.tabIndex = -1; content.focus(); }
+    }
   };
+
+  // Esc inside an open daily panel closes it and restores focus to its
+  // expand chevron.
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    const detailTd = e.target.closest && e.target.closest("tr.okami-detail.open > td");
+    if (!detailTd) return;
+    const m = /^okami-detail-(\d+)$/.exec(detailTd.parentElement.id || "");
+    if (!m) return;
+    e.preventDefault();
+    window.okamiToggleDaily(Number(m[1]));
+    const btn = document.querySelector(`#okami-row-${m[1]} .okami-expand-btn`);
+    if (btn) btn.focus();
+  });
 
   // The mockup's okamiRenderDailyPanel was deleted in index.html and now
   // delegates here via window. Expose the live renderer on window so the
@@ -53013,41 +53752,136 @@ function bindOkamiHandlers() {
   window.renderOkamiDailyPanel = renderOkamiDailyPanel;
 }
 
-async function saveOkamiWeek(w, routesMax) {
+// saveOkamiWeek (the old typed-value writer) was folded into
+// _rrOkamiSetWeeksFlat below — same single-station write pattern, now
+// with validation, a flatten confirm, and undo.
+
+// ─── Targets plan editing · validation, flatten-confirm, undo, bulk ops ────
+//
+// Every editing operation (typed week value, paste, copy-forward, fill,
+// percent adjust, seed) goes through _rrOkamiApplyWrites: a list of
+// (date × station × wave × type) bucket writes carrying their PRIOR
+// values, so one op = one undo. Buckets come from _rrOkamiBucketsByDate
+// (built during render from okami_grid), which is what okami_set_target
+// upserts — per-day and per-wave structure survives bulk edits.
+
+const RR_OKAMI_MAX_ROUTES = 400; // sanity clamp for a single day's routes
+
+function _rrOkamiWeekIso(w, d = 0) {
+  return fmtIsoDate(addDays(new Date((window._okamiStart || _okamiStart) + "T12:00:00"), w * 7 + d));
+}
+
+async function _rrOkamiEnsureStations() {
+  if (_okamiStations && _okamiStations.length) return _okamiStations;
   const dspId = window.RR?.dsp?.id;
-  if (!dspId) return;
-  if (!_okamiStart) return;
-  const weekStart = addDays(new Date(_okamiStart + "T12:00:00"), w * 7);
+  if (!dspId) return [];
+  const { data, error } = await sb.from("stations")
+    .select("id, code, active").eq("dsp_id", dspId).eq("active", true).order("code");
+  if (error) { toast("Stations load failed: " + error.message, "warn"); return []; }
+  _okamiStations = data || [];
+  return _okamiStations;
+}
 
-  if (!_okamiStations || _okamiStations.length === 0) {
-    const { data, error } = await sb.from("stations")
-      .select("id, code, active").eq("dsp_id", dspId).eq("active", true);
-    if (error) { toast("Save failed: " + error.message, "warn"); return; }
-    _okamiStations = data || [];
-  }
-  if (_okamiStations.length === 0) {
-    toast("No stations configured — add a station before setting OKAMI", "warn");
-    return;
-  }
+let _rrOkamiLastOp = null;
+let _rrOkamiStatusClearTimer = null;
+function _rrOkamiFlashStatus(text, kind) {
+  _setOkamiSaveStatus(text, kind);
+  if (_rrOkamiStatusClearTimer) clearTimeout(_rrOkamiStatusClearTimer);
+  if (kind === "ok") _rrOkamiStatusClearTimer = setTimeout(() => _setOkamiSaveStatus(""), 4000);
+}
 
-  // Single-station mode: full value to first station, zero out the rest.
-  // set_okami_week_demand wrote to ALL stations which inflated the displayed
-  // peak by N× when multiple active stations existed.
-  const target = Math.max(0, parseInt(routesMax, 10) || 0);
-  const calls = [];
-  for (let d = 0; d < 7; d++) {
-    const iso = fmtIsoDate(addDays(weekStart, d));
-    _okamiStations.forEach((s, idx) => {
-      calls.push(sb.rpc("okami_set_target", { p_date: iso, p_station_id: s.id, p_target: idx === 0 ? target : 0 }));
+async function _rrOkamiApplyWrites(writes, opts = {}) {
+  if (!writes.length) return { ok: true };
+  _rrOkamiFlashStatus(opts.statusLabel || "Saving…");
+  const CHUNK = 20;
+  for (let i = 0; i < writes.length; i += CHUNK) {
+    const res = await Promise.all(writes.slice(i, i + CHUNK).map((x) =>
+      sb.rpc("okami_set_target", {
+        p_date: x.iso,
+        p_station_id: x.stationId,
+        p_target: Math.max(0, Math.round(x.value)),
+        p_wave_index: x.waveIndex || 0,
+        p_service_type_id: x.serviceTypeId || null,
+      })));
+    const bad = res.find((r) => r.error);
+    if (bad) {
+      _rrOkamiFlashStatus("Save failed", "warn");
+      toast("Save failed: " + bad.error.message, "warn");
+      return { ok: false };
+    }
+  }
+  _rrOkamiFlashStatus("Saved ✓", "ok");
+  return { ok: true };
+}
+
+async function _rrOkamiCommitOp(writes, label) {
+  const r = await _rrOkamiApplyWrites(writes);
+  if (!r.ok) return false;
+  _rrOkamiLastOp = { label, writes };
+  if (typeof toastAction === "function") {
+    toastAction(label, {
+      kind: "info",
+      timeout: 8000,
+      actions: [
+        { label: "Undo", primary: true, onClick: () => _rrOkamiUndoLastOp() },
+        { label: "OK" },
+      ],
     });
   }
-  const results = await Promise.all(calls);
-  const firstErr = results.find(r => r.error);
-  if (firstErr) { toast("Save failed: " + firstErr.error.message, "warn"); return; }
+  await renderOkamiLive();
+  return true;
+}
+
+async function _rrOkamiUndoLastOp() {
+  const op = _rrOkamiLastOp;
+  if (!op) return;
+  _rrOkamiLastOp = null;
+  const inverse = op.writes.map((x) => ({ ...x, value: x.prev, prev: x.value }));
+  const r = await _rrOkamiApplyWrites(inverse, { statusLabel: "Undoing…" });
+  if (r.ok) toast("Undone", "success");
   await renderOkamiLive();
 }
 
-// Debounced save when the operator types into a Routes (max) cell.
+// Flat week set — what typing in the Routes cell means: full value to the
+// first station's wave-0 default bucket for all 7 days, zero to other
+// stations' (mirrors saveOkamiWeek), with prior values captured.
+function _rrOkamiFlatWrites(w, val) {
+  const buckets = window._rrOkamiBucketsByDate || new Map();
+  const writes = [];
+  for (let d = 0; d < 7; d++) {
+    const iso = _rrOkamiWeekIso(w, d);
+    const dayBuckets = buckets.get(iso) || [];
+    if (_rrOkamiStationFilter) {
+      // Station-filtered view: the typed value edits THAT station only —
+      // other stations' demand is untouched.
+      const prevEntry = dayBuckets.find((b) => b.stationId === _rrOkamiStationFilter && (b.waveIndex || 0) === 0 && b.code === "SP");
+      writes.push({
+        iso, stationId: _rrOkamiStationFilter, waveIndex: 0, serviceTypeId: prevEntry?.serviceTypeId || null,
+        value: val,
+        prev: prevEntry ? prevEntry.value : 0,
+      });
+      continue;
+    }
+    _okamiStations.forEach((s, idx) => {
+      const prevEntry = dayBuckets.find((b) => b.stationId === s.id && (b.waveIndex || 0) === 0 && b.code === "SP");
+      writes.push({
+        iso, stationId: s.id, waveIndex: 0, serviceTypeId: prevEntry?.serviceTypeId || null,
+        value: idx === 0 ? val : 0,
+        prev: prevEntry ? prevEntry.value : 0,
+      });
+    });
+  }
+  return writes;
+}
+
+async function _rrOkamiSetWeeksFlat(entries, label) {
+  const stations = await _rrOkamiEnsureStations();
+  if (!stations.length) { toast("No stations configured — add a station before setting targets", "warn"); return; }
+  await _rrOkamiCommitOp(entries.flatMap((en) => _rrOkamiFlatWrites(en.w, en.val)), label);
+}
+
+// Debounced save when the operator types into a Routes (max) cell —
+// validated, and confirmed when it would flatten per-day variation.
 const _okamiWeekSaveTimers = new Map();
 document.addEventListener("input", (e) => {
   const inp = e.target.closest("input.plan-route-input");
@@ -53056,10 +53890,580 @@ document.addEventListener("input", (e) => {
   if (!Number.isFinite(w) || w < 0) return;
   const prev = _okamiWeekSaveTimers.get(w);
   if (prev) clearTimeout(prev);
-  _okamiWeekSaveTimers.set(w, setTimeout(() => {
-    saveOkamiWeek(w, parseInt(inp.value, 10) || 0);
+  _okamiWeekSaveTimers.set(w, setTimeout(async () => {
+    _okamiWeekSaveTimers.delete(w);
+    const mw = window._rrOkamiModel?.weeks?.[w];
+    const raw = String(inp.value || "").trim();
+    // Cleared mid-edit is not a save — the old parseInt(...)||0 silently
+    // zeroed all 7 days when the operator emptied the cell.
+    if (raw === "") return;
+    let val = parseInt(raw, 10);
+    if (!Number.isFinite(val) || val < 0) {
+      if (mw) inp.value = mw.routesMax;
+      toast("Routes must be a whole number ≥ 0", "warn");
+      return;
+    }
+    if (val > RR_OKAMI_MAX_ROUTES) {
+      val = RR_OKAMI_MAX_ROUTES;
+      inp.value = String(val);
+      toast(`Capped at ${RR_OKAMI_MAX_ROUTES} routes/day`, "warn");
+    }
+    // Typing sets ALL 7 days. If the week currently varies by day this is
+    // destructive — say so before doing it.
+    const dayVals = [];
+    for (let d = 0; d < 7; d++) dayVals.push(_okamiTotalsByDateCache?.get(_rrOkamiWeekIso(w, d)) || 0);
+    const varies = dayVals.length && Math.max(...dayVals) !== Math.min(...dayVals);
+    if (varies && typeof _rrConfirmDialog === "function") {
+      const okc = await _rrConfirmDialog({
+        title: "Overwrite all 7 days?",
+        body: `${mw?.label || "This week"} varies by day (${Math.min(...dayVals)}–${Math.max(...dayVals)} routes). Typing here sets every day to ${val}. Use the row's drill-down to edit single days.`,
+        confirmLabel: "Set all 7 days",
+        danger: true,
+      });
+      if (!okc) {
+        if (mw) inp.value = String(mw.routesMax);
+        return;
+      }
+    }
+    await _rrOkamiSetWeeksFlat([{ w, val }], `${mw?.label || `Week ${w + 1}`} set to ${val} for all 7 days`);
   }, 600));
 });
+
+// Spreadsheet keyboard flow on the Routes column: ↑/↓ move between weeks,
+// Enter commits (debounce fires) and advances, Esc restores the value.
+document.addEventListener("keydown", (e) => {
+  const inp = e.target.closest && e.target.closest("input.plan-route-input");
+  if (!inp) return;
+  const w = parseInt(inp.dataset.rrOkamiWeekIdx ?? "-1", 10);
+  if (!Number.isFinite(w) || w < 0) return;
+  if (e.key === "ArrowDown" || e.key === "Enter") {
+    e.preventDefault();
+    const next = document.querySelector(`input.plan-route-input[data-rr-okami-week-idx="${w + 1}"]`);
+    if (next) { next.focus(); if (next.select) next.select(); }
+    else inp.blur();
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    const prevInp = document.querySelector(`input.plan-route-input[data-rr-okami-week-idx="${w - 1}"]`);
+    if (prevInp) { prevInp.focus(); if (prevInp.select) prevInp.select(); }
+  } else if (e.key === "Escape") {
+    const mw = window._rrOkamiModel?.weeks?.[w];
+    if (mw) inp.value = String(mw.routesMax);
+    inp.blur();
+  }
+});
+
+// Paste a column of numbers (from Excel/Sheets) into a Routes cell —
+// values distribute down the rows from that week.
+document.addEventListener("paste", (e) => {
+  const inp = e.target.closest && e.target.closest("input.plan-route-input");
+  if (!inp) return;
+  const w = parseInt(inp.dataset.rrOkamiWeekIdx ?? "-1", 10);
+  if (!Number.isFinite(w) || w < 0) return;
+  const text = e.clipboardData?.getData("text") || "";
+  const nums = text.split(/[\s,;]+/).filter(Boolean)
+    .map((s) => parseInt(s.replace(/[^\d-]/g, ""), 10))
+    .filter((n) => Number.isFinite(n) && n >= 0);
+  if (nums.length < 2) return; // single value → normal typing flow
+  e.preventDefault();
+  const span = Math.min(nums.length, RR_OKAMI_WEEKS - w);
+  const entries = nums.slice(0, span).map((val, i) => ({ w: w + i, val: Math.min(val, RR_OKAMI_MAX_ROUTES) }));
+  const weeks = window._rrOkamiModel?.weeks || [];
+  const first = weeks[w]?.label || `wk ${w + 1}`;
+  const last = weeks[w + span - 1]?.label || `wk ${w + span}`;
+  (async () => {
+    const okc = typeof _rrConfirmDialog !== "function" || await _rrConfirmDialog({
+      title: `Paste ${span} week${span === 1 ? "" : "s"}?`,
+      body: `Sets ${first}–${last} to ${entries.map((x) => x.val).join(", ")} — each value fills all 7 days of its week.`,
+      confirmLabel: "Paste",
+    });
+    if (!okc) return;
+    await _rrOkamiSetWeeksFlat(entries, `Pasted ${span} week${span === 1 ? "" : "s"} (${first}–${last})`);
+  })();
+});
+
+// Copy-forward — exact per-bucket copy (day-by-day, wave-by-wave), so
+// variation survives. Union of source+target buckets means stale target
+// demand is overwritten, not merged.
+function _rrOkamiCopyWrites(srcW, dstW) {
+  const buckets = window._rrOkamiBucketsByDate || new Map();
+  const writes = [];
+  for (let d = 0; d < 7; d++) {
+    const dstIso = _rrOkamiWeekIso(dstW, d);
+    const src = buckets.get(_rrOkamiWeekIso(srcW, d)) || [];
+    const dst = buckets.get(dstIso) || [];
+    const keyOf = (b) => `${b.stationId}|${b.waveIndex || 0}|${b.serviceTypeId || ""}`;
+    const merged = new Map();
+    for (const b of src) merged.set(keyOf(b), { ...b, srcVal: b.value, dstVal: 0 });
+    for (const b of dst) {
+      const k = keyOf(b);
+      if (merged.has(k)) merged.get(k).dstVal = b.value;
+      else merged.set(k, { ...b, srcVal: 0, dstVal: b.value });
+    }
+    for (const m of merged.values()) {
+      if (m.srcVal === m.dstVal) continue;
+      writes.push({ iso: dstIso, stationId: m.stationId, waveIndex: m.waveIndex || 0, serviceTypeId: m.serviceTypeId || null, value: m.srcVal, prev: m.dstVal });
+    }
+  }
+  return writes;
+}
+
+document.addEventListener("click", (e) => {
+  const copyBtn = e.target.closest && e.target.closest("[data-rr-okami-copy-next]");
+  const fillBtn = e.target.closest && e.target.closest("[data-rr-okami-fill-rest]");
+  if (!copyBtn && !fillBtn) return;
+  e.preventDefault();
+  const w = parseInt(copyBtn ? copyBtn.dataset.rrOkamiCopyNext : fillBtn.dataset.rrOkamiFillRest, 10);
+  const weeks = window._rrOkamiModel?.weeks || [];
+  const src = weeks[w];
+  if (!src || src.unplanned) { toast("Nothing to copy — this week has no plan yet", "warn"); return; }
+  (async () => {
+    if (copyBtn) {
+      const dst = weeks[w + 1];
+      if (!dst) return;
+      await _rrOkamiCommitOp(_rrOkamiCopyWrites(w, w + 1), `Copied ${src.label} → ${dst.label}`);
+    } else {
+      const targets = weeks.slice(w + 1);
+      if (!targets.length) return;
+      const okc = typeof _rrConfirmDialog !== "function" || await _rrConfirmDialog({
+        title: `Fill ${targets.length} later week${targets.length === 1 ? "" : "s"}?`,
+        body: `Copies ${src.label}'s day-by-day plan into ${targets[0].label}–${targets[targets.length - 1].label}, overwriting whatever they have now.`,
+        confirmLabel: "Fill weeks",
+        danger: true,
+      });
+      if (!okc) return;
+      await _rrOkamiCommitOp(
+        targets.flatMap((t) => _rrOkamiCopyWrites(w, t.idx)),
+        `Filled ${targets.length} week${targets.length === 1 ? "" : "s"} from ${src.label}`);
+    }
+  })();
+});
+
+// Bulk percent adjust — scales every demand bucket of the chosen week
+// range (peak ramps: "raise W32–W36 by 10%").
+function _rrOkamiAdjustHtml() {
+  const weeks = window._rrOkamiModel?.weeks || [];
+  const opts = weeks.map((w) => `<option value="${w.idx}">${escapeHtml(w.label)} · ${escapeHtml(w.dates)}</option>`).join("");
+  const optsLast = weeks.map((w) => `<option value="${w.idx}" ${w.idx === weeks.length - 1 ? "selected" : ""}>${escapeHtml(w.label)} · ${escapeHtml(w.dates)}</option>`).join("");
+  return `<div class="pa-pop-h">Adjust route plan</div>
+    <div style="padding:12px 14px;display:grid;gap:8px;font-size:var(--fs-sm)">
+      <label style="display:flex;align-items:center;justify-content:space-between;gap:8px">From <select class="form-input form-input-sm" id="rr-tgt-adj-from">${opts}</select></label>
+      <label style="display:flex;align-items:center;justify-content:space-between;gap:8px">To <select class="form-input form-input-sm" id="rr-tgt-adj-to">${optsLast}</select></label>
+      <label style="display:flex;align-items:center;justify-content:space-between;gap:8px">Change <span style="display:inline-flex;align-items:center;gap:4px"><input class="form-input form-input-sm" id="rr-tgt-adj-pct" type="number" step="1" min="-90" max="200" value="10" style="width:70px;text-align:right"/> %</span></label>
+      <button class="btn btn-primary btn-sm" type="button" data-rr-okami-adjust-apply>Apply</button>
+      <div style="font-size:var(--fs-xs);color:var(--text-subtle)">Scales every day (and wave) of each week. Undoable.</div>
+    </div>`;
+}
+document.addEventListener("click", (e) => {
+  const openBtn = e.target.closest && e.target.closest("#rr-tgt-adjust-btn");
+  if (openBtn) {
+    e.preventDefault();
+    if (typeof _paOpenPopover === "function") _paOpenPopover(openBtn, _rrOkamiAdjustHtml());
+    return;
+  }
+  const apply = e.target.closest && e.target.closest("[data-rr-okami-adjust-apply]");
+  if (!apply) return;
+  e.preventDefault();
+  const from = parseInt(document.getElementById("rr-tgt-adj-from")?.value ?? "0", 10) || 0;
+  const to = parseInt(document.getElementById("rr-tgt-adj-to")?.value ?? "0", 10) || 0;
+  const pct = parseInt(document.getElementById("rr-tgt-adj-pct")?.value ?? "0", 10) || 0;
+  if (typeof _paClosePop === "function") _paClosePop();
+  if (!pct) return;
+  const lo = Math.min(from, to), hi = Math.max(from, to);
+  const weeks = (window._rrOkamiModel?.weeks || []).filter((w) => w.idx >= lo && w.idx <= hi && !w.unplanned);
+  if (!weeks.length) { toast("No planned weeks in that range", "warn"); return; }
+  const buckets = window._rrOkamiBucketsByDate || new Map();
+  const factor = 1 + pct / 100;
+  const writes = [];
+  for (const wk of weeks) {
+    for (let d = 0; d < 7; d++) {
+      const iso = _rrOkamiWeekIso(wk.idx, d);
+      for (const b of buckets.get(iso) || []) {
+        if (!b.value) continue;
+        const nv = Math.max(0, Math.round(b.value * factor));
+        if (nv === b.value) continue;
+        writes.push({ iso, stationId: b.stationId, waveIndex: b.waveIndex || 0, serviceTypeId: b.serviceTypeId || null, value: nv, prev: b.value });
+      }
+    }
+  }
+  if (!writes.length) { toast("Nothing to adjust in that range", "info"); return; }
+  const label = `${pct > 0 ? "+" : ""}${pct}% on ${weeks[0].label}–${weeks[weeks.length - 1].label}`;
+  _rrOkamiCommitOp(writes, label);
+});
+
+// Seed empty weeks from history — trailing 4 weeks' per-weekday average
+// (staffed shifts preferred, planned targets as fallback), so empty
+// future weeks start from evidence instead of zero.
+async function _rrOkamiSeedEmptyWeeks() {
+  const weeks = window._rrOkamiModel?.weeks || [];
+  const empty = weeks.filter((w) => w.unplanned);
+  if (!empty.length) { toast("Every week already has a plan — nothing to seed", "info"); return; }
+  const stations = await _rrOkamiEnsureStations();
+  if (!stations.length) { toast("No stations configured", "warn"); return; }
+  const anchor = window._okamiStart || _okamiStart;
+  const histStart = fmtIsoDate(addDays(new Date(anchor + "T12:00:00"), -28));
+  const { data, error } = await sb.rpc("okami_grid", { p_start: histStart, p_weeks: 4 });
+  if (error) { toast("History load failed: " + error.message, "warn"); return; }
+  const dateAgg = new Map();
+  for (const c of data || []) {
+    const cur = dateAgg.get(c.date) || { filled: 0, target: 0 };
+    cur.filled += c.filled || 0;
+    cur.target += c.target_routes || 0;
+    dateAgg.set(c.date, cur);
+  }
+  const byDow = Array.from({ length: 7 }, () => ({ filled: [], target: [] }));
+  for (const [iso, v] of dateAgg) {
+    if (iso >= anchor) continue; // only the past counts as history
+    const dow = new Date(iso + "T12:00:00").getDay();
+    if (v.filled > 0) byDow[dow].filled.push(v.filled);
+    if (v.target > 0) byDow[dow].target.push(v.target);
+  }
+  const avg = (a) => (a.length ? Math.round(a.reduce((s, n) => s + n, 0) / a.length) : 0);
+  const dowVal = byDow.map((b) => avg(b.filled) || avg(b.target));
+  if (!dowVal.some((n) => n > 0)) { toast("No route history in the last 4 weeks to seed from", "warn"); return; }
+  const dowNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const okc = typeof _rrConfirmDialog !== "function" || await _rrConfirmDialog({
+    title: `Seed ${empty.length} empty week${empty.length === 1 ? "" : "s"}?`,
+    body: `Fills ${empty.map((w) => w.label).join(", ")} with the last 4 weeks' average pattern — ${dowNames.map((n, i) => `${n} ${dowVal[i]}`).join(" · ")}.`,
+    confirmLabel: "Seed weeks",
+  });
+  if (!okc) return;
+  const writes = [];
+  for (const wk of empty) {
+    for (let d = 0; d < 7; d++) {
+      const iso = _rrOkamiWeekIso(wk.idx, d);
+      const val = dowVal[new Date(iso + "T12:00:00").getDay()];
+      if (!val) continue;
+      writes.push({ iso, stationId: _rrOkamiStationFilter || stations[0].id, waveIndex: 0, serviceTypeId: null, value: val, prev: 0 });
+    }
+  }
+  await _rrOkamiCommitOp(writes, `Seeded ${empty.length} week${empty.length === 1 ? "" : "s"} from history`);
+}
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest && e.target.closest("#rr-tgt-seed-btn");
+  if (!btn) return;
+  e.preventDefault();
+  _rrOkamiSeedEmptyWeeks();
+});
+
+// ─── Targets actions · build week, CSV, print, snapshots, hiring link ──────
+
+// Per-week "Build shifts" — the regenerate+cushion pipeline for THAT
+// week, without navigating the schedule there first. Destructive to the
+// week's scheduled rows (assignments included), so it confirms.
+document.addEventListener("click", async (e) => {
+  const btn = e.target.closest && e.target.closest("[data-rr-okami-build]");
+  if (!btn) return;
+  e.preventDefault();
+  const w = parseInt(btn.dataset.rrOkamiBuild, 10);
+  const mw = window._rrOkamiModel?.weeks?.[w];
+  if (!mw) return;
+  if (mw.unplanned) { toast("No routes planned — set routes before building shifts", "warn"); return; }
+  const okc = typeof _rrConfirmDialog !== "function" || await _rrConfirmDialog({
+    title: `Build ${mw.label} shifts?`,
+    body: `Deletes ${mw.label}'s existing scheduled shifts (completed/history rows stay, driver assignments in that week are removed) and regenerates them from the route plan, then adds cushion.`,
+    confirmLabel: "Build shifts",
+    danger: true,
+  });
+  if (!okc) return;
+  btn.disabled = true;
+  _rrOkamiFlashStatus(`Building ${mw.label}…`);
+  try {
+    if (typeof _markLocalShiftMutation === "function") _markLocalShiftMutation();
+    const regen = await sb.rpc("regenerate_week_shifts", { p_week_start: mw.weekStartIso });
+    if (regen.error) throw regen.error;
+    const cush = await sb.rpc("apply_cushion_to_week", { p_week_start: mw.weekStartIso });
+    if (cush.error) throw cush.error;
+    _rrOkamiFlashStatus("Saved ✓", "ok");
+    toast(`${mw.label}: ${regen.data ?? "?"} shifts built${cush.data > 0 ? ` (+${cush.data} cushion)` : ""}`, "success");
+    if (typeof renderScheduleWeek === "function" && typeof _schedStart === "string" && _schedStart === mw.weekStartIso) {
+      try { renderScheduleWeek(); } catch (_) {}
+    }
+  } catch (err) {
+    _rrOkamiFlashStatus("Build failed", "warn");
+    toast(`Build failed: ${err?.message || err}`, "warn");
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// CSV export of the 13-week plan (BOM + CRLF, the shared idiom).
+function _rrTgtCsvField(v) {
+  const s = String(v ?? "");
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest && e.target.closest("#rr-tgt-csv-btn");
+  if (!btn) return;
+  e.preventDefault();
+  const weeks = window._rrOkamiModel?.weeks || [];
+  if (!weeks.length) { toast("Nothing to export yet", "warn"); return; }
+  const head = ["Week", "Dates", "Week start", "Peak routes/day", "Routes total", "Drivers needed", "Available (route-ready)", "On payroll", "Time-off", "Onboarding not ready", "Gap", "Hire by", "Status"];
+  const lines = [head.join(",")].concat(weeks.map((w) => [
+    w.label, w.dates, w.weekStartIso, w.unplanned ? "" : w.routesMax, w.weekRoutes || 0,
+    w.unplanned ? "" : w.needed, w.avail, w.payroll ?? "", w.onTimeOff ?? "", w.notReadyOnboarding ?? "",
+    w.unplanned ? "no plan" : w.gap, w.hireBy, w.statusText,
+  ].map(_rrTgtCsvField).join(",")));
+  const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `route-plan-13wk-${window._okamiStart || "current"}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+});
+
+// Print · clone the plan table into the schedule print area (inputs
+// become plain text) and use the existing rr-printing isolation CSS.
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest && e.target.closest("#rr-tgt-print-btn");
+  if (!btn) return;
+  e.preventDefault();
+  const area = document.getElementById("rr-sched-print-area");
+  const wrap = document.querySelector(".plan-table-wrap");
+  if (!area || !wrap) { window.print(); return; }
+  const clone = wrap.cloneNode(true);
+  clone.querySelectorAll("input.plan-route-input").forEach((inp) => {
+    const span = document.createElement("b");
+    span.textContent = inp.value || "0";
+    inp.replaceWith(span);
+  });
+  clone.querySelectorAll(".rr-tgt-row-acts, .okami-expand-btn, .rr-tgt-th-info, tr.okami-detail").forEach((el) => el.remove());
+  const headEl = document.createElement("div");
+  headEl.className = "rr-print-head";
+  const dspName = window.RR?.dsp?.name || "";
+  headEl.textContent = `${dspName ? dspName + " · " : ""}13-week route plan · week of ${window._okamiStart || ""} · printed ${new Date().toLocaleDateString()}`;
+  area.innerHTML = "";
+  area.appendChild(headEl);
+  area.appendChild(clone);
+  document.documentElement.classList.add("rr-printing");
+  const cleanup = () => {
+    document.documentElement.classList.remove("rr-printing");
+    area.innerHTML = "";
+    window.removeEventListener("afterprint", cleanup);
+  };
+  window.addEventListener("afterprint", cleanup);
+  window.print();
+});
+
+// Snapshots · named copies of the horizon's demand buckets on
+// dsps.metadata.staffing.plan_snapshots (max 3). Restore goes through
+// the undoable write engine; compare diffs per-week route totals.
+function _rrTgtSnapList() {
+  const l = window.RR?.dsp?.metadata?.staffing?.plan_snapshots;
+  return Array.isArray(l) ? l : [];
+}
+async function _rrTgtSnapPersist(list) {
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId || !window.RR?.dsp) return false;
+  window.RR.dsp.metadata = window.RR.dsp.metadata || {};
+  window.RR.dsp.metadata.staffing = { ...(window.RR.dsp.metadata.staffing || {}), plan_snapshots: list };
+  const { error } = await sb.from("dsps").update({ metadata: window.RR.dsp.metadata }).eq("id", dspId);
+  if (error) { toast("Snapshot save failed: " + error.message, "warn"); return false; }
+  return true;
+}
+function _rrTgtSnapCapture(name) {
+  const buckets = window._rrOkamiBucketsByDate || new Map();
+  const days = {};
+  for (const [iso, list] of buckets) {
+    const nz = list.filter((b) => b.value > 0)
+      .map((b) => [b.stationId, b.waveIndex || 0, b.serviceTypeId || null, b.value]);
+    if (nz.length) days[iso] = nz;
+  }
+  return { name, at: new Date().toISOString(), startIso: window._okamiStart || null, days };
+}
+function _rrTgtSnapWeekTotals(snap) {
+  // Current-horizon week totals of the snapshot's dates (dates outside
+  // the visible horizon just don't contribute).
+  const weeks = window._rrOkamiModel?.weeks || [];
+  return weeks.map((wk) => {
+    let total = 0, peak = 0;
+    for (let d = 0; d < 7; d++) {
+      const iso = _rrOkamiWeekIso(wk.idx, d);
+      const day = (snap.days || {})[iso];
+      const t = day ? day.reduce((s, b) => s + (b[3] || 0), 0) : 0;
+      total += t;
+      if (t > peak) peak = t;
+    }
+    return { label: wk.label, total, peak, curTotal: wk.weekRoutes || 0, curPeak: wk.unplanned ? 0 : wk.routesMax };
+  });
+}
+function _rrTgtSnapHtml() {
+  const list = _rrTgtSnapList();
+  const rows = list.map((s, i) => `
+    <div style="display:flex;align-items:center;gap:8px;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+      <div style="min-width:0"><b>${escapeHtml(s.name)}</b><div style="font-size:var(--fs-9);color:var(--text-subtle)">${escapeHtml((s.at || "").slice(0, 10))}${s.startIso ? ` · anchored ${escapeHtml(s.startIso)}` : ""}</div></div>
+      <span style="display:inline-flex;gap:4px;flex:0 0 auto">
+        <button class="btn btn-sm" type="button" data-rr-snap-compare="${i}">Compare</button>
+        <button class="btn btn-sm" type="button" data-rr-snap-restore="${i}">Restore</button>
+        <button class="btn btn-sm" type="button" data-rr-snap-delete="${i}" aria-label="Delete snapshot">✕</button>
+      </span>
+    </div>`).join("");
+  return `<div class="pa-pop-h">Plan snapshots</div>
+    <div style="padding:10px 14px;min-width:290px">
+      ${rows || `<div style="font-size:var(--fs-xs);color:var(--text-subtle);padding:4px 0">No snapshots yet.</div>`}
+      <div style="display:flex;gap:6px;margin-top:10px">
+        <input class="form-input form-input-sm" id="rr-tgt-snap-name" placeholder="e.g. pre-peak plan" style="flex:1"/>
+        <button class="btn btn-primary btn-sm" type="button" data-rr-snap-new>Snapshot</button>
+      </div>
+      <div style="font-size:var(--fs-9);color:var(--text-subtle);margin-top:6px">Saves the horizon's day-by-day route demand (max 3, oldest dropped). Restore is undoable.</div>
+    </div>`;
+}
+document.addEventListener("click", async (e) => {
+  if (!e.target.closest) return;
+  const openBtn = e.target.closest("#rr-tgt-snap-btn");
+  if (openBtn) {
+    e.preventDefault();
+    if (typeof _paOpenPopover === "function") _paOpenPopover(openBtn, _rrTgtSnapHtml());
+    return;
+  }
+  const newBtn = e.target.closest("[data-rr-snap-new]");
+  if (newBtn) {
+    e.preventDefault();
+    const nameEl = document.getElementById("rr-tgt-snap-name");
+    const name = (nameEl?.value || "").trim() || `Plan ${new Date().toLocaleDateString()}`;
+    const list = _rrTgtSnapList().slice(-2); // keep newest 2, add 1 → max 3
+    list.push(_rrTgtSnapCapture(name));
+    if (await _rrTgtSnapPersist(list)) {
+      toast(`Snapshot "${name}" saved`, "success");
+      const anchor = document.getElementById("rr-tgt-snap-btn");
+      if (anchor && typeof _paOpenPopover === "function") _paOpenPopover(anchor, _rrTgtSnapHtml());
+    }
+    return;
+  }
+  const cmpBtn = e.target.closest("[data-rr-snap-compare]");
+  if (cmpBtn) {
+    e.preventDefault();
+    const snap = _rrTgtSnapList()[parseInt(cmpBtn.dataset.rrSnapCompare, 10)];
+    if (!snap) return;
+    const rows = _rrTgtSnapWeekTotals(snap).map((r) => {
+      const d = r.curTotal - r.total;
+      const dTxt = d === 0 ? "—" : `${d > 0 ? "+" : ""}${d}`;
+      const dColor = d === 0 ? "var(--text-subtle)" : d > 0 ? "var(--rr-green-700)" : "var(--rr-red-600)";
+      return `<tr><td style="padding:2px 8px 2px 0">${escapeHtml(r.label)}</td><td style="text-align:right;padding:2px 8px">${r.total}</td><td style="text-align:right;padding:2px 8px">${r.curTotal}</td><td style="text-align:right;font-weight:600;color:${dColor}">${dTxt}</td></tr>`;
+    }).join("");
+    const anchor = document.getElementById("rr-tgt-snap-btn") || cmpBtn;
+    if (typeof _paOpenPopover === "function") _paOpenPopover(anchor,
+      `<div class="pa-pop-h">"${escapeHtml(snap.name)}" vs current</div>
+       <div style="padding:10px 14px;font-size:var(--fs-xs);font-variant-numeric:tabular-nums">
+         <table style="border-collapse:collapse"><thead><tr style="color:var(--text-subtle)"><th style="text-align:left;padding:2px 8px 2px 0">Week</th><th style="text-align:right;padding:2px 8px">Snap</th><th style="text-align:right;padding:2px 8px">Now</th><th style="text-align:right">Δ</th></tr></thead>
+         <tbody>${rows}</tbody></table>
+         <div style="color:var(--text-subtle);margin-top:6px">Weekly route totals. Restore replaces current demand with the snapshot's (undoable).</div>
+       </div>`);
+    return;
+  }
+  const delBtn = e.target.closest("[data-rr-snap-delete]");
+  if (delBtn) {
+    e.preventDefault();
+    const idx = parseInt(delBtn.dataset.rrSnapDelete, 10);
+    const list = _rrTgtSnapList().slice();
+    const [gone] = list.splice(idx, 1);
+    if (gone && await _rrTgtSnapPersist(list)) {
+      toast(`Snapshot "${gone.name}" deleted`, "success");
+      const anchor = document.getElementById("rr-tgt-snap-btn");
+      if (anchor && typeof _paOpenPopover === "function") _paOpenPopover(anchor, _rrTgtSnapHtml());
+    }
+    return;
+  }
+  const rstBtn = e.target.closest("[data-rr-snap-restore]");
+  if (rstBtn) {
+    e.preventDefault();
+    const snap = _rrTgtSnapList()[parseInt(rstBtn.dataset.rrSnapRestore, 10)];
+    if (!snap) return;
+    if (typeof _paClosePop === "function") _paClosePop();
+    const okc = typeof _rrConfirmDialog !== "function" || await _rrConfirmDialog({
+      title: `Restore "${snap.name}"?`,
+      body: "Replaces the horizon's current day-by-day route demand with the snapshot's. Undoable from the toast afterwards.",
+      confirmLabel: "Restore",
+      danger: true,
+    });
+    if (!okc) return;
+    // Union of snapshot buckets and current buckets: snapshot values win,
+    // buckets missing from the snapshot are zeroed.
+    const buckets = window._rrOkamiBucketsByDate || new Map();
+    const writes = [];
+    const weeks = window._rrOkamiModel?.weeks || [];
+    for (const wk of weeks) {
+      for (let d = 0; d < 7; d++) {
+        const iso = _rrOkamiWeekIso(wk.idx, d);
+        const snapDay = (snap.days || {})[iso] || [];
+        const curDay = buckets.get(iso) || [];
+        const keyOf = (st, wv, ty) => `${st}|${wv}|${ty || ""}`;
+        const merged = new Map();
+        for (const b of snapDay) merged.set(keyOf(b[0], b[1], b[2]), { stationId: b[0], waveIndex: b[1], serviceTypeId: b[2], snapVal: b[3] || 0, curVal: 0 });
+        for (const b of curDay) {
+          const k = keyOf(b.stationId, b.waveIndex || 0, b.serviceTypeId);
+          if (merged.has(k)) merged.get(k).curVal = b.value;
+          else merged.set(k, { stationId: b.stationId, waveIndex: b.waveIndex || 0, serviceTypeId: b.serviceTypeId, snapVal: 0, curVal: b.value });
+        }
+        for (const m of merged.values()) {
+          if (m.snapVal === m.curVal) continue;
+          writes.push({ iso, stationId: m.stationId, waveIndex: m.waveIndex, serviceTypeId: m.serviceTypeId, value: m.snapVal, prev: m.curVal });
+        }
+      }
+    }
+    if (!writes.length) { toast("Current plan already matches the snapshot", "info"); return; }
+    await _rrOkamiCommitOp(writes, `Restored snapshot "${snap.name}"`);
+  }
+});
+
+// Hiring click-through — from the gap explainer into the pipeline view,
+// with the current target parked for the funnel surfaces.
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest && e.target.closest("[data-rr-tgt-open-hiring]");
+  if (!btn) return;
+  e.preventDefault();
+  if (typeof _paClosePop === "function") _paClosePop();
+  try {
+    const weeks = (_rrReadOkamiWeeks() || []).filter((w) => !w.unplanned && Number.isFinite(w.gap));
+    const A = weeks.length ? _rrAssessOkamiPlan(weeks) : null;
+    const rx = A?.prescription;
+    if (rx && rx.action === "hire") {
+      window._rrHiringPrefill = { hires: rx.hires, deadlineIso: rx.deadlineIso, at: Date.now() };
+      toast(`Target: hire ${rx.hires} by ${rx.deadlineIso ? fmtMD(new Date(rx.deadlineIso + "T12:00:00")) : "—"}`, "info");
+    }
+  } catch (_) {}
+  if (typeof window.goto === "function") window.goto("pipeline");
+});
+
+// Deadline / worsening alerts — surfaced when the Targets numbers are
+// freshly computed; throttled to once per day per condition.
+function _rrTgtMaybeAlert(A) {
+  if (!A || !A.prescription) return;
+  let state = {};
+  try { state = JSON.parse(localStorage.getItem("rr_tgt_alert_state") || "{}"); } catch (_) {}
+  const today = fmtIsoDate(new Date());
+  const rx = A.prescription;
+  const notify = (key, msg) => {
+    if (state[key] === today) return;
+    state[key] = today;
+    try { localStorage.setItem("rr_tgt_alert_state", JSON.stringify(state)); } catch (_) {}
+    if (typeof toastAction === "function") {
+      toastAction(msg, {
+        kind: "warn",
+        timeout: 12000,
+        actions: [
+          { label: "View analysis", primary: true, onClick: () => { try { _rrIntelShow("risk-forecast"); } catch (_) {} } },
+          { label: "Dismiss" },
+        ],
+      });
+    }
+  };
+  if (rx.action === "hire" && rx.deadlineIso) {
+    const days = Math.round((Date.parse(rx.deadlineIso + "T12:00:00Z") - Date.parse(today + "T12:00:00Z")) / 86400000);
+    if (days >= 0 && days <= 7) {
+      notify("deadline:" + rx.deadlineIso, `Hiring deadline ${days === 0 ? "is today" : `in ${days} day${days === 1 ? "" : "s"}`} — hire ${rx.hires} by ${fmtMD(new Date(rx.deadlineIso + "T12:00:00"))} to stay covered`);
+    }
+  }
+  const worst = A.worstWeek?.gap ?? 0;
+  const lastWorst = Number(state.lastWorst);
+  if (worst < 0 && Number.isFinite(lastWorst) && worst <= lastWorst - 5) {
+    notify("worsened:" + today, `Forecast gap worsened: ${lastWorst} → ${worst} drivers at the deepest week`);
+  }
+  state.lastWorst = worst;
+  try { localStorage.setItem("rr_tgt_alert_state", JSON.stringify(state)); } catch (_) {}
+}
 
 // ─── OKAMI · daily drill-down panel (PR C) ─────────────────────────────────
 
@@ -53508,6 +54912,16 @@ async function loadSchedulingSettings() {
   if (tgBlockEl) tgBlockEl.value = s.default_block_hours ?? 10;
   if (tgCushEl)  tgCushEl.value  = s.cushion_pct ?? 10;
   if (tgLeadEl)  tgLeadEl.value  = s.report_lead_minutes ?? 0;
+  // Name the week these per-week rules belong to — above a 13-week table
+  // they otherwise read as global knobs.
+  const tgWeekLbl = document.getElementById("rr-tgt-rules-week-label");
+  if (tgWeekLbl && _schedStart) {
+    const wkDate = new Date(_schedStart + "T12:00:00");
+    tgWeekLbl.textContent = `W${isoWeek(wkDate)}${s.is_inherited ? " · inherited" : ""}`;
+    tgWeekLbl.title = s.is_inherited
+      ? `Week of ${fmtMD(wkDate)} — showing rules inherited from an earlier week; saving makes them this week's own`
+      : `Week of ${fmtMD(wkDate)} — this week has its own saved rules`;
+  }
 
   // Read-only attendance rate label next to the cushion field. Operator
   // looks at it and decides their own cushion %. No click handler, no
@@ -53986,6 +55400,8 @@ async function _okamiSettingsTriggerSave(inputEl) {
   if (res?.ok) {
     _flashOkamiTargetsStatus("Saved", "var(--green)");
     setTimeout(() => { _flashOkamiTargetsStatus("", ""); }, 1800);
+    // Auto-save landed — the Apply-rules button's dirty accent clears.
+    try { _rrTgtMarkRulesClean(); _rrTgtWaveDirty = false; } catch (_) {}
   } else {
     _flashOkamiTargetsStatus(res?.error || "Save failed", "var(--red)");
     setTimeout(() => { _flashOkamiTargetsStatus("", ""); }, 3000);
@@ -54227,6 +55643,11 @@ function _rrRefreshTargetsGapCard() {
   // with the projection after the operator runs Simulate.
   let weeks = [];
   try { weeks = (_rrReadOkamiWeeks() || []).filter((w) => Number.isFinite(w.gap)); } catch (_) {}
+  // Weeks with no routes planned are unknowns, not surpluses — they must
+  // not feed the assessment (a zero-demand week reads as "covered" and
+  // could mask the real horizon). They're surfaced as a count instead.
+  const unplannedCount = weeks.filter((w) => w.unplanned).length;
+  weeks = weeks.filter((w) => !w.unplanned);
   if (!weeks.length) { card.hidden = true; return; }
   // Shared forecast-core assessment (same one the Risk Forecast renders
   // from): effective supply + hire-by reachability. Rates load lazily and
@@ -54237,9 +55658,25 @@ function _rrRefreshTargetsGapCard() {
   if (!A || !A.worstWeek) { card.hidden = true; return; }
   const worst = A.worstWeek.gap;
   card.hidden = false;
+  // Deadline/worsening alerts ride on the same freshly-computed result.
+  try { _rrTgtMaybeAlert(A); } catch (_) {}
   const mainEl = document.getElementById("rr-tgt-gap-card-main");
   if (mainEl) mainEl.textContent = `${worst > 0 ? "+" : ""}${worst} Driver${Math.abs(worst) === 1 ? "" : "s"}`;
   card.classList.toggle("rr-tgt-gap-card--pos", worst >= 0);
+  // Name the worst week — "-104" alone doesn't say WHEN the cliff is.
+  const labelEl = card.querySelector(".rr-tgt-gap-card-label");
+  if (labelEl) {
+    labelEl.textContent = worst < 0 && A.worstWeek.label
+      ? `Forecast gap · worst ${A.worstWeek.label}`
+      : "Forecast gap";
+    if (A.worstWeek.dates) labelEl.title = worst < 0 ? `Deepest shortfall: ${A.worstWeek.label} (${A.worstWeek.dates})` : "";
+    // Station-filtered demand vs fleet-wide supply — say so.
+    const stn = window._rrOkamiModel?.stationFilter;
+    if (stn) {
+      labelEl.textContent += ` · ${stn} demand`;
+      labelEl.title = (labelEl.title ? labelEl.title + " — " : "") + "Demand filtered to one station; Available is still fleet-wide";
+    }
+  }
   // Prescription line — the one action the number implies. Hire count =
   // deepest shortfall among weeks hiring can still reach (one hire fills a
   // seat in every later week, so weekly gaps are never summed); deadline =
@@ -54282,12 +55719,19 @@ function _rrRefreshTargetsGapCard() {
     } else {
       subEl.textContent = "Staffed through the plan";
     }
+    if (unplannedCount > 0) subEl.textContent += ` · ${unplannedCount} wk${unplannedCount === 1 ? "" : "s"} unplanned`;
     subEl.hidden = false;
   }
+  // Initial paint runs before the forecast rates land — shimmer the sub
+  // line instead of letting the number visibly re-compose in stages.
+  card.classList.toggle("is-loading", !window._rrForecastRates);
   // A short plan gets a click-through to the full Risk forecast analysis
   // (per-week narrative, hire-by dates, simulation deltas).
   const clickable = worst < 0 && typeof _rrIntelShow === "function";
   card.classList.toggle("is-clickable", clickable);
+  // Visible affordance — hover-only clickability is invisible.
+  const linkEl = document.getElementById("rr-tgt-gap-card-link");
+  if (linkEl) linkEl.hidden = !clickable;
   if (clickable) {
     card.setAttribute("role", "button");
     card.setAttribute("tabindex", "0");
@@ -54319,19 +55763,121 @@ document.addEventListener("keydown", (e) => {
 // negative scales light → medium → dark red with the size of the shortfall.
 function _rrApplyGapClass(gapEl, gap) {
   if (!gapEl) return;
-  gapEl.classList.remove("rr-tgt-gap-pos", "rr-tgt-gap-s1", "rr-tgt-gap-s2", "rr-tgt-gap-s3");
-  if (gap >= 0) { gapEl.classList.add("rr-tgt-gap-pos"); return; }
+  gapEl.classList.remove("rr-tgt-gap-pos", "rr-tgt-gap-s1", "rr-tgt-gap-s2", "rr-tgt-gap-s3", "rr-tgt-gap-unplanned");
+  if (gap >= 0) {
+    gapEl.classList.add("rr-tgt-gap-pos");
+    gapEl.title = gap === 0 ? "Exactly covered — no spare drivers" : `Covered with ${gap} spare driver${gap === 1 ? "" : "s"}`;
+    return;
+  }
   const m = Math.abs(gap);
-  gapEl.classList.add(m <= 10 ? "rr-tgt-gap-s1" : m <= 40 ? "rr-tgt-gap-s2" : "rr-tgt-gap-s3");
+  const sev = m <= 10 ? 1 : m <= 40 ? 2 : 3;
+  gapEl.classList.add(`rr-tgt-gap-s${sev}`);
+  // Severity in words too — the graduated reds alone are invisible to
+  // colorblind operators (CSS adds ▲ markers on s2/s3 for the same reason).
+  gapEl.title = `Short ${m} driver${m === 1 ? "" : "s"}${sev === 3 ? " — severe" : sev === 2 ? " — significant" : ""}`;
 }
 
-// Save Plan · Targets auto-saves per week as you type, so this re-commits the
-// plan settings (block / cushion / report / waves) and confirms.
-document.addEventListener("click", (e) => {
-  if (!e.target.closest || !e.target.closest("#rr-tgt-save-plan")) return;
+// Apply rules · routes auto-save as you type; this button's real job is
+// "save Block/Cushion/Report + waves for the visible week AND rebuild
+// that week's unassigned shifts" (upsert → regenerate → cushion). It
+// used to toast 'Plan saved' unconditionally — before the save resolved
+// and even when it failed. Now: in-flight state, outcome from the
+// actual result, and a dirty accent only when there are unsaved rule
+// edits (routes never make it dirty — they're already saved).
+function _rrTgtMarkRulesDirty() {
+  document.getElementById("rr-tgt-save-plan")?.classList.add("rr-tgt-save-plan--dirty");
+}
+function _rrTgtMarkRulesClean() {
+  document.getElementById("rr-tgt-save-plan")?.classList.remove("rr-tgt-save-plan--dirty");
+}
+document.addEventListener("input", (e) => {
+  if (!e.target.closest) return;
+  if ((e.target.id && (_RR_TARGETS_SUB_SETTING_IDS.has(e.target.id) || _RR_OKAMI_SETTING_IDS.has(e.target.id)))
+      || e.target.closest("#rr-set-waves")) {
+    _rrTgtMarkRulesDirty();
+  }
+});
+document.addEventListener("click", async (e) => {
+  const btn = e.target.closest && e.target.closest("#rr-tgt-save-plan");
+  if (!btn) return;
   e.preventDefault();
-  if (typeof _saveScheduleSettings === "function") _saveScheduleSettings({ source: "nav" });
-  if (typeof toast === "function") toast("Plan saved", "success");
+  if (btn.disabled || typeof _saveScheduleSettings !== "function") return;
+  const week = window._rrOkamiModel?.weeks?.[0]?.label
+    || (typeof _schedStart === "string" && _schedStart ? `wk of ${fmtMD(new Date(_schedStart + "T12:00:00"))}` : "this week");
+  btn.disabled = true;
+  btn.setAttribute("aria-busy", "true");
+  const prevLabel = btn.textContent;
+  btn.textContent = "Applying…";
+  try {
+    const res = await _saveScheduleSettings({ source: "nav" });
+    if (res?.ok) {
+      _rrTgtWaveDirty = false;
+      _rrTgtMarkRulesClean();
+      const cushionNote = res.cushionDelta > 0 ? ` (+${res.cushionDelta} cushion)` : "";
+      toast(`Rules applied — ${week} shifts rebuilt${cushionNote}`, "success");
+    } else {
+      toast(`Apply failed: ${res?.error || "unknown error"}`, "warn");
+    }
+  } finally {
+    btn.disabled = false;
+    btn.removeAttribute("aria-busy");
+    btn.textContent = prevLabel;
+  }
+});
+
+// "→ all" · apply the visible week's rules to every remaining week of
+// the 13-week horizon. Settings rows only — deliberately NO
+// regenerate/cushion per week (that deletes and rebuilds unassigned
+// shifts 12 times); each week's shifts rebuild when it is applied/built.
+function _rrTgtRulesPayload(weekStartIso) {
+  const num = (id, dflt) => {
+    const v = parseInt(document.getElementById(id)?.value ?? "", 10);
+    return Number.isFinite(v) ? v : dflt;
+  };
+  const waves = Array.from(document.querySelectorAll("#rr-set-waves [data-rr-wave-time]"))
+    .map((el) => ({ start: el.value || "07:00" }));
+  const tiebreakRaw = document.getElementById("rr-set-pref-tiebreaker")?.value;
+  return {
+    week_start: weekStartIso,
+    default_block_hours: num("rr-set-block-hours", 10),
+    cushion_pct: num("rr-set-cushion-pct", 0),
+    max_days_per_week: Math.max(0, Math.min(7, num("rr-set-max-days", 5))),
+    report_lead_minutes: Math.max(0, Math.min(120, num("rr-set-report-lead", 0))),
+    allow_availability_override: !!document.getElementById("rr-set-availability-override")?.checked,
+    preference_tiebreaker: ["least_loaded", "seniority", "fairness"].includes(tiebreakRaw) ? tiebreakRaw : "least_loaded",
+    waves: waves.length ? waves : [{ start: "07:00" }],
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+  };
+}
+document.addEventListener("click", async (e) => {
+  const btn = e.target.closest && e.target.closest("#rr-tgt-rules-fwd");
+  if (!btn) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const weeks = (window._rrOkamiModel?.weeks || []).slice(1);
+  if (!weeks.length) { toast("No later weeks in the horizon", "warn"); return; }
+  const okc = typeof _rrConfirmDialog !== "function" || await _rrConfirmDialog({
+    title: `Apply these rules to ${weeks.length} later weeks?`,
+    body: `Copies this week's Block / Cushion / Report time / Wave times to ${weeks[0].label}–${weeks[weeks.length - 1].label} as each week's own settings. Their shifts are NOT rebuilt now — that happens when each week is applied or built.`,
+    confirmLabel: "Apply to all",
+  });
+  if (!okc) return;
+  btn.disabled = true;
+  _flashOkamiTargetsStatus("Applying to later weeks…", "var(--text-subtle)");
+  try {
+    for (const wk of weeks) {
+      const { error } = await sb.rpc("upsert_scheduling_settings", { p_payload: _rrTgtRulesPayload(wk.weekStartIso) });
+      if (error) throw error;
+    }
+    _flashOkamiTargetsStatus("Rules applied to all weeks", "var(--green)");
+    setTimeout(() => _flashOkamiTargetsStatus("", ""), 2500);
+    toast(`Rules copied to ${weeks.length} weeks`, "success");
+  } catch (err) {
+    _flashOkamiTargetsStatus("Apply-forward failed", "var(--red)");
+    toast("Apply-forward failed: " + (err?.message || err), "warn");
+  } finally {
+    btn.disabled = false;
+  }
 });
 
 // The shared top-right chrome (⋯ overflow menu + bell + avatar) lives in the
@@ -54413,6 +55959,53 @@ window._rrMoveRosterSearchToStrip = _rrMoveRosterSearchToStrip;
 // The editors inside are the live popover nodes, so their handlers (add/remove
 // wave, service toggle/rename, Save) keep working — clicks inside a menu stay
 // "inside" so editing never dismisses the dropdown.
+//
+// Wave edits only persist via Save — closing the menu mid-edit used to
+// discard typed wave times silently. Any close path now runs through
+// _rrTgtCloseMenus, which asks Apply/Discard first when dirty.
+let _rrTgtWaveDirty = false;
+document.addEventListener("input", (e) => {
+  if (e.target.closest && e.target.closest("#rr-set-waves")) _rrTgtWaveDirty = true;
+});
+document.addEventListener("click", (e) => {
+  if (!e.target.closest) return;
+  if (e.target.closest("#rr-set-add-wave") || e.target.closest("[data-rr-remove-wave]")) _rrTgtWaveDirty = true;
+  if (e.target.closest("#rr-set-sched-save")) _rrTgtWaveDirty = false; // explicit save
+});
+
+function _rrTgtMenusOpen() {
+  return ["rr-tgt-waves-menu", "rr-tgt-st-menu"]
+    .map((id) => document.getElementById(id))
+    .filter((m) => m && !m.hidden);
+}
+function _rrTgtHideMenus() {
+  for (const id of ["rr-tgt-waves-menu", "rr-tgt-st-menu"]) {
+    const m = document.getElementById(id); if (m && !m.hidden) m.hidden = true;
+  }
+  for (const id of ["rr-tgt-waves-btn", "rr-tgt-st-btn"]) {
+    const b = document.getElementById(id); if (b) b.setAttribute("aria-expanded", "false");
+  }
+}
+async function _rrTgtCloseMenus() {
+  if (!_rrTgtMenusOpen().length) return true;
+  const wavesOpen = !document.getElementById("rr-tgt-waves-menu")?.hidden;
+  if (wavesOpen && _rrTgtWaveDirty && typeof _rrConfirmDialog === "function") {
+    const apply = await _rrConfirmDialog({
+      title: "Apply wave changes?",
+      body: "You edited the wave start times but didn't save. Apply saves them and rebuilds this week's unassigned shifts; Discard restores the saved times.",
+      confirmLabel: "Apply",
+      cancelLabel: "Discard",
+    });
+    _rrTgtWaveDirty = false;
+    if (apply) {
+      if (typeof _saveScheduleSettings === "function") await _saveScheduleSettings({ source: "nav" });
+    } else if (typeof loadSchedulingSettings === "function") {
+      try { loadSchedulingSettings(); } catch (_) {}
+    }
+  }
+  _rrTgtHideMenus();
+  return true;
+}
 document.addEventListener("click", (e) => {
   const toggle = e.target.closest && e.target.closest("#rr-tgt-waves-btn, #rr-tgt-st-btn");
   if (toggle) {
@@ -54420,25 +56013,36 @@ document.addEventListener("click", (e) => {
     const isWaves   = toggle.id === "rr-tgt-waves-btn";
     const menu      = document.getElementById(isWaves ? "rr-tgt-waves-menu" : "rr-tgt-st-menu");
     const otherMenu = document.getElementById(isWaves ? "rr-tgt-st-menu"    : "rr-tgt-waves-menu");
-    const otherBtn  = document.getElementById(isWaves ? "rr-tgt-st-btn"     : "rr-tgt-waves-btn");
-    if (otherMenu) otherMenu.hidden = true;
-    if (otherBtn)  otherBtn.setAttribute("aria-expanded", "false");
-    if (menu) {
-      const willOpen = menu.hidden;
-      menu.hidden = !willOpen;
-      toggle.setAttribute("aria-expanded", String(willOpen));
-    }
+    const willOpen  = menu ? menu.hidden : false;
+    // Closing (or switching away from) a dirty waves menu goes through
+    // the guard; opening is immediate.
+    const closingWaves = (!isWaves && otherMenu && !otherMenu.hidden) || (isWaves && !willOpen);
+    const proceed = () => {
+      _rrTgtHideMenus();
+      if (menu && willOpen) {
+        menu.hidden = false;
+        toggle.setAttribute("aria-expanded", "true");
+      }
+    };
+    if (closingWaves && _rrTgtWaveDirty) { _rrTgtCloseMenus().then(() => { if (willOpen && menu) { menu.hidden = false; toggle.setAttribute("aria-expanded", "true"); } }); }
+    else proceed();
     return;
   }
   // Click outside the menus (and not on a pill toggle) closes any open one.
   if (!e.target.closest || !e.target.closest(".rr-tgt-kpi-menu-wrap")) {
-    for (const id of ["rr-tgt-waves-menu", "rr-tgt-st-menu"]) {
-      const m = document.getElementById(id); if (m && !m.hidden) m.hidden = true;
-    }
-    for (const id of ["rr-tgt-waves-btn", "rr-tgt-st-btn"]) {
-      const b = document.getElementById(id); if (b) b.setAttribute("aria-expanded", "false");
-    }
+    if (_rrTgtMenusOpen().length) _rrTgtCloseMenus();
   }
+});
+// Esc closes the open dropdown and returns focus to its pill.
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  const open = _rrTgtMenusOpen();
+  if (!open.length) return;
+  const isWaves = open[0].id === "rr-tgt-waves-menu";
+  e.preventDefault();
+  _rrTgtCloseMenus().then(() => {
+    document.getElementById(isWaves ? "rr-tgt-waves-btn" : "rr-tgt-st-btn")?.focus();
+  });
 });
 
 // Ensure the OKAMI 13-week table is back inside #view-okami before
