@@ -52749,9 +52749,10 @@ function _rrOkamiWeekRowHtml(w) {
   const detail = expandable
     ? `<tr class="okami-detail" id="okami-detail-${w}"><td colspan="8" id="okami-detail-content-${w}" tabindex="-1"></td></tr>`
     : "";
-  const rowActs = w < RR_OKAMI_WEEKS - 1
-    ? `<span class="rr-tgt-row-acts"><button type="button" data-rr-okami-copy-next="${w}" title="Copy this week's day-by-day plan to next week">→</button><button type="button" data-rr-okami-fill-rest="${w}" title="Fill every later week with this week's day-by-day plan">⇊</button></span>`
+  const copyActs = w < RR_OKAMI_WEEKS - 1
+    ? `<button type="button" data-rr-okami-copy-next="${w}" title="Copy this week's day-by-day plan to next week">→</button><button type="button" data-rr-okami-fill-rest="${w}" title="Fill every later week with this week's day-by-day plan">⇊</button>`
     : "";
+  const rowActs = `<span class="rr-tgt-row-acts">${copyActs}<button type="button" data-rr-okami-build="${w}" title="Build this week's shifts from the plan (regenerate + cushion)">⚙</button></span>`;
   return `<tr id="okami-row-${w}">
     <td>${expandBtn}<div class="plan-week-label" style="display:inline-block;vertical-align:middle"></div><div class="plan-week-dates"></div><span class="rr-tgt-week-chips"></span>${rowActs}</td>
     <td class="center"><input class="plan-route-input" inputmode="numeric" autocomplete="off" data-rr-okami-week-idx="${w}"/><span class="rr-tgt-spark-slot"></span></td>
@@ -52903,7 +52904,8 @@ function _rrOkamiGapExplainHtml(mw) {
     ? `<div style="margin-top:8px"><b>To close −${short}:</b>
         <div>· hire ${short} (by ${escapeHtml(mw.hireBy || "—")})</div>
         <div>· or trim the peak by ~${routeCut} route${routeCut === 1 ? "" : "s"}/day</div>
-        <div>· or cover with OT/flex — see the Risk forecast</div></div>`
+        <div>· or cover with OT/flex — see the Risk forecast</div>
+        <div style="margin-top:8px"><button class="btn btn-sm" type="button" data-rr-tgt-open-hiring>Open hiring pipeline →</button></div></div>`
     : `<div style="margin-top:8px;color:var(--rr-green-700)">Covered with ${mw.gap} spare driver${mw.gap === 1 ? "" : "s"}.</div>`;
   return `<div class="pa-pop-h">${escapeHtml(mw.label)} · ${escapeHtml(mw.dates)}</div>
     <div style="padding:12px 14px;font-size:var(--fs-xs);line-height:1.6;color:var(--text-muted)">
@@ -53344,9 +53346,18 @@ async function _renderOkamiLiveImpl() {
         }
         if (plannedSoFar > 0) actualChip = `<span class="rr-tgt-actual-chip" title="Assigned shifts vs planned routes, week to date">${filledSoFar}/${plannedSoFar} filled</span>`;
       }
+      // Onboarding graduations landing this week — the supply-side event
+      // that explains an Available step-up between rows.
+      let joinChip = "";
+      if (onbList && w > 0) {
+        const prevIso = fmtIsoDate(addDays(weekStart, -7));
+        const grads = onbList.filter((o) => o.hire_date && o.hire_date <= weekStartIso && o.hire_date > prevIso).length;
+        if (grads > 0) joinChip = `<span class="rr-tgt-join-chip" title="${grads} onboarding driver${grads === 1 ? "" : "s"} become route-ready this week">+${grads} join</span>`;
+      }
       chipsEl.innerHTML =
         (isNow ? `<span class="rr-tgt-now-chip">This week</span>` : "") +
         actualChip +
+        joinChip +
         (monthTurns ? `<span class="rr-tgt-month-chip">${weekStart.toLocaleDateString(undefined, { month: "short" })}</span>` : "") +
         holidays.map((h) => `<span class="rr-tgt-evt-chip" title="${escapeHtml(h.label)} · demand-relevant holiday">${escapeHtml(h.name)}</span>`).join("");
     }
@@ -54012,6 +54023,326 @@ document.addEventListener("click", (e) => {
   e.preventDefault();
   _rrOkamiSeedEmptyWeeks();
 });
+
+// ─── Targets actions · build week, CSV, print, snapshots, hiring link ──────
+
+// Per-week "Build shifts" — the regenerate+cushion pipeline for THAT
+// week, without navigating the schedule there first. Destructive to the
+// week's scheduled rows (assignments included), so it confirms.
+document.addEventListener("click", async (e) => {
+  const btn = e.target.closest && e.target.closest("[data-rr-okami-build]");
+  if (!btn) return;
+  e.preventDefault();
+  const w = parseInt(btn.dataset.rrOkamiBuild, 10);
+  const mw = window._rrOkamiModel?.weeks?.[w];
+  if (!mw) return;
+  if (mw.unplanned) { toast("No routes planned — set routes before building shifts", "warn"); return; }
+  const okc = typeof _rrConfirmDialog !== "function" || await _rrConfirmDialog({
+    title: `Build ${mw.label} shifts?`,
+    body: `Deletes ${mw.label}'s existing scheduled shifts (completed/history rows stay, driver assignments in that week are removed) and regenerates them from the route plan, then adds cushion.`,
+    confirmLabel: "Build shifts",
+    danger: true,
+  });
+  if (!okc) return;
+  btn.disabled = true;
+  _rrOkamiFlashStatus(`Building ${mw.label}…`);
+  try {
+    if (typeof _markLocalShiftMutation === "function") _markLocalShiftMutation();
+    const regen = await sb.rpc("regenerate_week_shifts", { p_week_start: mw.weekStartIso });
+    if (regen.error) throw regen.error;
+    const cush = await sb.rpc("apply_cushion_to_week", { p_week_start: mw.weekStartIso });
+    if (cush.error) throw cush.error;
+    _rrOkamiFlashStatus("Saved ✓", "ok");
+    toast(`${mw.label}: ${regen.data ?? "?"} shifts built${cush.data > 0 ? ` (+${cush.data} cushion)` : ""}`, "success");
+    if (typeof renderScheduleWeek === "function" && typeof _schedStart === "string" && _schedStart === mw.weekStartIso) {
+      try { renderScheduleWeek(); } catch (_) {}
+    }
+  } catch (err) {
+    _rrOkamiFlashStatus("Build failed", "warn");
+    toast(`Build failed: ${err?.message || err}`, "warn");
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// CSV export of the 13-week plan (BOM + CRLF, the shared idiom).
+function _rrTgtCsvField(v) {
+  const s = String(v ?? "");
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest && e.target.closest("#rr-tgt-csv-btn");
+  if (!btn) return;
+  e.preventDefault();
+  const weeks = window._rrOkamiModel?.weeks || [];
+  if (!weeks.length) { toast("Nothing to export yet", "warn"); return; }
+  const head = ["Week", "Dates", "Week start", "Peak routes/day", "Routes total", "Drivers needed", "Available (route-ready)", "On payroll", "Time-off", "Onboarding not ready", "Gap", "Hire by", "Status"];
+  const lines = [head.join(",")].concat(weeks.map((w) => [
+    w.label, w.dates, w.weekStartIso, w.unplanned ? "" : w.routesMax, w.weekRoutes || 0,
+    w.unplanned ? "" : w.needed, w.avail, w.payroll ?? "", w.onTimeOff ?? "", w.notReadyOnboarding ?? "",
+    w.unplanned ? "no plan" : w.gap, w.hireBy, w.statusText,
+  ].map(_rrTgtCsvField).join(",")));
+  const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `route-plan-13wk-${window._okamiStart || "current"}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+});
+
+// Print · clone the plan table into the schedule print area (inputs
+// become plain text) and use the existing rr-printing isolation CSS.
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest && e.target.closest("#rr-tgt-print-btn");
+  if (!btn) return;
+  e.preventDefault();
+  const area = document.getElementById("rr-sched-print-area");
+  const wrap = document.querySelector(".plan-table-wrap");
+  if (!area || !wrap) { window.print(); return; }
+  const clone = wrap.cloneNode(true);
+  clone.querySelectorAll("input.plan-route-input").forEach((inp) => {
+    const span = document.createElement("b");
+    span.textContent = inp.value || "0";
+    inp.replaceWith(span);
+  });
+  clone.querySelectorAll(".rr-tgt-row-acts, .okami-expand-btn, .rr-tgt-th-info, tr.okami-detail").forEach((el) => el.remove());
+  const headEl = document.createElement("div");
+  headEl.className = "rr-print-head";
+  const dspName = window.RR?.dsp?.name || "";
+  headEl.textContent = `${dspName ? dspName + " · " : ""}13-week route plan · week of ${window._okamiStart || ""} · printed ${new Date().toLocaleDateString()}`;
+  area.innerHTML = "";
+  area.appendChild(headEl);
+  area.appendChild(clone);
+  document.documentElement.classList.add("rr-printing");
+  const cleanup = () => {
+    document.documentElement.classList.remove("rr-printing");
+    area.innerHTML = "";
+    window.removeEventListener("afterprint", cleanup);
+  };
+  window.addEventListener("afterprint", cleanup);
+  window.print();
+});
+
+// Snapshots · named copies of the horizon's demand buckets on
+// dsps.metadata.staffing.plan_snapshots (max 3). Restore goes through
+// the undoable write engine; compare diffs per-week route totals.
+function _rrTgtSnapList() {
+  const l = window.RR?.dsp?.metadata?.staffing?.plan_snapshots;
+  return Array.isArray(l) ? l : [];
+}
+async function _rrTgtSnapPersist(list) {
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId || !window.RR?.dsp) return false;
+  window.RR.dsp.metadata = window.RR.dsp.metadata || {};
+  window.RR.dsp.metadata.staffing = { ...(window.RR.dsp.metadata.staffing || {}), plan_snapshots: list };
+  const { error } = await sb.from("dsps").update({ metadata: window.RR.dsp.metadata }).eq("id", dspId);
+  if (error) { toast("Snapshot save failed: " + error.message, "warn"); return false; }
+  return true;
+}
+function _rrTgtSnapCapture(name) {
+  const buckets = window._rrOkamiBucketsByDate || new Map();
+  const days = {};
+  for (const [iso, list] of buckets) {
+    const nz = list.filter((b) => b.value > 0)
+      .map((b) => [b.stationId, b.waveIndex || 0, b.serviceTypeId || null, b.value]);
+    if (nz.length) days[iso] = nz;
+  }
+  return { name, at: new Date().toISOString(), startIso: window._okamiStart || null, days };
+}
+function _rrTgtSnapWeekTotals(snap) {
+  // Current-horizon week totals of the snapshot's dates (dates outside
+  // the visible horizon just don't contribute).
+  const weeks = window._rrOkamiModel?.weeks || [];
+  return weeks.map((wk) => {
+    let total = 0, peak = 0;
+    for (let d = 0; d < 7; d++) {
+      const iso = _rrOkamiWeekIso(wk.idx, d);
+      const day = (snap.days || {})[iso];
+      const t = day ? day.reduce((s, b) => s + (b[3] || 0), 0) : 0;
+      total += t;
+      if (t > peak) peak = t;
+    }
+    return { label: wk.label, total, peak, curTotal: wk.weekRoutes || 0, curPeak: wk.unplanned ? 0 : wk.routesMax };
+  });
+}
+function _rrTgtSnapHtml() {
+  const list = _rrTgtSnapList();
+  const rows = list.map((s, i) => `
+    <div style="display:flex;align-items:center;gap:8px;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+      <div style="min-width:0"><b>${escapeHtml(s.name)}</b><div style="font-size:var(--fs-9);color:var(--text-subtle)">${escapeHtml((s.at || "").slice(0, 10))}${s.startIso ? ` · anchored ${escapeHtml(s.startIso)}` : ""}</div></div>
+      <span style="display:inline-flex;gap:4px;flex:0 0 auto">
+        <button class="btn btn-sm" type="button" data-rr-snap-compare="${i}">Compare</button>
+        <button class="btn btn-sm" type="button" data-rr-snap-restore="${i}">Restore</button>
+        <button class="btn btn-sm" type="button" data-rr-snap-delete="${i}" aria-label="Delete snapshot">✕</button>
+      </span>
+    </div>`).join("");
+  return `<div class="pa-pop-h">Plan snapshots</div>
+    <div style="padding:10px 14px;min-width:290px">
+      ${rows || `<div style="font-size:var(--fs-xs);color:var(--text-subtle);padding:4px 0">No snapshots yet.</div>`}
+      <div style="display:flex;gap:6px;margin-top:10px">
+        <input class="form-input form-input-sm" id="rr-tgt-snap-name" placeholder="e.g. pre-peak plan" style="flex:1"/>
+        <button class="btn btn-primary btn-sm" type="button" data-rr-snap-new>Snapshot</button>
+      </div>
+      <div style="font-size:var(--fs-9);color:var(--text-subtle);margin-top:6px">Saves the horizon's day-by-day route demand (max 3, oldest dropped). Restore is undoable.</div>
+    </div>`;
+}
+document.addEventListener("click", async (e) => {
+  if (!e.target.closest) return;
+  const openBtn = e.target.closest("#rr-tgt-snap-btn");
+  if (openBtn) {
+    e.preventDefault();
+    if (typeof _paOpenPopover === "function") _paOpenPopover(openBtn, _rrTgtSnapHtml());
+    return;
+  }
+  const newBtn = e.target.closest("[data-rr-snap-new]");
+  if (newBtn) {
+    e.preventDefault();
+    const nameEl = document.getElementById("rr-tgt-snap-name");
+    const name = (nameEl?.value || "").trim() || `Plan ${new Date().toLocaleDateString()}`;
+    const list = _rrTgtSnapList().slice(-2); // keep newest 2, add 1 → max 3
+    list.push(_rrTgtSnapCapture(name));
+    if (await _rrTgtSnapPersist(list)) {
+      toast(`Snapshot "${name}" saved`, "success");
+      const anchor = document.getElementById("rr-tgt-snap-btn");
+      if (anchor && typeof _paOpenPopover === "function") _paOpenPopover(anchor, _rrTgtSnapHtml());
+    }
+    return;
+  }
+  const cmpBtn = e.target.closest("[data-rr-snap-compare]");
+  if (cmpBtn) {
+    e.preventDefault();
+    const snap = _rrTgtSnapList()[parseInt(cmpBtn.dataset.rrSnapCompare, 10)];
+    if (!snap) return;
+    const rows = _rrTgtSnapWeekTotals(snap).map((r) => {
+      const d = r.curTotal - r.total;
+      const dTxt = d === 0 ? "—" : `${d > 0 ? "+" : ""}${d}`;
+      const dColor = d === 0 ? "var(--text-subtle)" : d > 0 ? "var(--rr-green-700)" : "var(--rr-red-600)";
+      return `<tr><td style="padding:2px 8px 2px 0">${escapeHtml(r.label)}</td><td style="text-align:right;padding:2px 8px">${r.total}</td><td style="text-align:right;padding:2px 8px">${r.curTotal}</td><td style="text-align:right;font-weight:600;color:${dColor}">${dTxt}</td></tr>`;
+    }).join("");
+    const anchor = document.getElementById("rr-tgt-snap-btn") || cmpBtn;
+    if (typeof _paOpenPopover === "function") _paOpenPopover(anchor,
+      `<div class="pa-pop-h">"${escapeHtml(snap.name)}" vs current</div>
+       <div style="padding:10px 14px;font-size:var(--fs-xs);font-variant-numeric:tabular-nums">
+         <table style="border-collapse:collapse"><thead><tr style="color:var(--text-subtle)"><th style="text-align:left;padding:2px 8px 2px 0">Week</th><th style="text-align:right;padding:2px 8px">Snap</th><th style="text-align:right;padding:2px 8px">Now</th><th style="text-align:right">Δ</th></tr></thead>
+         <tbody>${rows}</tbody></table>
+         <div style="color:var(--text-subtle);margin-top:6px">Weekly route totals. Restore replaces current demand with the snapshot's (undoable).</div>
+       </div>`);
+    return;
+  }
+  const delBtn = e.target.closest("[data-rr-snap-delete]");
+  if (delBtn) {
+    e.preventDefault();
+    const idx = parseInt(delBtn.dataset.rrSnapDelete, 10);
+    const list = _rrTgtSnapList().slice();
+    const [gone] = list.splice(idx, 1);
+    if (gone && await _rrTgtSnapPersist(list)) {
+      toast(`Snapshot "${gone.name}" deleted`, "success");
+      const anchor = document.getElementById("rr-tgt-snap-btn");
+      if (anchor && typeof _paOpenPopover === "function") _paOpenPopover(anchor, _rrTgtSnapHtml());
+    }
+    return;
+  }
+  const rstBtn = e.target.closest("[data-rr-snap-restore]");
+  if (rstBtn) {
+    e.preventDefault();
+    const snap = _rrTgtSnapList()[parseInt(rstBtn.dataset.rrSnapRestore, 10)];
+    if (!snap) return;
+    if (typeof _paClosePop === "function") _paClosePop();
+    const okc = typeof _rrConfirmDialog !== "function" || await _rrConfirmDialog({
+      title: `Restore "${snap.name}"?`,
+      body: "Replaces the horizon's current day-by-day route demand with the snapshot's. Undoable from the toast afterwards.",
+      confirmLabel: "Restore",
+      danger: true,
+    });
+    if (!okc) return;
+    // Union of snapshot buckets and current buckets: snapshot values win,
+    // buckets missing from the snapshot are zeroed.
+    const buckets = window._rrOkamiBucketsByDate || new Map();
+    const writes = [];
+    const weeks = window._rrOkamiModel?.weeks || [];
+    for (const wk of weeks) {
+      for (let d = 0; d < 7; d++) {
+        const iso = _rrOkamiWeekIso(wk.idx, d);
+        const snapDay = (snap.days || {})[iso] || [];
+        const curDay = buckets.get(iso) || [];
+        const keyOf = (st, wv, ty) => `${st}|${wv}|${ty || ""}`;
+        const merged = new Map();
+        for (const b of snapDay) merged.set(keyOf(b[0], b[1], b[2]), { stationId: b[0], waveIndex: b[1], serviceTypeId: b[2], snapVal: b[3] || 0, curVal: 0 });
+        for (const b of curDay) {
+          const k = keyOf(b.stationId, b.waveIndex || 0, b.serviceTypeId);
+          if (merged.has(k)) merged.get(k).curVal = b.value;
+          else merged.set(k, { stationId: b.stationId, waveIndex: b.waveIndex || 0, serviceTypeId: b.serviceTypeId, snapVal: 0, curVal: b.value });
+        }
+        for (const m of merged.values()) {
+          if (m.snapVal === m.curVal) continue;
+          writes.push({ iso, stationId: m.stationId, waveIndex: m.waveIndex, serviceTypeId: m.serviceTypeId, value: m.snapVal, prev: m.curVal });
+        }
+      }
+    }
+    if (!writes.length) { toast("Current plan already matches the snapshot", "info"); return; }
+    await _rrOkamiCommitOp(writes, `Restored snapshot "${snap.name}"`);
+  }
+});
+
+// Hiring click-through — from the gap explainer into the pipeline view,
+// with the current target parked for the funnel surfaces.
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest && e.target.closest("[data-rr-tgt-open-hiring]");
+  if (!btn) return;
+  e.preventDefault();
+  if (typeof _paClosePop === "function") _paClosePop();
+  try {
+    const weeks = (_rrReadOkamiWeeks() || []).filter((w) => !w.unplanned && Number.isFinite(w.gap));
+    const A = weeks.length ? _rrAssessOkamiPlan(weeks) : null;
+    const rx = A?.prescription;
+    if (rx && rx.action === "hire") {
+      window._rrHiringPrefill = { hires: rx.hires, deadlineIso: rx.deadlineIso, at: Date.now() };
+      toast(`Target: hire ${rx.hires} by ${rx.deadlineIso ? fmtMD(new Date(rx.deadlineIso + "T12:00:00")) : "—"}`, "info");
+    }
+  } catch (_) {}
+  if (typeof window.goto === "function") window.goto("pipeline");
+});
+
+// Deadline / worsening alerts — surfaced when the Targets numbers are
+// freshly computed; throttled to once per day per condition.
+function _rrTgtMaybeAlert(A) {
+  if (!A || !A.prescription) return;
+  let state = {};
+  try { state = JSON.parse(localStorage.getItem("rr_tgt_alert_state") || "{}"); } catch (_) {}
+  const today = fmtIsoDate(new Date());
+  const rx = A.prescription;
+  const notify = (key, msg) => {
+    if (state[key] === today) return;
+    state[key] = today;
+    try { localStorage.setItem("rr_tgt_alert_state", JSON.stringify(state)); } catch (_) {}
+    if (typeof toastAction === "function") {
+      toastAction(msg, {
+        kind: "warn",
+        timeout: 12000,
+        actions: [
+          { label: "View analysis", primary: true, onClick: () => { try { _rrIntelShow("risk-forecast"); } catch (_) {} } },
+          { label: "Dismiss" },
+        ],
+      });
+    }
+  };
+  if (rx.action === "hire" && rx.deadlineIso) {
+    const days = Math.round((Date.parse(rx.deadlineIso + "T12:00:00Z") - Date.parse(today + "T12:00:00Z")) / 86400000);
+    if (days >= 0 && days <= 7) {
+      notify("deadline:" + rx.deadlineIso, `Hiring deadline ${days === 0 ? "is today" : `in ${days} day${days === 1 ? "" : "s"}`} — hire ${rx.hires} by ${fmtMD(new Date(rx.deadlineIso + "T12:00:00"))} to stay covered`);
+    }
+  }
+  const worst = A.worstWeek?.gap ?? 0;
+  const lastWorst = Number(state.lastWorst);
+  if (worst < 0 && Number.isFinite(lastWorst) && worst <= lastWorst - 5) {
+    notify("worsened:" + today, `Forecast gap worsened: ${lastWorst} → ${worst} drivers at the deepest week`);
+  }
+  state.lastWorst = worst;
+  try { localStorage.setItem("rr_tgt_alert_state", JSON.stringify(state)); } catch (_) {}
+}
 
 // ─── OKAMI · daily drill-down panel (PR C) ─────────────────────────────────
 
@@ -55206,6 +55537,8 @@ function _rrRefreshTargetsGapCard() {
   if (!A || !A.worstWeek) { card.hidden = true; return; }
   const worst = A.worstWeek.gap;
   card.hidden = false;
+  // Deadline/worsening alerts ride on the same freshly-computed result.
+  try { _rrTgtMaybeAlert(A); } catch (_) {}
   const mainEl = document.getElementById("rr-tgt-gap-card-main");
   if (mainEl) mainEl.textContent = `${worst > 0 ? "+" : ""}${worst} Driver${Math.abs(worst) === 1 ? "" : "s"}`;
   card.classList.toggle("rr-tgt-gap-card--pos", worst >= 0);

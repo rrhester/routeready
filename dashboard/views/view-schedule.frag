@@ -2395,6 +2395,9 @@
               <div class="rr-tgt-13w-actions">
                 <button class="btn btn-sm" type="button" id="rr-tgt-adjust-btn" title="Scale a range of weeks by a percentage (every day and wave, undoable)">Adjust…</button>
                 <button class="btn btn-sm" type="button" id="rr-tgt-seed-btn" title="Fill weeks that have no plan yet from the last 4 weeks' average per-weekday pattern">Seed empty weeks</button>
+                <button class="btn btn-sm" type="button" id="rr-tgt-snap-btn" title="Save, compare and restore named snapshots of the 13-week plan">Snapshots…</button>
+                <button class="btn btn-sm" type="button" id="rr-tgt-csv-btn" title="Download the 13-week plan as CSV">CSV</button>
+                <button class="btn btn-sm" type="button" id="rr-tgt-print-btn" title="Print the 13-week plan">Print</button>
               </div>
             </div>
             <!-- Needed-vs-available trend · rendered by _rrOkamiRenderTrend
