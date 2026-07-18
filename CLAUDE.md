@@ -189,7 +189,14 @@ chunk). Wave plan and status:
   verify skill) + docs/DEPLOY.md (workflow→surface map, manual steps, CI
   gates); CONTRIBUTING.md + .github/pull_request_template.md; PR#44 redesign
   backlog → docs/DRIVER-APP-REDESIGN-BACKLOG.md (keep/drop per item).
-- **Wave J — testing depth**: PR#82,83,86.
+- **Wave J — testing depth**: batch 1 DONE (PR#82 login e2e) —
+  tests/login-e2e/ Playwright suite (3 tests) against stubbed Supabase:
+  guards the Wave B ?next= open-redirect fix (cross-origin next dropped to
+  same-origin fallback), same-origin next honored, and the mode machine.
+  login.html imports the vendored supabase-js (same-origin) so no CDN
+  bundle needed. Workflow login-e2e.yml shipped separately. DEFERRED:
+  PR#83 (23-script node:test migration — big mechanical diff, own PR),
+  PR#86 (broaden visual regression — flaky-baseline risk, own PR).
 
 Notes: other sessions merge to main concurrently — re-verify each item
 against HEAD before implementing; rebase before each PR. Decision items
