@@ -70123,11 +70123,18 @@ function _schedShiftChip(sh, extras) {
   const classCorner = _rcDef
     ? `<span class="shift-chip-class-badge" style="background:${_rcDef.c}20;color:${_rcDef.c}" title="${escapeHtml(_rcDef.label)} route">${_rcDef.t}</span>`
     : "";
-  // Both corner tags share one flex wrapper pinned top-right so an XL
-  // standard route reads "SP XL" without the two badges overlapping;
-  // the service-type badge stays rightmost (where XL has always sat).
-  const cornerBadges = (classCorner || stCorner)
-    ? `<div class="shift-chip-badges">${classCorner}${stCorner}</div>`
+  // Helper seat corner badge — the second body on an XL route (rides along,
+  // no XL cert). A 2-letter "HP" tag in the same corner language as SP/XL so
+  // an XL route reads "XL HP" and the operator can tell the certified driver
+  // seat from the helper seat at a glance.
+  const helperCorner = sh.shift_kind === "helper"
+    ? `<span class="shift-chip-helper-badge" title="Helper seat — rides along an XL route (no XL certification required)">HP</span>`
+    : "";
+  // Corner tags share one flex wrapper pinned top-right so an XL standard
+  // route reads "SP XL" without the two badges overlapping; the service-type
+  // badge stays rightmost (where XL has always sat), the helper tag after it.
+  const cornerBadges = (classCorner || stCorner || helperCorner)
+    ? `<div class="shift-chip-badges">${classCorner}${stCorner}${helperCorner}</div>`
     : "";
   // Trainee badge — when a ride-along shift exists on the same date with
   // trainer_driver_id pointing at this driver, surface it so the trainer
@@ -70143,14 +70150,9 @@ function _schedShiftChip(sh, extras) {
   //   • Van 9                      (appended later by the post-
   //                                 assign-vans decorator)
   // When a route code is set, it sits as a small eyebrow above the
-  // Wave line so the route is still discoverable at a glance.
-  // Helper seat badge — the second body on an XL route (rides along, no XL
-  // cert). Reads as "XL · Helper" so the operator can tell the certified
-  // driver seat from the helper seat at a glance.
-  const helperBadge = sh.shift_kind === "helper"
-    ? `<span class="shift-chip-helper-badge" title="Helper seat — rides along an XL route (no XL certification required)">Helper</span>`
-    : "";
-  const eyebrowExtras = `${stBadge}${traineeBadge}${helperBadge}`;
+  // Wave line so the route is still discoverable at a glance. (The helper
+  // seat is marked by the "HP" corner badge, not here.)
+  const eyebrowExtras = `${stBadge}${traineeBadge}`;
   const eyebrowRoute = hasRoute
     ? `<div class="shift-chip-route-code">${escapeHtml(sh.route_code)}${eyebrowExtras}</div>`
     : eyebrowExtras
