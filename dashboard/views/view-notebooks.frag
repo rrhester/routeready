@@ -111,6 +111,18 @@
 .rrnb-cmt .ctx-body-txt .mn{color:var(--accent);font-weight:600}
 .rrnb-cmt .rply{font-size:var(--fs-xs);color:var(--accent);cursor:pointer;margin-top:3px;display:inline-block}
 .rrnb-cmt .rslv-badge{font-size:var(--fs-xs);color:var(--green);font-weight:600}
+/* #85 emoji reactions on comments */
+.rrnb-cmt-reacts{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
+.rrnb-cmt-react{display:inline-flex;align-items:center;gap:3px;font-size:var(--fs-xs);line-height:1.4;
+  border:1px solid var(--border);background:var(--surface);color:var(--text-muted);border-radius:var(--r-pill);
+  padding:1px 7px;cursor:pointer}
+.rrnb-cmt-react .n{font-variant-numeric:tabular-nums;font-weight:600}
+.rrnb-cmt-react.mine{background:var(--accent-soft);border-color:var(--accent-border);color:var(--accent-text)}
+.rrnb-cmt-react.add{color:var(--text-subtle);font-weight:600}
+.rrnb-cmt-react:hover{border-color:var(--accent)}
+.rrnb-emojirow{display:flex;gap:2px}
+.rrnb-emojib{border:0;background:transparent;cursor:pointer;font-size:18px;line-height:1;padding:4px 6px;border-radius:var(--r-sm)}
+.rrnb-emojib:hover{background:var(--surface-hover)}
 .rrnb-cmt-replychip{display:flex;align-items:center;gap:6px;font-size:var(--fs-xs);color:var(--text-subtle);
   background:var(--surface-secondary,var(--surface-hover));border-radius:var(--r-md);padding:4px 8px;margin-bottom:6px}
 .rrnb-cmt-replychip button{margin-left:auto;border:0;background:transparent;color:var(--text-subtle);cursor:pointer;font-size:13px}
@@ -736,6 +748,10 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
 .rrnb-presence{display:inline-flex;align-items:center;gap:5px;color:var(--green)}
 .rrnb-presence .pdot{width:7px;height:7px;border-radius:50%;background:var(--green)}
 .rrnb-presence[hidden]{display:none}
+/* #89 someone-editing: warm the presence pill to amber while another tab types */
+.rrnb-presence.editing{color:var(--amber)}
+.rrnb-presence.editing .pdot{background:var(--amber);animation:rrnb-pdot-pulse 1.1s ease-in-out infinite}
+@keyframes rrnb-pdot-pulse{0%,100%{opacity:1}50%{opacity:.35}}
 .rrnb-metabtn{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 var(--s-2);
   margin-left:auto;border:1px solid var(--border);border-radius:var(--r-pill);background:transparent;
   color:var(--text-subtle);font-size:var(--fs-xs);font-weight:600;cursor:pointer}
@@ -1162,6 +1178,7 @@ body.rrnb-dark-nb #rrnb-selcmt{
       commentsList: function (page) { return rpc("notebook_comments_list", { p_page_id: page }); },
       commentAdd: function (page, body, parent, anchor, mentions) { return rpc("notebook_comment_add", { p_page_id: page, p_body: body, p_parent_id: parent || null, p_anchor: anchor || null, p_mentions: (mentions && mentions.length) ? mentions : null }); },
       commentEdit: function (id, body) { return rpc("notebook_comment_edit", { p_id: id, p_body: body }); },
+      commentReact: function (id, emoji, on) { return rpc("notebook_comment_react", { p_comment_id: id, p_emoji: emoji, p_on: on }); },
       commentResolve: function (id, on) { return rpc("notebook_comment_resolve", { p_id: id, p_resolved: !!on }); },
       commentDelete: function (id) { return rpc("notebook_comment_delete", { p_id: id }); },
       commentCounts: function (ids) { return rpc("notebook_comment_counts", { p_page_ids: ids || [] }); }
@@ -1298,6 +1315,14 @@ body.rrnb-dark-nb #rrnb-selcmt{
           author: "You", author_id: "local", is_mine: true, resolved: false, mentions: [], created_at: new Date().toISOString() };
         (db.comments = db.comments || []).push(c); persist(); return P(c); },
       commentEdit: function (id, body) { var c = (db.comments || []).filter(function (x) { return x.id === id; })[0]; if (c) { c.body = String(body).trim(); c.edited_at = new Date().toISOString(); persist(); } return P(c || {}); },
+      commentReact: function (id, emoji, on) {
+        var c = (db.comments || []).filter(function (x) { return x.id === id; })[0]; if (!c) return P();
+        c.reactions = c.reactions || [];
+        var r = c.reactions.filter(function (x) { return x.emoji === emoji; })[0];
+        var want = (on == null) ? !(r && r.mine) : !!on;
+        if (want) { if (!r) c.reactions.push({ emoji: emoji, count: 1, mine: true }); else if (!r.mine) { r.count++; r.mine = true; } }
+        else if (r && r.mine) { r.count--; r.mine = false; if (r.count <= 0) c.reactions = c.reactions.filter(function (x) { return x !== r; }); }
+        persist(); return P(); },
       commentResolve: function (id, on) { var c = (db.comments || []).filter(function (x) { return x.id === id; })[0]; if (c) { c.resolved = !!on; persist(); } return P(); },
       commentDelete: function (id) { db.comments = (db.comments || []).filter(function (x) { return x.id !== id && x.parent_id !== id; }); persist(); return P(); },
       commentCounts: function (ids) { var m = {}; (db.comments || []).forEach(function (c) { if (!c.resolved && (ids || []).indexOf(c.page_id) >= 0) m[c.page_id] = (m[c.page_id] || 0) + 1; }); return P(m); }
@@ -2004,7 +2029,7 @@ body.rrnb-dark-nb #rrnb-selcmt{
     title.addEventListener("keydown", stopTypingLeak);
     title.addEventListener("keyup", stopTypingLeak);
     title.addEventListener("keypress", stopTypingLeak);
-    ed.addEventListener("input", function () { mdInline(); slashScan(); scheduleSave(); autoLinkify(); positionImgResize(); scheduleCtxRefresh(); updateWordCount(); if (FIND.open) runFind(FIND.q); });
+    ed.addEventListener("input", function () { mdInline(); slashScan(); scheduleSave(); autoLinkify(); positionImgResize(); scheduleCtxRefresh(); updateWordCount(); pingEditing(); if (FIND.open) runFind(FIND.q); });
     ed.addEventListener("keydown", onEditorKey);
     ed.addEventListener("click", onEditorClick);
     ed.addEventListener("contextmenu", onEditorCtx);
@@ -3827,6 +3852,23 @@ body.rrnb-dark-nb #rrnb-selcmt{
     (c.mentions || []).forEach(function (nm) { body = body.split("@" + esc(nm)).join('<span class="mn">@' + esc(nm) + "</span>"); });
     return body.replace(/\n/g, "<br>");
   }
+  // #85 emoji reactions on comments
+  var CMT_EMOJI = ["👍", "❤️", "🎉", "✅", "👀", "🙏"];
+  function cmtReactionsHtml(c) {
+    var pills = (c.reactions || []).filter(function (r) { return r.count > 0; }).map(function (r) {
+      return '<button class="rrnb-cmt-react' + (r.mine ? " mine" : "") + '" data-cmt-react="' + esc(c.id) + '" data-emoji="' + esc(r.emoji) + '">' + esc(r.emoji) + ' <span class="n">' + r.count + '</span></button>';
+    }).join("");
+    var add = S.readOnly ? "" : '<button class="rrnb-cmt-react add" data-cmt-addreact="' + esc(c.id) + '" title="Add reaction">☺﹢</button>';
+    return (pills || add) ? '<div class="rrnb-cmt-reacts">' + pills + add + '</div>' : "";
+  }
+  function toggleReaction(id, emoji, on) {
+    S.be.commentReact(id, emoji, on).then(function () { fillCtxComments(S.pageId); }).catch(fail);
+  }
+  function openReactPicker(anchorEl, id) {
+    var sw = CMT_EMOJI.map(function (e) { return '<button class="rrnb-emojib" data-react-emoji="' + esc(e) + '">' + e + '</button>'; }).join("");
+    var pop = showPop('<div class="rrnb-emojirow">' + sw + '</div>', anchorEl.getBoundingClientRect());
+    pop.addEventListener("click", function (ev) { var b = ev.target.closest("[data-react-emoji]"); if (!b) return; hidePop(); toggleReaction(id, b.getAttribute("data-react-emoji"), true); });
+  }
   function cmtHtml(c, isReply) {
     var canDel = c.is_mine || S.myRole === "owner";
     var acts = S.readOnly ? "" : ('<span class="act">' +
@@ -3843,6 +3885,7 @@ body.rrnb-dark-nb #rrnb-selcmt{
       '<div class="cbd"><div class="chd"><span>' + esc(c.author || "Teammate") + '</span><span class="tm">' + esc(relTime(c.created_at)) + "</span>" + edited + acts + "</div>" +
       anchor +
       '<div class="ctx-body-txt">' + cmtBodyHtml(c) + "</div>" +
+      cmtReactionsHtml(c) +
       ((!isReply && !S.readOnly) ? '<span class="rply" data-cmt-reply="' + esc(c.id) + '">Reply</span>' : "") +
       (c.resolved ? ' <span class="rslv-badge">· resolved</span>' : "") +
       "</div></div>";
@@ -3931,6 +3974,10 @@ body.rrnb-dark-nb #rrnb-selcmt{
     if (mn) { var ta = host.querySelector(".rrnb-cmt-input"); if (ta) insertMention(ta, mn.getAttribute("data-mn-id"), mn.getAttribute("data-mn-name")); return; }
     if (e.target.closest(".rrnb-cmt-send")) { var ta2 = host.querySelector(".rrnb-cmt-input"); if (ta2) submitComment(ta2); return; }
     if (e.target.closest("[data-cmt-filter]")) { S._hideResolved = !S._hideResolved; try { localStorage.setItem("rrnb-hide-resolved", S._hideResolved ? "1" : "0"); } catch (x) {} fillCtxComments(S.pageId); return; }
+    var rx = e.target.closest("[data-cmt-react]");
+    if (rx) { toggleReaction(rx.getAttribute("data-cmt-react"), rx.getAttribute("data-emoji"), !rx.classList.contains("mine")); return; }
+    var ar = e.target.closest("[data-cmt-addreact]");
+    if (ar) { openReactPicker(ar, ar.getAttribute("data-cmt-addreact")); return; }
     var ed = e.target.closest("[data-cmt-edit]");
     if (ed) { beginCommentEdit(ed.getAttribute("data-cmt-edit")); return; }
     var an = e.target.closest("[data-cmt-anchor]");
@@ -4113,25 +4160,40 @@ body.rrnb-dark-nb #rrnb-selcmt{
       var ch = sb.channel("rrnb-presence-" + pageId, { config: { presence: { key: String(myUserId() || uid()) } } });
       ch.on("presence", { event: "sync" }, function () {
         try {
-          var state = ch.presenceState(), names = [];
+          var state = ch.presenceState(), names = [], editors = [], nowMs = Date.now();
           Object.keys(state).forEach(function (k) {
             if (k === String(myUserId())) return;
-            (state[k] || []).forEach(function (m) { if (m.name && names.indexOf(m.name) < 0) names.push(m.name); });
+            (state[k] || []).forEach(function (m) {
+              if (m.name && names.indexOf(m.name) < 0) names.push(m.name);
+              // #89 someone-editing: a fresh editing timestamp (<6s) flags a concurrent editor
+              if (m.name && m.editing && (nowMs - m.editing) < 6000 && editors.indexOf(m.name) < 0) editors.push(m.name);
+            });
           });
           var box = $id("rrnb-presence"), txt = $id("rrnb-presence-txt");
           if (!box || !txt) return;
-          if (names.length) { txt.textContent = names.slice(0, 3).join(", ") + (names.length > 3 ? " +" + (names.length - 3) : "") + " viewing"; box.hidden = false; }
+          box.classList.toggle("editing", editors.length > 0);
+          if (editors.length) { txt.textContent = editors.slice(0, 2).join(", ") + (editors.length > 2 ? " +" + (editors.length - 2) : "") + " editing…"; box.hidden = false; }
+          else if (names.length) { txt.textContent = names.slice(0, 3).join(", ") + (names.length > 3 ? " +" + (names.length - 3) : "") + " viewing"; box.hidden = false; }
           else box.hidden = true;
         } catch (e) {}
       });
-      ch.subscribe(function (status) { if (status === "SUBSCRIBED") { try { ch.track({ name: myName() }); } catch (e) {} } });
+      ch.subscribe(function (status) { if (status === "SUBSCRIBED") { try { ch.track({ name: myName(), editing: null }); } catch (e) {} } });
       S.presenceChannel = ch;
     } catch (e) { S.presenceChannel = null; }
   }
   function leavePresence() {
     var sb = rtClient();
     if (S.presenceChannel && sb) { try { sb.removeChannel(S.presenceChannel); } catch (e) {} }
-    S.presenceChannel = null;
+    S.presenceChannel = null; S._editingTimer = null;
+  }
+  // #89 broadcast an "editing" heartbeat while the local user types, so other
+  // open tabs see a gentle "…editing" flag and know to expect a change.
+  function pingEditing() {
+    var ch = S.presenceChannel; if (!ch || !ch.track) return;
+    var nowMs = Date.now();
+    if (!S._editingSince || nowMs - S._editingSince > 2500) { S._editingSince = nowMs; try { ch.track({ name: myName(), editing: nowMs }); } catch (e) {} } // throttle re-tracks
+    clearTimeout(S._editingTimer);
+    S._editingTimer = setTimeout(function () { S._editingSince = 0; try { ch.track({ name: myName(), editing: null }); } catch (e) {} }, 4000);
   }
 
   // ══════════════════════════════════════════════════════════════════
