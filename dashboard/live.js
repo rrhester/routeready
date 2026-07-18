@@ -3915,6 +3915,10 @@ function _rrReadOkamiWeeks() {
   const rows = document.querySelectorAll("#okami-tbody > tr:not(.okami-detail)");
   const weeks = [];
   rows.forEach((row, idx) => {
+    // Skeleton / error rows have no gap cell — they are not weeks (the
+    // error row used to scrape as one healthy zero-demand week and keep
+    // the gap card alive on a dead table).
+    if (!row.querySelector(".plan-gap")) return;
     const label = (row.querySelector(".plan-week-label")?.textContent || "").trim();
     const dates = (row.querySelector(".plan-week-dates")?.textContent || "").trim();
     const cells = row.querySelectorAll("td");
@@ -52817,6 +52821,7 @@ function _rrOkamiShowError(tbody, msg) {
   tbody.innerHTML = `<tr class="rr-okami-err-row"><td colspan="8"><div class="rr-okami-err"><span>Couldn't load the route plan — ${escapeHtml(msg || "network error")}</span><button class="btn btn-sm" type="button" data-rr-okami-retry>Retry</button></div></td></tr>`;
   const foot = document.getElementById("okami-tfoot");
   if (foot) foot.innerHTML = "";
+  try { _rrOkamiRenderTrend(); } catch (_) { /* hides on null model */ }
   try { _rrRefreshTargetsGapCard(); } catch (_) { /* card just hides */ }
 }
 document.addEventListener("click", (e) => {
@@ -52872,7 +52877,9 @@ function _rrOkamiRenderTfoot() {
   let paceHtml = "";
   try {
     if (planned.some((w) => w.gap < 0) && typeof _rrAssessOkamiPlan === "function") {
-      const A = _rrAssessOkamiPlan(planned);
+      // Assess on availRaw — forecast-core deducts onboarding readiness
+      // itself; the model's route-ready `avail` would double-deduct.
+      const A = _rrAssessOkamiPlan(planned.map((w) => ({ ...w, avail: w.availRaw ?? w.avail })));
       let run = 0;
       const steps = [];
       for (const x of (A?.weeks || [])) {

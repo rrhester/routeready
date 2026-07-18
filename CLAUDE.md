@@ -242,6 +242,32 @@ gate blocked ALL PRs; also apply-migrations.sh BASELINE=0503 would have
 adopted-not-run it). User still needs to paste 0509 (corrected), 0510,
 0511 — and 0512 if they never ran the old 0503 swap-offer SQL.
 
+## DONE: Targets 50-list (Schedule → Targets page)
+
+`docs/targets-page-improvements-2026-07.md` (items `TG#NN`) — **49/50
+COMPLETE** 2026-07-18, user said "do all of them except for number 11"
+(TG#11 = daily drill-down for all 13 weeks — deliberately NOT built;
+keep the drill-down window at 4 weeks unless they ask again). Shipped
+in 7 batches on `claude/page-improvement-ideas-8t4c1m`. Key facts that
+stay true:
+- The 13-week table's rows are now GENERATED (`_rrOkamiEnsureRows`,
+  live.js) — view-okami.frag ships only a skeleton. The 8-column
+  positional DOM contract + `tr:not(.okami-detail)` order + weeks 0–3
+  drill-down ids are preserved for all consumers (sim annotations,
+  Plan-Pad recompute, mock pipeline, DOM-fallback readers).
+- All plan edits flow through `_rrOkamiApplyWrites` (bucket writes with
+  prevs → one-op Undo). `saveOkamiWeek` is gone.
+- Available is a per-week projection (active_drivers_for_horizon −
+  onboarding-not-ready); forecast-core consumers must be fed `availRaw`
+  (payroll − time-off), NOT the table's route-ready `avail`, or
+  onboarding gets double-deducted (assessPlan handles readiness).
+- **Migration 0513** (okami_demand audit trigger + okami_demand_audit
+  RPC) — pasted in chat 2026-07-18, graceful until applied. (Was 0512
+  in-branch; renumbered after #3974's concurrent 0503→0512 swap-offer
+  rename took that ordinal.)
+- Hire lead time now per-DSP: `metadata.staffing.hire_lead_days`
+  (default 28, ⓘ popover on the Drivers-needed header edits it).
+
 ## Active task: Workbook 100-list (Excel-parity improvements)
 
 Working through a 100-item list of Workbook (`dashboard/workbook.js`)
