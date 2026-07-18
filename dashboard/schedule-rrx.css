@@ -3197,7 +3197,9 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff * {
 /* Tighter corners on shift chips · 3px tile-style corners read as
    crisp Excel/Outlook scheduling cells, not soft pills. */
 #view-schedule.rrx-schedule .shift-chip {
-  border-radius: 7px !important;
+  /* Square corners (operator request 2026-07-18): the schedule cards read
+     as crisp Excel-style cells, not soft rounded chips. */
+  border-radius: 0 !important;
   /* Cards never move — Excel feel is anchored to the grid. Only the
      shadow/border acknowledge the cursor, and instantly (motion sweep
      2026-07-10). No transform is transitioned so a stray transform can
@@ -4222,7 +4224,8 @@ body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-milestone {
   right: 1px;
   bottom: 1px;
   height: 2px;
-  border-radius: 0 0 3px 3px;
+  /* Square to match the now square-cornered card. */
+  border-radius: 0;
   pointer-events: none;
   opacity: 0.75;
 }
