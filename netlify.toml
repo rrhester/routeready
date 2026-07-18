@@ -105,20 +105,23 @@
 # ─────────────────────────────────────────────────────────────────────
 # Cache headers
 # ─────────────────────────────────────────────────────────────────────
-# dashboard/index.html (and its sibling pages) inline every stylesheet
-# block in the dispatch dashboard — ~17k lines of CSS live inside the
-# HTML itself.  Without explicit cache-control, Netlify's default
-# behavior caches the HTML at the edge AND in the operator's browser,
-# so a CSS-only fix can fail to reach operators for hours/days while
-# they continue to load a stale HTML.  That is the root cause of the
-# "composer still overlaps the thread even though main was fixed"
-# report on 2026-05-09 (PRs #599 / #600 had shipped the CSS fix; the
-# operator was still loading pre-#599 HTML+CSS).
+# dashboard/index.html links its heavy CSS as external, ?v=-versioned
+# stylesheets (inline-styles.css / schedule-rrx.css / onboarding-rrx.css
+# / tcp.css / ../app/rr-system.css); only a few small inline <style>
+# blocks remain in the HTML.  Without explicit cache-control, Netlify's
+# default behavior caches the HTML at the edge AND in the operator's
+# browser, so a deploy's new markup and new ?v= references can fail to
+# reach operators for hours/days while they keep loading stale HTML —
+# and with it the OLD asset URLs, defeating the versioning.  That was the
+# root cause of the "composer still overlaps the thread even though main
+# was fixed" report on 2026-05-09 (PRs #599 / #600 had shipped the fix;
+# the operator was still loading pre-#599 HTML).
 #
-# We treat HTML as never-cache and rely on URL-versioned JS (?v=…)
-# for cache-busting on the heavy assets. The ?v= tokens are auto-
-# rewritten by scripts/bust-cache.mjs in the build step above so
-# every deploy uses a fresh, deploy-unique value (COMMIT_REF).
+# So: HTML is never-cache, and the heavy JS/CSS is URL-versioned (?v=…).
+# The ?v= tokens are auto-rewritten by scripts/bust-cache.mjs in the
+# build step above so every deploy uses a fresh, deploy-unique value
+# (COMMIT_REF); pairing that with immutable long-cache on the versioned
+# assets (below) means each URL is fetched once and never revalidated.
 
 # Security headers — applied site-wide. Safe, non-breaking hardening
 # headers (no enforcing CSP). They harden a PII-handling operator
