@@ -1601,6 +1601,18 @@
              the Targets rules (Block / Cushion / Report time) become
              individual KPI pills with inline number inputs. -->
         <div id="rr-sched-targets-kpis" class="sched-kpi-pills tcp-kpi" role="group" aria-label="Targets rules" style="display:none">
+          <!-- Which week the rules edit · Block/Cushion/Report/Waves are
+               PER-WEEK settings (scheduling_settings_for_week) — without
+               this chip they read as global knobs over a 13-week table. -->
+          <div class="rr-tgt-kpi rr-tgt-rules-week" id="rr-tgt-rules-week" title="Block, Cushion, Report time and Wave times are per-week rules — they apply to the week shown here. Weeks without their own rules inherit from the most recent earlier week.">
+            <div class="rr-tgt-kpi-text">
+              <div class="rr-tgt-kpi-label">Rules for</div>
+              <div class="rr-tgt-kpi-val">
+                <span class="rr-tgt-rules-week-label" id="rr-tgt-rules-week-label">—</span>
+                <button type="button" class="rr-tgt-rules-fwd" id="rr-tgt-rules-fwd" title="Apply this week's rules to every remaining week of the 13-week plan (settings only — shifts rebuild when each week is applied)">→ all</button>
+              </div>
+            </div>
+          </div>
           <div class="rr-tgt-kpi">
             <div class="rr-tgt-kpi-text">
               <div class="rr-tgt-kpi-label">Block</div>
@@ -1610,11 +1622,11 @@
               </div>
             </div>
           </div>
-          <div class="rr-tgt-kpi">
+          <div class="rr-tgt-kpi" title="Cushion adds extra SHIFTS when the week's schedule is built — it is not the staffing Plan Pad (extra hires), which lives on the OKAMI page">
             <div class="rr-tgt-kpi-text">
               <div class="rr-tgt-kpi-label">Cushion</div>
               <div class="rr-tgt-kpi-val">
-                <input class="rr-tgt-kpi-input" id="rr-sched-targets-cushion-pct" type="number" min="0" max="50" step="1" autocomplete="off" aria-label="Cushion percent"/>
+                <input class="rr-tgt-kpi-input" id="rr-sched-targets-cushion-pct" type="number" min="0" max="50" step="1" autocomplete="off" aria-label="Cushion percent — extra shifts added at schedule build"/>
                 <span class="rr-tgt-kpi-unit">%</span>
               </div>
             </div>
@@ -1662,8 +1674,10 @@
               <span class="rr-tgt-gap-card-label">Forecast gap</span>
               <span class="rr-tgt-gap-card-value" id="rr-tgt-gap-card-main">—</span>
               <span class="rr-tgt-gap-card-sub" id="rr-tgt-gap-card-sub" hidden></span>
+              <span class="rr-tgt-gap-card-link" id="rr-tgt-gap-card-link" hidden>View analysis →</span>
             </div>
-            <button type="button" class="rr-tgt-save-plan" id="rr-tgt-save-plan">Save Plan</button>
+            <span id="rr-tgt-save-status" class="rr-tgt-save-status" aria-live="polite"></span>
+            <button type="button" class="rr-tgt-save-plan" id="rr-tgt-save-plan" title="Save this week's rules (Block / Cushion / Report / Waves) and rebuild its unassigned shifts">Apply rules</button>
             <span class="rr-tgt-chrome-host" id="rr-tgt-chrome-host"></span>
           </div>
         </div><!-- /#rr-sched-targets-kpis -->
@@ -2378,7 +2392,18 @@
                 </div>
                 <p class="rr-tgt-13w-sub">Model route demand and staffing requirements.</p>
               </div>
+              <div class="rr-tgt-13w-actions">
+                <button class="btn btn-sm" type="button" id="rr-tgt-adjust-btn" title="Scale a range of weeks by a percentage (every day and wave, undoable)">Adjust…</button>
+                <button class="btn btn-sm" type="button" id="rr-tgt-seed-btn" title="Fill weeks that have no plan yet from the last 4 weeks' average per-weekday pattern">Seed empty weeks</button>
+                <button class="btn btn-sm" type="button" id="rr-tgt-snap-btn" title="Save, compare and restore named snapshots of the 13-week plan">Snapshots…</button>
+                <button class="btn btn-sm" type="button" id="rr-tgt-csv-btn" title="Download the 13-week plan as CSV">CSV</button>
+                <button class="btn btn-sm" type="button" id="rr-tgt-print-btn" title="Print the 13-week plan">Print</button>
+              </div>
             </div>
+            <!-- Needed-vs-available trend · rendered by _rrOkamiRenderTrend
+                 from the published 13-week model; hidden until ≥2 weeks
+                 have a plan. -->
+            <div id="rr-tgt-trend" class="rr-tgt-trend" hidden></div>
             <div id="rr-sched-targets-13week-host">
               <div class="rr-tgt-13w-empty">Loading 13-week plan…</div>
             </div>
