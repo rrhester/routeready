@@ -37,6 +37,17 @@ expects 498) until migrations are applied.
 
 ## Active task: Project-review 100-list (PR#1–PR#100)
 
+STATUS 2026-07-17: all 10 waves A–J shipped one batch each and MERGED
+(PRs #3964,3966,3968,3970,3973,3975,3976,3979,3980,3982 + workflow minis
+#3965,3967,3969,3983). ~75/100 items shipped; ~25 DEFERRED with explicit
+reasons (the risky live.js monolith refactors PR#12/16/17/18/19/20,
+CSS/lazy-load perf PR#21/23/28/31/32, driver rpc-wrapper/rem/split
+PR#35/39/41/42/43, a11y ratchet/token PR#93/94/96, node:test migration +
+visual-regression breadth PR#83/86). Migrations 0504+0505 pasted in chat
++ APPLIED by user. Each deferred item needs its own browser-verified PR —
+they were held back to avoid blind regressions on the 92k-line file, NOT
+because they're low-value. Per-wave detail below.
+
 Working through ALL 100 items of `docs/project-review-2026-07.md`
 (whole-project review, items referenced as `PR#NN`), user said
 "do all of them" (2026-07-17). Shipping in themed waves on branch
