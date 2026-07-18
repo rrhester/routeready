@@ -71,6 +71,10 @@
 .rrnb-crec .cc{min-width:0;flex:1}
 .rrnb-crec .rn{font-size:var(--fs-sm);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rrnb-crec .rt{font-size:var(--fs-xs);color:var(--text-subtle);text-transform:capitalize}
+/* #40 backlink linking-context snippet — a quiet two-line excerpt */
+.rrnb-crec .rrnb-bl-snip{text-transform:none;line-height:1.4;white-space:normal;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.rrnb-crec:has(.rrnb-bl-snip){align-items:flex-start}
 .rrnb-crec .go{color:var(--text-subtle);flex:0 0 auto;opacity:0;display:flex}
 .rrnb-crec .go svg{width:14px;height:14px}
 .rrnb-crec:hover .go{opacity:1}
@@ -3695,9 +3699,11 @@ body.rrnb-dark-nb #rrnb-selcmt{
     S.be.backlinks(pid).then(function (rows) {
       if (!rows || !rows.length) { host.innerHTML = ""; return; }
       host.innerHTML = '<h4>Backlinks<span class="cnt">' + rows.length + '</span></h4>' + rows.map(function (r) {
+        // #40 show a snippet of the sentence that links here (falls back to "Linked from")
+        var sub = r.snippet ? '<div class="rt rrnb-bl-snip">' + esc(r.snippet) + '</div>' : '<div class="rt">Linked from</div>';
         return '<div class="rrnb-crec" data-goto-page="' + esc(r.page_id) + '" data-goto-nb="' + esc(r.notebook_id) + '">' +
           '<span class="av" style="background:var(--text-subtle)"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg></span>' +
-          '<div class="cc"><div class="rn">' + esc(r.title) + '</div><div class="rt">Linked from</div></div></div>';
+          '<div class="cc"><div class="rn">' + esc(r.title) + '</div>' + sub + '</div></div>';
       }).join("");
     }).catch(function () {});
   }
