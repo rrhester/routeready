@@ -31857,6 +31857,7 @@ function _ivcalInstallKeys() {
     else if (e.key === "g" || e.key === "G") { e.preventDefault(); _ivcalJumpToDate(); }
     else if (e.key === "n" || e.key === "N") { e.preventDefault(); _ivcalNewEvent(_ivcalISODate(new Date()), 9*60, 9*60+30); }
     else if ((e.key === "e" || e.key === "E") && _ivcalSelected && _ivcalSelected.kind !== "session") { e.preventDefault(); _ivcalEditEvent(_ivcalSelected.kind, _ivcalSelected.id); }
+    else if ((e.key === "h" || e.key === "H") && !e.metaKey && !e.ctrlKey && !e.altKey && _ivcalSelected && _ivcalSelected.kind !== "session") { e.preventDefault(); _ivcalHistoryDialog(_ivcalSelected.id); }
     else if (e.key === "t" || e.key === "T") { _ivcalNav(0); }
     else if (e.altKey && /^Arrow(Up|Down|Left|Right)$/.test(e.key) && (_ivcalMultiSel.size || (_ivcalSelected && _ivcalSelected.kind !== "session"))) {
       e.preventDefault();
@@ -32110,6 +32111,7 @@ function _ivcalKbdHelp() {
       <div>
         <div class="oc-kbd-sec">Events</div>
         ${row("N", "New event")}${row("E", "Edit selected")}
+        ${row("H", "History of selected")}
         ${row("Del", "Cancel selected")}
         ${row("Ctrl+C", "Copy event")}${row("Ctrl+V", "Paste event")}
         ${row("Ctrl+Click", "Multi-select")}
@@ -32716,6 +32718,7 @@ async function loadInterviewAvailabilityEditor() {
       <input type="text" class="rr-iv-sched-name" placeholder="Schedule name (e.g. 30 min with Ryan)" value="${escapeHtml(schedName)}">
       <select class="rr-iv-sched-pick" aria-label="Choose schedule">${schedOpts}</select>
       ${(_ivCurSchedId!=="__new" && schedules.length>1) ? `<button type="button" class="rr-iv-sched-del" id="rr-iv-sched-del" title="Delete this schedule" aria-label="Delete schedule"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>` : ""}
+      ${(_ivCurSchedId!=="__new" && sched) ? `<button type="button" class="rr-iv-btn is-ghost rr-iv-preview" title="See this booking page the way applicants do">Preview</button><button type="button" class="rr-iv-btn is-ghost rr-iv-embed" title="Get an embed snippet for your website">Embed</button>` : ""}
       <label class="rr-iv-sched-active"><input type="checkbox" class="rr-iv-active-cb" ${isActive?"checked":""}> Active booking schedule</label>
     </div>`;
   // Start from another schedule's hours instead of re-typing them.
@@ -32808,7 +32811,8 @@ async function loadInterviewAvailabilityEditor() {
     if (!weekCapEl) return;
     const slotM = parseInt(body.querySelector(".rr-iv-slot").value, 10) || 30;
     const bufM = parseInt(body.querySelector(".rr-iv-buffer").value, 10) || 0;
-    let total = 0, days = 0;
+    const maxDay = parseInt(body.querySelector(".rr-iv-maxday")?.value, 10) || 0;
+    let total = 0, capped = 0, days = 0;
     body.querySelectorAll(".rr-iv-day").forEach(row => {
       if (!row.querySelector(".rr-iv-on").checked) return;
       const wins = [...row.querySelectorAll(".rr-iv-win")].map(w => ({
@@ -32817,10 +32821,11 @@ async function loadInterviewAvailabilityEditor() {
         capacity: Math.max(1, parseInt(w.querySelector(".rr-iv-cap").value, 10) || 1),
       })).filter(w => w.end_min > w.start_min);
       const cap = _slotDayCapacity(wins, slotM, bufM);
-      if (cap > 0) { total += cap; days++; }
+      if (cap > 0) { total += cap; capped += maxDay > 0 ? Math.min(cap, maxDay) : cap; days++; }
     });
     weekCapEl.textContent = total
       ? `Adds up to ${total} bookable spot${total === 1 ? "" : "s"} a week across ${days} day${days === 1 ? "" : "s"} — ${slotM}-min slots${bufM ? ` with a ${bufM}-min buffer` : ""}.`
+        + (capped < total ? ` The daily cap of ${maxDay} trims this to ${capped}.` : "")
       : "No weekly hours yet — turn a day on above to open booking times.";
   };
   const daysHost = body.querySelector(".rr-iv-days");
@@ -32830,7 +32835,13 @@ async function loadInterviewAvailabilityEditor() {
   daysHost.addEventListener("click", (e) => { if (e.target.closest(".rr-iv-winx, .rr-iv-addwin")) setTimeout(refreshWeekCap, 0); });
   body.querySelector(".rr-iv-slot")?.addEventListener("change", refreshWeekCap);
   body.querySelector(".rr-iv-buffer")?.addEventListener("input", refreshWeekCap);
+  body.querySelector(".rr-iv-maxday")?.addEventListener("input", refreshWeekCap);
   refreshWeekCap();
+
+  // Preview / embed the booking page being edited (same dialogs the calendar
+  // settings menu offers, reachable from where the hours are actually set).
+  body.querySelector(".rr-iv-preview")?.addEventListener("click", () => _ivcalBookingPreview(_ivCurSchedId, schedName));
+  body.querySelector(".rr-iv-embed")?.addEventListener("click", () => _ivcalEmbedDialog(_ivCurSchedId, schedName));
 
   // Copy hours from another schedule: fetch its windows, reload the editor
   // with them applied (still unsaved).
