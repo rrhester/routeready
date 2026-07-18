@@ -9040,6 +9040,10 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-tgt-now-chip{background:var(--accent-soft);color:var(--accent-text)}
 .rr-tgt-month-chip{background:var(--canvas);border:1px solid var(--border);color:var(--text-subtle);text-transform:uppercase}
 .rr-tgt-evt-chip{background:#FEF3C7;color:#92400E}
+.rr-tgt-actual-chip{background:var(--canvas);border:1px solid var(--border);color:var(--text-muted);font-variant-numeric:tabular-nums}
+.rr-tgt-avail-sub{font-size:var(--fs-9);color:var(--text-subtle);line-height:1.3;margin-top:1px;white-space:nowrap}
+.rr-tgt-th-info{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;margin-left:5px;border-radius:50%;border:1px solid var(--border-strong);background:transparent;color:var(--text-subtle);font-size:10px;font-weight:700;line-height:1;cursor:pointer;vertical-align:middle;padding:0}
+.rr-tgt-th-info:hover{background:var(--canvas);color:var(--text-muted)}
 
 .strategy-pills{display:flex;gap:3px;flex-wrap:wrap}
 .strategy-pill{
@@ -21979,6 +21983,12 @@ body.rr-cmdk-open{ overflow:hidden }
             }
             #view-schedule #sched-sub-targets .rr-tgt-13w .plan-gap.rr-tgt-gap-pos{
               background:#F0FDF4 !important;border-color:#BBF7D0;color:var(--rr-green-700) !important;
+            }
+            /* No routes planned yet · neutral, not green — an unplanned week
+               is an unknown, not a surplus. */
+            #view-schedule #sched-sub-targets .rr-tgt-13w .plan-gap.rr-tgt-gap-unplanned{
+              background:var(--canvas) !important;border-color:var(--border);
+              color:var(--text-subtle) !important;font-weight:500;font-size:var(--fs-xs);
             }
             /* Available · subtly positive (restrained green, no badge). The
                4th visible column is AVAILABLE; Drivers Needed (col 3) stays

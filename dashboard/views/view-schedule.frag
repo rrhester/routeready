@@ -1610,11 +1610,11 @@
               </div>
             </div>
           </div>
-          <div class="rr-tgt-kpi">
+          <div class="rr-tgt-kpi" title="Cushion adds extra SHIFTS when the week's schedule is built — it is not the staffing Plan Pad (extra hires), which lives on the OKAMI page">
             <div class="rr-tgt-kpi-text">
               <div class="rr-tgt-kpi-label">Cushion</div>
               <div class="rr-tgt-kpi-val">
-                <input class="rr-tgt-kpi-input" id="rr-sched-targets-cushion-pct" type="number" min="0" max="50" step="1" autocomplete="off" aria-label="Cushion percent"/>
+                <input class="rr-tgt-kpi-input" id="rr-sched-targets-cushion-pct" type="number" min="0" max="50" step="1" autocomplete="off" aria-label="Cushion percent — extra shifts added at schedule build"/>
                 <span class="rr-tgt-kpi-unit">%</span>
               </div>
             </div>

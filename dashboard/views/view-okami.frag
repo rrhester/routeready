@@ -32,7 +32,7 @@
             <input class="form-input form-input-sm" id="rr-okami-set-block-hours" type="number" min="1" max="14" step="1" autocomplete="off" style="width:64px;text-align:right"/>
             <span style="color:var(--text-subtle);font-size:var(--fs-xs)">h</span>
           </label>
-          <label style="display:inline-flex;align-items:center;gap:6px">
+          <label style="display:inline-flex;align-items:center;gap:6px" title="Cushion adds extra SHIFTS when the week's schedule is built — not extra hires (that's the Plan Pad below)">
             <span>Cushion</span>
             <input class="form-input form-input-sm" id="rr-okami-set-cushion-pct" type="number" min="0" max="50" step="1" autocomplete="off" style="width:64px;text-align:right"/>
             <span style="color:var(--text-subtle);font-size:var(--fs-xs)">%</span>
@@ -49,7 +49,7 @@
         <div id="rr-okami-pad-row" style="margin-bottom:var(--s-4);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s-3-5) var(--s-4);display:flex;align-items:center;gap:var(--s-3-5);flex-wrap:wrap">
           <div style="flex:0 0 auto">
             <div style="font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Staffing Plan Pad</div>
-            <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">Buffer above the 2× per-route baseline. Separate from the schedule cushion.</div>
+            <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">Extra <b>hires</b> buffer above the per-route baseline. Not the schedule cushion — that adds extra <b>shifts</b> at build time.</div>
           </div>
           <div style="flex:1 1 240px;display:flex;align-items:center;gap:var(--s-2-5);min-width:240px">
             <input type="range" id="rr-okami-pad" min="0" max="50" step="5" value="10" style="flex:1"/>

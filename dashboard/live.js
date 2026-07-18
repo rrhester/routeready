@@ -3689,6 +3689,16 @@ function _rrEnsureForecastRates() {
     };
     window._rrForecastRates = rates;
     // Repaint the surfaces that fold these in, if they're on screen.
+    // The 13-week table itself uses dpr + onboarding hire dates now, so
+    // a first render that ran on defaults gets refreshed too.
+    try {
+      if (window._rrOkamiModel && typeof renderOkamiLive === "function") {
+        // Keep the table on its current anchor — a plain re-render would
+        // snap _okamiStart back to the actual current week.
+        if (window._okamiStart) window._rrOkamiAnchorOverride = window._okamiStart;
+        renderOkamiLive();
+      }
+    } catch (_) {}
     try { if (typeof _rrRefreshTargetsGapCard === "function") _rrRefreshTargetsGapCard(); } catch (_) {}
     try {
       if (typeof _rrIntelActiveName !== "undefined" && _rrIntelActiveName === "risk-forecast") {
@@ -3868,7 +3878,12 @@ function _rrReadOkamiWeeks() {
           simOnTimeOff = sim.onTimeOff;
         }
       }
-      const effectiveAvail = simAvail != null ? simAvail : w.avail;
+      // `avail` here feeds forecast-core's assessPlan, which subtracts
+      // onboarding-not-ready itself (onboardingNotReadyByWeek) — so pass
+      // the raw payroll-minus-time-off number (availRaw), not the table's
+      // route-ready display value, or onboarding would be deducted twice.
+      const baseAvail = w.availRaw != null ? w.availRaw : w.avail;
+      const effectiveAvail = simAvail != null ? simAvail : baseAvail;
       const effectiveGap   = effectiveAvail - w.needed;
       return {
         idx: w.idx, label: w.label, dates: w.dates, needed: w.needed,
@@ -3877,8 +3892,10 @@ function _rrReadOkamiWeeks() {
         avail: effectiveAvail,
         gap: effectiveGap,
         gapKind: effectiveGap >= 0 ? "ok" : "bad",
+        unplanned: !!w.unplanned,
         statusText: w.statusText, statusKind: w.statusKind, hireBy: w.hireBy,
-        plannedAvail: w.avail,
+        plannedAvail: baseAvail,
+        readyAvail: w.avail,
         simAvail, simOnPto, simOnTimeOff,
         isSimulated: simAvail != null,
       };
@@ -52654,13 +52671,20 @@ function _okamiRecomputeFromCache(padPct) {
       const t = _okamiTotalsByDateCache.get(fmtIsoDate(addDays(weekStart, d))) || 0;
       if (t > routesMax) routesMax = t;
     }
-    const needed = rrDriversNeeded(routesMax, { driversPerRoute: dpr, padPct });
-    const gap = _okamiActiveCount - needed;
+    const unplanned = routesMax === 0;
+    const needed = unplanned ? 0 : rrDriversNeeded(routesMax, { driversPerRoute: dpr, padPct });
+    // Per-week projected availability from the model (the full render
+    // computed it from the horizon RPC); flat count only as a fallback.
+    const avail = modelWeeks?.[w]?.avail ?? _okamiActiveCount;
+    const gap = avail - needed;
     const tdCells = row.querySelectorAll("td");
-    if (tdCells[2]) tdCells[2].innerHTML = `<div class="plan-calc">${needed}</div>`;
-    if (tdCells[3]) tdCells[3].innerHTML = `<div class="plan-calc">${_okamiActiveCount}</div>`;
+    if (tdCells[2]) {
+      const calc = tdCells[2].querySelector(".plan-calc");
+      if (calc) calc.textContent = unplanned ? "—" : String(needed);
+    }
     const gapEl = tdCells[4]?.querySelector(".plan-gap");
-    if (gapEl) {
+    if (gapEl && !unplanned) {
+      gapEl.classList.remove("rr-tgt-gap-unplanned");
       gapEl.textContent = (gap >= 0 ? "+" : "") + gap;
       gapEl.classList.remove("ok", "warn", "bad");
       // Severity class drives the graduated red (or green) gap pill on the
@@ -52672,7 +52696,6 @@ function _okamiRecomputeFromCache(padPct) {
     if (modelWeeks && modelWeeks[w]) {
       modelWeeks[w].needed = needed;
       modelWeeks[w].gap = gap;
-      modelWeeks[w].avail = _okamiActiveCount;
     }
   }
   _rrOkamiRenderTfoot();
@@ -52815,6 +52838,47 @@ function _rrOkamiRenderTfoot() {
   </td></tr>`;
 }
 
+// "Drivers needed" header ⓘ — the formula with the DSP's live numbers,
+// and where each dial lives. Also spells out Cushion vs Plan Pad (two
+// different percent-buffers that operators regularly conflate: cushion
+// adds SHIFTS at schedule build; pad adds HIRES to the staffing plan).
+function _rrOkamiEnhanceHeader() {
+  const table = document.querySelector(".plan-table-wrap .okami-table");
+  if (!table) return;
+  const th = table.querySelectorAll("thead th")[2];
+  if (!th || th.querySelector(".rr-tgt-th-info")) return;
+  th.insertAdjacentHTML("beforeend",
+    ` <button class="rr-tgt-th-info" type="button" aria-label="How Drivers needed is calculated" title="How is this calculated?">?</button>`);
+}
+function _rrOkamiFormulaHtml() {
+  const rates = window._rrForecastRates || {};
+  const dpr = rates.driversPerRoute ?? 2;
+  const pad = Math.max(0, Math.min(50, Number(window.RR?.dsp?.metadata?.staffing?.plan_pad_pct ?? 10) || 0));
+  const cushionRaw = Number(window._rrEffectiveSettings?.cushion_pct);
+  const cushion = Number.isFinite(cushionRaw) ? cushionRaw : null;
+  const wk = (window._rrOkamiModel?.weeks || []).find((w) => !w.unplanned);
+  const example = wk
+    ? `<div style="margin:8px 0;color:var(--text)">e.g. ${escapeHtml(wk.label)}: ceil(${wk.routesMax} × ${dpr} × ${(1 + pad / 100).toFixed(2)}) = <b>${wk.needed}</b></div>`
+    : "";
+  return `<div class="pa-pop-h">Drivers needed</div>
+    <div style="padding:12px 14px;line-height:1.5">
+      <div style="font-family:var(--font-mono,monospace);font-size:var(--fs-xs);color:var(--text-muted)">ceil( peak routes/day × drivers-per-route × (1 + plan pad) )</div>
+      ${example}
+      <div style="margin-top:8px;display:grid;gap:6px;font-size:var(--fs-xs);color:var(--text-muted)">
+        <div><b>Drivers per route</b> — ${dpr} · set in Hiring settings (1 primary + backups)</div>
+        <div><b>Plan pad</b> — ${pad}% · extra <i>hires</i> buffer, the slider on the OKAMI page</div>
+        <div><b>Cushion</b>${cushion != null ? ` — ${cushion}%` : ""} · different thing: adds extra <i>shifts</i> when the schedule is built, not extra drivers</div>
+      </div>
+    </div>`;
+}
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest && e.target.closest(".rr-tgt-th-info");
+  if (!btn) return;
+  e.preventDefault();
+  e.stopPropagation();
+  if (typeof _paOpenPopover === "function") _paOpenPopover(btn, _rrOkamiFormulaHtml());
+});
+
 async function _renderOkamiLiveImpl() {
   const tbody = document.getElementById("okami-tbody");
   if (!tbody) return;
@@ -52846,12 +52910,23 @@ async function _renderOkamiLiveImpl() {
   // with no flash.
   _rrOkamiShowSkeleton(tbody);
 
-  const [gridRes, drvRes] = await Promise.all([
+  const [gridRes, drvRes, onbRes, horizonRes] = await Promise.all([
     sb.rpc("okami_grid", { p_start: _okamiStart, p_weeks: RR_OKAMI_WEEKS }),
     sb.from("drivers")
       .select("id, status", { count: "exact", head: true })
       .eq("dsp_id", dspId)
       .in("status", ["active", "onboarding"]),
+    // Onboarding split — they're on payroll but not route-ready, so the
+    // Available column separates them instead of silently counting them.
+    sb.from("drivers")
+      .select("id", { count: "exact", head: true })
+      .eq("dsp_id", dspId)
+      .eq("status", "onboarding"),
+    // Per-week availability projection (payroll minus approved time-off
+    // overlapping each week) — the same RPC the Risk-Forecast Simulate
+    // uses, now folded into the base table so "Available" is a per-week
+    // projection instead of one flat snapshot repeated 13 times.
+    sb.rpc("active_drivers_for_horizon", { p_first_week_start: _okamiStart, p_weeks: RR_OKAMI_WEEKS }),
   ]);
 
   if (gridRes.error || drvRes.error) {
@@ -52860,14 +52935,36 @@ async function _renderOkamiLiveImpl() {
     _rrOkamiShowError(tbody, msg);
     return;
   }
+  // The projection + onboarding split are enrichments — if either fails
+  // (older DB, transient error) the table falls back to the flat count.
+  if (onbRes.error) _rrSwallow("okami onboarding count", onbRes.error);
+  if (horizonRes.error) _rrSwallow("okami availability horizon", horizonRes.error);
 
   const cells = gridRes.data || [];
   _okamiActiveCount = drvRes.count || 0;
+  const onboardingCount = onbRes.error ? 0 : (onbRes.count || 0);
+  // week_start ISO → { total_active, on_time_off, on_pto, available }
+  const availByWeek = new Map(
+    (horizonRes.error ? [] : horizonRes.data || []).map((r) => [String(r.week_start), r]));
+  window._rrOkamiCounts = { total: _okamiActiveCount, onboarding: onboardingCount };
 
-  // Sum target_routes per ISO date across all stations.
+  // Sum target_routes + filled per ISO date across all stations, and
+  // per-week service-type mix from targets_by_wave.
   const totalsByDate = new Map();
+  const filledByDate = new Map();
+  const typeTotalsByWeekIdx = Array.from({ length: RR_OKAMI_WEEKS }, () => ({}));
+  const startNoonUtc = Date.parse(_okamiStart + "T12:00:00Z");
   for (const c of cells) {
     totalsByDate.set(c.date, (totalsByDate.get(c.date) || 0) + (c.target_routes || 0));
+    filledByDate.set(c.date, (filledByDate.get(c.date) || 0) + (c.filled || 0));
+    const wIdx = Math.floor(Math.round((Date.parse(c.date + "T12:00:00Z") - startNoonUtc) / 86400000) / 7);
+    if (wIdx >= 0 && wIdx < RR_OKAMI_WEEKS && Array.isArray(c.targets_by_wave)) {
+      const bucket = typeTotalsByWeekIdx[wIdx];
+      for (const t of c.targets_by_wave) {
+        const code = t?.service_type_code || "SP";
+        bucket[code] = (bucket[code] || 0) + (t?.target_routes || 0);
+      }
+    }
   }
   // Cache for fast slider re-renders (no network round-trip per drag tick).
   _okamiTotalsByDateCache = totalsByDate;
@@ -52886,6 +52983,7 @@ async function _renderOkamiLiveImpl() {
   // Build (or keep) the generated rows, then fill them. Week rows are
   // every non-detail row inside #okami-tbody in document order.
   _rrOkamiEnsureRows(tbody);
+  _rrOkamiEnhanceHeader();
   const allOkamiRows = Array.from(tbody.querySelectorAll("tr:not(.okami-detail)"));
 
   // Kick the shared forecast-rates load (drivers-per-route ratio, callout /
@@ -52901,6 +52999,12 @@ async function _renderOkamiLiveImpl() {
   const modelWeeks = [];
 
   const todayIso = fmtIsoDate(new Date());
+  // Onboarding readiness list (hire_date ≤ week start = road-ready, the
+  // staffing outlook's convention). Until the rates load lands, every
+  // onboarding driver counts as not-ready — the loader's repaint hook
+  // re-renders once real hire dates are known.
+  const onbList = Array.isArray(window._rrForecastRates?.onboarding)
+    ? window._rrForecastRates.onboarding : null;
 
   for (let w = 0; w < RR_OKAMI_WEEKS; w++) {
     const row = allOkamiRows[w];
@@ -52918,9 +53022,23 @@ async function _renderOkamiLiveImpl() {
       weekRoutes += t;
       if (t > routesMax) routesMax = t;
     }
+    // A week with zero routes has no plan — rendering it as a healthy
+    // green surplus made "no data" look like "covered through October".
+    const unplanned = routesMax === 0;
 
-    const needed  = rrDriversNeeded(routesMax, { driversPerRoute: _fcDpr, padPct });
-    const gap     = _okamiActiveCount - needed;
+    // Per-week availability: payroll minus approved time-off (horizon
+    // RPC), minus onboarding drivers not yet road-ready that week.
+    const hz = availByWeek.get(weekStartIso);
+    const payroll  = hz ? (hz.total_active ?? _okamiActiveCount) : _okamiActiveCount;
+    const offCount = hz ? (hz.on_time_off || 0) : 0;
+    const availRaw = hz ? Math.max(0, hz.available ?? _okamiActiveCount) : _okamiActiveCount;
+    const notReady = onbList
+      ? onbList.filter((o) => !o.hire_date || o.hire_date > weekStartIso).length
+      : onboardingCount;
+    const avail = Math.max(0, availRaw - notReady);
+
+    const needed  = unplanned ? 0 : rrDriversNeeded(routesMax, { driversPerRoute: _fcDpr, padPct });
+    const gap     = avail - needed;
     const hireBy  = addDays(weekStart, -RR_OKAMI_HIRE_LEAD_DAYS);
 
     const labelEl = row.querySelector(".plan-week-label");
@@ -52936,8 +53054,22 @@ async function _renderOkamiLiveImpl() {
     const chipsEl = row.querySelector(".rr-tgt-week-chips");
     if (chipsEl) {
       const holidays = _rrUsHolidaysInWeek(weekStart);
+      // Current week also shows plan-vs-actual to date: assigned shifts
+      // vs planned routes over the elapsed days.
+      let actualChip = "";
+      if (isNow && !unplanned) {
+        let plannedSoFar = 0, filledSoFar = 0;
+        for (let d = 0; d < 7; d++) {
+          const iso = fmtIsoDate(addDays(weekStart, d));
+          if (iso > todayIso) break;
+          plannedSoFar += totalsByDate.get(iso) || 0;
+          filledSoFar  += filledByDate.get(iso) || 0;
+        }
+        if (plannedSoFar > 0) actualChip = `<span class="rr-tgt-actual-chip" title="Assigned shifts vs planned routes, week to date">${filledSoFar}/${plannedSoFar} filled</span>`;
+      }
       chipsEl.innerHTML =
         (isNow ? `<span class="rr-tgt-now-chip">This week</span>` : "") +
+        actualChip +
         (monthTurns ? `<span class="rr-tgt-month-chip">${weekStart.toLocaleDateString(undefined, { month: "short" })}</span>` : "") +
         holidays.map((h) => `<span class="rr-tgt-evt-chip" title="${escapeHtml(h.label)} · demand-relevant holiday">${escapeHtml(h.name)}</span>`).join("");
     }
@@ -52955,29 +53087,60 @@ async function _renderOkamiLiveImpl() {
       input.dataset.rrOkamiWeekIdx = String(w);
     }
 
+    // Demand context: the formula with live numbers + avg-day + type mix,
+    // shown where the number is (header ⓘ opens the full explainer).
+    const avgDay = weekRoutes ? Math.round(weekRoutes / 7) : 0;
+    const mixEntries = Object.entries(typeTotalsByWeekIdx[w] || {}).filter(([, v]) => v > 0);
+    let mixText = "";
+    if (mixEntries.length > 1) {
+      const mixTotal = mixEntries.reduce((s, [, v]) => s + v, 0);
+      mixText = " · mix " + mixEntries.sort((a, b) => b[1] - a[1])
+        .map(([code, v]) => `${code} ${Math.round((v / mixTotal) * 100)}%`).join(", ");
+    }
+    const neededTitle = unplanned
+      ? "No routes planned this week yet"
+      : `ceil(peak ${routesMax} × ${_fcDpr} drivers/route × ${(1 + padPct / 100).toFixed(2)} pad) = ${needed} · avg day ${avgDay} routes${mixText}`;
+
+    const availTitle = [`${payroll} on payroll`]
+      .concat(offCount ? [`− ${offCount} approved time-off`] : [])
+      .concat(notReady ? [`− ${notReady} onboarding (not route-ready yet)`] : [])
+      .join(" ");
+
     const tdCells = row.querySelectorAll("td");
     // [0]=Week, [1]=Routes input, [2]=Needed, [3]=Available, [4]=Gap, [5]=Strategy, [6]=Hire by, [7]=Status
-    if (tdCells[2]) tdCells[2].innerHTML = `<div class="plan-calc">${needed}</div>`;
-    if (tdCells[3]) tdCells[3].innerHTML = `<div class="plan-calc">${_okamiActiveCount}</div>`;
+    if (tdCells[2]) tdCells[2].innerHTML = unplanned
+      ? `<div class="plan-calc" title="${escapeHtml(neededTitle)}" style="color:var(--text-subtle)">—</div>`
+      : `<div class="plan-calc" title="${escapeHtml(neededTitle)}">${needed}</div>`;
+    if (tdCells[3]) tdCells[3].innerHTML =
+      `<div class="plan-calc" title="${escapeHtml(availTitle)}">${avail}</div>`
+      + (notReady ? `<div class="rr-tgt-avail-sub" title="On payroll, still onboarding — they join Available from their road-ready week">+${notReady} onboarding</div>` : "");
 
-    // Plain numbers — no color codes / pills (operator wanted less noise).
     const gapEl = tdCells[4]?.querySelector(".plan-gap");
     if (gapEl) {
-      gapEl.textContent = (gap >= 0 ? "+" : "") + gap;
-      gapEl.classList.remove("ok", "warn", "bad");
-      // Severity class drives the graduated red (or green) gap pill on the
-      // Targets page (scoped CSS; standalone OKAMI leaves the gap unstyled).
-      _rrApplyGapClass(gapEl, gap);
+      if (unplanned) {
+        gapEl.textContent = "No plan";
+        gapEl.classList.remove("ok", "warn", "bad", "rr-tgt-gap-pos", "rr-tgt-gap-s1", "rr-tgt-gap-s2", "rr-tgt-gap-s3");
+        gapEl.classList.add("rr-tgt-gap-unplanned");
+        gapEl.title = "No routes planned this week yet — type a peak or use the daily editor";
+      } else {
+        gapEl.classList.remove("rr-tgt-gap-unplanned");
+        gapEl.textContent = (gap >= 0 ? "+" : "") + gap;
+        gapEl.classList.remove("ok", "warn", "bad");
+        // Severity class drives the graduated red (or green) gap pill on the
+        // Targets page (scoped CSS; standalone OKAMI leaves the gap unstyled).
+        _rrApplyGapClass(gapEl, gap);
+        if (gap < 0) gapEl.title += ` · hire by ${fmtMD(hireBy)} (${RR_OKAMI_HIRE_LEAD_DAYS}-day lead)`;
+      }
     }
 
     const stratEl = tdCells[5]?.querySelector(".strategy-pills");
     if (stratEl) {
-      const text = gap >= 0 ? "Hold" : (gap >= -10 ? "+8h OT" : "Hire");
+      const text = unplanned ? "—" : gap >= 0 ? "Hold" : (gap >= -10 ? "+8h OT" : "Hire");
       stratEl.innerHTML = `<span class="u-sm-muted">${text}</span>`;
     }
 
     const hireByEl = tdCells[6]?.querySelector(".plan-calc");
-    const hireByText = gap >= 0 ? "—" : fmtMD(hireBy);
+    const hireByText = unplanned || gap >= 0 ? "—" : fmtMD(hireBy);
     if (hireByEl) {
       hireByEl.textContent = hireByText;
     }
@@ -52985,9 +53148,11 @@ async function _renderOkamiLiveImpl() {
     // Status text uses the single forecast vocabulary (audit #84):
     // On track / Watch / At risk — same words as the Risk Forecast view
     // and the gap card, driven by the same coverage thresholds.
-    const statusText = gap >= 0
-      ? "On track"
-      : RR_FC_LABEL[(needed > 0 && _okamiActiveCount / needed < 0.80) ? "risk" : "watch"];
+    const statusText = unplanned
+      ? "No plan yet"
+      : gap >= 0
+        ? "On track"
+        : RR_FC_LABEL[(needed > 0 && avail / needed < 0.80) ? "risk" : "watch"];
     const statusEl = row.querySelector("[data-rr-okami-status]");
     if (statusEl) statusEl.textContent = statusText;
 
@@ -52997,11 +53162,16 @@ async function _renderOkamiLiveImpl() {
       label: `W${isoWeek(weekStart)}`,
       dates: `${fmtMD(weekStart)}–${weekEnd.getDate()}`,
       routesMax, weekRoutes, needed,
-      avail: _okamiActiveCount,
+      avail,
+      availRaw,
+      payroll,
+      onTimeOff: offCount,
+      notReadyOnboarding: notReady,
       gap,
+      unplanned,
       hireBy: hireByText,
       statusText,
-      statusKind: gap >= 0 ? "ok" : (needed > 0 && _okamiActiveCount / needed < 0.80 ? "risk" : "tight"),
+      statusKind: unplanned ? "unplanned" : gap >= 0 ? "ok" : (needed > 0 && avail / needed < 0.80 ? "risk" : "tight"),
     });
   }
 
@@ -54377,6 +54547,11 @@ function _rrRefreshTargetsGapCard() {
   // with the projection after the operator runs Simulate.
   let weeks = [];
   try { weeks = (_rrReadOkamiWeeks() || []).filter((w) => Number.isFinite(w.gap)); } catch (_) {}
+  // Weeks with no routes planned are unknowns, not surpluses — they must
+  // not feed the assessment (a zero-demand week reads as "covered" and
+  // could mask the real horizon). They're surfaced as a count instead.
+  const unplannedCount = weeks.filter((w) => w.unplanned).length;
+  weeks = weeks.filter((w) => !w.unplanned);
   if (!weeks.length) { card.hidden = true; return; }
   // Shared forecast-core assessment (same one the Risk Forecast renders
   // from): effective supply + hire-by reachability. Rates load lazily and
@@ -54390,6 +54565,14 @@ function _rrRefreshTargetsGapCard() {
   const mainEl = document.getElementById("rr-tgt-gap-card-main");
   if (mainEl) mainEl.textContent = `${worst > 0 ? "+" : ""}${worst} Driver${Math.abs(worst) === 1 ? "" : "s"}`;
   card.classList.toggle("rr-tgt-gap-card--pos", worst >= 0);
+  // Name the worst week — "-104" alone doesn't say WHEN the cliff is.
+  const labelEl = card.querySelector(".rr-tgt-gap-card-label");
+  if (labelEl) {
+    labelEl.textContent = worst < 0 && A.worstWeek.label
+      ? `Forecast gap · worst ${A.worstWeek.label}`
+      : "Forecast gap";
+    if (A.worstWeek.dates) labelEl.title = worst < 0 ? `Deepest shortfall: ${A.worstWeek.label} (${A.worstWeek.dates})` : "";
+  }
   // Prescription line — the one action the number implies. Hire count =
   // deepest shortfall among weeks hiring can still reach (one hire fills a
   // seat in every later week, so weekly gaps are never summed); deadline =
@@ -54432,6 +54615,7 @@ function _rrRefreshTargetsGapCard() {
     } else {
       subEl.textContent = "Staffed through the plan";
     }
+    if (unplannedCount > 0) subEl.textContent += ` · ${unplannedCount} wk${unplannedCount === 1 ? "" : "s"} unplanned`;
     subEl.hidden = false;
   }
   // A short plan gets a click-through to the full Risk forecast analysis
@@ -54469,7 +54653,7 @@ document.addEventListener("keydown", (e) => {
 // negative scales light → medium → dark red with the size of the shortfall.
 function _rrApplyGapClass(gapEl, gap) {
   if (!gapEl) return;
-  gapEl.classList.remove("rr-tgt-gap-pos", "rr-tgt-gap-s1", "rr-tgt-gap-s2", "rr-tgt-gap-s3");
+  gapEl.classList.remove("rr-tgt-gap-pos", "rr-tgt-gap-s1", "rr-tgt-gap-s2", "rr-tgt-gap-s3", "rr-tgt-gap-unplanned");
   if (gap >= 0) {
     gapEl.classList.add("rr-tgt-gap-pos");
     gapEl.title = gap === 0 ? "Exactly covered — no spare drivers" : `Covered with ${gap} spare driver${gap === 1 ? "" : "s"}`;
