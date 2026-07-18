@@ -33,7 +33,7 @@ import {
   genMeetCode, normalizeMeetCode, buildMeetUrl,
   isPolite, sortRoster, gridDims, fmtDuration, initials,
   sendPolicy, qualityLevel, pickActiveSpeaker,
-} from "/dashboard/meet-core.js?v=8dcd319303ce";
+} from "/dashboard/meet-core.js?v=821ca8d0df83";
 
 const SUPABASE_ESM_URL = "./vendor/supabase-js-2.45.4.mjs";
 
