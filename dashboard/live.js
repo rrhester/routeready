@@ -8,12 +8,12 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=720ef4cf347b";
-import { assessPlan as rrAssessLaborPlan, driversNeeded as rrDriversNeeded, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=720ef4cf347b";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=720ef4cf347b";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=720ef4cf347b";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=720ef4cf347b";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=720ef4cf347b";
+import { planScheduleWeek } from "./scheduling-engine.js?v=b08bb566c68b";
+import { assessPlan as rrAssessLaborPlan, driversNeeded as rrDriversNeeded, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=b08bb566c68b";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=b08bb566c68b";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=b08bb566c68b";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=b08bb566c68b";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=b08bb566c68b";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -24,9 +24,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=720ef4cf347b";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=720ef4cf347b";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=720ef4cf347b";
+} from "./msg-core.mjs?v=b08bb566c68b";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=b08bb566c68b";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=b08bb566c68b";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -42465,9 +42465,12 @@ function _mcEnsureExtrasCss() {
     .rr-mc-shiftctx{color:var(--accent-text);font-weight:600}
     .rr-mc-quickchips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:6px 10px}
     .rr-mc-quickchips::-webkit-scrollbar{display:none}
-    /* Batch 8 · perf: browser-level virtualization for long threads and
-       big rosters (#77/#82) — offscreen bubbles/rows skip layout+paint. */
-    .rr-mc-bubble,.rr-cc-bubble{content-visibility:auto;contain-intrinsic-size:auto 64px}
+    /* Batch 8 · perf: browser-level virtualization for big rosters (#82) —
+       offscreen rows skip layout+paint. Bubbles must NOT get
+       content-visibility: it implies paint containment, which clips the
+       hover action bar / room actions that sit above the bubble box
+       (top:-10px / -12px) — live report 2026-07-18 "tools in the top
+       right of the message bubble are getting cut off". */
     .msg-item{content-visibility:auto;contain-intrinsic-size:auto 58px}
     /* Batch 9 · a11y & polish */
     .rr-mc-bubble-actions button:focus-visible,.rr-mc-react-chip:focus-visible,.msg-fb-btn:focus-visible,
