@@ -8,12 +8,12 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=8dcd319303ce";
-import { assessPlan as rrAssessLaborPlan, driversNeeded as rrDriversNeeded, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=8dcd319303ce";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=8dcd319303ce";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=8dcd319303ce";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=8dcd319303ce";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=8dcd319303ce";
+import { planScheduleWeek } from "./scheduling-engine.js?v=821ca8d0df83";
+import { assessPlan as rrAssessLaborPlan, driversNeeded as rrDriversNeeded, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=821ca8d0df83";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=821ca8d0df83";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=821ca8d0df83";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=821ca8d0df83";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=821ca8d0df83";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -24,9 +24,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=8dcd319303ce";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=8dcd319303ce";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=8dcd319303ce";
+} from "./msg-core.mjs?v=821ca8d0df83";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=821ca8d0df83";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=821ca8d0df83";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -42451,11 +42451,9 @@ function _mcEnsureExtrasCss() {
     .rr-mc-bubble.search-hit{outline:2px solid rgba(250,204,21,.75);outline-offset:1px}
     /* Batch 4 · rooms & broadcasts */
     .rr-cc-bubble{position:relative}
-    .rr-cc-bubble .rr-cc-actions{position:absolute;top:-12px;right:8px;display:none;gap:2px;background:var(--surface,#fff);border:1px solid var(--border);border-radius:var(--r-md);padding:2px;box-shadow:0 4px 14px rgba(15,23,42,.12);z-index:4}
-    .rr-cc-bubble:hover .rr-cc-actions{display:flex}
-    .rr-cc-actions button{background:none;border:0;cursor:pointer;color:var(--text-subtle);padding:4px;border-radius:var(--r-sm);width:26px;height:26px;display:flex;align-items:center;justify-content:center}
-    .rr-cc-actions button:hover{background:var(--surface-hover,#f3f4f6);color:var(--text)}
-    .rr-cc-actions svg{width:14px;height:14px}
+    /* .rr-cc-actions styling now comes entirely from the shared
+       .rr-mc-bubble-actions panel rules in inline-styles.css (the toolbar
+       redesign, 2026-07-18) — no per-view overrides here. */
     .rr-cc-thread-chip{display:inline-flex;align-items:center;gap:4px;background:none;border:0;color:var(--accent-text);font:inherit;font-size:var(--fs-xs);font-weight:600;cursor:pointer;padding:2px 0;margin-top:2px}
     .rr-cc-thread-chip:hover{text-decoration:underline}
     .rr-cc-ackchip{display:inline-flex;align-items:center;gap:5px;background:var(--surface,#fff);border:1px solid var(--border);border-radius:var(--r-pill,999px);color:var(--text-subtle);font:inherit;font-size:var(--fs-xs);font-weight:700;padding:2px 9px;margin:4px 0 2px;cursor:pointer}
@@ -43958,12 +43956,12 @@ async function refreshDriverChatThread(scrollToBottom) {
       // Attachment-only messages drop the bubble chrome so the card /
       // thumbnail reads as a standalone surface (enterprise register).
       const attachOnly = (m.attachment_path && !m.body && !isDeleted) ? " attach-only" : "";
-      const bookmarkBtn = isDeleted ? "" : _rrBookmarkBtnHtml("driver", m.id);
+      // Save-message moved into the ⋯ menu 2026-07-18 — the floating
+      // gutter bookmark was one adornment too many around the bubble.
       const pinnedTag = _mcPins.some((p) => p.message_id === m.id)
         ? `<span class="rr-mc-pinned-tag" title="Pinned">📌</span>` : "";
       html += `<div class="rr-mc-bubble ${m.sender_kind}${deletedClass}${priCls}${attachOnly}" data-group-pos="${pos}" data-rr-mc-msg="${escapeHtml(m.id)}">
         ${actions}
-        ${bookmarkBtn}
         ${quoteHtml}${priTag}${attach}${m.is_auto ? '<span class="rr-mc-auto" title="Automated message">Auto</span>' : ''}${bodyHtml}${ackChip}
         <div class="rr-mc-time" title="${escapeHtml(t.toLocaleString())}">${pinnedTag}${escapeHtml(time)}${editedTag}</div>
         <div class="rr-mc-reacts" data-rr-mc-reacts="${escapeHtml(m.id)}"></div>
@@ -44425,6 +44423,7 @@ function _mcOpenMoreMenu(anchor, messageId) {
   const m = _mcMsgById(messageId);
   if (!m) return;
   const pinned = _mcPins.some((p) => p.message_id === m.id);
+  const saved = _rrSavedMsgIds.has(m.id);
   const pop = document.createElement("div");
   pop.className = "rr-mc-pop rr-mc-plus-menu";
   pop.setAttribute("role", "menu");
@@ -44433,6 +44432,7 @@ function _mcOpenMoreMenu(anchor, messageId) {
     <button type="button" data-rr-mm="link">🔗<span>Copy link to message</span></button>
     <button type="button" data-rr-mm="info">ℹ️<span>Message info</span></button>
     <button type="button" data-rr-mm="pin">📌<span>${pinned ? "Unpin from conversation" : "Pin to conversation"}</span></button>
+    <button type="button" data-rr-mm="save">🔖<span>${saved ? "Remove from saved" : "Save message"}</span></button>
     <button type="button" data-rr-mm="fwd">↪️<span>Forward…</span></button>
     ${m.body ? `<button type="button" data-rr-mm="translate">🌐<span>Translate</span></button>` : ""}
     <div class="rr-mc-plus-sep"></div>
@@ -44463,6 +44463,15 @@ function _mcOpenMoreMenu(anchor, messageId) {
       }
       toast(pinned ? "Unpinned" : "Pinned to the top of this conversation", "ok");
       refreshDriverChatThread(false);
+    } else if (act === "save") {
+      // Same toggle the old gutter bookmark ran (dispatch_bookmark_toggle).
+      try {
+        await sb.rpc("dispatch_bookmark_toggle", { p_message_kind: "driver", p_message_id: m.id, p_on: !saved });
+        if (!saved) _rrSavedMsgIds.add(m.id); else _rrSavedMsgIds.delete(m.id);
+        toast(!saved ? "Saved to your list" : "Removed from saved", !saved ? "success" : "info");
+      } catch (err) {
+        toast("Couldn't update saved: " + (err?.message || ""), "warn");
+      }
     } else if (act === "fwd") {
       _mcOpenForwardModal(m);
     } else if (act === "translate") {
@@ -47086,7 +47095,9 @@ function _ccRenderBody(raw, mentioned) {
 // Bookmark toggle button for a bubble (kind = 'driver' | 'channel').
 function _rrBookmarkBtnHtml(kind, msgId) {
   const saved = _rrSavedMsgIds.has(msgId);
-  return `<button type="button" class="rr-msg-bookmark${saved ? " saved" : ""}" data-rr-bookmark="${escapeHtml(msgId)}" data-rr-bookmark-kind="${kind}" aria-label="${saved ? "Remove from saved" : "Save message"}" title="${saved ? "Saved — click to remove" : "Save for later"}"><svg viewBox="0 0 24 24" width="13" height="13" fill="${saved ? "currentColor" : "none"}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></button>`;
+  // Plain toolbar-panel button (no positioning class) — it renders inside
+  // the .rr-mc-bubble-actions hover panel, which supplies the chrome.
+  return `<button type="button" class="${saved ? "saved" : ""}" data-rr-bookmark="${escapeHtml(msgId)}" data-rr-bookmark-kind="${kind}" aria-label="${saved ? "Remove from saved" : "Save message"}" title="${saved ? "Saved — click to remove" : "Save for later"}"><svg viewBox="0 0 24 24" width="13" height="13" fill="${saved ? "currentColor" : "none"}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></button>`;
 }
 
 // Emoji picker popover, anchored above the clicked "add reaction" button.
@@ -47824,9 +47835,11 @@ async function refreshChannelThread(scrollToBottom) {
         const total = _ccMemberCount || (_ccCurrentMembers || []).length;
         ackChipCc = `<button type="button" class="rr-cc-ackchip${acked >= total && total > 0 ? " done" : ""}" data-rr-cc-ackboard="${escapeHtml(m.id)}" title="Open the delivery board">✓ ${acked} of ${total} acknowledged</button>`;
       }
-      // Hover actions: reply (+ thread view when replies exist).
+      // Hover toolbar: reply + save, one panel (bookmark moved in from the
+      // gutter 2026-07-18 as part of the bubble-chrome calm-down).
       const ccActions = `<div class="rr-mc-bubble-actions rr-cc-actions">
           <button type="button" data-rr-cc-reply="${escapeHtml(m.id)}" aria-label="Reply in thread" title="Reply"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg></button>
+          ${bookmarkBtn}
         </div>`;
       // "Seen by N of M" — only on the latest dispatch broadcast, so the
       // operator can confirm the fleet actually saw an urgent notice.
@@ -47838,7 +47851,6 @@ async function refreshChannelThread(scrollToBottom) {
       return `<div class="rr-cc-bubble ${m.sender_kind}${ccAttachOnly}" data-group-pos="${pos}" data-rr-cc-msg="${escapeHtml(m.id)}">
         ${ccActions}
         ${showSender ? `<div class="rr-cc-sender">${escapeHtml(senderLabel)}</div>` : ""}
-        ${bookmarkBtn}
         ${ccQuote}${attach}
         ${bodyHtml}
         ${ackChipCc}
