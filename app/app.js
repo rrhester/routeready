@@ -2581,6 +2581,8 @@ function shiftCardHtml(s, isToday, vanInfo, opts) {
   if (isRotation && vanName) chips.push(`<span class="sc-chip sc-chip-rot">${escapeHtml(vanName)} · rotation</span>`);
   if (isTraining) chips.push(`<span class="sc-chip sc-chip-train">Class · Day ${escapeHtml(String(s.trainingDay || 1))}</span>`);
   else if (isRideAlong) { const tn = s.trainerName ? s.trainerName.split(/\s+/)[0] : ""; chips.push(`<span class="sc-chip sc-chip-road">${tn ? `Road · ${escapeHtml(tn)}` : "Road"}</span>`); }
+  // Helper seat — the second body on an XL route (rides along, no XL cert).
+  if (s.shiftKind === "helper") chips.push(`<span class="sc-chip sc-chip-helper">Helper</span>`);
   if (s.isCushion) chips.push(`<span class="sc-chip sc-chip-cushion">Cushion</span>`);
   if (s.status === "completed") chips.push(`<span class="sc-chip sc-chip-done">Completed</span>`);
 
@@ -2644,6 +2646,9 @@ function _shiftMetaCells(s, vanInfo, { withStation } = {}) {
   } else if (isRideAlong) {
     const tn = s.trainerName ? s.trainerName.split(/\s+/)[0] : "";
     cells.push(`<div class="sc-cell"><div class="sc-cell-l">Training</div><div class="sc-cell-v sc-cell-v--road">${tn ? `Road · ${escapeHtml(tn)}` : "Road"}</div></div>`);
+  }
+  if (s.shiftKind === "helper") {
+    cells.push(`<div class="sc-cell"><div class="sc-cell-l">Seat</div><div class="sc-cell-v sc-cell-v--helper">Helper</div></div>`);
   }
   if (s.isCushion) {
     cells.push(`<div class="sc-cell"><div class="sc-cell-l">Shift</div><div class="sc-cell-v sc-cell-v--ex">Cushion</div></div>`);
