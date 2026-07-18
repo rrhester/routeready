@@ -9045,7 +9045,12 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-tgt-join-chip{background:var(--canvas);border:1px solid var(--border);color:var(--rr-green-700)}
 .okami-table tbody tr:hover .rr-tgt-row-acts{opacity:1}
 /* 7-day sparkline beside each Routes input. */
-.rr-tgt-spark{display:inline-flex;align-items:flex-end;gap:1px;height:14px;margin-left:7px;vertical-align:middle}
+/* Per-week weekday spark bars · hover-reveal (calm pass) — 13 always-on
+   mini charts next to the inputs read as noise; visibility (not display)
+   so nothing shifts when they appear. */
+.rr-tgt-spark{display:inline-flex;align-items:flex-end;gap:1px;height:14px;margin-left:7px;vertical-align:middle;visibility:hidden}
+.okami-table tbody tr:hover .rr-tgt-spark,
+.okami-table tbody tr:focus-within .rr-tgt-spark{visibility:visible}
 .rr-tgt-spark i{width:3px;background:var(--border-strong);border-radius:1px 1px 0 0;display:inline-block}
 /* Hiring-pace footer line under the totals. */
 .rr-okami-pace-row > td{padding:6px 18px 9px;color:var(--text-subtle);font-size:var(--fs-xs);border-top:1px dashed var(--border);font-variant-numeric:tabular-nums}
@@ -9057,6 +9062,31 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-tgt-trend-legend i{display:inline-block;width:10px;height:3px;border-radius:2px;margin-right:5px;vertical-align:middle}
 .rr-tgt-trend-tip{position:absolute;pointer-events:none;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-md);box-shadow:var(--shadow-pop);padding:6px 9px;font-size:var(--fs-xs);color:var(--text);z-index:5;white-space:nowrap}
 .rr-tgt-trend-tip[hidden]{display:none}
+/* Trend card header · legend (or collapsed one-line summary) + a quiet
+   chevron toggle. Collapse state persists (rr_tgt_trend_collapsed). */
+.rr-tgt-trend-head{display:flex;align-items:center;gap:14px;min-height:22px}
+.rr-tgt-trend-head .rr-tgt-trend-legend{margin-bottom:0}
+.rr-tgt-trend-summary{font-size:var(--fs-xs);color:var(--text-muted);font-variant-numeric:tabular-nums}
+.rr-tgt-trend-toggle{
+  margin-left:auto;border:0;background:transparent;color:var(--text-subtle);
+  width:24px;height:24px;border-radius:6px;cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;padding:0;flex:0 0 auto;
+}
+.rr-tgt-trend-toggle:hover{background:var(--canvas);color:var(--text)}
+.rr-tgt-trend.is-collapsed{padding-bottom:10px}
+/* Targets header · ⋯ menu for the secondary plan tools (Seed / Snapshots /
+   CSV / Print) — one quiet trigger instead of four always-on buttons. */
+.rr-tgt-more-wrap{position:relative;display:inline-flex}
+.rr-tgt-more-btn{min-width:34px;font-weight:700;letter-spacing:1px}
+.rr-tgt-more-menu{
+  position:absolute;top:calc(100% + 6px);right:0;z-index:60;
+  display:flex;flex-direction:column;gap:2px;min-width:190px;
+  background:var(--surface-elevated);border:1px solid var(--border);
+  border-radius:var(--r-md);box-shadow:var(--shadow-pop);padding:6px;
+}
+.rr-tgt-more-menu[hidden]{display:none}
+.rr-tgt-more-menu .btn{justify-content:flex-start;text-align:left;border:0;background:transparent;width:100%;white-space:nowrap}
+.rr-tgt-more-menu .btn:hover{background:var(--canvas)}
 .rr-tgt-avail-sub{font-size:var(--fs-9);color:var(--text-subtle);line-height:1.3;margin-top:1px;white-space:nowrap}
 .rr-tgt-th-info{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;margin-left:5px;border-radius:50%;border:1px solid var(--border-strong);background:transparent;color:var(--text-subtle);font-size:var(--fs-10);font-weight:700;line-height:1;cursor:pointer;vertical-align:middle;padding:0}
 .rr-tgt-th-info:hover{background:var(--canvas);color:var(--text-muted)}
@@ -17494,28 +17524,28 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Forecast Gap · compact KPI card — sidebar-navy border + white
              surface (operator), small caption over a dominant number. Just the
              number carries color: red when short, green when covered. */
-          #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card{
+          #view-schedule .rr-tgt-gap-card{
             display:inline-flex;flex-direction:column;justify-content:center;align-items:flex-start;
             gap:1px;min-height:38px;padding:5px 14px;border-radius:8px;
             border:1.5px solid var(--sidebar-bg, var(--rr-slate-900));background:var(--rr-white);
           }
-          #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card[hidden]{display:none}
-          #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card-label{
+          #view-schedule .rr-tgt-gap-card[hidden]{display:none}
+          #view-schedule .rr-tgt-gap-card-label{
             font-size:var(--fs-9-5);font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text-subtle);
           }
-          #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card-value{
+          #view-schedule .rr-tgt-gap-card-value{
             font-size:var(--fs-17);font-weight:700;line-height:1.05;color:#B23A2E;font-variant-numeric:tabular-nums;
           }
-          #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card.rr-tgt-gap-card--pos .rr-tgt-gap-card-value{color:var(--rr-green-700)}
+          #view-schedule .rr-tgt-gap-card.rr-tgt-gap-card--pos .rr-tgt-gap-card-value{color:var(--rr-green-700)}
           /* Prescription sub-line · the action the gap number implies
              ("Hire 3 by Aug 12" / "Staffed through the plan"). Quiet by
              design — plain operational language, no extra color. */
-          #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card-sub{
+          #view-schedule .rr-tgt-gap-card-sub{
             font-size:var(--fs-10-5);font-weight:600;line-height:1.2;color:var(--text-muted);white-space:nowrap;
           }
-          #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card.is-clickable{cursor:pointer}
-          #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card.is-clickable:hover{background:var(--rr-gray-50)}
-          #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card.is-clickable:focus-visible{outline:none;box-shadow:0 0 0 2px rgba(37,99,235,.30)}
+          #view-schedule .rr-tgt-gap-card.is-clickable{cursor:pointer}
+          #view-schedule .rr-tgt-gap-card.is-clickable:hover{background:var(--rr-gray-50)}
+          #view-schedule .rr-tgt-gap-card.is-clickable:focus-visible{outline:none;box-shadow:0 0 0 2px rgba(37,99,235,.30)}
           /* Save Plan · primary button matching the Schedule Finalize. */
           #view-schedule #rr-sched-targets-kpis .rr-tgt-save-plan{
             display:inline-flex;align-items:center;justify-content:center;
@@ -22080,7 +22110,7 @@ body.rr-cmdk-open{ overflow:hidden }
               display:flex;align-items:flex-start;justify-content:space-between;gap:12px;
             }
             #view-schedule #sched-sub-targets .rr-tgt-13w-actions{
-              display:inline-flex;gap:8px;flex:0 0 auto;padding-top:2px;
+              display:inline-flex;align-items:center;gap:8px;flex:0 0 auto;padding-top:2px;
             }
             /* Per-row copy-forward / fill actions · appear on row hover only,
                keyboard-focusable always. */
@@ -22116,17 +22146,17 @@ body.rr-cmdk-open{ overflow:hidden }
             }
             #view-schedule #rr-sched-targets-kpis .rr-tgt-save-plan[aria-busy="true"]{opacity:.6;cursor:progress}
             /* Gap card · visible click-through + loading shimmer. */
-            #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card-link{
+            #view-schedule .rr-tgt-gap-card-link{
               font-size:var(--fs-9);font-weight:600;color:var(--accent);white-space:nowrap;
             }
-            #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card-link[hidden]{display:none}
-            #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card.is-loading .rr-tgt-gap-card-sub{
+            #view-schedule .rr-tgt-gap-card-link[hidden]{display:none}
+            #view-schedule .rr-tgt-gap-card.is-loading .rr-tgt-gap-card-sub{
               color:transparent;border-radius:4px;
               background:linear-gradient(90deg,var(--canvas) 25%,var(--border) 50%,var(--canvas) 75%);
               background-size:200% 100%;animation:rr-okami-shimmer 1.2s linear infinite;
             }
             @media (prefers-reduced-motion: reduce){
-              #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card.is-loading .rr-tgt-gap-card-sub{animation:none}
+              #view-schedule .rr-tgt-gap-card.is-loading .rr-tgt-gap-card-sub{animation:none}
             }
             /* Narrow widths · toolbar wraps in defined order, table scrolls
                horizontally inside its host instead of squeezing columns. */

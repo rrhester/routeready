@@ -307,6 +307,13 @@ stay true:
   rename took that ordinal.)
 - Hire lead time now per-DSP: `metadata.staffing.hire_lead_days`
   (default 28, ⓘ popover on the Drivers-needed header edits it).
+- **Calm pass 2026-07-18** ("page is getting too busy"): the Forecast-gap
+  card MOVED from the KPI strip into `.rr-tgt-13w-actions` (it overlapped
+  Adjust…/Snapshots… at laptop widths — don't move it back); Seed/
+  Snapshots/CSV/Print live in a `⋯` menu (`#rr-tgt-more-menu`, button ids
+  unchanged); trend chart collapses (`rr_tgt_trend_collapsed`); per-row
+  spark bars are row-hover-only; `_paOpenPopover` measures its anchor
+  BEFORE closing the open popover (fixes Edit-history pinning to 8,6).
 
 ## Active task: Workbook 100-list (Excel-parity improvements)
 

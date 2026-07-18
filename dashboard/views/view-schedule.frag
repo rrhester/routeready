@@ -1670,12 +1670,10 @@
                top-right chrome (⋯ / bell / avatar) which is moved in from the
                Schedule action bar on Targets entry by _rrMoveChromeToTargets. -->
           <div class="rr-tgt-toolbar-right">
-            <div class="rr-tgt-gap-card" id="rr-tgt-gap-card" hidden title="Largest weekly driver shortfall across the plan">
-              <span class="rr-tgt-gap-card-label">Forecast gap</span>
-              <span class="rr-tgt-gap-card-value" id="rr-tgt-gap-card-main">—</span>
-              <span class="rr-tgt-gap-card-sub" id="rr-tgt-gap-card-sub" hidden></span>
-              <span class="rr-tgt-gap-card-link" id="rr-tgt-gap-card-link" hidden>View analysis →</span>
-            </div>
+            <!-- The Forecast-gap card moved DOWN into the Targets card header
+                 (.rr-tgt-13w-actions) — in this strip it overflowed its
+                 auto-fit grid cell at laptop widths and painted over the
+                 Adjust…/Snapshots… row below. Same ids, same JS. -->
             <span id="rr-tgt-save-status" class="rr-tgt-save-status" aria-live="polite"></span>
             <button type="button" class="rr-tgt-save-plan" id="rr-tgt-save-plan" title="Save this week's rules (Block / Cushion / Report / Waves) and rebuild its unassigned shifts">Apply rules</button>
             <span class="rr-tgt-chrome-host" id="rr-tgt-chrome-host"></span>
@@ -2393,11 +2391,28 @@
                 <p class="rr-tgt-13w-sub">Model route demand and staffing requirements.</p>
               </div>
               <div class="rr-tgt-13w-actions">
+                <!-- Forecast gap · relocated from the KPI strip (it overlapped
+                     the buttons here at laptop widths). Populated by
+                     _rrRefreshTargetsGapCard in live.js — ids unchanged. -->
+                <div class="rr-tgt-gap-card" id="rr-tgt-gap-card" hidden title="Largest weekly driver shortfall across the plan">
+                  <span class="rr-tgt-gap-card-label">Forecast gap</span>
+                  <span class="rr-tgt-gap-card-value" id="rr-tgt-gap-card-main">—</span>
+                  <span class="rr-tgt-gap-card-sub" id="rr-tgt-gap-card-sub" hidden></span>
+                  <span class="rr-tgt-gap-card-link" id="rr-tgt-gap-card-link" hidden>View analysis →</span>
+                </div>
                 <button class="btn btn-sm" type="button" id="rr-tgt-adjust-btn" title="Scale a range of weeks by a percentage (every day and wave, undoable)">Adjust…</button>
-                <button class="btn btn-sm" type="button" id="rr-tgt-seed-btn" title="Fill weeks that have no plan yet from the last 4 weeks' average per-weekday pattern">Seed empty weeks</button>
-                <button class="btn btn-sm" type="button" id="rr-tgt-snap-btn" title="Save, compare and restore named snapshots of the 13-week plan">Snapshots…</button>
-                <button class="btn btn-sm" type="button" id="rr-tgt-csv-btn" title="Download the 13-week plan as CSV">CSV</button>
-                <button class="btn btn-sm" type="button" id="rr-tgt-print-btn" title="Print the 13-week plan">Print</button>
+                <!-- Secondary plan tools · one quiet ⋯ menu (calm pass) — the
+                     buttons keep their ids, so the existing delegated click
+                     handlers in live.js work unchanged. -->
+                <div class="rr-tgt-more-wrap">
+                  <button class="btn btn-sm rr-tgt-more-btn" type="button" id="rr-tgt-more-btn" aria-haspopup="true" aria-expanded="false" title="More plan tools" aria-label="More plan tools">⋯</button>
+                  <div class="rr-tgt-more-menu" id="rr-tgt-more-menu" hidden>
+                    <button class="btn btn-sm" type="button" id="rr-tgt-seed-btn" title="Fill weeks that have no plan yet from the last 4 weeks' average per-weekday pattern">Seed empty weeks</button>
+                    <button class="btn btn-sm" type="button" id="rr-tgt-snap-btn" title="Save, compare and restore named snapshots of the 13-week plan">Snapshots…</button>
+                    <button class="btn btn-sm" type="button" id="rr-tgt-csv-btn" title="Download the 13-week plan as CSV">CSV</button>
+                    <button class="btn btn-sm" type="button" id="rr-tgt-print-btn" title="Print the 13-week plan">Print</button>
+                  </div>
+                </div>
               </div>
             </div>
             <!-- Needed-vs-available trend · rendered by _rrOkamiRenderTrend

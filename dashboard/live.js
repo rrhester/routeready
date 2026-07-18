@@ -2210,6 +2210,19 @@ function _paClosePop() {
 }
 
 function _paOpenPopover(anchor, html) {
+  // Measure the anchor BEFORE closing any open popover — the anchor may live
+  // inside it (e.g. "Edit history" inside the Targets gap explainer); once
+  // the old popover is removed the anchor measures 0×0 at (0,0) and the new
+  // popover pins to the viewport's top-left corner over the sidebar.
+  const rect = anchor.getBoundingClientRect();
+  // Hidden/detached anchor with a popover already open (e.g. the Snapshots
+  // flow re-anchoring to a button inside a since-closed menu): keep the
+  // replacement popover where the current one is instead of jumping to 0,0.
+  let inherit = null;
+  if (!rect.width && !rect.height && _paOpenPop) {
+    const prev = _paOpenPop.el.getBoundingClientRect();
+    if (prev.width || prev.height) inherit = { left: prev.left, top: prev.top };
+  }
   _paClosePop();
   const pop = document.createElement("div");
   pop.className = "pa-pop";
@@ -2217,14 +2230,19 @@ function _paOpenPopover(anchor, html) {
   document.body.appendChild(pop);
 
   // Position: prefer below-right, flip up/left if off-viewport.
-  const rect = anchor.getBoundingClientRect();
   const popW = pop.offsetWidth;
   const popH = pop.offsetHeight;
-  let left = rect.right - popW;
-  if (left < 8) left = Math.max(8, rect.left);
-  if (left + popW > window.innerWidth - 8) left = window.innerWidth - popW - 8;
-  let top = rect.bottom + 6;
-  if (top + popH > window.innerHeight - 8) top = Math.max(8, rect.top - popH - 6);
+  let left, top;
+  if (inherit) {
+    left = Math.min(Math.max(8, inherit.left), Math.max(8, window.innerWidth  - popW - 8));
+    top  = Math.min(Math.max(8, inherit.top),  Math.max(8, window.innerHeight - popH - 8));
+  } else {
+    left = rect.right - popW;
+    if (left < 8) left = Math.max(8, rect.left);
+    if (left + popW > window.innerWidth - 8) left = window.innerWidth - popW - 8;
+    top = rect.bottom + 6;
+    if (top + popH > window.innerHeight - 8) top = Math.max(8, rect.top - popH - 6);
+  }
   pop.style.left = left + "px";
   pop.style.top  = top  + "px";
 
@@ -53025,6 +53043,25 @@ function _rrOkamiRenderTrend() {
   if (planned.length < 2) { host.hidden = true; host.innerHTML = ""; return; }
   host.hidden = false;
 
+  // Collapsible (calm pass) · the chart repeats the table's Needed/Available
+  // columns, so operators can fold it to a one-line summary. Persisted.
+  let collapsed = false;
+  try { collapsed = localStorage.getItem("rr_tgt_trend_collapsed") === "1"; } catch (_) {}
+  host.classList.toggle("is-collapsed", collapsed);
+  const _chev = collapsed
+    ? '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>'
+    : '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+  const trendToggle = `<button class="rr-tgt-trend-toggle" type="button" data-rr-trend-toggle aria-expanded="${collapsed ? "false" : "true"}" title="${collapsed ? "Show" : "Hide"} the needed-vs-available chart">${_chev}</button>`;
+  if (collapsed) {
+    const worstW = planned.reduce((a, w) => (w.gap < a.gap ? w : a), planned[0]);
+    const gTxt = worstW.gap < 0
+      ? `worst ${worstW.label} (${worstW.gap})`
+      : `covered (+${worstW.gap} at ${worstW.label})`;
+    host.innerHTML = `<div class="rr-tgt-trend-head">
+      <span class="rr-tgt-trend-summary">Needed vs available · ${escapeHtml(gTxt)}</span>${trendToggle}</div>`;
+    return;
+  }
+
   const W = Math.max(360, host.clientWidth ? host.clientWidth - 26 : 780);
   const H = 132, padL = 34, padR = 66, padT = 12, padB = 20;
   const innerW = W - padL - padR, innerH = H - padT - padB;
@@ -53105,10 +53142,13 @@ function _rrOkamiRenderTrend() {
   }
 
   host.innerHTML = `
-    <div class="rr-tgt-trend-legend">
-      <span><i style="background:${RR_TGT_TREND_DEMAND}"></i>Drivers needed</span>
-      <span><i style="background:${RR_TGT_TREND_SUPPLY}"></i>Available (route-ready)</span>
-      <span><i style="background:rgba(220,38,38,.25)"></i>Shortfall</span>
+    <div class="rr-tgt-trend-head">
+      <div class="rr-tgt-trend-legend">
+        <span><i style="background:${RR_TGT_TREND_DEMAND}"></i>Drivers needed</span>
+        <span><i style="background:${RR_TGT_TREND_SUPPLY}"></i>Available (route-ready)</span>
+        <span><i style="background:rgba(220,38,38,.25)"></i>Shortfall</span>
+      </div>
+      ${trendToggle}
     </div>
     <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Needed versus available drivers across the 13-week plan">
       ${zones}${grid}${shortfall}${paths}${endLabels}
@@ -53117,6 +53157,56 @@ function _rrOkamiRenderTrend() {
     </svg>
     <div class="rr-tgt-trend-tip" hidden></div>`;
 }
+
+// Trend collapse toggle · flips the persisted flag and re-renders.
+document.addEventListener("click", (e) => {
+  const t = e.target.closest && e.target.closest("[data-rr-trend-toggle]");
+  if (!t) return;
+  e.preventDefault();
+  try {
+    const k = "rr_tgt_trend_collapsed";
+    localStorage.setItem(k, localStorage.getItem(k) === "1" ? "0" : "1");
+  } catch (_) {}
+  _rrOkamiRenderTrend();
+});
+
+// Targets header · ⋯ menu holding the secondary plan tools (Seed empty
+// weeks / Snapshots / CSV / Print — calm pass). The tool buttons keep their
+// ids, so their existing delegated handlers fire on the same click; the
+// menu closes on a setTimeout(0) AFTER those handlers run, so a popover a
+// tool opens (Snapshots) still measures its anchor while it's visible.
+// Later re-anchors to the then-hidden button fall back to
+// _paOpenPopover's inherit-position path.
+document.addEventListener("click", (e) => {
+  if (!e.target.closest) return;
+  const menu = document.getElementById("rr-tgt-more-menu");
+  if (!menu) return;
+  const moreBtn = document.getElementById("rr-tgt-more-btn");
+  const closeMenu = () => {
+    menu.hidden = true;
+    if (moreBtn) moreBtn.setAttribute("aria-expanded", "false");
+  };
+  if (e.target.closest("#rr-tgt-more-btn")) {
+    e.preventDefault();
+    menu.hidden = !menu.hidden;
+    if (moreBtn) moreBtn.setAttribute("aria-expanded", menu.hidden ? "false" : "true");
+    return;
+  }
+  if (menu.hidden) return;
+  if (menu.contains(e.target)) {
+    if (e.target.closest("button")) setTimeout(closeMenu, 0);   // tool picked
+  } else {
+    closeMenu();                                                // outside click
+  }
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  const menu = document.getElementById("rr-tgt-more-menu");
+  if (menu && !menu.hidden) {
+    menu.hidden = true;
+    document.getElementById("rr-tgt-more-btn")?.setAttribute("aria-expanded", "false");
+  }
+});
 
 // Hover tooltip for the trend chart (delegated; markup re-renders freely).
 document.addEventListener("pointerover", (e) => {
