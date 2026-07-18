@@ -7338,11 +7338,14 @@ async function loadDriversRoster() {
       .order("occurred_at", { ascending: false })
       .limit(2000),
     sb.rpc("i9_list").then((r) => r, () => ({ data: [] })),
-    sb.from("shifts").select("driver_id, status")
-      .eq("dsp_id", window.RR.dsp.id)
-      .in("status", ["completed", "late", "no_show", "called_off"])
-      .gte("date", fmtIsoDate(_att30))
-      .limit(20000).then((r) => r, () => ({ data: [] })),
+    // Recent attendance is aggregated SERVER-side by roster_attendance_counts
+    // (migration 0504) — returns one row per driver, not up to 20,000 raw
+    // shift rows re-fetched every 30s while the roster is open. Falls back
+    // to the raw-rows query if the RPC isn't present yet (pre-0504).
+    sb.rpc("roster_attendance_counts", { p_days: 30 }).then(
+      (r) => (r.error ? { data: null, _fallback: true } : r),
+      () => ({ data: null, _fallback: true }),
+    ),
   ]);
 
   _rosterAppStatus = new Map((appStatus ?? []).map((s) => [s.driver_id, s]));
@@ -7351,17 +7354,30 @@ async function loadDriversRoster() {
   // Aggregate recent attendance per driver → worked / eligible / pct.
   _rosterAttCounts = new Map();
   {
-    const agg = new Map();
-    for (const sh of (attCountRows || [])) {
-      if (!sh.driver_id) continue;
-      const a = agg.get(sh.driver_id) || { worked: 0, eligible: 0 };
-      if (sh.status === "completed" || sh.status === "late") a.worked++;
-      a.eligible++;
-      agg.set(sh.driver_id, a);
+    let counts = attCountRows;
+    if (attCountRows === null) {
+      // Fallback path: RPC missing — do the old raw fetch + JS aggregate.
+      const { data: raw } = await sb.from("shifts").select("driver_id, status")
+        .eq("dsp_id", window.RR.dsp.id)
+        .in("status", ["completed", "late", "no_show", "called_off"])
+        .gte("date", fmtIsoDate(_att30))
+        .limit(20000).then((r) => r, () => ({ data: [] }));
+      const agg = new Map();
+      for (const sh of (raw || [])) {
+        if (!sh.driver_id) continue;
+        const a = agg.get(sh.driver_id) || { driver_id: sh.driver_id, worked: 0, eligible: 0 };
+        if (sh.status === "completed" || sh.status === "late") a.worked++;
+        a.eligible++;
+        agg.set(sh.driver_id, a);
+      }
+      counts = [...agg.values()];
     }
-    for (const [id, a] of agg) {
-      a.pct = a.eligible ? Math.round((a.worked / a.eligible) * 100) : null;
-      _rosterAttCounts.set(id, a);
+    for (const c of (counts || [])) {
+      if (!c.driver_id) continue;
+      _rosterAttCounts.set(c.driver_id, {
+        worked: c.worked, eligible: c.eligible,
+        pct: c.eligible ? Math.round((c.worked / c.eligible) * 100) : null,
+      });
     }
   }
 
@@ -34233,20 +34249,30 @@ async function openCoachingPrintView(driverId) {
   const dspId = window.RR?.dsp?.id;
   if (!dspId) return;
 
-  const [driverRes, coachingsRes, editsRes, attRes, dspRes] = await Promise.all([
+  const [driverRes, coachingsRes, dspRes] = await Promise.all([
     sb.from("drivers").select("*").eq("id", driverId).single(),
     sb.from("coachings").select("*").eq("driver_id", driverId).order("occurred_at", { ascending: false }),
-    sb.from("coaching_edits").select("*").order("edited_at", { ascending: false }),
-    sb.from("coaching_attachments").select("coaching_id, file_name, mime_type, size_bytes, uploaded_at"),
     sb.from("dsps").select("name, short_code, metadata").eq("id", dspId).single(),
   ]);
 
   const drv  = driverRes?.data;
   const list = (coachingsRes?.data || []);
-  const edits = (editsRes?.data || []);
-  const attachments = (attRes?.data || []);
   const dsp = dspRes?.data || {};
   if (!drv) { toast("Couldn't load driver", "warn"); return; }
+
+  // Scope edits/attachments to THIS driver's coaching ids. Previously both
+  // were fetched tenant-wide (no filter, no limit) just to print one
+  // driver's record — megabytes of unrelated history over the wire.
+  const coachingIds = list.map((c) => c.id).filter(Boolean);
+  let edits = [], attachments = [];
+  if (coachingIds.length) {
+    const [editsRes, attRes] = await Promise.all([
+      sb.from("coaching_edits").select("*").in("coaching_id", coachingIds).order("edited_at", { ascending: false }),
+      sb.from("coaching_attachments").select("coaching_id, file_name, mime_type, size_bytes, uploaded_at").in("coaching_id", coachingIds),
+    ]);
+    edits = editsRes?.data || [];
+    attachments = attRes?.data || [];
+  }
 
   const editsByCoaching = new Map();
   for (const ed of edits) {
@@ -50551,6 +50577,11 @@ if (document.readyState === "loading") {
 //      Realtime drops (websocket disconnect).
 
 function refreshActiveView() {
+  // Skip entirely when the tab is hidden (project-review PR#30): a
+  // dashboard left open in a background tab was firing multi-query
+  // refetches every 30s all shift. Realtime + the focus handler catch it
+  // up the moment the operator returns, so nothing goes stale.
+  if (document.hidden) return;
   // Don't pull the ground out from under an active task — if a modal /
   // drawer / overlay is open, or the operator is typing or picking in a
   // field, or a workspace cell is mid-edit, hold off until next tick.
@@ -51730,29 +51761,35 @@ function _clfRealtimeSubmission(payload) {
 }
 
 // Realtime subscriptions — one channel covers all the tables we care about.
+// Every subscription is scoped `dsp_id=eq.<this tenant>` (project-review
+// PR#24): all 16 tables carry a `dsp_id not null` column, so without the
+// filter a row change in ANY OTHER tenant woke scheduleRefresh and made the
+// active view refetch + fully repaint. (Postgres RLS already hides other
+// tenants' rows, but the realtime broker still delivered the change events.)
+const _rtDsp = "dsp_id=eq." + (window.RR?.dsp?.id || "");
 sb.channel("rr-dashboard")
-  .on("postgres_changes", { event: "*", schema: "public", table: "applicants" },              scheduleRefresh)
-  .on("postgres_changes", { event: "*", schema: "public", table: "cal_events" },              scheduleRefresh)
-  .on("postgres_changes", { event: "*", schema: "public", table: "sms_messages" },            scheduleRefresh)
-  .on("postgres_changes", { event: "*", schema: "public", table: "email_messages" },          scheduleRefresh)
-  .on("postgres_changes", { event: "*", schema: "public", table: "interview_outcomes" },      scheduleRefresh)
-  .on("postgres_changes", { event: "*", schema: "public", table: "interview_days" },          scheduleRefresh)
-  .on("postgres_changes", { event: "*", schema: "public", table: "drivers" },                 scheduleRefresh)
-  .on("postgres_changes", { event: "*", schema: "public", table: "coachings" },               scheduleRefresh)
-  .on("postgres_changes", { event: "*", schema: "public", table: "driver_documents" },        scheduleRefresh)
+  .on("postgres_changes", { event: "*", schema: "public", table: "applicants",         filter: _rtDsp }, scheduleRefresh)
+  .on("postgres_changes", { event: "*", schema: "public", table: "cal_events",         filter: _rtDsp }, scheduleRefresh)
+  .on("postgres_changes", { event: "*", schema: "public", table: "sms_messages",       filter: _rtDsp }, scheduleRefresh)
+  .on("postgres_changes", { event: "*", schema: "public", table: "email_messages",     filter: _rtDsp }, scheduleRefresh)
+  .on("postgres_changes", { event: "*", schema: "public", table: "interview_outcomes", filter: _rtDsp }, scheduleRefresh)
+  .on("postgres_changes", { event: "*", schema: "public", table: "interview_days",     filter: _rtDsp }, scheduleRefresh)
+  .on("postgres_changes", { event: "*", schema: "public", table: "drivers",            filter: _rtDsp }, scheduleRefresh)
+  .on("postgres_changes", { event: "*", schema: "public", table: "coachings",          filter: _rtDsp }, scheduleRefresh)
+  .on("postgres_changes", { event: "*", schema: "public", table: "driver_documents",   filter: _rtDsp }, scheduleRefresh)
   // Chat tables get the targeted handler — sub-second delivery for
   // the active thread without re-rendering unrelated views.
-  .on("postgres_changes", { event: "INSERT", schema: "public", table: "driver_messages" },         scheduleChatRealtime)
-  .on("postgres_changes", { event: "UPDATE", schema: "public", table: "driver_messages" },         scheduleChatRealtime)
-  .on("postgres_changes", { event: "INSERT", schema: "public", table: "driver_channel_messages" }, scheduleChatRealtime)
-  .on("postgres_changes", { event: "*",      schema: "public", table: "driver_message_reactions" }, scheduleChatRealtime)
+  .on("postgres_changes", { event: "INSERT", schema: "public", table: "driver_messages",         filter: _rtDsp }, scheduleChatRealtime)
+  .on("postgres_changes", { event: "UPDATE", schema: "public", table: "driver_messages",         filter: _rtDsp }, scheduleChatRealtime)
+  .on("postgres_changes", { event: "INSERT", schema: "public", table: "driver_channel_messages", filter: _rtDsp }, scheduleChatRealtime)
+  .on("postgres_changes", { event: "*",      schema: "public", table: "driver_message_reactions", filter: _rtDsp }, scheduleChatRealtime)
   // Batch 8 (#73): the newer chat surfaces ride realtime too — pins,
   // channel acks and poll votes repaint without waiting for a poll.
-  .on("postgres_changes", { event: "*",      schema: "public", table: "driver_message_pins" },        scheduleChatRealtime)
-  .on("postgres_changes", { event: "*",      schema: "public", table: "driver_channel_message_acks" }, scheduleChatRealtime)
-  .on("postgres_changes", { event: "*",      schema: "public", table: "channel_poll_votes" },          scheduleChatRealtime)
+  .on("postgres_changes", { event: "*",      schema: "public", table: "driver_message_pins",        filter: _rtDsp }, scheduleChatRealtime)
+  .on("postgres_changes", { event: "*",      schema: "public", table: "driver_channel_message_acks", filter: _rtDsp }, scheduleChatRealtime)
+  .on("postgres_changes", { event: "*",      schema: "public", table: "channel_poll_votes",          filter: _rtDsp }, scheduleChatRealtime)
   // Checklist submissions — flag alerts + live Responses refresh.
-  .on("postgres_changes", { event: "*", schema: "public", table: "checklist_submissions" }, _clfRealtimeSubmission)
+  .on("postgres_changes", { event: "*", schema: "public", table: "checklist_submissions", filter: _rtDsp }, _clfRealtimeSubmission)
   .subscribe((status) => {
     // Track socket health (#73/#75): healthy realtime lets the chat polls
     // stretch way out (they're only a safety net), and the connection
