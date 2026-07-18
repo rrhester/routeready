@@ -6460,8 +6460,11 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   margin-top:6px;font-size:var(--fs-xs);font-weight:600;
   padding:3px 8px;border-radius:var(--r-md);display:inline-block;
 }
-.rr-mc-ack.acked  { background:rgba(255,255,255,.18);color:var(--text-inverse); }
-.rr-mc-ack.pending{ background:rgba(255,255,255,.10);color:rgba(255,255,255,.85); }
+/* Solid, quiet chips — the old rgba-white styling dated from when
+   dispatch bubbles were solid blue with white text; on today's light
+   bubbles it rendered as an unreadable ghost pill. */
+.rr-mc-ack.acked  { background:var(--green-soft);color:var(--rr-green-700); }
+.rr-mc-ack.pending{ background:rgba(15,23,42,.06);color:var(--text-muted); }
 
 /* Compose options — priority radio + ack toggle. Lives inside
    .rr-mc-composer's column, just above the textarea. */
@@ -6530,39 +6533,50 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 .rr-mc-bubble[data-group-pos="middle"] .rr-mc-time,
 .rr-cc-bubble[data-group-pos="first"] .rr-cc-time,
 .rr-cc-bubble[data-group-pos="middle"] .rr-cc-time{ display:none }
-/* Hover-actions on the dispatcher's own bubbles — Edit + Delete
-   icons that fade in only on hover within the 15-minute edit
-   window.  Sit ABOVE the bubble (z-index) so they don't push
-   content around.  Mirror Slack/iMessage-style affordances. */
+/* Hover toolbar on message bubbles (DM + channel share the class) —
+   ONE surface pill above the bubble's corner, Slack-style, instead of
+   loose per-button squares straddling the edge (operator: "buttons
+   around the bubble feel messy / cut off / noisy", 2026-07-18).  The
+   panel bottom overlaps the bubble top by ~8px so the pointer never
+   crosses a dead gap (it's a child, so bubble:hover holds while over
+   it).  Buttons inside are borderless; the PANEL carries the chrome. */
 .rr-mc-bubble{ position:relative }
 .rr-mc-bubble-actions{
-  position:absolute;top:-10px;right:8px;
-  display:flex;gap:var(--s-1);
+  position:absolute;bottom:calc(100% - 8px);top:auto;right:6px;
+  display:flex;align-items:center;gap:0;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--r-pill);
+  box-shadow:0 2px 6px rgba(15,23,42,.08), 0 10px 24px -10px rgba(15,23,42,.18);
+  padding:2px;
   opacity:0;transform:translateY(2px);
   transition:opacity 120ms ease, transform 140ms ease;
   pointer-events:none;
-  z-index:3;
+  z-index:6;
 }
-.rr-mc-bubble:hover .rr-mc-bubble-actions{
+.rr-mc-bubble:hover .rr-mc-bubble-actions,
+.rr-mc-bubble:focus-within .rr-mc-bubble-actions,
+.rr-cc-bubble:hover .rr-mc-bubble-actions,
+.rr-cc-bubble:focus-within .rr-mc-bubble-actions{
   opacity:1;transform:translateY(0);pointer-events:auto;
 }
 .rr-mc-bubble-actions button{
-  width:24px;height:24px;
+  width:26px;height:26px;
   display:inline-flex;align-items:center;justify-content:center;
-  background:var(--surface);
+  background:transparent;
   color:var(--text-muted);
-  border:1px solid var(--border);
-  border-radius:var(--r-md);
+  border:0;
+  border-radius:var(--r-pill);
   cursor:pointer;
-  box-shadow:0 1px 2px rgba(15,23,42,.08), 0 4px 8px -4px rgba(15,23,42,.12);
-  transition:background 100ms ease, color 100ms ease, border-color 100ms ease;
+  transition:background 100ms ease, color 100ms ease;
 }
-.rr-mc-bubble-actions button svg{ width:12px;height:12px }
+.rr-mc-bubble-actions button svg{ width:13px;height:13px }
 .rr-mc-bubble-actions button:hover{
-  background:var(--surface-hover);color:var(--text);border-color:var(--border-strong);
+  background:var(--surface-hover);color:var(--text);
 }
+.rr-mc-bubble-actions button.saved{ color:var(--amber) }
 .rr-mc-bubble-actions button[data-rr-mc-delete]:hover{
-  background:rgba(220,38,38,.08);color:var(--red);border-color:rgba(220,38,38,.30);
+  background:rgba(220,38,38,.08);color:var(--red);
 }
 /* The standalone 👍 like pill (.rr-mc-like) was removed 2026-07-18 — it
    duplicated the hover smiley's emoji reactions (same RPC, same chips). */
@@ -6628,24 +6642,11 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
    messages, right of incoming (left-aligned) ones — vertically centered, so
    it never sits over or against the message text.  Reveals on hover; a saved
    message keeps the chip visible (amber) so it's obvious at a glance. */
-.rr-msg-bookmark{
-  position:absolute;top:50%;
-  display:inline-flex;align-items:center;justify-content:center;
-  width:28px;height:28px;
-  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-pill);
-  box-shadow:var(--shadow-xs);
-  color:var(--text-muted);cursor:pointer;
-  opacity:0;transform:translateY(-50%) scale(.9);
-  transition:opacity var(--t-fast),transform var(--t-fast),color var(--t-fast),border-color var(--t-fast);
-  z-index:3;
-}
+/* The floating gutter bookmark circle was retired 2026-07-18 (part of
+   the bubble-chrome calm-down): in DMs "Save message" lives in the ⋯
+   menu; in channels the bookmark is a button inside the hover toolbar
+   panel (styled by .rr-mc-bubble-actions; .saved turns it amber). */
 .rr-cc-bubble,.rr-mc-bubble{position:relative}
-/* Park it in the gutter on the side away from the text. */
-.rr-mc-bubble.dispatch .rr-msg-bookmark,.rr-cc-bubble.dispatch .rr-msg-bookmark{ right:calc(100% + 8px); left:auto; }
-.rr-mc-bubble.driver .rr-msg-bookmark,.rr-cc-bubble.driver .rr-msg-bookmark{ left:calc(100% + 8px); right:auto; }
-.rr-cc-bubble:hover .rr-msg-bookmark,.rr-mc-bubble:hover .rr-msg-bookmark{opacity:.9;transform:translateY(-50%) scale(1)}
-.rr-msg-bookmark:hover{opacity:1;color:var(--accent-text,var(--accent));border-color:var(--accent)}
-.rr-msg-bookmark.saved{opacity:1;color:var(--amber);border-color:var(--amber)}
 /* Per-operator channel mute — header toggle + list-row marker. */
 .rr-cc-mute-btn.muted{color:var(--amber);border-color:var(--amber)}
 .rr-cc-muted-chip{display:inline-flex;align-items:center;margin-left:5px;color:var(--text-subtle);vertical-align:-1px}

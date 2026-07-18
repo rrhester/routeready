@@ -276,7 +276,7 @@
 // re-subscribes so pushes survive endpoint rotation; schedule pollers skip
 // while backgrounded; SW update checked on foreground + controllerchange
 // reload; capacitor white chrome + StatusBar/SplashScreen config.
-const SHELL_CACHE = "rr-app-shell-8dcd319303ce";
+const SHELL_CACHE = "rr-app-shell-42c651a7788d";
 const SHELL_FILES = [
   "./",
   "index.html",
