@@ -3251,6 +3251,25 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff * {
   border-radius: var(--r-sm);
   letter-spacing: .04em;
 }
+/* Helper-seat badge · the ride-along body on an XL route (no XL cert). Sits
+   inline in the route eyebrow next to the XL service-type tag so the operator
+   can tell the certified driver seat from the helper seat at a glance. */
+#view-schedule.rrx-schedule .shift-chip-helper-badge {
+  font-size: var(--fs-9);
+  font-weight: 700;
+  line-height: 1.3;
+  padding: 0 4px;
+  margin-left: 4px;
+  border-radius: var(--r-sm);
+  letter-spacing: .04em;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+/* The helper chip carries a dashed left accent so it reads as support
+   capacity rather than a primary route seat. */
+#view-schedule.rrx-schedule .shift-chip.shift-chip-helper {
+  border-left-style: dashed;
+}
 /* Pinned-shift marker · small blue pushpin in the chip's top-right
    corner. The chip is set position:relative inline when the marker is
    added. */

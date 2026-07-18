@@ -67,7 +67,15 @@ The authoritative CP-SAT solver models `1 shift = 1 seat = 1 driver`, so
   (std×dpr + xl×4), and computes Needed via `rrDriversNeededMix`. The (ⓘ)
   popover formula text + `_availMath` carry the XL breakdown. Was a flat ×2.
 
-**Still DEFERRED:** nothing outstanding on the XL model.
+**SHIPPED — Helper badge on the schedule grid:** the dispatcher shift-chip
+builder (live.js ~70135) now renders a `Helper` badge in the route eyebrow
++ a `shift-chip-helper` dashed-accent class when `shift_kind === 'helper'`
+(CSS in schedule-rrx.css, token-only so the design-lint ratchet holds). So
+an XL route's two chips read "XL" (driver seat) and "XL · Helper" (helper
+seat). shift_kind already flows via the schedule_grid RPC (0269).
+
+**Still DEFERRED:** driver-app ("My schedule") helper label — the operator
+grid shows it; the driver-side card doesn't yet call out a helper seat.
 
 ## DONE: Calendar 100-list (Onboarding → Calendar improvements)
 
