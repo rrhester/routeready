@@ -144,7 +144,18 @@ chunk). Wave plan and status:
   mock-wiring retirement, PR#17 notebooks.frag→module, PR#18 typeof
   sweep (560 sites), PR#19 forecast extraction. PR#20 (RR namespace) =
   convention note only.
-- **Wave F — perf**: PR#21,23,24,28,29,30,31,32.
+- **Wave F — perf**: batch 1 DONE (PR#24,25,29,30) — rr-dashboard
+  realtime channel now filters every one of its 16 tables by
+  dsp_id=eq.<tenant> (all verified to have dsp_id not null; other tenants'
+  row-changes no longer trigger full repaints); loadDriversRoster uses
+  roster_attendance_counts RPC (0504) with raw-fetch fallback pre-0504
+  (was up to 20,000 shift rows every 30s); refreshActiveView early-returns
+  on document.hidden; openCoachingPrintView scopes coaching_edits/
+  attachments to the driver's coaching ids (was tenant-wide, no limit).
+  DEFERRED (risky/big — own PRs): PR#21 lazy-load workbook/reports, PR#23
+  CSS dedupe (cascade-order risk), PR#31 shell shrink, PR#32 PNG
+  quantization (needs pngquant), PR#28 sw changelog (low value on the
+  recovery SW).
 - **Wave G — driver app**: PR#33–44.
 - **Wave H — a11y/UX**: PR#89–96 (check #91 vs merged #3955 first).
 - **Wave I — docs/DX**: PR#97–100.
