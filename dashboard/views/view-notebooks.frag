@@ -1241,8 +1241,29 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     var d = window.RR && window.RR.dsp && window.RR.dsp.name;
     return d ? (d + " Notebook") : "Workspace";
   }
+  // #41 deep link: #notebooks?nb=<id>&pg=<id> opens that notebook + page.
+  // The inbound hash is read once (into _deepLink) and stripped back to
+  // #notebooks; _deepLink is then honored by every loadView for a short window
+  // (the boot router calls loadView a few times) so the target page sticks. It
+  // clears on any manual page open, so returning to the view later is normal.
+  var _deepLink = null, _deepLinkAt = 0;
+  function consumeNbHashParams() {
+    try {
+      var h = location.hash || ""; var qi = h.indexOf("?"); if (qi < 0) return;
+      if (h.slice(1, qi) !== "notebooks") return;
+      var p = new URLSearchParams(h.slice(qi + 1));
+      var nb = p.get("nb"), pg = p.get("pg");
+      if (!nb && !pg) return;
+      _deepLink = { nb: nb || null, pg: pg || null }; _deepLinkAt = Date.now();
+      try { history.replaceState(null, "", location.pathname + location.search + "#notebooks"); } catch (e) {}
+    } catch (e) {}
+  }
   function loadView(opts) {
     var root = ROOT(); if (!root) return;
+    consumeNbHashParams();
+    if ((!opts || (!opts.notebookId && !opts.pageId)) && _deepLink && (Date.now() - _deepLinkAt) < 8000) {
+      opts = { notebookId: _deepLink.nb, pageId: _deepLink.pg };
+    }
     if (!S.be) chooseBackend();
     bindOnce();
     initRealtime();
@@ -4924,10 +4945,12 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   function pageMenu(id, x, y) {
     var p = ((S.tree && S.tree.pages) || []).filter(function (x) { return x.id === id; })[0] || {};
     var items = S.readOnly ? [
+      { act: "copylink", label: "Copy link to page" },
       { act: "print", label: "Print / PDF" },
       { act: "md", label: "Download as Markdown" }
     ] : [
       { act: "rename", label: "Rename" },
+      { act: "copylink", label: "Copy link to page" },
       { act: "fav", label: isFav(id) ? "★ Unstar" : "☆ Favorite" },
       { act: "pin", label: p.is_pinned ? "Unpin" : "Pin to top" },
       { act: "sub", label: "Make subpage (Tab)" },
@@ -4989,6 +5012,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     var t = $id("rrnb-ctx")._target; hideCtx(); if (!t) return;
     if (t.kind === "page") {
       if (act === "rename") return editPageTitle(t.id);
+      if (act === "copylink") return copyPageLink(t.id);
       if (act === "fav") { toggleFav(t.id); return renderPageList(); }
       if (act === "pin") { var p = pageById(t.id); return S.be.pinPage(t.id, !(p && p.is_pinned)).then(function () { if (p) p.is_pinned = !p.is_pinned; renderPageList(); }); }
       if (act === "print") return printPage(t.id);
@@ -5192,7 +5216,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
         var rp = e.target.closest("[data-recent-page]"); if (rp) { var rnb = rp.getAttribute("data-recent-nb"), rpg = rp.getAttribute("data-recent-page"); if (rnb && rnb !== S.nbId) { S.activeSection = null; return selectNotebook(rnb, rpg); } S.mode = "notebook"; return openPage(rpg); }
         var rb = e.target.closest("[data-restore-btn]"); if (rb) { return S.be.restoreItem("page", rb.getAttribute("data-restore-btn")).then(function () { return selectNotebook(S.nbId, null); }); }
         var sr = e.target.closest("[data-search-page]"); if (sr) { var nb = sr.getAttribute("data-search-nb"), pg = sr.getAttribute("data-search-page"); var si = $id("rrnb-search-input"); if (si) { pushRecentSearch(si.value); si.value = ""; } if (nb !== S.nbId) { S.activeSection = null; return selectNotebook(nb, pg); } S.mode = "notebook"; return openPage(pg); }
-        var pg2 = e.target.closest("[data-page]"); if (pg2) { S.mode = "notebook"; openPage(pg2.getAttribute("data-page")); }
+        var pg2 = e.target.closest("[data-page]"); if (pg2) { _deepLink = null; S.mode = "notebook"; openPage(pg2.getAttribute("data-page")); }
       });
       plHost.addEventListener("contextmenu", function (e) { var pg = e.target.closest("[data-page]"); if (pg && pg.getAttribute("data-page")) { e.preventDefault(); pageMenu(pg.getAttribute("data-page"), e.clientX, e.clientY); } });
       // Tab / Shift+Tab to indent the active page from the list
@@ -5794,6 +5818,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   function closeCommandPalette() { var ov = $id("rrnb-cmdk"); if (ov) ov.hidden = true; }
   function cmdkActions() {
     var a = [];
+    if (S.pageId) a.push({ label: "Copy link to this page", ic: "🔗", run: function () { copyPageLink(S.pageId); } });
     if (!S.readOnly) { a.push({ label: "New page", ic: "＋", run: newPage }); a.push({ label: "New section", ic: "＋", run: newSection }); a.push({ label: "Quick note", ic: "⚡", run: quickNote }); }
     a.push({ label: "Toggle context panel", ic: "▥", run: function () { ctxToggle(); } });
     a.push({ label: "Recent pages", ic: "🕘", run: function () { S.mode = "recent"; renderRecent(); } });
@@ -5829,6 +5854,17 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     closeCommandPalette();
     if (it.kind === "action" && it.run) { try { it.run(); } catch (e) {} return; }
     if (it.kind === "page" && it.id) { S.mode = "notebook"; var p = pageById(it.id); if (p && p.section_id) S.activeSection = p.section_id; renderPageList(); openPage(it.id); }
+  }
+  // #41 copy a deep link to a page (opens via consumeNbHashParams on load)
+  function copyPageLink(pid) {
+    pid = pid || S.pageId; if (!pid || !S.nbId) { notify("Open a page first"); return; }
+    var url = location.origin + location.pathname + "#notebooks?nb=" + encodeURIComponent(S.nbId) + "&pg=" + encodeURIComponent(pid);
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(function () { notify("Page link copied"); }, function () { copyFallback(url); });
+    else copyFallback(url);
+  }
+  function copyFallback(text) {
+    try { var ta = document.createElement("textarea"); ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0"; document.body.appendChild(ta); ta.focus(); ta.select(); document.execCommand("copy"); ta.remove(); notify("Page link copied"); }
+    catch (e) { notify("Couldn't copy — copy it from the address bar"); }
   }
   function typingContext() {
     var a = document.activeElement;
