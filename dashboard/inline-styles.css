@@ -5098,7 +5098,7 @@ select.form-input{
    tint. Time uses tabular numerics so 11:20 lines up with 11:00 at
    a glance. */
 .shift-chip{
-  flex:1;padding:7px 9px;border-radius:var(--r-md);
+  flex:1;padding:7px 9px;border-radius:0;
   background:var(--sch-blue-soft);border:1px solid rgba(37,99,235,.14);
   display:flex;flex-direction:column;align-items:flex-start;justify-content:center;
   font-size:var(--fs-xs);line-height:1.25;
