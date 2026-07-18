@@ -29890,10 +29890,10 @@ body.rr-cmdk-open{ overflow:hidden }
 .oc-search-main{ flex:1 1 auto; min-width:0; display:flex; flex-direction:column; }
 .oc-search-t{ font-size:var(--fs-base); font-weight:600; color:var(--text,var(--rr-gray-900)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .oc-search-s{ font-size:var(--fs-sm); color:var(--text-subtle,var(--rr-gray-500)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-@media (prefers-color-scheme:dark){
-  .oc-search-modal{ background:#1f2430; border-color:rgba(255,255,255,.12); }
-  .oc-search-inp input,.oc-search-t{ color:#e8eaed; }
-}
+/* (Removed 2026-07-17, project-review PR#95: the ONLY prefers-color-scheme
+   dark rule in the whole dashboard — it themed this one search modal dark
+   on an otherwise all-light app, so a dark-mode OS gave the operator a
+   single mismatched dark box. A real theme is a separate project.) */
 
 /* ── Calendar responsive behavior ─────────────────────────────────────────────
    The calendar was fixed-geometry (240px sidebar + 320px reading pane + 50px

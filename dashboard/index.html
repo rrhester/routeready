@@ -205,6 +205,15 @@
 </head>
 <body>
 
+<!-- Skip link (project-review PR#92): keyboard users can jump past the
+     icon sidebar straight to content. Visually hidden until focused. -->
+<a href="#main-content" class="rr-skip-link">Skip to main content</a>
+<style>
+  .rr-skip-link{position:absolute;left:8px;top:-48px;z-index:100000;background:var(--accent,#2563eb);color:#fff;
+    padding:8px 14px;border-radius:6px;font:600 14px/1 Inter,system-ui,sans-serif;text-decoration:none;transition:top .12s ease}
+  .rr-skip-link:focus{top:8px;outline:2px solid #fff;outline-offset:2px}
+</style>
+
 <!-- Boot overlay · covers the static mock content until live.js has
      loaded real data, so a refresh shows a clean loading state rather
      than flashing placeholder numbers. Removed by _rrHideBootOverlay()
@@ -1390,7 +1399,7 @@
   <!-- ═══════════════════════════════════════════════════════════
        MAIN
        ═══════════════════════════════════════════════════════════ -->
-  <div class="main">
+  <div class="main" id="main-content" role="main" tabindex="-1">
 
     <!-- Top bar -->
     <header class="topbar">
@@ -2168,8 +2177,10 @@ Evidence attached:
   </div>
 </div>
 
-<!-- Toast stack -->
-<div class="toast-stack" id="toast-stack"></div>
+<!-- Toast stack — aria-live so screen readers announce success/error
+     feedback (the dashboard's primary confirmation channel) without
+     stealing focus. role=status = polite (project-review PR#90). -->
+<div class="toast-stack" id="toast-stack" role="status" aria-live="polite" aria-atomic="true"></div>
 
 <!-- ═══════════════════════════════════════════════════════════
      VEHICLE DETAIL DRAWER
