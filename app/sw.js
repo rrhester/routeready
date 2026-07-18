@@ -276,7 +276,10 @@
 // re-subscribes so pushes survive endpoint rotation; schedule pollers skip
 // while backgrounded; SW update checked on foreground + controllerchange
 // reload; capacitor white chrome + StatusBar/SplashScreen config.
-const SHELL_CACHE = "rr-app-shell-8dcd319303ce";
+// v187 · Type scale moved to rem (project-review PR#41) so the driver's OS
+// text-size setting scales the app. (bust-cache rewrites this to the deploy
+// SHA at build; the literal just needs to differ so the CI gate is happy.)
+const SHELL_CACHE = "rr-app-shell-v187-remscale";
 const SHELL_FILES = [
   "./",
   "index.html",
