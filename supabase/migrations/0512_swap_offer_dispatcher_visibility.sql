@@ -1,4 +1,4 @@
--- 0503_swap_offer_dispatcher_visibility.sql
+-- 0512_swap_offer_dispatcher_visibility.sql
 --
 -- Schedule improvement plan Wave 3 items #56/#57 (docs/SCHEDULE-
 -- IMPROVEMENT-PLAN.md): give dispatchers first-class visibility and
