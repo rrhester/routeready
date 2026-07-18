@@ -836,6 +836,62 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
 #view-notebooks .rrnb-tb-sel{height:34px;font-size:12.5px;padding:0 8px}
 #view-notebooks .rrnb-tb-sep{margin:6px 4px}
 
+/* ---- #96 Dark mode (opt-in, notebook-scoped; toggle in the meta toolbar) ----
+   Redefine the design tokens the frag already rides so every pane, popover and
+   chip flips together. Popovers append to <body>, so mirror the token block onto
+   a body.rrnb-dark-nb scope for the notebook-owned overlay ids. */
+#view-notebooks.rrnb-dark,
+body.rrnb-dark-nb #rrnb-pop,
+body.rrnb-dark-nb #rrnb-slash,
+body.rrnb-dark-nb #rrnb-blockmenu,
+body.rrnb-dark-nb #rrnb-cmdk,
+body.rrnb-dark-nb #rrnb-toast,
+body.rrnb-dark-nb #rrnb-undotoast,
+body.rrnb-dark-nb #rrnb-hovercard{
+  --canvas:#0f1216;
+  --surface:#1a1e24;
+  --surface-secondary:#232830;
+  --surface-elevated:#20252c;
+  --surface-hover:rgba(255,255,255,.06);
+  --surface-pressed:rgba(255,255,255,.10);
+  --border:#2c323b;
+  --border-strong:#3a414c;
+  --border-subtle:#242a32;
+  --text:#e7eaee;
+  --text-muted:#c2c8d0;
+  --text-subtle:#98a1ad;
+  --text-disabled:#6b7480;
+  --text-inverse:#111827;
+  --accent:#60a5fa;
+  --accent-hover:#93c5fd;
+  --accent-soft:rgba(96,165,250,.16);
+  --accent-soft-strong:rgba(96,165,250,.24);
+  --accent-border:rgba(96,165,250,.40);
+  --accent-text:#bfdbfe;
+  --accent-glow:0 0 0 3px rgba(96,165,250,.30);
+  --green:#4ade80;--green-soft:rgba(74,222,128,.16);--green-border:rgba(74,222,128,.32);
+  --amber:#fbbf24;--amber-bright:#fcd34d;--amber-soft:rgba(251,191,36,.18);--amber-border:rgba(251,191,36,.36);
+  --red:#f87171;--red-soft:rgba(248,113,113,.18);--red-border:rgba(248,113,113,.32);
+  --shadow-xs:0 1px 2px rgba(0,0,0,.5);
+  --shadow-sm:0 1px 2px rgba(0,0,0,.5),0 1px 3px rgba(0,0,0,.4);
+  --shadow-pop:0 12px 32px rgba(0,0,0,.6),0 2px 8px rgba(0,0,0,.5);
+  --ring-focus:0 0 0 3px rgba(96,165,250,.30);
+  --inset-input:inset 0 1px 2px rgba(0,0,0,.35);
+  color-scheme:dark;
+}
+/* hardcoded light surfaces/hovers/borders that don't ride a token */
+#view-notebooks.rrnb-dark .rrnb-pane{border-right-color:var(--border)}
+#view-notebooks.rrnb-dark .rrnb-pane--canvas{background:var(--surface)}
+#view-notebooks.rrnb-dark .rrnb-toolbar{background:var(--surface);border-bottom-color:var(--border)}
+#view-notebooks.rrnb-dark .rrnb-toolbar::-webkit-scrollbar-thumb{background:#3a414c}
+#view-notebooks.rrnb-dark .rrnb-tb{color:var(--text-subtle)}
+#view-notebooks.rrnb-dark .rrnb-tb:hover{background:var(--surface-hover);color:var(--text)}
+#view-notebooks.rrnb-dark .rrnb-section:hover,
+#view-notebooks.rrnb-dark .rrnb-page:hover,
+#view-notebooks.rrnb-dark .rrnb-newpage:hover{background:var(--surface-hover)}
+#view-notebooks.rrnb-dark .rrnb-editor table.rrnb-zebra tbody tr:nth-child(even) td{background:rgba(255,255,255,.045)}
+#view-notebooks.rrnb-dark #rrnb-dark-btn{color:var(--amber-bright)}
+
 /* section list — a small color SQUARE before the name (not a left bar), like OneNote */
 #view-notebooks .rrnb-section{padding:7px 10px}
 #view-notebooks .rrnb-section .bar{position:static;left:auto;top:auto;bottom:auto;width:11px;height:11px;
@@ -1261,6 +1317,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   function loadView(opts) {
     var root = ROOT(); if (!root) return;
     consumeNbHashParams();
+    applyNbDark(); // #96 — flip the frame to the saved theme before anything renders
     if ((!opts || (!opts.notebookId && !opts.pageId)) && _deepLink && (Date.now() - _deepLinkAt) < 8000) {
       opts = { notebookId: _deepLink.nb, pageId: _deepLink.pg };
     }
@@ -1839,6 +1896,8 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 6h18M3 18h18"/><path d="M8 10v4M16 10v4"/></svg>Width</button>' +
           '<button class="rrnb-metabtn" id="rrnb-cmdk-btn" type="button" title="Command palette (Ctrl / ⌘ K)">' +
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>Search</button>' +
+          '<button class="rrnb-metabtn" id="rrnb-dark-btn" type="button" title="Dark mode" aria-pressed="false">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>Dark</button>' +
           '<button class="rrnb-metabtn" id="rrnb-ctx-toggle" type="button" title="Toggle the context panel (linked records, outline, backlinks)">' +
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg>Context</button></div>' +
         '<div class="rrnb-editor" id="rrnb-editor" contenteditable="true" spellcheck="true" data-ph="Type anywhere. Everything autosaves.">' + (p.content_html || "") + '</div>' +
@@ -1865,6 +1924,8 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     var hb = $id("rrnb-history-btn"); if (hb) hb.addEventListener("click", openHistory);
     var wb = $id("rrnb-width-btn"); if (wb) wb.addEventListener("click", function () { openReadingWidth(wb); });
     var ckb = $id("rrnb-cmdk-btn"); if (ckb) ckb.addEventListener("click", function () { openCommandPalette(); });
+    var dkb = $id("rrnb-dark-btn"); if (dkb) dkb.addEventListener("click", toggleNbDark);
+    applyNbDark();
     var ctb = $id("rrnb-ctx-toggle"); if (ctb) ctb.addEventListener("click", function () { ctxToggle(); });
     var dictBtn = $id("rrnb-toolbar") && $id("rrnb-toolbar").querySelector('[data-cmd="dictate"]');
     if (dictBtn && (window.SpeechRecognition || window.webkitSpeechRecognition)) dictBtn.hidden = false;
@@ -5816,11 +5877,27 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     var i2 = $id("rrnb-cmdk-in"); i2.value = ""; renderCmdk(""); i2.focus();
   }
   function closeCommandPalette() { var ov = $id("rrnb-cmdk"); if (ov) ov.hidden = true; }
+  // #96 Dark mode — opt-in, notebook-scoped. Class on #view-notebooks flips the
+  // panes; body class reaches the body-appended popovers (slash/blockmenu/cmdk).
+  function applyNbDark() {
+    if (S.dark == null) { try { S.dark = localStorage.getItem("rrnb-dark") === "1"; } catch (e) { S.dark = false; } }
+    var v = $id("view-notebooks"); if (v) v.classList.toggle("rrnb-dark", !!S.dark);
+    try { document.body.classList.toggle("rrnb-dark-nb", !!S.dark); } catch (e) {}
+    var b = $id("rrnb-dark-btn");
+    if (b) { b.setAttribute("aria-pressed", S.dark ? "true" : "false"); b.title = S.dark ? "Light mode" : "Dark mode"; }
+  }
+  function toggleNbDark() {
+    S.dark = !S.dark;
+    try { localStorage.setItem("rrnb-dark", S.dark ? "1" : "0"); } catch (e) {}
+    applyNbDark();
+    notify(S.dark ? "Dark mode on" : "Light mode on");
+  }
   function cmdkActions() {
     var a = [];
     if (S.pageId) a.push({ label: "Copy link to this page", ic: "🔗", run: function () { copyPageLink(S.pageId); } });
     if (!S.readOnly) { a.push({ label: "New page", ic: "＋", run: newPage }); a.push({ label: "New section", ic: "＋", run: newSection }); a.push({ label: "Quick note", ic: "⚡", run: quickNote }); }
     a.push({ label: "Toggle context panel", ic: "▥", run: function () { ctxToggle(); } });
+    a.push({ label: "Toggle dark mode", ic: "🌙", run: function () { toggleNbDark(); } });
     a.push({ label: "Recent pages", ic: "🕘", run: function () { S.mode = "recent"; renderRecent(); } });
     a.push({ label: "Recycle bin", ic: "🗑", run: function () { S.mode = "recycle"; renderPageList(); } });
     return a;
