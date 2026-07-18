@@ -8,12 +8,12 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=b08bb566c68b";
-import { assessPlan as rrAssessLaborPlan, driversNeeded as rrDriversNeeded, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=b08bb566c68b";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=b08bb566c68b";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=b08bb566c68b";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=b08bb566c68b";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=b08bb566c68b";
+import { planScheduleWeek } from "./scheduling-engine.js?v=8dcd319303ce";
+import { assessPlan as rrAssessLaborPlan, driversNeeded as rrDriversNeeded, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=8dcd319303ce";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=8dcd319303ce";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=8dcd319303ce";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=8dcd319303ce";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=8dcd319303ce";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -24,9 +24,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=b08bb566c68b";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=b08bb566c68b";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=b08bb566c68b";
+} from "./msg-core.mjs?v=8dcd319303ce";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=8dcd319303ce";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=8dcd319303ce";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -43930,7 +43930,10 @@ async function refreshDriverChatThread(scrollToBottom) {
             ? `<div class="rr-mc-ack acked">✓ Acknowledged · ${escapeHtml(new Date(m.acked_at).toLocaleString([], { month:"short", day:"numeric", hour:"numeric", minute:"2-digit" }))}</div>`
             : `<div class="rr-mc-ack pending">Awaiting acknowledgement</div>`)
         : "";
-      const likeBtn = isDeleted ? "" : `<button type="button" class="rr-mc-like" data-rr-mc-like="${escapeHtml(m.id)}" aria-label="Like" title="Like"><span class="rr-mc-like-icon" aria-hidden="true">👍</span><span class="rr-mc-like-n"></span></button>`;
+      // The old standalone 👍 like pill was removed 2026-07-18 (operator:
+      // "redundant — 2 places to input emoji"): it wrote the same
+      // dispatch_message_react_emoji reaction the hover smiley's picker
+      // does, and 👍 counts already render in the reaction chips row.
       // Attachment-only messages drop the bubble chrome so the card /
       // thumbnail reads as a standalone surface (enterprise register).
       const attachOnly = (m.attachment_path && !m.body && !isDeleted) ? " attach-only" : "";
@@ -43943,7 +43946,6 @@ async function refreshDriverChatThread(scrollToBottom) {
         ${quoteHtml}${priTag}${attach}${m.is_auto ? '<span class="rr-mc-auto" title="Automated message">Auto</span>' : ''}${bodyHtml}${ackChip}
         <div class="rr-mc-time" title="${escapeHtml(t.toLocaleString())}">${pinnedTag}${escapeHtml(time)}${editedTag}</div>
         <div class="rr-mc-reacts" data-rr-mc-reacts="${escapeHtml(m.id)}"></div>
-        ${likeBtn}
       </div>`;
       // Drop the read-receipt pill immediately after the last
       // dispatcher-sent message that's been read.  Single placement
@@ -44224,13 +44226,6 @@ function _mcUpdateReactCache(res) {
   _applyMcReactions(_mcReactCache);
 }
 
-function _setMcLike(btn, count, mine) {
-  if (!btn) return;
-  btn.classList.toggle("on", !!mine);
-  btn.classList.toggle("has", (count || 0) > 0);
-  const ns = btn.querySelector(".rr-mc-like-n");
-  if (ns) ns.textContent = (count || 0) > 0 ? String(count) : "";
-}
 function _applyMcReactions(entries) {
   const thread = document.getElementById("rr-mc-thread");
   if (!thread) return;
@@ -44247,24 +44242,9 @@ function _applyMcReactions(entries) {
       `<button type="button" class="rr-mc-react-chip${e.mine ? " mine" : ""}" data-rr-mc-chip="${escapeHtml(String(e.message_id))}" data-emoji="${escapeHtml(e.emoji)}" aria-pressed="${e.mine ? "true" : "false"}" title="${e.count} reaction${e.count === 1 ? "" : "s"} — click to ${e.mine ? "remove yours" : "react too"}">${e.emoji}<span>${e.count}</span></button>`).join("");
     row.style.display = list.length ? "" : "none";
   });
-  // The 👍 quick button mirrors "did I 👍 this" (count lives on the chip).
-  thread.querySelectorAll("[data-rr-mc-like]").forEach((btn) => {
-    const list = byMsg.get(String(btn.getAttribute("data-rr-mc-like"))) || [];
-    const up = list.find((e) => e.emoji === "👍");
-    _setMcLike(btn, 0, !!(up && up.mine));
-  });
 }
 // Delegated so they survive the thread's re-render on every poll.
 document.addEventListener("click", async (e) => {
-  const btn = e.target.closest("[data-rr-mc-like]");
-  if (btn) {
-    const id = btn.getAttribute("data-rr-mc-like");
-    const turningOn = !btn.classList.contains("on");
-    btn.classList.toggle("on", turningOn); // optimistic
-    try { _mcUpdateReactCache(await _mcReact(id, "👍", turningOn)); }
-    catch { btn.classList.toggle("on", !turningOn); }
-    return;
-  }
   const chip = e.target.closest("[data-rr-mc-chip]");
   if (chip) {
     const id = chip.getAttribute("data-rr-mc-chip");
