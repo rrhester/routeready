@@ -247,6 +247,11 @@
 .rrnb-page .sub mark,.rrnb-page .ttl mark{background:var(--accent-soft-strong,rgba(37,99,235,.16));color:var(--accent-text);
   border-radius:2px;padding:0 1px}
 .rrnb-secdot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;vertical-align:middle}
+/* #83 unresolved-comment count badge on the page row */
+.rrnb-page .rrnb-pcmt{flex:0 0 auto;align-self:center;display:inline-flex;align-items:center;gap:3px;
+  font-size:var(--fs-xs);font-weight:600;color:var(--amber);background:var(--amber-soft);
+  border-radius:var(--r-pill);padding:1px 7px 1px 5px;line-height:1.5;font-variant-numeric:tabular-nums}
+.rrnb-page .rrnb-pcmt svg{width:11px;height:11px}
 .rrnb-find{position:fixed;z-index:70;top:74px;right:30px;display:flex;align-items:center;gap:6px;
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-pop);padding:5px 8px}
 .rrnb-find[hidden]{display:none}
@@ -891,6 +896,22 @@ body.rrnb-dark-nb #rrnb-hovercard{
 #view-notebooks.rrnb-dark .rrnb-newpage:hover{background:var(--surface-hover)}
 #view-notebooks.rrnb-dark .rrnb-editor table.rrnb-zebra tbody tr:nth-child(even) td{background:rgba(255,255,255,.045)}
 #view-notebooks.rrnb-dark #rrnb-dark-btn{color:var(--amber-bright)}
+
+/* #99 touch — coarse pointers get roomier tap targets and an always-reachable
+   block grip (long-press opens block actions; see touch handlers in JS). */
+@media (pointer: coarse) {
+  #view-notebooks .rrnb-iconbtn,
+  #view-notebooks .rrnb-metabtn,
+  #view-notebooks .kebab{min-width:40px;min-height:40px}
+  #view-notebooks .rrnb-tb{min-width:40px;height:40px}
+  #view-notebooks .rrnb-slash-opt,
+  #view-notebooks .rrnb-pop-opt,
+  #view-notebooks .rrnb-cmdk-opt{padding-top:11px;padding-bottom:11px}
+  .rrnb-slash .rrnb-slash-opt,
+  .rrnb-blockmenu .rrnb-slash-opt{padding-top:11px;padding-bottom:11px}
+  .rrnb-todo-box{min-width:24px;min-height:24px}
+  .rrnb-draghandle{width:26px;height:28px}
+}
 
 /* section list — a small color SQUARE before the name (not a left bar), like OneNote */
 #view-notebooks .rrnb-section{padding:7px 10px}
@@ -1684,6 +1705,34 @@ body.rrnb-dark-nb #rrnb-hovercard{
     if (!tops.length && !pinned.length) html += emptyStateHTML("📄", "No pages yet", S.readOnly ? "This section is empty." : "Press <b>＋ Add page</b> or <b>Alt+N</b> to start one.");
     host.innerHTML = html;
     applyDensity();
+    refreshCommentBadges();
+  }
+  // #83 unresolved-comment count badge on page rows. commentCounts is cheap
+  // (one RPC for all visible ids) and both backends implement it; failures are
+  // swallowed so the list still renders. Cached on S so a fast re-render reuses
+  // the last counts until the next comment mutation refreshes them.
+  function paintCommentBadges(map) {
+    var host = $id("rrnb-pagelist"); if (!host) return;
+    host.querySelectorAll(".rrnb-page[data-page]").forEach(function (row) {
+      var id = row.getAttribute("data-page"), n = (map && map[id]) || 0;
+      var badge = row.querySelector(".rrnb-pcmt");
+      if (!n) { if (badge) badge.remove(); return; }
+      if (!badge) {
+        badge = document.createElement("span"); badge.className = "rrnb-pcmt";
+        badge.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 8.6 8.6 0 0 1-4-1L3 20l1.1-5.5A8.4 8.4 0 0 1 12.5 3 8.4 8.4 0 0 1 21 11.5z"/></svg><span class="n"></span>';
+        var kebab = row.querySelector(".kebab");
+        if (kebab) row.insertBefore(badge, kebab); else row.appendChild(badge);
+      }
+      badge.querySelector(".n").textContent = n;
+      badge.title = n + (n === 1 ? " unresolved comment" : " unresolved comments");
+    });
+  }
+  function refreshCommentBadges() {
+    var host = $id("rrnb-pagelist"); if (!host || !S.be || !S.be.commentCounts) return;
+    var ids = [].map.call(host.querySelectorAll(".rrnb-page[data-page]"), function (r) { return r.getAttribute("data-page"); });
+    if (!ids.length) return;
+    if (S._cmtCounts) paintCommentBadges(S._cmtCounts); // instant repaint from cache
+    S.be.commentCounts(ids).then(function (map) { S._cmtCounts = map || {}; paintCommentBadges(S._cmtCounts); }).catch(function () {});
   }
   // #93 a consistent, friendly empty state (icon + title + optional hint).
   // `hint` may contain small inline HTML (e.g. a shortcut in <b>).
@@ -1947,6 +1996,29 @@ body.rrnb-dark-nb #rrnb-hovercard{
     ed.addEventListener("mousemove", dhMouseMove);
     ed.addEventListener("mousemove", cpMouseMove);
     ed.addEventListener("mouseleave", function () { hideHandle(); cpHide(); });
+    // #99 touch — there's no hover on a phone/tablet, so a long-press on a block
+    // reveals the same block-actions menu the drag-grip click opens on desktop.
+    var _lpTimer = null, _lpX = 0, _lpY = 0;
+    var _lpCancel = function () { if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; } };
+    ed.addEventListener("touchstart", function (e) {
+      if (S.readOnly || S.editorKind === "tiptap" || !e.touches || e.touches.length !== 1) return;
+      var t = e.touches[0]; _lpX = t.clientX; _lpY = t.clientY;
+      var blk = topBlockOf(e.target, ed);
+      if (!blk || blk.tagName === "HR") return;
+      _lpTimer = setTimeout(function () {
+        _lpTimer = null; DH.block = blk;
+        var h = dhEl(), r = blk.getBoundingClientRect();
+        h.style.top = (r.top + 2) + "px"; h.style.left = Math.max(6, r.left - 22) + "px"; h.hidden = false;
+        try { if (navigator.vibrate) navigator.vibrate(10); } catch (x) {}
+        openBlockMenu();
+      }, 480);
+    }, { passive: true });
+    ed.addEventListener("touchmove", function (e) {
+      if (!_lpTimer || !e.touches || !e.touches.length) return;
+      var t = e.touches[0]; if (Math.abs(t.clientX - _lpX) > 10 || Math.abs(t.clientY - _lpY) > 10) _lpCancel();
+    }, { passive: true });
+    ed.addEventListener("touchend", _lpCancel);
+    ed.addEventListener("touchcancel", _lpCancel);
     bindToolbar();
     makeCaptionsEditable();
     if (S.readOnly || p.my_role === "viewer") applyReadOnly();
@@ -2665,6 +2737,45 @@ body.rrnb-dark-nb #rrnb-hovercard{
     reader.readAsDataURL(file);
   }
   function fmtBytes(n) { if (!n && n !== 0) return ""; if (n < 1024) return n + " B"; if (n < 1048576) return (n / 1024).toFixed(0) + " KB"; return (n / 1048576).toFixed(1) + " MB"; }
+
+  // #61 replace an attachment in place — swap the file behind an existing chip
+  // without deleting + re-adding, so its position in the page is preserved.
+  function fileChipOf(blk) {
+    if (!blk) return null;
+    if (blk.matches && blk.matches("a.rrnb-file")) return blk;
+    return (blk.querySelector && blk.querySelector("a.rrnb-file")) || null;
+  }
+  function updateFileChip(chip, file, href, mediaPath) {
+    if (!chip) return;
+    var ic = fileIcon(file.name), ext = ((file.name || "").split(".").pop() || "file").slice(0, 4);
+    chip.setAttribute("href", href || "#");
+    chip.setAttribute("download", file.name || "file");
+    if (mediaPath) chip.setAttribute("data-media-path", mediaPath); else chip.removeAttribute("data-media-path");
+    var fic = chip.querySelector(".fic"); if (fic) { fic.className = "fic" + (ic ? " rrnb-fic-emoji" : ""); fic.textContent = ic ? ic : ext; }
+    var nm = chip.querySelector(".fnm b"); if (nm) nm.textContent = file.name || "file";
+    var sz = chip.querySelector(".fnm span"); if (sz) sz.textContent = fmtBytes(file.size);
+  }
+  function replaceFileChip(chip) {
+    if (!chip || S.readOnly) return;
+    var inp = document.createElement("input"); inp.type = "file";
+    inp.onchange = function () {
+      var file = inp.files && inp.files[0]; if (!file) return;
+      if (storageClient()) {
+        if (file.size > MAX_STORE_BYTES) { notify('"' + (file.name || "file") + '" is over 25 MB.'); return; }
+        notify("Uploading " + (file.name || "file") + "…");
+        mediaUpload(file, file.name, function (path) {
+          if (!path) { notify("Upload failed"); return; }
+          mediaSign([path], function (map) { updateFileChip(chip, file, map[path] || "#", path); scheduleSave(); notify("File replaced"); });
+        });
+      } else {
+        if (file.size > MAX_FILE_BYTES) { notify('"' + (file.name || "file") + '" is over 8 MB — larger files need a signed-in session.'); return; }
+        var reader = new FileReader();
+        reader.onload = function () { updateFileChip(chip, file, reader.result, null); scheduleSave(); notify("File replaced"); };
+        reader.readAsDataURL(file);
+      }
+    };
+    document.body.appendChild(inp); inp.click(); setTimeout(function () { inp.remove(); }, 1000);
+  }
 
   // ══════════════════════════════════════════════════════════════════
   //  SPREADSHEETS — drop/attach a .csv/.tsv/.xlsx/.xls and see the data
@@ -3683,7 +3794,7 @@ body.rrnb-dark-nb #rrnb-hovercard{
     var parent = S._replyTo || null;
     ta.disabled = true;
     S.be.commentAdd(pid, body, parent, null, ments).then(function () {
-      S._cmtMentions = {}; S._replyTo = null; fillCtxComments(pid);
+      S._cmtMentions = {}; S._replyTo = null; fillCtxComments(pid); S._cmtCounts = null; refreshCommentBadges();
     }).catch(function (e) { ta.disabled = false; fail(e); });
   }
   function onCommentsClick(e) {
@@ -3693,9 +3804,9 @@ body.rrnb-dark-nb #rrnb-hovercard{
     if (e.target.closest(".rrnb-cmt-send")) { var ta2 = host.querySelector(".rrnb-cmt-input"); if (ta2) submitComment(ta2); return; }
     if (e.target.closest("[data-cmt-filter]")) { S._hideResolved = !S._hideResolved; try { localStorage.setItem("rrnb-hide-resolved", S._hideResolved ? "1" : "0"); } catch (x) {} fillCtxComments(S.pageId); return; }
     var rs = e.target.closest("[data-cmt-resolve]");
-    if (rs) { var on = rs.classList.contains("on"); S.be.commentResolve(rs.getAttribute("data-cmt-resolve"), !on).then(function () { fillCtxComments(S.pageId); }).catch(fail); return; }
+    if (rs) { var on = rs.classList.contains("on"); S.be.commentResolve(rs.getAttribute("data-cmt-resolve"), !on).then(function () { fillCtxComments(S.pageId); S._cmtCounts = null; refreshCommentBadges(); }).catch(fail); return; }
     var dl = e.target.closest("[data-cmt-del]");
-    if (dl) { S.be.commentDelete(dl.getAttribute("data-cmt-del")).then(function () { fillCtxComments(S.pageId); }).catch(fail); return; }
+    if (dl) { S.be.commentDelete(dl.getAttribute("data-cmt-del")).then(function () { fillCtxComments(S.pageId); S._cmtCounts = null; refreshCommentBadges(); }).catch(fail); return; }
     var rp = e.target.closest("[data-cmt-reply]");
     if (rp) { S._replyTo = rp.getAttribute("data-cmt-reply"); fillCtxComments(S.pageId); setTimeout(function () { var t = host.querySelector(".rrnb-cmt-input"); if (t) t.focus(); }, 60); return; }
     if (e.target.closest("[data-cmt-cancelreply]")) { S._replyTo = null; fillCtxComments(S.pageId); return; }
@@ -4853,6 +4964,10 @@ body.rrnb-dark-nb #rrnb-hovercard{
       var folded = BM.block.classList.contains("rrnb-folded");
       items = [{ act: "fold", label: folded ? "Unfold section" : "Fold section", ic: folded ? "▸" : "▾" }, { sep: true }].concat(BLOCK_ACTIONS);
     }
+    // #61 replace an attachment in place — offer it when the block is a file chip
+    if (fileChipOf(BM.block)) {
+      items = [{ act: "replacefile", label: "Replace file…", ic: "⤿" }, { sep: true }].concat(BLOCK_ACTIONS);
+    }
     BM.items = items;
     m.innerHTML = items.map(function (a, i) {
       if (a.head) return '<div class="rrnb-bm-head">' + esc(a.label) + '</div>';
@@ -4871,6 +4986,7 @@ body.rrnb-dark-nb #rrnb-hovercard{
     if (!a || !blk || !ed) { closeBlockMenu(); return; }
     if (a.act === "fold") { toggleFoldHeading(blk); closeBlockMenu(); return; }
     if (a.act === "tint") { openBlockTint(blk); closeBlockMenu(); return; }
+    if (a.act === "replacefile") { replaceFileChip(fileChipOf(blk)); closeBlockMenu(); hideHandle(); return; }
     if (a.act === "turn") {
       var nb2 = convertBlock(blk, a.arg);
       if (nb2) { ed.focus(); try { var rg = document.createRange(); rg.selectNodeContents(nb2.tagName === "UL" || nb2.tagName === "OL" ? (nb2.querySelector("li") || nb2) : nb2); rg.collapse(false); var s = window.getSelection(); s.removeAllRanges(); s.addRange(rg); } catch (e3) {} }
