@@ -52741,6 +52741,30 @@ window.recalcOkami = function () { /* no-op */ };
 //     4 weeks (operator preference; deliberately NOT extended to all 13)
 const RR_OKAMI_DAILY_WEEKS = 4;
 
+// Station filter (multi-station DSPs) · null = all stations summed.
+let _rrOkamiStationFilter = null;
+function _rrOkamiRenderStationFilter(stationsInGrid) {
+  const acts = document.querySelector(".rr-tgt-13w-actions");
+  if (!acts) return;
+  let wrap = document.getElementById("rr-tgt-station-wrap");
+  if (!stationsInGrid || stationsInGrid.length <= 1) { if (wrap) wrap.remove(); return; }
+  if (!wrap) {
+    wrap = document.createElement("span");
+    wrap.id = "rr-tgt-station-wrap";
+    wrap.innerHTML = `<select class="form-input form-input-sm" id="rr-tgt-station-sel" title="Filter the plan to one station. Available stays fleet-wide — drivers aren't station-locked here." aria-label="Station filter"></select>`;
+    acts.insertBefore(wrap, acts.firstChild);
+  }
+  const sel = wrap.querySelector("select");
+  sel.innerHTML = `<option value="">All stations</option>` + stationsInGrid
+    .map((s) => `<option value="${escapeHtml(s.id)}"${_rrOkamiStationFilter === s.id ? " selected" : ""}>${escapeHtml(s.code)}</option>`).join("");
+}
+document.addEventListener("change", (e) => {
+  if (e.target?.id !== "rr-tgt-station-sel") return;
+  _rrOkamiStationFilter = e.target.value || null;
+  if (window._okamiStart) window._rrOkamiAnchorOverride = window._okamiStart;
+  renderOkamiLive();
+});
+
 function _rrOkamiWeekRowHtml(w) {
   const expandable = w < RR_OKAMI_DAILY_WEEKS;
   const expandBtn = expandable
@@ -52913,8 +52937,47 @@ function _rrOkamiGapExplainHtml(mw) {
       <div><b>Supply</b> · ${escapeHtml(supplyLine)} = <b>${mw.avail}</b> route-ready</div>
       <div><b>Gap</b> · <b>${mw.gap >= 0 ? "+" : ""}${mw.gap}</b></div>
       ${closeHtml}
+      <div style="margin-top:8px"><button class="btn btn-sm" type="button" data-rr-tgt-history="${mw.idx}">Edit history</button></div>
     </div>`;
 }
+
+// Who changed this week's plan — reads okami_demand_audit (migration
+// 0512: audit trigger on okami_demand + week-scoped feed).
+document.addEventListener("click", async (e) => {
+  const btn = e.target.closest && e.target.closest("[data-rr-tgt-history]");
+  if (!btn) return;
+  e.preventDefault();
+  const mw = window._rrOkamiModel?.weeks?.[parseInt(btn.dataset.rrTgtHistory, 10)];
+  if (!mw) return;
+  const { data, error } = await sb.rpc("okami_demand_audit", { p_week_start: mw.weekStartIso, p_limit: 60 });
+  if (error) {
+    const msg = /does not exist|404|function/i.test(error.message || "")
+      ? "Edit history needs migration 0512 applied"
+      : "History load failed: " + error.message;
+    toast(msg, "warn");
+    return;
+  }
+  const rows = (data || []).map((r) => {
+    const when = r.occurred_at ? new Date(r.occurred_at) : null;
+    const whenTxt = when ? `${fmtMD(when)} ${when.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}` : "—";
+    const who = r.actor_email ? escapeHtml(String(r.actor_email).split("@")[0]) : "system";
+    const day = r.demand_date ? fmtMD(new Date(r.demand_date + "T12:00:00")) : "—";
+    const wave = r.wave_index > 0 ? ` · wave ${r.wave_index + 1}` : "";
+    const before = r.target_before == null ? "∅" : r.target_before;
+    const after = r.target_after == null ? "∅" : r.target_after;
+    return `<div style="display:flex;justify-content:space-between;gap:10px;padding:3px 0;border-bottom:1px solid var(--border)">
+      <span style="color:var(--text-subtle);white-space:nowrap">${whenTxt}</span>
+      <span style="flex:1;min-width:0">${who}</span>
+      <span style="white-space:nowrap">${escapeHtml(day)}${wave}: ${before} → <b>${after}</b></span>
+    </div>`;
+  }).join("");
+  if (typeof _paOpenPopover === "function") {
+    _paOpenPopover(btn, `<div class="pa-pop-h">${escapeHtml(mw.label)} · edit history</div>
+      <div style="padding:10px 14px;font-size:var(--fs-xs);max-height:280px;overflow-y:auto;min-width:300px;font-variant-numeric:tabular-nums">
+        ${rows || `<div style="color:var(--text-subtle)">No recorded edits for this week yet. Edits are recorded once migration 0512 is applied.</div>`}
+      </div>`);
+  }
+});
 document.addEventListener("click", (e) => {
   const gapEl = e.target.closest && e.target.closest("#okami-tbody .plan-gap");
   if (!gapEl) return;
@@ -53212,6 +53275,28 @@ async function _renderOkamiLiveImpl() {
 
   // Sum target_routes + filled per ISO date across all stations, and
   // per-week service-type mix from targets_by_wave.
+  // Multi-station DSPs get a station filter (the grid is per-station;
+  // summing hides one station being badly short). When set, every cache
+  // below is built from the filtered rows, so the table, editing ops,
+  // chart and tfoot all follow — Available stays fleet-wide (drivers
+  // aren't per-station here) and the surfaces note that.
+  const stationsInGrid = [];
+  {
+    const seen = new Set();
+    for (const c of cells) {
+      if (c.station_id && !seen.has(c.station_id)) {
+        seen.add(c.station_id);
+        stationsInGrid.push({ id: c.station_id, code: c.station_code || "?" });
+      }
+    }
+    stationsInGrid.sort((a, b) => String(a.code).localeCompare(String(b.code)));
+    if (_rrOkamiStationFilter && !seen.has(_rrOkamiStationFilter)) _rrOkamiStationFilter = null;
+  }
+  const useCells = _rrOkamiStationFilter
+    ? cells.filter((c) => c.station_id === _rrOkamiStationFilter)
+    : cells;
+  _rrOkamiRenderStationFilter(stationsInGrid);
+
   const totalsByDate = new Map();
   const filledByDate = new Map();
   const typeTotalsByWeekIdx = Array.from({ length: RR_OKAMI_WEEKS }, () => ({}));
@@ -53221,7 +53306,7 @@ async function _renderOkamiLiveImpl() {
   // bulk edits instead of being flattened.
   const bucketsByDate = new Map();
   const startNoonUtc = Date.parse(_okamiStart + "T12:00:00Z");
-  for (const c of cells) {
+  for (const c of useCells) {
     totalsByDate.set(c.date, (totalsByDate.get(c.date) || 0) + (c.target_routes || 0));
     filledByDate.set(c.date, (filledByDate.get(c.date) || 0) + (c.filled || 0));
     const wIdx = Math.floor(Math.round((Date.parse(c.date + "T12:00:00Z") - startNoonUtc) / 86400000) / 7);
@@ -53477,7 +53562,13 @@ async function _renderOkamiLiveImpl() {
     });
   }
 
-  window._rrOkamiModel = { startIso: _okamiStart, weeks: modelWeeks };
+  window._rrOkamiModel = {
+    startIso: _okamiStart,
+    weeks: modelWeeks,
+    stationFilter: _rrOkamiStationFilter
+      ? (stationsInGrid.find((s) => s.id === _rrOkamiStationFilter)?.code || "station")
+      : null,
+  };
   _rrOkamiRenderTfoot();
   try { _rrOkamiRenderTrend(); } catch (_) { /* chart host is Targets-only */ }
 
@@ -53741,6 +53832,17 @@ function _rrOkamiFlatWrites(w, val) {
   for (let d = 0; d < 7; d++) {
     const iso = _rrOkamiWeekIso(w, d);
     const dayBuckets = buckets.get(iso) || [];
+    if (_rrOkamiStationFilter) {
+      // Station-filtered view: the typed value edits THAT station only —
+      // other stations' demand is untouched.
+      const prevEntry = dayBuckets.find((b) => b.stationId === _rrOkamiStationFilter && (b.waveIndex || 0) === 0 && b.code === "SP");
+      writes.push({
+        iso, stationId: _rrOkamiStationFilter, waveIndex: 0, serviceTypeId: prevEntry?.serviceTypeId || null,
+        value: val,
+        prev: prevEntry ? prevEntry.value : 0,
+      });
+      continue;
+    }
     _okamiStations.forEach((s, idx) => {
       const prevEntry = dayBuckets.find((b) => b.stationId === s.id && (b.waveIndex || 0) === 0 && b.code === "SP");
       writes.push({
@@ -54012,7 +54114,7 @@ async function _rrOkamiSeedEmptyWeeks() {
       const iso = _rrOkamiWeekIso(wk.idx, d);
       const val = dowVal[new Date(iso + "T12:00:00").getDay()];
       if (!val) continue;
-      writes.push({ iso, stationId: stations[0].id, waveIndex: 0, serviceTypeId: null, value: val, prev: 0 });
+      writes.push({ iso, stationId: _rrOkamiStationFilter || stations[0].id, waveIndex: 0, serviceTypeId: null, value: val, prev: 0 });
     }
   }
   await _rrOkamiCommitOp(writes, `Seeded ${empty.length} week${empty.length === 1 ? "" : "s"} from history`);
@@ -55549,6 +55651,12 @@ function _rrRefreshTargetsGapCard() {
       ? `Forecast gap · worst ${A.worstWeek.label}`
       : "Forecast gap";
     if (A.worstWeek.dates) labelEl.title = worst < 0 ? `Deepest shortfall: ${A.worstWeek.label} (${A.worstWeek.dates})` : "";
+    // Station-filtered demand vs fleet-wide supply — say so.
+    const stn = window._rrOkamiModel?.stationFilter;
+    if (stn) {
+      labelEl.textContent += ` · ${stn} demand`;
+      labelEl.title = (labelEl.title ? labelEl.title + " — " : "") + "Demand filtered to one station; Available is still fleet-wide";
+    }
   }
   // Prescription line — the one action the number implies. Hire count =
   // deepest shortfall among weeks hiring can still reach (one hire fills a
