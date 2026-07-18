@@ -52639,15 +52639,22 @@ function _okamiRecomputeFromCache(padPct) {
   const allOkamiRows = okTbody
     ? Array.from(okTbody.querySelectorAll("tr:not(.okami-detail)"))
     : [];
-  for (let w = 0; w < allOkamiRows.length; w++) {
+  // Same demand formula as the full render — the slider used to hardcode
+  // the 2× baseline while the render used the hiring-settings ratio, so
+  // dragging the Pad silently changed the drivers-per-route assumption.
+  const dpr = window._rrForecastRates?.driversPerRoute ?? 2;
+  const modelWeeks = window._rrOkamiModel?.weeks || null;
+  for (let w = 0; w < Math.min(allOkamiRows.length, RR_OKAMI_WEEKS); w++) {
     const row = allOkamiRows[w];
+    // Skeleton / error rows have no gap cell — nothing to recompute into.
+    if (!row.querySelector(".plan-gap")) continue;
     const weekStart = addDays(_okamiStartCache, w * 7);
     let routesMax = 0;
     for (let d = 0; d < 7; d++) {
       const t = _okamiTotalsByDateCache.get(fmtIsoDate(addDays(weekStart, d))) || 0;
       if (t > routesMax) routesMax = t;
     }
-    const needed = routesMax > 0 ? Math.ceil(routesMax * 2 * (1 + padPct / 100)) : 0;
+    const needed = rrDriversNeeded(routesMax, { driversPerRoute: dpr, padPct });
     const gap = _okamiActiveCount - needed;
     const tdCells = row.querySelectorAll("td");
     if (tdCells[2]) tdCells[2].innerHTML = `<div class="plan-calc">${needed}</div>`;
@@ -52660,7 +52667,15 @@ function _okamiRecomputeFromCache(padPct) {
       // Targets page (scoped CSS; standalone OKAMI leaves the gap unstyled).
       _rrApplyGapClass(gapEl, gap);
     }
+    // Keep the published model in lockstep — the gap card + Risk Forecast
+    // read the model, and it used to go stale mid-drag.
+    if (modelWeeks && modelWeeks[w]) {
+      modelWeeks[w].needed = needed;
+      modelWeeks[w].gap = gap;
+      modelWeeks[w].avail = _okamiActiveCount;
+    }
   }
+  _rrOkamiRenderTfoot();
   try { _rrRefreshTargetsGapCard(); } catch (_) { /* gap card is optional */ }
 }
 let _okamiCushionPct = 10;
@@ -52678,6 +52693,127 @@ window.renderOkamiLive = renderOkamiLive;
 // operator just typed. Make it a no-op — the document-level input
 // delegate handles the debounced save + re-render.
 window.recalcOkami = function () { /* no-op */ };
+
+// ─── 13-week table · model-driven row builder ──────────────────────────────
+// The tbody used to be 13 hand-written mockup rows the renderer rewrote
+// in place; an RPC failure left the mockup's fake numbers on screen
+// looking real. Rows are now generated here. The DOM contract every
+// existing consumer relies on is preserved:
+//   · week rows are `tr:not(.okami-detail)` inside #okami-tbody, in
+//     document order = week index (sim annotations, Plan-Pad recompute,
+//     DOM-fallback readers, mock pipeline all index this way)
+//   · 8 <td>s per row: Week | Routes input | Needed | Available | Gap |
+//     Strategy | Hire by | Status (cols 6–8 stay CSS-hidden)
+//   · weeks 0–(RR_OKAMI_DAILY_WEEKS-1) keep #okami-row-N +
+//     .okami-expand-btn + tr.okami-detail (#okami-detail-N /
+//     #okami-detail-content-N) — the per-day drill-down window stays
+//     4 weeks (operator preference; deliberately NOT extended to all 13)
+const RR_OKAMI_DAILY_WEEKS = 4;
+
+function _rrOkamiWeekRowHtml(w) {
+  const expandable = w < RR_OKAMI_DAILY_WEEKS;
+  const expandBtn = expandable
+    ? `<button class="okami-expand-btn" type="button" onclick="okamiToggleDaily(${w})" aria-label="Expand daily plan" aria-expanded="false" aria-controls="okami-detail-content-${w}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg></button>`
+    : "";
+  const detail = expandable
+    ? `<tr class="okami-detail" id="okami-detail-${w}"><td colspan="8" id="okami-detail-content-${w}" tabindex="-1"></td></tr>`
+    : "";
+  return `<tr id="okami-row-${w}">
+    <td>${expandBtn}<div class="plan-week-label" style="display:inline-block;vertical-align:middle"></div><div class="plan-week-dates"></div><span class="rr-tgt-week-chips"></span></td>
+    <td class="center"><input class="plan-route-input" inputmode="numeric" autocomplete="off" data-rr-okami-week-idx="${w}"/></td>
+    <td class="center"><div class="plan-calc"></div></td>
+    <td class="center"><div class="plan-calc"></div></td>
+    <td class="center"><div class="plan-gap"></div></td>
+    <td class="center"><div class="strategy-pills"><span class="u-sm-muted"></span></div></td>
+    <td class="center"><div class="plan-calc"></div></td>
+    <td><span class="u-sm-muted" data-rr-okami-status></span></td>
+  </tr>${detail}`;
+}
+
+function _rrOkamiEnsureRows(tbody) {
+  if (tbody.dataset.rrOkamiBuilt === "1") return;
+  let html = "";
+  for (let w = 0; w < RR_OKAMI_WEEKS; w++) html += _rrOkamiWeekRowHtml(w);
+  tbody.innerHTML = html;
+  delete tbody.dataset.rrOkamiSkel;
+  tbody.dataset.rrOkamiBuilt = "1";
+}
+
+// Loading skeleton while okami_grid is in flight. Only on first load /
+// after an error — once live rows exist they update in place with no
+// flash. The frag ships the same skeleton statically for the pre-JS gap.
+function _rrOkamiShowSkeleton(tbody) {
+  if (tbody.dataset.rrOkamiBuilt === "1" || tbody.dataset.rrOkamiSkel === "1") return;
+  tbody.innerHTML = Array.from({ length: RR_OKAMI_WEEKS }, () =>
+    `<tr class="rr-okami-skel-row"><td colspan="8"><div class="rr-okami-skel"></div></td></tr>`).join("");
+  tbody.dataset.rrOkamiSkel = "1";
+}
+
+// Failed load → an explicit error row + Retry, and a nulled model so the
+// gap card / Risk Forecast can't keep reading a stale plan.
+function _rrOkamiShowError(tbody, msg) {
+  delete tbody.dataset.rrOkamiBuilt;
+  delete tbody.dataset.rrOkamiSkel;
+  window._rrOkamiModel = null;
+  tbody.innerHTML = `<tr class="rr-okami-err-row"><td colspan="8"><div class="rr-okami-err"><span>Couldn't load the route plan — ${escapeHtml(msg || "network error")}</span><button class="btn btn-sm" type="button" data-rr-okami-retry>Retry</button></div></td></tr>`;
+  const foot = document.getElementById("okami-tfoot");
+  if (foot) foot.innerHTML = "";
+  try { _rrRefreshTargetsGapCard(); } catch (_) { /* card just hides */ }
+}
+document.addEventListener("click", (e) => {
+  if (!e.target.closest || !e.target.closest("[data-rr-okami-retry]")) return;
+  e.preventDefault();
+  renderOkamiLive();
+});
+
+// US holidays that reliably move parcel volume — computed from date
+// rules (no network). Used for the small week-row event chips.
+function _rrUsHolidayName(d) {
+  const m = d.getMonth(), day = d.getDate(), dow = d.getDay();
+  const nth = Math.floor((day - 1) / 7) + 1; // 1-based occurrence of this weekday in the month
+  if (m === 0 && day === 1) return "New Year's Day";
+  if (m === 0 && dow === 1 && nth === 3) return "MLK Day";
+  if (m === 1 && dow === 1 && nth === 3) return "Presidents' Day";
+  if (m === 4 && dow === 1 && day >= 25) return "Memorial Day";
+  if (m === 5 && day === 19) return "Juneteenth";
+  if (m === 6 && day === 4) return "Independence Day";
+  if (m === 8 && dow === 1 && nth === 1) return "Labor Day";
+  if (m === 10 && dow === 4 && nth === 4) return "Thanksgiving";
+  if (m === 11 && day === 25) return "Christmas Day";
+  return null;
+}
+function _rrUsHolidaysInWeek(weekStart) {
+  const out = [];
+  for (let d = 0; d < 7; d++) {
+    const date = addDays(weekStart, d);
+    const name = _rrUsHolidayName(date);
+    if (name) out.push({ name, label: fmtMD(date) });
+  }
+  return out;
+}
+
+// Footer summary line — totals across the horizon (reads the published
+// model, so it stays correct after Plan-Pad recomputes too).
+function _rrOkamiRenderTfoot() {
+  const foot = document.getElementById("okami-tfoot");
+  if (!foot) return;
+  const weeks = window._rrOkamiModel?.weeks || [];
+  if (!weeks.length) { foot.innerHTML = ""; return; }
+  const planned = weeks.filter((w) => w.routesMax > 0);
+  const short = planned.filter((w) => w.gap < 0).length;
+  const covered = planned.length - short;
+  const unplanned = weeks.length - planned.length;
+  const totalRoutes = weeks.reduce((s, w) => s + (w.weekRoutes || 0), 0);
+  let peak = null;
+  for (const w of planned) if (!peak || w.routesMax > peak.routesMax) peak = w;
+  foot.innerHTML = `<tr class="rr-okami-foot-row"><td colspan="8">
+    <span class="rr-okami-foot-item"><b>${totalRoutes.toLocaleString()}</b> routes planned</span>
+    ${peak ? `<span class="rr-okami-foot-item">peak <b>${peak.routesMax}</b>/day (${escapeHtml(peak.label)})</span>` : ""}
+    <span class="rr-okami-foot-item"><b>${covered}</b> wk covered</span>
+    <span class="rr-okami-foot-item"><b>${short}</b> wk short</span>
+    ${unplanned ? `<span class="rr-okami-foot-item"><b>${unplanned}</b> wk unplanned</span>` : ""}
+  </td></tr>`;
+}
 
 async function _renderOkamiLiveImpl() {
   const tbody = document.getElementById("okami-tbody");
@@ -52705,6 +52841,11 @@ async function _renderOkamiLiveImpl() {
   window._okamiStart = _okamiStart;
   const start = new Date(_okamiStart + "T12:00:00");
 
+  // First load (or reload after an error): skeleton while the RPC is in
+  // flight. Existing live rows are left in place — they update below
+  // with no flash.
+  _rrOkamiShowSkeleton(tbody);
+
   const [gridRes, drvRes] = await Promise.all([
     sb.rpc("okami_grid", { p_start: _okamiStart, p_weeks: RR_OKAMI_WEEKS }),
     sb.from("drivers")
@@ -52713,8 +52854,12 @@ async function _renderOkamiLiveImpl() {
       .in("status", ["active", "onboarding"]),
   ]);
 
-  if (gridRes.error) { console.warn("okami_grid:", gridRes.error.message); return; }
-  if (drvRes.error)  { console.warn("driver count:", drvRes.error.message); return; }
+  if (gridRes.error || drvRes.error) {
+    const msg = gridRes.error?.message || drvRes.error?.message;
+    _rrSwallow("okami load", gridRes.error || drvRes.error);
+    _rrOkamiShowError(tbody, msg);
+    return;
+  }
 
   const cells = gridRes.data || [];
   _okamiActiveCount = drvRes.count || 0;
@@ -52738,14 +52883,10 @@ async function _renderOkamiLiveImpl() {
   if (padInput && Number(padInput.value) !== padPct) padInput.value = padPct;
   if (padLabel) padLabel.textContent = `${padPct}%`;
 
-  // Mockup only assigned id='okami-row-N' to the first three rows; rows
-  // 3..12 had no id, so the older lookup silently skipped them and W21
-  // through W30 never got their labels rewritten. Use every non-detail
-  // row inside #okami-tbody in document order instead.
-  const okTbody = document.getElementById("okami-tbody");
-  const allOkamiRows = okTbody
-    ? Array.from(okTbody.querySelectorAll("tr:not(.okami-detail)"))
-    : [];
+  // Build (or keep) the generated rows, then fill them. Week rows are
+  // every non-detail row inside #okami-tbody in document order.
+  _rrOkamiEnsureRows(tbody);
+  const allOkamiRows = Array.from(tbody.querySelectorAll("tr:not(.okami-detail)"));
 
   // Kick the shared forecast-rates load (drivers-per-route ratio, callout /
   // attrition rates). First render may run on defaults; the repaint hooks
@@ -52759,17 +52900,22 @@ async function _renderOkamiLiveImpl() {
   // not the table's DOM). Rebuilt whole on every render.
   const modelWeeks = [];
 
+  const todayIso = fmtIsoDate(new Date());
+
   for (let w = 0; w < RR_OKAMI_WEEKS; w++) {
     const row = allOkamiRows[w];
     if (!row) continue;
     const weekStart = addDays(start, w * 7);
     const weekEnd   = addDays(weekStart, 6);
+    const weekStartIso = fmtIsoDate(weekStart);
+    const weekEndIso   = fmtIsoDate(weekEnd);
 
-    // Routes per day across the week, then peak.
-    let routesMax = 0;
+    // Routes per day across the week → peak (drives staffing) + total.
+    let routesMax = 0, weekRoutes = 0;
     for (let d = 0; d < 7; d++) {
       const iso = fmtIsoDate(addDays(weekStart, d));
       const t = totalsByDate.get(iso) || 0;
+      weekRoutes += t;
       if (t > routesMax) routesMax = t;
     }
 
@@ -52777,17 +52923,25 @@ async function _renderOkamiLiveImpl() {
     const gap     = _okamiActiveCount - needed;
     const hireBy  = addDays(weekStart, -RR_OKAMI_HIRE_LEAD_DAYS);
 
-    // Update week label + dates (without disturbing the expand button or tags).
     const labelEl = row.querySelector(".plan-week-label");
     const datesEl = row.querySelector(".plan-week-dates");
     if (labelEl) labelEl.textContent = `W${isoWeek(weekStart)}`;
     if (datesEl) datesEl.textContent = `${fmtMD(weekStart)}–${weekEnd.getDate()}`;
 
-    // Routes (max) is now READ-ONLY — operator edits per-day in the
-    // daily drill-down panel and Routes (max) reflects the peak day.
-    // Editing the cell directly used to overwrite all 7 days, which
-    // destroyed per-day variation. Set readOnly + light styling so it
-    // looks like a display value, not an input.
+    // "You are here" + month boundary + holiday context on the week cell.
+    const isNow = todayIso >= weekStartIso && todayIso <= weekEndIso;
+    row.classList.toggle("rr-tgt-now-row", isNow);
+    const monthTurns = w > 0 && weekStart.getMonth() !== addDays(start, (w - 1) * 7).getMonth();
+    row.classList.toggle("rr-tgt-month-start", monthTurns);
+    const chipsEl = row.querySelector(".rr-tgt-week-chips");
+    if (chipsEl) {
+      const holidays = _rrUsHolidaysInWeek(weekStart);
+      chipsEl.innerHTML =
+        (isNow ? `<span class="rr-tgt-now-chip">This week</span>` : "") +
+        (monthTurns ? `<span class="rr-tgt-month-chip">${weekStart.toLocaleDateString(undefined, { month: "short" })}</span>` : "") +
+        holidays.map((h) => `<span class="rr-tgt-evt-chip" title="${escapeHtml(h.label)} · demand-relevant holiday">${escapeHtml(h.name)}</span>`).join("");
+    }
+
     const input = row.querySelector(".plan-route-input");
     if (input) {
       // Don't clobber a value the operator is mid-edit. This render runs after
@@ -52796,11 +52950,8 @@ async function _renderOkamiLiveImpl() {
       // "Routes (max) keeps changing as I type" bug. Only sync the displayed
       // peak when the field isn't focused.
       if (document.activeElement !== input) input.value = routesMax;
-      input.readOnly = false;
-      input.style.background = "";
-      input.style.border = "";
-      input.style.cursor = "";
       input.title = "Type a value to set all 7 days. Use the drill-down panel for per-day variation.";
+      input.setAttribute("aria-label", `Peak routes per day, week of ${fmtMD(weekStart)}`);
       input.dataset.rrOkamiWeekIdx = String(w);
     }
 
@@ -52837,18 +52988,15 @@ async function _renderOkamiLiveImpl() {
     const statusText = gap >= 0
       ? "On track"
       : RR_FC_LABEL[(needed > 0 && _okamiActiveCount / needed < 0.80) ? "risk" : "watch"];
-    const statusPill = tdCells[7]?.querySelector(".plan-status-pill");
-    if (statusPill) {
-      statusPill.classList.remove("ok", "warn", "bad");
-      statusPill.outerHTML = `<span class="u-sm-muted">${statusText}</span>`;
-    }
+    const statusEl = row.querySelector("[data-rr-okami-status]");
+    if (statusEl) statusEl.textContent = statusText;
 
     modelWeeks.push({
       idx: w,
-      weekStartIso: fmtIsoDate(weekStart),
+      weekStartIso,
       label: `W${isoWeek(weekStart)}`,
       dates: `${fmtMD(weekStart)}–${weekEnd.getDate()}`,
-      routesMax, needed,
+      routesMax, weekRoutes, needed,
       avail: _okamiActiveCount,
       gap,
       hireBy: hireByText,
@@ -52858,14 +53006,7 @@ async function _renderOkamiLiveImpl() {
   }
 
   window._rrOkamiModel = { startIso: _okamiStart, weeks: modelWeeks };
-
-  // Update top hires-needed summary cell, if present. One hire covers a
-  // seat in every subsequent week, so this is the DEEPEST weekly shortfall
-  // — never the sum of weekly gaps (that unit is driver-weeks).
-  let peakHires = 0;
-  for (const mw of modelWeeks) if (mw.gap < 0 && -mw.gap > peakHires) peakHires = -mw.gap;
-  const sumValue = document.querySelector(".okami-summary-grid .okami-sum:first-child .okami-sum-value");
-  if (sumValue) sumValue.textContent = peakHires;
+  _rrOkamiRenderTfoot();
 
   // Keep the Targets gap card in lockstep with the fresh model.
   try { if (typeof _rrRefreshTargetsGapCard === "function") _rrRefreshTargetsGapCard(); } catch (_) {}
@@ -52991,8 +53132,29 @@ function bindOkamiHandlers() {
     if (!detail || !btn) return;
     const isOpen = detail.classList.toggle("open");
     btn.classList.toggle("expanded", isOpen);
-    if (isOpen) renderOkamiDailyPanel(weekIdx);
+    btn.setAttribute("aria-expanded", String(isOpen));
+    if (isOpen) {
+      renderOkamiDailyPanel(weekIdx);
+      // Land keyboard/SR focus in the opened panel; Esc (delegate below)
+      // closes it and hands focus back to the chevron.
+      const content = document.getElementById(`okami-detail-content-${weekIdx}`);
+      if (content) { content.tabIndex = -1; content.focus(); }
+    }
   };
+
+  // Esc inside an open daily panel closes it and restores focus to its
+  // expand chevron.
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    const detailTd = e.target.closest && e.target.closest("tr.okami-detail.open > td");
+    if (!detailTd) return;
+    const m = /^okami-detail-(\d+)$/.exec(detailTd.parentElement.id || "");
+    if (!m) return;
+    e.preventDefault();
+    window.okamiToggleDaily(Number(m[1]));
+    const btn = document.querySelector(`#okami-row-${m[1]} .okami-expand-btn`);
+    if (btn) btn.focus();
+  });
 
   // The mockup's okamiRenderDailyPanel was deleted in index.html and now
   // delegates here via window. Expose the live renderer on window so the
@@ -54308,9 +54470,17 @@ document.addEventListener("keydown", (e) => {
 function _rrApplyGapClass(gapEl, gap) {
   if (!gapEl) return;
   gapEl.classList.remove("rr-tgt-gap-pos", "rr-tgt-gap-s1", "rr-tgt-gap-s2", "rr-tgt-gap-s3");
-  if (gap >= 0) { gapEl.classList.add("rr-tgt-gap-pos"); return; }
+  if (gap >= 0) {
+    gapEl.classList.add("rr-tgt-gap-pos");
+    gapEl.title = gap === 0 ? "Exactly covered — no spare drivers" : `Covered with ${gap} spare driver${gap === 1 ? "" : "s"}`;
+    return;
+  }
   const m = Math.abs(gap);
-  gapEl.classList.add(m <= 10 ? "rr-tgt-gap-s1" : m <= 40 ? "rr-tgt-gap-s2" : "rr-tgt-gap-s3");
+  const sev = m <= 10 ? 1 : m <= 40 ? 2 : 3;
+  gapEl.classList.add(`rr-tgt-gap-s${sev}`);
+  // Severity in words too — the graduated reds alone are invisible to
+  // colorblind operators (CSS adds ▲ markers on s2/s3 for the same reason).
+  gapEl.title = `Short ${m} driver${m === 1 ? "" : "s"}${sev === 3 ? " — severe" : sev === 2 ? " — significant" : ""}`;
 }
 
 // Save Plan · Targets auto-saves per week as you type, so this re-commits the

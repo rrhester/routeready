@@ -57,158 +57,45 @@
           </div>
         </div>
 
-        <!-- 13-week table -->
+        <!-- 13-week table · rows are BUILT AT RUNTIME by _rrOkamiEnsureRows
+             (live.js) from okami_grid data. The tbody used to ship 13
+             hand-written sample rows; on any RPC failure those fake
+             numbers stayed on screen looking real. Now the static
+             markup is only a loading skeleton — live.js replaces it
+             with generated rows (weeks 0–3 keep the daily drill-down
+             contract: #okami-row-N + .okami-expand-btn +
+             #okami-detail-N/#okami-detail-content-N). -->
         <div class="plan-table-wrap">
           <table class="okami-table">
+            <caption class="rr-visually-hidden">13-week route plan: weekly route targets, drivers needed, driver availability and staffing gap per week</caption>
             <thead>
               <tr>
-                <th>Week</th>
-                <th class="center">Routes</th>
-                <th class="center">Drivers needed</th>
-                <th class="center">Available</th>
-                <th class="center">Gap</th>
-                <th class="center">Strategy</th>
-                <th class="center">Hire by</th>
-                <th>Status</th>
+                <th scope="col">Week</th>
+                <th scope="col" class="center">Routes</th>
+                <th scope="col" class="center">Drivers needed</th>
+                <th scope="col" class="center">Available</th>
+                <th scope="col" class="center">Gap</th>
+                <th scope="col" class="center">Strategy</th>
+                <th scope="col" class="center">Hire by</th>
+                <th scope="col">Status</th>
               </tr>
             </thead>
             <tbody id="okami-tbody">
-              <!-- 13 weeks -->
-              <tr id="okami-row-0">
-                <td><button class="okami-expand-btn" onclick="okamiToggleDaily(0)" aria-label="Expand daily plan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg></button><div class="plan-week-label" style="display:inline-block;vertical-align:middle">W19</div><div class="plan-week-dates">May 1–7</div><span class="okami-week-tag cycle">Cycle 14</span><span class="okami-week-tag daily" style="margin-left:4px" title="Daily route targets editable for the next 4 weeks">Daily</span></td>
-                <td class="center"><input class="plan-route-input" data-w="0" value="38" oninput="recalcOkami()"/></td>
-                <td class="center"><div class="plan-calc">85</div></td>
-                <td class="center"><div class="plan-calc">78</div></td>
-                <td class="center"><div class="plan-gap warn">−7</div></td>
-                <td class="center"><div class="strategy-pills"><span class="strategy-pill active hire">Hire</span></div></td>
-                <td class="center"><div class="plan-calc">Apr 28</div></td>
-                <td><span class="plan-status-pill warn"><span class="dot"></span>At risk</span></td>
-              </tr>
-              <tr class="okami-detail" id="okami-detail-0"><td colspan="8" id="okami-detail-content-0"></td></tr>
-              <tr id="okami-row-1">
-                <td><button class="okami-expand-btn" onclick="okamiToggleDaily(1)" aria-label="Expand daily plan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg></button><div class="plan-week-label" style="display:inline-block;vertical-align:middle">W20</div><div class="plan-week-dates">May 8–14</div><span class="okami-week-tag daily" title="Daily route targets editable for the next 4 weeks">Daily</span></td>
-                <td class="center"><input class="plan-route-input" data-w="1" value="40" oninput="recalcOkami()"/></td>
-                <td class="center"><div class="plan-calc">90</div></td>
-                <td class="center"><div class="plan-calc">81</div></td>
-                <td class="center"><div class="plan-gap warn">−9</div></td>
-                <td class="center"><div class="strategy-pills"><span class="strategy-pill active hire">Hire</span></div></td>
-                <td class="center"><div class="plan-calc">May 5</div></td>
-                <td><span class="plan-status-pill warn"><span class="dot"></span>At risk</span></td>
-              </tr>
-              <tr class="okami-detail" id="okami-detail-1"><td colspan="8" id="okami-detail-content-1"></td></tr>
-              <tr id="okami-row-2">
-                <td><button class="okami-expand-btn" onclick="okamiToggleDaily(2)" aria-label="Expand daily plan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg></button><div class="plan-week-label" style="display:inline-block;vertical-align:middle">W21</div><div class="plan-week-dates">May 15–21</div><span class="okami-week-tag daily" title="Daily route targets editable for the next 4 weeks">Daily</span></td>
-                <td class="center"><input class="plan-route-input" data-w="2" value="42" oninput="recalcOkami()"/></td>
-                <td class="center"><div class="plan-calc">94</div></td>
-                <td class="center"><div class="plan-calc">86</div></td>
-                <td class="center"><div class="plan-gap warn">−8</div></td>
-                <td class="center"><div class="strategy-pills"><span class="strategy-pill active hire">Hire</span></div></td>
-                <td class="center"><div class="plan-calc">May 12</div></td>
-                <td><span class="plan-status-pill warn"><span class="dot"></span>At risk</span></td>
-              </tr>
-              <tr class="okami-detail" id="okami-detail-2"><td colspan="8" id="okami-detail-content-2"></td></tr>
-              <tr id="okami-row-3" class="cycle-end">
-                <td><button class="okami-expand-btn" onclick="okamiToggleDaily(3)" aria-label="Expand daily plan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg></button><div class="plan-week-label" style="display:inline-block;vertical-align:middle">W22</div><div class="plan-week-dates">May 22–28</div><span class="okami-week-tag cycle">C14 ends</span><span class="okami-week-tag daily" style="margin-left:4px" title="Daily route targets editable for the next 4 weeks">Daily</span></td>
-                <td class="center"><input class="plan-route-input" data-w="3" value="45" oninput="recalcOkami()"/></td>
-                <td class="center"><div class="plan-calc">101</div></td>
-                <td class="center"><div class="plan-calc">90</div></td>
-                <td class="center"><div class="plan-gap bad">−11</div></td>
-                <td class="center"><div class="strategy-pills"><span class="strategy-pill active hire">Hire</span></div></td>
-                <td class="center"><div class="plan-calc">May 19</div></td>
-                <td><span class="plan-status-pill bad"><span class="dot"></span>Critical</span></td>
-              </tr>
-              <tr class="okami-detail" id="okami-detail-3"><td colspan="8" id="okami-detail-content-3"></td></tr>
-              <tr class="hve">
-                <td><div class="plan-week-label">W23</div><div class="plan-week-dates">May 29 – Jun 4</div><span class="okami-week-tag hve">HVE</span></td>
-                <td class="center"><input class="plan-route-input" data-w="4" value="72" oninput="recalcOkami()"/></td>
-                <td class="center"><div class="plan-calc">161</div><div class="plan-calc-sub">spike +27 vs avg</div></td>
-                <td class="center"><div class="plan-calc">90</div></td>
-                <td class="center"><div class="plan-gap bad">−71</div></td>
-                <td class="center"><div class="strategy-pills"><span class="strategy-pill active adw">ADW 5.5</span><span class="strategy-pill active ot">+8h OT</span></div></td>
-                <td class="center"><div class="plan-calc">—</div><div class="plan-calc-sub">don't hire</div></td>
-                <td><span class="plan-status-pill warn"><span class="dot"></span>HVE absorbed</span></td>
-              </tr>
-              <tr class="hve">
-                <td><div class="plan-week-label">W24</div><div class="plan-week-dates">Jun 5–11</div><span class="okami-week-tag hve">HVE</span></td>
-                <td class="center"><input class="plan-route-input" data-w="5" value="72" oninput="recalcOkami()"/></td>
-                <td class="center"><div class="plan-calc">161</div></td>
-                <td class="center"><div class="plan-calc">94</div></td>
-                <td class="center"><div class="plan-gap bad">−67</div></td>
-                <td class="center"><div class="strategy-pills"><span class="strategy-pill active adw">ADW 5.5</span><span class="strategy-pill active ot">+8h OT</span></div></td>
-                <td class="center"><div class="plan-calc">—</div><div class="plan-calc-sub">don't hire</div></td>
-                <td><span class="plan-status-pill warn"><span class="dot"></span>HVE absorbed</span></td>
-              </tr>
-              <tr>
-                <td><div class="plan-week-label">W25</div><div class="plan-week-dates">Jun 12–18</div></td>
-                <td class="center"><input class="plan-route-input" data-w="6" value="50" oninput="recalcOkami()"/></td>
-                <td class="center"><div class="plan-calc">112</div></td>
-                <td class="center"><div class="plan-calc">96</div></td>
-                <td class="center"><div class="plan-gap warn">−16</div></td>
-                <td class="center"><div class="strategy-pills"><span class="strategy-pill active hire">Hire</span></div></td>
-                <td class="center"><div class="plan-calc">Jun 9</div></td>
-                <td><span class="plan-status-pill warn"><span class="dot"></span>Tight</span></td>
-              </tr>
-              <tr>
-                <td><div class="plan-week-label">W26</div><div class="plan-week-dates">Jun 19–25</div></td>
-                <td class="center"><input class="plan-route-input" data-w="7" value="50" oninput="recalcOkami()"/></td>
-                <td class="center"><div class="plan-calc">112</div></td>
-                <td class="center"><div class="plan-calc">100</div></td>
-                <td class="center"><div class="plan-gap warn">−12</div></td>
-                <td class="center"><div class="strategy-pills"><span class="strategy-pill active hire">Hire</span></div></td>
-                <td class="center"><div class="plan-calc">Jun 16</div></td>
-                <td><span class="plan-status-pill warn"><span class="dot"></span>Tight</span></td>
-              </tr>
-              <tr>
-                <td><div class="plan-week-label">W27</div><div class="plan-week-dates">Jun 26 – Jul 2</div></td>
-                <td class="center"><input class="plan-route-input" data-w="8" value="52" oninput="recalcOkami()"/></td>
-                <td class="center"><div class="plan-calc">117</div></td>
-                <td class="center"><div class="plan-calc">104</div></td>
-                <td class="center"><div class="plan-gap warn">−13</div></td>
-                <td class="center"><div class="strategy-pills"><span class="strategy-pill active hire">Hire</span></div></td>
-                <td class="center"><div class="plan-calc">Jun 23</div></td>
-                <td><span class="plan-status-pill warn"><span class="dot"></span>Tight</span></td>
-              </tr>
-              <tr>
-                <td><div class="plan-week-label">W28</div><div class="plan-week-dates">Jul 3–9</div></td>
-                <td class="center"><input class="plan-route-input" data-w="9" value="50" oninput="recalcOkami()"/></td>
-                <td class="center"><div class="plan-calc">112</div></td>
-                <td class="center"><div class="plan-calc">108</div></td>
-                <td class="center"><div class="plan-gap warn">−4</div></td>
-                <td class="center"><div class="strategy-pills"><span class="strategy-pill active hire">Hire</span></div></td>
-                <td class="center"><div class="plan-calc">Jun 30</div></td>
-                <td><span class="plan-status-pill warn"><span class="dot"></span>Tight</span></td>
-              </tr>
-              <tr class="hve">
-                <td><div class="plan-week-label">W29</div><div class="plan-week-dates">Jul 10–16</div><span class="okami-week-tag hve">Prime</span></td>
-                <td class="center"><input class="plan-route-input" data-w="10" value="80" oninput="recalcOkami()"/></td>
-                <td class="center"><div class="plan-calc">179</div><div class="plan-calc-sub">Prime Day spike</div></td>
-                <td class="center"><div class="plan-calc">112</div></td>
-                <td class="center"><div class="plan-gap bad">−67</div></td>
-                <td class="center"><div class="strategy-pills"><span class="strategy-pill active adw">ADW 5.5</span><span class="strategy-pill active ot">+10h OT</span></div></td>
-                <td class="center"><div class="plan-calc">—</div></td>
-                <td><span class="plan-status-pill warn"><span class="dot"></span>HVE absorbed</span></td>
-              </tr>
-              <tr>
-                <td><div class="plan-week-label">W30</div><div class="plan-week-dates">Jul 17–23</div></td>
-                <td class="center"><input class="plan-route-input" data-w="11" value="55" oninput="recalcOkami()"/></td>
-                <td class="center"><div class="plan-calc">123</div></td>
-                <td class="center"><div class="plan-calc">112</div></td>
-                <td class="center"><div class="plan-gap warn">−11</div></td>
-                <td class="center"><div class="strategy-pills"><span class="strategy-pill active hire">Hire</span></div></td>
-                <td class="center"><div class="plan-calc">Jul 14</div></td>
-                <td><span class="plan-status-pill warn"><span class="dot"></span>Tight</span></td>
-              </tr>
-              <tr>
-                <td><div class="plan-week-label">W31</div><div class="plan-week-dates">Jul 24–30</div></td>
-                <td class="center"><input class="plan-route-input" data-w="12" value="52" oninput="recalcOkami()"/></td>
-                <td class="center"><div class="plan-calc">117</div></td>
-                <td class="center"><div class="plan-calc">115</div></td>
-                <td class="center"><div class="plan-gap ok">−2</div></td>
-                <td class="center"><div class="strategy-pills"><span class="strategy-pill">Maintain</span></div></td>
-                <td class="center"><div class="plan-calc">—</div></td>
-                <td><span class="plan-status-pill ok"><span class="dot"></span>On track</span></td>
-              </tr>
+              <tr class="rr-okami-skel-row"><td colspan="8"><div class="rr-okami-skel"></div></td></tr>
+              <tr class="rr-okami-skel-row"><td colspan="8"><div class="rr-okami-skel"></div></td></tr>
+              <tr class="rr-okami-skel-row"><td colspan="8"><div class="rr-okami-skel"></div></td></tr>
+              <tr class="rr-okami-skel-row"><td colspan="8"><div class="rr-okami-skel"></div></td></tr>
+              <tr class="rr-okami-skel-row"><td colspan="8"><div class="rr-okami-skel"></div></td></tr>
+              <tr class="rr-okami-skel-row"><td colspan="8"><div class="rr-okami-skel"></div></td></tr>
+              <tr class="rr-okami-skel-row"><td colspan="8"><div class="rr-okami-skel"></div></td></tr>
+              <tr class="rr-okami-skel-row"><td colspan="8"><div class="rr-okami-skel"></div></td></tr>
+              <tr class="rr-okami-skel-row"><td colspan="8"><div class="rr-okami-skel"></div></td></tr>
+              <tr class="rr-okami-skel-row"><td colspan="8"><div class="rr-okami-skel"></div></td></tr>
+              <tr class="rr-okami-skel-row"><td colspan="8"><div class="rr-okami-skel"></div></td></tr>
+              <tr class="rr-okami-skel-row"><td colspan="8"><div class="rr-okami-skel"></div></td></tr>
+              <tr class="rr-okami-skel-row"><td colspan="8"><div class="rr-okami-skel"></div></td></tr>
             </tbody>
+            <tfoot id="okami-tfoot"></tfoot>
           </table>
         </div>
 
