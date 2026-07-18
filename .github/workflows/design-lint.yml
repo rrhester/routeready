@@ -16,6 +16,8 @@ on:
       - 'dashboard/**.css'
       - 'app/**.css'
       - 'app/app.js'
+      - 'dashboard/live.js'
+      - '**.html'
       - 'scripts/design-lint.mjs'
       - 'scripts/design-baseline.json'
       - '.github/workflows/design-lint.yml'
