@@ -261,6 +261,23 @@
 .rrnb-find-btn:hover{background:var(--surface-hover);color:var(--text)}
 ::highlight(rrnb-find){background:rgba(250,204,21,.35)}
 ::highlight(rrnb-find-cur){background:rgba(249,115,22,.55);color:#111}
+::highlight(rrnb-anchor){background:rgba(37,99,235,.30)}
+/* #82 anchored-comment quote + #82 selection "Comment" button + #86 inline edit */
+.rrnb-cmt-anchor{font-size:var(--fs-xs);color:var(--text-subtle);border-left:2px solid var(--accent-border);
+  padding:2px 8px;margin:2px 0 4px;cursor:pointer;border-radius:0 var(--r-sm) var(--r-sm) 0;
+  background:var(--accent-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rrnb-cmt-anchor:hover{color:var(--accent)}
+.rrnb-cmt-editbox{margin-top:4px}
+.rrnb-cmt-editbox .rrnb-cmt-input{width:100%;min-height:40px}
+.rrnb-cmt-editbox .rrnb-cmt-row{display:flex;justify-content:flex-end;gap:6px;margin-top:4px}
+.rrnb-cmt-editbox button{border:1px solid var(--border-strong);background:var(--surface);color:var(--text);
+  border-radius:var(--r-sm);padding:3px 10px;font-size:var(--fs-xs);cursor:pointer}
+.rrnb-cmt-editbox .rrnb-cmt-save{background:var(--accent);color:var(--rr-white);border-color:var(--accent)}
+.rrnb-selcmt{position:fixed;z-index:75;display:inline-flex;align-items:center;gap:5px;
+  background:var(--text);color:var(--surface);border:0;border-radius:var(--r-pill);
+  padding:5px 11px;font-size:var(--fs-xs);font-weight:600;cursor:pointer;box-shadow:var(--shadow-pop)}
+.rrnb-selcmt svg{width:13px;height:13px}
+.rrnb-selcmt[hidden]{display:none}
 .rrnb-stickytitle{position:fixed;z-index:9;box-sizing:border-box;padding:8px var(--s-8);
   font-size:15px;font-weight:600;color:var(--text);background:var(--surface);
   border-bottom:1px solid var(--border);cursor:pointer;white-space:nowrap;overflow:hidden;
@@ -1125,6 +1142,7 @@ body.rrnb-dark-nb #rrnb-hovercard{
       search: function (q, opt) { opt = opt || {}; return rpc("notebook_search", { p_query: q, p_notebook_id: opt.notebookId || null, p_tag: opt.tag || null, p_limit: 50 }); },
       commentsList: function (page) { return rpc("notebook_comments_list", { p_page_id: page }); },
       commentAdd: function (page, body, parent, anchor, mentions) { return rpc("notebook_comment_add", { p_page_id: page, p_body: body, p_parent_id: parent || null, p_anchor: anchor || null, p_mentions: (mentions && mentions.length) ? mentions : null }); },
+      commentEdit: function (id, body) { return rpc("notebook_comment_edit", { p_id: id, p_body: body }); },
       commentResolve: function (id, on) { return rpc("notebook_comment_resolve", { p_id: id, p_resolved: !!on }); },
       commentDelete: function (id) { return rpc("notebook_comment_delete", { p_id: id }); },
       commentCounts: function (ids) { return rpc("notebook_comment_counts", { p_page_ids: ids || [] }); }
@@ -1260,6 +1278,7 @@ body.rrnb-dark-nb #rrnb-hovercard{
         var c = { id: uid(), page_id: page, parent_id: parent || null, anchor: anchor || null, body: String(body).trim(),
           author: "You", author_id: "local", is_mine: true, resolved: false, mentions: [], created_at: new Date().toISOString() };
         (db.comments = db.comments || []).push(c); persist(); return P(c); },
+      commentEdit: function (id, body) { var c = (db.comments || []).filter(function (x) { return x.id === id; })[0]; if (c) { c.body = String(body).trim(); c.edited_at = new Date().toISOString(); persist(); } return P(c || {}); },
       commentResolve: function (id, on) { var c = (db.comments || []).filter(function (x) { return x.id === id; })[0]; if (c) { c.resolved = !!on; persist(); } return P(); },
       commentDelete: function (id) { db.comments = (db.comments || []).filter(function (x) { return x.id !== id && x.parent_id !== id; }); persist(); return P(); },
       commentCounts: function (ids) { var m = {}; (db.comments || []).forEach(function (c) { if (!c.resolved && (ids || []).indexOf(c.page_id) >= 0) m[c.page_id] = (m[c.page_id] || 0) + 1; }); return P(m); }
@@ -1980,6 +1999,10 @@ body.rrnb-dark-nb #rrnb-hovercard{
     if (dictBtn && (window.SpeechRecognition || window.webkitSpeechRecognition)) dictBtn.hidden = false;
     ed.addEventListener("keyup", refreshToolbarState);
     ed.addEventListener("mouseup", refreshToolbarState);
+    ed.addEventListener("mouseup", function () { setTimeout(maybeShowSelComment, 0); }); // #82 comment-on-selection
+    ed.addEventListener("keyup", function (e) { if (e.shiftKey || e.key === "Shift") setTimeout(maybeShowSelComment, 0); else hideSelComment(); });
+    ed.addEventListener("scroll", hideSelComment, true);
+    ed.addEventListener("blur", function () { setTimeout(hideSelComment, 150); }, true);
     ed.addEventListener("keyup", updateWordCount);
     ed.addEventListener("mouseup", updateWordCount);
     ed.addEventListener("paste", onEditorPaste);
@@ -3712,12 +3735,18 @@ body.rrnb-dark-nb #rrnb-hovercard{
   function cmtHtml(c, isReply) {
     var canDel = c.is_mine || S.myRole === "owner";
     var acts = S.readOnly ? "" : ('<span class="act">' +
+      (c.is_mine ? '<button class="cta" data-cmt-edit="' + esc(c.id) + '" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>' : "") +
       '<button class="cta' + (c.resolved ? " on" : "") + '" data-cmt-resolve="' + esc(c.id) + '" title="' + (c.resolved ? "Reopen" : "Resolve") + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg></button>' +
       (canDel ? '<button class="cta" data-cmt-del="' + esc(c.id) + '" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button>' : "") +
       "</span>");
-    return '<div class="rrnb-cmt' + (isReply ? " reply" : "") + (c.resolved ? " resolved" : "") + '" data-cmt="' + esc(c.id) + '">' +
+    // #82 anchored comment — a quoted snippet of the text it's attached to
+    var anchor = c.anchor ? '<div class="rrnb-cmt-anchor" data-cmt-anchor="' + esc(c.anchor) + '" title="Jump to the quoted text">“' + esc(String(c.anchor).slice(0, 140)) + '”</div>' : "";
+    // #86 an "edited" tag once the body has actually been edited
+    var edited = c.edited_at ? ' <span class="tm">· edited</span>' : "";
+    return '<div class="rrnb-cmt' + (isReply ? " reply" : "") + (c.resolved ? " resolved" : "") + '" data-cmt="' + esc(c.id) + '" data-body="' + esc(c.body || "") + '">' +
       '<span class="av">' + esc(recInitials(c.author)) + "</span>" +
-      '<div class="cbd"><div class="chd"><span>' + esc(c.author || "Teammate") + '</span><span class="tm">' + esc(relTime(c.created_at)) + "</span>" + acts + "</div>" +
+      '<div class="cbd"><div class="chd"><span>' + esc(c.author || "Teammate") + '</span><span class="tm">' + esc(relTime(c.created_at)) + "</span>" + edited + acts + "</div>" +
+      anchor +
       '<div class="ctx-body-txt">' + cmtBodyHtml(c) + "</div>" +
       ((!isReply && !S.readOnly) ? '<span class="rply" data-cmt-reply="' + esc(c.id) + '">Reply</span>' : "") +
       (c.resolved ? ' <span class="rslv-badge">· resolved</span>' : "") +
@@ -3739,6 +3768,9 @@ body.rrnb-dark-nb #rrnb-hovercard{
     if (S._replyTo) {
       var pc = rows.filter(function (x) { return x.id === S._replyTo; })[0];
       chip = '<div class="rrnb-cmt-replychip">Replying to ' + esc(pc ? pc.author : "comment") + '<button data-cmt-cancelreply title="Cancel reply">✕</button></div>';
+    } else if (S._pendingAnchor) {
+      // #82 composing a comment anchored to the current text selection
+      chip = '<div class="rrnb-cmt-replychip">On “' + esc(String(S._pendingAnchor).slice(0, 60)) + '”<button data-cmt-cancelanchor title="Comment on the whole page instead">✕</button></div>';
     }
     html += '<div class="rrnb-cmt-composer">' + chip + '<div class="rrnb-mnmenu" hidden></div>' +
       '<textarea class="rrnb-cmt-input" rows="1" placeholder="' + (S.readOnly ? "View only" : "Comment or @mention…") + '"' + (S.readOnly ? " disabled" : "") + "></textarea>" +
@@ -3792,9 +3824,10 @@ body.rrnb-dark-nb #rrnb-hovercard{
     var pid = S.pageId; if (!pid) return;
     var ments = Object.keys(S._cmtMentions || {}).filter(function (n) { return body.indexOf("@" + n) >= 0; }).map(function (n) { return S._cmtMentions[n]; });
     var parent = S._replyTo || null;
+    var anchor = (!parent && S._pendingAnchor) ? S._pendingAnchor : null; // #82 replies inherit the parent's context
     ta.disabled = true;
-    S.be.commentAdd(pid, body, parent, null, ments).then(function () {
-      S._cmtMentions = {}; S._replyTo = null; fillCtxComments(pid); S._cmtCounts = null; refreshCommentBadges();
+    S.be.commentAdd(pid, body, parent, anchor, ments).then(function () {
+      S._cmtMentions = {}; S._replyTo = null; S._pendingAnchor = null; fillCtxComments(pid); S._cmtCounts = null; refreshCommentBadges();
     }).catch(function (e) { ta.disabled = false; fail(e); });
   }
   function onCommentsClick(e) {
@@ -3803,6 +3836,10 @@ body.rrnb-dark-nb #rrnb-hovercard{
     if (mn) { var ta = host.querySelector(".rrnb-cmt-input"); if (ta) insertMention(ta, mn.getAttribute("data-mn-id"), mn.getAttribute("data-mn-name")); return; }
     if (e.target.closest(".rrnb-cmt-send")) { var ta2 = host.querySelector(".rrnb-cmt-input"); if (ta2) submitComment(ta2); return; }
     if (e.target.closest("[data-cmt-filter]")) { S._hideResolved = !S._hideResolved; try { localStorage.setItem("rrnb-hide-resolved", S._hideResolved ? "1" : "0"); } catch (x) {} fillCtxComments(S.pageId); return; }
+    var ed = e.target.closest("[data-cmt-edit]");
+    if (ed) { beginCommentEdit(ed.getAttribute("data-cmt-edit")); return; }
+    var an = e.target.closest("[data-cmt-anchor]");
+    if (an) { jumpToAnchor(an.getAttribute("data-cmt-anchor")); return; }
     var rs = e.target.closest("[data-cmt-resolve]");
     if (rs) { var on = rs.classList.contains("on"); S.be.commentResolve(rs.getAttribute("data-cmt-resolve"), !on).then(function () { fillCtxComments(S.pageId); S._cmtCounts = null; refreshCommentBadges(); }).catch(fail); return; }
     var dl = e.target.closest("[data-cmt-del]");
@@ -3810,6 +3847,86 @@ body.rrnb-dark-nb #rrnb-hovercard{
     var rp = e.target.closest("[data-cmt-reply]");
     if (rp) { S._replyTo = rp.getAttribute("data-cmt-reply"); fillCtxComments(S.pageId); setTimeout(function () { var t = host.querySelector(".rrnb-cmt-input"); if (t) t.focus(); }, 60); return; }
     if (e.target.closest("[data-cmt-cancelreply]")) { S._replyTo = null; fillCtxComments(S.pageId); return; }
+    if (e.target.closest("[data-cmt-cancelanchor]")) { S._pendingAnchor = null; fillCtxComments(S.pageId); return; }
+  }
+  // #86 inline-edit your own comment; ⌘↵ saves, Esc cancels. commentEdit bumps
+  // edited_at so the "edited" tag appears (migration 0514; local flavor too).
+  function beginCommentEdit(id) {
+    var host = $id("rrnb-ctx-comments"); if (!host) return;
+    var el = host.querySelector('.rrnb-cmt[data-cmt="' + id + '"]'); if (!el || el.querySelector(".rrnb-cmt-editbox")) return;
+    var bodyEl = el.querySelector(".ctx-body-txt"); if (!bodyEl) return;
+    var cur = el.getAttribute("data-body") || "";
+    var box = document.createElement("div"); box.className = "rrnb-cmt-editbox";
+    box.innerHTML = '<textarea class="rrnb-cmt-input"></textarea><div class="rrnb-cmt-row"><button class="rrnb-cmt-cancel">Cancel</button><button class="rrnb-cmt-save">Save</button></div>';
+    var ta = box.querySelector("textarea"); ta.value = cur;
+    bodyEl.style.display = "none"; bodyEl.parentNode.insertBefore(box, bodyEl.nextSibling);
+    ta.focus(); ta.style.height = "auto"; ta.style.height = Math.min(160, ta.scrollHeight) + "px";
+    var finish = function () { box.remove(); bodyEl.style.display = ""; };
+    var save = function () {
+      var v = ta.value.trim(); if (!v) return;
+      box.querySelector(".rrnb-cmt-save").disabled = true;
+      S.be.commentEdit(id, v).then(function () { fillCtxComments(S.pageId); }).catch(function (er) { finish(); fail(er); });
+    };
+    box.querySelector(".rrnb-cmt-cancel").onclick = finish;
+    box.querySelector(".rrnb-cmt-save").onclick = save;
+    ta.addEventListener("keydown", function (ev) {
+      if (ev.key === "Escape") { ev.preventDefault(); finish(); }
+      else if (ev.key === "Enter" && (ev.metaKey || ev.ctrlKey)) { ev.preventDefault(); save(); }
+    });
+  }
+  // #82 click an anchored comment's quote to highlight + scroll to that text.
+  function jumpToAnchor(text) {
+    var ed = $id("rrnb-editor"); if (!ed || !text) return;
+    var needle = String(text).trim().slice(0, 60).toLowerCase(); if (!needle) return;
+    var walker = document.createTreeWalker(ed, NodeFilter.SHOW_TEXT, null), node, found = null;
+    while ((node = walker.nextNode())) {
+      var idx = (node.nodeValue || "").toLowerCase().indexOf(needle);
+      if (idx >= 0) { found = { node: node, idx: idx }; break; }
+    }
+    if (!found) { notify("The quoted text isn’t on this page anymore"); return; }
+    try {
+      var r = document.createRange();
+      r.setStart(found.node, found.idx);
+      r.setEnd(found.node, Math.min(found.node.nodeValue.length, found.idx + needle.length));
+      if (window.Highlight && window.CSS && CSS.highlights) {
+        CSS.highlights.set("rrnb-anchor", new Highlight(r));
+        setTimeout(function () { try { CSS.highlights.delete("rrnb-anchor"); } catch (e) {} }, 2400);
+      }
+      (found.node.parentElement || ed).scrollIntoView({ behavior: "smooth", block: "center" });
+    } catch (e) {}
+  }
+  // #82 select text in the editor → a floating "Comment" button appears; clicking
+  // it opens the composer with that text captured as the comment's anchor.
+  function selCommentEl() {
+    var b = $id("rrnb-selcmt"); if (b) return b;
+    b = document.createElement("button"); b.id = "rrnb-selcmt"; b.className = "rrnb-selcmt"; b.type = "button"; b.hidden = true;
+    b.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 8.6 8.6 0 0 1-4-1L3 20l1.1-5.5A8.4 8.4 0 0 1 12.5 3 8.4 8.4 0 0 1 21 11.5z"/></svg>Comment';
+    b.addEventListener("mousedown", function (e) { e.preventDefault(); }); // keep the selection alive
+    b.addEventListener("click", function (e) { e.preventDefault(); startAnchoredComment(); });
+    document.body.appendChild(b); return b;
+  }
+  function hideSelComment() { var b = $id("rrnb-selcmt"); if (b) b.hidden = true; }
+  function maybeShowSelComment() {
+    if (S.readOnly || S.editorKind === "tiptap") return hideSelComment();
+    var ed = $id("rrnb-editor"); if (!ed) return;
+    var sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !sel.rangeCount) return hideSelComment();
+    var r = sel.getRangeAt(0);
+    if (!ed.contains(r.commonAncestorContainer)) return hideSelComment();
+    if (sel.toString().trim().length < 2) return hideSelComment();
+    var rect = r.getBoundingClientRect(); if (!rect.width && !rect.height) return hideSelComment();
+    var b = selCommentEl(); b.hidden = false;
+    b.style.top = Math.max(8, rect.top - 34) + "px";
+    b.style.left = Math.min(window.innerWidth - 118, Math.max(8, rect.left)) + "px";
+  }
+  function startAnchoredComment() {
+    var sel = window.getSelection(); var txt = sel ? sel.toString().trim() : "";
+    if (!txt) return;
+    S._pendingAnchor = txt.slice(0, 180); S._replyTo = null;
+    hideSelComment();
+    ctxToggle(true);
+    fillCtxComments(S.pageId);
+    setTimeout(function () { var h = $id("rrnb-ctx-comments"); var t = h && h.querySelector(".rrnb-cmt-input"); if (t) t.focus(); }, 90);
   }
 
   // ══════════════════════════════════════════════════════════════════
