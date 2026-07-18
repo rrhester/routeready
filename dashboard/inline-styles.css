@@ -6564,28 +6564,8 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 .rr-mc-bubble-actions button[data-rr-mc-delete]:hover{
   background:rgba(220,38,38,.08);color:var(--red);border-color:rgba(220,38,38,.30);
 }
-/* Like (👍) reaction — bare thumb + count, no chip/box (Facebook / Slack
-   style).  Hidden until the bubble is hovered; persistent once a message has
-   likes; the count turns RouteReady blue when you've liked it. */
-/* Reaction capsule — white pill, soft border, subtle elevation (Slack /
-   Teams register): "👍 1".  Hidden until bubble hover; persists once a
-   message has likes; soft blue when you've reacted. */
-.rr-mc-like{
-  display:inline-flex;align-items:center;gap:4px;
-  margin-top:5px;padding:2px 9px;
-  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-pill);
-  box-shadow:var(--shadow-xs);
-  font-family:inherit;font-size:var(--fs-sm);line-height:1.4;
-  color:var(--text-muted);cursor:pointer;
-  transition:opacity var(--t-fast), background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
-  opacity:0;
-}
-.rr-mc-bubble:hover .rr-mc-like{opacity:.65}
-.rr-mc-like:hover{opacity:1;border-color:var(--border-strong);color:var(--text)}
-.rr-mc-like.has{opacity:1}
-.rr-mc-like.on{background:var(--accent-soft);border-color:rgba(37,99,235,.30);color:var(--accent-text)}
-.rr-mc-like-icon{font-size:var(--fs-sm);line-height:1}
-.rr-mc-like-n{font-weight:600;font-variant-numeric:tabular-nums}
+/* The standalone 👍 like pill (.rr-mc-like) was removed 2026-07-18 — it
+   duplicated the hover smiley's emoji reactions (same RPC, same chips). */
 
 /* ── Channel enrichments: reactions, @mentions, seen-by, bookmarks ──────── */
 /* Reaction chip row under a channel bubble.  Chips persist; the add-reaction
