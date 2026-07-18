@@ -170,7 +170,17 @@ chunk). Wave plan and status:
   native test), PR#41 (rem type scale — touches 141 font-sizes), PR#42
   (app.js split + lazy scanner), PR#43 (offline attachments). PR#44
   (redesign tickets) → Wave I docs.
-- **Wave H — a11y/UX**: PR#89–96 (check #91 vs merged #3955 first).
+- **Wave H — a11y/UX**: batch 1 DONE (PR#89,90,91,92,95) — modal
+  openModal/closeModal now move focus into the dialog on open + restore
+  to the trigger on close + set role/aria-modal (~30 dialogs); toast-stack
+  gets role=status/aria-live=polite; booking.html intake questions +
+  verify field get for/id + aria-required (rsvp already done in #3955);
+  skip-link + role=main/id=main-content on the shell; deleted the lone
+  prefers-color-scheme:dark block (one mismatched dark modal on a light
+  app). DEFERRED: PR#89 full Tab-trap (focus MOVE+restore shipped, not a
+  cycle trap), PR#93 ratchet→live.js/public inline CSS, PR#94 linter a11y
+  axes, PR#96 public token unify, aria-current on nav (needs nav-switch
+  JS).
 - **Wave I — docs/DX**: PR#97–100.
 - **Wave J — testing depth**: PR#82,83,86.
 

@@ -849,13 +849,17 @@ function renderConfirm() {
     const lbl = String(q.label || "").slice(0, 200);
     if (!lbl) return "";
     const req = q.required ? `<span class="req">*</span>` : "";
+    // for/id association (project-review PR#91): screen readers on these
+    // applicant-facing phones need the label bound to its control.
+    const fid = `iq-${i}`;
+    const reqAttr = q.required ? ' aria-required="true"' : "";
     const field = (q.type === "choice" && Array.isArray(q.options) && q.options.length)
-      ? `<select data-iq="${i}" data-iq-req="${q.required ? 1 : ""}"><option value="">—</option>${q.options.slice(0, 12).map(o => `<option>${esc(String(o).slice(0, 100))}</option>`).join("")}</select>`
-      : `<input type="text" maxlength="300" data-iq="${i}" data-iq-req="${q.required ? 1 : ""}">`;
-    return `<div class="iq"><label>${esc(lbl)} ${req}</label>${field}</div>`;
+      ? `<select id="${fid}" data-iq="${i}" data-iq-req="${q.required ? 1 : ""}"${reqAttr}><option value="">—</option>${q.options.slice(0, 12).map(o => `<option>${esc(String(o).slice(0, 100))}</option>`).join("")}</select>`
+      : `<input type="text" id="${fid}" maxlength="300" data-iq="${i}" data-iq-req="${q.required ? 1 : ""}"${reqAttr}>`;
+    return `<div class="iq"><label for="${fid}">${esc(lbl)} ${req}</label>${field}</div>`;
   }).join("");
   // SMS verification (0493): request a code, then enter it to book.
-  const verify = VERIFY_REQ ? `<div class="iq" style="margin-top:16px"><label>${esc(T("verifyTitle"))} <span class="req">*</span></label>
+  const verify = VERIFY_REQ ? `<div class="iq" style="margin-top:16px"><label for="vcode">${esc(T("verifyTitle"))} <span class="req">*</span></label>
       <div class="verify">
         <button type="button" class="btn" data-cx="sendcode">${esc(T("verifySend"))}</button>
         <input type="text" inputmode="numeric" maxlength="8" id="vcode" placeholder="${esc(T("verifyPlaceholder"))}">

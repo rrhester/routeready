@@ -2418,17 +2418,44 @@
   window.toastAction = toastAction;
 
   // ─── GENERIC MODAL OPEN/CLOSE ──────────────────────────────
+  // Remember the element that had focus before each modal opened so we can
+  // restore it on close (project-review PR#89) — keyed by id so stacked
+  // modals each restore correctly.
+  var _modalReturnFocus = {};
   function openModal(id){
-    document.getElementById(id).classList.add('open');
+    var el = document.getElementById(id);
+    if (!el) return;
+    _modalReturnFocus[id] = document.activeElement;
+    el.classList.add('open');
     document.body.style.overflow = 'hidden';
+    // Move focus into the dialog so keyboard/AT users land inside it
+    // instead of continuing to tab the page behind. Prefer the first
+    // focusable control; fall back to the dialog container itself.
+    el.setAttribute('role', el.getAttribute('role') || 'dialog');
+    el.setAttribute('aria-modal', 'true');
+    try {
+      var focusable = el.querySelector(
+        'input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable) { focusable.focus(); }
+      else { if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '-1'); el.focus(); }
+    } catch(_){}
   }
   function closeModal(id){
-    document.getElementById(id).classList.remove('open');
+    var el = document.getElementById(id);
+    if (el) { el.classList.remove('open'); el.setAttribute('aria-modal', 'false'); }
     // Only release the scroll lock once nothing is left open — a few
     // surfaces stack a confirm modal over a primary one.
     if (!document.querySelector('.modal-backdrop.open')){
       document.body.style.overflow = '';
     }
+    // Restore focus to whatever opened the modal (a button, a row) so the
+    // keyboard user isn't dumped at the top of the page.
+    try {
+      var ret = _modalReturnFocus[id];
+      delete _modalReturnFocus[id];
+      if (ret && typeof ret.focus === 'function' && document.contains(ret)) ret.focus();
+    } catch(_){}
   }
   // Global Escape handler — close the topmost open .modal-backdrop.
   // Covers every modal that uses openModal/closeModal (~30 dialogs).
