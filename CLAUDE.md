@@ -1,5 +1,42 @@
 # RouteReady — Claude operating notes
 
+## Active task: Staffing model — XL-route demand (branch claude/staffing-driver-requirements-1tw30l)
+
+Operator's staffing model (2026-07-18): standard route = 2 drivers ×
+(1 + DSP cushion); **XL route = 4 drivers × (1 + cushion) = 2 XL-certified
++ 2 helpers** (helpers need no cert; every XL route needs a helper
+scheduled). On a dispatch day an XL route runs 2 people on the road, one
+of whom is XL-certified (it's `xl_certified`, NOT DOT — the operator
+misspoke on DOT). Pad stays DSP-configurable (default 10%, no change).
+
+**SHIPPED — demand math is now XL-aware:**
+- `forecast-core.js`: new `driversNeededMix({standard, xl}, opts)` →
+  `{total, xlCertified, xlHelpers, ...}`. Standard routes cost
+  `driversPerRoute` (2), XL routes cost `XL_DRIVERS_PER_ROUTE` (4) of which
+  `XL_CERTIFIED_PER_ROUTE` (2) must be certified. `total` is byte-identical
+  to the old `driversNeeded()` when xl==0 (no change for non-XL DSPs).
+  `assessPlan` threads a per-week `routesMix` through `demandOverride` so
+  the Risk-forecast sandbox keeps XL at 4/route. Tests in
+  test-labor-forecast.mjs (32 pass).
+- `live.js` (renderOkamiLive + `_okamiRecomputeFromCache`): builds a
+  per-day XL route map (`xlByDate`, `service_type_code === "XL"`), picks the
+  peak **demand** day (std×2 + xl×4, not peak routes) via `_rrOkamiWeekMix`,
+  computes Needed via `rrDriversNeededMix`. modelWeeks now carry
+  `routesMix` / `xlCertifiedNeeded` / `xlRoutes`; Needed tooltip shows the
+  XL breakdown. Untagged routes fall through as standard (SP default).
+- Applicants-needed (gap ÷ conversion) and the termination-trend attrition
+  already existed and now consume the XL-aware gap automatically.
+
+**DEFERRED (needs solver/browser QA — do NOT blind-ship):** the DISPATCH-
+side enforcement. Today `r004_certification.ts` / `eligibility.py` /
+`scheduling-engine.js` require `xl_certified` for EVERY driver on an XL
+shift — the operator's model wants only 1 of the 2 certified + 1 helper
+(uncertified), and a helper auto-scheduled per dispatched XL route. That's
+a real solver-eligibility change (cardinality "≥1 certified per XL route"
++ helper seat) needing test coverage on the CP-SAT model. Also the
+availability-popover demand (live.js ~64921) is still a flat ×2 (no per-
+type split in that path). Neither is in this change.
+
 ## DONE: Calendar 100-list (Onboarding → Calendar improvements)
 
 A 100-item improvement list for the interview calendar

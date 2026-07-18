@@ -7,8 +7,11 @@ import {
   assessPlan,
   coverageKind,
   driversNeeded,
+  driversNeededMix,
   effectiveSupply,
   isoAddDays,
+  XL_DRIVERS_PER_ROUTE,
+  XL_CERTIFIED_PER_ROUTE,
   FORECAST_KIND_LABEL,
   FORECAST_KIND_CLASS,
 } from "../dashboard/forecast-core.js";
@@ -50,6 +53,72 @@ t("driversNeeded clamps bad inputs to sane defaults", () => {
   assert.equal(driversNeeded(10, {}), 20);                       // dpr defaults to 2
   assert.equal(driversNeeded(10, { driversPerRoute: 99 }), 50);  // dpr capped at 5
   assert.equal(driversNeeded(10, { driversPerRoute: 2, padPct: -5 }), 20); // pad floor 0
+});
+
+// ── driversNeededMix (XL-aware demand) ───────────────────────────────────────
+
+t("driversNeededMix constants: XL route = 4 drivers, 2 certified + 2 helpers", () => {
+  assert.equal(XL_DRIVERS_PER_ROUTE, 4);
+  assert.equal(XL_CERTIFIED_PER_ROUTE, 2);
+});
+
+t("driversNeededMix: standard-only mix == driversNeeded (no behavior change)", () => {
+  for (const [routes, pad] of [[40, 10], [41, 15], [33, 0], [7, 50]]) {
+    const mix = driversNeededMix({ standard: routes, xl: 0 }, { driversPerRoute: 2, padPct: pad });
+    assert.equal(mix.total, driversNeeded(routes, { driversPerRoute: 2, padPct: pad }),
+      `standard-only ${routes}@${pad}%`);
+    assert.equal(mix.xlCertified, 0);
+    assert.equal(mix.xlHelpers, 0);
+  }
+});
+
+t("driversNeededMix: XL routes cost 4 each; standard cost 2 each", () => {
+  // 20 standard (×2) + 5 XL (×4) = 40 + 20 = 60 bodies, +15% pad = 69.
+  const m = driversNeededMix({ standard: 20, xl: 5 }, { driversPerRoute: 2, padPct: 15 });
+  assert.equal(m.total, Math.ceil((20 * 2 + 5 * 4) * 1.15)); // 69
+  // Of the XL side: 5 routes × 2 certified × 1.15 = 11.5 → 12 certified,
+  // 5 × 2 helpers × 1.15 = 11.5 → 12 helpers.
+  assert.equal(m.xlCertified, Math.ceil(5 * 2 * 1.15)); // 12
+  assert.equal(m.xlHelpers, Math.ceil(5 * 2 * 1.15));   // 12
+  assert.equal(m.standardRoutes, 20);
+  assert.equal(m.xlRoutes, 5);
+});
+
+t("driversNeededMix: pure XL day, no pad", () => {
+  const m = driversNeededMix({ standard: 0, xl: 3 }, { driversPerRoute: 2, padPct: 0 });
+  assert.equal(m.total, 12);        // 3 × 4
+  assert.equal(m.xlCertified, 6);   // 3 × 2
+  assert.equal(m.xlHelpers, 6);     // 3 × 2
+});
+
+t("driversNeededMix: negative / missing inputs floor to zero", () => {
+  const m = driversNeededMix({ standard: -5, xl: undefined }, {});
+  assert.equal(m.total, 0);
+  assert.equal(m.xlCertified, 0);
+  assert.equal(m.xlHelpers, 0);
+});
+
+t("assessPlan: demandOverride recomputes from routesMix, XL keeps 4-per-route", () => {
+  const weeks = mkWeeks([
+    // needed here is a stale flat number; the override should ignore it and
+    // recompute from the mix (10 standard ×2 + 4 XL ×4 = 36, +10% = 40).
+    { needed: 999, avail: 50, routesMax: 14, routesMix: { standard: 10, xl: 4 } },
+  ]);
+  const r = assessPlan(weeks, {
+    todayIso: "2026-07-06",
+    demandOverride: { driversPerRoute: 2, padPct: 10 },
+  });
+  assert.equal(r.weeks[0].needed, Math.ceil((10 * 2 + 4 * 4) * 1.10)); // 40
+  assert.equal(r.weeks[0].xlCertifiedNeeded, Math.ceil(4 * 2 * 1.10)); // 9
+});
+
+t("assessPlan: no override passes through the caller's XL-aware needed", () => {
+  const weeks = mkWeeks([
+    { needed: 40, avail: 50, routesMax: 14, routesMix: { standard: 10, xl: 4 }, xlCertifiedNeeded: 9 },
+  ]);
+  const r = assessPlan(weeks, { todayIso: "2026-07-06" });
+  assert.equal(r.weeks[0].needed, 40);            // untouched
+  assert.equal(r.weeks[0].xlCertifiedNeeded, 9);  // passed through
 });
 
 // ── coverageKind ────────────────────────────────────────────────────────────
