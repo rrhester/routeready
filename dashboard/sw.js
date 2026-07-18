@@ -229,7 +229,7 @@
 //   2026-07-13.37 · Notebook — bump the notebook fragment cache-bust (view-notebooks.frag ?v=radiohail01 → radiohail02) so the recent Notebook UI changes (single-row toolbar, calm restyle) are guaranteed to fetch fresh past HTTP/edge caches, not just the SW cache. index.html.
 //   2026-07-13.38 · Notebook — the editor toolbar now spans the FULL width of the editor pane (Office/OneNote ribbon), pulled out of the centered 720px page column and stuck to the top as a full-width bar; the page (title/date/content) stays centered below it. Canvas becomes a flex column so the toolbar stretches while the doc centers. Frag cache-bust radiohail02→radiohail03. view-notebooks.frag + index.html.
 //   2026-07-13.39 · Notebook — the editor toolbar strip is taller / roomier (was too tight): ~19px vertical padding + 34px controls, so the full-width ribbon reads as a comfortable Office-style bar rather than a cramped line. Frag cache-bust radiohail03→radiohail04. view-notebooks.frag + index.html.
-const SW_DEPLOY_NONCE = "2026-07-17.89";
+const SW_DEPLOY_NONCE = "2026-07-17.90";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without
