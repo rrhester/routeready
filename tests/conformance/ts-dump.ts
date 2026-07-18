@@ -34,6 +34,7 @@ for (const d of fx.drivers) {
         date: s.date,
         start_time: `${s.date}T09:00`,
         route_type: s.route_type,
+        shift_kind: s.shift_kind ?? "regular",
       }],
       drivers: [{
         driver_id: d.id,

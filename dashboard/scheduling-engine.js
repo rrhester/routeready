@@ -430,6 +430,7 @@ function normalizeShift(raw) {
     start_min: startMin,
     end_min: endMin,
     route_type: normalizeRouteType(raw.route_type),
+    shift_kind: raw.shift_kind ? snake(raw.shift_kind) : "regular",
     service_type: raw.service_type ? snake(raw.service_type) : null,
     wave: raw.wave ?? null,
     is_locked: raw.is_locked === true,
@@ -895,7 +896,7 @@ function checkCertification(shift, driver, settings) {
       message: "Missing DOT certification for step_van route"
     };
   }
-  if (shift.route_type === "xl" && !driver.xl_certified) {
+  if (shift.route_type === "xl" && shift.shift_kind !== "helper" && !driver.xl_certified) {
     return { rule: "R004", message: "Missing XL certification" };
   }
   if (shift.route_type === "edv" && !driver.edv_certified) {
@@ -2582,6 +2583,7 @@ function mapShift(raw, tz) {
     end_time: end,
     duration_hours: typeof raw.duration_hours === "number" && raw.duration_hours > 0 ? raw.duration_hours : null,
     route_type: raw.route_type,
+    shift_kind: raw.shift_kind ?? "regular",
     assigned_driver_id: raw.assigned_driver_id ?? null,
     is_locked: raw.is_locked === true
   };

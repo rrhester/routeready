@@ -27,15 +27,35 @@ misspoke on DOT). Pad stays DSP-configurable (default 10%, no change).
 - Applicants-needed (gap ÷ conversion) and the termination-trend attrition
   already existed and now consume the XL-aware gap automatically.
 
-**DEFERRED (needs solver/browser QA — do NOT blind-ship):** the DISPATCH-
-side enforcement. Today `r004_certification.ts` / `eligibility.py` /
-`scheduling-engine.js` require `xl_certified` for EVERY driver on an XL
-shift — the operator's model wants only 1 of the 2 certified + 1 helper
-(uncertified), and a helper auto-scheduled per dispatched XL route. That's
-a real solver-eligibility change (cardinality "≥1 certified per XL route"
-+ helper seat) needing test coverage on the CP-SAT model. Also the
-availability-popover demand (live.js ~64921) is still a flat ×2 (no per-
-type split in that path). Neither is in this change.
+**SHIPPED — dispatch-side enforcement (XL = driver seat + helper seat):**
+The authoritative CP-SAT solver models `1 shift = 1 seat = 1 driver`, so
+"2 people per XL route, 1 certified + 1 helper" is a GENERATION change
+(materialize the helper seat), not a cardinality constraint. What shipped:
+- `shift_kind` gains a `helper` value (migration **0518**). Each XL route
+  target now generates a PAIR: a regular XL driver seat (still xl_certified-
+  gated) + a `shift_kind='helper'` XL seat (NOT gated). `private.
+  generate_shifts` reconciles both independently (driver-seat count/prune now
+  exclude helpers; a helper block mirrors the driver logic for XL types).
+  `regenerate_week_shifts` calls generate_shifts (one seam → both soft
+  reconcile + hard reset). `apply_cushion_to_week` base_count excludes
+  helpers so cushion sizes off driver seats (helper backups deferred).
+- `eligibility.py` + `engine/src/rules/r004_certification.ts`: an XL seat
+  with `shift_kind == "helper"` skips the cert gate; regular XL seat still
+  requires it. `ShiftIn.shift_kind` / `NormalizedShift.shift_kind` added;
+  conformance fixture `xl-help-mon` + pytest `test_xl_route_composition.py`
+  lock it in (a certified driver takes the driver seat, an uncertified one
+  the helper). Bundle `scheduling-engine.js` rebuilt.
+- `live.js`: both Smart-Fill payload builders send `shift_kind`; the week
+  builder now treats `helper` as a FILLABLE kind (was regular-only), so
+  helper seats get staffed instead of dropped.
+- **Migration 0518 is MANUAL** (paste in chat). Nothing changes on the DB
+  until applied; the solver/engine parts auto-deploy and are backward-safe
+  (no shift is `helper` pre-migration). Post-apply wants a browser QA pass
+  of the schedule grid + a Smart-Fill run on an XL week.
+
+**Still DEFERRED:** helper-seat cushion/backups (cushion currently backs up
+driver seats only); the availability-popover demand (live.js ~64921) is
+still a flat ×2 (no per-type split in that path).
 
 ## DONE: Calendar 100-list (Onboarding → Calendar improvements)
 

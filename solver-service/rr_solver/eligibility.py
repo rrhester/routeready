@@ -139,7 +139,14 @@ def first_failure_reason(
             DOT_FAIL,
             "Step-van route requires DOT certification (driver not DOT-certified)",
         )
-    if shift.route_type == "xl" and not driver.xl_certified:
+    # An XL route dispatches two people: one XL-certified driver + one helper.
+    # The helper seat (shift_kind == "helper") carries route_type "xl" for
+    # grouping but needs NO certification — only the driver seat is gated.
+    if (
+        shift.route_type == "xl"
+        and shift.shift_kind != "helper"
+        and not driver.xl_certified
+    ):
         return FailReason(
             XL_FAIL,
             "XL route requires XL certification (driver not XL-certified)",

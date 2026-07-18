@@ -63,6 +63,34 @@ def test_xl_cert_required_for_xl():
     assert r is not None and r.code == E.XL_FAIL
 
 
+def test_xl_helper_seat_needs_no_cert():
+    # The helper seat on an XL route rides along — an uncertified driver is
+    # eligible for it even though the seat's route_type is "xl".
+    r = first_failure_reason(
+        _d(xl_certified=False), _s(route_type="xl", shift_kind="helper"), {}
+    )
+    assert r is None
+    assert is_eligible(
+        _d(xl_certified=False), _s(route_type="xl", shift_kind="helper"), {}
+    ) is True
+
+
+def test_xl_certified_driver_still_eligible_for_helper_seat():
+    # A certified driver can also fill a helper seat (nothing forbids it — the
+    # objective is what steers scarce certified drivers to the driver seat).
+    assert is_eligible(
+        _d(xl_certified=True), _s(route_type="xl", shift_kind="helper"), {}
+    ) is True
+
+
+def test_xl_driver_seat_still_gated_when_kind_regular():
+    # Belt-and-suspenders: the regular (non-helper) XL seat keeps its gate.
+    r = first_failure_reason(
+        _d(xl_certified=False), _s(route_type="xl", shift_kind="regular"), {}
+    )
+    assert r is not None and r.code == E.XL_FAIL
+
+
 def test_edv_cert_required_for_edv():
     r = first_failure_reason(_d(edv_certified=False), _s(route_type="edv"), {})
     assert r is not None and r.code == E.EDV_FAIL
