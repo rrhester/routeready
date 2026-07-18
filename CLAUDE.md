@@ -213,6 +213,17 @@ legal hold/audit/SMS bridge/email transcript/webhooks). Everything
 degrades gracefully pre-migration (local fallback or "needs migration
 NNNN" toast). #52 verified pre-existing (0475 delivery pills).
 
+Hotfix PR #3974 (2026-07-18, merged 89371ec): (1) composer was hidden —
+the injected extras CSS set .rr-mc-shell{position:relative}, overriding
+the base position:absolute;inset:0 and collapsing the pane; NEVER re-add
+that rule (comment at the site). (2) The user's live DB also skipped
+0484 (scheduled_messages) — 0509 now re-asserts 0484's table/RPCs/cron
++ 0481's mentions table, so it applies on their DB. (3) Renumbered
+#3962's duplicate 0503_swap_offer_dispatcher_visibility → 0512 (ordinal
+gate blocked ALL PRs; also apply-migrations.sh BASELINE=0503 would have
+adopted-not-run it). User still needs to paste 0509 (corrected), 0510,
+0511 — and 0512 if they never ran the old 0503 swap-offer SQL.
+
 ## Active task: Workbook 100-list (Excel-parity improvements)
 
 Working through a 100-item list of Workbook (`dashboard/workbook.js`)
