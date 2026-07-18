@@ -5,27 +5,30 @@
 //   node scripts/test-checklist-completion.mjs
 //
 // The real logic lives in Postgres (private.checklist_instance_reconcile,
-// private.dsp_today, private.clf_* helpers) and, for the runner UI, in a
-// mirrored expression in dashboard/live.js. There is no DB in CI, so this
-// file pins the *rules* as executable specs: the truth table for "is this
-// instance complete?" and the "today in the DSP timezone" derivation.
-// If someone changes one side of the mirror, these assertions document
-// what the other side still expects.
+// private.dsp_today, private.clf_* helpers) and, for the runner UI, in
+// dashboard/live.js. There is no DB in CI, so this file pins the *rules* as
+// executable specs: the truth table for "is this instance complete?" and the
+// "today in the DSP timezone" derivation. If someone changes one side of the
+// mirror, these assertions document what the other side still expects.
+//
+// The completion rule is no longer hand-mirrored here: it's imported from
+// dashboard/checklist-core.mjs — the SAME function dashboard/live.js calls —
+// so the runner UI and this spec cannot drift (project-review PR#19). The
+// timezone/reminder/weekday rules below still mirror Postgres (no importable
+// JS source for those).
 import assert from "node:assert/strict";
+import { isChecklistComplete } from "../dashboard/checklist-core.mjs";
 
 let n = 0;
 const ok = (name, got, want) => { n++; assert.deepEqual(got, want, `${name}\n got ${JSON.stringify(got)}\n want ${JSON.stringify(want)}`); };
 
 // ── 1. Completion rule ────────────────────────────────────────────────
-// Mirror of private.checklist_instance_reconcile (migration 0436) AND the
-// runner's shouldBeCompleted expression (dashboard/live.js). Complete when
-// every REQUIRED item is done; with no required items, fall back to "every
-// item done"; an empty checklist never completes.
-function deriveComplete(items) {
-  const required = items.filter((i) => i.required);
-  if (required.length > 0) return required.every((i) => i.done);
-  return items.length > 0 && items.every((i) => i.done);
-}
+// The REAL shared implementation (dashboard/checklist-core.mjs), the same
+// one dashboard/live.js calls. These test items use a `done` flag, so tell
+// the shared rule to read it — live.js passes `i => !!i.completed_at`. If
+// live.js and this spec ever disagree, it's now a code change to one shared
+// function, not a silent drift between two copies.
+const deriveComplete = (items) => isChecklistComplete(items, (i) => i.done);
 const R = (done) => ({ required: true,  done });
 const O = (done) => ({ required: false, done });
 
