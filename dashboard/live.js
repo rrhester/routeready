@@ -30551,7 +30551,7 @@ async function _ivcalShowQr(link, title) {
     if (!c) return;
     const w = window.open("", "_blank", "width=420,height=520");
     if (!w) return;
-    w.document.write(`<title>${escapeHtml(title || "QR code")}</title><div style="text-align:center;font-family:sans-serif"><h3>${escapeHtml(title || "")}</h3><img src="${c.toDataURL("image/png")}" style="width:300px;height:300px"><p style="word-break:break-all;font-size:12px">${escapeHtml(link)}</p></div>`);
+    w.document.write(`<title>${escapeHtml(title || "QR code")}</title><div style="text-align:center;font-family:sans-serif"><h3>${escapeHtml(title || "")}</h3><img alt="${escapeHtml(title || "QR code")}" src="${c.toDataURL("image/png")}" style="width:300px;height:300px"><p style="word-break:break-all;font-size:12px">${escapeHtml(link)}</p></div>`);
     w.document.close(); w.focus(); w.print();
   });
   try {
