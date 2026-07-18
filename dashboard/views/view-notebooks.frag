@@ -93,6 +93,9 @@
 .rrnb-cmt{display:flex;gap:var(--s-2);margin-bottom:var(--s-3)}
 .rrnb-cmt.reply{margin-left:var(--s-5)}
 .rrnb-cmt.resolved{opacity:.55}
+.rrnb-cmt-filter{float:right;border:0;background:transparent;color:var(--accent);cursor:pointer;
+  font-size:var(--fs-xs);font-weight:600;padding:0;text-transform:none;letter-spacing:0}
+.rrnb-cmt-filter:hover{text-decoration:underline}
 .rrnb-cmt .av{width:24px;height:24px;border-radius:50%;flex:0 0 auto;display:flex;align-items:center;
   justify-content:center;color:#fff;font-size:10px;font-weight:700;background:var(--accent)}
 .rrnb-cmt .cbd{flex:1;min-width:0}
@@ -353,6 +356,15 @@
 .rrnb-editor a.rrnb-objlink[data-obj-type="station"]::before{content:"🏢"}
 .rrnb-editor a.rrnb-objlink[data-obj-type="incident"]::before{content:"⚠️"}
 .rrnb-editor a.rrnb-objlink[data-obj-type="shift"]::before{content:"🕒"}
+/* #20 block-level background tint */
+.rrnb-editor .rrnb-tinted{padding:8px 12px;border-radius:8px;margin-left:-12px;margin-right:-12px}
+/* #18 toggle / details block */
+.rrnb-toggle{margin:8px 0}
+.rrnb-toggle-hd{position:relative;font-weight:600;padding-left:20px}
+.rrnb-toggle-hd::before{content:"▾";position:absolute;left:2px;top:.08em;font-size:.72em;color:var(--text-subtle);cursor:pointer;-webkit-user-select:none;user-select:none}
+.rrnb-toggle[data-collapsed="1"] .rrnb-toggle-hd::before{content:"▸"}
+.rrnb-toggle[data-collapsed="1"] .rrnb-toggle-body{display:none}
+.rrnb-toggle-body{padding-left:20px;margin-top:2px;border-left:2px solid var(--border);margin-left:6px}
 /* #43 a page link whose target was deleted/moved — reads as broken, fixable */
 .rrnb-editor a.rrnb-pagelink.rrnb-pagelink-broken{background:var(--red-soft,rgba(220,38,38,.1));
   color:var(--red,#dc2626);text-decoration:line-through;text-decoration-thickness:1px;cursor:context-menu}
@@ -938,8 +950,8 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     try { if (window.crypto && crypto.randomUUID) return crypto.randomUUID(); } catch (e) {}
     return "id-" + Math.random().toString(36).slice(2) + "-" + (new Date().getTime()).toString(36);
   }
-  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
-    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
   function debounce(fn, ms) { var t; return function () { var a = arguments, c = this;
     clearTimeout(t); t = setTimeout(function () { fn.apply(c, a); }, ms); }; }
   function relTime(iso) {
@@ -2027,6 +2039,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       case "hr": exec("insertHorizontalRule"); break;
       case "code": insertCodeBlock(); break;
       case "callout": insertCallout(); break;
+      case "toggle": insertToggle(); break;
       case "date": insertHTMLAtCursor(esc(new Date().toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" })) + "&nbsp;"); break;
       case "now": insertHTMLAtCursor(esc(new Date().toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })) + "&nbsp;"); break;
       case "toc": insertTOC(); break;
@@ -2253,6 +2266,13 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   }
   function insertCodeBlock() { insertHTMLAtCursor('<pre><code>' + (esc(window.getSelection().toString()) || "​") + '</code></pre><p><br></p>'); }
   function insertCallout() { insertHTMLAtCursor('<div class="rrnb-callout"><span class="ico">💡</span><div>' + (esc(window.getSelection().toString()) || "Note…") + '</div></div><p><br></p>'); }
+  // #18 a toggle/details block: header always visible, body hides when collapsed
+  function insertToggle() {
+    var tid = "rrnb-tg-" + uid();
+    insertHTMLAtCursor('<div class="rrnb-toggle" data-collapsed="0"><div class="rrnb-toggle-hd" id="' + tid + '">Toggle</div><div class="rrnb-toggle-body"><p>Hidden details…</p></div></div><p><br></p>');
+    var hd = $id(tid); if (hd) { hd.removeAttribute("id"); caretToEl(hd, false); }
+    scheduleSave();
+  }
   var HILITE_COLORS = ["#fde68a", "#bbf7d0", "#bfdbfe", "#fecaca", "#e9d5ff", "#fed7aa"];
   var TEXT_COLORS = ["#111827", "#dc2626", "#d97706", "#16a34a", "#2563eb", "#7c3aed", "#6b7280"];
   function openColorMenu(mode) {
@@ -2318,6 +2338,14 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       if (hh && /^H[123]$/.test(hh.tagName)) {
         var hr = hh.getBoundingClientRect();
         if (e.clientX < hr.left && e.clientX > hr.left - 26) { e.preventDefault(); toggleFoldHeading(hh); return; }
+      }
+    }
+    // #18: clicking a toggle block's chevron collapses/expands its body
+    if (ed && !S.readOnly) {
+      var th = e.target.closest && e.target.closest(".rrnb-toggle-hd");
+      if (th && ed.contains(th)) {
+        var tr = th.getBoundingClientRect();
+        if (e.clientX < tr.left + 20) { e.preventDefault(); var tg = th.closest(".rrnb-toggle"); if (tg) { tg.setAttribute("data-collapsed", tg.getAttribute("data-collapsed") === "1" ? "0" : "1"); scheduleSave(); } return; }
       }
     }
     var img = e.target.closest("img");
@@ -3136,7 +3164,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     });
     // #16: folded blocks are display:none, so innerText drops them — add their
     // text back so full-text search still sees content hidden under a fold.
-    ed.querySelectorAll(".rrnb-fold-hidden").forEach(function (el) { var t = el.textContent; if (t) text += "\n" + t; });
+    ed.querySelectorAll('.rrnb-fold-hidden, .rrnb-toggle[data-collapsed="1"] .rrnb-toggle-body').forEach(function (el) { var t = el.textContent; if (t) text += "\n" + t; });
     // strip transient view-only state so it never persists into saved HTML:
     // the image-selection highlight and the collapsible-heading fold classes.
     var clean = ed.cloneNode(true);
@@ -3484,10 +3512,16 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       "</div></div>";
   }
   function renderComments(host, rows) {
-    var top = rows.filter(function (c) { return !c.parent_id; });
-    var repl = {}; rows.forEach(function (c) { if (c.parent_id) (repl[c.parent_id] = repl[c.parent_id] || []).push(c); });
-    var html = '<h4>Comments' + (rows.length ? '<span class="cnt">' + rows.length + "</span>" : "") + "</h4>";
+    // #87 optionally hide resolved comments (persisted per browser)
+    if (S._hideResolved == null) { try { S._hideResolved = localStorage.getItem("rrnb-hide-resolved") === "1"; } catch (e) { S._hideResolved = false; } }
+    var resolvedCount = rows.filter(function (c) { return c.resolved; }).length;
+    var shown = S._hideResolved ? rows.filter(function (c) { return !c.resolved; }) : rows;
+    var top = shown.filter(function (c) { return !c.parent_id; });
+    var repl = {}; shown.forEach(function (c) { if (c.parent_id) (repl[c.parent_id] = repl[c.parent_id] || []).push(c); });
+    var filterBtn = resolvedCount ? '<button class="rrnb-cmt-filter" data-cmt-filter title="Show or hide resolved comments">' + (S._hideResolved ? "Show resolved (" + resolvedCount + ")" : "Hide resolved") + "</button>" : "";
+    var html = '<h4>Comments' + (rows.length ? '<span class="cnt">' + rows.length + "</span>" : "") + filterBtn + "</h4>";
     if (!rows.length) html += emptyStateHTML("💬", "No comments yet", "Start the thread below.");
+    else if (!shown.length) html += emptyStateHTML("✅", "All comments resolved", "Show resolved to see them.");
     top.forEach(function (c) { html += cmtHtml(c, false); (repl[c.id] || []).forEach(function (r) { html += cmtHtml(r, true); }); });
     var chip = "";
     if (S._replyTo) {
@@ -3556,6 +3590,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     var mn = e.target.closest("[data-mn-id]");
     if (mn) { var ta = host.querySelector(".rrnb-cmt-input"); if (ta) insertMention(ta, mn.getAttribute("data-mn-id"), mn.getAttribute("data-mn-name")); return; }
     if (e.target.closest(".rrnb-cmt-send")) { var ta2 = host.querySelector(".rrnb-cmt-input"); if (ta2) submitComment(ta2); return; }
+    if (e.target.closest("[data-cmt-filter]")) { S._hideResolved = !S._hideResolved; try { localStorage.setItem("rrnb-hide-resolved", S._hideResolved ? "1" : "0"); } catch (x) {} fillCtxComments(S.pageId); return; }
     var rs = e.target.closest("[data-cmt-resolve]");
     if (rs) { var on = rs.classList.contains("on"); S.be.commentResolve(rs.getAttribute("data-cmt-resolve"), !on).then(function () { fillCtxComments(S.pageId); }).catch(fail); return; }
     var dl = e.target.closest("[data-cmt-del]");
@@ -4428,6 +4463,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     { cmd: "insertOrderedList", label: "Numbered list", kw: "number ordered list ol", ic: "1.", sc: MODK + "+/" },
     { cmd: "quote", label: "Quote", kw: "quote blockquote", ic: "❝" },
     { cmd: "callout", label: "Callout", kw: "callout note tip info highlight", ic: "💡" },
+    { cmd: "toggle", label: "Toggle / details", kw: "toggle details collapse expand fold accordion", ic: "▸" },
     { cmd: "code", label: "Code block", kw: "code pre monospace", ic: "{ }" },
     { cmd: "table", label: "Table", kw: "table grid rows columns tbl", ic: "▦" },
     { cmd: "hr", label: "Divider", kw: "divider hr line rule separator", ic: "—" },
@@ -4613,9 +4649,12 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     { act: "turn", arg: "ol", label: "Numbered list", ic: "1." },
     { act: "turn", arg: "quote", label: "Quote", ic: "❝" },
     { sep: true },
+    { act: "tint", label: "Background tint", ic: "🎨" },
     { act: "dup", label: "Duplicate", ic: "⧉" },
     { act: "del", label: "Delete", ic: "✕", danger: true }
   ];
+  // #20 soft block-background tints (persist as a class + inline color)
+  var TINT_COLORS = ["#fef3c7", "#dcfce7", "#dbeafe", "#fee2e2", "#f3e8ff", "#f1f5f9"];
   // ── Drag a column border to resize a table column (#44) ──────────
   // Widths persist as a <colgroup> on the table (real saved content), added
   // lazily the first time a table is resized so untouched tables are unchanged.
@@ -4730,6 +4769,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     var blk = BM.block; var ed = $id("rrnb-editor");
     if (!a || !blk || !ed) { closeBlockMenu(); return; }
     if (a.act === "fold") { toggleFoldHeading(blk); closeBlockMenu(); return; }
+    if (a.act === "tint") { openBlockTint(blk); closeBlockMenu(); return; }
     if (a.act === "turn") {
       var nb2 = convertBlock(blk, a.arg);
       if (nb2) { ed.focus(); try { var rg = document.createRange(); rg.selectNodeContents(nb2.tagName === "UL" || nb2.tagName === "OL" ? (nb2.querySelector("li") || nb2) : nb2); rg.collapse(false); var s = window.getSelection(); s.removeAllRanges(); s.addRange(rg); } catch (e3) {} }
@@ -4740,6 +4780,19 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       blk.remove(); if (!ed.firstChild) ed.innerHTML = "<p><br></p>"; scheduleSave(); persistLinks(S.pageId);
     }
     closeBlockMenu(); hideHandle();
+  }
+  function openBlockTint(blk) {
+    if (!blk) return;
+    var sw = TINT_COLORS.map(function (c) { return '<button class="rrnb-swb" data-tint="' + c + '" style="background:' + c + '" title="' + c + '"></button>'; }).join("");
+    var pop = showPop('<label>Background tint</label><div class="rrnb-swrow">' + sw +
+      '<button class="rrnb-swb rrnb-swb-clear" data-tint="none" title="None">✕</button></div>', blk.getBoundingClientRect());
+    pop.onclick = function (e) {
+      var b = e.target.closest("[data-tint]"); if (!b) return;
+      var col = b.getAttribute("data-tint");
+      if (col === "none") { blk.classList.remove("rrnb-tinted"); blk.style.removeProperty("background"); if (!blk.getAttribute("style")) blk.removeAttribute("style"); }
+      else { blk.classList.add("rrnb-tinted"); blk.style.background = col; }
+      hidePop(); scheduleSave();
+    };
   }
   // Deterministic block conversion (no execCommand — it nests <ul> inside <p>).
   // Moves the block's actual child nodes, so inline record links survive.

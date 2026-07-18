@@ -129,10 +129,47 @@ chunk). Wave plan and status:
   test step self-skips; pg_dump artifact step currently produces nothing
   — client/server version mismatch, fix queued). REMEMBER: paste
   0504+0505 SQL in chat for the user.
-- **Wave E — dashboard correctness**: PR#9,10,11,12,14,15,16(start),
-  17,18,19,20.
-- **Wave F — perf**: PR#21,23,24,28,29,30,31,32.
-- **Wave G — driver app**: PR#33–44.
+- **Wave E — dashboard correctness**: batch 1 DONE (PR#9,10,11,14,15) —
+  fmtIsoDate now LOCAL not UTC (the "today = tomorrow after 7pm" bug),
+  extracted to tested dashboard/rr-dates.mjs (fmtIsoDate/startOfWeek/
+  addDays/isoWeek + scripts/test-rr-dates.mjs, 11 tests); isoWeekNumber
+  deduped into isoWeek; startOfWeekMonday renamed (24 sites); _rrSwallow
+  telemetry helper + rpcOrToast wrapper added (+ mark_applicant_email_sent
+  converted as the pattern example); _rrTextToHtml esc now covers "/'
+  (was an href attribute-breakout hazard) + target/rel added;
+  view-notebooks.frag esc now covers '. rr-dates.mjs added to npm test,
+  bust-cache implicitly (live.js ref), immutable headers both hosts.
+  DEFERRED (need browser-verified standalone PRs — too risky to sweep
+  blind on 92k-line live.js): PR#12 goto dispatcher (7 wrappers), PR#16
+  mock-wiring retirement, PR#17 notebooks.frag→module, PR#18 typeof
+  sweep (560 sites), PR#19 forecast extraction. PR#20 (RR namespace) =
+  convention note only.
+- **Wave F — perf**: batch 1 DONE (PR#24,25,29,30) — rr-dashboard
+  realtime channel now filters every one of its 16 tables by
+  dsp_id=eq.<tenant> (all verified to have dsp_id not null; other tenants'
+  row-changes no longer trigger full repaints); loadDriversRoster uses
+  roster_attendance_counts RPC (0504) with raw-fetch fallback pre-0504
+  (was up to 20,000 shift rows every 30s); refreshActiveView early-returns
+  on document.hidden; openCoachingPrintView scopes coaching_edits/
+  attachments to the driver's coaching ids (was tenant-wide, no limit).
+  DEFERRED (risky/big — own PRs): PR#21 lazy-load workbook/reports, PR#23
+  CSS dedupe (cascade-order risk), PR#31 shell shrink, PR#32 PNG
+  quantization (needs pngquant), PR#28 sw changelog (low value on the
+  recovery SW).
+- **Wave G — driver app**: batch 1 DONE (PR#33,34,36,38,40) — SW shell
+  fetch races a 3.5s timeout then serves cached shell (stalled-cell
+  launches); pushsubscriptionchange handler re-subscribes + re-registers
+  (SW holds url/anon/token in IDB; added urlBase64ToUint8Array + VAPID
+  fetch fallback); 4 schedule pollers skip while document.hidden;
+  reg.update() + ensurePushSubscription re-assert on refreshOnFocus (iOS
+  PWAs resume without 'load'); controllerchange → one-time reload (skips
+  if a sheet/modal/dirty-form open); capacitor.config white chrome +
+  StatusBar(DARK)/SplashScreen config, dropped dead bundledWebRuntime.
+  SHELL_CACHE v185→v186. DEFERRED: PR#35 (125-site rpc() wrapper — too
+  many to sweep safely), PR#39 (Capacitor haptics/badge bridge — needs
+  native test), PR#41 (rem type scale — touches 141 font-sizes), PR#42
+  (app.js split + lazy scanner), PR#43 (offline attachments). PR#44
+  (redesign tickets) → Wave I docs.
 - **Wave H — a11y/UX**: PR#89–96 (check #91 vs merged #3955 first).
 - **Wave I — docs/DX**: PR#97–100.
 - **Wave J — testing depth**: PR#82,83,86.

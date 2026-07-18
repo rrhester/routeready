@@ -271,7 +271,12 @@
 // v185 · Security wave: Meet links carry the driver session token in the
 // URL #fragment (out of server logs); login brand tile + precache use the
 // 26 KB icons/icon-192.png instead of the 347 KB Icon.png.
-const SHELL_CACHE = "rr-app-shell-b0852a059432";
+// v186 · Driver-app reliability wave: shell fetch races a 3.5s timeout →
+// cached shell (stalled-cell launches feel instant); pushsubscriptionchange
+// re-subscribes so pushes survive endpoint rotation; schedule pollers skip
+// while backgrounded; SW update checked on foreground + controllerchange
+// reload; capacitor white chrome + StatusBar/SplashScreen config.
+const SHELL_CACHE = "rr-app-shell-v186";
 const SHELL_FILES = [
   "./",
   "index.html",
@@ -312,6 +317,30 @@ const SHELL_PATHS = new Set(
   SHELL_FILES.filter((f) => f !== "./").map((f) => new URL(f, self.registration.scope).pathname)
 );
 
+// Race the network against a short deadline, then fall back to cache
+// (project-review PR#33). On a degraded cell link (connected but stalled —
+// navigator.onLine still true) a bare network-first fetch hangs the launch
+// until the OS-level socket timeout, which can be 30s+. Serving the cached
+// shell after ~3.5s makes a bad-signal launch feel instant; the real
+// response still refreshes the cache when it eventually arrives.
+function fetchWithShellTimeout(req, ms = 3500) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      caches.match(req, { ignoreSearch: true }).then((cached) => {
+        if (cached) resolve(cached);
+        else fetch(req).then(resolve, reject); // no cache — wait on the network
+      });
+    }, ms);
+    fetch(req).then(
+      (res) => { if (!settled) { settled = true; clearTimeout(timer); resolve(res); } },
+      (err) => { if (!settled) { settled = true; clearTimeout(timer); reject(err); } },
+    );
+  });
+}
+
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;
@@ -325,7 +354,7 @@ self.addEventListener("fetch", (event) => {
   // precache on a cold offline launch.
   if (url.origin === location.origin && SHELL_PATHS.has(url.pathname)) {
     event.respondWith(
-      fetch(req).then((res) => {
+      fetchWithShellTimeout(req).then((res) => {
         const copy = res.clone();
         caches.open(SHELL_CACHE).then((c) => c.put(req, copy)).catch(() => {});
         return res;
@@ -336,7 +365,7 @@ self.addEventListener("fetch", (event) => {
   // Navigation requests: network-first so updated index.html lands on relaunch.
   if (req.mode === "navigate") {
     event.respondWith(
-      fetch(req).catch(() => caches.match("./index.html", { ignoreSearch: true }))
+      fetchWithShellTimeout(req).catch(() => caches.match("./index.html", { ignoreSearch: true }))
     );
     return;
   }
@@ -426,6 +455,65 @@ async function clearBadgeAndNotifications(source) {
 // format, tag/renotify combo, etc.) — server logs prove whether the SW
 // actually fired so we can tell "push didn't arrive at device" from
 // "push arrived but iOS refused to render."
+// The browser can rotate the push subscription at any time (key rotation,
+// storage pressure) and fires pushsubscriptionchange when it does. Without
+// this handler the old endpoint goes dead and pushes silently stop until
+// the driver happens to reopen the Chat screen (project-review PR#34). The
+// SW already holds supabaseUrl/anonKey/token in IndexedDB, so it can
+// re-subscribe and re-register the new endpoint itself, no app needed.
+self.addEventListener("pushsubscriptionchange", (event) => {
+  event.waitUntil(resubscribePush(event));
+});
+
+async function resubscribePush(event) {
+  try {
+    const [url, anon, token] = await Promise.all([rrGet("supabaseUrl"), rrGet("anonKey"), rrGet("token")]);
+    if (!url || !anon || !token) return;
+
+    // Prefer the applicationServerKey the browser hands us for the OLD
+    // subscription; fall back to fetching the VAPID key from the backend.
+    let appServerKey = event.oldSubscription?.options?.applicationServerKey || null;
+    if (!appServerKey) {
+      const res = await fetch(url + "/rest/v1/rpc/driver_push_vapid_key", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + anon, "apikey": anon },
+        body: "{}",
+      });
+      const vapid = await res.json().catch(() => null);
+      if (!vapid) return;
+      appServerKey = urlBase64ToUint8Array(vapid);
+    }
+
+    const sub = event.newSubscription
+      || await self.registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: appServerKey });
+    const json = sub.toJSON();
+
+    await fetch(url + "/rest/v1/rpc/driver_push_register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + anon, "apikey": anon },
+      body: JSON.stringify({
+        p_token:      token,
+        p_endpoint:   json.endpoint,
+        p_p256dh:     json.keys?.p256dh || null,
+        p_auth:       json.keys?.auth || null,
+        p_user_agent: (self.navigator && self.navigator.userAgent) || null,
+      }),
+      keepalive: true,
+    });
+  } catch (_) { /* best-effort; the app re-registers on next open */ }
+}
+
+// Minimal base64url → Uint8Array for the VAPID applicationServerKey (matches
+// app.js's urlBase64ToUint8Array). Only needed on the resubscribe fallback.
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(base64);
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+
 self.addEventListener("push", (event) => {
   let payload = {
     title:  "Dispatch",
