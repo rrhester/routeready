@@ -53,9 +53,21 @@ The authoritative CP-SAT solver models `1 shift = 1 seat = 1 driver`, so
   (no shift is `helper` pre-migration). Post-apply wants a browser QA pass
   of the schedule grid + a Smart-Fill run on an XL week.
 
-**Still DEFERRED:** helper-seat cushion/backups (cushion currently backs up
-driver seats only); the availability-popover demand (live.js ~64921) is
-still a flat ×2 (no per-type split in that path).
+**SHIPPED — the two former follow-ups (XL follow-up pass):**
+- Helper-seat cushion/backups (migration **0519**): apply_cushion_to_week
+  now sizes a SECOND cushion off the helper seats (target_helper_cushion =
+  round(helper_base × cushion%)), reconciled independently of driver cushion
+  — so an XL route staffs ≈ the forecast's "2 certified + 2 helpers" at the
+  DSP cushion %. Helper cushion seats are is_cushion + shift_kind='helper'
+  (fillable, uncertified). 0519 re-asserts the 'helper' enum (safe if 0518
+  ran). generate_shifts unchanged from 0518.
+- Availability popover (live.js `loadScheduleInsights` ~64950): demand is now
+  XL-aware — builds `xlByDate` from okami_grid `targets_by_wave`
+  (service_type_code === "XL"), picks the peak-DEMAND day per DOW
+  (std×dpr + xl×4), and computes Needed via `rrDriversNeededMix`. The (ⓘ)
+  popover formula text + `_availMath` carry the XL breakdown. Was a flat ×2.
+
+**Still DEFERRED:** nothing outstanding on the XL model.
 
 ## DONE: Calendar 100-list (Onboarding → Calendar improvements)
 

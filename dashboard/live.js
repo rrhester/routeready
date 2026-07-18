@@ -64947,24 +64947,47 @@ async function loadScheduleInsights(scope) {
     }
   }
 
-  // Per-day peak demand from OKAMI: max routes_max for any week of that
-  // day of week, × 2 × (1 + plan_pad/100). The same math used in OKAMI.
+  // Per-day peak demand from OKAMI, XL-aware: standard routes cost the
+  // drivers-per-route ratio (2), XL routes cost 4 (driver + helper, ×2 for
+  // backups). Same driversNeededMix math as the 13-week plan, so this popover
+  // agrees with Targets instead of the old flat ×2.
   const padPct = Math.max(0, Math.min(50, Number(window.RR?.dsp?.metadata?.staffing?.plan_pad_pct ?? 10) || 0));
+  const _availDpr = window._rrForecastRates?.driversPerRoute ?? 2;
   const cells = (gridRes?.data || []);
-  // Routes total per date, summed across stations.
+  // Routes total + XL routes per date, summed across stations. Untagged
+  // routes count as standard (the SP default).
   const routesByDate = new Map();
-  for (const c of cells) routesByDate.set(c.date, (routesByDate.get(c.date) || 0) + (c.target_routes || 0));
-  // Peak routes per day-of-week across the horizon.
-  const peakRoutesByDow = Object.fromEntries(DOW.map(d => [d, 0]));
+  const xlByDate = new Map();
+  for (const c of cells) {
+    routesByDate.set(c.date, (routesByDate.get(c.date) || 0) + (c.target_routes || 0));
+    if (Array.isArray(c.targets_by_wave)) {
+      for (const t of c.targets_by_wave) {
+        if ((t?.service_type_code) === "XL") xlByDate.set(c.date, (xlByDate.get(c.date) || 0) + (t?.target_routes || 0));
+      }
+    }
+  }
+  // Peak DEMAND per day-of-week across the horizon: the date whose driver
+  // demand (std×dpr + xl×4) is highest for that weekday sets the day's Needed.
+  const peakRoutesByDow = Object.fromEntries(DOW.map(d => [d, 0]));      // total routes, for context
+  const peakMixByDow    = Object.fromEntries(DOW.map(d => [d, { standard: 0, xl: 0 }]));
+  const peakUnitsByDow  = Object.fromEntries(DOW.map(d => [d, -1]));
   // JS getDay: 0=Sun, 1=Mon, ..., 6=Sat. Map to our DOW key.
   const JS_DOW = { 0:"sun", 1:"mon", 2:"tue", 3:"wed", 4:"thu", 5:"fri", 6:"sat" };
   for (const [iso, routes] of routesByDate.entries()) {
     const dow = JS_DOW[new Date(iso + "T12:00:00").getDay()];
+    const xl  = Math.min(routes, xlByDate.get(iso) || 0);
+    const std = Math.max(0, routes - xl);
+    const units = std * _availDpr + xl * 4;
     if (routes > peakRoutesByDow[dow]) peakRoutesByDow[dow] = routes;
+    if (units > peakUnitsByDow[dow]) { peakUnitsByDow[dow] = units; peakMixByDow[dow] = { standard: std, xl }; }
   }
   const neededByDow = {};
+  let _availHasXl = false;
   for (const d of DOW) {
-    neededByDow[d] = peakRoutesByDow[d] > 0 ? Math.ceil(peakRoutesByDow[d] * 2 * (1 + padPct / 100)) : 0;
+    if (peakMixByDow[d].xl > 0) _availHasXl = true;
+    neededByDow[d] = peakUnitsByDow[d] > 0
+      ? rrDriversNeededMix(peakMixByDow[d], { driversPerRoute: _availDpr, padPct }).total
+      : 0;
   }
 
   // Bar chart. Width scales to total active drivers so the longest bar
@@ -65042,7 +65065,7 @@ async function loadScheduleInsights(scope) {
   }
 
   // Cache the math context for the (i) popover.
-  _availMath = { totalDrivers, driversWithoutAvailability, padPct, horizonWeeks, peakRoutesByDow, neededByDow, availByDay };
+  _availMath = { totalDrivers, driversWithoutAvailability, padPct, dpr: _availDpr, hasXl: _availHasXl, horizonWeeks, peakRoutesByDow, peakMixByDow, neededByDow, availByDay };
 }
 
 let _availMath = null;
@@ -65082,7 +65105,7 @@ document.addEventListener("click", (e) => {
       <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-top:14px;margin-bottom:6px">Per-day math</div>
       <div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-bottom:6px">For each day, we count the active drivers whose availability includes that day, then divide by total active drivers.</div>
       <div style="font-family:ui-monospace,monospace;font-size:var(--fs-xs);background:var(--canvas);padding:var(--s-2) var(--s-2-5);border-radius:var(--r-sm);color:var(--text)">% available = available_drivers ÷ total_active_drivers</div>
-      <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px">Needed column shows OKAMI peak demand for context: <code>ceil(peak_routes × 2 × (1 + ${m.padPct}%))</code>.</div>
+      <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px">Needed column shows OKAMI peak demand for context: <code>ceil((standard × ${m.dpr} + XL × 4) × (1 + ${m.padPct}%))</code>${m.hasXl ? " — XL routes staff 4 (driver + helper, ×2 for backups)" : ""}.</div>
       <table style="width:100%;border-collapse:collapse;font-size:var(--fs-sm);margin-top:10px">
         <thead>
           <tr>
