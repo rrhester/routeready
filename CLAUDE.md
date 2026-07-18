@@ -181,7 +181,14 @@ chunk). Wave plan and status:
   cycle trap), PR#93 ratchet→live.js/public inline CSS, PR#94 linter a11y
   axes, PR#96 public token unify, aria-current on nav (needs nav-switch
   JS).
-- **Wave I — docs/DX**: PR#97–100.
+- **Wave I — docs/DX**: DONE (PR#44,97,98,99,100) — top-level README.md
+  (dir map + deploy table + conventions); scripts/gen-secrets-inventory.mjs
+  scrapes Deno.env.get per function → supabase/SECRETS-INVENTORY.md (42 fns,
+  60 vars; SECRETS.md's stale "all five edge functions" line fixed +
+  pointer added); docs/LOCAL-DEV.md (stub-boot recipe promoted out of the
+  verify skill) + docs/DEPLOY.md (workflow→surface map, manual steps, CI
+  gates); CONTRIBUTING.md + .github/pull_request_template.md; PR#44 redesign
+  backlog → docs/DRIVER-APP-REDESIGN-BACKLOG.md (keep/drop per item).
 - **Wave J — testing depth**: PR#82,83,86.
 
 Notes: other sessions merge to main concurrently — re-verify each item

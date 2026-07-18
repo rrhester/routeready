@@ -18,7 +18,15 @@ These are already documented in `.github/workflows/deploy-migrations.yml`.
 
 ## 2. Edge function runtime secrets
 
-Set on the Supabase project so all five edge functions can read them:
+> **Which function needs which var?** See the generated
+> [`SECRETS-INVENTORY.md`](./SECRETS-INVENTORY.md) — it's scraped from every
+> `Deno.env.get(...)` in `supabase/functions/` (regenerate with
+> `node scripts/gen-secrets-inventory.mjs`), so it can't drift the way this
+> curated list did (it once said "all five edge functions" — there are now
+> 40+). This section stays the human-readable "where to set it / what breaks
+> without it" reference.
+
+Set on the Supabase project so the edge functions can read them:
 
 ```bash
 supabase secrets set --project-ref doiwrhkirgblcvuskhno \
