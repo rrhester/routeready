@@ -50,9 +50,12 @@ are confirmed bugs (F#21, F#22, F#24, F#51, F#69, F#82, F#83, F#91).
 
 ## C. Row content & correctness (F#21–30)
 
-21. **BUG: the Offer dot is dead** — `_pipelineStageIndex` never returns 3,
-    so "Offer" can never be the current stage; add a real offer stage or
-    drop the node.
+21. **BUG: the Offer dot is dead** — the live card renders
+    `_pipelineTimeline` (live.js:1815), whose `_pipelineStageIndex` never
+    returns 3, so "Offer" can never be the current stage; add a real offer
+    stage or drop the node. (Related dead code: `timelineHtml =
+    _milestoneStepper(a)` at live.js:1688 is computed but unused in the
+    card — the stepper only renders in the record drawer.)
 22. **BUG: `rrTitleCaseName` mangles names** — "MCDONALD" → "Mcdonald",
     "O'BRIEN III" → "O'Brien Iii"; only fold when input is ALL-CAPS and
     handle Mc/Mac/O'/roman numerals.
@@ -157,7 +160,10 @@ are confirmed bugs (F#21, F#22, F#24, F#51, F#69, F#82, F#83, F#91).
 76. **Stage chips as a real tablist** (role/aria-selected).
 77. **sr-only text for the amber overdue chip.**
 78. **Contrast pass** on `--text-subtle` at `--fs-xs`.
-79. **prefers-reduced-motion** for skeleton shimmer / progress animation.
+79. **`aria-busy` during loads** — `loadPipeline` swaps in skeletons with
+    no loading semantics; set/clear `aria-busy` on `#pipe-applicants` so
+    screen readers announce the refresh. (Reduced-motion is already
+    covered: global reduce rule + `.rr-skel{animation:none}`.)
 80. **≥44px touch targets** for the icon action row.
 
 ## I. Performance & robustness (F#81–90)
