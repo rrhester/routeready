@@ -13,6 +13,7 @@ import { assessPlan as rrAssessLaborPlan, driversNeeded as rrDriversNeeded, FORE
 import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=b2ebeec00db5";
 import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=b2ebeec00db5";
 import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=b2ebeec00db5";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=b2ebeec00db5";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -303,6 +304,42 @@ window.debugDemand = async (weekStart) => {
   });
   window._rrReportError = (msg, stack) => report("manual", msg, stack);
 })();
+
+// Route an intentionally-swallowed error into telemetry (project-review
+// PR#11). The codebase has ~390 `catch (_) {}` blocks whose failures were
+// invisible — _rrReportError only ever saw UNCAUGHT errors. Use this in
+// best-effort paths instead of a silent catch so production breakage in
+// "it's fine if this fails" code becomes visible:
+//   try { ... } catch (e) { _rrSwallow("loadFooWidget", e); }
+// Still never throws (telemetry is best-effort) and never blocks the path.
+function _rrSwallow(label, err) {
+  try {
+    const msg = (err && (err.message || String(err))) || "swallowed error";
+    window._rrReportError?.(`[${label}] ${msg}`, err?.stack);
+  } catch (_) { /* telemetry must never throw */ }
+}
+
+// supabase-js v2 returns { error } instead of throwing, so a bare
+// `await sb.rpc(...)` for a MUTATION silently loses failures (the
+// surrounding try/catch is dead code). Use this for user-triggered writes
+// so a failed RPC surfaces a toast + telemetry instead of a phantom
+// success. Returns { ok, data, error }; callers can branch on ok.
+async function rpcOrToast(fn, args, opts) {
+  const label = (opts && opts.label) || fn;
+  try {
+    const { data, error } = await sb.rpc(fn, args || {});
+    if (error) {
+      _rrSwallow(`rpc:${label}`, error);
+      if (typeof toast === "function") toast((opts && opts.errorMessage) || `Couldn't ${label.replace(/_/g, " ")}`, "warn");
+      return { ok: false, data: null, error };
+    }
+    return { ok: true, data, error: null };
+  } catch (e) {
+    _rrSwallow(`rpc:${label}`, e);
+    if (typeof toast === "function") toast((opts && opts.errorMessage) || `Couldn't ${label.replace(/_/g, " ")}`, "warn");
+    return { ok: false, data: null, error: e };
+  }
+}
 
 // ─── View partials gate ────────────────────────────────────────────────────
 // The big views' markup is injected from cacheable views/*.frag files
@@ -2801,9 +2838,15 @@ if (window.ResizeObserver) {
 // Plaintext template body → light HTML for the composer: escape, autolink
 // URLs, and convert newlines to <br> so the message reads cleanly.
 function _rrTextToHtml(text) {
-  const esc = (s) => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  // Must escape `"` too: the URL below is interpolated into href="$1", so a
+  // quote in the text (or a crafted URL) could break out of the attribute.
+  // Escaping first turns any `"` into &quot; before the URL regex runs, so
+  // the emitted href value can't contain a raw quote.
+  const esc = (s) => String(s || "")
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   const h = esc(text)
-    .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1">$1</a>')
+    .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>')
     .replace(/\n/g, "<br>");
   return `<div style="font-family:Calibri,Arial,sans-serif;font-size:14px;line-height:1.55">${h}</div>`;
 }
@@ -2834,8 +2877,11 @@ async function _rrComposeApplicantEmail(applicantId, purpose) {
     applicantId,
     templateId: prev.template_id || null,
     onSent: async () => {
-      try { await sb.rpc("mark_applicant_email_sent", { p_id: applicantId, p_purpose: purpose }); } catch (_) {}
-      try { if (typeof loadPipeline === "function") await loadPipeline(getActiveStage()); } catch (_) {}
+      // Was a bare await in a catch(_){} — a failed write to record that the
+      // email went out looked like success and left the pipeline stale.
+      await rpcOrToast("mark_applicant_email_sent", { p_id: applicantId, p_purpose: purpose },
+        { label: "record the sent email" });
+      try { if (typeof loadPipeline === "function") await loadPipeline(getActiveStage()); } catch (e) { _rrSwallow("onSent:loadPipeline", e); }
     },
   });
   return true;
@@ -17865,7 +17911,7 @@ async function loadDashboardTasks() {
   const dspId = window.RR?.dsp?.id;
   if (!dspId) return;
   const todayIso = fmtIsoDate(new Date());
-  const weekStart = fmtIsoDate(startOfWeekMonday(new Date()));
+  const weekStart = fmtIsoDate(startOfWeek(new Date()));
   const weekEnd   = fmtIsoDate(addDays(new Date(weekStart + "T12:00:00"), 6));
 
   // Date eyebrow
@@ -24362,12 +24408,7 @@ document.addEventListener("click", (e) => {
 // that belongs to the Schedule view). Auto-refreshes at the Sunday→Monday
 // rollover so dashboards left open across midnight don't drift.
 
-function isoWeek(date) {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
-}
+// isoWeek now imported from rr-dates.mjs.
 
 let _weeksStripRolloverTimer = null;
 function _scheduleWeeksStripRollover() {
@@ -24392,7 +24433,7 @@ async function renderWeeksStrip() {
   if (!dspId) return;
 
   // Start from NEXT Monday — current week lives in the Schedule view.
-  const thisMonday = startOfWeekMonday(new Date());
+  const thisMonday = startOfWeek(new Date());
   const monday = addDays(thisMonday, 7);
   const startIso = fmtIsoDate(monday);
   _scheduleWeeksStripRollover();
@@ -38777,7 +38818,7 @@ async function _buildEmploymentReport(driverId, m) {
   }).join("");
 
   // ── Scheduling history (last 26 weeks, weekly rollup) ──
-  const wkKey = (iso) => fmtIsoDate(startOfWeekMonday(new Date(iso + "T12:00:00")));
+  const wkKey = (iso) => fmtIsoDate(startOfWeek(new Date(iso + "T12:00:00")));
   const byWeek = new Map();
   for (const s of shifts) {
     const k = wkKey(s.date);
@@ -49078,7 +49119,7 @@ async function loadAvailabilityRequests() {
   // so impact rendering doesn't depend on the operator having
   // visited Insights first.
   const today = new Date();
-  const monday = startOfWeekMonday(today);
+  const monday = startOfWeek(today);
   const startIso = fmtIsoDate(monday);
   const [reqRes, kpiRes, blackRes, setRes, drvRes, gridRes] = await Promise.all([
     sb.rpc("availability_request_list"),
@@ -51861,19 +51902,11 @@ const RR_DAY_SHORT   = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 // Amazon DSP convention: weeks run Sunday → Saturday.  This helper
 // returns the Sunday on-or-before `d` (matches the SQL
 // `private.week_start_for(date)` redefined in migration 0265). The
-// legacy `startOfWeekMonday` alias is kept as a thin shim for any
-// external code that still imports the old name.
-function startOfWeek(d) {
-  const date = new Date(d);
-  const day = date.getDay();             // 0=Sun, 1=Mon, ..., 6=Sat
-  date.setDate(date.getDate() - day);    // back up to the prior Sunday
-  date.setHours(0, 0, 0, 0);
-  return date;
-}
-const startOfWeekMonday = startOfWeek;   // legacy alias — Sunday-anchored now
-function fmtIsoDate(d) { return d.toISOString().slice(0, 10); }
+// fmtIsoDate / startOfWeek / addDays / isoWeek now live in rr-dates.mjs
+// (imported at the top, tested in scripts/test-rr-dates.mjs). fmtIsoDate
+// there is LOCAL — the old toISOString() version computed tomorrow's date
+// for US operators every evening (project-review PR#9).
 function fmtMD(d) { return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }); }
-function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
 
 
 // NOTE — earlier iteration of this code overwrote the OKAMI table and
@@ -52200,7 +52233,7 @@ async function _rrRenderStaffInWeekGrid() {
   if (!calWrap) return;
   const head = calWrap.querySelector('.cal-grid.head');
   if (!head) return;
-  const start = _schedStart || fmtIsoDate(startOfWeekMonday(new Date()));
+  const start = _schedStart || fmtIsoDate(startOfWeek(new Date()));
   // Loading row.
   _rrClearStaffWeekRows();
   const loading = document.createElement('div');
@@ -52414,12 +52447,7 @@ async function loadOkamiView() {
 const RR_OKAMI_WEEKS = 13;
 const RR_OKAMI_HIRE_LEAD_DAYS = 28; // training/onboarding lead time
 
-function isoWeekNumber(date) {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  return Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
-}
+// isoWeekNumber was byte-identical to isoWeek (now in rr-dates.mjs) — use isoWeek.
 
 let _okamiActiveCount = 0;
 let _okamiTotalsByDateCache = null;
@@ -52520,7 +52548,7 @@ async function _renderOkamiLiveImpl() {
     _okamiStart = _override;
     window._rrOkamiAnchorOverride = null;
   } else {
-    _okamiStart = fmtIsoDate(startOfWeekMonday(new Date()));
+    _okamiStart = fmtIsoDate(startOfWeek(new Date()));
   }
   // Mirror to window so the Risk Forecast simulate hook (defined at
   // the top of the module) can map row index → ISO week-start without
@@ -52603,7 +52631,7 @@ async function _renderOkamiLiveImpl() {
     // Update week label + dates (without disturbing the expand button or tags).
     const labelEl = row.querySelector(".plan-week-label");
     const datesEl = row.querySelector(".plan-week-dates");
-    if (labelEl) labelEl.textContent = `W${isoWeekNumber(weekStart)}`;
+    if (labelEl) labelEl.textContent = `W${isoWeek(weekStart)}`;
     if (datesEl) datesEl.textContent = `${fmtMD(weekStart)}–${weekEnd.getDate()}`;
 
     // Routes (max) is now READ-ONLY — operator edits per-day in the
@@ -52669,7 +52697,7 @@ async function _renderOkamiLiveImpl() {
     modelWeeks.push({
       idx: w,
       weekStartIso: fmtIsoDate(weekStart),
-      label: `W${isoWeekNumber(weekStart)}`,
+      label: `W${isoWeek(weekStart)}`,
       dates: `${fmtMD(weekStart)}–${weekEnd.getDate()}`,
       routesMax, needed,
       avail: _okamiActiveCount,
@@ -52930,7 +52958,7 @@ async function renderScheduleTargetsSubView() {
   if (typeof _schedStart === "string" && _schedStart) {
     _okamiStart = _schedStart;
   } else if (!_okamiStart) {
-    _okamiStart = fmtIsoDate(startOfWeekMonday(new Date()));
+    _okamiStart = fmtIsoDate(startOfWeek(new Date()));
   }
   // The standalone daily editor used to live in
   // #sched-sub-targets-daily; operators asked us to drop it now that
@@ -53028,7 +53056,7 @@ async function _renderOkamiDailyPanelImpl(weekIdx, targetContainerId) {
   const totalRoutes = dayTotals.reduce((s, n) => s + n, 0);
   const peakRoutes  = dayTotals.reduce((m, n) => n > m ? n : m, 0);
 
-  const headerLabel = `W${isoWeekNumber(weekStart)} · ${fmtMD(weekStart)}–${addDays(weekStart, 6).getDate()}`;
+  const headerLabel = `W${isoWeek(weekStart)} · ${fmtMD(weekStart)}–${addDays(weekStart, 6).getDate()}`;
 
   // One row per (wave × active type). Single-wave + single-type weeks
   // render exactly like pre-0050. Multi-wave or multi-type weeks get
@@ -53274,7 +53302,7 @@ document.addEventListener("change", async (e) => {
 async function loadSchedulingSettings() {
   const dspId = window.RR?.dsp?.id;
   if (!dspId) return;
-  if (!_schedStart) _schedStart = fmtIsoDate(startOfWeekMonday(new Date()));
+  if (!_schedStart) _schedStart = fmtIsoDate(startOfWeek(new Date()));
 
   // Fleet settings live on their own DSP-level row — load them too so
   // the toggle in Settings → Scheduling reflects current state.
@@ -53563,7 +53591,7 @@ document.addEventListener("click", async (e) => {
 async function _saveScheduleSettings({ source = "drawer" } = {}) {
   const dspId = window.RR?.dsp?.id;
   if (!dspId) return { ok: false, error: "DSP not loaded" };
-  if (!_schedStart) _schedStart = fmtIsoDate(startOfWeekMonday(new Date()));
+  if (!_schedStart) _schedStart = fmtIsoDate(startOfWeek(new Date()));
 
   const block = parseInt(document.getElementById("rr-set-block-hours")?.value, 10) || 10;
   const cushion = parseInt(document.getElementById("rr-set-cushion-pct")?.value, 10) || 0;
@@ -60946,7 +60974,7 @@ async function runSchedVanAssignmentsForWeek() {
   if (!body) return;
   const dspId = window.RR?.dsp?.id;
   if (!dspId) { body.innerHTML = `<div class="sched-vans-empty">DSP not loaded.</div>`; return; }
-  if (!_schedStart) _schedStart = fmtIsoDate(startOfWeekMonday(new Date()));
+  if (!_schedStart) _schedStart = fmtIsoDate(startOfWeek(new Date()));
 
   if (btn) { btn.disabled = true; const orig = btn.innerHTML; btn.dataset.rrOrig = orig; btn.innerHTML = `<svg viewBox="0 0 24 24" class="rr-sf-spin" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg> Assigning…`; }
   body.innerHTML = `<div class="rr-loading">Assigning vans for the week…</div>`;
@@ -61070,7 +61098,7 @@ async function _runSchedVanAssignmentsBackground() {
   const orig = btn.querySelector("svg")?.outerHTML || "";
   const dspId = window.RR?.dsp?.id;
   if (!dspId) return;
-  if (!_schedStart) _schedStart = fmtIsoDate(startOfWeekMonday(new Date()));
+  if (!_schedStart) _schedStart = fmtIsoDate(startOfWeek(new Date()));
 
   // Swap the van glyph for the same spinner Smart Fill uses.
   _markTileBusy(btn);
@@ -61841,7 +61869,7 @@ async function _runSchedVanUnassignBackground() {
   const orig = btn.querySelector("svg")?.outerHTML || "";
   const dspId = window.RR?.dsp?.id;
   if (!dspId) return;
-  if (!_schedStart) _schedStart = fmtIsoDate(startOfWeekMonday(new Date()));
+  if (!_schedStart) _schedStart = fmtIsoDate(startOfWeek(new Date()));
   const weekEndIso = fmtIsoDate(addDays(new Date(_schedStart + "T12:00:00"), 6));
 
   _markTileBusy(btn);
@@ -62982,7 +63010,7 @@ async function loadScheduleInsights(scope) {
   if (!wrap) return;
 
   const today = new Date();
-  const monday = startOfWeekMonday(today);
+  const monday = startOfWeek(today);
   const startIso = fmtIsoDate(monday);
   const horizonWeeks = 4;
 
@@ -63687,7 +63715,7 @@ window.openAiSchedule = async function () {
 async function fillShiftsFromPreviousWeek() {
   const dspId = window.RR?.dsp?.id;
   if (!dspId) { toast("DSP not loaded", "warn"); return; }
-  if (!_schedStart) _schedStart = fmtIsoDate(startOfWeekMonday(new Date()));
+  if (!_schedStart) _schedStart = fmtIsoDate(startOfWeek(new Date()));
   if (typeof _confirmLiveScheduleEdit === "function" && !_confirmLiveScheduleEdit()) return;
 
   const btn = document.getElementById("rr-sched-smartfill-h");
@@ -64771,7 +64799,7 @@ async function _rrRunRequiredDrivers(btn) {
 async function autoFillScheduleWeek() {
   const dspId = window.RR?.dsp?.id;
   if (!dspId) { toast("DSP not loaded", "warn"); return; }
-  if (!_schedStart) _schedStart = fmtIsoDate(startOfWeekMonday(new Date()));
+  if (!_schedStart) _schedStart = fmtIsoDate(startOfWeek(new Date()));
 
   // Auto-schedule performs a FULL REBUILD of every eligible shift. When the
   // week is finalized, warn before rebuilding and log the confirmed rebuild
@@ -68799,7 +68827,7 @@ async function renderScheduleWeek() {
   // Keep the Smart Fill button / bolt in sync with Manual scheduling.
   if (typeof _syncManualMode === "function") _syncManualMode();
 
-  if (!_schedStart) _schedStart = fmtIsoDate(startOfWeekMonday(new Date()));
+  if (!_schedStart) _schedStart = fmtIsoDate(startOfWeek(new Date()));
   const weekStart = new Date(_schedStart + "T12:00:00");
   const weekEnd   = addDays(weekStart, 6);
   const weekEndIso = fmtIsoDate(weekEnd);
@@ -69625,7 +69653,7 @@ async function renderScheduleWeek() {
   const tabsEl = sub.querySelector("#rr-sched-week-tabs");
   if (tabsEl) {
     const today = new Date();
-    const baseMonday = startOfWeekMonday(today);
+    const baseMonday = startOfWeek(today);
     const fmtRange = (m) => {
       const e = addDays(m, 6);
       const sameMonth = m.getMonth() === e.getMonth();
@@ -70570,7 +70598,7 @@ async function renderScheduleWeek() {
       const bTxt = sameMonth
         ? weekEnd.toLocaleDateString(undefined, { day: "numeric" })
         : weekEnd.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-      const wk = isoWeekNumber(weekStart);
+      const wk = isoWeek(weekStart);
       lbl.textContent = `Wk ${wk} · ${aTxt} – ${bTxt}`;
     }
   } catch (e) { /* nothing to do */ }
@@ -71375,7 +71403,7 @@ function bindSchedWeekNav() {
   // on it anymore.
   const _currentMonday = () => {
     if (_schedStart) return new Date(_schedStart + "T12:00:00");
-    return startOfWeekMonday(new Date());
+    return startOfWeek(new Date());
   };
   const _goToWeek = (monday) => {
     const iso = fmtIsoDate(monday);
@@ -71398,7 +71426,7 @@ function bindSchedWeekNav() {
   };
   const _shiftWeek = (deltaWeeks) => _goToWeek(addDays(_currentMonday(), deltaWeeks * 7));
   const _syncNavButtons = () => {
-    const todayMonday = fmtIsoDate(startOfWeekMonday(new Date()));
+    const todayMonday = fmtIsoDate(startOfWeek(new Date()));
     const cur = _schedStart || todayMonday;
     const todayBtn = document.getElementById("rr-sched-week-today");
     if (todayBtn) todayBtn.classList.toggle("is-on-today", cur === todayMonday);
@@ -71448,7 +71476,7 @@ function bindSchedWeekNav() {
     if (_tpOnTodaySubView() && typeof _tpDateGoTo === "function" && typeof _tpToday === "function") {
       _tpDateGoTo(_tpToday()); return;
     }
-    _goToWeek(startOfWeekMonday(new Date()));
+    _goToWeek(startOfWeek(new Date()));
   });
   // The chevron-down on the range button — kept as a quick "next week"
   // shortcut now that there's no fixed cycle to cycle through. On
@@ -75359,8 +75387,8 @@ async function loadStaffingOutlook() {
 
   const since60    = fmtIsoDate(addDays(new Date(), -60));
   const since120   = fmtIsoDate(addDays(new Date(), -120));
-  const thisMonIso = fmtIsoDate(startOfWeekMonday(new Date()));
-  const next28Iso  = fmtIsoDate(addDays(startOfWeekMonday(new Date()), 27));
+  const thisMonIso = fmtIsoDate(startOfWeek(new Date()));
+  const next28Iso  = fmtIsoDate(addDays(startOfWeek(new Date()), 27));
   const [fcRes, activeRes, onbRes, settingsRes, hsRes, calloutRes, totalRes, pcRes, recHiresRes, recApplRes, openShiftsRes, pendAvailRes] = await Promise.all([
     sb.rpc("route_forecast_get", { p_weeks: _ROUTE_FORECAST_WEEKS }),
     sb.from("drivers").select("id, metadata, dl_expires_on").eq("dsp_id", dspId).eq("status", "active"),
@@ -88855,7 +88883,7 @@ async function _buildAvailabilityImpactCtx() {
   if (!dspId || typeof _buildAvailImpactCtx !== "function") return null;
   const weekStart = (typeof _schedStart === "string" && _schedStart)
     ? _schedStart
-    : fmtIsoDate(startOfWeekMonday(new Date()));
+    : fmtIsoDate(startOfWeek(new Date()));
   const [drvRes, okamiRes] = await Promise.allSettled([
     sb.from("drivers").select("id, metadata").eq("dsp_id", dspId).in("status", ["active", "onboarding"]),
     sb.rpc("okami_grid", { p_start: weekStart, p_weeks: 1 }),
@@ -89230,7 +89258,7 @@ async function _renderRequestsReports() {
 
   const weekStart = (typeof _schedStart === "string" && _schedStart)
     ? _schedStart
-    : fmtIsoDate(startOfWeekMonday(new Date()));
+    : fmtIsoDate(startOfWeek(new Date()));
 
   const [drvRes, gridRes, okamiRes] = await Promise.allSettled([
     sb.from("drivers")

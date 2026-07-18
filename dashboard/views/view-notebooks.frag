@@ -938,8 +938,8 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     try { if (window.crypto && crypto.randomUUID) return crypto.randomUUID(); } catch (e) {}
     return "id-" + Math.random().toString(36).slice(2) + "-" + (new Date().getTime()).toString(36);
   }
-  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
-    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
   function debounce(fn, ms) { var t; return function () { var a = arguments, c = this;
     clearTimeout(t); t = setTimeout(function () { fn.apply(c, a); }, ms); }; }
   function relTime(iso) {
