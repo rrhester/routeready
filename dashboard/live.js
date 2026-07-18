@@ -36633,13 +36633,13 @@ async function _sawSmartFill() {
     const DOW = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
     const routeType = (sh) => { const c = st.stMap.get(sh.service_type_id); if (c && c.requires_edv) return "edv"; if (c && c.requires_xl) return "xl"; if (c && c.requires_dot) return "step_van"; return "standard"; };
     const dur = (sh) => sh.starts_at && sh.ends_at ? (new Date(sh.ends_at) - new Date(sh.starts_at)) / 3600000 : null;
-    const engineShifts = inWeek.map(sh => ({ id: sh.id, date: sh.date, starts_at: sh.starts_at, ends_at: sh.ends_at, duration_hours: dur(sh), route_type: routeType(sh), assigned_driver_id: null, is_locked: false, station_id: sh.station_id || null, route_code: sh.route_code || null }));
+    const engineShifts = inWeek.map(sh => ({ id: sh.id, date: sh.date, starts_at: sh.starts_at, ends_at: sh.ends_at, duration_hours: dur(sh), route_type: routeType(sh), shift_kind: sh.shift_kind || "regular", assigned_driver_id: null, is_locked: false, station_id: sh.station_id || null, route_code: sh.route_code || null }));
     // The driver's existing shifts (training / ride-along / anything) that
     // fall in this engine week go in LOCKED, so the engine knows those days
     // are taken and won't double-book a route on a training day.
     for (const sh of (st.driverShifts || [])) {
       if (sh.date < weekStart || sh.date > weekEnd) continue;
-      engineShifts.push({ id: sh.id, date: sh.date, starts_at: sh.starts_at, ends_at: sh.ends_at, duration_hours: dur(sh), route_type: routeType(sh), assigned_driver_id: st.driver.id, is_locked: true, station_id: sh.station_id || null, route_code: sh.route_code || null });
+      engineShifts.push({ id: sh.id, date: sh.date, starts_at: sh.starts_at, ends_at: sh.ends_at, duration_hours: dur(sh), route_type: routeType(sh), shift_kind: sh.shift_kind || "regular", assigned_driver_id: st.driver.id, is_locked: true, station_id: sh.station_id || null, route_code: sh.route_code || null });
     }
     const av = st.driver.metadata?.availability || {};
     const availDows = Array.isArray(av.days) && av.days.length ? av.days.map(c => DOW.indexOf(String(c).slice(0, 3).toLowerCase())).filter(i => i >= 0) : null;
@@ -67721,15 +67721,17 @@ async function autoAssignDriversForWeek() {
     if (sfEdvRequired && cert.requires_edv && !driver.edv_certified) return false;
     return true;
   };
-  // Smart Fill only touches *regular* route-staffing shifts. Training
-  // (Day 1+2 station) and ride-along (Day 3 with a trainer) shifts are
-  // owned by activate_driver_with_pairing — re-assigning them here
-  // would either steal a route driver onto classroom training or break
-  // the trainer/trainee pairing. We still load them above so the
-  // per-driver "already booked this date" map below counts them
-  // toward the same-day double-book check.
+  // Smart Fill staffs *regular* route seats AND *helper* seats (the second
+  // body on an XL route — needs no cert, so it's a fillable open seat like a
+  // regular one). Training (Day 1+2 station) and ride-along (Day 3 with a
+  // trainer) shifts are owned by activate_driver_with_pairing — re-assigning
+  // them here would steal a route driver onto classroom training or break the
+  // trainer/trainee pairing. We still load them above so the per-driver
+  // "already booked this date" map below counts them toward the same-day
+  // double-book check.
+  const RR_FILLABLE_KINDS = new Set(["regular", "helper"]);
   const allShiftsForDateLookup = shiftsRes.data || [];
-  let   shifts = allShiftsForDateLookup.filter(sh => (sh.shift_kind || "regular") === "regular");
+  let   shifts = allShiftsForDateLookup.filter(sh => RR_FILLABLE_KINDS.has(sh.shift_kind || "regular"));
 
   // Per-(driver, date) effective availability — picks the latest
   // approved availability request whose effective_from <= shift_date,
@@ -67938,6 +67940,11 @@ async function autoAssignDriversForWeek() {
       starts_at: sh.starts_at, ends_at: sh.ends_at,
       duration_hours: durationOf(sh),
       route_type: routeTypeOf(sh),
+      // XL routes dispatch 2 people — one XL-certified driver + one helper.
+      // A shift_kind "helper" seat carries route_type "xl" for grouping but
+      // is NOT cert-gated (only the driver seat requires xl_certified). The
+      // solver / preview engine read this to relax the XL gate on helpers.
+      shift_kind: sh.shift_kind || "regular",
       assigned_driver_id: assignedDriverId, is_locked: isLocked,
       // Cushion-seat marker. The engine fills cushion seats like any other
       // open shift (planned capacity, not over-staffing), so this is
@@ -67976,7 +67983,7 @@ async function autoAssignDriversForWeek() {
     pushShift(sh, null, false);
   }
   for (const sh of allShiftsForDateLookup) {
-    if ((sh.shift_kind || "regular") === "regular" || !sh.driver_id) continue;
+    if (RR_FILLABLE_KINDS.has(sh.shift_kind || "regular") || !sh.driver_id) continue;
     pushShift(sh, sh.driver_id, true);
   }
 

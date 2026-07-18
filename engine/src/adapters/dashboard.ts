@@ -53,6 +53,7 @@ export interface DashboardShift {
   ends_at?: string | null;
   duration_hours?: number | null;
   route_type: RouteType;
+  shift_kind?: string | null;
   assigned_driver_id?: string | null;
   is_locked?: boolean;
 }
@@ -320,6 +321,7 @@ function mapShift(raw: DashboardShift, tz: string | null): ShiftInput {
         ? raw.duration_hours
         : null,
     route_type: raw.route_type,
+    shift_kind: raw.shift_kind ?? "regular",
     assigned_driver_id: raw.assigned_driver_id ?? null,
     is_locked: raw.is_locked === true,
   };

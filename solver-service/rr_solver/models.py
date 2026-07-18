@@ -45,6 +45,11 @@ class ShiftIn(BaseModel):
     ends_at: Optional[str] = None
     duration_hours: Optional[float] = None
     route_type: str = "standard"  # standard | step_van | xl | edv
+    # "regular" | "helper" (+ the manual kinds training/ride_along/rescue/other).
+    # A "helper" seat on an XL route is the second body that rides along — it
+    # needs NO certification even though the seat's route_type is "xl" (only
+    # ONE of the two on-road drivers must be XL-certified). See eligibility.py.
+    shift_kind: str = "regular"
     assigned_driver_id: Optional[str] = None  # set for locked / preserved rows
     is_locked: bool = False
     station_id: Optional[str] = None

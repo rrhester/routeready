@@ -61,6 +61,10 @@ export interface ShiftInput {
   duration_hours?: number | null;
   service_type?: string | null;
   route_type: string; // normalized to RouteType at entry
+  // "regular" | "helper" (+ manual kinds). A "helper" seat on an XL route is
+  // the ride-along body that needs NO certification — only the driver seat is
+  // cert-gated (see R004). Defaults to "regular".
+  shift_kind?: string | null;
   wave?: string | null;
   assigned_driver_id?: string | null;
   is_locked?: boolean;
@@ -282,6 +286,7 @@ export interface NormalizedShift {
   start_min: number; // minutes-of-day of start
   end_min: number; // minutes-of-day of end (may exceed 1440 for overnight)
   route_type: RouteType;
+  shift_kind: string; // "regular" | "helper" | manual kinds
   service_type: string | null;
   wave: string | null;
   is_locked: boolean;

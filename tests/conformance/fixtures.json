@@ -26,6 +26,7 @@
     { "id": "std-mon", "date": "2026-05-25", "route_type": "standard" },
     { "id": "van-mon", "date": "2026-05-25", "route_type": "step_van" },
     { "id": "xl-mon",  "date": "2026-05-25", "route_type": "xl" },
+    { "id": "xl-help-mon", "date": "2026-05-25", "route_type": "xl", "shift_kind": "helper" },
     { "id": "edv-mon", "date": "2026-05-25", "route_type": "edv" },
     { "id": "std-fri", "date": "2026-05-29", "route_type": "standard" }
   ]
