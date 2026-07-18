@@ -70144,10 +70144,17 @@ function _schedShiftChip(sh, extras) {
   //                                 assign-vans decorator)
   // When a route code is set, it sits as a small eyebrow above the
   // Wave line so the route is still discoverable at a glance.
+  // Helper seat badge — the second body on an XL route (rides along, no XL
+  // cert). Reads as "XL · Helper" so the operator can tell the certified
+  // driver seat from the helper seat at a glance.
+  const helperBadge = sh.shift_kind === "helper"
+    ? `<span class="shift-chip-helper-badge" title="Helper seat — rides along an XL route (no XL certification required)">Helper</span>`
+    : "";
+  const eyebrowExtras = `${stBadge}${traineeBadge}${helperBadge}`;
   const eyebrowRoute = hasRoute
-    ? `<div class="shift-chip-route-code">${escapeHtml(sh.route_code)}${stBadge}${traineeBadge}</div>`
-    : (stBadge || traineeBadge)
-      ? `<div class="shift-chip-route-code">${stBadge}${traineeBadge}</div>`
+    ? `<div class="shift-chip-route-code">${escapeHtml(sh.route_code)}${eyebrowExtras}</div>`
+    : eyebrowExtras
+      ? `<div class="shift-chip-route-code">${eyebrowExtras}</div>`
       : "";
   // Tight three-line layout · Start–End time range, Wave time,
   // Van # (the last appended later by the post-Assign-Vans
@@ -70189,8 +70196,9 @@ function _schedShiftChip(sh, extras) {
     : ((RC_BADGE[_rc] && RC_BADGE[_rc].c) || "#2563EB");
   const routineCls = extras?.routine ? ' is-routine' : '';
   const trainingCls = extras?.traineeName ? ' shift-chip-training' : '';
-  const _ariaLabel = [sh.route_code ? "Route " + sh.route_code : "Shift", range, (extras && extras.van) ? "Van " + extras.van : ""].filter(Boolean).join(" · ");
-  return `<div class="shift-chip${routineCls}${trainingCls}${sh.source === "fifth_day_pass" ? " shift-chip-fifth-day" : ""}" draggable="true" tabindex="0" role="button" aria-label="${escapeHtml(_ariaLabel)}" data-rr-shift-id="${sh.id}" data-rr-shift-kind="${escapeHtml(String(sh.shift_kind || ""))}" data-rr-shift-source="${escapeHtml(String(sh.source || ""))}" data-rr-shift-status="${escapeHtml(String(sh.status || ""))}" data-rr-route-class="${escapeHtml(String(sh.route_classification || ""))}" data-rr-service-code="${escapeHtml(String(sh.service_type_code || ""))}" style="position:relative;--chip-accent:${accentColor};${baseStyle}cursor:grab">${eyebrowRoute}${startLine}${secondLine}${cornerBadges}</div>`;
+  const helperCls = sh.shift_kind === "helper" ? ' shift-chip-helper' : '';
+  const _ariaLabel = [sh.route_code ? "Route " + sh.route_code : "Shift", sh.shift_kind === "helper" ? "Helper seat" : "", range, (extras && extras.van) ? "Van " + extras.van : ""].filter(Boolean).join(" · ");
+  return `<div class="shift-chip${routineCls}${trainingCls}${helperCls}${sh.source === "fifth_day_pass" ? " shift-chip-fifth-day" : ""}" draggable="true" tabindex="0" role="button" aria-label="${escapeHtml(_ariaLabel)}" data-rr-shift-id="${sh.id}" data-rr-shift-kind="${escapeHtml(String(sh.shift_kind || ""))}" data-rr-shift-source="${escapeHtml(String(sh.source || ""))}" data-rr-shift-status="${escapeHtml(String(sh.status || ""))}" data-rr-route-class="${escapeHtml(String(sh.route_classification || ""))}" data-rr-service-code="${escapeHtml(String(sh.service_type_code || ""))}" style="position:relative;--chip-accent:${accentColor};${baseStyle}cursor:grab">${eyebrowRoute}${startLine}${secondLine}${cornerBadges}</div>`;
 }
 
 function _schedDriverInitials(name) {
