@@ -52949,7 +52949,7 @@ function _rrOkamiGapExplainHtml(mw) {
 }
 
 // Who changed this week's plan — reads okami_demand_audit (migration
-// 0512: audit trigger on okami_demand + week-scoped feed).
+// 0513: audit trigger on okami_demand + week-scoped feed).
 document.addEventListener("click", async (e) => {
   const btn = e.target.closest && e.target.closest("[data-rr-tgt-history]");
   if (!btn) return;
@@ -52959,7 +52959,7 @@ document.addEventListener("click", async (e) => {
   const { data, error } = await sb.rpc("okami_demand_audit", { p_week_start: mw.weekStartIso, p_limit: 60 });
   if (error) {
     const msg = /does not exist|404|function/i.test(error.message || "")
-      ? "Edit history needs migration 0512 applied"
+      ? "Edit history needs migration 0513 applied"
       : "History load failed: " + error.message;
     toast(msg, "warn");
     return;
@@ -52981,7 +52981,7 @@ document.addEventListener("click", async (e) => {
   if (typeof _paOpenPopover === "function") {
     _paOpenPopover(btn, `<div class="pa-pop-h">${escapeHtml(mw.label)} · edit history</div>
       <div style="padding:10px 14px;font-size:var(--fs-xs);max-height:280px;overflow-y:auto;min-width:300px;font-variant-numeric:tabular-nums">
-        ${rows || `<div style="color:var(--text-subtle)">No recorded edits for this week yet. Edits are recorded once migration 0512 is applied.</div>`}
+        ${rows || `<div style="color:var(--text-subtle)">No recorded edits for this week yet. Edits are recorded once migration 0513 is applied.</div>`}
       </div>`);
   }
 });

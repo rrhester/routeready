@@ -1,4 +1,5 @@
--- 0512_okami_demand_audit.sql
+-- 0513_okami_demand_audit.sql (renumbered from in-branch 0512 — #3974's
+-- concurrent 0503→0512 swap-offer rename took that ordinal first)
 --
 -- Route-plan edit history for the Targets 13-week planner.
 --

@@ -21,11 +21,8 @@ Exceptions: **TG#11 skipped** at the operator's explicit request (the
 daily drill-down window deliberately stays 4 weeks); **TG#27** was
 already shipped (sticky thead in the scoped Targets CSS,
 `inline-styles.css:21883`) — verified, not re-implemented. TG#48
-requires **migration 0512** (okami_demand audit trigger + week feed);
-everything degrades gracefully until it's applied. During the work,
-`0503_swap_offer_dispatcher_visibility.sql` was renumbered to **0513**
-(ordinal collision between PRs #3959/#3962 that broke the ordinal
-gate); content unchanged, idempotent.
+requires **migration 0513** (okami_demand audit trigger + week feed);
+everything degrades gracefully until it's applied.
 
 Context worth knowing: the Strategy / Hire-by / Status columns and the
 mockup week tags are hidden *by operator request* (`live.js:51930–51938`)
