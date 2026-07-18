@@ -3649,13 +3649,35 @@ body.rrnb-dark-nb #rrnb-selcmt{
     var d = document.createElement("div"); d.className = "rrnb-conflict"; d.id = "rrnb-conflict";
     d.innerHTML = '<span>Someone else saved this page while you were editing.</span>' +
       '<button data-cf="reload" type="button">Load their version</button>' +
+      '<button data-cf="merge" type="button">Merge both</button>' +
       '<button class="pri" data-cf="overwrite" type="button">Keep mine</button>';
     tb.parentNode.insertBefore(d, tb);
     d.addEventListener("click", function (e) {
       var b = e.target.closest("[data-cf]"); if (!b) return;
       var act = b.getAttribute("data-cf"); hideConflict();
-      if (act === "reload") openPage(S.pageId); else doSave(true);
+      if (act === "reload") openPage(S.pageId);
+      else if (act === "merge") mergeConflict();
+      else doSave(true);
     });
+  }
+  // #100 conflict recovery — instead of last-write-wins, fold the teammate's
+  // saved version in below your own (with a divider) so nothing is lost, then
+  // save the combined page. You reconcile the two by hand from there.
+  function mergeConflict() {
+    var pid = S.pageId, ed = $id("rrnb-editor"); if (!pid || !ed) return;
+    notify("Merging both versions…");
+    S.be.getPage(pid).then(function (their) {
+      var mine = ed.innerHTML;
+      var theirHtml = (their && their.content_html) || "";
+      ed.innerHTML = mine +
+        '<hr><p><em>⤵ Merged in a teammate’s version (saved while you were editing) — reconcile and delete what you don’t need:</em></p>' +
+        theirHtml;
+      // adopt their updated_at as the new base so the forced save isn't stale again
+      if (their && their.updated_at) S.baseUpdatedAt = their.updated_at;
+      hydrateMedia(ed); recomputeTodoRollups(ed); scanTodoDue(ed); scanTodoAssignee(ed);
+      doSave(true);
+      notify("Both versions kept — reconcile them in the page");
+    }).catch(function (e) { fail(e); showConflict(); });
   }
   function hideConflict() { var d = $id("rrnb-conflict"); if (d) d.remove(); }
   function refreshSaveLabel() { var t = $id("rrnb-save-txt"); if (t) t.textContent = S.savedAt ? ("Saved " + relTime(S.savedAt)) : "Saved"; }
