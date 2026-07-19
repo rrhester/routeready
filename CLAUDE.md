@@ -101,14 +101,28 @@ NOT on the subscription, or All-mode loses cross-station updates.
   rather than instantly — the filters run on every render so data is always
   correct, only the live auto-refresh of those sub-views is deferred.
 
-**NEXT:** **roster** page — needs the floating-driver `driver_stations`
-many-to-many (user chose the join-table model 2026-07-19: a driver can be a
-member of >1 station; keep drivers.station_id as 'primary'; migration +
-backfill existing station_id → one membership row; roster/bans scope by
-membership). Then bans, drivers, onboarding, broadcast. Then P3 server
-`p_station_id` (Today KPI tiles/coverage, okami/targets, generate_shifts,
-roster counts), P4 All-mode per-station breakdowns. Branch
-claude/multi-station-toggle-2pljie (PR #4037).
+**SHIPPED — Phase 2 cont. (roster + floating-driver join):**
+- **Migration 0525** `driver_stations` — many-to-many membership so a driver
+  can belong to >1 station (drivers.station_id stays the PRIMARY/home).
+  Backfills one is_primary row per driver's existing station_id. RLS: tenant
+  select, `is_staff(dsp,'dispatcher')` write. Idempotent. **MANUAL — paste in
+  chat** (client degrades gracefully until applied).
+- **Roster** (`loadDriversRoster` ~7534): scopes by driver_stations MEMBERSHIP
+  via `_rrDriverIdsAtStation(stationId)` (returns a Set, or null pre-migration
+  → falls back to primary `drivers.station_id`, floaters not captured but the
+  lens still narrows). Added `station_id` to the roster select for the
+  fallback. Re-renders via refreshActiveView → view-drivers → loadDriversRoster.
+- Browser-QA'd BOTH paths (Playwright, 2-station DSP + a floater who is a
+  member of B though homed at A): join-table mode → scope Boston = {Bob(home
+  B), Carol(floater)}, scope Chantilly = {Alice, Carol}; pre-migration 404
+  fallback → scope Boston = {Bob} only (primary home), graceful. All-mode
+  unchanged both ways. No errors.
+
+**NEXT:** **bans** (scope by driver_stations membership, same helper), then
+drivers detail/onboarding/broadcast. Then P3 server `p_station_id` (Today KPI
+tiles/coverage, okami/targets, generate_shifts, roster counts), P4 All-mode
+per-station breakdowns. Reuse `_rrDriverIdsAtStation` for any driver-list
+surface. Branch claude/multi-station-toggle-2pljie (PR #4037).
 
 ## Active task: Staffing model — XL-route demand (branch claude/staffing-driver-requirements-1tw30l)
 

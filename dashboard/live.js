@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=f3edb9505a39";
-import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=f3edb9505a39";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=f3edb9505a39";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=f3edb9505a39";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=f3edb9505a39";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=f3edb9505a39";
-import { isChecklistComplete } from "./checklist-core.mjs?v=f3edb9505a39";
+import { planScheduleWeek } from "./scheduling-engine.js?v=5a29ca88fa50";
+import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=5a29ca88fa50";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=5a29ca88fa50";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=5a29ca88fa50";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=5a29ca88fa50";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=5a29ca88fa50";
+import { isChecklistComplete } from "./checklist-core.mjs?v=5a29ca88fa50";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=f3edb9505a39";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=f3edb9505a39";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=f3edb9505a39";
+} from "./msg-core.mjs?v=5a29ca88fa50";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=5a29ca88fa50";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=5a29ca88fa50";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -954,6 +954,21 @@ try {
   window.rrStationScopeIsAll = rrStationScopeIsAll;
   window.rrApplyStationFilter = rrApplyStationFilter;
 } catch (_) { /* window always present in the browser */ }
+
+// Driver ids that are MEMBERS of a station via the driver_stations join
+// (floating drivers can belong to >1 station). Returns a Set, or null when
+// the join table isn't present yet (pre-migration 0525) so callers can fall
+// back to the primary drivers.station_id.
+async function _rrDriverIdsAtStation(stationId) {
+  const dspId = window.RR && window.RR.dsp && window.RR.dsp.id;
+  if (!dspId || !stationId) return null;
+  const { data, error } = await sb.from("driver_stations")
+    .select("driver_id")
+    .eq("dsp_id", dspId)
+    .eq("station_id", stationId);
+  if (error) return null; // table missing / RLS — caller falls back to primary
+  return new Set((data || []).map((r) => r.driver_id));
+}
 
 function _rrStationLabel() {
   if (_rrStationScope === "all") return "All stations";
@@ -7536,7 +7551,7 @@ async function loadDriversRoster() {
                background_check_completed_at, drug_test_completed_at,
                training_scheduled_at, training_date, dl_expires_on,
                dot_certified, xl_certified, edv_certified, is_trainer,
-               station:station_id (code)`)
+               station_id, station:station_id (code)`)
       .eq("dsp_id", window.RR.dsp.id)
       .order("hire_date", { ascending: false })
       .limit(500),
@@ -7654,7 +7669,21 @@ async function loadDriversRoster() {
       }
     }
   }
-  _rosterRows = rows ?? [];
+  // ── Station scope · master multi-station lens (Phase 2) ────────────
+  // Drivers float between stations, so scope the roster by driver_stations
+  // MEMBERSHIP (a driver can belong to >1 station), not just their primary
+  // home. Pre-migration (join table absent) we fall back to the primary
+  // drivers.station_id so the lens still narrows, just without floaters.
+  // "All stations" (null) leaves the roster untouched.
+  let _rosterScoped = rows ?? [];
+  const _rScope = (typeof rrStationScopeId === "function") ? rrStationScopeId() : null;
+  if (_rScope) {
+    const memberIds = await _rrDriverIdsAtStation(_rScope);
+    _rosterScoped = memberIds
+      ? _rosterScoped.filter((r) => memberIds.has(r.id))
+      : _rosterScoped.filter((r) => r.station_id === _rScope);
+  }
+  _rosterRows = _rosterScoped;
   refreshDriverStatRow(_rosterRows);
   _populateRosterStationFilter(_rosterRows);
   renderDriverTable(_rosterRows, error);
