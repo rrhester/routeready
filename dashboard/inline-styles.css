@@ -17493,35 +17493,78 @@ body.rr-cmdk-open{ overflow:hidden }
              show/hide (inline display:none off-Targets) still works. */
           #view-schedule #rr-sched-targets-kpis.sched-kpi-pills{
             display:flex;
-            flex-wrap:wrap;
+            /* One line always — the band is fixed-height, so wrapping would
+               overflow it and overlap the table. Compress at narrow widths
+               (media queries below), never wrap. */
+            flex-wrap:nowrap;
             align-items:center;
             justify-content:flex-start;
-            gap:12px;
+            gap:8px;
+            min-width:0;
             padding:0 !important;
             background:transparent !important;
             border:0 !important;
             box-shadow:none !important;
             border-radius:0 !important;
           }
-          /* Toolbar controls · identical to the Schedule action-bar pills
-             (.rr-ab-btn): 36px tall, 1.5px sidebar-navy outline, 8px radius,
-             12.5/600 navy type — one shared system across both pages. */
+          /* Toolbar controls · matched to the Schedule week-view controls
+             (.sched-week-arrow): white surface, 1px cool-gray border, 8px
+             radius, a whisper shadow, dark-navy 12.5/600 type. One shared
+             control system across both pages — calm and enterprise-dense,
+             not the old navy-outlined forecast pill. */
           #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi{
-            display:inline-flex;align-items:center;gap:7px;
-            height:32px;padding:0 13px;
-            border:1.5px solid var(--sidebar-bg, var(--rr-slate-900));
+            display:inline-flex;align-items:center;gap:6px;
+            height:36px;padding:0 13px;
+            border:1px solid var(--border);
             border-radius:8px;
-            background:var(--rr-white);
-            color:var(--sidebar-bg, var(--rr-slate-900));
+            background:var(--surface);
+            color:var(--text);
+            box-shadow:0 1px 2px rgba(15,23,42,.05);
             font-size:var(--fs-12-5);font-weight:600;line-height:1;
-            min-width:0;
+            /* Never shrink — labels must not truncate ("Bl…") when the bar
+               tightens; the compression media queries reclaim space instead. */
+            flex:0 0 auto;min-width:max-content;
           }
           #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi,
           #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi:first-child{
-            border-left:1.5px solid var(--sidebar-bg, var(--rr-slate-900));
+            border-left:1px solid var(--border);
           }
           #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi:hover{
-            background:rgba(15,23,42,.05);
+            background:var(--rr-ctl-hover, rgba(15,23,42,.035));
+            border-color:var(--border-strong);
+          }
+          /* Week navigator · segmented [W##] · ‹ · › matching the Schedule
+             week nav, but in RouteReady blue to mark it as the primary week
+             selector. One bordered group with soft-blue internal dividers. */
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-week-nav{
+            display:inline-flex;align-items:stretch;height:36px;flex:0 0 auto;
+            border:1px solid var(--accent);border-radius:8px;overflow:hidden;
+            background:var(--surface);box-shadow:0 1px 2px rgba(15,23,42,.05);
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-week-nav-lbl,
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-week-nav-btn{
+            display:inline-flex;align-items:center;justify-content:center;
+            background:transparent;border:0;color:var(--accent);cursor:pointer;
+            font:inherit;font-weight:700;font-size:var(--fs-12-5);line-height:1;
+            transition:background-color .12s ease;
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-week-nav-lbl{
+            padding:0 13px;font-variant-numeric:tabular-nums;letter-spacing:.01em;
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-week-nav-btn{
+            width:30px;border-left:1px solid rgba(37,99,235,.28);
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-week-nav-btn svg{width:14px;height:14px}
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-week-nav-lbl:hover,
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-week-nav-btn:hover{
+            background:rgba(37,99,235,.08);
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-week-nav-btn:active{
+            background:rgba(37,99,235,.14);
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-week-nav-lbl:focus-visible,
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-week-nav-btn:focus-visible{
+            outline:2px solid var(--accent);outline-offset:-2px;
           }
           /* Label + value inline inside the pill (e.g. "Block 10 h"). */
           #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-text{
@@ -17530,16 +17573,18 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-label{
             font-size:var(--fs-12-5);font-weight:600;color:var(--sidebar-bg, var(--rr-slate-900));
             text-transform:none;letter-spacing:0;
+            /* Full label always — no ellipsis truncation. */
+            overflow:visible;text-overflow:clip;white-space:nowrap;
           }
           #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-val{
-            margin-top:0;align-items:center;
+            margin-top:0;align-items:center;gap:1px;
           }
           /* The value carries a faint dotted underline so it reads as an
              editable field — subtle at rest, a touch stronger on hover, and
              clean (no underline) while you're actually typing. */
           #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-input{
             color:var(--sidebar-bg, var(--rr-slate-900));font-weight:700;
-            width:32px;text-align:left;cursor:text;
+            width:24px;text-align:left;cursor:text;
             text-decoration:underline dotted rgba(15,23,42,.32);
             text-underline-offset:3px;text-decoration-thickness:1px;
           }
@@ -17579,7 +17624,7 @@ body.rr-cmdk-open{ overflow:hidden }
             display:inline-flex;align-items:center;align-self:stretch;
             margin:0 -13px 0 0;
             padding:0 11px;
-            border-left:1.5px solid var(--sidebar-bg, var(--rr-slate-900));
+            border-left:1px solid var(--border);
             border-radius:0 8px 8px 0;
             transition:background-color .12s ease;
           }
@@ -17632,43 +17677,63 @@ body.rr-cmdk-open{ overflow:hidden }
           /* ── Targets toolbar · right side (Gap status card + Save Plan +
              the moved ⋯/bell/avatar chrome), mirroring the Schedule header. */
           #view-schedule #rr-sched-targets-kpis .rr-tgt-toolbar-right{
-            display:inline-flex;align-items:center;gap:10px;margin-left:auto;
+            display:inline-flex;align-items:center;gap:12px;margin-left:auto;
           }
-          /* Forecast Gap · compact KPI card — sidebar-navy border + white
-             surface (operator), small caption over a dominant number. Just the
-             number carries color: red when short, green when covered. */
-          #view-schedule .rr-tgt-gap-card{
+          /* Inline forecasting KPI · reads like the Schedule "N / N ROUTES"
+             status, NOT a card. No box/fill/radius; a subtle vertical divider
+             on the left sets it off. Small uppercase shortfall label (red only),
+             a muted supporting line, and a thin red status rule underneath. */
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-forecast{
             display:inline-flex;flex-direction:column;justify-content:center;align-items:flex-start;
-            gap:1px;min-height:38px;padding:5px 14px;border-radius:8px;
-            border:1.5px solid var(--sidebar-bg, var(--rr-slate-900));background:var(--rr-white);
+            gap:1px;padding:2px 0 2px 14px;margin-left:2px;flex:0 0 auto;
+            border-left:1px solid var(--border);
+            line-height:1.15;
           }
-          #view-schedule .rr-tgt-gap-card[hidden]{display:none}
-          #view-schedule .rr-tgt-gap-card-label{
-            font-size:var(--fs-9-5);font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text-subtle);
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-forecast[hidden]{display:none}
+          /* Shortfall label · small uppercase; red is reserved for genuine
+             staffing risk, so it only paints when the plan is short. */
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-forecast-main{
+            font-size:var(--fs-11-5);font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+            color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap;
           }
-          #view-schedule .rr-tgt-gap-card-value{
-            font-size:var(--fs-17);font-weight:700;line-height:1.05;color:#B23A2E;font-variant-numeric:tabular-nums;
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-forecast.is-short .rr-tgt-kpi-forecast-main{
+            color:var(--red);
           }
-          #view-schedule .rr-tgt-gap-card.rr-tgt-gap-card--pos .rr-tgt-gap-card-value{color:var(--rr-green-700)}
-          /* Prescription sub-line · the action the gap number implies
-             ("Hire 3 by Aug 12" / "Staffed through the plan"). Quiet by
-             design — plain operational language, no extra color. */
-          #view-schedule .rr-tgt-gap-card-sub{
-            font-size:var(--fs-10-5);font-weight:600;line-height:1.2;color:var(--text-muted);white-space:nowrap;
+          /* Supporting line · muted gray operational language. */
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-forecast-sub{
+            font-size:var(--fs-10-5);font-weight:500;color:var(--text-subtle);white-space:nowrap;
           }
-          #view-schedule .rr-tgt-gap-card.is-clickable{cursor:pointer}
-          #view-schedule .rr-tgt-gap-card.is-clickable:hover{background:var(--rr-gray-50)}
-          #view-schedule .rr-tgt-gap-card.is-clickable:focus-visible{outline:none;box-shadow:0 0 0 2px rgba(37,99,235,.30)}
-          /* Save Plan · primary button matching the Schedule Finalize. */
+          /* Thin red status rule under the module when the plan is short. */
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-forecast.is-short{
+            border-bottom:2px solid var(--red);padding-bottom:3px;
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-forecast.is-loading .rr-tgt-kpi-forecast-sub{
+            color:transparent;border-radius:4px;
+            background:linear-gradient(90deg,var(--canvas) 25%,var(--border) 50%,var(--canvas) 75%);
+            background-size:200% 100%;animation:rr-okami-shimmer 1.2s linear infinite;
+          }
+          @media (prefers-reduced-motion: reduce){
+            #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-forecast.is-loading .rr-tgt-kpi-forecast-sub{animation:none}
+          }
+          /* Apply changes · primary action in RouteReady blue, and only when
+             there are unsaved rule edits (.rr-tgt-save-plan--dirty). Clean =
+             neutral + disabled. Saving/success/error surface via the button
+             label + toasts. No gold/tan. */
           #view-schedule #rr-sched-targets-kpis .rr-tgt-save-plan{
-            display:inline-flex;align-items:center;justify-content:center;
-            height:34px;padding:0 16px;border:0;border-radius:6px;
-            /* Primary = Amazon orange, never blue (enterprise pass 2026-07-11). */
-            background:var(--rr-amber-primary);color:var(--rr-white);font:inherit;font-size:var(--fs-md);font-weight:700;
-            cursor:pointer;white-space:nowrap;transition:background-color .12s ease;
+            display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;
+            height:36px;padding:0 16px;border:1px solid var(--border);border-radius:8px;
+            background:var(--surface);color:var(--text-subtle);font:inherit;font-size:var(--fs-md);font-weight:600;
+            cursor:pointer;white-space:nowrap;transition:background-color .12s ease,border-color .12s ease,color .12s ease;
           }
-          #view-schedule #rr-sched-targets-kpis .rr-tgt-save-plan:hover{background:var(--rr-amber-primary-hover)}
-          #view-schedule #rr-sched-targets-kpis .rr-tgt-save-plan:active{background:var(--rr-amber-primary-active)}
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-save-plan.rr-tgt-save-plan--dirty{
+            background:var(--accent);border-color:var(--accent);color:var(--rr-white);font-weight:700;
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-save-plan.rr-tgt-save-plan--dirty:hover{
+            background:var(--rr-blue-700);border-color:var(--rr-blue-700);
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-save-plan:disabled{
+            cursor:default;opacity:1;background:var(--surface);border-color:var(--border);color:var(--text-subtle);
+          }
           /* Chrome host · the ⋯ / bell / avatar relocated from the action bar. */
           #view-schedule #rr-sched-targets-kpis .rr-tgt-chrome-host{display:inline-flex;align-items:center;gap:6px}
           #view-schedule #rr-sched-targets-kpis .rr-tgt-chrome-host:empty{display:none}
@@ -22119,34 +22184,30 @@ body.rr-cmdk-open{ overflow:hidden }
             #view-schedule #sched-sub-targets .rr-tgt-13w .plan-calc-sub{
               font-size:var(--fs-10);color:var(--text-subtle);margin-top:0;line-height:1.2;
             }
-            /* Gap · soft status pill (restrained red / green); the sign class
-               comes from the render. Overrides the global injected
+            /* Gap · simple semibold numbers, no pill/box/arrow. Red marks a
+               deficit; a surplus is quiet green; an unplanned week is neutral
+               ("No plan"). The strongest red (s3) is reserved for a genuinely
+               severe shortfall. Overrides the global injected
                `.plan-gap{color:muted!important}` via higher specificity. */
-            /* Gap · contained tinted chip in the Roster/Requests card palette
-               so Targets shares their visual language: red for a deficit
-               (deepening with the shortfall), green for a surplus. */
             #view-schedule #sched-sub-targets .rr-tgt-13w .plan-gap{
-              display:inline-flex;align-items:center;justify-content:center;
-              min-width:54px;padding:3px 10px;border:1px solid transparent;border-radius:8px;
-              background:transparent;font-size:var(--fs-md);font-weight:700;
+              display:inline-flex;align-items:center;justify-content:flex-start;
+              min-width:0;padding:0;border:0;background:transparent;border-radius:0;
+              font-size:var(--fs-md);font-weight:700;
               font-variant-numeric:tabular-nums;line-height:1.2;letter-spacing:0;
             }
-            #view-schedule #sched-sub-targets .rr-tgt-13w .plan-gap.rr-tgt-gap-s1{
-              background:var(--rr-red-50) !important;border-color:#FECACA;color:var(--rr-red-600) !important;
-            }
+            #view-schedule #sched-sub-targets .rr-tgt-13w .plan-gap.rr-tgt-gap-s1,
             #view-schedule #sched-sub-targets .rr-tgt-13w .plan-gap.rr-tgt-gap-s2{
-              background:var(--rr-red-50) !important;border-color:#FECACA;color:var(--rr-red-700) !important;
+              color:var(--red) !important;
             }
             #view-schedule #sched-sub-targets .rr-tgt-13w .plan-gap.rr-tgt-gap-s3{
-              background:#FEE2E2 !important;border-color:#FCA5A5;color:#991B1B !important;
+              color:var(--rr-red-700) !important;
             }
             #view-schedule #sched-sub-targets .rr-tgt-13w .plan-gap.rr-tgt-gap-pos{
-              background:#F0FDF4 !important;border-color:#BBF7D0;color:var(--rr-green-700) !important;
+              color:var(--rr-green-700) !important;
             }
             /* No routes planned yet · neutral, not green — an unplanned week
                is an unknown, not a surplus. */
             #view-schedule #sched-sub-targets .rr-tgt-13w .plan-gap.rr-tgt-gap-unplanned{
-              background:var(--canvas) !important;border-color:var(--border);
               color:var(--text-subtle) !important;font-weight:500;font-size:var(--fs-xs);
             }
             /* Available · subtly positive (restrained green, no badge). The
@@ -22204,26 +22265,22 @@ body.rr-cmdk-open{ overflow:hidden }
             #view-schedule #sched-sub-targets .rr-tgt-13w .okami-table tbody tr.rr-tgt-month-start > td{
               border-top:2px solid var(--border-strong) !important;
             }
-            /* Colorblind-safe severity markers on the deeper shortfall
-               tiers — the graduated reds alone don't survive deuteranopia;
-               titles carry the words, these carry the shape. */
-            #view-schedule #sched-sub-targets .rr-tgt-13w .plan-gap.rr-tgt-gap-s2::after{
-              content:"▲";font-size:var(--fs-9);margin-left:5px;line-height:1;
-            }
-            #view-schedule #sched-sub-targets .rr-tgt-13w .plan-gap.rr-tgt-gap-s3::after{
-              content:"▲▲";font-size:var(--fs-9);margin-left:5px;letter-spacing:1px;line-height:1;
-            }
+            /* Decorative arrows removed — the gap is a plain semibold red
+               number now. Severity still rides on the cell title (and the
+               deepest tier deepens the red) so it stays legible without a
+               glyph on every value. */
             /* Footer totals ride inside the same scroll host — opaque bg so
                rows sliding underneath don't bleed through. */
             #view-schedule #sched-sub-targets .rr-tgt-13w .okami-table tfoot td{
               background:var(--rr-white);
             }
-            /* Head actions (Adjust… / Seed empty weeks) sit right of the title. */
+            /* Heading removed · the command bar leads and the pinned column
+               captions title the table. The redundant "Targets / 13-week plan"
+               heading + subtitle and the floating Forecast-gap card (which now
+               lives inline in the command bar) are hidden, so the table begins
+               immediately under the toolbar like the Schedule grid. */
             #view-schedule #sched-sub-targets .rr-tgt-13w-head{
-              display:flex;align-items:flex-start;justify-content:space-between;gap:12px;
-            }
-            #view-schedule #sched-sub-targets .rr-tgt-13w-actions{
-              display:inline-flex;align-items:center;gap:8px;flex:0 0 auto;padding-top:2px;
+              display:none;
             }
             /* Per-row copy-forward / fill actions · appear on row hover only,
                keyboard-focusable always. */
@@ -22240,34 +22297,35 @@ body.rr-cmdk-open{ overflow:hidden }
             .rr-tgt-save-status{font-size:var(--fs-xs);color:var(--text-subtle);white-space:nowrap;font-variant-numeric:tabular-nums}
             /* Gap pills open the per-week explainer. */
             #view-schedule #sched-sub-targets .rr-tgt-13w .plan-gap{cursor:pointer}
-            /* Rules-for-week chip · names the week the per-week rules edit. */
-            #view-schedule #rr-sched-targets-kpis .rr-tgt-rules-week .rr-tgt-rules-week-label{
-              font-size:var(--fs-sm);font-weight:700;color:var(--text);white-space:nowrap;
+            /* Apply changes · in-flight state (blue stays, just busy cursor). */
+            #view-schedule #rr-sched-targets-kpis .rr-tgt-save-plan[aria-busy="true"]{opacity:.75;cursor:progress}
+            /* Command bar stays on ONE line — the KPI band is a fixed-height
+               strip, so wrapping would overflow it and overlap the table. Never
+               wrap; compress at narrower widths instead (below). */
+            #view-schedule #rr-sched-targets-kpis{flex-wrap:nowrap;min-width:0}
+            /* Compression pass · at tighter desktop widths the controls give up
+               a little horizontal padding + gap (never text size) so the full
+               bar keeps one line down to ~1180px. */
+            @media (max-width: 1400px){
+              #view-schedule #rr-sched-targets-kpis.sched-kpi-pills{gap:5px}
+              #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi{padding:0 9px}
+              #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-caret{margin:0 -9px 0 0;padding:0 8px}
+              #view-schedule #rr-sched-targets-kpis .rr-tgt-week-nav-lbl{padding:0 10px}
+              #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-forecast{padding-left:11px}
+              #view-schedule #rr-sched-targets-kpis .rr-tgt-toolbar-right{gap:9px}
             }
-            /* Apply-rules button · dirty accent only when rule edits are
-               unsaved; calm otherwise. */
-            #view-schedule #rr-sched-targets-kpis .rr-tgt-save-plan:not(.rr-tgt-save-plan--dirty){
-              filter:saturate(.35);
+            /* Tightest laptop widths (≈1280) · a couple more px off gap + pad so
+               the full-label bar still lands on one line without truncation. */
+            @media (max-width: 1300px){
+              #view-schedule #rr-sched-targets-kpis.sched-kpi-pills{gap:4px}
+              #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi{padding:0 8px}
+              #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-caret{margin:0 -8px 0 0;padding:0 7px}
+              #view-schedule #rr-sched-targets-kpis .rr-tgt-toolbar-right{gap:8px}
             }
-            #view-schedule #rr-sched-targets-kpis .rr-tgt-save-plan[aria-busy="true"]{opacity:.6;cursor:progress}
-            /* Gap card · visible click-through + loading shimmer. */
-            #view-schedule .rr-tgt-gap-card-link{
-              font-size:var(--fs-9);font-weight:600;color:var(--accent);white-space:nowrap;
-            }
-            #view-schedule .rr-tgt-gap-card-link[hidden]{display:none}
-            #view-schedule .rr-tgt-gap-card.is-loading .rr-tgt-gap-card-sub{
-              color:transparent;border-radius:4px;
-              background:linear-gradient(90deg,var(--canvas) 25%,var(--border) 50%,var(--canvas) 75%);
-              background-size:200% 100%;animation:rr-okami-shimmer 1.2s linear infinite;
-            }
-            @media (prefers-reduced-motion: reduce){
-              #view-schedule .rr-tgt-gap-card.is-loading .rr-tgt-gap-card-sub{animation:none}
-            }
-            /* Narrow widths · toolbar wraps in defined order, table scrolls
-               horizontally inside its host instead of squeezing columns. */
-            @media (max-width: 1280px){
-              #view-schedule #rr-sched-targets-kpis{flex-wrap:wrap;row-gap:8px}
-              #view-schedule #rr-sched-targets-kpis .rr-tgt-toolbar-right{margin-left:auto}
+            /* Very narrow · the table's own host scrolls horizontally so the
+               columns keep their width instead of squeezing. */
+            @media (max-width: 920px){
+              #view-schedule #rr-sched-targets-kpis{overflow-x:auto;overflow-y:visible}
             }
             @media (max-width: 920px){
               #view-schedule #sched-sub-targets #rr-sched-targets-13week-host{overflow-x:auto}
@@ -32707,7 +32765,7 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev .oc-ev-t{ flex:0 0 auto; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev .oc-ev-dur{
-  flex:0 1 auto; font-weight:500; font-size:var(--fs-10-5, 10.5px); opacity:.72;
+  flex:0 1 auto; font-weight:500; font-size:var(--fs-10-5); opacity:.72;
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev .ei{
@@ -32745,7 +32803,7 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev-foot{ margin-top:2px; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev-badge{
   display:inline-flex; align-items:center; height:15px; padding:0 5px;
-  border-radius:5px; font-size:var(--fs-10-5, 10.5px); font-weight:600; line-height:1;
+  border-radius:5px; font-size:var(--fs-10-5); font-weight:600; line-height:1;
   letter-spacing:.01em; white-space:nowrap;
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev-badge.st-ok{ background:rgba(13,148,136,.13); color:var(--rr-teal-700); }
@@ -32875,7 +32933,7 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
   display:inline-flex; align-items:center; gap:4px;
   background:rgba(22,163,74,.10) !important; color:var(--rr-green-700) !important;
   border-radius:5px !important; padding:1px 6px !important;
-  font-size:var(--fs-10-5, 10.5px) !important; font-weight:600 !important;
+  font-size:var(--fs-10-5) !important; font-weight:600 !important;
   text-transform:none !important; letter-spacing:.01em !important;
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-bp-dot{
