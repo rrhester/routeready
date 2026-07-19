@@ -278,18 +278,14 @@
                   <div style="font-size:var(--fs-sm);color:var(--text-subtle);margin:6px 0 12px;line-height:1.5">
                     How the system fills gaps between scheduled drivers and vans. Standing chains (primary + backup) are still set on the Workspaces → Van assignments board.
                   </div>
-                  <div class="rule-row" style="padding:var(--s-3-5) 0">
-                    <div>
-                      <div class="rule-label">Auto-assign vans to scheduled drivers</div>
-                      <div class="rule-help">When on, the Today's Plan home page fills every "No van" gap automatically as soon as it opens, pulling from your active + spare pool. Per-day overrides only — the standing chain isn't changed. Manual changes from the Today's roster always override this.</div>
-                    </div>
-                    <label class="rr-switch">
-                      <input type="checkbox" id="rr-set-auto-van-assign" data-rr-fleet-setting="auto_van_assign">
-                      <span class="rr-switch-track" aria-hidden="true"></span>
-                      <span class="rr-switch-label" data-rr-auto-van-label>Off</span>
-                    </label>
+                  <div class="rule-help" style="padding:var(--s-3-5) 0;line-height:1.5">
+                    The <strong>Auto-assign vans to scheduled drivers</strong> switch moved in with the rest of the van rules — open it from <strong>Schedule → Assign Fleet ▾ → Van rules</strong>. That one switch now fills every "No van" gap from your active + spare pool both when the Today's Plan home page opens <em>and</em> during Smart Fill. Per-day overrides only — the standing chain isn't changed, and manual changes from the Today's roster always override it.
                   </div>
-                  <!-- style block 18 extracted to inline-styles.css -->
+                  <!-- Auto-van-assign toggle unified into the Van rules popover
+                       (Schedule → Assign Fleet ▾). One DB-backed switch
+                       (fleet_settings.auto_van_assign) now drives BOTH the
+                       Today's Plan auto-fill and the Smart Fill van pass; the
+                       duplicate toggle that used to live here was removed. -->
                 </details>
 
                 <details class="rules-section" data-rr-rules-section="floor" style="grid-column:1/-1" open>
