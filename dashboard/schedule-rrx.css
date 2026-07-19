@@ -7267,3 +7267,19 @@ body.rr-sched-carrying #view-schedule #sched-sub-week .cal-cell[data-rr-cell="dr
 }
 .rr-schedrules-body textarea { font-size: var(--fs-sm); padding: var(--s-2); min-height: 54px; }
 .rr-schedrules-body input, .rr-schedrules-body select { font-size: var(--fs-sm); }
+/* Wide config rows would overflow the narrow drawer and get clipped: the
+   attendance-windows grid (1fr 1fr 1fr auto) and the station-geofence rows
+   (fixed 120/160/160/100/auto px ≈ 580px, wider than the box). Wrap them to
+   two columns so every field stays visible; inputs shrink to fill their
+   cell. Both grids carry INLINE grid-template-columns (the geofence one is
+   fixed px, so it can't shrink on its own) — an !important override is
+   required, and is scoped to the drawer only. */
+.rr-schedrules-body #rr-att-windows { grid-template-columns: 1fr 1fr !important; }
+.rr-schedrules-body .station-geofence { grid-template-columns: 1fr 1fr !important; }
+/* Station header + the button row span the full width; lat/lng/radius pair up. */
+.rr-schedrules-body .station-geofence > div:first-child,
+.rr-schedrules-body .station-geofence > div:last-child { grid-column: 1 / -1; }
+.rr-schedrules-body #rr-att-windows > *,
+.rr-schedrules-body .station-geofence > * { min-width: 0; }
+.rr-schedrules-body #rr-att-windows input,
+.rr-schedrules-body .station-geofence input { width: 100%; min-width: 0; box-sizing: border-box; }
