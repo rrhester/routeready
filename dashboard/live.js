@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=acae1f205562";
-import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=acae1f205562";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=acae1f205562";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=acae1f205562";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=acae1f205562";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=acae1f205562";
-import { isChecklistComplete } from "./checklist-core.mjs?v=acae1f205562";
+import { planScheduleWeek } from "./scheduling-engine.js?v=5a6891bf7298";
+import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=5a6891bf7298";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=5a6891bf7298";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=5a6891bf7298";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=5a6891bf7298";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=5a6891bf7298";
+import { isChecklistComplete } from "./checklist-core.mjs?v=5a6891bf7298";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=acae1f205562";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=acae1f205562";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=acae1f205562";
+} from "./msg-core.mjs?v=5a6891bf7298";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=5a6891bf7298";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=5a6891bf7298";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -11787,11 +11787,11 @@ document.addEventListener("click", (e) => {
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") _rrCloseRosterCoach(); });
 
 // ── Roster row · ⋯ overflow menu ──────────────────────────────────────
-// The per-row ⋯ opens a popover that deep-links to each driver-record tab
-// (Attendance, Profile, …) and carries Message / Create coaching /
-// Terminate driver. Picking a tab opens the driver record on it; the
-// other items reuse the same entry points the driver drawer uses. Same
-// fixed, viewport-clamped popover mechanism as the coach menu above.
+// The per-row ⋯ is "go to / manage": an "Open record" disclosure that folds
+// the driver-record tab deep-links (Attendance, Profile, …) under one row,
+// plus Terminate. Message + Coach deliberately live as the row's own icons,
+// not here (one home per action). Picking a tab opens the driver record on
+// it. Same fixed, viewport-clamped popover mechanism as the coach menu above.
 let _rrRowMoreId = null;
 const _RR_ROW_MORE_TABS = [
   ["attendance",   "Attendance",   '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>'],
@@ -11852,8 +11852,6 @@ function _rrOpenRowMore(trigger, driverId) {
   const item = (action, label, icon, danger) =>
     `<button type="button" role="menuitem" class="rr-status-picker-item${danger ? " is-danger" : ""}" data-rr-row-more-go="${action}">${icon}<span class="rr-status-picker-label">${escapeHtml(label)}</span></button>`;
   const sep = '<div class="rr-status-picker-sep" role="separator"></div>';
-  const msgIcon   = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>';
-  const coachIcon = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>';
   const termIcon  = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
   const reactIcon = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><polyline points="3 3 3 8 8 8"/></svg>';
   // A terminated driver can't be terminated again — swap that last item for a
@@ -11865,15 +11863,11 @@ function _rrOpenRowMore(trigger, driverId) {
   // so this menu group is only for jumping straight to a specific tab).
   const recordIcon = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="10" r="2"/><path d="M13 9h4M13 13h4M6 16.5c.6-1.4 1.6-2 2.5-2s1.9.6 2.5 2"/></svg>';
   const chevIcon   = '<svg class="rr-row-more-chev" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
-  const groupLabel = (t) => `<div class="rr-status-picker-grouplabel" role="presentation">${escapeHtml(t)}</div>`;
-  // Actions (what you DO to a driver) sit up top; navigation into the record
-  // folds under one disclosure; the destructive row is quarantined at the
-  // bottom behind its own divider.
+  // The ⋯ menu is now purely "go to / manage": navigation into the record
+  // folds under one disclosure, and the destructive row is quarantined at the
+  // bottom behind its own divider. Message + Coach are NOT here — they live as
+  // the always-visible row icons (one home per action, no duplication).
   pop.innerHTML =
-    groupLabel("Actions") +
-    item("coach", "Create coaching", coachIcon) +
-    item("message", "Message", msgIcon) +
-    sep +
     `<button type="button" role="menuitem" class="rr-status-picker-item rr-row-more-disclosure" data-rr-row-more-toggle aria-expanded="false" aria-controls="rr-row-more-tabs">${recordIcon}<span class="rr-status-picker-label">Open record</span>${chevIcon}</button>` +
     `<div class="rr-row-more-tabs" id="rr-row-more-tabs" role="group" aria-label="Open record on a tab" hidden>` +
       _RR_ROW_MORE_TABS.map(([a, l, ic]) => item(a, l, ic)).join("") +
@@ -14127,7 +14121,7 @@ function _rowActionsFor(d) {
   // See driver's app · per-row icon. Opens a preview of what THIS driver sees
   // in the RouteReady driver app (openDriverAppPreview, via data-rr-driver-app).
   const appIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>';
-  const appBtn = `<button type="button" class="rr-row-action rr-row-action--app" data-rr-driver-app="${escapeHtml(d.id)}" title="See this driver’s app view" aria-label="See ${escapeHtml(displayDriverName(d))}’s app view">${appIcon}</button>`;
+  const appBtn = `<button type="button" class="rr-row-action rr-row-action--app" data-rr-driver-app="${escapeHtml(d.id)}" title="Preview driver app" aria-label="Preview ${escapeHtml(displayDriverName(d))}’s driver app">${appIcon}</button>`;
   // is-persistent → visible at rest (not only on row hover).
   return `<div class="rr-row-actions-bar is-persistent">${appBtn}${msgBtn}${coachBtn}${moreBtn}</div>`;
 }
