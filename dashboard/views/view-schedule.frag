@@ -181,27 +181,12 @@
                           { name: "Berry",   hex: "#EFCDDB" },
                           { name: "Slate",   hex: "#D6DAE0" },
                         ];
-                        // Bold companions (operator 2026-07-08: colors
-                        // must read "sharp, clear and crisp — even small
-                        // differences matter"). Same 10 hues at full
-                        // saturation, straight from the dashboard's own
-                        // accent vocabulary (the Tailwind-600 family the
-                        // UI already uses), so a route can pop at a
-                        // glance while staying on-brand. Chips pick
-                        // white/ink text automatically (textOn below),
-                        // so every one of these stays readable.
-                        var PALETTE_BOLD = [
-                          { name: "Red",     hex: "#DC2626" },
-                          { name: "Orange",  hex: "#EA580C" },
-                          { name: "Amber",   hex: "#D97706" },
-                          { name: "Green",   hex: "#16A34A" },
-                          { name: "Teal",    hex: "#0D9488" },
-                          { name: "Blue",    hex: "#2563EB" },
-                          { name: "Violet",  hex: "#7C3AED" },
-                          { name: "Magenta", hex: "#C026D3" },
-                          { name: "Berry",   hex: "#DB2777" },
-                          { name: "Slate",   hex: "#475569" },
-                        ];
+                        // (A bold/full-saturation companion palette used to
+                        // render as a second swatch row per route, but that made
+                        // every route twice as tall as its label and hard to
+                        // read; the picker now shows ONE calm row. If sharper
+                        // colors are wanted again, reintroduce a bold set behind
+                        // a soft/bold toggle rather than a second always-on row.)
                         // Defaults map each route to one palette entry so
                         // first-time DSPs see a sensible default. These
                         // also override the :root --rr-route-c-* vars so
@@ -372,29 +357,27 @@
                           var host = document.querySelector('[data-rr-route-swatches="' + route + '"]');
                           if (!host) return;
                           host.innerHTML = "";
-                          // Two rows per route: soft (calm tints) over
-                          // bold (full-saturation, crisp). Inline
-                          // flex-direction wins over the skin's row
-                          // layout without touching its !important gap.
-                          host.style.flexDirection = "column";
-                          [["soft", PALETTE], ["bold", PALETTE_BOLD]].forEach(function (set) {
-                            var row = document.createElement("div");
-                            row.style.display = "flex";
-                            row.style.gap = "2px";
-                            set[1].forEach(function (entry) {
-                              var b = document.createElement("button");
-                              b.type = "button";
-                              b.className = "rr-rcp-swatch";
-                              b.style.background = entry.hex;
-                              b.setAttribute("data-rr-route", route);
-                              b.setAttribute("data-rr-hex", entry.hex);
-                              b.setAttribute("title", entry.name + " · " + set[0]);
-                              if (entry.hex.toUpperCase() === String(current).toUpperCase()) {
-                                b.classList.add("is-active");
-                              }
-                              row.appendChild(b);
-                            });
-                            host.appendChild(row);
+                          // ONE row of calm tints per route, so each route's
+                          // swatches sit on the same line as its name and line
+                          // up cleanly down the column (the old soft-over-bold
+                          // two-row block made every route twice as tall as its
+                          // label and drifted out of alignment). The saved
+                          // palette stays muted; a bold set can return later as
+                          // a toggle if the operator wants sharper colors.
+                          host.style.flexDirection = "row";
+                          host.style.flexWrap = "nowrap";
+                          PALETTE.forEach(function (entry) {
+                            var b = document.createElement("button");
+                            b.type = "button";
+                            b.className = "rr-rcp-swatch";
+                            b.style.background = entry.hex;
+                            b.setAttribute("data-rr-route", route);
+                            b.setAttribute("data-rr-hex", entry.hex);
+                            b.setAttribute("title", entry.name);
+                            if (entry.hex.toUpperCase() === String(current).toUpperCase()) {
+                              b.classList.add("is-active");
+                            }
+                            host.appendChild(b);
                           });
                         }
                         function renderAllSwatches(map) {
