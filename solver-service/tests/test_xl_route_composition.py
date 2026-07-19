@@ -59,6 +59,27 @@ def test_xl_route_filled_by_one_certified_plus_one_helper():
     assert by_shift["R1-help"] == "plain"
 
 
+def test_helper_seat_never_consumes_a_van():
+    # An XL route runs two people in ONE box truck. The van goes to the
+    # driver seat; the helper seat must not consume a second vehicle.
+    r = _req(
+        drivers=[
+            {"id": "cert", "available_dows": [1], "xl_certified": True},
+            {"id": "plain", "available_dows": [1], "xl_certified": False},
+        ],
+        shifts=_xl_route(),
+        vans=[
+            {"id": "box1", "code": "BOX-1", "status": "active", "vehicle_type": "box_truck"},
+            {"id": "box2", "code": "BOX-2", "status": "active", "vehicle_type": "box_truck"},
+        ],
+    )
+    result = solve(r)
+    by_shift = {a.shift_id: a for a in result.assigned_shifts}
+    assert set(by_shift) == {"R1-drv", "R1-help"}
+    # Helper seat carries no van of its own even with a second box truck free.
+    assert by_shift["R1-help"].van_id is None
+
+
 def test_xl_driver_seat_uncovered_when_no_certified_driver():
     # Only an uncertified driver available: the helper seat fills, the
     # cert-gated driver seat stays uncovered (the gate still bites).
