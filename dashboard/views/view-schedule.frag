@@ -206,23 +206,80 @@
                         // first-time DSPs see a sensible default. These
                         // also override the :root --rr-route-c-* vars so
                         // the palette + chip colors stay in sync.
-                        // Route types the operator can color-code. "Other" is
-                        // the catch-all; the legacy reduction / cycle_1 /
-                        // cycle_2 / backup types were retired from the picker.
+                        //
+                        // Organizing principle (operator 2026-07-19): HUE
+                        // encodes the KIND of work; a helper/along seat is the
+                        // SAME hue as the route it rides (a lightened, dashed
+                        // variant), never a different color family. So an XL
+                        // route + its XL helper read as one thing, and the
+                        // Helper route + its helper likewise. Only the "parent"
+                        // route of each family is a pickable swatch row below;
+                        // the three helper/along seats DERIVE from their parent
+                        // (see HELPER_OF + applyColor) so they can never drift.
+                        //
+                        // Every hue is distinct — no two route types collide.
+                        // Blue is intentionally unused here: Standard (NULL
+                        // classification) keeps the default brand-blue chip, so
+                        // painting another type blue would clash with it.
                         var DEFAULTS = {
-                          rescue:         "#EFCECD",
-                          nursery:        "#CDEFE6",
-                          other:          "#D6DAE0",
-                          class_training: "#CDEFE6",
-                          road_training:  "#EFDCCD",
-                          pto:            "#EFDCCD",
-                          xl:             "#EFDCCD",
-                          hub:            "#D7CDEF",
-                          trainer_trainee:"#DBEFCD",
-                          helper:         "#EFCDDB",
-                          helper_route:   "#EFE6CD",
-                          helper_svc:     "#EFCDEF",
+                          rescue:         "#EFCECD", // Red
+                          nursery:        "#CDEFE6", // Teal
+                          xl:             "#D7CDEF", // Violet  (parent of `helper`)
+                          helper_svc:     "#EFCDEF", // Magenta (parent of `helper_route`)
+                          hub:            "#EFCDDB", // Berry
+                          other:          "#D6DAE0", // Slate
+                          class_training: "#DBEFCD", // Green
+                          road_training:  "#EFDCCD", // Orange  (parent of `trainer_trainee`)
+                          pto:            "#EFE6CD", // Amber
                         };
+                        // Helper / along seats derive their color from the
+                        // paired route: same hue, lightened, dashed border (the
+                        // .shift-chip-helper treatment). Keyed helper -> parent
+                        // route. These keys are NOT pickable — recoloring the
+                        // parent recolors the helper automatically, so the two
+                        // stay in one family for good.
+                        //   helper          = the XL route's ride-along helper
+                        //   helper_route    = the Helper-route's helper seat
+                        //   trainer_trainee = a trainer whose trainee rides along
+                        var HELPER_OF = {
+                          helper:          "xl",
+                          helper_route:    "helper_svc",
+                          trainer_trainee: "road_training",
+                        };
+                        // Lighten a hex toward white by `amt` (0..1) — used to
+                        // derive each helper seat's tint from its parent route.
+                        function lighten(hex, amt) {
+                          var m = /^#?([0-9a-fA-F]{6})$/.exec(String(hex || "").trim());
+                          if (!m) return hex;
+                          var n = parseInt(m[1], 16);
+                          var r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+                          r = Math.round(r + (255 - r) * amt);
+                          g = Math.round(g + (255 - g) * amt);
+                          b = Math.round(b + (255 - b) * amt);
+                          return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).toUpperCase();
+                        }
+                        // One-time reconciliation for DSPs whose saved
+                        // route_colors predate the family redesign (2026-07-19).
+                        // The old picker stored an INDEPENDENT hex per helper
+                        // seat and used now-retired defaults for xl / hub /
+                        // class_training / pto. So an existing operator's saved
+                        // map would otherwise override the new coherent scheme.
+                        // We (a) drop the three helper overrides so each helper
+                        // derives from its route again, and (b) reset the four
+                        // reassigned routes ONLY where they still hold the
+                        // retired default — a genuine custom pick is preserved.
+                        // Idempotent: once the stored map is clean it no longer
+                        // trips this, so at most one extra save per stale map.
+                        var RETIRED_DEFAULTS = { xl: "#EFDCCD", hub: "#D7CDEF", class_training: "#CDEFE6", pto: "#EFDCCD" };
+                        var DERIVED_KEYS = ["helper", "helper_route", "trainer_trainee"];
+                        function reconcile(overrides) {
+                          var out = Object.assign({}, overrides), changed = false;
+                          DERIVED_KEYS.forEach(function (k) { if (k in out) { delete out[k]; changed = true; } });
+                          Object.keys(RETIRED_DEFAULTS).forEach(function (k) {
+                            if (out[k] && String(out[k]).toUpperCase() === RETIRED_DEFAULTS[k].toUpperCase()) { delete out[k]; changed = true; }
+                          });
+                          return { map: out, changed: changed };
+                        }
                         function loadHex() {
                           // Account (dsps.metadata.route_colors) wins so the
                           // palette syncs across devices; localStorage is a
@@ -233,9 +290,17 @@
                             var raw = localStorage.getItem(HEX_KEY);
                             if (raw) local = JSON.parse(raw);
                           } catch (e) {}
-                          return Object.assign({}, DEFAULTS,
+                          // Merge the real overrides (device cache < account),
+                          // reconcile away retired keys, then layer over DEFAULTS
+                          // so reassigned/derived routes fall through to the new
+                          // scheme. Persist the cleaned map once when it changed.
+                          var overrides = Object.assign({},
                             (local && typeof local === "object") ? local : {},
                             (acct && typeof acct === "object") ? acct : {});
+                          var rec = reconcile(overrides);
+                          var merged = Object.assign({}, DEFAULTS, rec.map);
+                          if (rec.changed) { try { saveHex(merged); } catch (e) {} }
+                          return merged;
                         }
                         function saveHex(map) {
                           // Per-device cache for instant paint on next load.
@@ -282,6 +347,17 @@
                           // (consumed as --rr-route-t-* by schedule-rrx.css).
                           var t = textOn(hex);
                           if (t) document.documentElement.style.setProperty("--rr-route-t-" + route, t);
+                          // Derive any helper/along seat paired to this route:
+                          // same hue, lightened, so the helper always tracks its
+                          // route and the family never splits. The dashed border
+                          // (.shift-chip-helper) marks it as support capacity.
+                          Object.keys(HELPER_OF).forEach(function (h) {
+                            if (HELPER_OF[h] !== route) return;
+                            var lh = lighten(hex, 0.42);
+                            document.documentElement.style.setProperty("--rr-route-c-" + h, lh);
+                            var ht = textOn(lh);
+                            if (ht) document.documentElement.style.setProperty("--rr-route-t-" + h, ht);
+                          });
                         }
                         function applyAll(map) {
                           Object.keys(DEFAULTS).forEach(function (k) {
@@ -570,7 +646,12 @@
                            ring. No free-form color picker — the DSP can
                            still personalize but only from the on-brand
                            palette. -->
+                      <!-- Grouped by family. Each route with a helper/along
+                           seat shows a read-only "↳ …" derived preview beneath
+                           its swatches: the helper is the SAME hue, lightened +
+                           dashed, and recolors automatically with its route. -->
                       <div id="rr-sched-routecolor-legend" hidden style="display:flex;flex-direction:column;gap:8px;margin-top:10px;font:12px/1.4 var(--rr-font-family, 'Inter','Segoe UI');color:var(--rr-fg-secondary,#6B7280)">
+                        <div class="rr-rcp-grp">Delivery routes</div>
                         <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
                           <span style="width:14px;height:14px;border-radius:3px;background:rgba(37,99,235,.22);border:1.5px solid rgba(37,99,235,.55);flex-shrink:0"></span>
                           <span style="flex:1">Standard</span>
@@ -584,10 +665,33 @@
                           <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Nursery</span></div>
                           <div class="rr-rcp-swatches" data-rr-route-swatches="nursery" style="display:flex;gap:4px;flex-wrap:wrap"></div>
                         </div>
+                        <div class="rr-rcp-row" data-rr-route="xl" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
+                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">XL route</span></div>
+                          <div class="rr-rcp-swatches" data-rr-route-swatches="xl" style="display:flex;gap:4px;flex-wrap:wrap"></div>
+                          <div class="rr-rcp-derived">
+                            <span class="rr-rcp-derived-sw" style="background:var(--rr-route-c-helper)"></span>
+                            <span>↳ XL helper</span>
+                            <span class="rr-rcp-derived-note">matches XL, lightened</span>
+                          </div>
+                        </div>
+                        <div class="rr-rcp-row" data-rr-route="helper_svc" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
+                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Helper route</span></div>
+                          <div class="rr-rcp-swatches" data-rr-route-swatches="helper_svc" style="display:flex;gap:4px;flex-wrap:wrap"></div>
+                          <div class="rr-rcp-derived">
+                            <span class="rr-rcp-derived-sw" style="background:var(--rr-route-c-helper_route)"></span>
+                            <span>↳ Helper route · helper</span>
+                            <span class="rr-rcp-derived-note">matches Helper route, lightened</span>
+                          </div>
+                        </div>
+                        <div class="rr-rcp-row" data-rr-route="hub" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
+                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">HUB</span></div>
+                          <div class="rr-rcp-swatches" data-rr-route-swatches="hub" style="display:flex;gap:4px;flex-wrap:wrap"></div>
+                        </div>
                         <div class="rr-rcp-row" data-rr-route="other"     style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
                           <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Other</span></div>
                           <div class="rr-rcp-swatches" data-rr-route-swatches="other" style="display:flex;gap:4px;flex-wrap:wrap"></div>
                         </div>
+                        <div class="rr-rcp-grp">Training</div>
                         <div class="rr-rcp-row" data-rr-route="class_training" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
                           <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Class training</span></div>
                           <div class="rr-rcp-swatches" data-rr-route-swatches="class_training" style="display:flex;gap:4px;flex-wrap:wrap"></div>
@@ -595,34 +699,16 @@
                         <div class="rr-rcp-row" data-rr-route="road_training" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
                           <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Road training</span></div>
                           <div class="rr-rcp-swatches" data-rr-route-swatches="road_training" style="display:flex;gap:4px;flex-wrap:wrap"></div>
+                          <div class="rr-rcp-derived">
+                            <span class="rr-rcp-derived-sw" style="background:var(--rr-route-c-trainer_trainee)"></span>
+                            <span>↳ Trainer (trainee riding along)</span>
+                            <span class="rr-rcp-derived-note">matches Road training, lightened</span>
+                          </div>
                         </div>
+                        <div class="rr-rcp-grp">Time off</div>
                         <div class="rr-rcp-row" data-rr-route="pto" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
                           <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">PTO / time off</span></div>
                           <div class="rr-rcp-swatches" data-rr-route-swatches="pto" style="display:flex;gap:4px;flex-wrap:wrap"></div>
-                        </div>
-                        <div class="rr-rcp-row" data-rr-route="xl" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">XL</span></div>
-                          <div class="rr-rcp-swatches" data-rr-route-swatches="xl" style="display:flex;gap:4px;flex-wrap:wrap"></div>
-                        </div>
-                        <div class="rr-rcp-row" data-rr-route="helper" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Helper (XL ride-along)</span></div>
-                          <div class="rr-rcp-swatches" data-rr-route-swatches="helper" style="display:flex;gap:4px;flex-wrap:wrap"></div>
-                        </div>
-                        <div class="rr-rcp-row" data-rr-route="helper_svc" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Helper route</span></div>
-                          <div class="rr-rcp-swatches" data-rr-route-swatches="helper_svc" style="display:flex;gap:4px;flex-wrap:wrap"></div>
-                        </div>
-                        <div class="rr-rcp-row" data-rr-route="helper_route" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Helper route · helper</span></div>
-                          <div class="rr-rcp-swatches" data-rr-route-swatches="helper_route" style="display:flex;gap:4px;flex-wrap:wrap"></div>
-                        </div>
-                        <div class="rr-rcp-row" data-rr-route="hub" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">HUB</span></div>
-                          <div class="rr-rcp-swatches" data-rr-route-swatches="hub" style="display:flex;gap:4px;flex-wrap:wrap"></div>
-                        </div>
-                        <div class="rr-rcp-row" data-rr-route="trainer_trainee" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Trainer (trainee riding along)</span></div>
-                          <div class="rr-rcp-swatches" data-rr-route-swatches="trainer_trainee" style="display:flex;gap:4px;flex-wrap:wrap"></div>
                         </div>
                       </div>
                       <!-- style block 23 extracted to inline-styles.css -->

@@ -5463,7 +5463,9 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff * {
    DSP's Helper color wins. */
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-shift-kind="helper"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
   background: var(--rr-route-c-helper) !important;
-  border: 1px solid color-mix(in srgb, var(--rr-route-c-helper) 78%, var(--rr-slate-900)) !important;
+  /* Dashed (not solid) border marks this as the HELPER/along seat — same hue
+     as the XL route it rides (a lightened derived tint), visibly the helper. */
+  border: 1px dashed color-mix(in srgb, var(--rr-route-c-helper) 78%, var(--rr-slate-900)) !important;
   color: var(--rr-route-t-helper, var(--rr-gray-900)) !important;
   --rr-route-t: var(--rr-route-t-helper);
 }
@@ -5479,7 +5481,9 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-ch
    wins on those chips at the [data-rr-shift-id] specificity tier. */
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-shift-kind="helper"][data-rr-service-code="HELPER"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
   background: var(--rr-route-c-helper_route) !important;
-  border: 1px solid color-mix(in srgb, var(--rr-route-c-helper_route) 78%, var(--rr-slate-900)) !important;
+  /* Dashed (not solid) border marks this as the HELPER/along seat — same hue
+     as the Helper route it rides (a lightened derived tint), visibly the helper. */
+  border: 1px dashed color-mix(in srgb, var(--rr-route-c-helper_route) 78%, var(--rr-slate-900)) !important;
   color: var(--rr-route-t-helper_route, var(--rr-gray-900)) !important;
   --rr-route-t: var(--rr-route-t-helper_route);
 }
@@ -5629,14 +5633,14 @@ body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-label .avatar-s
    the route-color JS sets --rr-route-c-hub from DEFAULTS.
    ============================================================ */
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-service-code="HUB"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: var(--rr-route-c-hub, #D7CDEF) !important;
-  border-color: color-mix(in srgb, var(--rr-route-c-hub, #D7CDEF) 78%, var(--rr-slate-900)) !important;
-  box-shadow: 0 1px 0 var(--rr-route-c-hub, #D7CDEF) !important;
+  background: var(--rr-route-c-hub, #EFCDDB) !important;
+  border-color: color-mix(in srgb, var(--rr-route-c-hub, #EFCDDB) 78%, var(--rr-slate-900)) !important;
+  box-shadow: 0 1px 0 var(--rr-route-c-hub, #EFCDDB) !important;
   --rr-route-t: var(--rr-route-t-hub);
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-service-code="HUB"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: var(--rr-route-c-hub, #D7CDEF) !important;
-  border: 1px solid color-mix(in srgb, var(--rr-route-c-hub, #D7CDEF) 78%, var(--rr-slate-900)) !important;
+  background: var(--rr-route-c-hub, #EFCDDB) !important;
+  border: 1px solid color-mix(in srgb, var(--rr-route-c-hub, #EFCDDB) 78%, var(--rr-slate-900)) !important;
   color: var(--rr-route-t-hub, var(--rr-gray-900)) !important;
   --rr-route-t: var(--rr-route-t-hub);
 }
@@ -5645,7 +5649,7 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift
   color: var(--rr-route-t-hub, var(--rr-gray-900)) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id][data-rr-service-code="HUB"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-hub, #D7CDEF) 88%, var(--rr-slate-400)) !important;
+  background: color-mix(in srgb, var(--rr-route-c-hub, #EFCDDB) 88%, var(--rr-slate-400)) !important;
 }
 
 /* ── Shared right utility rail + Notes workspace ─────────────────────

@@ -157,21 +157,21 @@
   --rr-route-c-rescue:#DC2626;
   --rr-route-c-nursery:#0D9488;
   --rr-route-c-other:#6B7280;
-  /* Training shift kinds (class = shift_kind 'training', road = 'ride_along').
-     Defaults mirror the chips' built-in teal/amber so turning color-coding on
-     looks the same until the DSP picks their own. */
-  --rr-route-c-class_training:#0D9488;
+  /* Pre-JS fallbacks (the popover IIFE overrides these on load from its
+     soft DEFAULTS). Hues follow the family map (2026-07-19): every route type
+     gets a DISTINCT hue, and a helper/along seat shares its route's hue.
+     Class training = green (was teal — collided with nursery). */
+  --rr-route-c-class_training:#16A34A;
   --rr-route-c-road_training:#EA580C;
-  /* PTO / time-off chips. Default mirrors the chip's built-in amber so
-     turning color-coding on looks the same until the DSP picks their own. */
+  /* PTO / time off = amber. */
   --rr-route-c-pto:#D97706;
-  /* XL is a service type (not a route_classification); chips key off
-     data-rr-service-code="XL". Default mirrors XL's service color. */
-  --rr-route-c-xl:#EA580C;
-  /* Trainer hosting a ride-along trainee (a regular shift that gets the
-     .shift-chip-training class). Default forest green matches the chip's
-     built-in trainee accent. */
-  --rr-route-c-trainer_trainee:#65A30D;
+  /* XL = violet (was orange — collided with road training / pto). Chips key
+     off data-rr-service-code="XL". Its helper seat derives a lighter violet. */
+  --rr-route-c-xl:#7C3AED;
+  /* Trainer hosting a ride-along trainee — the along-seat of Road training, so
+     it shares the Road-training ORANGE family (was green). The popover derives
+     a lighter tint at runtime; this static fallback just keeps the family. */
+  --rr-route-c-trainer_trainee:#EA580C;
   /* Legacy route types — retired from the picker but kept so any shift
      still tagged with one keeps its chip color. */
   --rr-route-c-reduction:#EA580C;
@@ -26968,6 +26968,29 @@ body.rr-cmdk-open{ overflow:hidden }
   grid-column:2;grid-row:1;display:flex !important;gap:2px !important;flex-wrap:nowrap !important;
 }
 #rr-sched-colors-popover .rr-rcp-swatch{width:14px !important;height:14px !important}
+/* Family section header inside the route-color legend. No override flag needed:
+   the `> div` reset above only clears border/bg/padding, and font/color/margin
+   here are otherwise merely inherited from the legend's inline font. */
+#rr-sched-colors-popover #rr-sched-routecolor-legend > .rr-rcp-grp{
+  font-size:var(--fs-10-5);font-weight:700;letter-spacing:.05em;
+  text-transform:uppercase;color:var(--rr-slate-500);
+  margin:6px 0 0;
+}
+#rr-sched-colors-popover #rr-sched-routecolor-legend > .rr-rcp-grp:first-child{ margin-top:0 }
+/* Read-only "↳ helper" preview beneath a route's swatches — the helper
+   seat DERIVES its color from the route above (same hue, lightened), so
+   there's no picker, just a live preview that tracks the parent. Spans the
+   full row width on a second grid line of the .rr-rcp-row grid. */
+#rr-sched-colors-popover .rr-rcp-derived{
+  grid-column:1 / -1;grid-row:2;
+  display:flex;align-items:center;gap:6px;
+  margin-top:2px;font-size:var(--fs-10-5);color:var(--rr-slate-500);
+}
+#rr-sched-colors-popover .rr-rcp-derived-sw{
+  width:14px;height:14px;border-radius:3px;flex-shrink:0;
+  border:1.5px dashed var(--rr-slate-400);
+}
+#rr-sched-colors-popover .rr-rcp-derived-note{ color:var(--rr-slate-400);margin-left:auto }
 
 /* ═══ Action-bar busy signal (operator 2026-06-12) ══════════════════
    Understated working state for Smart Fill / Assign Fleet: inline
