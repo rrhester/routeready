@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=1b00ede29e29";
-import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=1b00ede29e29";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=1b00ede29e29";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=1b00ede29e29";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=1b00ede29e29";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=1b00ede29e29";
-import { isChecklistComplete } from "./checklist-core.mjs?v=1b00ede29e29";
+import { planScheduleWeek } from "./scheduling-engine.js?v=eaff2fcfe18b";
+import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=eaff2fcfe18b";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=eaff2fcfe18b";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=eaff2fcfe18b";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=eaff2fcfe18b";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=eaff2fcfe18b";
+import { isChecklistComplete } from "./checklist-core.mjs?v=eaff2fcfe18b";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=1b00ede29e29";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=1b00ede29e29";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=1b00ede29e29";
+} from "./msg-core.mjs?v=eaff2fcfe18b";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=eaff2fcfe18b";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=eaff2fcfe18b";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -52763,7 +52763,6 @@ function _okamiRecomputeFromCache(padPct) {
     }
   }
   _rrOkamiRenderTfoot();
-  try { _rrOkamiRenderTrend(); } catch (_) { /* chart host is Targets-only */ }
   try { _rrRefreshTargetsGapCard(); } catch (_) { /* gap card is optional */ }
 }
 let _okamiCushionPct = 10;
@@ -52836,7 +52835,7 @@ function _rrOkamiWeekRowHtml(w) {
   const rowActs = `<span class="rr-tgt-row-acts">${copyActs}<button type="button" data-rr-okami-build="${w}" title="Build this week's shifts from the plan (regenerate + cushion)">⚙</button></span>`;
   return `<tr id="okami-row-${w}">
     <td>${expandBtn}<div class="plan-week-label" style="display:inline-block;vertical-align:middle"></div><div class="plan-week-dates"></div><span class="rr-tgt-week-chips"></span>${rowActs}</td>
-    <td class="center"><input class="plan-route-input" inputmode="numeric" autocomplete="off" data-rr-okami-week-idx="${w}"/><span class="rr-tgt-spark-slot"></span></td>
+    <td class="center"><input class="plan-route-input" inputmode="numeric" autocomplete="off" data-rr-okami-week-idx="${w}"/></td>
     <td class="center"><div class="plan-calc"></div></td>
     <td class="center"><div class="plan-calc"></div></td>
     <td class="center"><div class="plan-gap"></div></td>
@@ -52874,7 +52873,6 @@ function _rrOkamiShowError(tbody, msg) {
   tbody.innerHTML = `<tr class="rr-okami-err-row"><td colspan="8"><div class="rr-okami-err"><span>Couldn't load the route plan — ${escapeHtml(msg || "network error")}</span><button class="btn btn-sm" type="button" data-rr-okami-retry>Retry</button></div></td></tr>`;
   const foot = document.getElementById("okami-tfoot");
   if (foot) foot.innerHTML = "";
-  try { _rrOkamiRenderTrend(); } catch (_) { /* hides on null model */ }
   try { _rrRefreshTargetsGapCard(); } catch (_) { /* card just hides */ }
 }
 document.addEventListener("click", (e) => {
@@ -53049,149 +53047,6 @@ document.addEventListener("click", (e) => {
   _paOpenPopover(gapEl, _rrOkamiGapExplainHtml(mw));
 });
 
-// ─── Needed-vs-available trend chart (Targets page) ────────────────────────
-// One small line chart above the table: demand (amber) vs route-ready
-// supply (blue) across the 13 weeks, shortfall shaded red between the
-// lines. Series colors validated (CVD + contrast) against the light
-// surface; identity is never color-alone (legend + direct end-labels).
-const RR_TGT_TREND_DEMAND = "#B45309"; // amber-700 · drivers needed
-const RR_TGT_TREND_SUPPLY = "#2563EB"; // blue-600  · drivers available
-
-function _rrOkamiRenderTrend() {
-  const host = document.getElementById("rr-tgt-trend");
-  if (!host) return;
-  const weeks = window._rrOkamiModel?.weeks || [];
-  const planned = weeks.filter((w) => !w.unplanned);
-  if (planned.length < 2) { host.hidden = true; host.innerHTML = ""; return; }
-  host.hidden = false;
-
-  // Collapsible (calm pass) · the chart repeats the table's Needed/Available
-  // columns, so operators can fold it to a one-line summary. Persisted.
-  let collapsed = false;
-  try { collapsed = localStorage.getItem("rr_tgt_trend_collapsed") === "1"; } catch (_) {}
-  host.classList.toggle("is-collapsed", collapsed);
-  const _chev = collapsed
-    ? '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>'
-    : '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
-  const trendToggle = `<button class="rr-tgt-trend-toggle" type="button" data-rr-trend-toggle aria-expanded="${collapsed ? "false" : "true"}" title="${collapsed ? "Show" : "Hide"} the needed-vs-available chart">${_chev}</button>`;
-  if (collapsed) {
-    const worstW = planned.reduce((a, w) => (w.gap < a.gap ? w : a), planned[0]);
-    const gTxt = worstW.gap < 0
-      ? `worst ${worstW.label} (${worstW.gap})`
-      : `covered (+${worstW.gap} at ${worstW.label})`;
-    host.innerHTML = `<div class="rr-tgt-trend-head">
-      <span class="rr-tgt-trend-summary">Needed vs available · ${escapeHtml(gTxt)}</span>${trendToggle}</div>`;
-    return;
-  }
-
-  const W = Math.max(360, host.clientWidth ? host.clientWidth - 26 : 780);
-  const H = 132, padL = 34, padR = 66, padT = 12, padB = 20;
-  const innerW = W - padL - padR, innerH = H - padT - padB;
-  const n = weeks.length;
-  const yMax = Math.max(10, ...planned.map((w) => Math.max(w.needed, w.avail)));
-  const yNice = Math.ceil(yMax / 20) * 20;
-  const x = (i) => padL + (n <= 1 ? 0 : (i / (n - 1)) * innerW);
-  const y = (v) => padT + innerH - (Math.max(0, v) / yNice) * innerH;
-
-  // Split into consecutive planned runs so a mid-horizon unplanned week
-  // breaks the line instead of bridging it.
-  const runs = [];
-  let cur = [];
-  for (const w of weeks) {
-    if (w.unplanned) { if (cur.length) { runs.push(cur); cur = []; } }
-    else cur.push(w);
-  }
-  if (cur.length) runs.push(cur);
-
-  const pathOf = (run, val) => run.map((w, i) => `${i ? "L" : "M"}${x(w.idx).toFixed(1)},${y(val(w)).toFixed(1)}`).join("");
-  let paths = "", shortfall = "";
-  for (const run of runs) {
-    paths += `<path d="${pathOf(run, (w) => w.needed)}" fill="none" stroke="${RR_TGT_TREND_DEMAND}" stroke-width="2" stroke-linejoin="round"/>`;
-    paths += `<path d="${pathOf(run, (w) => w.avail)}" fill="none" stroke="${RR_TGT_TREND_SUPPLY}" stroke-width="2" stroke-linejoin="round"/>`;
-    // Shortfall band: needed line down to avail line over short stretches.
-    let seg = [];
-    const flush = () => {
-      if (seg.length >= 2) {
-        const top = seg.map((w) => `${x(w.idx).toFixed(1)},${y(w.needed).toFixed(1)}`);
-        const bot = seg.slice().reverse().map((w) => `${x(w.idx).toFixed(1)},${y(w.avail).toFixed(1)}`);
-        shortfall += `<polygon points="${top.concat(bot).join(" ")}" fill="rgba(220,38,38,.10)"/>`;
-      }
-      seg = [];
-    };
-    for (const w of run) { if (w.gap < 0) seg.push(w); else flush(); }
-    flush();
-  }
-
-  // Recessive grid: three horizontal lines + muted tick labels.
-  let grid = "";
-  for (const frac of [0, 0.5, 1]) {
-    const gy = padT + innerH - frac * innerH;
-    grid += `<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W - padR}" y2="${gy.toFixed(1)}" stroke="#EEF1F5" stroke-width="1"/>`;
-    grid += `<text x="${padL - 6}" y="${(gy + 3).toFixed(1)}" text-anchor="end" font-size="9" fill="var(--text-subtle)">${Math.round(yNice * frac)}</text>`;
-  }
-  let xLabels = "";
-  for (const w of weeks) {
-    xLabels += `<text x="${x(w.idx).toFixed(1)}" y="${H - 6}" text-anchor="middle" font-size="9" fill="var(--text-subtle)">${escapeHtml(w.label)}</text>`;
-  }
-  // Trailing/interior unplanned zones get a light wash + label.
-  let zones = "";
-  const unplannedRuns = [];
-  cur = [];
-  for (const w of weeks) {
-    if (w.unplanned) cur.push(w);
-    else { if (cur.length) { unplannedRuns.push(cur); cur = []; } }
-  }
-  if (cur.length) unplannedRuns.push(cur);
-  for (const z of unplannedRuns) {
-    const x0 = z[0].idx === 0 ? padL : (x(z[0].idx - 1) + x(z[0].idx)) / 2;
-    const x1 = z[z.length - 1].idx === n - 1 ? W - padR : (x(z[z.length - 1].idx) + x(z[z.length - 1].idx + 1)) / 2;
-    zones += `<rect x="${x0.toFixed(1)}" y="${padT}" width="${(x1 - x0).toFixed(1)}" height="${innerH}" fill="var(--canvas)"/>`;
-    zones += `<text x="${((x0 + x1) / 2).toFixed(1)}" y="${(padT + innerH / 2).toFixed(1)}" text-anchor="middle" font-size="9" fill="var(--text-subtle)">no plan</text>`;
-  }
-  // Direct end-labels on the last planned point of the last run.
-  const lastRun = runs[runs.length - 1];
-  const lastW = lastRun[lastRun.length - 1];
-  const endLabels =
-    `<text x="${(x(lastW.idx) + 5).toFixed(1)}" y="${(y(lastW.needed) + 3).toFixed(1)}" font-size="9" font-weight="600" fill="${RR_TGT_TREND_DEMAND}">Needed</text>` +
-    `<text x="${(x(lastW.idx) + 5).toFixed(1)}" y="${(y(lastW.avail) + (Math.abs(y(lastW.avail) - y(lastW.needed)) < 10 ? 12 : 3)).toFixed(1)}" font-size="9" font-weight="600" fill="${RR_TGT_TREND_SUPPLY}">Available</text>`;
-  // Hover slots: one transparent hit rect per week + a guide line.
-  let slots = "";
-  for (const w of weeks) {
-    const half = n <= 1 ? innerW : innerW / (n - 1) / 2;
-    const sx = Math.max(padL, x(w.idx) - half);
-    const sw = Math.min(W - padR, x(w.idx) + half) - sx;
-    slots += `<rect x="${sx.toFixed(1)}" y="${padT}" width="${sw.toFixed(1)}" height="${innerH}" fill="transparent" data-rr-trend-idx="${w.idx}"/>`;
-  }
-
-  host.innerHTML = `
-    <div class="rr-tgt-trend-head">
-      <div class="rr-tgt-trend-legend">
-        <span><i style="background:${RR_TGT_TREND_DEMAND}"></i>Drivers needed</span>
-        <span><i style="background:${RR_TGT_TREND_SUPPLY}"></i>Available (route-ready)</span>
-        <span><i style="background:rgba(220,38,38,.25)"></i>Shortfall</span>
-      </div>
-      ${trendToggle}
-    </div>
-    <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Needed versus available drivers across the 13-week plan">
-      ${zones}${grid}${shortfall}${paths}${endLabels}
-      <line id="rr-tgt-trend-guide" y1="${padT}" y2="${padT + innerH}" stroke="var(--border-strong)" stroke-width="1" visibility="hidden"/>
-      ${slots}
-    </svg>
-    <div class="rr-tgt-trend-tip" hidden></div>`;
-}
-
-// Trend collapse toggle · flips the persisted flag and re-renders.
-document.addEventListener("click", (e) => {
-  const t = e.target.closest && e.target.closest("[data-rr-trend-toggle]");
-  if (!t) return;
-  e.preventDefault();
-  try {
-    const k = "rr_tgt_trend_collapsed";
-    localStorage.setItem(k, localStorage.getItem(k) === "1" ? "0" : "1");
-  } catch (_) {}
-  _rrOkamiRenderTrend();
-});
-
 // Targets header · ⋯ menu holding the secondary plan tools (Seed empty
 // weeks / Snapshots / CSV / Print — calm pass). The tool buttons keep their
 // ids, so their existing delegated handlers fire on the same click; the
@@ -53228,50 +53083,6 @@ document.addEventListener("keydown", (e) => {
     menu.hidden = true;
     document.getElementById("rr-tgt-more-btn")?.setAttribute("aria-expanded", "false");
   }
-});
-
-// Hover tooltip for the trend chart (delegated; markup re-renders freely).
-document.addEventListener("pointerover", (e) => {
-  const slot = e.target.closest && e.target.closest("[data-rr-trend-idx]");
-  const host = document.getElementById("rr-tgt-trend");
-  if (!host) return;
-  const tip = host.querySelector(".rr-tgt-trend-tip");
-  const guide = document.getElementById("rr-tgt-trend-guide");
-  if (!slot) { if (tip && !tip.hidden && !host.contains(e.target)) { tip.hidden = true; guide?.setAttribute("visibility", "hidden"); } return; }
-  const w = window._rrOkamiModel?.weeks?.[parseInt(slot.dataset.rrTrendIdx, 10)];
-  if (!w || !tip) return;
-  tip.innerHTML = w.unplanned
-    ? `<b>${escapeHtml(w.label)}</b> · ${escapeHtml(w.dates)}<br>No plan yet`
-    : `<b>${escapeHtml(w.label)}</b> · ${escapeHtml(w.dates)}<br>Needed ${w.needed} · Available ${w.avail} · Gap ${w.gap >= 0 ? "+" : ""}${w.gap}`;
-  tip.hidden = false;
-  const slotRect = slot.getBoundingClientRect();
-  const hostRect = host.getBoundingClientRect();
-  const cx = slotRect.left + slotRect.width / 2 - hostRect.left;
-  tip.style.left = Math.max(4, Math.min(cx - tip.offsetWidth / 2, hostRect.width - tip.offsetWidth - 4)) + "px";
-  tip.style.top = "26px";
-  if (guide) {
-    const svg = guide.closest("svg");
-    const svgRect = svg.getBoundingClientRect();
-    const gx = slotRect.left + slotRect.width / 2 - svgRect.left;
-    guide.setAttribute("x1", gx);
-    guide.setAttribute("x2", gx);
-    guide.setAttribute("visibility", "visible");
-  }
-});
-document.addEventListener("pointerout", (e) => {
-  const host = document.getElementById("rr-tgt-trend");
-  if (!host || (e.relatedTarget && host.contains(e.relatedTarget))) return;
-  const tip = host.querySelector(".rr-tgt-trend-tip");
-  if (tip) tip.hidden = true;
-  document.getElementById("rr-tgt-trend-guide")?.setAttribute("visibility", "hidden");
-});
-let _rrTrendResizeTimer = null;
-window.addEventListener("resize", () => {
-  if (_rrTrendResizeTimer) clearTimeout(_rrTrendResizeTimer);
-  _rrTrendResizeTimer = setTimeout(() => {
-    const host = document.getElementById("rr-tgt-trend");
-    if (host && !host.hidden) _rrOkamiRenderTrend();
-  }, 200);
 });
 
 // "Drivers needed" header ⓘ — the formula with the DSP's live numbers,
@@ -53524,18 +53335,16 @@ async function _renderOkamiLiveImpl() {
 
     // Routes per day across the week → peak (drives staffing) + total.
     let routesMax = 0, weekRoutes = 0;
-    const dayVals = [];
     for (let d = 0; d < 7; d++) {
       const iso = fmtIsoDate(addDays(weekStart, d));
       const t = totalsByDate.get(iso) || 0;
-      dayVals.push(t);
       weekRoutes += t;
       if (t > routesMax) routesMax = t;
     }
     // Peak-day route mix (standard vs XL) — XL routes staff 4 drivers each
     // (2 XL-certified + 2 helpers) so a busy XL day can set demand above a
     // higher plain-route day. routesMax stays the total-route peak for the
-    // editable input + sparkline; the mix drives the Needed number.
+    // editable input; the mix drives the Needed number.
     const { mix: weekMix } = _rrOkamiWeekMix(weekStart, _fcDpr, totalsByDate, xlByDate, helperByDate);
     // A week with zero routes has no plan — rendering it as a healthy
     // green surplus made "no data" look like "covered through October".
@@ -53615,20 +53424,6 @@ async function _renderOkamiLiveImpl() {
       input.title = "Type a value to set all 7 days. Use the drill-down panel for per-day variation.";
       input.setAttribute("aria-label", `Peak routes per day, week of ${fmtMD(weekStart)}`);
       input.dataset.rrOkamiWeekIdx = String(w);
-    }
-
-    // 7-day sparkline next to the Routes input — the week's shape at a
-    // glance (flat vs weekend-heavy vs one-day spike). Peak day accented.
-    const sparkSlot = row.querySelector(".rr-tgt-spark-slot");
-    if (sparkSlot) {
-      if (unplanned) {
-        sparkSlot.innerHTML = "";
-      } else {
-        const sparkTitle = RR_DAY_SHORT.map((nm, i) => `${nm} ${dayVals[i]}`).join(" · ");
-        sparkSlot.innerHTML = `<span class="rr-tgt-spark" title="${escapeHtml(sparkTitle)}">` +
-          dayVals.map((v) => `<i style="height:${Math.max(2, Math.round((v / Math.max(routesMax, 1)) * 14))}px${v === routesMax ? ";background:var(--rr-blue-600)" : ""}"></i>`).join("") +
-          `</span>`;
-      }
     }
 
     // Demand context: the formula with live numbers + avg-day + type mix,
@@ -53741,7 +53536,6 @@ async function _renderOkamiLiveImpl() {
       : null,
   };
   _rrOkamiRenderTfoot();
-  try { _rrOkamiRenderTrend(); } catch (_) { /* chart host is Targets-only */ }
 
   // Keep the Targets gap card in lockstep with the fresh model.
   try { if (typeof _rrRefreshTargetsGapCard === "function") _rrRefreshTargetsGapCard(); } catch (_) {}
@@ -54188,58 +53982,6 @@ document.addEventListener("click", (e) => {
         `Filled ${targets.length} week${targets.length === 1 ? "" : "s"} from ${src.label}`);
     }
   })();
-});
-
-// Bulk percent adjust — scales every demand bucket of the chosen week
-// range (peak ramps: "raise W32–W36 by 10%").
-function _rrOkamiAdjustHtml() {
-  const weeks = window._rrOkamiModel?.weeks || [];
-  const opts = weeks.map((w) => `<option value="${w.idx}">${escapeHtml(w.label)} · ${escapeHtml(w.dates)}</option>`).join("");
-  const optsLast = weeks.map((w) => `<option value="${w.idx}" ${w.idx === weeks.length - 1 ? "selected" : ""}>${escapeHtml(w.label)} · ${escapeHtml(w.dates)}</option>`).join("");
-  return `<div class="pa-pop-h">Adjust route plan</div>
-    <div style="padding:12px 14px;display:grid;gap:8px;font-size:var(--fs-sm)">
-      <label style="display:flex;align-items:center;justify-content:space-between;gap:8px">From <select class="form-input form-input-sm" id="rr-tgt-adj-from">${opts}</select></label>
-      <label style="display:flex;align-items:center;justify-content:space-between;gap:8px">To <select class="form-input form-input-sm" id="rr-tgt-adj-to">${optsLast}</select></label>
-      <label style="display:flex;align-items:center;justify-content:space-between;gap:8px">Change <span style="display:inline-flex;align-items:center;gap:4px"><input class="form-input form-input-sm" id="rr-tgt-adj-pct" type="number" step="1" min="-90" max="200" value="10" style="width:70px;text-align:right"/> %</span></label>
-      <button class="btn btn-primary btn-sm" type="button" data-rr-okami-adjust-apply>Apply</button>
-      <div style="font-size:var(--fs-xs);color:var(--text-subtle)">Scales every day (and wave) of each week. Undoable.</div>
-    </div>`;
-}
-document.addEventListener("click", (e) => {
-  const openBtn = e.target.closest && e.target.closest("#rr-tgt-adjust-btn");
-  if (openBtn) {
-    e.preventDefault();
-    if (typeof _paOpenPopover === "function") _paOpenPopover(openBtn, _rrOkamiAdjustHtml());
-    return;
-  }
-  const apply = e.target.closest && e.target.closest("[data-rr-okami-adjust-apply]");
-  if (!apply) return;
-  e.preventDefault();
-  const from = parseInt(document.getElementById("rr-tgt-adj-from")?.value ?? "0", 10) || 0;
-  const to = parseInt(document.getElementById("rr-tgt-adj-to")?.value ?? "0", 10) || 0;
-  const pct = parseInt(document.getElementById("rr-tgt-adj-pct")?.value ?? "0", 10) || 0;
-  if (typeof _paClosePop === "function") _paClosePop();
-  if (!pct) return;
-  const lo = Math.min(from, to), hi = Math.max(from, to);
-  const weeks = (window._rrOkamiModel?.weeks || []).filter((w) => w.idx >= lo && w.idx <= hi && !w.unplanned);
-  if (!weeks.length) { toast("No planned weeks in that range", "warn"); return; }
-  const buckets = window._rrOkamiBucketsByDate || new Map();
-  const factor = 1 + pct / 100;
-  const writes = [];
-  for (const wk of weeks) {
-    for (let d = 0; d < 7; d++) {
-      const iso = _rrOkamiWeekIso(wk.idx, d);
-      for (const b of buckets.get(iso) || []) {
-        if (!b.value) continue;
-        const nv = Math.max(0, Math.round(b.value * factor));
-        if (nv === b.value) continue;
-        writes.push({ iso, stationId: b.stationId, waveIndex: b.waveIndex || 0, serviceTypeId: b.serviceTypeId || null, value: nv, prev: b.value });
-      }
-    }
-  }
-  if (!writes.length) { toast("Nothing to adjust in that range", "info"); return; }
-  const label = `${pct > 0 ? "+" : ""}${pct}% on ${weeks[0].label}–${weeks[weeks.length - 1].label}`;
-  _rrOkamiCommitOp(writes, label);
 });
 
 // Seed empty weeks from history — trailing 4 weeks' per-weekday average

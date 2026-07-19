@@ -2472,7 +2472,6 @@
                   <span class="rr-tgt-gap-card-sub" id="rr-tgt-gap-card-sub" hidden></span>
                   <span class="rr-tgt-gap-card-link" id="rr-tgt-gap-card-link" hidden>View analysis →</span>
                 </div>
-                <button class="btn btn-sm" type="button" id="rr-tgt-adjust-btn" title="Scale a range of weeks by a percentage (every day and wave, undoable)">Adjust…</button>
                 <!-- Secondary plan tools · one quiet ⋯ menu (calm pass) — the
                      buttons keep their ids, so the existing delegated click
                      handlers in live.js work unchanged. -->
@@ -2487,10 +2486,6 @@
                 </div>
               </div>
             </div>
-            <!-- Needed-vs-available trend · rendered by _rrOkamiRenderTrend
-                 from the published 13-week model; hidden until ≥2 weeks
-                 have a plan. -->
-            <div id="rr-tgt-trend" class="rr-tgt-trend" hidden></div>
             <div id="rr-sched-targets-13week-host">
               <div class="rr-tgt-13w-empty">Loading 13-week plan…</div>
             </div>
