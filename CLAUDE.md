@@ -135,11 +135,37 @@ NOT on the subscription, or All-mode loses cross-station updates.
   DBO5, list [DCA1,DBO5], "Added DBO5.", switcher REVEALS w/o reload, menu =
   All/DCA1/DBO5 → invalid code "x" rejected with a helpful message. No errors.
 
-**NEXT:** **bans** (scope by driver_stations membership, same helper), then
-drivers detail/onboarding/broadcast. Then P3 server `p_station_id` (Today KPI
-tiles/coverage, okami/targets, generate_shifts, roster counts), P4 All-mode
-per-station breakdowns. Reuse `_rrDriverIdsAtStation` for any driver-list
-surface. Branch claude/multi-station-toggle-2pljie (PR #4037).
+**MERGED — PR #4037** (squash 1e71350): Phase 1 lens + Settings Stations
+manager + schedule/staff/today/roster scoping + migration 0525. This is LIVE
+on main. Branch reset from main for follow-ups (new PR each time).
+
+**SHIPPED — Drivers sub-views + toggle-freshness (post-merge, new branch):**
+- No dedicated "bans" surface exists (searched: ban/DNR/blocklist/ineligible
+  are scheduling states, not a page; broadcast already has its own station:<id>
+  audience pills). Don't build a phantom bans page.
+- **Drivers page sub-views** now scope like the roster (same page → must be
+  consistent): `loadDriverLicensesView` (added station_id to select, membership
+  filter via `_rrDriverIdsAtStation` + station_id fallback) and
+  `loadDriverWorkAuthView` (i9_list rows carry driver_id + station_code →
+  membership filter by driver_id, station_code fallback). refreshActiveView
+  already routes view-drivers → the active sub, so they refresh on toggle.
+- **Toggle now re-renders ALL of the CURRENTLY-VISIBLE surface** (operator
+  report: "all pages need to be fresh when you toggle"). `_rrSetStationScope`
+  → new `_rrRerenderForScope()`: on view-schedule it re-runs loadScheduleView
+  (week grid) AND `window.schedSub(_rrCurSchedSub)` for the active NON-week sub
+  (Today/Targets/Monthly/… — schedSub only toggles week visibility, doesn't
+  re-fetch it, so drive the loader for week directly); view-okami →
+  loadOkamiView; else refreshActiveView (covers dashboard/drivers+subs/
+  onboarding/pipeline/fleet). Non-active pages re-fetch on next visit (loaders
+  always re-query). Browser-QA'd: toggling WHILE ON the schedule Today sub now
+  re-renders it fresh (scope B = Bob, toggle to A = Alice); week grid 2→1 chips;
+  no errors.
+
+**NEXT:** onboarding roster + broadcast audience (sync to the lens), attendance
+report. Then P3 server `p_station_id` (Today KPI tiles/coverage, okami/targets,
+generate_shifts, roster counts), P4 All-mode per-station breakdowns. Reuse
+`_rrDriverIdsAtStation` for any driver-list surface. Branch reset from main per
+follow-up; open a NEW PR (the old one merged).
 
 ## Active task: Staffing model — XL-route demand (branch claude/staffing-driver-requirements-1tw30l)
 

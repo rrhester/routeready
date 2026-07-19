@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=cb122d866932";
-import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=cb122d866932";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=cb122d866932";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=cb122d866932";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=cb122d866932";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=cb122d866932";
-import { isChecklistComplete } from "./checklist-core.mjs?v=cb122d866932";
+import { planScheduleWeek } from "./scheduling-engine.js?v=1e71350a4e25";
+import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=1e71350a4e25";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=1e71350a4e25";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=1e71350a4e25";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=1e71350a4e25";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=1e71350a4e25";
+import { isChecklistComplete } from "./checklist-core.mjs?v=1e71350a4e25";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=cb122d866932";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=cb122d866932";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=cb122d866932";
+} from "./msg-core.mjs?v=1e71350a4e25";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=1e71350a4e25";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=1e71350a4e25";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -1011,18 +1011,42 @@ function _rrSetStationScope(next, { silent = false } = {}) {
   try {
     window.dispatchEvent(new CustomEvent("rr:station-changed", { detail: rrStationScope() }));
   } catch (_) {}
-  // Re-render the active view so the new lens takes effect immediately.
-  // The schedule + targets views reload through their own loaders (which
-  // refreshActiveView doesn't drive — see the focus listener that mirrors
-  // this), so route to them explicitly; everything else re-renders through
-  // refreshActiveView. Views that don't yet read the scope simply repaint
-  // identically (harmless) until their phase lands.
-  try {
-    const v = document.querySelector(".view.active")?.id;
-    if (v === "view-schedule" && typeof loadScheduleView === "function") loadScheduleView();
-    else if (v === "view-okami" && typeof loadOkamiView === "function") loadOkamiView();
-    else if (typeof refreshActiveView === "function") refreshActiveView();
-  } catch (_) {}
+  // Re-render the CURRENTLY-VISIBLE surface so the new lens takes effect
+  // immediately — the operator must see a fresh, scoped page the instant
+  // they switch stations, not stale data from the previous one. Non-active
+  // pages re-fetch + re-filter on their next visit (every loader re-queries),
+  // so this only has to cover what's on screen right now.
+  _rrRerenderForScope();
+}
+
+// Fully re-render whatever view + sub-view is on screen for a scope change.
+// The schedule and targets views reload through their own loaders (which
+// refreshActiveView deliberately doesn't drive), and the schedule's SUB-views
+// (Today / Roster / Requests / Targets / Monthly) each have their own renderer
+// reached via schedSub — so route through all of them, not just the week grid.
+// Everything else (dashboard, drivers + its sub-views, onboarding, pipeline,
+// fleet…) re-renders through refreshActiveView.
+function _rrRerenderForScope() {
+  let v = null;
+  try { v = document.querySelector(".view.active")?.id; } catch (_) {}
+  if (v === "view-schedule") {
+    // Week grid (also covers staff mode) — schedSub only toggles the week
+    // sub's visibility, it doesn't re-fetch it, so drive the loader directly.
+    try { if (typeof loadScheduleView === "function") loadScheduleView(); } catch (_) {}
+    // …then re-run the active NON-week sub-view's own renderer.
+    try {
+      const sub = (typeof _rrCurSchedSub === "string" && _rrCurSchedSub) || "week";
+      if (sub !== "week" && sub !== "staff" && typeof window.schedSub === "function") {
+        window.schedSub(sub);
+      }
+    } catch (_) {}
+    return;
+  }
+  if (v === "view-okami") {
+    try { if (typeof loadOkamiView === "function") loadOkamiView(); } catch (_) {}
+    return;
+  }
+  try { if (typeof refreshActiveView === "function") refreshActiveView(); } catch (_) {}
 }
 
 function _rrWireStationSwitch() {
@@ -22232,8 +22256,8 @@ async function loadDriverLicensesView() {
   // while the live select is in flight.
   body.innerHTML = _drSkelList(7);
 
-  const { data: rows, error } = await sb.from("drivers")
-    .select("id, full_name, station:station_id (code), dl_number, dl_expires_on, status")
+  let { data: rows, error } = await sb.from("drivers")
+    .select("id, full_name, station_id, station:station_id (code), dl_number, dl_expires_on, status")
     .eq("dsp_id", window.RR.dsp.id)
     .not("dl_expires_on", "is", null)
     .order("dl_expires_on", { ascending: true })
@@ -22242,6 +22266,15 @@ async function loadDriverLicensesView() {
   if (error) {
     body.innerHTML = _rosterEmpty({ error: true, title: "Couldn't load licenses", body: escapeHtml(error.message) });
     return;
+  }
+  // Station scope · same driver_stations membership lens as the roster
+  // (falls back to the primary station_id pre-migration). All = untouched.
+  {
+    const _scope = (typeof rrStationScopeId === "function") ? rrStationScopeId() : null;
+    if (_scope) {
+      const ids = await _rrDriverIdsAtStation(_scope);
+      rows = ids ? (rows || []).filter((d) => ids.has(d.id)) : (rows || []).filter((d) => d.station_id === _scope);
+    }
   }
   // Licenses tab only surfaces drivers whose license is expiring within
   // the next 30 days (or already expired). Anything valid past that
@@ -38757,7 +38790,19 @@ async function loadDriverWorkAuthView() {
   queueEl.innerHTML = _i9QueueSkeleton();
   const { data, error } = await sb.rpc("i9_list");
   if (error) { queueEl.innerHTML = `<div class="dr-empty"><h3>Couldn't load</h3><p>${escapeHtml(error.message || "")}</p></div>`; return; }
-  const rows = Array.isArray(data) ? data : [];
+  let rows = Array.isArray(data) ? data : [];
+  // Station scope · driver_stations membership by driver_id (i9_list rows
+  // carry driver_id + station_code), falling back to the primary station_code
+  // pre-migration. "All stations" leaves the queue untouched.
+  {
+    const _scope = (typeof rrStationScopeId === "function") ? rrStationScopeId() : null;
+    if (_scope) {
+      const ids  = await _rrDriverIdsAtStation(_scope);
+      const code = ((typeof _rrStationList !== "undefined" ? _rrStationList : [])
+        .find((s) => s.id === _scope) || {}).code || null;
+      rows = rows.filter((r) => (ids && r.driver_id) ? ids.has(r.driver_id) : (code ? r.station_code === code : true));
+    }
+  }
   // Annotate + bucket.
   const grouped = {}; _I9_BUCKETS.forEach(b => grouped[b.key] = []);
   let overdueCount = 0;
