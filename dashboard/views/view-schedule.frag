@@ -1891,6 +1891,13 @@
                 <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>
               </button>
               <div class="rr-ab-menu" id="rr-ab-menu" role="menu" hidden>
+                <!-- DSP-wide scheduling rules · fires the (hidden legacy
+                     ribbon) #rr-schedrules-open button, whose live.js handler
+                     opens the Schedule rules drawer. This is the VISIBLE
+                     entry point — the ribbon button itself lives in the
+                     hidden .sched-nav-heading. Distinct from the Build
+                     Schedule caret, which opens Smart Fill rules. -->
+                <button type="button" role="menuitem" data-rr-ab-fire="rr-schedrules-open">Schedule rules (hours, pay, geofences)</button>
                 <button type="button" role="menuitem" data-rr-ab-fire="rr-sched-print-btn">Print schedule</button>
                 <button type="button" role="menuitem" data-rr-ab-fire="rr-sched-download-btn">Download Excel</button>
               </div>
