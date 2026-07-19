@@ -1,15 +1,28 @@
 // Schedule-stability simulation.
 //
-// Rolls a FIXED roster of N drivers forward over W weeks, feeding each week's
+// Rolls a roster of N drivers forward over W weeks, feeding each week's
 // assignments back in as history, and measures how often a driver keeps the
 // SAME working weekdays from one week to the next. This is the real meaning of
 // "do schedules stay the same" — the engine itself is deterministic (identical
 // inputs -> byte-identical output), so the interesting question is week-over-
 // week churn, which R012 historical-pattern protection is built to suppress.
 //
+// Three optional dimensions layer on top of the base weekday-stability run:
+//   • attrition — each week a fraction of drivers separate and are replaced by
+//     fresh (cold-start, no-history) hires. Stability is then reported over
+//     TENURED drivers (active in both weeks) so separations don't masquerade
+//     as churn, alongside the roster-turnover rate itself.
+//   • availability — each driver gets a FIXED set of available weekdays
+//     (saved_availability + availability_enforcement). Structural constraint:
+//     a driver can only ever work their available days.
+//   • route-type (pairing) stability — for cells a driver works in two
+//     consecutive weeks, how often the ROUTE TYPE (standard/xl) is the same.
+//
 // Run:  node --experimental-strip-types engine/sim/schedule-stability.mts
 //   flags: --drivers=100 --weeks=12 --demand=0.85 --protection=high --seed=1
-//          --xl=0.12  (fraction of routes that are XL)
+//          --xl=0.12          fraction of routes that are XL
+//          --attrition=0.02   weekly separation rate (0 = fixed roster)
+//          --availability     enable per-driver fixed available-day profiles
 //   Pass --protection=off to see the un-stabilised baseline for comparison.
 
 import { runEngine } from "../src/index.ts";
@@ -20,6 +33,7 @@ import type {
   HistoryShift,
   PatternStrength,
   ShiftInput,
+  WeeklyAvailability,
 } from "../src/types.ts";
 
 // ---------------------------------------------------------------------------
@@ -29,11 +43,15 @@ function arg(name: string, dflt: string): string {
   const hit = process.argv.find((a) => a.startsWith(`--${name}=`));
   return hit ? hit.split("=").slice(1).join("=") : dflt;
 }
+const flag = (name: string) => process.argv.includes(`--${name}`);
+
 const N_DRIVERS = parseInt(arg("drivers", "100"), 10);
 const N_WEEKS = parseInt(arg("weeks", "12"), 10);
 const DEMAND = parseFloat(arg("demand", "0.85")); // routes as a fraction of full 6-day capacity
 const XL_FRAC = parseFloat(arg("xl", "0.12"));
 const PROTECTION = arg("protection", "high") as PatternStrength;
+const ATTRITION = parseFloat(arg("attrition", "0")); // weekly separation rate
+const USE_AVAIL = flag("availability");
 const SEED = parseInt(arg("seed", "1"), 10);
 
 // ---------------------------------------------------------------------------
@@ -51,54 +69,68 @@ function mulberry32(a: number) {
 }
 const rnd = mulberry32(SEED);
 const randInt = (lo: number, hi: number) => lo + Math.floor(rnd() * (hi - lo + 1));
-const pick = <T,>(xs: T[]): T => xs[Math.floor(rnd() * xs.length)];
 
 // ---------------------------------------------------------------------------
-// Roster — fixed for the whole run
+// Driver factory. A monotonic counter keeps ids unique as hires replace
+// separations, so history never collides across a recycled slot.
 // ---------------------------------------------------------------------------
-function buildRoster(n: number): DriverInput[] {
-  const drivers: DriverInput[] = [];
-  for (let i = 0; i < n; i++) {
-    const id = `d${String(i + 1).padStart(3, "0")}`;
-    const partTime = rnd() < 0.18;
-    drivers.push({
-      driver_id: id,
-      first_name: "Driver",
-      last_name: id,
-      status: "active",
-      employment_type: partTime ? "part_time" : "full_time",
-      hire_date: `20${randInt(18, 25)}-0${randInt(1, 9)}-1${randInt(0, 9)}`,
-      license_expiration_date: "2030-01-01",
-      xl_certified: rnd() < 0.35,
-      // Attendance clustered high, with a tail of weaker drivers.
-      attendance_score: Math.min(100, Math.round(70 + rnd() * 30 - (rnd() < 0.15 ? 30 : 0))),
-    });
+const OP_DAYS = [1, 2, 3, 4, 5, 6]; // Mon..Sat as offsets from the Sunday week start
+const ALLDAY: WeeklyAvailability[string] = [{ start: "00:00", end: "23:59" }];
+
+let nextId = 0;
+function makeDriver(): DriverInput {
+  const id = `d${String(++nextId).padStart(4, "0")}`;
+  const partTime = rnd() < 0.18;
+
+  let saved: WeeklyAvailability | null = null;
+  if (USE_AVAIL) {
+    // Full-timers available 5–6 weekdays, part-timers 3–4. Choose which of the
+    // six operating weekdays are available; this profile is FIXED for the
+    // driver's whole tenure (that is the structural stability floor).
+    const nAvail = partTime ? randInt(3, 4) : randInt(5, 6);
+    const pool = [...OP_DAYS];
+    // shuffle (Fisher–Yates with the seeded rng)
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(rnd() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    saved = {};
+    for (const off of pool.slice(0, nAvail)) saved[String(off % 7)] = ALLDAY;
   }
-  return drivers;
+
+  return {
+    driver_id: id,
+    first_name: "Driver",
+    last_name: id,
+    status: "active",
+    employment_type: partTime ? "part_time" : "full_time",
+    hire_date: `20${randInt(18, 25)}-0${randInt(1, 9)}-1${randInt(0, 9)}`,
+    license_expiration_date: "2030-01-01",
+    xl_certified: rnd() < 0.35,
+    attendance_score: Math.min(100, Math.round(70 + rnd() * 30 - (rnd() < 0.15 ? 30 : 0))),
+    saved_availability: saved,
+  };
 }
+
+let roster: DriverInput[] = Array.from({ length: N_DRIVERS }, makeDriver);
 
 // ---------------------------------------------------------------------------
 // Weekly open shifts. Mon–Sat operating week (skip Sunday). Demand per day is
-// a fraction of full driver capacity, with small week-to-week noise so the
-// simulation isn't a fixed template the engine could trivially memorise.
+// a fraction of full driver capacity, with small week-to-week noise.
 // ---------------------------------------------------------------------------
-const OP_DAYS = [1, 2, 3, 4, 5, 6]; // Mon..Sat as offsets from the Sunday week start
-
-function buildWeekShifts(weekStart: string, roster: DriverInput[]): ShiftInput[] {
-  const fullPerDay = Math.round(roster.length); // 1 route/driver/day = full capacity
+function buildWeekShifts(weekStart: string, size: number): ShiftInput[] {
   const shifts: ShiftInput[] = [];
   let seq = 0;
   for (const off of OP_DAYS) {
     const date = addDays(weekStart, off);
     const noise = 0.9 + rnd() * 0.2; // ±10%
-    const routes = Math.max(1, Math.round(fullPerDay * DEMAND * noise));
+    const routes = Math.max(1, Math.round(size * DEMAND * noise));
     for (let r = 0; r < routes; r++) {
-      const xl = rnd() < XL_FRAC;
       shifts.push({
         shift_id: `${date}-r${seq++}`,
         date,
         start_time: `${date}T09:00`,
-        route_type: xl ? "xl" : "standard",
+        route_type: rnd() < XL_FRAC ? "xl" : "standard",
       });
     }
   }
@@ -106,21 +138,35 @@ function buildWeekShifts(weekStart: string, roster: DriverInput[]): ShiftInput[]
 }
 
 // ---------------------------------------------------------------------------
-// Run the rolling simulation
+// Roll the rolling simulation forward
 // ---------------------------------------------------------------------------
-const roster = buildRoster(N_DRIVERS);
 const WEEK0 = "2026-01-04"; // a Sunday
 const HISTORY_WINDOW = 8;
 
-// history accumulates real assignments; we keep ~window weeks of it
 let history: HistoryShift[] = [];
-// per-week per-driver set of weekdays worked (0=Sun..6=Sat)
-const weekdaySets: Array<Map<string, Set<number>>> = [];
+interface WeekSnap {
+  active: Set<string>; // driver ids on the roster this week
+  days: Map<string, Set<number>>; // id -> weekdays worked
+  route: Map<string, Map<number, string>>; // id -> (dow -> route_type)
+}
+const snaps: WeekSnap[] = [];
 const coverage: Array<{ total: number; filled: number }> = [];
+let totalSeparations = 0;
 
 for (let w = 0; w < N_WEEKS; w++) {
+  // Attrition: separate drivers, then backfill to hold roster size.
+  if (w > 0 && ATTRITION > 0) {
+    const kept: DriverInput[] = [];
+    for (const d of roster) {
+      if (rnd() < ATTRITION) totalSeparations++;
+      else kept.push(d);
+    }
+    while (kept.length < N_DRIVERS) kept.push(makeDriver());
+    roster = kept;
+  }
+
   const weekStart = addDays(WEEK0, w * 7);
-  const shifts = buildWeekShifts(weekStart, roster);
+  const shifts = buildWeekShifts(weekStart, roster.length);
 
   const input: EngineInput = {
     schedule_week_start: weekStart,
@@ -133,32 +179,37 @@ for (let w = 0; w < N_WEEKS; w++) {
       target_days_per_week: 5,
       scheduling_method: "fair_rotation",
       weekly_hour_cap: 60,
+      availability_enforcement: USE_AVAIL,
     },
   };
 
   const res = runEngine(input);
 
-  // record weekday set per driver + build this week's history rows
-  const dayset = new Map<string, Set<number>>();
+  const days = new Map<string, Set<number>>();
+  const route = new Map<string, Map<number, string>>();
   const newHistory: HistoryShift[] = [];
-  const shiftDate = new Map(shifts.map((s) => [s.shift_id, s.date]));
+  const shiftMeta = new Map(shifts.map((s) => [s.shift_id, s]));
   for (const a of res.assigned_shifts) {
-    const date = shiftDate.get(a.shift_id)!;
-    if (!dayset.has(a.driver_id)) dayset.set(a.driver_id, new Set());
-    dayset.get(a.driver_id)!.add(dayOfWeek(date));
-    newHistory.push({ driver_id: a.driver_id, date, duration_hours: 10 });
+    const s = shiftMeta.get(a.shift_id)!;
+    const dow = dayOfWeek(s.date);
+    if (!days.has(a.driver_id)) days.set(a.driver_id, new Set());
+    days.get(a.driver_id)!.add(dow);
+    if (!route.has(a.driver_id)) route.set(a.driver_id, new Map());
+    route.get(a.driver_id)!.set(dow, s.route_type);
+    newHistory.push({ driver_id: a.driver_id, date: s.date, duration_hours: 10 });
   }
-  weekdaySets.push(dayset);
+
+  snaps.push({ active: new Set(roster.map((d) => d.driver_id)), days, route });
   coverage.push({ total: res.summary_metrics.total_shifts, filled: res.summary_metrics.filled_shifts });
 
-  // roll history forward, keep only the last HISTORY_WINDOW weeks
   history = [...history, ...newHistory].filter(
     (h) => (Date.parse(weekStart) - Date.parse(h.date)) / 86400000 <= HISTORY_WINDOW * 7,
   );
 }
 
 // ---------------------------------------------------------------------------
-// Stability metrics — compare each week against the previous week
+// Stability metrics — compare each week against the previous week, over
+// drivers TENURED across both weeks (present on both rosters).
 // ---------------------------------------------------------------------------
 function jaccard(a: Set<number>, b: Set<number>): number {
   if (a.size === 0 && b.size === 0) return 1;
@@ -168,53 +219,68 @@ function jaccard(a: Set<number>, b: Set<number>): number {
 }
 
 let pairCount = 0;
-let identical = 0; // same exact weekday set
-let sameCount = 0; // same NUMBER of days (schedule "size" unchanged)
+let identical = 0;
+let sameCount = 0;
 let jSum = 0;
 let daysChanged = 0;
+let routeCells = 0;
+let routeSame = 0;
 
-for (let w = 1; w < weekdaySets.length; w++) {
-  const prev = weekdaySets[w - 1];
-  const cur = weekdaySets[w];
-  for (const d of roster) {
-    const a = prev.get(d.driver_id) ?? new Set<number>();
-    const b = cur.get(d.driver_id) ?? new Set<number>();
+for (let w = 1; w < snaps.length; w++) {
+  const prev = snaps[w - 1];
+  const cur = snaps[w];
+  for (const id of cur.active) {
+    if (!prev.active.has(id)) continue; // new hire — no prior week to compare
+    const a = prev.days.get(id) ?? new Set<number>();
+    const b = cur.days.get(id) ?? new Set<number>();
     pairCount++;
     const j = jaccard(a, b);
     jSum += j;
     if (j === 1) identical++;
     if (a.size === b.size) sameCount++;
-    // symmetric difference size
     let diff = 0;
     for (const x of a) if (!b.has(x)) diff++;
     for (const x of b) if (!a.has(x)) diff++;
     daysChanged += diff;
+    // route-type consistency on days worked in BOTH weeks
+    const ra = prev.route.get(id);
+    const rb = cur.route.get(id);
+    if (ra && rb) {
+      for (const dow of a) {
+        if (b.has(dow)) {
+          routeCells++;
+          if (ra.get(dow) === rb.get(dow)) routeSame++;
+        }
+      }
+    }
   }
 }
 
-// "sticky day" view: for each (driver, weekday) how consistently is it worked?
-const dowWorked = new Map<string, number[]>(); // driver -> count per dow
-for (const set of weekdaySets) {
-  for (const [id, days] of set) {
+// Routine adherence across the run: what fraction of a driver's worked days
+// each week are "core" days (worked in ≥75% of the weeks they were active).
+const activeWeeks = new Map<string, number>();
+const dowWorked = new Map<string, number[]>();
+for (const snap of snaps) {
+  for (const id of snap.active) activeWeeks.set(id, (activeWeeks.get(id) ?? 0) + 1);
+  for (const [id, days] of snap.days) {
     if (!dowWorked.has(id)) dowWorked.set(id, new Array(7).fill(0));
     for (const dow of days) dowWorked.get(id)![dow]++;
   }
 }
-// a driver's "core days" = weekdays worked in >=75% of weeks; measure what
-// fraction of their working days each week are core days (routine adherence)
-let coreAdherenceNum = 0;
-let coreAdherenceDen = 0;
+let coreNum = 0;
+let coreDen = 0;
 for (const [id, counts] of dowWorked) {
+  const wk = activeWeeks.get(id) ?? 1;
   const core = new Set<number>();
   counts.forEach((c, dow) => {
-    if (c / N_WEEKS >= 0.75) core.add(dow);
+    if (c / wk >= 0.75) core.add(dow);
   });
-  for (const set of weekdaySets) {
-    const days = set.get(id);
-    if (!days || days.size === 0) continue;
+  for (const snap of snaps) {
+    const days = snap.days.get(id);
+    if (!days) continue;
     for (const dow of days) {
-      coreAdherenceDen++;
-      if (core.has(dow)) coreAdherenceNum++;
+      coreDen++;
+      if (core.has(dow)) coreNum++;
     }
   }
 }
@@ -227,35 +293,42 @@ const avgCov =
   coverage.reduce((s, c) => s + (c.total ? c.filled / c.total : 1), 0) / coverage.length;
 const avgFilled = coverage.reduce((s, c) => s + c.filled, 0) / coverage.length;
 const avgDaysPerDriver =
-  weekdaySets.reduce((s, set) => {
+  snaps.reduce((s, snap) => {
     let t = 0;
-    for (const days of set.values()) t += days.size;
-    return s + t / roster.length;
-  }, 0) / weekdaySets.length;
+    for (const days of snap.days.values()) t += days.size;
+    return s + t / snap.active.size;
+  }, 0) / snaps.length;
 
 console.log("═".repeat(66));
 console.log(" RouteReady — schedule-stability simulation");
 console.log("═".repeat(66));
+console.log(` roster: ${N_DRIVERS} drivers   weeks: ${N_WEEKS}   demand: ${pct(DEMAND)} of capacity`);
+console.log(` XL routes: ${pct(XL_FRAC)}   pattern-protection: ${PROTECTION}   seed: ${SEED}`);
 console.log(
-  ` roster: ${N_DRIVERS} drivers   weeks: ${N_WEEKS}   demand: ${pct(DEMAND)} of capacity`,
-);
-console.log(
-  ` XL routes: ${pct(XL_FRAC)}   pattern-protection: ${PROTECTION}   seed: ${SEED}`,
+  ` attrition: ${ATTRITION > 0 ? pct(ATTRITION) + "/wk" : "off"}   availability constraints: ${
+    USE_AVAIL ? "on" : "off"
+  }`,
 );
 console.log("─".repeat(66));
 console.log(` avg coverage           : ${pct(avgCov)}  (${avgFilled.toFixed(0)} routes/wk filled)`);
 console.log(` avg days worked/driver : ${avgDaysPerDriver.toFixed(2)} / week`);
+if (ATTRITION > 0) {
+  const perWk = totalSeparations / (N_WEEKS - 1);
+  console.log(
+    ` roster turnover        : ${totalSeparations} separations over ${N_WEEKS - 1} wks ` +
+      `(${perWk.toFixed(1)}/wk, ${pct(perWk / N_DRIVERS)} of roster/wk)`,
+  );
+}
 console.log("─".repeat(66));
-console.log(" WEEK-OVER-WEEK STABILITY (per driver, vs the previous week)");
+console.log(" WEEK-OVER-WEEK STABILITY" + (ATTRITION > 0 ? " (tenured drivers, vs prior week)" : " (per driver, vs prior week)"));
 console.log(`   identical weekday set : ${pct(identical / pairCount)}  ← schedule unchanged`);
 console.log(`   same # of days worked : ${pct(sameCount / pairCount)}`);
 console.log(`   mean day overlap (Jaccard): ${(jSum / pairCount).toFixed(3)}`);
 console.log(`   avg weekdays changed  : ${(daysChanged / pairCount).toFixed(2)} per driver/week`);
+console.log(`   same route type on repeated days: ${routeCells ? pct(routeSame / routeCells) : "n/a"}`);
 console.log("─".repeat(66));
 console.log(" ROUTINE ADHERENCE (across the whole run)");
 console.log(
-  `   worked days that are "core" days (worked in ≥75% of weeks): ${pct(
-    coreAdherenceNum / coreAdherenceDen,
-  )}`,
+  `   worked days that are "core" days (worked in ≥75% of active weeks): ${pct(coreNum / coreDen)}`,
 );
 console.log("═".repeat(66));
