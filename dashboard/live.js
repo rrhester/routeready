@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=db9d498a08bb";
-import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=db9d498a08bb";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=db9d498a08bb";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=db9d498a08bb";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=db9d498a08bb";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=db9d498a08bb";
-import { isChecklistComplete } from "./checklist-core.mjs?v=db9d498a08bb";
+import { planScheduleWeek } from "./scheduling-engine.js?v=5c151386295d";
+import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=5c151386295d";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=5c151386295d";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=5c151386295d";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=5c151386295d";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=5c151386295d";
+import { isChecklistComplete } from "./checklist-core.mjs?v=5c151386295d";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=db9d498a08bb";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=db9d498a08bb";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=db9d498a08bb";
+} from "./msg-core.mjs?v=5c151386295d";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=5c151386295d";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=5c151386295d";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -70193,12 +70193,18 @@ function _schedShiftChip(sh, extras) {
   // badge to keep the chip clean for single-type DSPs.
   const stCode = sh.service_type_code;
   const stColor = sh.service_type_color || "#2563EB";
+  // A helper/along seat reads as ONE plain "Helper" tag (below) and takes its
+  // route's color (dashed) — so the route-type + classification badges are
+  // suppressed on it. Otherwise a Helper-route helper would read the cryptic
+  // "HELPER HP" and an XL helper "XL HP"; the color already says which route,
+  // so the seat only needs to say it's the helper.
+  const isHelperSeat = sh.shift_kind === "helper";
   // Service-type badge is pinned to the chip's top-right corner (absolute,
   // see CSS .shift-chip-st-badge) rather than sitting inline in the route
   // eyebrow — inline made XL/HUB/ASU chips taller than other routes and
   // they took extra grid height. Corner placement keeps every chip the
   // same size.
-  const stCorner = (stCode && stCode !== "SP")
+  const stCorner = (stCode && stCode !== "SP" && !isHelperSeat)
     ? `<span class="shift-chip-st-badge" style="background:${escapeHtml(stColor)}20;color:${escapeHtml(stColor)}" title="${escapeHtml(sh.service_type_label || stCode)}">${escapeHtml(stCode)}</span>`
     : "";
   const stBadge = "";  // no longer rendered inline (moved to corner)
@@ -70217,7 +70223,7 @@ function _schedShiftChip(sh, extras) {
     rescue:   { t: "RE", c: "#DC2626", label: "Rescue" },
     nursery:  { t: "NU", c: "#0D9488", label: "Nursery" },
   };
-  let _rcDef = _isTrainingChip ? null : RC_BADGE[_rc];
+  let _rcDef = (_isTrainingChip || isHelperSeat) ? null : RC_BADGE[_rc];
   // A service-type badge (XL / HUB / …) already marks the route, so the
   // redundant "SP" standard tag is suppressed on those chips — an XL
   // route reads just "XL", not "SP XL". Rescue / Nursery still tag
@@ -70226,12 +70232,12 @@ function _schedShiftChip(sh, extras) {
   const classCorner = _rcDef
     ? `<span class="shift-chip-class-badge" style="background:${_rcDef.c}20;color:${_rcDef.c}" title="${escapeHtml(_rcDef.label)} route">${_rcDef.t}</span>`
     : "";
-  // Helper seat corner badge — the second body on an XL route (rides along,
-  // no XL cert). A 2-letter "HP" tag in the same corner language as SP/XL so
-  // an XL route reads "XL HP" and the operator can tell the certified driver
-  // seat from the helper seat at a glance.
-  const helperCorner = sh.shift_kind === "helper"
-    ? `<span class="shift-chip-helper-badge" title="Helper seat — rides along an XL route (no XL certification required)">HP</span>`
+  // Helper seat corner badge — the second body riding along a route (no cert
+  // required). Spelled out as "Helper" (not the old cryptic "HP") so the chip
+  // reads plainly; its route color + dashed border already say which route it
+  // rides, so this is the only badge the helper seat carries.
+  const helperCorner = isHelperSeat
+    ? `<span class="shift-chip-helper-badge" title="Helper seat — rides along the route (no certification required)">Helper</span>`
     : "";
   // Corner tags share one flex wrapper pinned top-right so an XL standard
   // route reads "SP XL" without the two badges overlapping; the service-type

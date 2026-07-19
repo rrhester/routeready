@@ -26977,20 +26977,6 @@ body.rr-cmdk-open{ overflow:hidden }
   margin:6px 0 0;
 }
 #rr-sched-colors-popover #rr-sched-routecolor-legend > .rr-rcp-grp:first-child{ margin-top:0 }
-/* Read-only "↳ helper" preview beneath a route's swatches — the helper
-   seat DERIVES its color from the route above (same hue, lightened), so
-   there's no picker, just a live preview that tracks the parent. Spans the
-   full row width on a second grid line of the .rr-rcp-row grid. */
-#rr-sched-colors-popover .rr-rcp-derived{
-  grid-column:1 / -1;grid-row:2;
-  display:flex;align-items:center;gap:6px;
-  margin-top:2px;font-size:var(--fs-10-5);color:var(--rr-slate-500);
-}
-#rr-sched-colors-popover .rr-rcp-derived-sw{
-  width:14px;height:14px;border-radius:3px;flex-shrink:0;
-  border:1.5px dashed var(--rr-slate-400);
-}
-#rr-sched-colors-popover .rr-rcp-derived-note{ color:var(--rr-slate-400);margin-left:auto }
 
 /* ═══ Action-bar busy signal (operator 2026-06-12) ══════════════════
    Understated working state for Smart Fill / Assign Fleet: inline
