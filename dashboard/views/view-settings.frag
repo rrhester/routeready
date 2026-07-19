@@ -270,23 +270,12 @@
                   </div>
                 </details>
 
-                <details class="rules-section" data-rr-rules-section="fleet-assign" style="grid-column:1/-1">
-                  <summary class="rules-section-title">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M21 3l-7 7M8 21H3v-5M3 21l7-7"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/></svg>
-                    Fleet assignments
-                  </summary>
-                  <div style="font-size:var(--fs-sm);color:var(--text-subtle);margin:6px 0 12px;line-height:1.5">
-                    How the system fills gaps between scheduled drivers and vans. Standing chains (primary + backup) are still set on the Workspaces → Van assignments board.
-                  </div>
-                  <div class="rule-help" style="padding:var(--s-3-5) 0;line-height:1.5">
-                    The <strong>Auto-assign vans to scheduled drivers</strong> switch moved in with the rest of the van rules — open it from <strong>Schedule → Assign Fleet ▾ → Van rules</strong>. That one switch now fills every "No van" gap from your active + spare pool both when the Today's Plan home page opens <em>and</em> during Smart Fill. Per-day overrides only — the standing chain isn't changed, and manual changes from the Today's roster always override it.
-                  </div>
-                  <!-- Auto-van-assign toggle unified into the Van rules popover
-                       (Schedule → Assign Fleet ▾). One DB-backed switch
-                       (fleet_settings.auto_van_assign) now drives BOTH the
-                       Today's Plan auto-fill and the Smart Fill van pass; the
-                       duplicate toggle that used to live here was removed. -->
-                </details>
+                <!-- Fleet assignments section retired: the auto-van-assign
+                     switch (fleet_settings.auto_van_assign) is unified into
+                     the Van rules popover (Schedule → Assign Fleet ▾), where
+                     one DB-backed switch drives BOTH the Today's Plan auto-fill
+                     and the Smart Fill van pass. The standing primary/backup
+                     chains still live on Workspaces → Van assignments board. -->
 
                 <details class="rules-section" data-rr-rules-section="floor" style="grid-column:1/-1" open>
                   <summary class="rules-section-title">
