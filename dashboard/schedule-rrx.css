@@ -7226,20 +7226,24 @@ body.rr-sched-carrying #view-schedule #sched-sub-week .cal-cell[data-rr-cell="dr
    page (no .rr-schedrules-body ancestor) is untouched. Token-only and
    override-flag-free — specificity alone beats the base .settings-section
    / .rules-section rules, so the design ratchet holds. */
-#view-schedule .rr-schedrules-drawer { width: min(640px, calc(100vw - 96px)); }
+#view-schedule .rr-schedrules-drawer { width: min(520px, calc(100vw - 96px)); }
 /* Outer container: drop the card-in-a-card chrome; the drawer body IS
    the surface, exactly like the Smart Fill body holds its .pol-sections. */
 .rr-schedrules-body .settings-section {
   padding: 0; margin: 0; border: 0; background: none; border-radius: 0;
 }
+/* Single column + a tight gap between section cards (the grid's --s-4 row
+   gap was the biggest source of air; Smart Fill stacks its sections close). */
+.rr-schedrules-body .rules-grid { grid-template-columns: 1fr; gap: var(--s-2); }
 /* Quiet, compact intro (was an fs-lg title + --s-5 head). */
 .rr-schedrules-body .settings-section-head {
-  margin-bottom: var(--s-3); padding-bottom: var(--s-3);
+  margin-bottom: var(--s-2-5); padding-bottom: var(--s-2-5);
 }
 .rr-schedrules-body .settings-section-title { font-size: var(--fs-md); }
 .rr-schedrules-body .settings-section-sub { font-size: var(--fs-xs); line-height: 1.4; }
-/* Each rules-section → a Smart-Fill .pol-section-sized card. */
-.rr-schedrules-body .rules-section { padding: var(--s-4); margin-bottom: var(--s-3); }
+/* Each rules-section → a tight Smart-Fill .pol-section-sized card. The grid
+   gap above handles spacing, so no extra margin-bottom. */
+.rr-schedrules-body .rules-section { padding: var(--s-3); margin-bottom: 0; }
 .rr-schedrules-body .rules-section-title { font-size: var(--fs-sm); }
 .rr-schedrules-body details.rules-section[open] > summary.rules-section-title {
   margin-bottom: var(--s-3);
