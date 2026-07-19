@@ -7,6 +7,12 @@
 -- station) — appended at the END so the existing positional consumers are
 -- undisturbed. The client filters the roster (and its KPIs) by the selected
 -- station; "All stations" shows everyone as before.
+--
+-- Adding columns changes the function's return type, which `create or replace`
+-- can't do — drop it first. Safe: interview_day_roster is only ever called as a
+-- PostgREST RPC from the client; nothing in the DB depends on it.
+
+drop function if exists public.interview_day_roster(uuid);
 
 create or replace function public.interview_day_roster(p_day_id uuid default null)
 returns table (
