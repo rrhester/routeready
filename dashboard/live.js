@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=fc209b4f935c";
-import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=fc209b4f935c";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=fc209b4f935c";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=fc209b4f935c";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=fc209b4f935c";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=fc209b4f935c";
-import { isChecklistComplete } from "./checklist-core.mjs?v=fc209b4f935c";
+import { planScheduleWeek } from "./scheduling-engine.js?v=b132eb8673a9";
+import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=b132eb8673a9";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=b132eb8673a9";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=b132eb8673a9";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=b132eb8673a9";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=b132eb8673a9";
+import { isChecklistComplete } from "./checklist-core.mjs?v=b132eb8673a9";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=fc209b4f935c";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=fc209b4f935c";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=fc209b4f935c";
+} from "./msg-core.mjs?v=b132eb8673a9";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=b132eb8673a9";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=b132eb8673a9";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -63078,6 +63078,18 @@ async function renderSchedVanAssignmentsBoard() {
   if (vRes?.error) { body.innerHTML = `<div class="sched-vans-empty">Couldn't load van assignments · ${escapeHtml(vRes.error.message)}</div>`; return; }
 
   _wsVehicles = Array.isArray(vRes?.data) ? vRes.data.filter(v => !v.archived_at) : [];
+  // Master station lens · show only the selected station's vans (each station
+  // is its own fleet). Vans carry station_id/station_code once migration 0529
+  // lands; pre-migration (no station keys on the row) the board isn't filtered.
+  {
+    const _vaScope = (typeof rrStationScopeId === "function") ? rrStationScopeId() : null;
+    if (_vaScope && _wsVehicles.some((v) => ("station_id" in v) || ("station_code" in v))) {
+      const _vaCode = ((typeof _rrStationList !== "undefined" ? _rrStationList : [])
+        .find((s) => s.id === _vaScope) || {}).code || null;
+      _wsVehicles = _wsVehicles.filter((v) =>
+        v.station_id === _vaScope || (_vaCode && v.station_code === _vaCode));
+    }
+  }
   _wsDrivers = (Array.isArray(dRes?.data) ? dRes.data : []).map(d => {
     const nm = (d.preferred_name && d.preferred_name.trim()) || (d.full_name && d.full_name.trim()) || "—";
     return { id: d.id, name: nm, initials: _wsInitials(nm) };
@@ -87719,6 +87731,13 @@ async function _flLoadIssues() {
 function _flApplyIssueFilters(rows) {
   const f = _fleetIssueFilters;
   let out = rows;
+  // Master station lens · the roster (_fleetRows) is already scoped to the
+  // selected station and loads before the issues tab, so keep only issues for
+  // vehicles in that set. No-op in All mode (every vehicle is in _fleetRows).
+  if (typeof rrStationScopeId === "function" && rrStationScopeId()) {
+    const ids = new Set((_fleetRows || []).map((v) => v.id));
+    out = out.filter((i) => ids.has(i.vehicle_id));
+  }
   if (f.q) {
     const q = f.q.toLowerCase();
     out = out.filter((i) => [i.vehicle_name, i.plate, i.title, i.description, i.work_order]

@@ -219,6 +219,16 @@ distinct — consider it a NEW DSP." Reverses the earlier "DSP-wide by design"
 calls (fleet especially). Every page must scope, including fleet + messages +
 the aggregate KPI tiles. Working through the remaining pages:
 
+**SHIPPED — Fleet Issues + Assignments scope (operator report "not flipping to
+blank"):** the roster scoped but the sub-tabs didn't. Issues (`_flApplyIssueFilters`)
+now keeps only issues whose `vehicle_id` is in the already-scoped `_fleetRows`
+(no-op in All mode; the roster loads before the issues tab). Assignments board
+(`renderSchedVanAssignmentsBoard`): **migration 0529** adds station_id/station_code
+to `vehicles_list` (returns jsonb → no drop needed, just added keys); client
+filters `_wsVehicles` by the scoped station (graceful pre-migration: no station
+keys → unfiltered). Both re-render on toggle via loadFleetView. QA'd Issues:
+All=[i1,i2] → Boston=[i2]. Apply order: 0528 → **0529**.
+
 **SHIPPED — Fleet page scopes (new-DSP isolation):** `_flLoadRoster` filters
 `_fleetRows` by `station_code` right after the `vehicles_roster` RPC (rows carry
 station_id/station_code), so the roster + tab counts + coverage card + issues
