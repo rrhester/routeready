@@ -7215,3 +7215,48 @@ body.rr-sched-carrying #view-schedule #sched-sub-week .cal-cell[data-rr-cell="dr
    its visibility, so force it visible inside the body. */
 .rr-schedrules-body .settings-section,
 .rr-schedrules-body .settings-section.hidden { display: block; }
+
+/* ── Compact the Schedule-rules drawer to match the Smart Fill Rules
+   popout (operator 2026-07-19: "fashion the rest of the page like the
+   smart rules popout — smaller box"). The hoisted Settings > Scheduling
+   markup is airy: a --s-6 outer card, a big fs-lg section head, --s-5
+   rule cards, and roomy sub-cards. These overrides tighten it into the
+   same dense small-box card language as the Smart Fill policy popout.
+   Scoped to .rr-schedrules-body so the SAME markup on the full Settings
+   page (no .rr-schedrules-body ancestor) is untouched. Token-only and
+   override-flag-free — specificity alone beats the base .settings-section
+   / .rules-section rules, so the design ratchet holds. */
+#view-schedule .rr-schedrules-drawer { width: min(640px, calc(100vw - 96px)); }
+/* Outer container: drop the card-in-a-card chrome; the drawer body IS
+   the surface, exactly like the Smart Fill body holds its .pol-sections. */
+.rr-schedrules-body .settings-section {
+  padding: 0; margin: 0; border: 0; background: none; border-radius: 0;
+}
+/* Quiet, compact intro (was an fs-lg title + --s-5 head). */
+.rr-schedrules-body .settings-section-head {
+  margin-bottom: var(--s-3); padding-bottom: var(--s-3);
+}
+.rr-schedrules-body .settings-section-title { font-size: var(--fs-md); }
+.rr-schedrules-body .settings-section-sub { font-size: var(--fs-xs); line-height: 1.4; }
+/* Each rules-section → a Smart-Fill .pol-section-sized card. */
+.rr-schedrules-body .rules-section { padding: var(--s-4); margin-bottom: var(--s-3); }
+.rr-schedrules-body .rules-section-title { font-size: var(--fs-sm); }
+.rr-schedrules-body details.rules-section[open] > summary.rules-section-title {
+  margin-bottom: var(--s-3);
+}
+/* Tighter rule rows + labels. */
+.rr-schedrules-body .rule-row { padding: var(--s-2) 0; gap: var(--s-3); }
+.rr-schedrules-body .rule-label { font-size: var(--fs-sm); }
+.rr-schedrules-body .rule-help { line-height: 1.4; }
+/* Nested sub-cards → flat groups (Smart Fill has one card per section, no
+   card-in-card). Drop the inner .card chrome so "Settings" / "Blackout
+   dates" read as labelled groups inside the section card, not nested cards. */
+.rr-schedrules-body .rules-section .card {
+  border: 0; background: none; box-shadow: none;
+  padding: 0; margin: 0 0 var(--s-3) 0;
+}
+.rr-schedrules-body .rules-section .card + .card {
+  padding-top: var(--s-3); border-top: 1px solid var(--border);
+}
+.rr-schedrules-body textarea { font-size: var(--fs-sm); padding: var(--s-2); min-height: 54px; }
+.rr-schedrules-body input, .rr-schedrules-body select { font-size: var(--fs-sm); }
