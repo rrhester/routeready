@@ -1749,25 +1749,48 @@ td.rr-lastcoach-col > span > span{color:var(--rr-gray-600) !important}
 #view-schedule .req-tab.is-active{background:var(--accent-soft);border-color:var(--accent-border);color:var(--accent-text)}
 #view-schedule .req-filter{padding:6px 10px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--canvas);color:var(--text);font-size:var(--fs-sm);font-weight:500;cursor:pointer}
 #view-schedule .req-section{display:flex;flex-direction:column;gap:var(--s-2-5)}
-#view-schedule .req-section-head{display:flex;align-items:center;gap:8px}
+#view-schedule .req-section-head{display:flex;align-items:center;gap:8px;padding:0 2px}
 #view-schedule .req-section-title{font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted)}
-#view-schedule .req-section-count{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:var(--r-pill);background:var(--canvas);border:1px solid var(--border);font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle)}
+/* Small circular count badge · the real number of rows displayed. */
+#view-schedule .req-section-count{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;width:18px;height:18px;padding:0 4px;border-radius:50%;background:var(--canvas);border:1px solid var(--border);font-size:var(--fs-10-5);font-weight:700;color:var(--text-subtle);line-height:1}
 #view-schedule .req-pending{display:flex;flex-direction:column;gap:var(--s-2-5)}
 /* Compact empty state — only as tall as it needs to be. */
 #view-schedule .req-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:4px;padding:26px 20px;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--canvas)}
 #view-schedule .req-empty-ic{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:50%;background:var(--green-soft);color:var(--green);margin-bottom:2px}
 #view-schedule .req-empty-title{font-size:var(--fs-md);font-weight:600;color:var(--text)}
 #view-schedule .req-empty-sub{font-size:var(--fs-sm);color:var(--text-subtle)}
-/* Recent Decisions table — Roster-style. */
-#view-schedule .req-table-wrap{border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden}
-#view-schedule .req-table{width:100%;border-collapse:collapse;font-size:var(--fs-sm)}
-#view-schedule .req-table thead th{text-align:left;font-size:var(--fs-xs);font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);padding:12px 18px;border-bottom:1px solid var(--border);background:var(--surface);white-space:nowrap}
-#view-schedule .req-table tbody td{padding:16px 18px;border-bottom:1px solid rgba(15,23,42,.05);vertical-align:middle;color:var(--text)}
+/* Recent Decisions table — dense, flat, Schedule-grid feel: thin gray outer
+   border, ~7px corners, no shadow, thin H+V grid dividers, ~90px rows. */
+#view-schedule .req-table-wrap{border:1px solid var(--border);border-radius:7px;overflow:hidden;background:var(--surface)}
+#view-schedule .req-table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:var(--fs-sm)}
+/* Reference column proportions: Driver 22 · Coverage 19 · Change 25 ·
+   Status 15 · Date 16 · chevron narrow. */
+#view-schedule .req-table .req-col-driver{width:22%}
+#view-schedule .req-table .req-col-cov{width:19%}
+#view-schedule .req-table .req-col-change{width:25%}
+#view-schedule .req-table .req-col-status{width:15%}
+#view-schedule .req-table .req-col-date{width:16%}
+#view-schedule .req-table .req-col-chev{width:44px}
+#view-schedule .req-table thead th{text-align:left;font-size:var(--fs-xs);font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);padding:11px 18px;border-bottom:1px solid var(--border);border-right:1px solid var(--border-subtle,rgba(15,23,42,.05));background:var(--surface);white-space:nowrap}
+#view-schedule .req-table thead th:last-child{border-right:0}
+#view-schedule .req-table tbody td{height:90px;padding:12px 18px;border-bottom:1px solid rgba(15,23,42,.05);border-right:1px solid var(--border-subtle,rgba(15,23,42,.045));vertical-align:middle;color:var(--text)}
+#view-schedule .req-table tbody td:last-child{border-right:0}
 #view-schedule .req-table tbody tr:last-child td{border-bottom:0}
 #view-schedule .req-trow{cursor:pointer;transition:background var(--t-fast)}
-#view-schedule .req-trow:hover{background:var(--canvas)}
+#view-schedule .req-trow:hover td{background:var(--canvas)}
+#view-schedule .req-trow:focus-visible{outline:none}
+#view-schedule .req-trow:focus-visible td{background:var(--canvas);box-shadow:inset 0 0 0 2px var(--accent-soft)}
 #view-schedule .req-trow.is-selected td{background:rgba(37,99,235,.06)}
 #view-schedule .req-trow.is-selected td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
+/* Denied decisions · an extremely subtle pale-red row wash (Schedule
+   exception-cell language) — text stays fully readable. */
+#view-schedule .req-trow.is-denied td{background:rgba(220,38,38,.035)}
+#view-schedule .req-trow.is-denied:hover td{background:rgba(220,38,38,.06)}
+/* Driver avatar in the decisions table · calm neutral chip (initials
+   fallback), matching the reference's restrained gray circles. */
+#view-schedule .req-td-driver .avatar-sm.req-avatar{background:var(--canvas);color:var(--text-muted);border:1px solid var(--border);font-weight:700}
+/* Compact in-table empty message (no big empty-state panel). */
+#view-schedule .req-nodata{padding:22px 18px;border:1px solid var(--border);border-radius:7px;background:var(--surface);color:var(--text-subtle);font-size:var(--fs-sm)}
 #view-schedule .req-td-eff{color:var(--text-subtle);white-space:nowrap}
 #view-schedule .req-detail{color:var(--text);font-variant-numeric:tabular-nums}
 #view-schedule .req-detail-dim{color:var(--text-disabled)}
@@ -1787,19 +1810,45 @@ td.rr-lastcoach-col > span > span{color:var(--rr-gray-600) !important}
    card that mirrors the Roster's Risk card (tinted fill + 3px left accent +
    bold uppercase level over a muted reason) so the two pages share one visual
    language. Day chips sit under the card. */
-#view-schedule .req-cov{display:flex;flex-direction:column;align-items:flex-start;gap:6px}
-#view-schedule .req-cov-card{display:inline-flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;box-sizing:border-box;min-width:160px;min-height:44px;padding:6px 10px;border:1px solid transparent;border-radius:8px}
+#view-schedule .req-cov{display:flex;flex-direction:column;align-items:flex-start;gap:6px;min-width:0;max-width:100%}
+/* Restrained tinted region (Schedule shift-cell feel): small radius, soft
+   tinted fill + border, compact padding — not a standalone card. */
+#view-schedule .req-cov-card{display:inline-flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:3px;box-sizing:border-box;min-width:0;max-width:100%;padding:7px 10px;border:1px solid transparent;border-radius:6px}
 #view-schedule .req-cov-head{display:flex;align-items:center;gap:7px}
-#view-schedule .req-cov-sev{font-size:var(--fs-md);font-weight:700;letter-spacing:.02em;text-transform:uppercase}
-#view-schedule .req-cov-sub{font-size:var(--fs-sm);font-weight:500;color:var(--rr-slate-600)}
+#view-schedule .req-cov-sev{font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+#view-schedule .req-cov-sub{font-size:var(--fs-sm);font-weight:500;color:var(--rr-slate-600);line-height:1.25}
 #view-schedule .req-cov-high .req-cov-card{background:var(--rr-red-50);border-color:#FECACA}
 #view-schedule .req-cov-high .req-cov-sev{color:var(--rr-red-600)}
 #view-schedule .req-cov-medium .req-cov-card{background:#FFFBEB;border-color:#FDE68A}
 #view-schedule .req-cov-medium .req-cov-sev{color:var(--rr-amber-600)}
 #view-schedule .req-cov-none .req-cov-card{background:#F0FDF4;border-color:#BBF7D0}
 #view-schedule .req-cov-none .req-cov-sev{color:var(--rr-green-600)}
-#view-schedule .req-cov-chips{display:flex;flex-wrap:wrap;gap:4px}
-#view-schedule .req-cov-chip{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:19px;padding:0 6px;border-radius:5px;font-size:var(--fs-10-5);font-weight:600;color:var(--text-muted);background:var(--canvas);border:1px solid var(--border)}
+#view-schedule .req-cov-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px}
+#view-schedule .req-cov-chip{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:18px;padding:0 6px;border-radius:5px;font-size:var(--fs-10-5);font-weight:600;color:var(--text-muted);background:var(--surface);border:1px solid var(--border)}
+
+/* ── Toolbar request-health summary · the Requests-page twin of the Schedule
+   action bar's route-coverage card. Number + unit on top, a status sub-line,
+   a thin meter beneath. Anchored right with a hairline divider, calm at rest,
+   amber/red only when pending requests threaten coverage. */
+#view-schedule .req-toolbar-bar .req-health{margin-left:auto;display:flex;align-items:center}
+#view-schedule .req-health-inner{display:flex;flex-direction:column;justify-content:center;gap:4px;padding:2px 4px 2px 16px;border-left:1px solid var(--border);min-width:150px}
+#view-schedule .req-health-main{display:flex;align-items:baseline;gap:6px;line-height:1}
+#view-schedule .req-health-num{font-size:var(--fs-15);font-weight:700;font-variant-numeric:tabular-nums;color:var(--text)}
+#view-schedule .req-health-unit{font-size:var(--fs-10-5);font-weight:700;letter-spacing:.06em;color:var(--text-subtle)}
+#view-schedule .req-health-sub{display:flex;align-items:center;gap:5px;font-size:var(--fs-11-5);font-weight:500;color:var(--text-subtle);white-space:nowrap}
+#view-schedule .req-health-check{color:var(--rr-green-600);flex:0 0 auto}
+#view-schedule .req-health-dot{width:7px;height:7px;border-radius:50%;background:var(--text-subtle);flex:0 0 auto}
+#view-schedule .req-health-meter{display:block;width:100%;height:4px;border-radius:999px;background:var(--border-subtle,var(--rr-gray-100));overflow:hidden}
+#view-schedule .req-health-meter>i{display:block;height:100%;border-radius:999px;background:var(--rr-green-600);transition:width .3s cubic-bezier(.2,0,.2,1)}
+#view-schedule .req-health-inner.is-ok .req-health-num{color:var(--rr-green-700)}
+#view-schedule .req-health-inner.is-info .req-health-dot{background:var(--accent)}
+#view-schedule .req-health-inner.is-warn .req-health-num{color:var(--rr-amber-700)}
+#view-schedule .req-health-inner.is-warn .req-health-dot{background:var(--rr-amber-600)}
+#view-schedule .req-health-inner.is-risk .req-health-num{color:var(--rr-red-700)}
+#view-schedule .req-health-inner.is-risk .req-health-dot{background:var(--rr-red-600)}
+#view-schedule .req-health-meter[data-state="info"]>i{background:var(--accent)}
+#view-schedule .req-health-meter[data-state="warn"]>i{background:var(--rr-amber-600)}
+#view-schedule .req-health-meter[data-state="risk"]>i{background:var(--rr-red-600)}
 /* Requested change — bold primary + muted secondary, easy to scan. */
 #view-schedule .req-change-main{font-size:var(--fs-sm);font-weight:600;color:var(--text);line-height:1.3}
 #view-schedule .req-change-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:1px}
@@ -1850,7 +1899,6 @@ td.rr-lastcoach-col > span > span{color:var(--rr-gray-600) !important}
    so the open list matches the schedule dropdowns, not the OS listbox) and the
    action buttons (PTO report, Settings) share it via .req-toolbar-act. */
 #view-schedule .req-toolbar-bar{display:flex;align-items:center;gap:var(--s-2-5);flex-wrap:wrap;margin:0 0 var(--s-4);padding-top:var(--s-4)}
-#view-schedule .req-toolbar-bar #rr-pto-report-btn{margin-left:auto}
 #view-schedule .req-toolbar-bar .req-toolbar-filter,
 #view-schedule .req-toolbar-bar .req-toolbar-act{
   height:38px;line-height:1;
@@ -11465,18 +11513,16 @@ body.rr-cmdk-open{ overflow:hidden }
   gap:var(--s-4);
   align-items:stretch;
 }
-@media (max-width:1080px){
-  #sched-sub-requests .sched-requests-card{max-height:none}
-}
+/* Requests redesign (2026-07) · flat page, no outer card. The stream panel
+   and its body are now transparent, unpadded pass-throughs so `.req-page`
+   sits directly on the pale page background like the Schedule grid. */
 #sched-sub-requests .sched-requests-card{
-  background:var(--surface-elevated, var(--rr-white));
-  border:1px solid var(--req-hairline);
-  border-radius:8px;
-  box-shadow:0 1px 4px rgba(15,23,42,.04);
-  overflow:hidden;min-width:0;
+  background:transparent;
+  border:0;
+  border-radius:0;
+  box-shadow:none;
+  overflow:visible;min-width:0;
   display:flex;flex-direction:column;
-  max-height:calc(100vh - 250px);
-  min-height:380px;
 }
 #sched-sub-requests .sched-requests-card-head{
   display:flex;align-items:center;gap:8px;
@@ -11489,8 +11535,8 @@ body.rr-cmdk-open{ overflow:hidden }
   letter-spacing:.07em;text-transform:uppercase;
 }
 #sched-sub-requests .sched-requests-card-body{
-  padding:4px 18px 14px;flex:1;min-width:0;
-  overflow-y:auto;
+  padding:0;flex:1;min-width:0;
+  overflow:visible;
 }
 
 /* Section eyebrows · Pending / History — quiet operational labels. */
