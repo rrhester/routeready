@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=660374c5252f";
-import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=660374c5252f";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=660374c5252f";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=660374c5252f";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=660374c5252f";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=660374c5252f";
-import { isChecklistComplete } from "./checklist-core.mjs?v=660374c5252f";
+import { planScheduleWeek } from "./scheduling-engine.js?v=eeb2d9a9181b";
+import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=eeb2d9a9181b";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=eeb2d9a9181b";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=eeb2d9a9181b";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=eeb2d9a9181b";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=eeb2d9a9181b";
+import { isChecklistComplete } from "./checklist-core.mjs?v=eeb2d9a9181b";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=660374c5252f";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=660374c5252f";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=660374c5252f";
+} from "./msg-core.mjs?v=eeb2d9a9181b";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=eeb2d9a9181b";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=eeb2d9a9181b";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -997,9 +997,17 @@ function _rrSetStationScope(next, { silent = false } = {}) {
     window.dispatchEvent(new CustomEvent("rr:station-changed", { detail: rrStationScope() }));
   } catch (_) {}
   // Re-render the active view so the new lens takes effect immediately.
-  // Inert until a view actually reads rrStationScope() (later phases),
-  // but wiring it now means those land with zero extra plumbing.
-  try { if (typeof refreshActiveView === "function") refreshActiveView(); } catch (_) {}
+  // The schedule + targets views reload through their own loaders (which
+  // refreshActiveView doesn't drive — see the focus listener that mirrors
+  // this), so route to them explicitly; everything else re-renders through
+  // refreshActiveView. Views that don't yet read the scope simply repaint
+  // identically (harmless) until their phase lands.
+  try {
+    const v = document.querySelector(".view.active")?.id;
+    if (v === "view-schedule" && typeof loadScheduleView === "function") loadScheduleView();
+    else if (v === "view-okami" && typeof loadOkamiView === "function") loadOkamiView();
+    else if (typeof refreshActiveView === "function") refreshActiveView();
+  } catch (_) {}
 }
 
 function _rrWireStationSwitch() {
@@ -70881,8 +70889,25 @@ async function renderScheduleWeek() {
   if (femAssignRes?.error) console.warn("FEM assignments load:", femAssignRes.error.message);
 
   const grid    = gridRes.data    || { coverage: [], shifts: [] };
-  const drivers = driversRes.data || [];
+  let   drivers = driversRes.data || [];
   const timeOff = toRes.data      || [];
+
+  // ── Station scope · master multi-station lens (Phase 2) ────────────
+  // When the operator has scoped to one station, give it a blank slate:
+  // only that station's shifts + demand, and only the drivers homed
+  // there OR floated onto one of its shifts this week (drivers float, so
+  // home-station alone would hide a lent driver). Both okami_grid demand
+  // rows and shift rows carry station_id, so filtering here keeps the
+  // coverage %, open-shift, and target math all consistently scoped to
+  // the one station. "All stations" (null) leaves everything untouched —
+  // byte-identical to the pre-lens grid.
+  const _scopeStation = (typeof rrStationScopeId === "function") ? rrStationScopeId() : null;
+  if (_scopeStation) {
+    grid.shifts   = (grid.shifts   || []).filter((s) => s.station_id === _scopeStation);
+    grid.coverage = (grid.coverage || []).filter((c) => c.station_id === _scopeStation);
+    const _scopedDriverIds = new Set((grid.shifts || []).map((s) => s.driver_id).filter(Boolean));
+    drivers = drivers.filter((d) => d.station_id === _scopeStation || _scopedDriverIds.has(d.id));
+  }
   // Route-plan cushion % for this week (falls back to the app default of
   // 10 when no setting is stored). Used to compute the FIXED coverage
   // denominator = ceil(target_routes × (1 + cushion%)).

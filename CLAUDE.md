@@ -55,10 +55,33 @@ NOT on the subscription, or All-mode loses cross-station updates.
   AND single-station DSP keeps it hidden while the API stays callable.
   Nothing scopes data yet — that's P2.
 
-**NEXT:** Phase 2 — route each page's queries/renders through
-`rrApplyStationFilter()` / a `rr:station-changed` listener, starting with
-the schedule grid + roster. Remember floating drivers → roster/bans need
-the `driver_stations` join (design it in P2).
+**SHIPPED — Phase 2 (schedule grid, the reference impl):**
+- `renderScheduleWeek` (live.js ~70884): after the `schedule_grid` RPC +
+  drivers load, when scoped to one station it filters `grid.shifts` AND
+  `grid.coverage` by `station_id`, then filters the driver rows to those
+  homed at the station OR floated onto one of its shifts this week.
+  KEY FACT: both `okami_grid` demand rows and shift rows already carry
+  `station_id` (okami_demand is keyed `(dsp_id, station_id, date)`), and
+  the client aggregates coverage by date across stations — so filtering
+  both arrays keeps coverage %, open-shift, and target math consistently
+  scoped. All-mode (null) = byte-identical to before. Floating handled by
+  scoping the SCHEDULE via `shift.station_id`, not driver home.
+- `_rrSetStationScope` re-render is view-aware: on view-schedule it calls
+  `loadScheduleView()` (→ renderScheduleWeek), on view-okami
+  `loadOkamiView()`, else `refreshActiveView()` (the generic path doesn't
+  drive the schedule/targets loaders — a focus listener mirrors this).
+- Browser-QA'd (Playwright, 2-station DSP + a floating driver): All=3
+  drivers/3 chips; scope Boston=2/2 (home-B driver + the A-homed floater on
+  a B shift, A-only driver hidden); scope Chantilly=2/1 (both A-homed show,
+  the floater's B shift correctly filtered out → blank row); back to All =
+  3/3. No errors.
+
+**NEXT:** Phase 2 cont. — other schedule consumers (Today view single-date
+render ~62448, staff_schedule_grid ~52606/89011) then **roster** (needs the
+floating-driver `driver_stations` many-to-many — design it there), bans,
+drivers, onboarding, broadcast. Then P3 server `p_station_id`, P4 All-mode
+per-station breakdowns. All on branch claude/multi-station-toggle-2pljie
+(PR #4037).
 
 ## Active task: Staffing model — XL-route demand (branch claude/staffing-driver-requirements-1tw30l)
 
