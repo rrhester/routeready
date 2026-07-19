@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=957dfd380c8c";
-import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=957dfd380c8c";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=957dfd380c8c";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=957dfd380c8c";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=957dfd380c8c";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=957dfd380c8c";
-import { isChecklistComplete } from "./checklist-core.mjs?v=957dfd380c8c";
+import { planScheduleWeek } from "./scheduling-engine.js?v=9b36bb6e23d6";
+import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=9b36bb6e23d6";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=9b36bb6e23d6";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=9b36bb6e23d6";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=9b36bb6e23d6";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=9b36bb6e23d6";
+import { isChecklistComplete } from "./checklist-core.mjs?v=9b36bb6e23d6";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=957dfd380c8c";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=957dfd380c8c";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=957dfd380c8c";
+} from "./msg-core.mjs?v=9b36bb6e23d6";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=9b36bb6e23d6";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=9b36bb6e23d6";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -10728,7 +10728,7 @@ async function loadOnboardingOps(opts) {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
           Needs attention${attnCount ? ` <span class="ob-tbx-chip-n">${attnCount}</span>` : ""}
         </button>
-        ${stations.length ? `<select class="ob-tbx-sel" id="rr-ob-station" aria-label="Filter by station">
+        ${stations.length && typeof window.rrStationScope !== "function" ? `<select class="ob-tbx-sel" id="rr-ob-station" aria-label="Filter by station">
           <option value="">All stations</option>
           ${stations.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("")}
         </select>` : ""}
@@ -10812,11 +10812,24 @@ async function loadOnboardingOps(opts) {
     const attnOnly = attnEl ? attnEl.getAttribute("aria-pressed") === "true" : false;
     const station = stationEl ? stationEl.value : "";
     const sort = sortEl ? sortEl.value : "urgency";
+    // Master station lens · when scoped, show THIS station's applicants PLUS
+    // the unassigned pool (applicants not yet placed at any station), so
+    // scoping never hides someone still being recruited. Hiring is otherwise
+    // DSP-wide. Global scope replaces the (now-hidden) per-page dropdown.
+    const _gScopeId = (typeof rrStationScopeId === "function") ? rrStationScopeId() : null;
+    const _gScopeCode = _gScopeId
+      ? (((typeof _rrStationList !== "undefined" ? _rrStationList : []).find((s) => s.id === _gScopeId) || {}).code || null)
+      : null;
     let list = enriched.filter(x => {
       if (q && !x.meta.name.toLowerCase().includes(q)) return false;
       if (attnOnly && !x.meta.attn) return false;
       if (stage && !x.meta.openGroups.has(stage)) return false;
-      if (station && x.meta.station !== station) return false;
+      if (_gScopeCode) {
+        // Scoped: this station + the unassigned pool.
+        if (x.meta.station && x.meta.station !== _gScopeCode) return false;
+      } else if (station && x.meta.station !== station) {
+        return false;
+      }
       return true;
     });
     list.sort((a, b) => {
@@ -20333,7 +20346,19 @@ async function _refreshTodayPlanData() {
     // Coverage rail: open shifts + expiring DLs. today_plan() reads
     // live shift state for the current date only, so skip it on
     // future-day views (the renderer paints a static note instead).
-    isToday ? sb.rpc("today_plan") : Promise.resolve({ data: null, error: null }),
+    // Station lens · pass p_station_id when scoped (migration 0526) so the
+    // coverage rail shows one station's open shifts. Falls back to the
+    // no-arg call if 0526 isn't applied yet (the arg'd overload 404s) —
+    // DSP-wide, but the rail still renders. "All" sends no arg (identical
+    // to before, matches the old signature too).
+    isToday
+      ? (() => {
+          const sc = (typeof rrStationScopeId === "function") ? rrStationScopeId() : null;
+          if (!sc) return sb.rpc("today_plan");
+          return sb.rpc("today_plan", { p_station_id: sc })
+            .then((r) => (r && r.error) ? sb.rpc("today_plan") : r);
+        })()
+      : Promise.resolve({ data: null, error: null }),
     // Command-center tiles: current-state fleet readiness + hiring pipeline.
     // Date-independent; a failure just hides the tile.
     sb.rpc("fleet_execution_summary"),

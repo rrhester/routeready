@@ -182,19 +182,30 @@ driver list by driver_stations membership (`_rrDriverIdsAtStation` + station_id
 fallback); added station_id to the select. Same proven pattern; inspection-
 verified (syntax/lint/ratchet/tests green).
 
-**DEFERRED — Onboarding funnel:** has its own `#rr-ob-station` dropdown, but
-scoping the HIRING funnel by station is a genuine product call (applicants
-often aren't station-assigned yet → scoping could hide them). Left as-is;
-needs an operator decision (scope-and-hide-unassigned vs keep-flexible) before
-unifying to the lens. Broadcast already has station:<id> audience pills.
+**SHIPPED — Onboarding funnel follows the lens (chosen default):** scoping the
+hiring funnel would hide not-yet-placed applicants, so the default is "this
+station's applicants PLUS the unassigned pool" — `loadOnboardingOps` paint()
+filters `x.meta.station === scopedCode || !x.meta.station`; the per-page
+`#rr-ob-station` dropdown is retired when the global switcher exists.
 
-**NEXT (Phase 3 server-side — needs a migration):** the Today's Plan KPI tiles
-+ coverage rail (`fleet_execution_summary`, `pipeline_counts`, `today_plan`)
-are the LAST DSP-wide holdouts — they aggregate server-side with no per-station
-breakdown, so scoping them needs an optional `p_station_id` on those RPCs
-(pipeline/hiring is arguably DSP-wide; fleet + coverage are station-relevant).
-Then P4 All-mode per-station breakdowns. Branch reset from main per follow-up;
-open a NEW PR (old ones merged).
+**SHIPPED — Today's Plan coverage rail scopes (Phase 3 server-side, mig 0526):**
+- **Migration 0526** `today_plan(p_station_id uuid default null)` (drops the old
+  no-arg fn first to avoid an ambiguous overload): `open_shifts` filtered by
+  `s.station_id`; `dl_expiring`/`not_dot_certified` by driver_stations
+  MEMBERSHIP or primary `station_id` (floating-aware). NULL = all = byte-
+  identical. **MANUAL — paste in chat.**
+- `loadTodayPlan` sends `p_station_id` when scoped, with a graceful fallback to
+  the no-arg call if 0526 isn't applied (arg'd overload 404s → retry no-arg →
+  DSP-wide but the rail still renders). "All" sends no arg (identical to before).
+- Browser-QA'd: pre-migration toggle → `[scoped:bbbb, noarg]` (fallback fires),
+  no errors; post-migration sends only the scoped call.
+- fleet_execution_summary + pipeline_counts stay DSP-wide ON PURPOSE (vans are
+  pooled — vehicles.station_id is optional/often null; hiring is DSP-wide).
+
+**Still DEFERRED:** broadcast audience default (already has station pills), P4
+All-mode per-station breakdowns on decision numbers. Apply order for the lens:
+0525 (driver_stations) → 0526 (today_plan). Branch reset from main per
+follow-up; open a NEW PR (old ones merged).
 
 ## Active task: Staffing model — XL-route demand (branch claude/staffing-driver-requirements-1tw30l)
 
