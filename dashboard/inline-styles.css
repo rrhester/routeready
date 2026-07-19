@@ -10049,16 +10049,25 @@ body.rr-cmdk-open{ overflow:hidden }
    risk card bring the rows to ~62px, matching the week grid's .cal-cell
    density so the operator scans more drivers at once. The 36px driver avatar
    (set above, per the operator) is kept — it isn't the row-height driver. */
-#dr-sub-roster #rr-roster-table-wrap tbody td{padding-top:7px;padding-bottom:7px}
-#dr-sub-roster .rr-attring-circle,
-#dr-sub-roster .rr-attring-circle svg{width:32px;height:32px}
-#dr-sub-roster .rr-attring-days{font-size:var(--fs-10-5)}
-#dr-sub-roster .rr-risk-card{min-height:40px}
+/* NOTE the #view-schedule.rrx-schedule ancestor: #dr-sub-roster is the portable
+   roster node, so _obMountDriverSub can relocate it into the Onboarding host.
+   Anchoring on the Schedule view ensures this density applies ONLY when the
+   roster is shown on Schedule → Roster — the Onboarding roster keeps its own. */
+#view-schedule.rrx-schedule #dr-sub-roster #rr-roster-table-wrap tbody td{padding-top:7px;padding-bottom:7px}
+#view-schedule.rrx-schedule #dr-sub-roster .rr-attring-circle,
+#view-schedule.rrx-schedule #dr-sub-roster .rr-attring-circle svg{width:32px;height:32px}
+#view-schedule.rrx-schedule #dr-sub-roster .rr-attring-days{font-size:var(--fs-10-5)}
+#view-schedule.rrx-schedule #dr-sub-roster .rr-risk-card{min-height:40px}
 /* Compact the driver cell's three stacked lines (name · cert badges · station)
    so it stops being the row-height driver — smaller cert pills, tighter gaps. */
-#dr-sub-roster .rr-cert-row{margin-top:2px}
-#dr-sub-roster .rr-cert{height:16px;padding:0 6px}
-#dr-sub-roster #rr-roster-table-wrap .cell-name-sub{margin-top:1px}
+#view-schedule.rrx-schedule #dr-sub-roster .rr-cert-row{margin-top:2px}
+#view-schedule.rrx-schedule #dr-sub-roster .rr-cert{height:16px;padding:0 6px}
+#view-schedule.rrx-schedule #dr-sub-roster #rr-roster-table-wrap .cell-name-sub{margin-top:1px}
+/* Square chip corners to match the schedule cards (operator request): the cert
+   badges, the RISK / NO APP / NEW row badges, and the risk-status card. */
+#view-schedule.rrx-schedule #dr-sub-roster .rr-cert,
+#view-schedule.rrx-schedule #dr-sub-roster .rr-row-badge,
+#view-schedule.rrx-schedule #dr-sub-roster .rr-risk-card{border-radius:0}
 /* ── Selected driver row — 4px primary-blue left accent + a slightly
    darker row tint so the open driver feels tied to the detail panel.
    Hover behavior is untouched; this layers on top of it. The accent is
