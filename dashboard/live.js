@@ -12162,9 +12162,12 @@ function _rrRowMoreDispatch(action, id) {
     return;
   }
   if (action === "reactivate") { _rrReactivateDriver(id); return; }
-  // Anything else is a driver-record tab → open it in a compact peek
-  // popup (that single tab only, not the full record workspace).
-  if (typeof openDriverDrawer === "function") openDriverDrawer(id, { tab: action, peek: true });
+  // Anything else is a driver-record tab → open the full record in the
+  // right-side slide-over pop-out (the same workspace the Schedule page uses),
+  // deep-linked to the chosen tab so every tab lives in one pop-out. forceOverlay
+  // keeps it the slide-over even on the roster, whose split would otherwise dock
+  // it inline.
+  if (typeof openDriverDrawer === "function") openDriverDrawer(id, { tab: action, forceOverlay: true });
 }
 // Flip a terminated driver back to Active from the roster ⋯ menu. Stamps the
 // status-effective date (like the status picker) and reloads so the row leaves
@@ -12224,13 +12227,15 @@ document.addEventListener("click", (e) => {
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") _rrCloseRowMore(); });
 // Keyboard activation for the roster driver-name link (role=button). Click is
 // handled by the generic [data-rr-driver-id] delegate; this adds Enter/Space.
+// forceOverlay mirrors the click path so keyboard users get the same slide-over
+// pop-out (not the retired inline dock).
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Enter" && e.key !== " ") return;
   const link = e.target.closest && e.target.closest(".cell-name-link[data-rr-driver-id]");
   if (!link) return;
   e.preventDefault();
   const id = link.getAttribute("data-rr-driver-id");
-  if (id && typeof openDriverDrawer === "function") openDriverDrawer(id);
+  if (id && typeof openDriverDrawer === "function") openDriverDrawer(id, { forceOverlay: true });
 });
 
 // ── Schedule · Notes & Tasks panel (right utility rail) ───────────────
@@ -49042,12 +49047,17 @@ document.addEventListener("click", async (e) => {
     if (id) { e.preventDefault(); await openDriverDrawer(id, { tab: "attendance" }); return; }
   }
   // Open drawer from any element marked with data-rr-driver-id (e.g. driver
-  // names anywhere on the dashboard — scorecards, schedule chips, attendance
-  // rows). Don't intercept clicks on form controls inside such elements.
+  // names anywhere on the dashboard — the roster name links, scorecards,
+  // schedule chips, attendance rows). Don't intercept clicks on form controls
+  // inside such elements. forceOverlay opens the right-side slide-over pop-out
+  // everywhere — including the roster, which used to dock the record inline
+  // beside the list (retired per operator direction; the record now reads as
+  // the same pop-out the Schedule page uses). It's a no-op elsewhere, since
+  // off-roster there's no split to dock into.
   const named = e.target.closest("[data-rr-driver-id]");
   if (named && !e.target.closest("button, a[href], input, select, textarea, [data-rr-no-drawer]")) {
     const id = named.getAttribute("data-rr-driver-id");
-    if (id) { e.preventDefault(); await openDriverDrawer(id); return; }
+    if (id) { e.preventDefault(); await openDriverDrawer(id, { forceOverlay: true }); return; }
   }
   // Legacy: open drawer from a full row marked with [data-rr-open-driver].
   const row = e.target.closest("[data-rr-open-driver]");
