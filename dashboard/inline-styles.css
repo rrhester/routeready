@@ -1782,10 +1782,9 @@ td.rr-lastcoach-col > span > span{color:var(--rr-gray-600) !important}
 #view-schedule .req-trow:focus-visible td{background:var(--canvas);box-shadow:inset 0 0 0 2px var(--accent-soft)}
 #view-schedule .req-trow.is-selected td{background:rgba(37,99,235,.06)}
 #view-schedule .req-trow.is-selected td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
-/* Denied decisions · an extremely subtle pale-red row wash (Schedule
-   exception-cell language) — text stays fully readable. */
-#view-schedule .req-trow.is-denied td{background:rgba(220,38,38,.035)}
-#view-schedule .req-trow.is-denied:hover td{background:rgba(220,38,38,.06)}
+/* Denied decisions carry the red status dot in the STATUS pill only — no row
+   tint (per operator preference + the reference, denied rows keep the normal
+   background). */
 /* Driver avatar in the decisions table · calm neutral chip (initials
    fallback), matching the reference's restrained gray circles. */
 #view-schedule .req-td-driver .avatar-sm.req-avatar{background:var(--canvas);color:var(--text-muted);border:1px solid var(--border);font-weight:700}

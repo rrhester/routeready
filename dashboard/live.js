@@ -91371,8 +91371,7 @@ function _reqDecidedRowHtml(it) {
            : ["status-pill-pending", "Pending"];
   const chg = _reqRequestedChange(it);
   const dec = _reqDecisionParts(r);
-  const denied = r.status === "denied" ? " is-denied" : "";
-  return `<tr class="req-trow${denied}" data-req-row="${escapeHtml(r.id)}" tabindex="0" role="button" aria-label="Open ${escapeHtml(name)} request detail">
+  return `<tr class="req-trow" data-req-row="${escapeHtml(r.id)}" tabindex="0" role="button" aria-label="Open ${escapeHtml(name)} request detail">
     <td class="req-td-driver"><div class="cell-driver"><div class="avatar-sm req-avatar">${escapeHtml(_reqInitials(name))}</div><div class="cell-driver-text"><div class="cell-name"><span class="cell-name-text">${escapeHtml(name)}</span></div><div class="cell-name-sub">${escapeHtml(station)}</div></div></div></td>
     <td>${_reqCoverageImpactCell(it)}</td>
     <td><div class="req-change"><div class="req-change-main">${escapeHtml(chg.primary)}</div><div class="req-change-sub">${escapeHtml(chg.sub)}</div></div></td>
