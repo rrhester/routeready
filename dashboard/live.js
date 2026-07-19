@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=9472ce93ff33";
-import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=9472ce93ff33";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=9472ce93ff33";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=9472ce93ff33";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=9472ce93ff33";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=9472ce93ff33";
-import { isChecklistComplete } from "./checklist-core.mjs?v=9472ce93ff33";
+import { planScheduleWeek } from "./scheduling-engine.js?v=acae1f205562";
+import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=acae1f205562";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=acae1f205562";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=acae1f205562";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=acae1f205562";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=acae1f205562";
+import { isChecklistComplete } from "./checklist-core.mjs?v=acae1f205562";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=9472ce93ff33";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=9472ce93ff33";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=9472ce93ff33";
+} from "./msg-core.mjs?v=acae1f205562";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=acae1f205562";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=acae1f205562";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -11822,6 +11822,29 @@ function _rrCloseRowMore() {
   const t = document.querySelector('[data-rr-row-more][aria-expanded="true"]');
   if (t) t.setAttribute("aria-expanded", "false");
 }
+// Position (and re-clamp) the ⋯ popover against its trigger. Extracted so the
+// "Open record" disclosure can re-run it after the menu grows/shrinks, keeping
+// the popover flipped above / scrolled for lower rows.
+function _rrPositionRowMore(pop, trigger) {
+  const r = trigger.getBoundingClientRect();
+  const popW = 244;
+  pop.style.position = "fixed";
+  pop.style.minWidth = `${popW}px`;
+  pop.style.maxHeight = `${Math.max(160, window.innerHeight - 16)}px`;
+  pop.style.overflowY = "auto";
+  pop.style.zIndex = "10000";
+  let left = r.right - popW;
+  left = Math.max(8, Math.min(left, window.innerWidth - popW - 8));
+  pop.style.left = `${left}px`;
+  pop.style.top = `${r.bottom + 6}px`;
+  const popH = pop.offsetHeight || 0;
+  let top = r.bottom + 6;
+  if (top + popH > window.innerHeight - 8) {
+    const above = r.top - popH - 6;
+    top = above >= 8 ? above : Math.max(8, window.innerHeight - 8 - popH);
+  }
+  pop.style.top = `${top}px`;
+}
 function _rrOpenRowMore(trigger, driverId) {
   if (!trigger) return;
   _rrRowMoreId = driverId || null;
@@ -11837,37 +11860,32 @@ function _rrOpenRowMore(trigger, driverId) {
   // Reactivate action that flips them back to Active.
   const _drv = (_rosterRows || []).find((row) => row.id === driverId);
   const _isTerminated = _drv && _drv.status === "terminated";
+  // "Open record" — a person icon + right-hand chevron that discloses the
+  // record deep-links below (the row itself opens the full record on click,
+  // so this menu group is only for jumping straight to a specific tab).
+  const recordIcon = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="10" r="2"/><path d="M13 9h4M13 13h4M6 16.5c.6-1.4 1.6-2 2.5-2s1.9.6 2.5 2"/></svg>';
+  const chevIcon   = '<svg class="rr-row-more-chev" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
+  const groupLabel = (t) => `<div class="rr-status-picker-grouplabel" role="presentation">${escapeHtml(t)}</div>`;
+  // Actions (what you DO to a driver) sit up top; navigation into the record
+  // folds under one disclosure; the destructive row is quarantined at the
+  // bottom behind its own divider.
   pop.innerHTML =
-    _RR_ROW_MORE_TABS.map(([a, l, ic]) => item(a, l, ic)).join("") +
-    sep +
-    item("message", "Message", msgIcon) +
+    groupLabel("Actions") +
     item("coach", "Create coaching", coachIcon) +
+    item("message", "Message", msgIcon) +
+    sep +
+    `<button type="button" role="menuitem" class="rr-status-picker-item rr-row-more-disclosure" data-rr-row-more-toggle aria-expanded="false" aria-controls="rr-row-more-tabs">${recordIcon}<span class="rr-status-picker-label">Open record</span>${chevIcon}</button>` +
+    `<div class="rr-row-more-tabs" id="rr-row-more-tabs" role="group" aria-label="Open record on a tab" hidden>` +
+      _RR_ROW_MORE_TABS.map(([a, l, ic]) => item(a, l, ic)).join("") +
+    `</div>` +
     sep +
     (_isTerminated
       ? item("reactivate", "Reactivate driver", reactIcon)
       : item("terminate", "Terminate driver", termIcon, true));
-  // Right-align to the trigger (it sits at the far right of the row),
-  // clamp to the viewport, and flip above / scroll when the tall menu
-  // would run off the bottom for lower rows.
-  const r = trigger.getBoundingClientRect();
-  const popW = 232;
-  pop.style.position = "fixed";
-  pop.style.minWidth = `${popW}px`;
-  pop.style.maxHeight = `${Math.max(160, window.innerHeight - 16)}px`;
-  pop.style.overflowY = "auto";
-  pop.style.zIndex = "10000";
-  let left = r.right - popW;
-  left = Math.max(8, Math.min(left, window.innerWidth - popW - 8));
-  pop.style.left = `${left}px`;
-  pop.style.top = `${r.bottom + 6}px`;
+  // Right-align to the trigger (far right of the row), clamp to the viewport,
+  // and flip above / scroll when the menu would run off the bottom.
   pop.hidden = false;
-  const popH = pop.offsetHeight || 0;
-  let top = r.bottom + 6;
-  if (top + popH > window.innerHeight - 8) {
-    const above = r.top - popH - 6;
-    top = above >= 8 ? above : Math.max(8, window.innerHeight - 8 - popH);
-  }
-  pop.style.top = `${top}px`;
+  _rrPositionRowMore(pop, trigger);
   trigger.setAttribute("aria-expanded", "true");
 }
 function _rrRowMoreDispatch(action, id) {
@@ -11912,6 +11930,21 @@ document.addEventListener("click", (e) => {
     if (!isOpen) _rrOpenRowMore(moreTrigger, id);
     return;
   }
+  const toggle = e.target.closest("[data-rr-row-more-toggle]");
+  if (toggle) {
+    e.preventDefault();
+    e.stopPropagation();
+    const grp = document.getElementById("rr-row-more-tabs");
+    const pop = document.getElementById("rr-row-more-pop");
+    if (grp) {
+      const willOpen = grp.hidden;
+      grp.hidden = !willOpen;
+      toggle.setAttribute("aria-expanded", String(willOpen));
+      const trig = document.querySelector('[data-rr-row-more][aria-expanded="true"]');
+      if (pop && trig) _rrPositionRowMore(pop, trig);  // re-clamp after growth
+    }
+    return;
+  }
   const go = e.target.closest("[data-rr-row-more-go]");
   if (go) {
     e.preventDefault();
@@ -11926,6 +11959,16 @@ document.addEventListener("click", (e) => {
   if (pop && !pop.hidden && !e.target.closest("#rr-row-more-pop")) _rrCloseRowMore();
 });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") _rrCloseRowMore(); });
+// Keyboard activation for the roster driver-name link (role=button). Click is
+// handled by the generic [data-rr-driver-id] delegate; this adds Enter/Space.
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" && e.key !== " ") return;
+  const link = e.target.closest && e.target.closest(".cell-name-link[data-rr-driver-id]");
+  if (!link) return;
+  e.preventDefault();
+  const id = link.getAttribute("data-rr-driver-id");
+  if (id && typeof openDriverDrawer === "function") openDriverDrawer(id);
+});
 
 // ── Schedule · Notes & Tasks panel (right utility rail) ───────────────
 // A polished productivity rail that slides out from the schedule's right
@@ -14101,14 +14144,16 @@ function renderDriverRow(d) {
   const actions = _rowActionsFor(d);
   const health = _driverHealth(d.id);
   const healthTitle = { high: "High risk · final corrective action", medium: "Medium risk · written corrective action", due: "Coaching due", healthy: "Healthy" }[health];
-  // The row itself is no longer click-to-open — the record is reached
-  // per-tab from the ⋯ menu now (peek popups). Keep data-driver-id for row
-  // accenting / lookups, but drop data-rr-open-driver so a row click no
-  // longer pops the full driver record.
+  // The row body isn't click-to-open (too easy to mis-hit while scanning),
+  // but the driver NAME is: clicking it opens the full record via the generic
+  // [data-rr-driver-id] handler. That's what lets the ⋯ menu fold its eight
+  // record deep-links under one "Open record" disclosure instead of listing
+  // them all at the top level. Keyboard activation is wired in _rrOpenRowMore's
+  // keydown sibling below (role=button + Enter/Space).
   return `
     <tr data-driver-id="${d.id}" class="${(_ddOpenDriverId && d.id === _ddOpenDriverId) ? "is-record-open" : ""}">
       <td><div class="cell-driver"><div class="avatar-sm ${tier} rr-health-${health}" title="${healthTitle}" aria-label="${healthTitle}">${initials}</div>
-        <div class="cell-driver-text"><div class="cell-name"><span class="cell-name-text">${escapeHtml(display)}</span>${badges}</div>
+        <div class="cell-driver-text"><div class="cell-name"><span class="cell-name-text cell-name-link" data-rr-driver-id="${d.id}" role="button" tabindex="0" title="Open ${escapeHtml(display)}’s record">${escapeHtml(display)}</span>${badges}</div>
         ${certs}
         ${sub ? `<div class="cell-name-sub">${sub}</div>` : ""}</div></div></td>
       <td class="rr-att-points-cell">${_riskCell(d.id)}</td>
