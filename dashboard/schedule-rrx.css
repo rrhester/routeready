@@ -3055,6 +3055,15 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-servi
   box-shadow: 0 1px 0 var(--rr-route-c-xl) !important;
   --rr-route-t: var(--rr-route-t-xl);
 }
+/* HELPER-type route (driver seat) — its own picker row ("Helper route").
+   The helper-seat rules further down key on shift_kind and out-rank this,
+   so the HP seat keeps the "Helper route · helper" color. */
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-service-code="HELPER"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: var(--rr-route-c-helper_svc) !important;
+  border-color: color-mix(in srgb, var(--rr-route-c-helper_svc) 78%, var(--rr-slate-900)) !important;
+  box-shadow: 0 1px 0 var(--rr-route-c-helper_svc) !important;
+  --rr-route-t: var(--rr-route-t-helper_svc);
+}
 
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="other"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
   background: var(--rr-route-c-other) !important;
@@ -3168,8 +3177,8 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff .shif
    dark picks, ink on light picks; gray-900 fallback preserves the
    old look until the popover JS publishes the vars). Standard
    (no-override) chips keep the default light styling. */
-body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip:is([data-rr-route-class="rescue"],[data-rr-route-class="nursery"],[data-rr-service-code="XL"],[data-rr-route-class="other"],[data-rr-route-class="reduction"],[data-rr-route-class="cycle_1"],[data-rr-route-class="cycle_2"],[data-rr-route-class="backup"],[data-rr-shift-kind="training"],[data-rr-shift-kind="ride_along"],[data-rr-shift-kind="helper"],.shift-chip-training):not(.swap):not(.off):not(.open):not(.add-here),
-body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip:is([data-rr-route-class="rescue"],[data-rr-route-class="nursery"],[data-rr-service-code="XL"],[data-rr-route-class="other"],[data-rr-route-class="reduction"],[data-rr-route-class="cycle_1"],[data-rr-route-class="cycle_2"],[data-rr-route-class="backup"],[data-rr-shift-kind="training"],[data-rr-shift-kind="ride_along"],[data-rr-shift-kind="helper"],.shift-chip-training):not(.swap):not(.off):not(.open):not(.add-here) *,
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip:is([data-rr-route-class="rescue"],[data-rr-route-class="nursery"],[data-rr-service-code="XL"],[data-rr-service-code="HELPER"],[data-rr-route-class="other"],[data-rr-route-class="reduction"],[data-rr-route-class="cycle_1"],[data-rr-route-class="cycle_2"],[data-rr-route-class="backup"],[data-rr-shift-kind="training"],[data-rr-shift-kind="ride_along"],[data-rr-shift-kind="helper"],.shift-chip-training):not(.swap):not(.off):not(.open):not(.add-here),
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip:is([data-rr-route-class="rescue"],[data-rr-route-class="nursery"],[data-rr-service-code="XL"],[data-rr-service-code="HELPER"],[data-rr-route-class="other"],[data-rr-route-class="reduction"],[data-rr-route-class="cycle_1"],[data-rr-route-class="cycle_2"],[data-rr-route-class="backup"],[data-rr-shift-kind="training"],[data-rr-shift-kind="ride_along"],[data-rr-shift-kind="helper"],.shift-chip-training):not(.swap):not(.off):not(.open):not(.add-here) *,
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff,
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff * {
   color: var(--rr-route-t, var(--rr-gray-900)) !important;
@@ -5383,6 +5392,19 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id][data-rr-service-code="XL"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
   background: color-mix(in srgb, var(--rr-route-c-xl) 88%, var(--rr-slate-400)) !important;
+}
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-service-code="HELPER"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: var(--rr-route-c-helper_svc) !important;
+  border: 1px solid color-mix(in srgb, var(--rr-route-c-helper_svc) 78%, var(--rr-slate-900)) !important;
+  color: var(--rr-route-t-helper_svc, var(--rr-gray-900)) !important;
+  --rr-route-t: var(--rr-route-t-helper_svc);
+}
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-service-code="HELPER"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) *,
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-service-code="HELPER"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route {
+  color: var(--rr-route-t-helper_svc, var(--rr-gray-900)) !important;
+}
+body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id][data-rr-service-code="HELPER"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: color-mix(in srgb, var(--rr-route-c-helper_svc) 88%, var(--rr-slate-400)) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-shift-kind="training"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
   background: var(--rr-route-c-class_training) !important;
