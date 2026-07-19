@@ -66,6 +66,15 @@
         <div class="pa-ws-header">
           <div class="pa-ws-head-top">
             <div class="pa-ws-title">Applicants</div>
+            <!-- Hiring settings · message templates + referral program moved
+                 here from Settings (visible, labeled entries next to the
+                 hiring workflow). Each opens its slide-over via the
+                 document-level handlers in live.js (ids rr-obmsg-open /
+                 rr-obref-open). -->
+            <div class="pa-ws-head-actions">
+              <button type="button" class="btn btn-sm" id="rr-obmsg-open">Message templates</button>
+              <button type="button" class="btn btn-sm" id="rr-obref-open">Referral program</button>
+            </div>
           </div>
           <div class="hp-stages" id="pipeline-stage-tabs">
             <button class="hp-stage-btn stage-tab active" data-stage="all" onclick="filterPipelineStage(this)"><svg class="hp-stage-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 19v-1a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18v1"/><circle cx="10" cy="8" r="3.2"/><path d="M20 19v-1a3.5 3.5 0 0 0-2.6-3.38"/><path d="M15.5 5.2a3.2 3.2 0 0 1 0 5.6"/></svg>All <span class="hp-stage-btn-count stage-tab-count">28</span></button>

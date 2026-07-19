@@ -341,21 +341,11 @@
                           </div>
                         </div>
                       </div>
-                      <!-- Message templates · the full SMS/email template
-                           editor relocated from Settings → Hiring messages
-                           (operator preference — templates belong with the
-                           funnel's messaging settings). Opens a slide-over so
-                           the list sits next to these settings without
-                           bloating this popover; the #rr-messages-list node is
-                           hoisted in on first open, preserving loadMessagesTab
-                           + every row handler. -->
-                      <div class="u-mt-3">
-                        <button type="button" class="btn btn-sm" id="rr-obmsg-open">Edit message templates…</button>
-                        <!-- Referral program · KPIs, leaderboard, auto-invite,
-                             milestone payouts + eligibility. Relocated from
-                             Settings → Hiring referrals; opens a slide-over. -->
-                        <button type="button" class="btn btn-sm u-ml-2" id="rr-obref-open">Referral program…</button>
-                      </div>
+                      <!-- Message templates + Referral program entries moved
+                           OUT of this Screening popover to visible, labeled
+                           buttons in the Applicants header (.pa-ws-head-top in
+                           view-pipeline.frag) — they were undiscoverable and
+                           semantically out of place here. -->
                     </div>
                   </div>
                 </div>
