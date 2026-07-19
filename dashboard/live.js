@@ -91116,21 +91116,44 @@ function _rrReqFilterLabel(key) {
   const opt = _rrReqFilterOptions(key).find((o) => o.value === cur);
   return opt ? opt.label : _rrReqFilterOptions(key)[0].label;
 }
+// Page command bar (directly beneath the section tabs). LEFT: the two neutral
+// white page actions — PTO report + Request settings (Settings is NOT a blue
+// primary; it matches the PTO button exactly). RIGHT: the inline request-status
+// KPI (0 PENDING · All requests reviewed) behind a hairline divider, then the
+// shared bell/avatar chrome. Search + Type + Status live INSIDE the Recent
+// Decisions container (see _rrRequestsDecisionsToolbarHtml) — not here.
 function _rrRequestsToolbarHtml() {
+  return `
+    <button type="button" class="req-toolbar-act" id="rr-pto-report-btn" title="Download PTO report"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span>PTO report</span></button>
+    <button type="button" class="req-toolbar-act" data-rr-req-settings aria-haspopup="dialog" aria-expanded="false" title="Driver-app request settings"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>Request settings</span></button>
+    <div class="req-health" id="rr-req-health" role="status" aria-live="polite">${(window._reqHealth && window._reqHealth.html) || ""}</div>
+    <span class="rr-roster-chrome-host" id="rr-req-chrome-host"></span>`;
+}
+
+// Recent Decisions table toolbar (rendered INSIDE the decisions container, at
+// its top). LEFT: the "RECENT DECISIONS" section label + a live count badge.
+// RIGHT: the driver search field, then the Type and Status split dropdowns.
+// These controls scope THIS table, so they belong here — never duplicated in
+// the page command bar. Built once by _renderSchedRequestsKpis so the search
+// input keeps focus across a stream re-render (the table body is rebuilt, this
+// toolbar is not).
+function _rrRequestsDecisionsToolbarHtml() {
   const filterBtn = (key, aria, title) =>
     `<button type="button" class="sched-page-btn req-toolbar-filter" data-req-filter="${key}" aria-haspopup="menu" aria-expanded="false" aria-label="${aria}" title="${title}"><span class="req-filter-label">${escapeHtml(_rrReqFilterLabel(key))}</span></button>`;
   return `
-    <div class="req-search">
-      <svg class="req-search-ic" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input type="search" class="req-search-input" data-rr-req-search placeholder="Search driver…" aria-label="Search requests by driver name" value="${escapeHtml(_reqFilter.q || "")}">
+    <div class="req-dec-head">
+      <span class="req-dec-title">Recent Decisions</span>
+      <span class="req-dec-count" id="rr-req-dec-count">0</span>
     </div>
-    ${filterBtn("type", "Request type", "Filter by request type")}
-    ${filterBtn("status", "Status", "Filter by status")}
-    ${typeof window.rrStationScope === "function" ? "" : filterBtn("loc", "Location", "Filter by location")}
-    <div class="req-health" id="rr-req-health" role="status" aria-live="polite">${(window._reqHealth && window._reqHealth.html) || ""}</div>
-    <button type="button" class="req-toolbar-act" id="rr-pto-report-btn" title="Download PTO report"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span>PTO report</span></button>
-    <button type="button" class="req-toolbar-act req-toolbar-primary" data-rr-req-settings aria-haspopup="dialog" aria-expanded="false" title="Driver-app request settings"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>Request settings</span></button>
-    <span class="rr-roster-chrome-host" id="rr-req-chrome-host"></span>`;
+    <div class="req-dec-tools">
+      <div class="req-search">
+        <svg class="req-search-ic" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="search" class="req-search-input" data-rr-req-search placeholder="Search driver…" aria-label="Search requests by driver name" value="${escapeHtml(_reqFilter.q || "")}">
+      </div>
+      ${filterBtn("type", "Request type", "Filter by request type")}
+      ${filterBtn("status", "Status", "Filter by status")}
+      ${typeof window.rrStationScope === "function" ? "" : filterBtn("loc", "Location", "Filter by location")}
+    </div>`;
 }
 
 // ─── Requests filter dropdowns · custom popover ───────────────────────────
@@ -91203,7 +91226,7 @@ document.addEventListener("click", (e) => {
     _rrCloseReqFilterMenu();
     if (!key || _reqFilter[key] === val) return;
     _reqFilter[key] = val;
-    const lbl = document.querySelector(`#rr-req-toolbar-bar [data-req-filter="${key}"] .req-filter-label`);
+    const lbl = document.querySelector(`#rr-req-decisions-toolbar [data-req-filter="${key}"] .req-filter-label`);
     if (lbl) lbl.textContent = _rrReqFilterLabel(key);
     if (typeof renderSchedRequestStream === "function") renderSchedRequestStream();
     return;
@@ -91387,9 +91410,12 @@ function _renderSchedRequestsActive() {
   // bare page background — the right-hand reports column and the appended
   // swaps/covers card are no longer mounted here (their builders remain defined
   // for reuse elsewhere). Pending requests stay fully actionable in-page.
+  // Build the toolbars FIRST so the persistent Recent Decisions toolbar (search
+  // + filters + count badge) exists before the stream tries to update the
+  // count and paint the table body into it.
+  _renderSchedRequestsKpis();
   try { renderSchedRequestStream(); }
   catch (e) { console.warn("renderSchedRequestStream:", e); }
-  _renderSchedRequestsKpis();
 }
 window._rrRenderSchedRequestsActive = _renderSchedRequestsActive;
 
@@ -91548,6 +91574,11 @@ function _renderSchedRequestsKpis() {
   // The toolbar rebuild reinjects the cached health markup as a string, so
   // reapply the meter fill (data-pct → width) after it lands.
   if (typeof _reqApplyHealthMeter === "function") _reqApplyHealthMeter(bar);
+  // Build the Recent Decisions container's own toolbar (label + count + search
+  // + Type/Status filters). Persistent — the stream re-render rebuilds only the
+  // table body below it, so the search input keeps focus while you type.
+  const decBar = document.getElementById("rr-req-decisions-toolbar");
+  if (decBar) decBar.innerHTML = _rrRequestsDecisionsToolbarHtml();
   // Filter clicks are handled by the delegated .rr-status-picker dropdown
   // wiring next to _rrRequestsToolbarHtml, so nothing to attach here.
   if (typeof _rrMoveChromeToRequests === "function") _rrMoveChromeToRequests();
@@ -91945,9 +91976,10 @@ function _reqCoverage(it) {
   return { sev: count === 0 ? "none" : count <= 2 ? "medium" : "high", count, dows };
 }
 
-// Coverage Impact cell — a compact blue schedule-chip: the severity level
-// (coloured word) over a one-line reason. Day names fold into the reason so the
-// chip stays two tight lines like a schedule card.
+// Coverage Impact cell — informational only, so it wears NO semantic colour:
+// every level (NONE / MEDIUM / HIGH) renders in the same neutral dark navy
+// (semibold, uppercased via CSS) over a muted one-line reason. No badge, dot,
+// fill, border or icon — it must never compete with the decision STATUS.
 function _reqCoverageImpactCell(it) {
   const { sev, count, dows } = _reqCoverage(it);
   const head = sev === "high" ? "High" : sev === "medium" ? "Medium" : "None";
@@ -91960,7 +91992,7 @@ function _reqCoverageImpactCell(it) {
     const days = labels.join(", ") + (dows.length > MAX ? ` +${dows.length - MAX}` : "");
     sub = `${count} day${count === 1 ? "" : "s"} · ${days}`;
   }
-  return `<div class="req-cov req-cov-${sev}"><div class="req-cov-card"><div class="req-cov-sev">${escapeHtml(head)}</div><div class="req-cov-sub">${escapeHtml(sub)}</div></div></div>`;
+  return `<div class="req-cov"><div class="req-cov-sev">${escapeHtml(head)}</div><div class="req-cov-sub">${escapeHtml(sub)}</div></div>`;
 }
 
 // Request-health summary for the toolbar — the Requests-page twin of the
@@ -92259,7 +92291,7 @@ async function renderSchedRequestStream() {
   // Filters live in the top toolbar now — keep the Location dropdown's
   // options in sync with the stations currently on hand.
   _reqLocStations = stations;
-  const _locLbl = document.querySelector('#rr-req-toolbar-bar [data-req-filter="loc"] .req-filter-label');
+  const _locLbl = document.querySelector('#rr-req-decisions-toolbar [data-req-filter="loc"] .req-filter-label');
   if (_locLbl) _locLbl.textContent = _rrReqFilterLabel("loc");
 
   // Toolbar health summary · reflects the true (unfiltered) request state so
@@ -92280,36 +92312,48 @@ async function renderSchedRequestStream() {
 
   // Recent Decisions table — dense, flat, Schedule-grid feel. Column widths
   // are fixed via a colgroup so they hold the reference proportions
-  // (Driver 22 · Coverage 19 · Change 25 · Status 15 · Date 16 · chevron).
-  const decidedTable = `<div class="req-table-wrap"><table class="req-table">
+  // (Driver 22 · Coverage 19 · Change 25 · Status 15 · Date 16 · chevron). No
+  // wrapper border/radius here — the persistent .req-decisions container owns
+  // the white surface, border and 10px corners; the table just fills it.
+  const decidedTable = `<table class="req-table">
     <colgroup><col class="req-col-driver"><col class="req-col-cov"><col class="req-col-change"><col class="req-col-status"><col class="req-col-date"><col class="req-col-chev"></colgroup>
     <thead><tr><th>Driver</th><th>Coverage impact</th><th>Requested change</th><th>Status</th><th>Decision date</th><th class="req-th-chev" aria-hidden="true"></th></tr></thead>
-    <tbody>${decided.map(_reqDecidedRowHtml).join("")}</tbody></table></div>`;
+    <tbody>${decided.map(_reqDecidedRowHtml).join("")}</tbody></table>`;
 
-  host.innerHTML = `
-    <div class="req-page">
-      ${pending.length ? `<section class="req-section">
-        <div class="req-section-head"><span class="req-section-title">Pending Requests</span><span class="req-section-count">${pending.length}</span></div>
-        <div class="req-pending">${pending.map(pendingRowHtml).join("")}</div>
-      </section>` : ``}
+  // Pending requests render in their own host ABOVE the Recent Decisions
+  // container (they stay fully actionable; the reference has zero pending, so
+  // this collapses to nothing there).
+  const pendingHost = document.getElementById("rr-sched-req-pending");
+  if (pendingHost) {
+    pendingHost.innerHTML = pending.length ? `<section class="req-section req-pending-section">
+      <div class="req-section-head"><span class="req-section-title">Pending Requests</span><span class="req-section-count">${pending.length}</span></div>
+      <div class="req-pending">${pending.map(pendingRowHtml).join("")}</div>
+    </section>` : ``;
+  }
 
-      <section class="req-section">
-        <div class="req-section-head"><span class="req-section-title">Recent Decisions</span><span class="req-section-count">${decided.length}</span></div>
-        ${decided.length
-          ? decidedTable
-          : `<div class="req-nodata">${items.length ? "No requests match these filters." : "No decisions yet. Approved and denied requests will appear here."}</div>`}
-      </section>
-    </div>`;
+  // The decided table fills the persistent Recent Decisions container body.
+  host.innerHTML = decided.length
+    ? decidedTable
+    : `<div class="req-nodata">${items.length ? "No requests match these filters." : "No decisions yet. Approved and denied requests will appear here."}</div>`;
+
+  // Keep the container's live count badge (in the persistent toolbar) in sync
+  // with the number of decision rows actually shown.
+  const decCount = document.getElementById("rr-req-dec-count");
+  if (decCount) decCount.textContent = String(decided.length);
+
+  // Root that spans BOTH the pending host and the decisions table — used to
+  // (re)wire delegated row behaviour that may live in either.
+  const reqRoot = document.getElementById("sched-sub-requests") || document;
 
   // Tint rows decided this session so the operator's last action is obvious.
   for (const id of _reqRecentlyDecided) {
-    const row = host.querySelector(`[data-req-row="${CSS.escape(String(id))}"]`)
-             || host.querySelector(`.to-row[data-rr-to-row="${CSS.escape(String(id))}"]`);
+    const row = reqRoot.querySelector(`[data-req-row="${CSS.escape(String(id))}"]`)
+             || reqRoot.querySelector(`.to-row[data-rr-to-row="${CSS.escape(String(id))}"]`);
     if (row) row.classList.add("req-row-fresh");
   }
 
-  host.querySelectorAll("[data-rr-to-decide]").forEach((btn) => btn.addEventListener("click", () => _toDecide(btn)));
-  host.querySelectorAll("[data-rr-av-decide]").forEach((btn) => btn.addEventListener("click", () => _avDecide(btn)));
+  reqRoot.querySelectorAll("[data-rr-to-decide]").forEach((btn) => btn.addEventListener("click", () => _toDecide(btn)));
+  reqRoot.querySelectorAll("[data-rr-av-decide]").forEach((btn) => btn.addEventListener("click", () => _avDecide(btn)));
   // Index decided items by id so a row click can open its detail panel.
   window._reqRowById = {};
   decided.forEach((it) => { window._reqRowById[String(it.row.id)] = it; });
@@ -92321,7 +92365,7 @@ async function renderSchedRequestStream() {
   // land, _toPaintCoverage records each real verdict into window._reqRealCov;
   // repaint the toolbar health so "N affecting coverage" matches the row
   // recommendations exactly (never contradicts an Approve verdict).
-  _toPaintCoverage(host)
+  _toPaintCoverage(pendingHost || reqRoot)
     .then(() => { try { _reqPaintHealth(pendingAll, items); } catch (_) {} })
     .catch((e) => console.warn("coverage check:", e));
 }
