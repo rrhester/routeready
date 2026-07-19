@@ -1691,7 +1691,6 @@
               <div class="rr-tgt-kpi-label">Rules for</div>
               <div class="rr-tgt-kpi-val">
                 <span class="rr-tgt-rules-week-label" id="rr-tgt-rules-week-label">—</span>
-                <button type="button" class="rr-tgt-rules-fwd" id="rr-tgt-rules-fwd" title="Apply this week's rules to every remaining week of the 13-week plan (settings only — shifts rebuild when each week is applied)">→ all</button>
               </div>
             </div>
           </div>
@@ -2480,18 +2479,6 @@
                   <span class="rr-tgt-gap-card-value" id="rr-tgt-gap-card-main">—</span>
                   <span class="rr-tgt-gap-card-sub" id="rr-tgt-gap-card-sub" hidden></span>
                   <span class="rr-tgt-gap-card-link" id="rr-tgt-gap-card-link" hidden>View analysis →</span>
-                </div>
-                <!-- Secondary plan tools · one quiet ⋯ menu (calm pass) — the
-                     buttons keep their ids, so the existing delegated click
-                     handlers in live.js work unchanged. -->
-                <div class="rr-tgt-more-wrap">
-                  <button class="btn btn-sm rr-tgt-more-btn" type="button" id="rr-tgt-more-btn" aria-haspopup="true" aria-expanded="false" title="More plan tools" aria-label="More plan tools">⋯</button>
-                  <div class="rr-tgt-more-menu" id="rr-tgt-more-menu" hidden>
-                    <button class="btn btn-sm" type="button" id="rr-tgt-seed-btn" title="Fill weeks that have no plan yet from the last 4 weeks' average per-weekday pattern">Seed empty weeks</button>
-                    <button class="btn btn-sm" type="button" id="rr-tgt-snap-btn" title="Save, compare and restore named snapshots of the 13-week plan">Snapshots…</button>
-                    <button class="btn btn-sm" type="button" id="rr-tgt-csv-btn" title="Download the 13-week plan as CSV">CSV</button>
-                    <button class="btn btn-sm" type="button" id="rr-tgt-print-btn" title="Print the 13-week plan">Print</button>
-                  </div>
                 </div>
               </div>
             </div>
