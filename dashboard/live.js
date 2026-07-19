@@ -25480,7 +25480,7 @@ async function loadReferralsSummary() {
 
   // Program config (milestone payouts + eligibility rules). Persisted via
   // referral_settings_save; referral_summary returns them with defaults
-  // (needs migration 0525 — pre-migration these keys are absent and the
+  // (needs migration 0527 — pre-migration these keys are absent and the
   // hardcoded defaults below stand in, so the UI still renders).
   const ms = data.milestones || {};
   const setDollars = (id, cents, dflt) => {
@@ -25507,7 +25507,7 @@ async function loadReferralsSummary() {
 // rules). The dashboard button used to fire a toast only (a mock); this
 // writes through referral_settings_save into dsps.metadata.referrals,
 // key-patched so it doesn't disturb the auto-invite settings. Graceful
-// pre-0525: the RPC accepts the extra keys once the migration is applied;
+// pre-0527: the RPC accepts the extra keys once the migration is applied;
 // before that the write no-ops the new keys (older RPC ignores them) and
 // we surface a hint.
 async function saveReferralProgram(btn) {
@@ -25532,7 +25532,7 @@ async function saveReferralProgram(btn) {
   if (btn) btn.disabled = false;
   if (error) {
     const needsMig = /program_enabled|milestones|eligibility|function|column/i.test(error.message || "");
-    toast(needsMig ? "Referral program save needs migration 0525" : ("Save failed: " + error.message), "warn");
+    toast(needsMig ? "Referral program save needs migration 0527" : ("Save failed: " + error.message), "warn");
     return;
   }
   toast("Referral program saved · effective for future hires", "success");

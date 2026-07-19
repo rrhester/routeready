@@ -128,12 +128,12 @@ Integrations** (org config only) + a per-user **Account & security** page.
     `.settings-section[data-set="referrals"]` node (loadReferralsTab + all
     handlers preserved). **Fixed the mock save:** the "Save program" button
     now persists milestone payouts + eligibility rules through
-    `referral_settings_save` (**migration 0525** — key-wise patch so it
+    `referral_settings_save` (**migration 0527** — key-wise patch so it
     doesn't clobber the auto-invite settings; `referral_summary` returns the
     new fields and `loadReferralsSummary` prefills them). Settings→Referrals
     nav tab removed. Browser-verified (drawer opens, KPIs + prefill from the
     persisted shape, save wired). SW nonce `2026-07-19.9`.
-    **Needs migration 0525 applied** (SQL pasted in chat; graceful until then).
+    **Needs migration 0527 applied** (SQL pasted in chat; graceful until then).
 - [~] **Step 4 — Recognition / Portal sync** (split into 4a/4b)
   - [x] **4a — Recognition** → Messages. New Recognition button in the
     Messages header opens the shared slide-over, hoisting the

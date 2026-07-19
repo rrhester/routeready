@@ -1,4 +1,4 @@
--- 0525_referral_program_persistence.sql
+-- 0527_referral_program_persistence.sql
 --
 -- The referral MILESTONE payouts (on-hire / 30 / 60 / 90-day amounts) and the
 -- ELIGIBILITY rules (must-be-active / good-standing / count-once) had no
