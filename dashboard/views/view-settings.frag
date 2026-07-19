@@ -105,6 +105,25 @@
                   <button class="btn btn-sm btn-primary" id="rr-set-dsp-code-save" type="button">Save</button>
                 </div>
               </div>
+              <!-- Stations · multi-station roster. Adding a 2nd active station
+                   turns on the station switcher at the top of the sidebar, so
+                   every page can show one station at a time or all together.
+                   Owner-only (stations write is owner-only via RLS). -->
+              <div class="form-row rr-owner-only">
+                <div>
+                  <div class="form-label">Stations</div>
+                  <div class="form-help">Every Amazon delivery station your DSP operates out of. Add a second active station to turn on the station switcher (top of the sidebar) — then the schedule, roster, drivers and other pages can each show one station at a time, or all of them together.</div>
+                </div>
+                <div style="flex:1;min-width:0">
+                  <div id="rr-stations-list" class="rr-stations-list"><div class="rr-stn-note">Loading stations…</div></div>
+                  <div style="display:flex;gap:var(--s-2);align-items:center;flex-wrap:wrap;margin-top:var(--s-2)">
+                    <input class="form-input" id="rr-station-new-code" placeholder="Code · e.g. DBO5" maxlength="12" style="max-width:150px;text-transform:uppercase"/>
+                    <input class="form-input" id="rr-station-new-name" placeholder="Name (optional)" style="flex:1;min-width:120px"/>
+                    <button class="btn btn-sm btn-primary" id="rr-station-add-btn" type="button">Add station</button>
+                  </div>
+                  <span id="rr-stations-status" class="rr-stn-note"></span>
+                </div>
+              </div>
               <div class="form-row">
                 <div>
                   <div class="form-label">Time zone</div>
