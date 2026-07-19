@@ -53632,44 +53632,6 @@ document.addEventListener("click", (e) => {
   _paOpenPopover(gapEl, _rrOkamiGapExplainHtml(mw));
 });
 
-// Targets header · ⋯ menu holding the secondary plan tools (Seed empty
-// weeks / Snapshots / CSV / Print — calm pass). The tool buttons keep their
-// ids, so their existing delegated handlers fire on the same click; the
-// menu closes on a setTimeout(0) AFTER those handlers run, so a popover a
-// tool opens (Snapshots) still measures its anchor while it's visible.
-// Later re-anchors to the then-hidden button fall back to
-// _paOpenPopover's inherit-position path.
-document.addEventListener("click", (e) => {
-  if (!e.target.closest) return;
-  const menu = document.getElementById("rr-tgt-more-menu");
-  if (!menu) return;
-  const moreBtn = document.getElementById("rr-tgt-more-btn");
-  const closeMenu = () => {
-    menu.hidden = true;
-    if (moreBtn) moreBtn.setAttribute("aria-expanded", "false");
-  };
-  if (e.target.closest("#rr-tgt-more-btn")) {
-    e.preventDefault();
-    menu.hidden = !menu.hidden;
-    if (moreBtn) moreBtn.setAttribute("aria-expanded", menu.hidden ? "false" : "true");
-    return;
-  }
-  if (menu.hidden) return;
-  if (menu.contains(e.target)) {
-    if (e.target.closest("button")) setTimeout(closeMenu, 0);   // tool picked
-  } else {
-    closeMenu();                                                // outside click
-  }
-});
-document.addEventListener("keydown", (e) => {
-  if (e.key !== "Escape") return;
-  const menu = document.getElementById("rr-tgt-more-menu");
-  if (menu && !menu.hidden) {
-    menu.hidden = true;
-    document.getElementById("rr-tgt-more-btn")?.setAttribute("aria-expanded", "false");
-  }
-});
-
 // "Drivers needed" header ⓘ — the formula with the DSP's live numbers,
 // and where each dial lives. Also spells out Cushion vs Plan Pad (two
 // different percent-buffers that operators regularly conflate: cushion
@@ -56360,61 +56322,6 @@ document.addEventListener("click", async (e) => {
     btn.disabled = false;
     btn.removeAttribute("aria-busy");
     btn.textContent = prevLabel;
-  }
-});
-
-// "→ all" · apply the visible week's rules to every remaining week of
-// the 13-week horizon. Settings rows only — deliberately NO
-// regenerate/cushion per week (that deletes and rebuilds unassigned
-// shifts 12 times); each week's shifts rebuild when it is applied/built.
-function _rrTgtRulesPayload(weekStartIso) {
-  const num = (id, dflt) => {
-    const v = parseInt(document.getElementById(id)?.value ?? "", 10);
-    return Number.isFinite(v) ? v : dflt;
-  };
-  const waves = Array.from(document.querySelectorAll("#rr-set-waves [data-rr-wave-time]"))
-    .map((el) => ({ start: el.value || "07:00" }));
-  const tiebreakRaw = document.getElementById("rr-set-pref-tiebreaker")?.value;
-  return {
-    week_start: weekStartIso,
-    default_block_hours: num("rr-set-block-hours", 10),
-    cushion_pct: num("rr-set-cushion-pct", 0),
-    max_days_per_week: Math.max(0, Math.min(7, num("rr-set-max-days", 5))),
-    report_lead_minutes: Math.max(0, Math.min(120, num("rr-set-report-lead", 0))),
-    allow_availability_override: !!document.getElementById("rr-set-availability-override")?.checked,
-    preference_tiebreaker: ["least_loaded", "seniority", "fairness"].includes(tiebreakRaw) ? tiebreakRaw : "least_loaded",
-    waves: waves.length ? waves : [{ start: "07:00" }],
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
-  };
-}
-document.addEventListener("click", async (e) => {
-  const btn = e.target.closest && e.target.closest("#rr-tgt-rules-fwd");
-  if (!btn) return;
-  e.preventDefault();
-  e.stopPropagation();
-  const weeks = (window._rrOkamiModel?.weeks || []).slice(1);
-  if (!weeks.length) { toast("No later weeks in the horizon", "warn"); return; }
-  const okc = typeof _rrConfirmDialog !== "function" || await _rrConfirmDialog({
-    title: `Apply these rules to ${weeks.length} later weeks?`,
-    body: `Copies this week's Block / Cushion / Report time / Wave times to ${weeks[0].label}–${weeks[weeks.length - 1].label} as each week's own settings. Their shifts are NOT rebuilt now — that happens when each week is applied or built.`,
-    confirmLabel: "Apply to all",
-  });
-  if (!okc) return;
-  btn.disabled = true;
-  _flashOkamiTargetsStatus("Applying to later weeks…", "var(--text-subtle)");
-  try {
-    for (const wk of weeks) {
-      const { error } = await sb.rpc("upsert_scheduling_settings", { p_payload: _rrTgtRulesPayload(wk.weekStartIso) });
-      if (error) throw error;
-    }
-    _flashOkamiTargetsStatus("Rules applied to all weeks", "var(--green)");
-    setTimeout(() => _flashOkamiTargetsStatus("", ""), 2500);
-    toast(`Rules copied to ${weeks.length} weeks`, "success");
-  } catch (err) {
-    _flashOkamiTargetsStatus("Apply-forward failed", "var(--red)");
-    toast("Apply-forward failed: " + (err?.message || err), "warn");
-  } finally {
-    btn.disabled = false;
   }
 });
 
