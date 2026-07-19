@@ -202,10 +202,27 @@ filters `x.meta.station === scopedCode || !x.meta.station`; the per-page
 - fleet_execution_summary + pipeline_counts stay DSP-wide ON PURPOSE (vans are
   pooled — vehicles.station_id is optional/often null; hiring is DSP-wide).
 
-**Still DEFERRED:** broadcast audience default (already has station pills), P4
-All-mode per-station breakdowns on decision numbers. Apply order for the lens:
-0525 (driver_stations) → 0526 (today_plan). Branch reset from main per
-follow-up; open a NEW PR (old ones merged).
+**SHIPPED — P4 All-mode per-station breakdown (Targets Needed):**
+- `_renderOkamiLiveImpl`: in All-stations mode on a multi-station DSP, builds
+  per-station demand maps (`_perStationDemand` from the unfiltered `cells`) and,
+  per week, computes each station's OWN Needed via `_rrOkamiWeekMix` +
+  `rrDriversNeededMix` (each station staffs to its own peak day). Renders a
+  muted sub-line under the combined Needed (`.rr-tgt-need-stn`, token-only CSS)
+  + a tooltip. Hidden when scoped/single-station.
+- KEY: the per-station values match scoping to that station (QA: All=11 with
+  "DBO5 7 · DCA1 5"; scope B=7, scope A=5). Sum (12) > combined (11) is the
+  intended insight — a blind sum masks that a station needs its own peak
+  covered. Browser-QA'd; no errors.
+
+**LENS COMPLETE.** Every station-relevant surface scopes to the sidebar switcher
+and refreshes live on toggle: switcher, Stations manager, schedule (week/staff/
+today), drivers (roster/licenses/work-auth), targets+forecast (with P4 All-mode
+breakdown), attendance report, onboarding funnel, Today's Plan roster + coverage
+rail. DSP-wide by design: fleet-readiness + hiring-pipeline KPI tiles (vans
+pooled, hiring DSP-wide). Migrations: **0525** (driver_stations) → **0526**
+(today_plan), both manual + graceful-degrading. Shipped PRs #4037/4046/4049/
+4051/4053 (+ this one). Only broadcast audience default remains (minor; broadcast
+already has its own station pills).
 
 ## Active task: Staffing model — XL-route demand (branch claude/staffing-driver-requirements-1tw30l)
 

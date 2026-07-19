@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=9b36bb6e23d6";
-import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=9b36bb6e23d6";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=9b36bb6e23d6";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=9b36bb6e23d6";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=9b36bb6e23d6";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=9b36bb6e23d6";
-import { isChecklistComplete } from "./checklist-core.mjs?v=9b36bb6e23d6";
+import { planScheduleWeek } from "./scheduling-engine.js?v=43a9a6e96c98";
+import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=43a9a6e96c98";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=43a9a6e96c98";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=43a9a6e96c98";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=43a9a6e96c98";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=43a9a6e96c98";
+import { isChecklistComplete } from "./checklist-core.mjs?v=43a9a6e96c98";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=9b36bb6e23d6";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=9b36bb6e23d6";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=9b36bb6e23d6";
+} from "./msg-core.mjs?v=43a9a6e96c98";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=43a9a6e96c98";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=43a9a6e96c98";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -53741,6 +53741,31 @@ async function _renderOkamiLiveImpl() {
   _okamiHelperByDateCache = helperByDate;
   _okamiStartCache = start;
 
+  // P4 · All-stations mode → per-station demand maps, so each week's Needed
+  // can carry a per-station breakdown. A blind sum hides one station being
+  // short while another has slack (each station staffs to its OWN peak day,
+  // which may fall on a different day than the combined peak). Built only
+  // when unscoped AND multi-station; a scoped or single-station view skips it.
+  let _perStationDemand = null;
+  if (!_rrOkamiStationFilter && stationsInGrid.length > 1) {
+    _perStationDemand = new Map();
+    for (const st of stationsInGrid) {
+      _perStationDemand.set(st.id, { code: st.code, totals: new Map(), xl: new Map(), helper: new Map() });
+    }
+    for (const c of cells) {
+      const m = _perStationDemand.get(c.station_id);
+      if (!m) continue;
+      m.totals.set(c.date, (m.totals.get(c.date) || 0) + (c.target_routes || 0));
+      if (Array.isArray(c.targets_by_wave)) {
+        for (const t of c.targets_by_wave) {
+          const code = t?.service_type_code || "SP";
+          if (code === "XL")     m.xl.set(c.date, (m.xl.get(c.date) || 0) + (t?.target_routes || 0));
+          if (code === "HELPER") m.helper.set(c.date, (m.helper.get(c.date) || 0) + (t?.target_routes || 0));
+        }
+      }
+    }
+  }
+
   // Staffing Plan Pad — 0–50% buffer above the 2× per-route baseline.
   // Persisted on dsps.metadata.staffing.plan_pad_pct, defaults to 10%.
   // This is OKAMI-only — totally separate from the schedule cushion.
@@ -53822,6 +53847,19 @@ async function _renderOkamiLiveImpl() {
     const xlRoutesPeak = demand.xlRoutes;
     const helperRoutesPeak = demand.helperRoutes || 0;
     const gap     = avail - needed;
+
+    // P4 · per-station Needed breakdown (All-stations mode). Each station's
+    // own peak-day demand, so an operator sees which station drives the week.
+    let _stationNeed = null;
+    if (_perStationDemand && !unplanned) {
+      const parts = [];
+      for (const m of _perStationDemand.values()) {
+        const { mix: sMix } = _rrOkamiWeekMix(weekStart, _fcDpr, m.totals, m.xl, m.helper);
+        const sTotal = rrDriversNeededMix(sMix, { driversPerRoute: _fcDpr, padPct }).total;
+        if (sTotal > 0) parts.push({ code: m.code, needed: sTotal });
+      }
+      if (parts.length > 1) _stationNeed = parts.sort((a, b) => b.needed - a.needed);
+    }
     const hireBy  = addDays(weekStart, -leadDays);
 
     const labelEl = row.querySelector(".plan-week-label");
@@ -53907,10 +53945,18 @@ async function _renderOkamiLiveImpl() {
       .join(" ");
 
     const tdCells = row.querySelectorAll("td");
+    // P4 · per-station breakdown line under Needed (All-stations, multi-station).
+    const _stnBreak = _stationNeed ? _stationNeed.map((p) => `${p.code} ${p.needed}`).join(" · ") : "";
+    const _neededTitleFull = _stnBreak
+      ? `${neededTitle} · by station: ${_stnBreak} (each station's own peak day)`
+      : neededTitle;
+    const _stnSub = _stnBreak
+      ? `<div class="rr-tgt-need-stn" title="Each station's own peak-day demand — a station can be short even when the combined total looks covered">${escapeHtml(_stnBreak)}</div>`
+      : "";
     // [0]=Week, [1]=Routes input, [2]=Needed, [3]=Available, [4]=Gap, [5]=Strategy, [6]=Hire by, [7]=Status
     if (tdCells[2]) tdCells[2].innerHTML = unplanned
       ? `<div class="plan-calc" title="${escapeHtml(neededTitle)}" style="color:var(--text-subtle)">—</div>`
-      : `<div class="plan-calc" title="${escapeHtml(neededTitle)}">${needed}</div>`;
+      : `<div class="plan-calc" title="${escapeHtml(_neededTitleFull)}">${needed}</div>${_stnSub}`;
     if (tdCells[3]) tdCells[3].innerHTML =
       `<div class="plan-calc" title="${escapeHtml(availTitle)}">${avail}</div>`
       + (notReady ? `<div class="rr-tgt-avail-sub" title="On payroll, still onboarding — they join Available from their road-ready week">+${notReady} onboarding</div>` : "");
