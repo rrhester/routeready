@@ -90760,6 +90760,10 @@ function _rrRequestsToolbarHtml() {
   const filterBtn = (key, aria, title) =>
     `<button type="button" class="sched-page-btn req-toolbar-filter" data-req-filter="${key}" aria-haspopup="menu" aria-expanded="false" aria-label="${aria}" title="${title}"><span class="req-filter-label">${escapeHtml(_rrReqFilterLabel(key))}</span></button>`;
   return `
+    <div class="req-search">
+      <svg class="req-search-ic" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="search" class="req-search-input" data-rr-req-search placeholder="Search driver…" aria-label="Search requests by driver name" value="${escapeHtml(_reqFilter.q || "")}">
+    </div>
     ${filterBtn("type", "Request type", "Filter by request type")}
     ${filterBtn("status", "Status", "Filter by status")}
     ${filterBtn("loc", "Location", "Filter by location")}
@@ -91523,9 +91527,21 @@ async function _avDecide(btn) {
 }
 
 // ─── Requests redesign · filters + Recent Decisions table helpers ───────────
-// Filter state for the Requests page (type / status / location), applied to
-// both the Pending section and the Recent Decisions table.
-let _reqFilter = { type: "", status: "", loc: "" };
+// Filter state for the Requests page (driver search / type / status / location),
+// applied to both the Pending section and the Recent Decisions table.
+let _reqFilter = { q: "", type: "", status: "", loc: "" };
+// Driver search · delegated so it survives toolbar re-renders. Typing filters
+// both lists to the matching driver(s); the toolbar isn't rebuilt on a stream
+// re-render, so the input keeps focus while you type.
+if (!window._rrReqSearchHandlerInstalled) {
+  window._rrReqSearchHandlerInstalled = true;
+  document.addEventListener("input", (e) => {
+    const input = e.target.closest && e.target.closest("[data-rr-req-search]");
+    if (!input) return;
+    _reqFilter.q = input.value || "";
+    if (typeof renderSchedRequestStream === "function") renderSchedRequestStream();
+  });
+}
 // Station codes present in the current request stream — feeds the Location
 // filter dropdown's option list.
 let _reqLocStations = [];
@@ -91554,10 +91570,17 @@ function _reqRangeDows(startIso, endIso) {
   return _REQ_DOW.filter((d) => seen.has(d));
 }
 
-// Small day chips (Mon Fri Sat Sun) for the coverage-impact cell.
+// Small day chips (Mon Fri Sat Sun) for the coverage-impact cell. Capped at a
+// fixed number so the tinted block stays one uniform size — the affected-day
+// count still lives in the sub-line, and any overflow shows as "+N".
 function _reqDayChips(dows) {
   if (!dows.length) return "";
-  return `<div class="req-cov-chips">${dows.map((d) => `<span class="req-cov-chip">${_REQ_DOW_LBL[d] || d}</span>`).join("")}</div>`;
+  const MAX = 4;
+  const shown = dows.slice(0, MAX);
+  const extra = dows.length - shown.length;
+  const chips = shown.map((d) => `<span class="req-cov-chip">${_REQ_DOW_LBL[d] || d}</span>`).join("")
+    + (extra > 0 ? `<span class="req-cov-chip req-cov-chip-more">+${extra}</span>` : "");
+  return `<div class="req-cov-chips">${chips}</div>`;
 }
 
 // Coverage-impact model: which days lose coverage if approved + a High / Medium
@@ -91721,7 +91744,7 @@ function _reqDecidedRowHtml(it) {
            : ["status-pill-pending", "Pending"];
   const chg = _reqRequestedChange(it);
   const dec = _reqDecisionParts(r);
-  return `<tr class="req-trow" data-req-row="${escapeHtml(r.id)}" tabindex="0" role="button" aria-label="Open ${escapeHtml(name)} request detail">
+  return `<tr class="req-trow" data-req-row="${escapeHtml(r.id)}" tabindex="0" role="button" aria-expanded="false" aria-label="Toggle ${escapeHtml(name)} request detail">
     <td class="req-td-driver"><div class="cell-driver"><div class="avatar-sm req-avatar">${escapeHtml(_reqInitials(name))}</div><div class="cell-driver-text"><div class="cell-name"><span class="cell-name-text">${escapeHtml(name)}</span></div><div class="cell-name-sub">${escapeHtml(station)}</div></div></div></td>
     <td>${_reqCoverageImpactCell(it)}</td>
     <td><div class="req-change"><div class="req-change-main">${escapeHtml(chg.primary)}</div><div class="req-change-sub">${escapeHtml(chg.sub)}</div></div></td>
@@ -91731,12 +91754,15 @@ function _reqDecidedRowHtml(it) {
   </tr>`;
 }
 
-// ─── Requests · row detail panel (right-side drawer) ─────────────────────────
+// ─── Requests · inline row detail (drops open under the row, accordion) ───────
+// Clicking a decision row expands an inline panel beneath it (like the
+// applicants notes drawer) instead of sliding a card in from the side — one
+// open at a time.
 function _reqDetailById(id) { return (window._reqRowById || {})[String(id)] || null; }
-function _rrReqDetailHtml(it) {
+
+// Inline detail body · a compact label/value grid (no drawer chrome).
+function _reqInlineDetailHtml(it) {
   const r = it.row;
-  const name = r.driver_name || r.full_name || "—";
-  const station = r.station_code || "—";
   const typeLabel = it.type === "pto" ? "Paid time off" : it.type === "unpaid" ? "Unpaid time off" : "Availability change";
   const st = r.status === "approved" ? ["status-pill-approved", "Approved"]
            : r.status === "denied"   ? ["status-pill-denied", "Denied"]
@@ -91745,47 +91771,60 @@ function _rrReqDetailHtml(it) {
   const dec = _reqDecisionParts(r);
   const notes = r.decision_notes || r.decision_note || "";
   const approver = r.decided_by_name || "";
-  const field = (label, valueHtml) => `<div class="rr-reqd-field"><div class="rr-reqd-label">${label}</div><div class="rr-reqd-value">${valueHtml}</div></div>`;
+  const field = (label, valueHtml, wide) => `<div class="req-detail-field${wide ? " req-detail-field-wide" : ""}"><div class="req-detail-label">${label}</div><div class="req-detail-value">${valueHtml}</div></div>`;
   let body;
   if (it.type === "availability") {
-    body = field("Previous availability", `<div class="sched-req-days">${_reqDaysHtml(r.current_days || [])}</div>`)
-         + field("Requested availability", `<div class="sched-req-days">${_reqDaysHtml(r.requested_days || r.days || [])}</div>`);
+    body = field("Previous availability", `<div class="sched-req-days">${_reqDaysHtml(r.current_days || [])}</div>`, true)
+         + field("Requested availability", `<div class="sched-req-days">${_reqDaysHtml(r.requested_days || r.days || [])}</div>`, true);
   } else {
     body = field("Dates", `${escapeHtml(_reqFmtDate(r.start_date))} – ${escapeHtml(_reqFmtDate(r.end_date))}`)
          + (r.reason ? field("Reason", escapeHtml(r.reason)) : "");
   }
   return `
-    <div class="rr-reqd-head">
-      <div><div class="rr-reqd-title">${escapeHtml(name)}</div><div class="rr-reqd-sub">${escapeHtml(station)} · ${escapeHtml(typeLabel)}</div></div>
-      <button type="button" class="rr-reqd-close" data-rr-reqd-close aria-label="Close">×</button>
-    </div>
-    <div class="rr-reqd-body">
+    <div class="req-detail-type">${escapeHtml(typeLabel)}</div>
+    <div class="req-detail-grid">
       ${field("Status", `<span class="status-pill ${st[0]}">${st[1]}</span>`)}
-      ${field("Requested change", `<strong>${escapeHtml(chg.primary)}</strong> · <span class="rr-reqd-dim">${escapeHtml(chg.sub)}</span>`)}
+      ${field("Requested change", `<strong>${escapeHtml(chg.primary)}</strong> · <span class="req-detail-dim">${escapeHtml(chg.sub)}</span>`, true)}
       ${body}
-      <div class="rr-reqd-field"><div class="rr-reqd-label">Coverage analysis</div>${_reqCoverageImpactCell(it)}</div>
-      ${field("Decision notes", notes ? escapeHtml(notes) : `<span class="rr-reqd-dim">No notes recorded</span>`)}
+      ${field("Coverage analysis", _reqCoverageImpactCell(it), true)}
+      ${field("Decision notes", notes ? escapeHtml(notes) : `<span class="req-detail-dim">No notes recorded</span>`, true)}
       ${field("Decision date", `${escapeHtml(dec.date)}${dec.time ? " · " + escapeHtml(dec.time) : ""}`)}
-      ${field("Approver", approver ? escapeHtml(approver) : `<span class="rr-reqd-dim">—</span>`)}
+      ${field("Approver", approver ? escapeHtml(approver) : `<span class="req-detail-dim">—</span>`)}
     </div>`;
 }
-function _rrReqDetailEsc(e) { if (e.key === "Escape") { e.preventDefault(); _rrCloseReqDetail(); } }
-function _rrCloseReqDetail() {
-  const w = document.getElementById("rr-req-detail");
-  if (w) { w.classList.remove("is-open"); setTimeout(() => { try { w.remove(); } catch (_) {} }, 200); }
-  document.removeEventListener("keydown", _rrReqDetailEsc, true);
+
+// Collapse every open detail row in the table (accordion — one at a time).
+// Animates closed (1fr→0fr) then removes the row after the transition.
+function _reqCollapseAllDetails(scope) {
+  const root = (scope && scope.querySelectorAll) ? scope : document;
+  root.querySelectorAll(".req-trow.is-open").forEach((t) => {
+    t.classList.remove("is-open");
+    t.setAttribute("aria-expanded", "false");
+  });
+  root.querySelectorAll(".req-detail-row").forEach((dr) => {
+    dr.classList.remove("is-open");
+    setTimeout(() => { try { dr.remove(); } catch (_) {} }, 300);
+  });
 }
-function _rrOpenReqDetail(it) {
-  _rrCloseReqDetail();
+
+// Toggle the inline detail under a decision row.
+function _reqToggleRowDetail(tr) {
+  if (!tr) return;
+  const id = tr.getAttribute("data-req-row");
+  const it = _reqDetailById(id);
   if (!it) return;
-  const wrap = document.createElement("div");
-  wrap.id = "rr-req-detail";
-  wrap.className = "rr-req-detail";
-  wrap.innerHTML = `<div class="rr-req-detail-backdrop" data-rr-reqd-close></div><aside class="rr-req-detail-panel" role="dialog" aria-modal="true" aria-label="Request detail">${_rrReqDetailHtml(it)}</aside>`;
-  document.body.appendChild(wrap);
-  requestAnimationFrame(() => wrap.classList.add("is-open"));
-  wrap.addEventListener("click", (e) => { if (e.target.closest("[data-rr-reqd-close]")) _rrCloseReqDetail(); });
-  document.addEventListener("keydown", _rrReqDetailEsc, true);
+  const scope = tr.closest("tbody") || document;
+  const wasOpen = tr.classList.contains("is-open");
+  _reqCollapseAllDetails(scope);
+  if (wasOpen) return; // was open → collapse only
+  const dr = document.createElement("tr");
+  dr.className = "req-detail-row";
+  dr.setAttribute("data-req-detail-for", id);
+  dr.innerHTML = `<td colspan="6" class="req-detail-cell"><div class="req-detail-wrap"><div class="req-detail-inner">${_reqInlineDetailHtml(it)}</div></div></td>`;
+  tr.after(dr);
+  tr.classList.add("is-open");
+  tr.setAttribute("aria-expanded", "true");
+  requestAnimationFrame(() => dr.classList.add("is-open"));
 }
 
 // LEFT column · one unified request stream. PTO, Unpaid time off and
@@ -91820,8 +91859,13 @@ async function renderSchedRequestStream() {
   for (const r of toRows) items.push({ row: r, type: r.is_pto ? "pto" : "unpaid", sortDate: r.start_date || "9999-12-31" });
 
   const stations = Array.from(new Set(items.map((it) => it.row.station_code).filter(Boolean))).sort();
-  // Filter bar (type / status / location).
+  // Filter bar (driver search / type / status / location).
+  const q = (_reqFilter.q || "").trim().toLowerCase();
   const matches = (it) => {
+    if (q) {
+      const name = String(it.row.driver_name || it.row.full_name || "").toLowerCase();
+      if (!name.includes(q)) return false;
+    }
     if (_reqFilter.type && it.type !== _reqFilter.type) return false;
     if (_reqFilter.status && (it.row.status || "pending") !== _reqFilter.status) return false;
     if (_reqFilter.loc && (it.row.station_code || "") !== _reqFilter.loc) return false;
@@ -91898,10 +91942,9 @@ async function renderSchedRequestStream() {
   // Index decided items by id so a row click can open its detail panel.
   window._reqRowById = {};
   decided.forEach((it) => { window._reqRowById[String(it.row.id)] = it; });
-  const _openReqRow = (tr) => _rrOpenReqDetail(_reqDetailById(tr.getAttribute("data-req-row")));
   host.querySelectorAll(".req-trow").forEach((tr) => {
-    tr.addEventListener("click", () => _openReqRow(tr));
-    tr.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); _openReqRow(tr); } });
+    tr.addEventListener("click", () => _reqToggleRowDetail(tr));
+    tr.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); _reqToggleRowDetail(tr); } });
   });
   // Time-off coverage checks are async (one RPC per pending request). When they
   // land, _toPaintCoverage records each real verdict into window._reqRealCov;
