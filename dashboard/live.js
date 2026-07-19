@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=eaff2fcfe18b";
-import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=eaff2fcfe18b";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=eaff2fcfe18b";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=eaff2fcfe18b";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=eaff2fcfe18b";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=eaff2fcfe18b";
-import { isChecklistComplete } from "./checklist-core.mjs?v=eaff2fcfe18b";
+import { planScheduleWeek } from "./scheduling-engine.js?v=660374c5252f";
+import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=660374c5252f";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=660374c5252f";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=660374c5252f";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=660374c5252f";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=660374c5252f";
+import { isChecklistComplete } from "./checklist-core.mjs?v=660374c5252f";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=eaff2fcfe18b";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=eaff2fcfe18b";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=eaff2fcfe18b";
+} from "./msg-core.mjs?v=660374c5252f";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=660374c5252f";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=660374c5252f";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -52235,6 +52235,9 @@ async function _runUnassignAllShiftsForWeek(triggerEl) {
     _repaint();
   }
 }
+// Exported so the action-bar Build Schedule pill can run it as its inverse
+// action once the week is built (see _rrRefreshBuildScheduleToggle).
+window._rrRunUnassignAllShiftsForWeek = _runUnassignAllShiftsForWeek;
 
 // Click handler for the schedule driver-sort icon — opens a small
 // popover with three options (matches the Turnover KPI pattern).
@@ -63635,6 +63638,44 @@ async function _refreshAssignVansLabel() {
 }
 window._rrRefreshAssignVansLabel = _refreshAssignVansLabel;
 
+// ── Build Schedule ⇄ Unassign shifts toggle (action-bar pill).
+// Mirrors the Assign/Unassign Fleet pattern: when the visible week is
+// BUILT (all real routes covered), the Build Schedule pill flips to its
+// inverse — "Unassign shifts", which clears every driver assignment for
+// the week (shifts stay). An empty or still-open week keeps the pill as
+// "Build Schedule". The click handler in view-schedule.frag reads
+// dataset.rrBuilt to route the click to the right action.
+const _RR_BUILD_ICON = '<rect x="3" y="4" width="18" height="17" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="7" y1="13" x2="17" y2="13"/><line x1="7" y1="17" x2="13" y2="17"/>';
+const _RR_UNASSIGN_ICON = '<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="17" y1="8" x2="22" y2="13"/><line x1="22" y1="8" x2="17" y2="13"/>';
+function _rrRefreshBuildScheduleToggle(built) {
+  const ab = document.getElementById("rr-ab-smartfill");
+  if (!ab) return;
+  const was = ab.dataset.rrBuilt === "1";
+  ab.dataset.rrBuilt = built ? "1" : "0";
+  // Label text node (leading icon + trailing badge/caret spans are left
+  // in place — we only rewrite the middle text node).
+  const t = Array.from(ab.childNodes).find(n => n.nodeType === 3 && n.textContent.trim());
+  if (t) t.textContent = built ? " Unassign shifts " : " Build Schedule ";
+  ab.title = built
+    ? "Unassign every shift this week — clears all driver assignments (shifts stay)"
+    : "Build this week's schedule from your rules + OKAMI demand";
+  // Swap the leading glyph to the person-with-X "unassign" mark and back.
+  // Only touch the DOM when the state actually changes so we don't thrash
+  // the SVG on every repaint.
+  if (was !== built) {
+    const svg = ab.querySelector("svg");
+    if (svg) svg.innerHTML = built ? _RR_UNASSIGN_ICON : _RR_BUILD_ICON;
+  }
+  // The caret opens the Smart-Fill rules menu — only meaningful while
+  // building; the open-routes badge is meaningless once built. Hide both
+  // in the Unassign state.
+  const caret = document.getElementById("rr-ab-smartfill-caret");
+  if (caret) caret.hidden = built;
+  const badge = document.getElementById("rr-ab-sf-badge");
+  if (built && badge) badge.hidden = true;
+}
+window._rrRefreshBuildScheduleToggle = _rrRefreshBuildScheduleToggle;
+
 // Paint a small "Van X" line into every chip on the schedule grid
 // using vehicle_day_assignments for the visible week. Driver app
 // already sees the van via driver_vehicle_days — this brings the
@@ -72405,6 +72446,9 @@ async function renderScheduleWeek() {
         abMeter.innerHTML = `<i style="width:${abPct}%"></i>`;
       }
     }
+    // Build Schedule ⇄ Unassign shifts: the week is "built" once every real
+    // route is covered (cushion slack aside). Flip the action-bar pill.
+    _rrRefreshBuildScheduleToggle(abNeeded > 0 && abRouteGap === 0);
   } catch (e) { console.warn("action bar paint:", e); }
 
   // ── Week-range navigator label + Live/Draft pill (page header).

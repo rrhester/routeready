@@ -1897,6 +1897,15 @@
               var on   = function (id, fn) { var b = document.getElementById(id); if (b) b.addEventListener("click", fn); };
               on("rr-ab-smartfill", function (e) {
                 if (e.target.closest("#rr-ab-smartfill-caret")) return; // caret owns its click
+                // Single toggle: once the week is built (all routes covered)
+                // this pill becomes "Unassign shifts" and clears every driver
+                // assignment instead of building. State is set by
+                // _rrRefreshBuildScheduleToggle (live.js) via data-rr-built.
+                var self = document.getElementById("rr-ab-smartfill");
+                if (self && self.dataset.rrBuilt === "1" && window._rrRunUnassignAllShiftsForWeek) {
+                  window._rrRunUnassignAllShiftsForWeek(self);
+                  return;
+                }
                 fire("rr-sched-smartfill-h");
               });
               on("rr-ab-smartfill-caret", function (e) {
