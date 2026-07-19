@@ -39,7 +39,10 @@
                  (data-set="scheduling") is hoisted there on first open;
                  this nav tab was removed so Settings holds org config
                  only. -->
-            <button class="settings-nav-item" data-set="recognition" onclick="setSettingsSection(this); if (typeof loadRecognitionSettings === 'function') loadRecognitionSettings();">Recognition</button>
+            <!-- Recognition (celebration auto-fire) moved to the Messages
+                 view → Recognition button (it's message automation). The
+                 section markup below (data-set="recognition") is hoisted
+                 there on first open; nav tab removed. -->
             <button class="settings-nav-item" data-set="billing" onclick="setSettingsSection(this)">Billing</button>
           </nav>
 

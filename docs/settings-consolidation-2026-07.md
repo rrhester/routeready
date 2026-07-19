@@ -126,5 +126,14 @@ Integrations** (org config only) + a per-user **Account & security** page.
   - [ ] **3b — Referrals** → Onboarding (own tile/sub-view). Blocked on
     wiring the mock "Save program" to a real RPC → needs a migration
     (paste SQL in chat). Not started.
-- [ ] Step 4 — Recognition / Portal sync
-- [ ] Step 5 — Settings home slim-down
+- [~] **Step 4 — Recognition / Portal sync** (split into 4a/4b)
+  - [x] **4a — Recognition** → Messages. New Recognition button in the
+    Messages header opens the shared slide-over, hoisting the
+    `.settings-section[data-set="recognition"]` node out of `#view-settings`
+    (loadRecognitionSettings + "Run now" preserved). Settings→Recognition
+    nav tab removed. Browser-verified. SW nonce `2026-07-19.8`.
+  - [ ] **4b — Portal sync** → Fleet. Different shape: `fleet-sync.js`
+    *injects* the section into `#view-settings` at boot, so this is a change
+    to the injection target (Fleet view), not a static hoist. Not started.
+- [ ] Step 5 — Settings home slim-down (remove emptied nav plumbing, fix
+  time-zone select save + referrals mock save)

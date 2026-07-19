@@ -78035,6 +78035,66 @@ window.gotoSettingsScheduling = gotoSettingsScheduling;
   });
 })();
 
+// ─── Recognition drawer ───────────────────────────────────────────────
+// Celebration auto-fire toggles live on the Messages view now (they ARE
+// message automation), in a slide-over opened from the Messages header,
+// rather than under Settings → Recognition. Same hoist pattern: the
+// .settings-section[data-set="recognition"] node moves out of
+// #view-settings on first open; loadRecognitionSettings repaints on each
+// open (mirroring the old nav-tab onclick).
+(function _rrRecognitionDrawer() {
+  let hoisted = false;
+  function hoist() {
+    if (hoisted) return true;
+    const body = document.getElementById("rr-recog-body");
+    const sec =
+      document.querySelector('#view-settings .settings-section[data-set="recognition"]') ||
+      document.querySelector('.settings-section[data-set="recognition"]');
+    if (!body || !sec) return false;
+    sec.classList.remove("hidden");
+    body.appendChild(sec);
+    hoisted = true;
+    return true;
+  }
+  function open() {
+    const dr = document.getElementById("rr-recog-drawer");
+    const bd = document.getElementById("rr-recog-backdrop");
+    if (!dr) return;
+    hoist();
+    if (bd) bd.hidden = false;
+    dr.hidden = false;
+    requestAnimationFrame(() => {
+      dr.classList.add("is-open");
+      if (bd) bd.classList.add("is-open");
+    });
+    if (typeof loadRecognitionSettings === "function") { try { setTimeout(loadRecognitionSettings, 0); } catch (_) {} }
+    const closeBtn = document.getElementById("rr-recog-close");
+    if (closeBtn) { try { closeBtn.focus(); } catch (_) {} }
+  }
+  function close() {
+    const dr = document.getElementById("rr-recog-drawer");
+    const bd = document.getElementById("rr-recog-backdrop");
+    if (dr) dr.classList.remove("is-open");
+    if (bd) bd.classList.remove("is-open");
+    setTimeout(() => {
+      if (dr) dr.hidden = true;
+      if (bd) bd.hidden = true;
+    }, 220);
+  }
+  window._rrOpenRecognition = open;
+  window._rrCloseRecognition = close;
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("#rr-recog-open")) { e.preventDefault(); open(); return; }
+    if (e.target.closest("#rr-recog-close")) { e.preventDefault(); close(); return; }
+    if (e.target.id === "rr-recog-backdrop") { close(); return; }
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    const dr = document.getElementById("rr-recog-drawer");
+    if (dr && !dr.hidden) close();
+  });
+})();
+
 
 // ─── Pay & overtime settings ──────────────────────────────────────────
 // Per-DSP defaults that Cover and the schedule forecast read:

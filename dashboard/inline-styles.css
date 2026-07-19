@@ -33414,3 +33414,6 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 /* The message-templates drawer carries its own header, so hide the
    hoisted section's duplicate head/title inside it. */
 #rr-obmsg-body .settings-section-head{display:none}
+/* Recognition drawer carries its own header; hide the hoisted section's
+   duplicate head/title inside it. */
+#rr-recog-body .settings-section-head{display:none}

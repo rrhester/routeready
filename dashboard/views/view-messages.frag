@@ -16,6 +16,11 @@
                 <button class="msg-headbtn" data-rr-scheduled-messages title="Scheduled messages" aria-label="Scheduled messages"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/><path d="M17 3l4 2-2 4" transform="translate(-1 -1)"/></svg></button>
                 <button class="msg-headbtn" data-rr-call-history title="Recent calls" aria-label="Recent calls"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg></button>
                 <button class="msg-headbtn" data-rr-call-teammate title="Call a teammate" aria-label="Call a teammate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg></button>
+                <!-- Recognition · auto-fire toggles for birthday /
+                     anniversary / holiday celebration messages. Relocated
+                     from Settings → Recognition (it's message automation);
+                     opens the recognition slide-over. -->
+                <button class="msg-headbtn" id="rr-recog-open" title="Recognition · celebration auto-fire" aria-label="Recognition settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15 8.5 22 9.3 17 14 18.2 21 12 17.6 5.8 21 7 14 2 9.3 9 8.5"/></svg></button>
                 <button class="msg-newbtn" title="New message" aria-label="New message" onclick="renderNewDmList('');openModal('modal-new-dm')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
               </div>
             </div>
@@ -80,4 +85,24 @@
           <aside class="msg-details" id="rr-msg-details" aria-hidden="true" aria-label="Driver details"></aside>
         </div>
       </div>
+
+      <!-- ── Recognition drawer ─────────────────────────────────────
+           Celebration auto-fire toggles, slid over the Messages view.
+           Body is empty here; the .settings-section[data-set=
+           "recognition"] node is hoisted in on first open by
+           _rrRecognitionDrawer (live.js), preserving loadRecognitionSettings
+           + the "Run now" handler. position:fixed + hidden by default. -->
+      <div class="rr-slideover-backdrop" id="rr-recog-backdrop" hidden></div>
+      <aside class="rr-slideover" id="rr-recog-drawer" role="dialog" aria-modal="true" aria-labelledby="rr-recog-title" hidden>
+        <div class="rr-slideover-head">
+          <div>
+            <h2 class="rr-slideover-title" id="rr-recog-title">Recognition</h2>
+            <p class="rr-slideover-sub">Per-celebration auto-fire toggles. A morning job sends the celebrations you enable to qualifying active drivers — nothing fires until you flip a toggle.</p>
+          </div>
+          <button type="button" class="rr-slideover-close" id="rr-recog-close" aria-label="Close recognition settings">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="rr-slideover-body" id="rr-recog-body"></div>
+      </aside>
     
