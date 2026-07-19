@@ -29033,23 +29033,37 @@ body.rr-cmdk-open{ overflow:hidden }
    against the real .rr-ab-btn. */
 
 /* ---- Requests ---- */
+/* Border color follows the Schedule action-bar pill (.rr-ab-btn) — the soft
+   --rr-ctl-border hairline, NOT the navy --sidebar-bg outline it carried
+   before (operator: the dark-blue border should match the Schedule page). */
 #view-schedule.rrx-schedule .req-toolbar-bar .req-toolbar-filter,
 #view-schedule.rrx-schedule .req-toolbar-bar .req-toolbar-act {
   height: 36px !important;
   border-width: 1.5px !important;
-  border-color: var(--sidebar-bg, var(--rr-slate-900)) !important;
+  border-color: var(--rr-ctl-border) !important;
   border-radius: 8px !important;
   font-size: var(--fs-base) !important;
 }
 #view-schedule.rrx-schedule .req-toolbar-bar .req-toolbar-act { padding: 0 13px !important; }
 #view-schedule.rrx-schedule .req-toolbar-bar .req-toolbar-act svg { width: 15px !important; height: 15px !important; }
 #view-schedule.rrx-schedule .req-toolbar-bar .req-toolbar-primary { border-color: var(--accent) !important; }
+/* Chevron divider · soft translucent line like the Schedule split-button
+   caret (.rr-ab-caret border-left), not the navy sidebar line the base
+   .req-toolbar-filter gradient paints. */
+#view-schedule.rrx-schedule .req-toolbar-bar button.req-toolbar-filter {
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%2364748B' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='2 4 6 8 10 4'/%3E%3C/svg%3E"),
+    linear-gradient(rgba(15,23,42,.18), rgba(15,23,42,.18));
+}
 
 /* ---- Roster ---- */
 #view-schedule.rrx-schedule #rr-sched-kpis .sched-kpi-action {
   height: 36px !important;
   padding: 0 13px !important;
-  border: 1.5px solid var(--sidebar-bg, var(--rr-slate-900)) !important;
+  /* Soft --rr-ctl-border hairline like the Schedule .rr-ab-btn, not the
+     navy --sidebar-bg outline (the inner .rr-kpi-chev divider is already
+     --rr-ctl-border). */
+  border: 1.5px solid var(--rr-ctl-border) !important;
   border-radius: 8px !important;
   background: var(--rr-white) !important;
   gap: 7px !important;
@@ -29063,8 +29077,17 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 
 /* ---- Targets ---- */
+/* Soft --rr-ctl-border hairline like the Schedule .rr-ab-btn (overrides the
+   navy --sidebar-bg outline the base .rr-tgt-kpi rules paint) — border-color
+   covers the left edge too, so the :first-child border-left rule is neutralised. */
 #view-schedule.rrx-schedule #rr-sched-targets-kpis .rr-tgt-kpi {
   height: 36px !important;
+  border-color: var(--rr-ctl-border);
+}
+/* Split-button divider before the Wave/Service caret · soft translucent line
+   like .rr-ab-caret, not the navy sidebar outline. */
+#view-schedule.rrx-schedule #rr-sched-targets-kpis .rr-tgt-kpi-caret {
+  border-left-color: rgba(15,23,42,.18);
 }
 #view-schedule.rrx-schedule #rr-sched-targets-kpis .rr-tgt-kpi-label { font-size: var(--fs-base) !important; }
 
