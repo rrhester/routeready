@@ -63230,11 +63230,13 @@ async function _assignVansForRange(startIso, endIso, dspId) {
   // Index scheduled drivers per date. Training shifts don't consume a van
   // from the pool: classroom training ('training') is station-based, and a
   // road-training ride-along ('ride_along') inherits the trainer's van.
+  // A 'helper' seat rides IN the paired XL route's van (two people, one
+  // box truck), so it must not consume a second van either.
   // Mirrors the training exclusion used for coverage counts.
   const scheduledByDate = new Map();
   for (const s of shifts) {
     if (!s.driver_id) continue;
-    if (s.shift_kind === "training" || s.shift_kind === "ride_along") continue;
+    if (s.shift_kind === "training" || s.shift_kind === "ride_along" || s.shift_kind === "helper") continue;
     const set = scheduledByDate.get(s.date) || new Set();
     set.add(s.driver_id);
     scheduledByDate.set(s.date, set);
@@ -63921,6 +63923,35 @@ async function _decorateScheduleChipsWithVans() {
     if (!sh.driver_id || !sh.date) continue;
     shiftIdToKey.set(String(sh.id), `${sh.driver_id}|${sh.date}`);
   }
+  // Helper seats ride IN the paired XL route's van (two people, one box
+  // truck) — they never hold their own vehicle_day_assignments row. Zip
+  // each helper seat to a distinct regular driver seat in the same
+  // (date · station · wave · service type) bucket, ordered by id so the
+  // pairing is deterministic when a day runs multiple XL routes, and
+  // surface THAT driver's van on the helper chip.
+  const helperPairKey = new Map(); // helper shift id -> paired driver's `${driver_id}|${date}`
+  {
+    const bucketOf = (sh) => `${sh.date}|${sh.station_id || ""}|${sh.wave_index ?? 0}|${sh.service_type_id || ""}`;
+    const driversByBucket = new Map();
+    for (const sh of shifts) {
+      if ((sh.shift_kind || "regular") !== "regular" || !sh.driver_id) continue;
+      const b = bucketOf(sh);
+      if (!driversByBucket.has(b)) driversByBucket.set(b, []);
+      driversByBucket.get(b).push(sh);
+    }
+    for (const list of driversByBucket.values()) list.sort((a, b) => String(a.id).localeCompare(String(b.id)));
+    const helpers = shifts.filter(sh => (sh.shift_kind || "regular") === "helper")
+      .sort((a, b) => String(a.id).localeCompare(String(b.id)));
+    const usedPerBucket = new Map();
+    for (const h of helpers) {
+      const b = bucketOf(h);
+      const pool = driversByBucket.get(b) || [];
+      const used = usedPerBucket.get(b) || 0;
+      const mate = pool[used] || pool[0];
+      usedPerBucket.set(b, used + 1);
+      if (mate) helperPairKey.set(String(h.id), `${mate.driver_id}|${mate.date}`);
+    }
+  }
   // Reasons[] index from the most recent Assign Vans run on the
   // visible week. Lets us paint a small "rotation" eyebrow next
   // to the van label when the assignment came from a rescue
@@ -63943,7 +63974,10 @@ async function _decorateScheduleChipsWithVans() {
       chip.querySelector(".shift-chip-van")?.remove();
       return;
     }
-    const key = shiftIdToKey.get(String(id));
+    // Helper seat: show the PAIRED XL driver's van (they share the truck).
+    const key = kind === "helper"
+      ? helperPairKey.get(String(id))
+      : shiftIdToKey.get(String(id));
     if (!key) return;
     const van = byKey.get(key);
     if (!van) return;
@@ -71217,7 +71251,10 @@ async function renderScheduleWeek() {
     // Training + ride-along shifts aren't staffing a route — they're
     // onboarding scaffolding (Day 1+2 at the station, Day 3 shadowing a
     // trainer). Counting them would double-count the route on Day 3.
-    if (sh.shift_kind === "training" || sh.shift_kind === "ride_along") continue;
+    // Helper seats are the second BODY on an XL route, not a second ROUTE
+    // (operator: 9 SP + 1 XL = 11 drivers but 10 routes) — counting them
+    // read as over-plan (38/37) on every XL day.
+    if (sh.shift_kind === "training" || sh.shift_kind === "ride_along" || sh.shift_kind === "helper") continue;
     const a = get(sh.date);
     a.rows += 1;
     const isFilled =

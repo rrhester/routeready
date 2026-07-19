@@ -595,6 +595,11 @@ def solve(req: SolveRequest) -> SolveResponse:
     vans_per_shift: dict[str, list[str]] = defaultdict(list)
     shifts_per_van_date: dict[tuple[str, str], list[str]] = defaultdict(list)
     for s in open_shifts:
+        # A helper seat is the second body riding IN the paired XL route's
+        # van — it never gets its own vehicle, so no van vars are created
+        # for it (otherwise every XL route would consume two box trucks).
+        if s.shift_kind == "helper":
+            continue
         for v in req.vans:
             if v.status != "active":
                 continue
