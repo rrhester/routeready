@@ -1915,6 +1915,7 @@
   // ─── SETTINGS NAV ──────────────────────────────────────────
   const SETTINGS_SECTIONS = {
     workspace: { title:'Workspace', sub:'Basic information about your DSP.' },
+    account: { title:'Account & security', sub:'Your personal sign-in and security.' },
     team: { title:'Team', sub:'Manage team members and roles.' },
     'hiring-messages': { title:'Hiring messages', sub:'SMS + email templates applicants and drivers receive at every step.' },
     referrals: { title:'Hiring referrals', sub:'KPIs, leaderboard, auto-invite, milestone payouts.' },
