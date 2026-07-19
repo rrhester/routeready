@@ -161,11 +161,30 @@ on main. Branch reset from main for follow-ups (new PR each time).
   re-renders it fresh (scope B = Bob, toggle to A = Alice); week grid 2→1 chips;
   no errors.
 
-**NEXT:** onboarding roster + broadcast audience (sync to the lens), attendance
-report. Then P3 server `p_station_id` (Today KPI tiles/coverage, okami/targets,
-generate_shifts, roster counts), P4 All-mode per-station breakdowns. Reuse
-`_rrDriverIdsAtStation` for any driver-list surface. Branch reset from main per
-follow-up; open a NEW PR (the old one merged).
+**SHIPPED — Targets/forecast follows the master lens (Phase 3, client-side):**
+- The Targets 13-week page ALREADY had its own per-station scoping
+  (`_rrOkamiStationFilter` + a local `#rr-tgt-station-sel` dropdown, from the
+  Targets 50-list): `okami_grid` returns per-(date,station) rows, and the
+  render filters demand `cells` by station (Available deliberately stays
+  fleet-wide — drivers float). Unified it to the master lens: in
+  `_renderOkamiLiveImpl` `_rrOkamiStationFilter = rrStationScopeId()` (global
+  wins), and `_rrOkamiRenderStationFilter` now RETIRES the per-page dropdown
+  when `window.rrStationScope` exists (always post-boot) — one control, not two.
+- Browser-QA'd (Playwright, 2-station okami_grid stub, A=2 routes/day, B=3):
+  All = 11 Needed → scope Boston = 7 → scope Chantilly = 5; local dropdown
+  absent; re-renders on toggle (schedSub('targets')→renderOkamiLive and
+  view-okami→loadOkamiView both covered by `_rrRerenderForScope`). No errors.
+- NOTE the "Available fleet-wide under a station scope" is intentional (float
+  model) — don't "fix" it to per-station roster.
+
+**NEXT (Phase 3 server-side — needs a migration):** the Today's Plan KPI tiles
++ coverage rail (`fleet_execution_summary`, `pipeline_counts`, `today_plan`)
+are the LAST DSP-wide holdouts — they aggregate server-side with no per-station
+breakdown, so scoping them needs an optional `p_station_id` on those RPCs
+(pipeline/hiring is arguably DSP-wide; fleet + coverage are station-relevant).
+Also smaller: onboarding roster, broadcast audience default, attendance report
+(all reuse `_rrDriverIdsAtStation`). Then P4 All-mode per-station breakdowns.
+Branch reset from main per follow-up; open a NEW PR (old ones merged).
 
 ## Active task: Staffing model — XL-route demand (branch claude/staffing-driver-requirements-1tw30l)
 

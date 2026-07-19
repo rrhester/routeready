@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=1e71350a4e25";
-import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=1e71350a4e25";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=1e71350a4e25";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=1e71350a4e25";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=1e71350a4e25";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=1e71350a4e25";
-import { isChecklistComplete } from "./checklist-core.mjs?v=1e71350a4e25";
+import { planScheduleWeek } from "./scheduling-engine.js?v=b14c3ab109f3";
+import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=b14c3ab109f3";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=b14c3ab109f3";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=b14c3ab109f3";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=b14c3ab109f3";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=b14c3ab109f3";
+import { isChecklistComplete } from "./checklist-core.mjs?v=b14c3ab109f3";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=1e71350a4e25";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=1e71350a4e25";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=1e71350a4e25";
+} from "./msg-core.mjs?v=b14c3ab109f3";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=b14c3ab109f3";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=b14c3ab109f3";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -53214,6 +53214,9 @@ function _rrOkamiRenderStationFilter(stationsInGrid) {
   const acts = document.querySelector(".rr-tgt-13w-actions");
   if (!acts) return;
   let wrap = document.getElementById("rr-tgt-station-wrap");
+  // The global sidebar station switcher now drives the Targets scope, so
+  // retire this per-page dropdown — a single source of truth for the lens.
+  if (typeof window.rrStationScope === "function") { if (wrap) wrap.remove(); return; }
   if (!stationsInGrid || stationsInGrid.length <= 1) { if (wrap) wrap.remove(); return; }
   if (!wrap) {
     wrap = document.createElement("span");
@@ -53644,6 +53647,11 @@ async function _renderOkamiLiveImpl() {
       }
     }
     stationsInGrid.sort((a, b) => String(a.code).localeCompare(String(b.code)));
+    // Master station lens drives the Targets scope — one control (the sidebar
+    // switcher), not a second per-page dropdown. Global "all" (null) = the
+    // fleet-wide plan; a scoped station filters DEMAND to it (Available stays
+    // fleet-wide, since drivers float between stations).
+    if (typeof rrStationScopeId === "function") _rrOkamiStationFilter = rrStationScopeId();
     if (_rrOkamiStationFilter && !seen.has(_rrOkamiStationFilter)) _rrOkamiStationFilter = null;
   }
   const useCells = _rrOkamiStationFilter
