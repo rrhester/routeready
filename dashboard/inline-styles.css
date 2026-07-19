@@ -9045,35 +9045,8 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-tgt-join-chip{background:var(--canvas);border:1px solid var(--border);color:var(--rr-green-700)}
 .okami-table tbody tr:hover .rr-tgt-row-acts{opacity:1}
 /* 7-day sparkline beside each Routes input. */
-/* Per-week weekday spark bars · hover-reveal (calm pass) — 13 always-on
-   mini charts next to the inputs read as noise; visibility (not display)
-   so nothing shifts when they appear. */
-.rr-tgt-spark{display:inline-flex;align-items:flex-end;gap:1px;height:14px;margin-left:7px;vertical-align:middle;visibility:hidden}
-.okami-table tbody tr:hover .rr-tgt-spark,
-.okami-table tbody tr:focus-within .rr-tgt-spark{visibility:visible}
-.rr-tgt-spark i{width:3px;background:var(--border-strong);border-radius:1px 1px 0 0;display:inline-block}
 /* Hiring-pace footer line under the totals. */
 .rr-okami-pace-row > td{padding:6px 18px 9px;color:var(--text-subtle);font-size:var(--fs-xs);border-top:1px dashed var(--border);font-variant-numeric:tabular-nums}
-/* Needed-vs-available trend card above the table. */
-.rr-tgt-trend{position:relative;margin:0 4px 10px;padding:10px 12px 4px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg)}
-.rr-tgt-trend[hidden]{display:none}
-.rr-tgt-trend svg{display:block;max-width:100%}
-.rr-tgt-trend-legend{display:flex;gap:14px;font-size:var(--fs-xs);color:var(--text-muted);margin-bottom:2px;flex-wrap:wrap}
-.rr-tgt-trend-legend i{display:inline-block;width:10px;height:3px;border-radius:2px;margin-right:5px;vertical-align:middle}
-.rr-tgt-trend-tip{position:absolute;pointer-events:none;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-md);box-shadow:var(--shadow-pop);padding:6px 9px;font-size:var(--fs-xs);color:var(--text);z-index:5;white-space:nowrap}
-.rr-tgt-trend-tip[hidden]{display:none}
-/* Trend card header · legend (or collapsed one-line summary) + a quiet
-   chevron toggle. Collapse state persists (rr_tgt_trend_collapsed). */
-.rr-tgt-trend-head{display:flex;align-items:center;gap:14px;min-height:22px}
-.rr-tgt-trend-head .rr-tgt-trend-legend{margin-bottom:0}
-.rr-tgt-trend-summary{font-size:var(--fs-xs);color:var(--text-muted);font-variant-numeric:tabular-nums}
-.rr-tgt-trend-toggle{
-  margin-left:auto;border:0;background:transparent;color:var(--text-subtle);
-  width:24px;height:24px;border-radius:6px;cursor:pointer;
-  display:inline-flex;align-items:center;justify-content:center;padding:0;flex:0 0 auto;
-}
-.rr-tgt-trend-toggle:hover{background:var(--canvas);color:var(--text)}
-.rr-tgt-trend.is-collapsed{padding-bottom:10px}
 /* Targets header · ⋯ menu for the secondary plan tools (Seed / Snapshots /
    CSV / Print) — one quiet trigger instead of four always-on buttons. */
 .rr-tgt-more-wrap{position:relative;display:inline-flex}
