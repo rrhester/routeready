@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=dc241d952852";
-import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=dc241d952852";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=dc241d952852";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=dc241d952852";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=dc241d952852";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=dc241d952852";
-import { isChecklistComplete } from "./checklist-core.mjs?v=dc241d952852";
+import { planScheduleWeek } from "./scheduling-engine.js?v=4fddf6c6a962";
+import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=4fddf6c6a962";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=4fddf6c6a962";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=4fddf6c6a962";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=4fddf6c6a962";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=4fddf6c6a962";
+import { isChecklistComplete } from "./checklist-core.mjs?v=4fddf6c6a962";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=dc241d952852";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=dc241d952852";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=dc241d952852";
+} from "./msg-core.mjs?v=4fddf6c6a962";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=4fddf6c6a962";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=4fddf6c6a962";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -55345,11 +55345,24 @@ async function loadFleetSettings() {
     const { data, error } = await sb.rpc("fleet_settings_get");
     if (error) { console.warn("fleet_settings_get:", error.message); return; }
     window.RR.fleetSettings = data || { auto_van_assign: false };
+    // The auto-van-assign switch is unified: this DSP-level DB flag drives
+    // BOTH the Today's Plan auto-fill AND the Smart Fill van pass. Mirror it
+    // down into the Smart Fill rules blob so _rrLoadSfRules() has the right
+    // value even in the window before this round-trip completes, and so the
+    // popover checkbox restores consistently.
+    try {
+      let sf = JSON.parse(localStorage.getItem(_RR_SF_RULES_KEY) || "{}");
+      if (!sf || typeof sf !== "object") sf = {};
+      if (!sf.vans || typeof sf.vans !== "object") sf.vans = {};
+      sf.vans.assign = !!window.RR.fleetSettings.auto_van_assign;
+      localStorage.setItem(_RR_SF_RULES_KEY, JSON.stringify(sf));
+    } catch (_) { /* localStorage unavailable — DB value still authoritative */ }
     const toggle = document.getElementById("rr-set-auto-van-assign");
     if (toggle) {
       toggle.checked = !!data?.auto_van_assign;
       const lbl = document.querySelector("[data-rr-auto-van-label]");
       if (lbl) lbl.textContent = data?.auto_van_assign ? "On" : "Off";
+      if (typeof _rrApplyVansMasterGate === "function") _rrApplyVansMasterGate();
     }
   } catch (e) { console.warn("loadFleetSettings:", e); }
 }
@@ -56807,6 +56820,12 @@ function _rrSfVansRead(saved) {
 }
 function _restoreSfVans(saved) {
   const vals = _rrSfVansRead(saved);
+  // The "assign" box is the unified master auto-van-assign switch — it is
+  // DB-backed (fleet_settings.auto_van_assign) and shared with the Today's
+  // Plan auto-fill. When the DSP setting is loaded, prefer it over the local
+  // mirror so both surfaces render one source of truth.
+  const dbAuto = window.RR?.fleetSettings?.auto_van_assign;
+  if (typeof dbAuto === "boolean") vals.assign = dbAuto;
   // Dual scope: these checkboxes moved to the Assign Fleet dropdown
   // (#rr-sched-vans-rules-popover); the policy-box scope is kept so a
   // stale frag can't strand them unwired.
@@ -58571,6 +58590,20 @@ window._rrLoadSfRules = function () {
     // The advanced override key is retired with the knob — a stale
     // saved value would silently clamp the derived cap via min().
     delete saved.weeklyHourCap;
+  }
+  // Unified auto-van-assign master switch. `vans.assign` gates the
+  // client-side Smart Fill van pass (post-solver _assignVansForRange); it is
+  // now the SAME setting as the Today's Plan auto-fill — the DSP-level
+  // fleet_settings.auto_van_assign flag, surfaced as one checkbox in the Van
+  // rules popover. When fleet settings are loaded they are authoritative, so
+  // the single switch governs both surfaces; otherwise the local mirror
+  // (kept fresh by loadFleetSettings) stands in until the round-trip lands.
+  {
+    const dbAuto = window.RR?.fleetSettings?.auto_van_assign;
+    if (typeof dbAuto === "boolean") {
+      if (!saved.vans || typeof saved.vans !== "object") saved.vans = {};
+      saved.vans.assign = dbAuto;
+    }
   }
   return saved;
 };
