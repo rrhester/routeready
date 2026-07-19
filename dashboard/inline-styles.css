@@ -1856,6 +1856,10 @@ td.rr-lastcoach-col > span > span{color:var(--rr-gray-600) !important}
 #view-schedule .req-detail-label{font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px}
 #view-schedule .req-detail-value{font-size:var(--fs-sm);color:var(--text);line-height:1.45}
 #view-schedule .req-detail-dim{color:var(--text-subtle)}
+/* The coverage card fills its table cell (width:100%); inside the expanded
+   detail's full-width field, cap it so it keeps the schedule-card footprint
+   instead of stretching across the whole row. */
+#view-schedule .req-detail-value .req-cov{max-width:210px}
 /* Chevron rotates to point down when the row is open; the open row shares the
    detail's subtle tint. */
 #view-schedule .req-trow .req-td-chev svg{transition:transform .2s ease}
