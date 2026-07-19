@@ -54604,7 +54604,11 @@ function _rrTgtMaybeAlert(A) {
 
 // ─── OKAMI · daily drill-down panel (PR C) ─────────────────────────────────
 
-const RR_OKAMI_DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+// (Day-of-week headers for the daily drill-down are derived from the week's
+// REAL dates at render time. A hardcoded Mon-first label array here silently
+// mislabeled every column of the Sunday-anchored week by one day — the
+// operator typed "2 XL on Thu" into a cell that actually saved to Wednesday.
+// Never reintroduce a static day-label list for this grid.)
 const _okamiDailySaveTimers = new Map();
 let _okamiDailyDelegated = false;
 
@@ -54789,7 +54793,7 @@ async function _renderOkamiDailyPanelImpl(weekIdx, targetContainerId) {
       <div class="okami-daily-grid">
         <div class="okami-daily-grid-head">
           <div>${escapeHtml(headerLabel)}</div>
-          ${RR_OKAMI_DAY_LABELS.map(l => `<div>${l}</div>`).join("")}
+          ${days.map(d => `<div>${escapeHtml(d.toLocaleDateString(undefined, { weekday: "short" }))} ${d.getDate()}</div>`).join("")}
         </div>
         ${rowsHtml}
       </div>
