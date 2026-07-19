@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=50f186aa4293";
-import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=50f186aa4293";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=50f186aa4293";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=50f186aa4293";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=50f186aa4293";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=50f186aa4293";
-import { isChecklistComplete } from "./checklist-core.mjs?v=50f186aa4293";
+import { planScheduleWeek } from "./scheduling-engine.js?v=1b00ede29e29";
+import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=1b00ede29e29";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=1b00ede29e29";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=1b00ede29e29";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=1b00ede29e29";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=1b00ede29e29";
+import { isChecklistComplete } from "./checklist-core.mjs?v=1b00ede29e29";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=50f186aa4293";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=50f186aa4293";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=50f186aa4293";
+} from "./msg-core.mjs?v=1b00ede29e29";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=1b00ede29e29";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=1b00ede29e29";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -63946,25 +63946,40 @@ async function _decorateScheduleChipsWithVans() {
   // surface THAT driver's van on the helper chip.
   const helperPairKey = new Map(); // helper shift id -> paired driver's `${driver_id}|${date}`
   {
-    const bucketOf = (sh) => `${sh.date}|${sh.station_id || ""}|${sh.wave_index ?? 0}|${sh.service_type_id || ""}`;
-    const driversByBucket = new Map();
-    for (const sh of shifts) {
-      if ((sh.shift_kind || "regular") !== "regular" || !sh.driver_id) continue;
-      const b = bucketOf(sh);
-      if (!driversByBucket.has(b)) driversByBucket.set(b, []);
-      driversByBucket.get(b).push(sh);
-    }
-    for (const list of driversByBucket.values()) list.sort((a, b) => String(a.id).localeCompare(String(b.id)));
+    // Match each helper seat to its route's driver seat so the helper chip can
+    // mirror the driver's van. Ideally they share the full
+    // date · station · wave · service_type bucket (that's how generate_shifts
+    // pairs an XL or HELPER route). But an operator's "Helper route" driver
+    // seat can carry a DIFFERENT (or SP/null) service_type than the added
+    // helper seat, and a hand-edited seat can drift on wave too — in which
+    // case a strict bucket match found no driver and the helper chip showed
+    // NO van at all. So fall back through progressively looser keys: same
+    // service type first, then any co-located driver at the same station+wave,
+    // then the same station on that date. Each regular driver is claimed at
+    // most once so multiple helpers spread across distinct routes instead of
+    // collapsing onto one. XL/clean-HELPER routes still match at the strict
+    // tier, so their behavior is unchanged — this only rescues drifted data.
+    const kStrict  = (sh) => `${sh.date}|${sh.station_id || ""}|${sh.wave_index ?? 0}|${sh.service_type_id || ""}`;
+    const kWave    = (sh) => `${sh.date}|${sh.station_id || ""}|${sh.wave_index ?? 0}`;
+    const kStation = (sh) => `${sh.date}|${sh.station_id || ""}`;
+    const regulars = shifts
+      .filter(sh => (sh.shift_kind || "regular") === "regular" && sh.driver_id)
+      .sort((a, b) => String(a.id).localeCompare(String(b.id)));
+    const mapBy = (fn) => {
+      const m = new Map();
+      for (const sh of regulars) { const k = fn(sh); if (!m.has(k)) m.set(k, []); m.get(k).push(sh); }
+      return m;
+    };
+    const mStrict = mapBy(kStrict), mWave = mapBy(kWave), mStation = mapBy(kStation);
+    const claimed = new Set(); // regular shift ids already used as a mate
+    const pick = (list) => { for (const d of (list || [])) if (!claimed.has(d.id)) return d; return null; };
     const helpers = shifts.filter(sh => (sh.shift_kind || "regular") === "helper")
       .sort((a, b) => String(a.id).localeCompare(String(b.id)));
-    const usedPerBucket = new Map();
     for (const h of helpers) {
-      const b = bucketOf(h);
-      const pool = driversByBucket.get(b) || [];
-      const used = usedPerBucket.get(b) || 0;
-      const mate = pool[used] || pool[0];
-      usedPerBucket.set(b, used + 1);
-      if (mate) helperPairKey.set(String(h.id), `${mate.driver_id}|${mate.date}`);
+      const mate = pick(mStrict.get(kStrict(h)))
+        || pick(mWave.get(kWave(h)))
+        || pick(mStation.get(kStation(h)));
+      if (mate) { claimed.add(mate.id); helperPairKey.set(String(h.id), `${mate.driver_id}|${mate.date}`); }
     }
   }
   // Reasons[] index from the most recent Assign Vans run on the
