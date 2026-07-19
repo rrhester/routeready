@@ -19,11 +19,8 @@
                      lives in the conversation header + Start meeting below);
                      removing it also relieves the header-actions crowding at
                      narrow list widths. _rrToggleTeammateMenu still reachable. -->
-                <!-- Recognition · auto-fire toggles for birthday /
-                     anniversary / holiday celebration messages. Relocated
-                     from Settings → Recognition (it's message automation);
-                     opens the recognition slide-over. -->
-                <button class="msg-headbtn" id="rr-recog-open" title="Recognition · celebration auto-fire" aria-label="Recognition settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15 8.5 22 9.3 17 14 18.2 21 12 17.6 5.8 21 7 14 2 9.3 9 8.5"/></svg></button>
+                <!-- Recognition moved to a LABELED button in the quick-actions
+                     row below (an icon here read as ambiguous). -->
                 <button class="msg-newbtn" title="New message" aria-label="New message" onclick="renderNewDmList('');openModal('modal-new-dm')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
               </div>
             </div>
@@ -41,6 +38,14 @@
               <button type="button" class="msg-quick-btn" onclick="rrOpenMeetWindow('meet.html')">
                 <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
                 Start meeting
+              </button>
+              <!-- Recognition · celebration auto-fire settings (birthday /
+                   anniversary / holiday). Labeled button; opens the
+                   recognition slide-over via the live.js controller
+                   (id rr-recog-open). -->
+              <button type="button" class="msg-quick-btn" id="rr-recog-open">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15 8.5 22 9.3 17 14 18.2 21 12 17.6 5.8 21 7 14 2 9.3 9 8.5"/></svg>
+                Recognition
               </button>
             </div>
             <!-- Inbox filter · Drivers (driver-ops chats) / HR (people

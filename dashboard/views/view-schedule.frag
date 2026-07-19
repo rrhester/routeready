@@ -1882,6 +1882,17 @@
               <span class="rr-ab-coverage-main" id="rr-ab-coverage-main"></span>
               <span class="rr-ab-coverage-sub" id="rr-ab-coverage-sub"></span>
             </div>
+            <!-- Schedule rules · visible entry to the DSP-wide scheduling
+                 rules drawer (hours, pay, geofences, self-service,
+                 attendance, availability, the enforced floor). Calls the
+                 live.js controller global directly (the hoist button
+                 #rr-schedrules-open lives in the hidden legacy ribbon, so we
+                 can't reuse that id here). Distinct from the Build Schedule
+                 caret, which opens Smart Fill rules. -->
+            <button type="button" class="rr-ab-btn" id="rr-ab-schedrules" onclick="window._rrOpenScheduleRules&&window._rrOpenScheduleRules()" title="DSP-wide scheduling rules — hours, pay, geofences, self-service, attendance">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+              Schedule rules
+            </button>
             <button type="button" class="rr-ab-btn rr-ab-primary" id="rr-ab-finalize" title="Push this week's schedule to drivers">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
               Finalize
@@ -1891,13 +1902,6 @@
                 <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>
               </button>
               <div class="rr-ab-menu" id="rr-ab-menu" role="menu" hidden>
-                <!-- DSP-wide scheduling rules · fires the (hidden legacy
-                     ribbon) #rr-schedrules-open button, whose live.js handler
-                     opens the Schedule rules drawer. This is the VISIBLE
-                     entry point — the ribbon button itself lives in the
-                     hidden .sched-nav-heading. Distinct from the Build
-                     Schedule caret, which opens Smart Fill rules. -->
-                <button type="button" role="menuitem" data-rr-ab-fire="rr-schedrules-open">Schedule rules (hours, pay, geofences)</button>
                 <button type="button" role="menuitem" data-rr-ab-fire="rr-sched-print-btn">Print schedule</button>
                 <button type="button" role="menuitem" data-rr-ab-fire="rr-sched-download-btn">Download Excel</button>
               </div>
