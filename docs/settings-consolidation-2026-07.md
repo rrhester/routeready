@@ -86,7 +86,13 @@ Integrations** (org config only) + a per-user **Account & security** page.
 ## Status
 
 - [x] Recommendation + inventory (this doc)
-- [ ] Step 1 — Account & security split
+- [x] **Step 1 — Account & security split** — new `data-set="account"` pane
+  holds Password / Two-factor / Export data (moved verbatim from
+  Workspace, IDs preserved). Profile popover deep-links via
+  `rrOpenAccountSettings()` (defers past `goto`'s Workspace reset). Browser-
+  verified with Playwright: nav shows the tab, pane renders all three
+  controls, Workspace no longer carries them, deep-link lands. SW nonce
+  bumped to `2026-07-19.5`.
 - [ ] Step 2 — Scheduling rules drawer
 - [ ] Step 3 — Hiring → Onboarding
 - [ ] Step 4 — Recognition / Portal sync

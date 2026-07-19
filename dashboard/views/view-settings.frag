@@ -24,6 +24,7 @@
         <div class="settings-layout">
           <nav class="settings-nav">
             <button class="settings-nav-item active" data-set="workspace" onclick="setSettingsSection(this)">Workspace</button>
+            <button class="settings-nav-item" data-set="account" onclick="setSettingsSection(this)">Account &amp; security</button>
             <button class="settings-nav-item" data-set="team" onclick="setSettingsSection(this)">Team</button>
             <button class="settings-nav-item" data-set="hiring-messages" onclick="setSettingsSection(this)">Hiring messages</button>
             <button class="settings-nav-item" data-set="referrals" onclick="setSettingsSection(this)">Hiring referrals</button>
@@ -130,16 +131,19 @@
                 </div>
               </div>
 
-              <!-- DATA EXPORT · owner only (also enforced by the RPC) -->
-              <div class="form-row rr-owner-only">
-                <div>
-                  <div class="form-label">Export your data</div>
-                  <div class="form-help">Download your DSP's core records — drivers, documents, applicants, coaching, schedule and time-off — as a single JSON file. Your data is yours; take it anytime.</div>
-                </div>
-                <div style="display:flex;gap:var(--s-2);align-items:center;flex-wrap:wrap">
-                  <button class="btn btn-sm" type="button" onclick="rrExportMyData(this)">Export data (JSON)</button>
-                  <button class="btn btn-sm" type="button" onclick="rrExportMyFiles(this)">Export files (links)</button>
-                </div>
+              <!-- Account-level controls (password, two-factor, data
+                   export) moved to the "Account & security" section — they
+                   are per-user, not DSP-wide workspace config. -->
+            </div>
+
+            <!-- ACCOUNT & SECURITY SECTION · per-user account controls,
+                 split out of Workspace (which is now org-identity only).
+                 Reached from the profile/account popover as well as the
+                 settings nav. -->
+            <div class="settings-section hidden" data-set="account">
+              <div class="settings-section-head">
+                <h2 class="settings-section-title">Account &amp; security</h2>
+                <p class="settings-section-sub">Your personal sign-in and security — separate from workspace settings that apply to the whole DSP.</p>
               </div>
 
               <!-- PASSWORD · set/change the email+password login. Available to
@@ -170,6 +174,18 @@
                   <button class="btn btn-sm" type="button" id="rr-mfa-off-btn" style="display:none" onclick="rrMfaDisable(this)">Turn off</button>
                 </div>
                 <div id="rr-mfa-enroll" style="display:none;flex-basis:100%;margin-top:12px"></div>
+              </div>
+
+              <!-- DATA EXPORT · owner only (also enforced by the RPC) -->
+              <div class="form-row rr-owner-only">
+                <div>
+                  <div class="form-label">Export your data</div>
+                  <div class="form-help">Download your DSP's core records — drivers, documents, applicants, coaching, schedule and time-off — as a single JSON file. Your data is yours; take it anytime.</div>
+                </div>
+                <div style="display:flex;gap:var(--s-2);align-items:center;flex-wrap:wrap">
+                  <button class="btn btn-sm" type="button" onclick="rrExportMyData(this)">Export data (JSON)</button>
+                  <button class="btn btn-sm" type="button" onclick="rrExportMyFiles(this)">Export files (links)</button>
+                </div>
               </div>
             </div>
 
@@ -794,4 +810,18 @@
           </div>
         </div>
       </div>
-    
+
+      <script>
+        // Deep-link the profile/account popover straight to the
+        // "Account & security" pane. goto('settings') schedules a
+        // setTimeout(0) that resets the nav to the first pane
+        // (Workspace); we defer our selection into a later setTimeout(0)
+        // so it runs AFTER that reset (FIFO) and wins.
+        window.rrOpenAccountSettings = function () {
+          try { goto('settings'); } catch (e) {}
+          setTimeout(function () {
+            var b = document.querySelector('#view-settings .settings-nav-item[data-set="account"]');
+            if (b && typeof setSettingsSection === 'function') setSettingsSection(b);
+          }, 0);
+        };
+      </script>
