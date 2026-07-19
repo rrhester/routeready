@@ -277,88 +277,13 @@
                      and the Smart Fill van pass. The standing primary/backup
                      chains still live on Workspaces → Van assignments board. -->
 
-                <details class="rules-section" data-rr-rules-section="floor" style="grid-column:1/-1" open>
-                  <summary class="rules-section-title">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.5 9.5 8 11 4.5-1.5 8-6 8-11V5l-8-3z"/><polyline points="9 12 11 14 15 10"/></svg>
-                    Always enforced · Cover &amp; self-service floor
-                    <span class="rules-sub-badge ok">Locked</span>
-                  </summary>
-                  <div style="font-size:var(--fs-sm);color:var(--text-subtle);margin:6px 0 12px;line-height:1.5">
-                    These guardrails are hardcoded into the server-side Cover, driver-pickup, and swap flows — they apply to every DSP and can't be switched off for those flows. They protect against data corruption, payroll mistakes, and compliance violations. Note that <strong>Smart Fill</strong> on the Schedule view exposes tunable equivalents of a few of these (same-day policy, DL check, onboarding eligibility) behind its rules popover; the gates below are what still runs on Cover / pickup / swap no matter how Smart Fill is configured.
-                  </div>
-                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s-2) 16px">
-                    <div class="rule-row" style="padding:var(--s-2) 0;border:0">
-                      <div>
-                        <div class="rule-label">No double-booking</div>
-                        <div class="rule-help">A driver can't hold two shifts on the same date in <code>scheduled</code>, <code>completed</code>, or <code>late</code> status.</div>
-                      </div>
-                      <span class="rules-sub-badge ok">Always on</span>
-                    </div>
-                    <div class="rule-row" style="padding:var(--s-2) 0;border:0">
-                      <div>
-                        <div class="rule-label">No past-date assignments</div>
-                        <div class="rule-help">Cover and driver pickup only operate on shifts dated after today.</div>
-                      </div>
-                      <span class="rules-sub-badge ok">Always on</span>
-                    </div>
-                    <div class="rule-row" style="padding:var(--s-2) 0;border:0">
-                      <div>
-                        <div class="rule-label">Expired driver's license blocks scheduling</div>
-                        <div class="rule-help">Drivers whose DL expires <em>before</em> the shift date are skipped by Cover, pickup, and swap. (A license valid through the shift date itself still qualifies.)</div>
-                      </div>
-                      <span class="rules-sub-badge ok">Always on</span>
-                    </div>
-                    <div class="rule-row" style="padding:var(--s-2) 0;border:0">
-                      <div>
-                        <div class="rule-label">Service-type certifications</div>
-                        <div class="rule-help">DOT-required service types need <code>dot_certified</code> drivers; XL-required service types need <code>xl_certified</code> drivers.</div>
-                      </div>
-                      <span class="rules-sub-badge ok">Always on</span>
-                    </div>
-                    <div class="rule-row" style="padding:var(--s-2) 0;border:0">
-                      <div>
-                        <div class="rule-label">Approved time-off blocks scheduling</div>
-                        <div class="rule-help">Cover, pickup, and swaps all skip drivers with an <code>approved</code> PTO request that overlaps the shift date.</div>
-                      </div>
-                      <span class="rules-sub-badge ok">Always on</span>
-                    </div>
-                    <div class="rule-row" style="padding:var(--s-2) 0;border:0">
-                      <div>
-                        <div class="rule-label">Inactive drivers excluded</div>
-                        <div class="rule-help">Only drivers with <code>status = active</code> appear in Cover or pickup eligibility.</div>
-                      </div>
-                      <span class="rules-sub-badge ok">Always on</span>
-                    </div>
-                    <div class="rule-row" style="padding:var(--s-2) 0;border:0">
-                      <div>
-                        <div class="rule-label">Every shift edit audited</div>
-                        <div class="rule-help">Driver, date, time, route, and status changes write an immutable row to <code>shift_changes</code> (visible in the Activity feed).</div>
-                      </div>
-                      <span class="rules-sub-badge ok">Always on</span>
-                    </div>
-                    <div class="rule-row" style="padding:var(--s-2) 0;border:0">
-                      <div>
-                        <div class="rule-label">Cross-DSP isolation</div>
-                        <div class="rule-help">Row-level security scopes every schedule table to your DSP — no other tenant can read or write your data.</div>
-                      </div>
-                      <span class="rules-sub-badge ok">Always on</span>
-                    </div>
-                    <div class="rule-row" style="padding:var(--s-2) 0;border:0">
-                      <div>
-                        <div class="rule-label">Dispatcher-only writes</div>
-                        <div class="rule-help">Creating, editing, and deleting shifts requires the dispatcher role or higher (dispatcher, ops, or owner). Drivers can only act on their own shifts via Cover/pickup/swap flows.</div>
-                      </div>
-                      <span class="rules-sub-badge ok">Always on</span>
-                    </div>
-                    <div class="rule-row" style="padding:var(--s-2) 0;border:0">
-                      <div>
-                        <div class="rule-label">One pending Cover offer per shift</div>
-                        <div class="rule-help">A unique index enforces a single pending Cover offer per shift. Swap requests are deduped per requester/target shift pair, so a driver can't send the same swap twice (a shift may still have more than one pending swap to different targets).</div>
-                      </div>
-                      <span class="rules-sub-badge ok">Always on</span>
-                    </div>
-                  </div>
-                </details>
+                <!-- "Always enforced · Cover & self-service floor" section
+                     removed from the operator UI (2026-07-19): these are
+                     read-only, always-on server guardrails (RLS, cert gates,
+                     audit, no-double-booking, etc.) with no toggle — the
+                     operator doesn't need to see them. The rules themselves
+                     stay hardcoded in the Cover / pickup / swap flows; this
+                     only drops the informational panel. -->
 
                 <details class="rules-section" data-rr-rules-section="woc-limits" style="grid-column:1/-1">
                   <summary class="rules-section-title">
