@@ -70458,9 +70458,16 @@ function _schedShiftChip(sh, extras) {
   // Helper seat corner badge — the second body riding along a route (no cert
   // required). Spelled out as "Helper" (not the old cryptic "HP") so the chip
   // reads plainly; its route color + dashed border already say which route it
-  // rides, so this is the only badge the helper seat carries.
+  // rides, so this is the only badge the helper seat carries. When the route
+  // carries a distinguishing service type (XL, …) the tag names it — an XL
+  // route's helper reads "XL-Helper", not a bare "Helper" — since the seat's
+  // own service-type corner is suppressed above. The HELPER service type is
+  // itself the helper route, so it isn't prefixed (no "HELPER-Helper").
+  const _helperTypePrefix = (stCode && stCode !== "SP" && stCode !== "HELPER")
+    ? stCode + "-"
+    : "";
   const helperCorner = isHelperSeat
-    ? `<span class="shift-chip-helper-badge" title="Helper seat — rides along the route (no certification required)">Helper</span>`
+    ? `<span class="shift-chip-helper-badge" title="${escapeHtml(_helperTypePrefix ? _helperTypePrefix.slice(0, -1) + " helper seat — rides along the route (no certification required)" : "Helper seat — rides along the route (no certification required)")}">${escapeHtml(_helperTypePrefix)}Helper</span>`
     : "";
   // Corner tags share one flex wrapper pinned top-right so an XL standard
   // route reads "SP XL" without the two badges overlapping; the service-type
