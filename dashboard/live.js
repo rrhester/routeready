@@ -91632,19 +91632,6 @@ function _reqRangeDows(startIso, endIso) {
   return _REQ_DOW.filter((d) => seen.has(d));
 }
 
-// Small day chips (Mon Fri Sat Sun) for the coverage-impact cell. Capped at a
-// fixed number so the tinted block stays one uniform size — the affected-day
-// count still lives in the sub-line, and any overflow shows as "+N".
-function _reqDayChips(dows) {
-  if (!dows.length) return "";
-  const MAX = 4;
-  const shown = dows.slice(0, MAX);
-  const extra = dows.length - shown.length;
-  const chips = shown.map((d) => `<span class="req-cov-chip">${_REQ_DOW_LBL[d] || d}</span>`).join("")
-    + (extra > 0 ? `<span class="req-cov-chip req-cov-chip-more">+${extra}</span>` : "");
-  return `<div class="req-cov-chips">${chips}</div>`;
-}
-
 // Coverage-impact model: which days lose coverage if approved + a High / Medium
 // / None severity. Availability = days dropped; time off = weekdays off.
 function _reqCoverage(it) {
@@ -91660,13 +91647,22 @@ function _reqCoverage(it) {
   return { sev: count === 0 ? "none" : count <= 2 ? "medium" : "high", count, dows };
 }
 
-// Coverage Impact cell — the page's primary signal after Driver: a coloured
-// severity, the count of affected coverage days, and small day chips.
+// Coverage Impact cell — a compact blue schedule-chip: the severity level
+// (coloured word) over a one-line reason. Day names fold into the reason so the
+// chip stays two tight lines like a schedule card.
 function _reqCoverageImpactCell(it) {
   const { sev, count, dows } = _reqCoverage(it);
   const head = sev === "high" ? "High" : sev === "medium" ? "Medium" : "None";
-  const sub = count === 0 ? "No coverage impact" : `${count} coverage day${count === 1 ? "" : "s"} affected`;
-  return `<div class="req-cov req-cov-${sev}"><div class="req-cov-card"><div class="req-cov-head"><span class="req-cov-sev">${head}</span></div><div class="req-cov-sub">${sub}</div>${_reqDayChips(dows)}</div></div>`;
+  let sub;
+  if (count === 0) {
+    sub = "No coverage impact";
+  } else {
+    const MAX = 3;
+    const labels = dows.slice(0, MAX).map((d) => _REQ_DOW_LBL[d] || d);
+    const days = labels.join(", ") + (dows.length > MAX ? ` +${dows.length - MAX}` : "");
+    sub = `${count} day${count === 1 ? "" : "s"} · ${days}`;
+  }
+  return `<div class="req-cov req-cov-${sev}"><div class="req-cov-card"><div class="req-cov-sev">${escapeHtml(head)}</div><div class="req-cov-sub">${escapeHtml(sub)}</div></div></div>`;
 }
 
 // Request-health summary for the toolbar — the Requests-page twin of the
