@@ -33374,3 +33374,43 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 .rr-sfr-x { background: none; border: 0; font-size: var(--fs-xl); line-height: 1; cursor: pointer; color: var(--text-muted); padding: 0 4px; }
 .rr-sfr-body { overflow-y: auto; padding: 16px 18px; font-size: var(--fs-sm); line-height: 1.55; white-space: pre-wrap; font-variant-numeric: tabular-nums; color: var(--text); }
 .rr-sfr-foot { display: flex; justify-content: flex-end; gap: var(--s-2); padding: 12px 18px; border-top: 1px solid var(--border); }
+
+/* ── Shared right-side slide-over drawer ─────────────────────────────
+   Reusable across views for the Settings consolidation — hoists a
+   settings section next to the workflow it governs. Token-only; hidden
+   by default (position:fixed) so it never affects flow layout or visual
+   snapshots. (Schedule rules shipped its own .rr-schedrules-* variant in
+   step 2; new drawers use this shared family.) */
+.rr-slideover-backdrop{
+  position:fixed;inset:0;background:var(--overlay);
+  opacity:0;transition:opacity .18s ease;z-index:var(--z-modal);
+}
+.rr-slideover-backdrop.is-open{opacity:1}
+.rr-slideover{
+  position:fixed;top:0;right:0;bottom:0;
+  width:min(760px,96vw);display:flex;flex-direction:column;
+  background:var(--surface);border-left:1px solid var(--border);
+  box-shadow:var(--shadow-lg);
+  transform:translateX(100%);transition:transform .2s ease;
+  z-index:calc(var(--z-modal) + 1);
+}
+.rr-slideover.is-open{transform:translateX(0)}
+.rr-slideover-head{
+  display:flex;align-items:flex-start;justify-content:space-between;
+  gap:var(--s-3);padding:var(--s-4);
+  border-bottom:1px solid var(--border);flex:0 0 auto;
+}
+.rr-slideover-title{margin:0;font-size:var(--fs-lg);font-weight:700}
+.rr-slideover-sub{margin:4px 0 0;font-size:var(--fs-sm);color:var(--text-subtle)}
+.rr-slideover-body{flex:1 1 auto;overflow-y:auto;padding:var(--s-4)}
+.rr-slideover-body .settings-section,
+.rr-slideover-body .settings-section.hidden{display:block}
+.rr-slideover-close{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:30px;height:30px;flex:0 0 auto;cursor:pointer;
+  border:1px solid var(--border);border-radius:var(--r-md);
+  background:var(--surface);color:inherit;
+}
+/* The message-templates drawer carries its own header, so hide the
+   hoisted section's duplicate head/title inside it. */
+#rr-obmsg-body .settings-section-head{display:none}

@@ -341,6 +341,17 @@
                           </div>
                         </div>
                       </div>
+                      <!-- Message templates · the full SMS/email template
+                           editor relocated from Settings → Hiring messages
+                           (operator preference — templates belong with the
+                           funnel's messaging settings). Opens a slide-over so
+                           the list sits next to these settings without
+                           bloating this popover; the #rr-messages-list node is
+                           hoisted in on first open, preserving loadMessagesTab
+                           + every row handler. -->
+                      <div class="u-mt-3">
+                        <button type="button" class="btn btn-sm" id="rr-obmsg-open">Edit message templates…</button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -645,3 +656,23 @@
 
       </div>
     
+      <!-- ── Hiring message templates drawer ─────────────────────────
+           SMS/email template editor, slid over the Onboarding view.
+           Body is empty here; the .settings-section[data-set=
+           "hiring-messages"] node is hoisted in on first open by
+           _rrHiringMessagesDrawer (live.js), preserving loadMessagesTab
+           + every row handler. position:fixed + hidden by default, so it
+           never affects flow layout or visual snapshots. -->
+      <div class="rr-slideover-backdrop" id="rr-obmsg-backdrop" hidden></div>
+      <aside class="rr-slideover" id="rr-obmsg-drawer" role="dialog" aria-modal="true" aria-labelledby="rr-obmsg-title" hidden>
+        <div class="rr-slideover-head">
+          <div>
+            <h2 class="rr-slideover-title" id="rr-obmsg-title">Message templates</h2>
+            <p class="rr-slideover-sub">The SMS and email applicants and drivers receive at every step. Tokens like <code>{{first_name}}</code> and <code>{{link}}</code> are filled in automatically.</p>
+          </div>
+          <button type="button" class="rr-slideover-close" id="rr-obmsg-close" aria-label="Close message templates">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="rr-slideover-body" id="rr-obmsg-body"></div>
+      </aside>
