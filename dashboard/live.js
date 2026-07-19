@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=43a9a6e96c98";
-import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=43a9a6e96c98";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=43a9a6e96c98";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=43a9a6e96c98";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=43a9a6e96c98";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=43a9a6e96c98";
-import { isChecklistComplete } from "./checklist-core.mjs?v=43a9a6e96c98";
+import { planScheduleWeek } from "./scheduling-engine.js?v=04b5090e1bda";
+import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=04b5090e1bda";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=04b5090e1bda";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=04b5090e1bda";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=04b5090e1bda";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=04b5090e1bda";
+import { isChecklistComplete } from "./checklist-core.mjs?v=04b5090e1bda";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=43a9a6e96c98";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=43a9a6e96c98";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=43a9a6e96c98";
+} from "./msg-core.mjs?v=04b5090e1bda";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=04b5090e1bda";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=04b5090e1bda";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -54969,7 +54969,11 @@ async function _renderOkamiDailyPanelImpl(weekIdx, targetContainerId) {
     container.innerHTML = `<div style="padding:18px;color:var(--red);font-size:var(--fs-sm)">Failed to load: ${escapeHtml(gridRes.error.message)}</div>`;
     return;
   }
-  const cells = gridRes.data || [];
+  // Master station lens · scope the daily drill-down to the selected station
+  // (this panel fetches its own okami_grid, so it needs the same filter the
+  // 13-week table applies). "All" = every station, as before.
+  const _dpScope = (typeof rrStationScopeId === "function") ? rrStationScopeId() : null;
+  const cells = (gridRes.data || []).filter((c) => !_dpScope || c.station_id === _dpScope);
   const settings = settingsRes?.data || {};
   const waves = (Array.isArray(settings.waves) && settings.waves.length > 0)
     ? settings.waves
@@ -90906,7 +90910,7 @@ function _rrRequestsToolbarHtml() {
     </div>
     ${filterBtn("type", "Request type", "Filter by request type")}
     ${filterBtn("status", "Status", "Filter by status")}
-    ${filterBtn("loc", "Location", "Filter by location")}
+    ${typeof window.rrStationScope === "function" ? "" : filterBtn("loc", "Location", "Filter by location")}
     <div class="req-health" id="rr-req-health" role="status" aria-live="polite">${(window._reqHealth && window._reqHealth.html) || ""}</div>
     <button type="button" class="req-toolbar-act" id="rr-pto-report-btn" title="Download PTO report"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span>PTO report</span></button>
     <button type="button" class="req-toolbar-act req-toolbar-primary" data-rr-req-settings aria-haspopup="dialog" aria-expanded="false" title="Driver-app request settings"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>Request settings</span></button>
@@ -91995,6 +91999,15 @@ async function renderSchedRequestStream() {
   for (const r of toRows) items.push({ row: r, type: r.is_pto ? "pto" : "unpaid", sortDate: r.start_date || "9999-12-31" });
 
   const stations = Array.from(new Set(items.map((it) => it.row.station_code).filter(Boolean))).sort();
+  // Master station lens · scope the request stream to the selected station by
+  // driver_stations membership (station_code fallback pre-migration). Replaces
+  // the per-page Location filter, which is retired when the switcher exists.
+  const _reqScopeId   = (typeof rrStationScopeId === "function") ? rrStationScopeId() : null;
+  const _reqScopeCode = _reqScopeId
+    ? (((typeof _rrStationList !== "undefined" ? _rrStationList : []).find((s) => s.id === _reqScopeId) || {}).code || null)
+    : null;
+  const _reqScopeIds  = _reqScopeId ? await _rrDriverIdsAtStation(_reqScopeId) : null;
+  if (!document.getElementById("rr-sched-req-stream")) return;
   // Filter bar (driver search / type / status / location).
   const q = (_reqFilter.q || "").trim().toLowerCase();
   const matches = (it) => {
@@ -92004,7 +92017,13 @@ async function renderSchedRequestStream() {
     }
     if (_reqFilter.type && it.type !== _reqFilter.type) return false;
     if (_reqFilter.status && (it.row.status || "pending") !== _reqFilter.status) return false;
-    if (_reqFilter.loc && (it.row.station_code || "") !== _reqFilter.loc) return false;
+    if (_reqScopeId) {
+      // Global lens wins over the (now-hidden) per-page Location filter.
+      if (_reqScopeIds && it.row.driver_id) { if (!_reqScopeIds.has(it.row.driver_id)) return false; }
+      else if (_reqScopeCode && (it.row.station_code || "") !== _reqScopeCode) return false;
+    } else if (_reqFilter.loc && (it.row.station_code || "") !== _reqFilter.loc) {
+      return false;
+    }
     return true;
   };
   const shown = items.filter(matches);
