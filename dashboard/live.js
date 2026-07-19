@@ -56184,13 +56184,9 @@ function _rrReturnSchedDemandHome() {
   if (waveSec && waveSec.parentElement !== adv) adv.appendChild(waveSec);
   if (stSec   && stSec.parentElement   !== adv) adv.appendChild(stSec);
   if (foot    && foot.parentElement    !== adv) adv.appendChild(foot);
-  // Collapse the Targets dropdowns so they don't reopen stale next visit.
-  for (const id of ["rr-tgt-waves-menu", "rr-tgt-st-menu"]) {
-    const m = document.getElementById(id); if (m) m.hidden = true;
-  }
-  for (const id of ["rr-tgt-waves-btn", "rr-tgt-st-btn"]) {
-    const b = document.getElementById(id); if (b) b.setAttribute("aria-expanded", "false");
-  }
+  // Collapse the Targets Settings dropdown so it doesn't reopen stale next visit.
+  const sm = document.getElementById("rr-tgt-settings-menu"); if (sm) sm.hidden = true;
+  const sb = document.getElementById("rr-tgt-settings-btn"); if (sb) sb.setAttribute("aria-expanded", "false");
 }
 function _rrMoveSchedDemandToTargets() {
   const wavesHost = document.getElementById("rr-sched-targets-waves-host");
@@ -56451,22 +56447,18 @@ document.addEventListener("click", (e) => {
 });
 
 function _rrTgtMenusOpen() {
-  return ["rr-tgt-waves-menu", "rr-tgt-st-menu"]
-    .map((id) => document.getElementById(id))
-    .filter((m) => m && !m.hidden);
+  const m = document.getElementById("rr-tgt-settings-menu");
+  return (m && !m.hidden) ? [m] : [];
 }
 function _rrTgtHideMenus() {
-  for (const id of ["rr-tgt-waves-menu", "rr-tgt-st-menu"]) {
-    const m = document.getElementById(id); if (m && !m.hidden) m.hidden = true;
-  }
-  for (const id of ["rr-tgt-waves-btn", "rr-tgt-st-btn"]) {
-    const b = document.getElementById(id); if (b) b.setAttribute("aria-expanded", "false");
-  }
+  const m = document.getElementById("rr-tgt-settings-menu"); if (m && !m.hidden) m.hidden = true;
+  const b = document.getElementById("rr-tgt-settings-btn"); if (b) b.setAttribute("aria-expanded", "false");
 }
 async function _rrTgtCloseMenus() {
   if (!_rrTgtMenusOpen().length) return true;
-  const wavesOpen = !document.getElementById("rr-tgt-waves-menu")?.hidden;
-  if (wavesOpen && _rrTgtWaveDirty && typeof _rrConfirmDialog === "function") {
+  // The wave editor lives inside the Settings popover now — guard unsaved
+  // wave edits whenever the popover is being closed.
+  if (_rrTgtWaveDirty && typeof _rrConfirmDialog === "function") {
     const apply = await _rrConfirmDialog({
       title: "Apply wave changes?",
       body: "You edited the wave start times but didn't save. Apply saves them and rebuilds this week's unassigned shifts; Discard restores the saved times.",
@@ -56484,42 +56476,32 @@ async function _rrTgtCloseMenus() {
   return true;
 }
 document.addEventListener("click", (e) => {
-  const toggle = e.target.closest && e.target.closest("#rr-tgt-waves-btn, #rr-tgt-st-btn");
+  const toggle = e.target.closest && e.target.closest("#rr-tgt-settings-btn");
   if (toggle) {
     e.preventDefault();
-    const isWaves   = toggle.id === "rr-tgt-waves-btn";
-    const menu      = document.getElementById(isWaves ? "rr-tgt-waves-menu" : "rr-tgt-st-menu");
-    const otherMenu = document.getElementById(isWaves ? "rr-tgt-st-menu"    : "rr-tgt-waves-menu");
-    const willOpen  = menu ? menu.hidden : false;
-    // Closing (or switching away from) a dirty waves menu goes through
-    // the guard; opening is immediate.
-    const closingWaves = (!isWaves && otherMenu && !otherMenu.hidden) || (isWaves && !willOpen);
-    const proceed = () => {
-      _rrTgtHideMenus();
-      if (menu && willOpen) {
-        menu.hidden = false;
-        toggle.setAttribute("aria-expanded", "true");
-      }
-    };
-    if (closingWaves && _rrTgtWaveDirty) { _rrTgtCloseMenus().then(() => { if (willOpen && menu) { menu.hidden = false; toggle.setAttribute("aria-expanded", "true"); } }); }
-    else proceed();
+    const menu = document.getElementById("rr-tgt-settings-menu");
+    const willOpen = menu ? menu.hidden : false;
+    if (willOpen) {
+      // Opening — immediate.
+      menu.hidden = false;
+      toggle.setAttribute("aria-expanded", "true");
+    } else {
+      // Closing — routes through the unsaved-wave-edits guard.
+      _rrTgtCloseMenus();
+    }
     return;
   }
-  // Click outside the menus (and not on a pill toggle) closes any open one.
+  // Click outside the Settings popover (and not on its trigger) closes it.
   if (!e.target.closest || !e.target.closest(".rr-tgt-kpi-menu-wrap")) {
     if (_rrTgtMenusOpen().length) _rrTgtCloseMenus();
   }
 });
-// Esc closes the open dropdown and returns focus to its pill.
+// Esc closes the Settings popover and returns focus to its trigger.
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
-  const open = _rrTgtMenusOpen();
-  if (!open.length) return;
-  const isWaves = open[0].id === "rr-tgt-waves-menu";
+  if (!_rrTgtMenusOpen().length) return;
   e.preventDefault();
-  _rrTgtCloseMenus().then(() => {
-    document.getElementById(isWaves ? "rr-tgt-waves-btn" : "rr-tgt-st-btn")?.focus();
-  });
+  _rrTgtCloseMenus().then(() => { document.getElementById("rr-tgt-settings-btn")?.focus(); });
 });
 
 // Ensure the OKAMI 13-week table is back inside #view-okami before

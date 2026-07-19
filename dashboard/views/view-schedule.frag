@@ -1704,54 +1704,37 @@
           <!-- Legacy id kept (hidden) so any straggler reader of the old
                rules-week label doesn't throw; the nav label is authoritative. -->
           <span id="rr-tgt-rules-week-label" hidden></span>
-          <div class="rr-tgt-kpi">
-            <div class="rr-tgt-kpi-text">
-              <div class="rr-tgt-kpi-label">Block</div>
-              <div class="rr-tgt-kpi-val">
-                <input class="rr-tgt-kpi-input" id="rr-sched-targets-block-hours" type="number" min="1" max="14" step="1" autocomplete="off" aria-label="Block hours"/>
-                <span class="rr-tgt-kpi-unit">h</span>
-              </div>
-            </div>
-          </div>
-          <div class="rr-tgt-kpi" title="Cushion adds extra SHIFTS when the week's schedule is built — it is not the staffing Plan Pad (extra hires), which lives on the OKAMI page">
-            <div class="rr-tgt-kpi-text">
-              <div class="rr-tgt-kpi-label">Cushion</div>
-              <div class="rr-tgt-kpi-val">
-                <input class="rr-tgt-kpi-input" id="rr-sched-targets-cushion-pct" type="number" min="0" max="50" step="1" autocomplete="off" aria-label="Cushion percent — extra shifts added at schedule build"/>
-                <span class="rr-tgt-kpi-unit">%</span>
-              </div>
-            </div>
-          </div>
-          <div class="rr-tgt-kpi">
-            <div class="rr-tgt-kpi-text">
-              <div class="rr-tgt-kpi-label">Report time</div>
-              <div class="rr-tgt-kpi-val">
-                <input class="rr-tgt-kpi-input" id="rr-sched-targets-report-lead" type="number" min="0" max="120" step="5" autocomplete="off" aria-label="Report time minutes"/>
-                <span class="rr-tgt-kpi-unit" title="minutes">m</span>
-              </div>
-            </div>
-          </div>
-          <!-- Wave times · pill button opening a dropdown with the wave
-               start-times editor (the live node moved here from the
-               quick-settings popover by _rrMoveSchedDemandToTargets). -->
+          <!-- Settings · one control that gathers all the per-week planning
+               rules — Block / Cushion / Report time inputs PLUS the Wave-times
+               and Service-type editors — into a single popover, instead of five
+               separate pills. Every input + host id is preserved, so
+               loadSchedulingSettings, the dirty tracking, and
+               _rrMoveSchedDemandToTargets (which drops the live wave/service
+               editors into the two hosts below) all keep working unchanged. -->
           <div class="rr-tgt-kpi-menu-wrap">
-            <button type="button" class="rr-tgt-kpi rr-tgt-kpi-btn" id="rr-tgt-waves-btn" aria-haspopup="true" aria-expanded="false" title="Adjust dispatch wave start times">
-              <span class="rr-tgt-kpi-label">Wave times</span>
+            <button type="button" class="rr-tgt-kpi rr-tgt-kpi-btn" id="rr-tgt-settings-btn" aria-haspopup="true" aria-expanded="false" aria-controls="rr-tgt-settings-menu" title="Per-week planning rules · block, cushion, report time, wave times, service types">
+              <svg class="rr-tgt-settings-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              <span class="rr-tgt-kpi-label">Settings</span>
               <span class="rr-tgt-kpi-caret" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 4 6 8 10 4"/></svg></span>
             </button>
-            <div class="rr-tgt-kpi-menu" id="rr-tgt-waves-menu" role="group" aria-label="Wave start times" hidden>
-              <div id="rr-sched-targets-waves-host"></div>
-            </div>
-          </div>
-          <!-- Service types · pill button opening a dropdown with the
-               service-type editor (also the live node from the popover). -->
-          <div class="rr-tgt-kpi-menu-wrap">
-            <button type="button" class="rr-tgt-kpi rr-tgt-kpi-btn" id="rr-tgt-st-btn" aria-haspopup="true" aria-expanded="false" title="Activate and rename the service types your DSP runs">
-              <span class="rr-tgt-kpi-label">Service types</span>
-              <span class="rr-tgt-kpi-caret" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 4 6 8 10 4"/></svg></span>
-            </button>
-            <div class="rr-tgt-kpi-menu" id="rr-tgt-st-menu" role="group" aria-label="Service types" hidden>
-              <div id="rr-sched-targets-st-host"></div>
+            <div class="rr-tgt-kpi-menu rr-tgt-settings-menu" id="rr-tgt-settings-menu" role="group" aria-label="Per-week planning rules" hidden>
+              <div class="rr-tgt-set-rules">
+                <label class="rr-tgt-set-row">
+                  <span class="rr-tgt-set-row-lbl">Block</span>
+                  <span class="rr-tgt-set-row-field"><input class="rr-tgt-kpi-input" id="rr-sched-targets-block-hours" type="number" min="1" max="14" step="1" autocomplete="off" aria-label="Block hours"/><span class="rr-tgt-kpi-unit">h</span></span>
+                </label>
+                <label class="rr-tgt-set-row" title="Cushion adds extra SHIFTS when the week's schedule is built — not extra hires (that's the Plan Pad).">
+                  <span class="rr-tgt-set-row-lbl">Cushion</span>
+                  <span class="rr-tgt-set-row-field"><input class="rr-tgt-kpi-input" id="rr-sched-targets-cushion-pct" type="number" min="0" max="50" step="1" autocomplete="off" aria-label="Cushion percent — extra shifts added at schedule build"/><span class="rr-tgt-kpi-unit">%</span></span>
+                </label>
+                <label class="rr-tgt-set-row">
+                  <span class="rr-tgt-set-row-lbl">Report time</span>
+                  <span class="rr-tgt-set-row-field"><input class="rr-tgt-kpi-input" id="rr-sched-targets-report-lead" type="number" min="0" max="120" step="5" autocomplete="off" aria-label="Report time minutes"/><span class="rr-tgt-kpi-unit" title="minutes">m</span></span>
+                </label>
+              </div>
+              <!-- Live wave-start-times + service-type editors move in here. -->
+              <div class="rr-tgt-set-editor" id="rr-sched-targets-waves-host"></div>
+              <div class="rr-tgt-set-editor" id="rr-sched-targets-st-host"></div>
             </div>
           </div>
           <!-- Status pill removed per operator. The per-week save status still

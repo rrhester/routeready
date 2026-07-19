@@ -6670,7 +6670,10 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
   background: #F7F9FC;
   border-radius: 14px;
   padding: 6px;
-  margin: -6px;
+  /* Top margin gives the table the same breathing room below the command bar
+     that the Schedule grid has below its toolbar (sides/bottom keep the -6px
+     bleed that seats the tray). */
+  margin: 16px -6px -6px;
 }
 
 /* (2) Plant the unified planner container to the exact spec.
