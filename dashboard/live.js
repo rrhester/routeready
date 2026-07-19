@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=d860a5080083";
-import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=d860a5080083";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=d860a5080083";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=d860a5080083";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=d860a5080083";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=d860a5080083";
-import { isChecklistComplete } from "./checklist-core.mjs?v=d860a5080083";
+import { planScheduleWeek } from "./scheduling-engine.js?v=5baf70f45bce";
+import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=5baf70f45bce";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=5baf70f45bce";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=5baf70f45bce";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=5baf70f45bce";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=5baf70f45bce";
+import { isChecklistComplete } from "./checklist-core.mjs?v=5baf70f45bce";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=d860a5080083";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=d860a5080083";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=d860a5080083";
+} from "./msg-core.mjs?v=5baf70f45bce";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=5baf70f45bce";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=5baf70f45bce";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -1044,6 +1044,15 @@ function _rrRerenderForScope() {
   }
   if (v === "view-okami") {
     try { if (typeof loadOkamiView === "function") loadOkamiView(); } catch (_) {}
+    return;
+  }
+  if (v === "view-messages") {
+    // refreshActiveView deliberately skips Messages (live chat). Refresh the
+    // driver DM inbox (the primary station-scoped list) directly; the channel
+    // lists re-apply their station filter on their own next render/poll — we
+    // don't force those here because they share the list host and would
+    // clobber whichever tab is showing.
+    try { if (typeof refreshDriverChatList === "function") refreshDriverChatList(); } catch (_) {}
     return;
   }
   try { if (typeof refreshActiveView === "function") refreshActiveView(); } catch (_) {}
@@ -41858,6 +41867,18 @@ async function refreshDriverChatList(autoSelect) {
   // result so favorites for filtered-out drivers aren't disturbed.
   _rrReconcileFavs(data);
   _msgInboxList = (data || []).filter(t => t && t.status !== "onboarding");
+  // Master station lens · scope the driver DM inbox to drivers at the selected
+  // station (driver_stations membership). Each station is its own workspace, so
+  // you only see conversations with that station's drivers. Pre-migration (no
+  // membership rows) leaves it unscoped rather than hiding everyone. The pinned
+  // RouteReady Support row is added below regardless.
+  {
+    const _mcScope = (typeof rrStationScopeId === "function") ? rrStationScopeId() : null;
+    if (_mcScope) {
+      const _mcIds = await _rrDriverIdsAtStation(_mcScope);
+      if (_mcIds) _msgInboxList = _msgInboxList.filter((t) => t.driver_id && _mcIds.has(t.driver_id));
+    }
+  }
   // (No early return on an empty driver list — the pinned RouteReady
   // Support row is still rendered below, so the inbox is never empty.)
   // Sort per the operator's preference (#32): unread-first recency by
@@ -47290,6 +47311,12 @@ async function refreshChannelList(autoSelect) {
     return;
   }
   _msgChannelList = data?.channels || [];
+  // Master station lens · station-tied channels scope to the selected station;
+  // DSP-wide channels (no station) stay visible in every scope.
+  {
+    const _ccScope = (typeof rrStationScopeId === "function") ? rrStationScopeId() : null;
+    if (_ccScope) _msgChannelList = _msgChannelList.filter((c) => !c.station_id || c.station_id === _ccScope);
+  }
   await _ccLoadChannelPrefs();
   const mutedChip = `<span class="rr-cc-muted-chip" title="You muted this channel" aria-label="Muted"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg></span>`;
   const fmtRel = (iso) => {
@@ -47361,6 +47388,12 @@ async function refreshHrRoster(autoSelect) {
     return;
   }
   _msgChannelList = data?.channels || [];
+  // Master station lens · station-tied channels scope to the selected station;
+  // DSP-wide channels (no station) stay visible in every scope.
+  {
+    const _ccScope = (typeof rrStationScopeId === "function") ? rrStationScopeId() : null;
+    if (_ccScope) _msgChannelList = _msgChannelList.filter((c) => !c.station_id || c.station_id === _ccScope);
+  }
   const hrSpaces = _msgChannelList.filter(c => (c.kind || "broadcast") === "hr" && !c.archived_at);
 
   // No HR space yet — offer to create one.
