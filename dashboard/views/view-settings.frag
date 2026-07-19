@@ -31,7 +31,11 @@
                  templates…" slide-over. The section markup below
                  (data-set="hiring-messages") is hoisted there on first
                  open; nav tab removed. -->
-            <button class="settings-nav-item" data-set="referrals" onclick="setSettingsSection(this)">Hiring referrals</button>
+            <!-- Hiring referrals moved to the Onboarding view → Funnel ▸
+                 "Referral program" slide-over. The section markup below
+                 (data-set="referrals") is hoisted there on first open;
+                 nav tab removed. -->
+
             <!-- SMS & messaging moved to Onboarding → Funnel ▸ Rules -->
             <!-- License renewals moved to Onboarding → Roster → Licences ▸ Rules -->
             <!-- Scheduling (DSP-wide engine rules) moved to the Schedule
@@ -724,7 +728,7 @@
 
               <div style="margin-top:var(--s-4);display:flex;gap:var(--s-2);justify-content:flex-end">
                 <button class="btn" onclick="refResetAmounts()">Reset to defaults</button>
-                <button class="btn btn-primary" onclick="refSaveProgram()">
+                <button class="btn btn-primary" onclick="(window.saveReferralProgram||function(){})(this)">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                   Save program
                 </button>
@@ -753,10 +757,11 @@
                     refTotal();
                     if (window.toast) toast('Reset to defaults');
                   };
-                  window.refSaveProgram = function(){
-                    refTotal();
-                    if (window.toast) toast('Referral program saved · effective for future hires');
-                  };
+                  // Expose the total recalc so live.js can refresh it after
+                  // prefilling the amounts from referral_summary. The real
+                  // save lives in live.js (window.saveReferralProgram) — it
+                  // needs the supabase client, which this frag scope lacks.
+                  window._rrRefTotalRecalc = refTotal;
                   document.addEventListener('DOMContentLoaded', refTotal);
                   if (document.readyState !== 'loading') refTotal();
                 })();

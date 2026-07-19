@@ -33443,3 +33443,8 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 /* Recognition drawer carries its own header; hide the hoisted section's
    duplicate head/title inside it. */
 #rr-recog-body .settings-section-head{display:none}
+/* Small left-margin utility (referral-program button spacing). */
+.u-ml-2{margin-left:var(--s-2)}
+/* Referral-program drawer carries its own header; hide the hoisted
+   section's duplicate head/title inside it. */
+#rr-obref-body .settings-section-head{display:none}
