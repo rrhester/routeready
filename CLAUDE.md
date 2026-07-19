@@ -82,7 +82,21 @@ row) + `_shiftMetaCells` (today spotlight) now show a `Helper` chip/cell when
 normal swappable shift (not lumped with onboarding). SHELL_CACHE auto-busts
 via bust-cache.mjs — no manual bump.
 
-**Still DEFERRED:** nothing outstanding on the XL model.
+**BUG FOUND VIA RUN REPORT (2026-07-19) → migration 0520:** helper-seat
+assignments were solver-approved but ROLLED BACK by the DB — "server
+compliance check refused N: route requires XL certification, not on file".
+Three server-side gates enforced requires_xl→xl_certified with no helper
+awareness: `private.staff_assign_violations` (0500, inside assign_shift),
+`private.driver_can_take_shift` (0201, pickup), `driver_can_take_shift_
+after_swap` (0423, swaps). **0520** re-issues all three verbatim with the
+cert block skipped when `shift_kind::text = 'helper'` (text cast = safe
+pre-0518). LESSON: any new shift semantics must be threaded through the
+SQL compliance gates too, not just solver/engine/UI. Also shipped: the
+Smart-Fill completion toast now has "View results" → `_rrShowSfRunReport`
+modal (the diagnostics used to go console-only; that's how this was
+found). Apply order: 0518 → 0519 → **0520**.
+
+**Still DEFERRED:** nothing else outstanding on the XL model.
 
 ## DONE: Calendar 100-list (Onboarding → Calendar improvements)
 
