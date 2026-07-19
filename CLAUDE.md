@@ -121,7 +121,16 @@ found). Apply order: 0518 → 0519 → **0520**.
 - Smart-Fill completion toast now opens a run-report modal (_rrShowSfRun-
   Report) — diagnostics were console-only; that report is how the 0520
   refusals were found.
-- Apply order: 0518 → 0519 → 0520 → **0521 → 0522 → 0523**.
+- **Van-alert false positive (2026-07-19, operator report) → migration
+  0524:** the weekly red "V" badge + Van-assignments KPI flagged every
+  helper day (helpers never hold a vehicle_day_assignments row — 0521
+  mirrors the paired driver's van). Client loop in renderScheduleWeek now
+  skips helper kind like training/ride_along; **0524** re-issues
+  compliance_workspace_bundle (0242) with helper/training/ride_along
+  excluded from the driver_no_van candidates, the primary-chain
+  "needs their van" check, and the free-pool count (::text cast, safe
+  pre-0518). PR #4025 merged; 0524 SQL pasted in chat.
+- Apply order: 0518 → 0519 → 0520 → 0521 → 0522 → 0523 → **0524**.
 
 **Still DEFERRED:** nothing else outstanding on the XL/helper model.
 
