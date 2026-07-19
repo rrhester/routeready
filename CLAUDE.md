@@ -214,15 +214,29 @@ filters `x.meta.station === scopedCode || !x.meta.station`; the per-page
   intended insight — a blind sum masks that a station needs its own peak
   covered. Browser-QA'd; no errors.
 
+**SHIPPED — Requests + Targets daily drill-down (operator report "still see
+both stations"):**
+- **Requests** (`renderSchedRequestStream`): had its own per-page Location
+  filter (`_reqFilter.loc` on `station_code`) — unified to the master lens.
+  Scopes the PTO/unpaid/availability stream by driver_stations membership
+  (station_code fallback); the Location filter button is retired when the
+  switcher exists. Re-renders on toggle via schedSub('requests').
+- **Targets daily drill-down** (`_renderOkamiDailyPanelImpl` ~54976): fetches
+  its OWN okami_grid and previously summed BOTH stations into the day totals —
+  now filters cells by `rrStationScopeId()` like the 13-week table's useCells.
+  (The 13-week table + P4 breakdown were already scoped; this was the one
+  Targets surface that wasn't.) Note: it aggregates per (wave×type)/day, not
+  per-station rows — the fix changes the day VALUES to the scoped station.
+
 **LENS COMPLETE.** Every station-relevant surface scopes to the sidebar switcher
 and refreshes live on toggle: switcher, Stations manager, schedule (week/staff/
-today), drivers (roster/licenses/work-auth), targets+forecast (with P4 All-mode
-breakdown), attendance report, onboarding funnel, Today's Plan roster + coverage
-rail. DSP-wide by design: fleet-readiness + hiring-pipeline KPI tiles (vans
-pooled, hiring DSP-wide). Migrations: **0525** (driver_stations) → **0526**
-(today_plan), both manual + graceful-degrading. Shipped PRs #4037/4046/4049/
-4051/4053 (+ this one). Only broadcast audience default remains (minor; broadcast
-already has its own station pills).
+today/**requests**), drivers (roster/licenses/work-auth), targets+forecast
+(13-week + **daily drill-down** + P4 All-mode breakdown), attendance report,
+onboarding funnel, Today's Plan roster + coverage rail. DSP-wide by design:
+fleet-readiness + hiring-pipeline KPI tiles (vans pooled, hiring DSP-wide); the
+Targets **Available** column stays fleet-wide (drivers float — deliberate).
+Migrations: **0525** (driver_stations) → **0526** (today_plan), both manual +
+graceful-degrading. Shipped PRs #4037/4046/4049/4051/4053/4055 (+ this one).
 
 ## Active task: Staffing model — XL-route demand (branch claude/staffing-driver-requirements-1tw30l)
 
