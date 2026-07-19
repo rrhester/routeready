@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=04b5090e1bda";
-import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=04b5090e1bda";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=04b5090e1bda";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=04b5090e1bda";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=04b5090e1bda";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=04b5090e1bda";
-import { isChecklistComplete } from "./checklist-core.mjs?v=04b5090e1bda";
+import { planScheduleWeek } from "./scheduling-engine.js?v=d860a5080083";
+import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=d860a5080083";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=d860a5080083";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=d860a5080083";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=d860a5080083";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=d860a5080083";
+import { isChecklistComplete } from "./checklist-core.mjs?v=d860a5080083";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=04b5090e1bda";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=04b5090e1bda";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=04b5090e1bda";
+} from "./msg-core.mjs?v=d860a5080083";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=d860a5080083";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=d860a5080083";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -86454,6 +86454,19 @@ async function _flLoadRoster() {
     return;
   }
   _fleetRows = Array.isArray(data) ? data : [];
+  // Master station lens · scope the whole fleet page to the selected station
+  // (each station is its own fleet — vehicles carry station_id/station_code).
+  // Filtering _fleetRows here scopes the roster, tab counts, coverage card,
+  // and issues all at once. "All stations" leaves the full fleet. Vehicles
+  // with no station assigned show only in All mode.
+  {
+    const _flScope = (typeof rrStationScopeId === "function") ? rrStationScopeId() : null;
+    if (_flScope) {
+      const _flCode = ((typeof _rrStationList !== "undefined" ? _rrStationList : [])
+        .find((s) => s.id === _flScope) || {}).code || null;
+      _fleetRows = _fleetRows.filter((v) => _flCode && v.station_code === _flCode);
+    }
+  }
   // vehicle-photos is private (0445) — sign the thumbnails up front so the
   // sync renderers can just read v.photo_url.
   const _vpSigs = await _flSignPhotos("vehicle-photos", _fleetRows.map((v) => v.photo_path));
@@ -86785,6 +86798,9 @@ function _flRosterSkeleton(n) {
 function _flPopulateStationFilter(rows) {
   const sel = document.getElementById("rr-fleet-station");
   if (!sel) return;
+  // The global sidebar station switcher drives the fleet scope now — hide the
+  // per-page station dropdown so there's a single source of truth.
+  if (typeof window.rrStationScope === "function") { sel.style.display = "none"; return; }
   const codes = [...new Set(rows.map((r) => r.station_code).filter(Boolean))].sort();
   const cur = sel.value;
   sel.innerHTML = '<option value="">Station: All</option>'

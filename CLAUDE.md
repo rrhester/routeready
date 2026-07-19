@@ -214,6 +214,29 @@ filters `x.meta.station === scopedCode || !x.meta.station`; the per-page
   intended insight — a blind sum masks that a station needs its own peak
   covered. Browser-QA'd; no errors.
 
+**DIRECTION CHANGE (operator, strong):** "literally every page should be
+distinct — consider it a NEW DSP." Reverses the earlier "DSP-wide by design"
+calls (fleet especially). Every page must scope, including fleet + messages +
+the aggregate KPI tiles. Working through the remaining pages:
+
+**SHIPPED — Fleet page scopes (new-DSP isolation):** `_flLoadRoster` filters
+`_fleetRows` by `station_code` right after the `vehicles_roster` RPC (rows carry
+station_id/station_code), so the roster + tab counts + coverage card + issues
+all scope at once. Local `#rr-fleet-station` dropdown retired when the switcher
+exists. Vehicles with no station show only in All mode. Browser-QA'd: All=3
+vans → Boston=2 → Chantilly=1, dropdown hidden, no errors. RESIDUAL: the
+fleet-exec-summary KPI strip (`fleet_execution_summary` RPC, `_flLoadExecSummary`)
+is server-aggregated DSP-wide → needs a `p_station_id` migration (same as the
+Today fleet tile). NOTE vehicles must be ASSIGNED to stations (vehicles.station_id)
+or they only appear in All mode — operator sets van station in the van editor.
+
+**NEXT for the new-DSP push:** Messages (dispatch_channels_list returns
+station_id + kind; scope station-tied channels + DMs — DMs are the harder part;
+DSP-wide/null-station channels are a design call), then the aggregate KPI RPCs
+that need `p_station_id` migrations (fleet_execution_summary, pipeline_counts),
+then the pipeline/hiring page. Reuse `_rrDriverIdsAtStation` for driver lists,
+`rrStationScopeId()` + station_code/station_id for the rest.
+
 **SHIPPED — Requests + Targets daily drill-down (operator report "still see
 both stations"):**
 - **Requests** (`renderSchedRequestStream`): had its own per-page Location
