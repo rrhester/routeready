@@ -6588,25 +6588,22 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
    name weight, rows darkened a few %.
    ───────────────────────────────────────────────────────────── */
 
-/* (9) Workspace tray behind the request stream — recessed
-   #F7F9FC, zero net displacement. */
+/* Requests redesign (2026-07) · the decisions table now sits directly on the
+   pale page background — no workspace tray, no outer card. Strip the tray so
+   the content aligns with the Schedule grid's page padding. */
 #view-schedule.rrx-schedule #sched-sub-requests .sched-requests-split {
-  background: #F7F9FC;
-  border-radius: 14px;
-  padding: 6px;
-  margin: -6px;
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+  margin: 0;
 }
 
-/* (2) Plant the unified request-stream container. It already
-   carries a white surface + radius + a 0 1px 4px shadow and a
-   --req-hairline (rgba .05) border; re-key it to the exact spec
-   surface so it matches the Schedule grid: crisp #E6EAF2
-   hairline, 12px corners, the single whisper shadow. Padding
-   preserved. */
+/* Strip the former outer stream card entirely (border / radius / shadow /
+   padding / height cap) so `.req-page` renders flat on the page. */
 #view-schedule.rrx-schedule #sched-sub-requests .sched-requests-card {
-  border: 1px solid #E6EAF2;
-  border-radius: 12px;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 /* (3) Control row — the filter/PTO toolbar. Add a quiet bottom

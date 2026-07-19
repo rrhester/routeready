@@ -1,5 +1,275 @@
 # RouteReady — Claude operating notes
 
+## Active task: Multi-station toggle (branch claude/multi-station-toggle-2pljie)
+
+Many DSPs run >1 Amazon delivery station (DCA1, DBO5, …). Goal: a MASTER
+station lens every page reads — pick a station for a blank-slate view of
+that station's schedule/roster/bans/etc., or "All stations" to see
+everything together. Operator confirmed **drivers may FLOAT between
+stations** (not fixed to one home), so roster/bans scoping will eventually
+need a `driver_stations` many-to-many; the SCHEDULE is already correct
+either way since it scopes by `shift.station_id` (NOT NULL), not the
+driver's home.
+
+Data model already supports it (no schema rewrite): `stations` table
+(dsp_id-scoped, 0001), `drivers.station_id` (nullable FK), `shifts.
+station_id` (NOT NULL), `driver_channels.station_id`. Global context is
+`window.RR.dsp`; the lens sits alongside as `window.RR`-adjacent state.
+
+**Plan (phased):** P1 plumbing (state+control+persistence, inert) → P2
+read-view scoping via one helper (schedule/roster/bans/drivers/onboarding/
+broadcast) → P3 optional `p_station_id` server param on the aggregate RPCs
+(okami/targets/forecast/generate_shifts/roster counts; null = all =
+byte-identical to today, same backward-safe pattern as XL/helper) → P4
+All-mode per-station breakdowns on decision numbers (never a blind sum).
+Realtime channel stays dsp_id-filtered (Wave F) — narrow at query/render,
+NOT on the subscription, or All-mode loses cross-station updates.
+
+**SHIPPED — Phase 1 (plumbing, inert for data):**
+- `dashboard/live.js` (~after `_paintWorkspaceChip()`): owns
+  `_rrStationScope` ("all" | station_id) + `_rrStationList`. Public read
+  API on `window`: `rrStationScope()` → `{id, all}` (id null ⇒ all),
+  `rrStationScopeId()`, `rrStationScopeIsAll()`, and
+  `rrApplyStationFilter(query, col="station_id")` (appends `.eq(col,id)`
+  unless All — wrap PostgREST builders unconditionally). Changing scope
+  persists (localStorage `rr-station-scope:<dsp>:<user>`, per-user+per-DSP),
+  repaints, fires `rr:station-changed` (detail = scope), and calls
+  `refreshActiveView()`. Boot does its OWN stations query (NOT
+  `getDriverStationsCached()` — its backing `let` is in the temporal dead
+  zone that early in boot; calling it there throws) and reveals the control
+  ONLY when ≥2 active stations exist.
+- `dashboard/index.html`: `#rr-station-switch` markup lives in the SIDEBAR
+  (right after `.brand`), NOT the topbar — the topbar tool cluster is
+  physically relocated into the sidebar foot at boot (dockTools, ~line
+  680), so it can't host a global always-visible control. ids:
+  `rr-station-btn` / `rr-station-label` / `rr-station-menu`.
+- `dashboard/inline-styles.css`: `.rr-station*` — trigger adopts the
+  dark-sidebar nav language; flyout `.rr-station-menu` renders on a light
+  `--surface` and reuses `.rr-qat-opt`/`.rr-qat-opt-lbl` rows. Collapsed
+  rail = icon-only pin (label+chev hidden), flyout still opens. Token-only
+  (design-lint ratchet holds). The menu must NOT carry the `.popover`
+  class — that class is `display:none` until `.open`, which this control
+  doesn't use (cost an hour of QA the first time).
+- Browser-QA'd (Playwright, stubbed 2-station DSP): reveal, menu, select,
+  event, persistence across reload, All-mode no-op filter, custom column,
+  AND single-station DSP keeps it hidden while the API stays callable.
+  Nothing scopes data yet — that's P2.
+
+**SHIPPED — Phase 2 (schedule grid, the reference impl):**
+- `renderScheduleWeek` (live.js ~70884): after the `schedule_grid` RPC +
+  drivers load, when scoped to one station it filters `grid.shifts` AND
+  `grid.coverage` by `station_id`, then filters the driver rows to those
+  homed at the station OR floated onto one of its shifts this week.
+  KEY FACT: both `okami_grid` demand rows and shift rows already carry
+  `station_id` (okami_demand is keyed `(dsp_id, station_id, date)`), and
+  the client aggregates coverage by date across stations — so filtering
+  both arrays keeps coverage %, open-shift, and target math consistently
+  scoped. All-mode (null) = byte-identical to before. Floating handled by
+  scoping the SCHEDULE via `shift.station_id`, not driver home.
+- `_rrSetStationScope` re-render is view-aware: on view-schedule it calls
+  `loadScheduleView()` (→ renderScheduleWeek), on view-okami
+  `loadOkamiView()`, else `refreshActiveView()` (the generic path doesn't
+  drive the schedule/targets loaders — a focus listener mirrors this).
+- Browser-QA'd (Playwright, 2-station DSP + a floating driver): All=3
+  drivers/3 chips; scope Boston=2/2 (home-B driver + the A-homed floater on
+  a B shift, A-only driver hidden); scope Chantilly=2/1 (both A-homed show,
+  the floater's B shift correctly filtered out → blank row); back to All =
+  3/3. No errors.
+
+**SHIPPED — Phase 2 cont. (rest of the schedule family):**
+- **Staff week grid** (`_rrRenderStaffInWeekGrid` ~52602): when scoped,
+  filters staff shifts by `station_id` and shows only staff working that
+  station (staff_schedule_grid shifts carry station_id). Scope-aware empty
+  state ("No staff scheduled at this station… Switch to All stations").
+  Inspection-verified (same proven filter pattern; syntax/lint/ratchet
+  green) — not browser-driven (staff mode is a deep toggle).
+- **Today's Plan command center** (`loadTodayPlan` ~20148): scoped the
+  roster + live attendance by station — `rosterData` filtered by
+  `station_id`, `attData.rows` by `station_code` (mapped from the scoped
+  station id via `_rrStationList`). Roster-derived KPI counts scope along
+  with them. Drives BOTH the dashboard Today's Plan page AND the schedule
+  Today sub-view (shared shell). Browser-QA'd on the dashboard: All = 3
+  roster rows → scope Boston = 2 (the two DBO5 drivers) → back to All = 3.
+  RESIDUAL (→ P3): the fleet-readiness + hiring-pipeline tiles and the
+  coverage rail (fleet_execution_summary / pipeline_counts / today_plan)
+  stay DSP-wide — those RPCs aggregate across stations and need an optional
+  p_station_id for a consistent per-station version.
+- Re-render on scope change: `_rrSetStationScope` covers the schedule WEEK
+  grid (loadScheduleView), targets (loadOkamiView), and everything else via
+  refreshActiveView (→ view-dashboard → loadTodayPlan). The schedule
+  Today/Roster/staff SUB-views re-render on their next trigger (tab switch)
+  rather than instantly — the filters run on every render so data is always
+  correct, only the live auto-refresh of those sub-views is deferred.
+
+**SHIPPED — Phase 2 cont. (roster + floating-driver join):**
+- **Migration 0525** `driver_stations` — many-to-many membership so a driver
+  can belong to >1 station (drivers.station_id stays the PRIMARY/home).
+  Backfills one is_primary row per driver's existing station_id. RLS: tenant
+  select, `is_staff(dsp,'dispatcher')` write. Idempotent. **MANUAL — paste in
+  chat** (client degrades gracefully until applied).
+- **Roster** (`loadDriversRoster` ~7534): scopes by driver_stations MEMBERSHIP
+  via `_rrDriverIdsAtStation(stationId)` (returns a Set, or null pre-migration
+  → falls back to primary `drivers.station_id`, floaters not captured but the
+  lens still narrows). Added `station_id` to the roster select for the
+  fallback. Re-renders via refreshActiveView → view-drivers → loadDriversRoster.
+- Browser-QA'd BOTH paths (Playwright, 2-station DSP + a floater who is a
+  member of B though homed at A): join-table mode → scope Boston = {Bob(home
+  B), Carol(floater)}, scope Chantilly = {Alice, Carol}; pre-migration 404
+  fallback → scope Boston = {Bob} only (primary home), graceful. All-mode
+  unchanged both ways. No errors.
+
+**SHIPPED — Settings → Stations manager (the unblock):**
+- CRITICAL GAP found answering "where are the toggles?": stations were only
+  ever created by seed migrations (0005/seed_demo) — NO UI/RPC to add one, so
+  the ≥2-station switcher was unreachable for real operators. Fixed:
+  `view-settings.frag` gains an owner-only "Stations" form-row (list + add
+  code/name + activate/deactivate); `dashboard/live.js` `_rrLoadStationsManager`
+  (list render, class-only rows so the ratchet holds) + delegated add/toggle
+  handlers writing `public.stations` directly (owner RLS). On add/toggle it
+  nulls `_driverStationsCache` and re-runs `_rrInitStationScope()` so the
+  sidebar switcher reveals the instant a DSP crosses to 2+ active stations —
+  no reload. Hooked into `_prefillWeatherInputs` (runs on Settings nav). CSS
+  `.rr-stn-*` in inline-styles.css, token-only.
+- Browser-QA'd (Playwright, stateful stations stub): single-station DSP =
+  switcher hidden + settings lists DCA1 → add "dbo5"/"Boston" = uppercased to
+  DBO5, list [DCA1,DBO5], "Added DBO5.", switcher REVEALS w/o reload, menu =
+  All/DCA1/DBO5 → invalid code "x" rejected with a helpful message. No errors.
+
+**MERGED — PR #4037** (squash 1e71350): Phase 1 lens + Settings Stations
+manager + schedule/staff/today/roster scoping + migration 0525. This is LIVE
+on main. Branch reset from main for follow-ups (new PR each time).
+
+**SHIPPED — Drivers sub-views + toggle-freshness (post-merge, new branch):**
+- No dedicated "bans" surface exists (searched: ban/DNR/blocklist/ineligible
+  are scheduling states, not a page; broadcast already has its own station:<id>
+  audience pills). Don't build a phantom bans page.
+- **Drivers page sub-views** now scope like the roster (same page → must be
+  consistent): `loadDriverLicensesView` (added station_id to select, membership
+  filter via `_rrDriverIdsAtStation` + station_id fallback) and
+  `loadDriverWorkAuthView` (i9_list rows carry driver_id + station_code →
+  membership filter by driver_id, station_code fallback). refreshActiveView
+  already routes view-drivers → the active sub, so they refresh on toggle.
+- **Toggle now re-renders ALL of the CURRENTLY-VISIBLE surface** (operator
+  report: "all pages need to be fresh when you toggle"). `_rrSetStationScope`
+  → new `_rrRerenderForScope()`: on view-schedule it re-runs loadScheduleView
+  (week grid) AND `window.schedSub(_rrCurSchedSub)` for the active NON-week sub
+  (Today/Targets/Monthly/… — schedSub only toggles week visibility, doesn't
+  re-fetch it, so drive the loader for week directly); view-okami →
+  loadOkamiView; else refreshActiveView (covers dashboard/drivers+subs/
+  onboarding/pipeline/fleet). Non-active pages re-fetch on next visit (loaders
+  always re-query). Browser-QA'd: toggling WHILE ON the schedule Today sub now
+  re-renders it fresh (scope B = Bob, toggle to A = Alice); week grid 2→1 chips;
+  no errors.
+
+**SHIPPED — Targets/forecast follows the master lens (Phase 3, client-side):**
+- The Targets 13-week page ALREADY had its own per-station scoping
+  (`_rrOkamiStationFilter` + a local `#rr-tgt-station-sel` dropdown, from the
+  Targets 50-list): `okami_grid` returns per-(date,station) rows, and the
+  render filters demand `cells` by station (Available deliberately stays
+  fleet-wide — drivers float). Unified it to the master lens: in
+  `_renderOkamiLiveImpl` `_rrOkamiStationFilter = rrStationScopeId()` (global
+  wins), and `_rrOkamiRenderStationFilter` now RETIRES the per-page dropdown
+  when `window.rrStationScope` exists (always post-boot) — one control, not two.
+- Browser-QA'd (Playwright, 2-station okami_grid stub, A=2 routes/day, B=3):
+  All = 11 Needed → scope Boston = 7 → scope Chantilly = 5; local dropdown
+  absent; re-renders on toggle (schedSub('targets')→renderOkamiLive and
+  view-okami→loadOkamiView both covered by `_rrRerenderForScope`). No errors.
+- NOTE the "Available fleet-wide under a station scope" is intentional (float
+  model) — don't "fix" it to per-station roster.
+
+**SHIPPED — Attendance report** (`loadAttendanceLive` ~16236): scopes its
+driver list by driver_stations membership (`_rrDriverIdsAtStation` + station_id
+fallback); added station_id to the select. Same proven pattern; inspection-
+verified (syntax/lint/ratchet/tests green).
+
+**SHIPPED — Onboarding funnel follows the lens (chosen default):** scoping the
+hiring funnel would hide not-yet-placed applicants, so the default is "this
+station's applicants PLUS the unassigned pool" — `loadOnboardingOps` paint()
+filters `x.meta.station === scopedCode || !x.meta.station`; the per-page
+`#rr-ob-station` dropdown is retired when the global switcher exists.
+
+**SHIPPED — Today's Plan coverage rail scopes (Phase 3 server-side, mig 0526):**
+- **Migration 0526** `today_plan(p_station_id uuid default null)` (drops the old
+  no-arg fn first to avoid an ambiguous overload): `open_shifts` filtered by
+  `s.station_id`; `dl_expiring`/`not_dot_certified` by driver_stations
+  MEMBERSHIP or primary `station_id` (floating-aware). NULL = all = byte-
+  identical. **MANUAL — paste in chat.**
+- `loadTodayPlan` sends `p_station_id` when scoped, with a graceful fallback to
+  the no-arg call if 0526 isn't applied (arg'd overload 404s → retry no-arg →
+  DSP-wide but the rail still renders). "All" sends no arg (identical to before).
+- Browser-QA'd: pre-migration toggle → `[scoped:bbbb, noarg]` (fallback fires),
+  no errors; post-migration sends only the scoped call.
+- fleet_execution_summary + pipeline_counts stay DSP-wide ON PURPOSE (vans are
+  pooled — vehicles.station_id is optional/often null; hiring is DSP-wide).
+
+**SHIPPED — P4 All-mode per-station breakdown (Targets Needed):**
+- `_renderOkamiLiveImpl`: in All-stations mode on a multi-station DSP, builds
+  per-station demand maps (`_perStationDemand` from the unfiltered `cells`) and,
+  per week, computes each station's OWN Needed via `_rrOkamiWeekMix` +
+  `rrDriversNeededMix` (each station staffs to its own peak day). Renders a
+  muted sub-line under the combined Needed (`.rr-tgt-need-stn`, token-only CSS)
+  + a tooltip. Hidden when scoped/single-station.
+- KEY: the per-station values match scoping to that station (QA: All=11 with
+  "DBO5 7 · DCA1 5"; scope B=7, scope A=5). Sum (12) > combined (11) is the
+  intended insight — a blind sum masks that a station needs its own peak
+  covered. Browser-QA'd; no errors.
+
+**DIRECTION CHANGE (operator, strong):** "literally every page should be
+distinct — consider it a NEW DSP." Reverses the earlier "DSP-wide by design"
+calls (fleet especially). Every page must scope, including fleet + messages +
+the aggregate KPI tiles. Working through the remaining pages:
+
+**SHIPPED — Fleet page scopes (new-DSP isolation):** `_flLoadRoster` filters
+`_fleetRows` by `station_code` right after the `vehicles_roster` RPC (rows carry
+station_id/station_code), so the roster + tab counts + coverage card + issues
+all scope at once. Local `#rr-fleet-station` dropdown retired when the switcher
+exists. Vehicles with no station show only in All mode. Browser-QA'd: All=3
+vans → Boston=2 → Chantilly=1, dropdown hidden, no errors. RESIDUAL: the
+fleet-exec-summary KPI strip (`fleet_execution_summary` RPC, `_flLoadExecSummary`)
+is server-aggregated DSP-wide → needs a `p_station_id` migration (same as the
+Today fleet tile). NOTE vehicles must be ASSIGNED to stations (vehicles.station_id)
+or they only appear in All mode — operator sets van station in the van editor.
+
+**SHIPPED — Messages scopes (new-DSP isolation):** DM inbox
+(`refreshDriverChatList` ~41860) filters `_msgInboxList` by driver_stations
+MEMBERSHIP (dispatch_chat_threads returns driver_id); channel lists
+(`refreshChannelList`/`refreshHrRoster`) filter station-tied channels by
+station_id, DSP-wide (null-station) channels stay visible in every scope.
+`_rrRerenderForScope` gained a view-messages branch that refreshes ONLY the DM
+inbox (calling the channel refreshers too CLOBBERS the shared list host — QA
+caught this: scoped DMs came back empty until I dropped them). Browser-QA'd:
+DM inbox All={d1,d2}, scope Boston={d2}, scope Chantilly={d1}, no errors.
+
+**NEXT for the new-DSP push:** the aggregate KPI RPCs that need `p_station_id`
+migrations (fleet_execution_summary → fleet exec strip + Today fleet tile;
+pipeline_counts → Today hiring tile), then the pipeline/hiring page (applicants
+by target station). Reuse `_rrDriverIdsAtStation` for driver lists,
+`rrStationScopeId()` + station_code/station_id for the rest.
+
+**SHIPPED — Requests + Targets daily drill-down (operator report "still see
+both stations"):**
+- **Requests** (`renderSchedRequestStream`): had its own per-page Location
+  filter (`_reqFilter.loc` on `station_code`) — unified to the master lens.
+  Scopes the PTO/unpaid/availability stream by driver_stations membership
+  (station_code fallback); the Location filter button is retired when the
+  switcher exists. Re-renders on toggle via schedSub('requests').
+- **Targets daily drill-down** (`_renderOkamiDailyPanelImpl` ~54976): fetches
+  its OWN okami_grid and previously summed BOTH stations into the day totals —
+  now filters cells by `rrStationScopeId()` like the 13-week table's useCells.
+  (The 13-week table + P4 breakdown were already scoped; this was the one
+  Targets surface that wasn't.) Note: it aggregates per (wave×type)/day, not
+  per-station rows — the fix changes the day VALUES to the scoped station.
+
+**LENS COMPLETE.** Every station-relevant surface scopes to the sidebar switcher
+and refreshes live on toggle: switcher, Stations manager, schedule (week/staff/
+today/**requests**), drivers (roster/licenses/work-auth), targets+forecast
+(13-week + **daily drill-down** + P4 All-mode breakdown), attendance report,
+onboarding funnel, Today's Plan roster + coverage rail. DSP-wide by design:
+fleet-readiness + hiring-pipeline KPI tiles (vans pooled, hiring DSP-wide); the
+Targets **Available** column stays fleet-wide (drivers float — deliberate).
+Migrations: **0525** (driver_stations) → **0526** (today_plan), both manual +
+graceful-degrading. Shipped PRs #4037/4046/4049/4051/4053/4055 (+ this one).
+
 ## Active task: Staffing model — XL-route demand (branch claude/staffing-driver-requirements-1tw30l)
 
 Operator's staffing model (2026-07-18): standard route = 2 drivers ×
