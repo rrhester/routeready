@@ -91238,12 +91238,14 @@ function _reqCoverageImpactCell(it) {
 // Schedule action bar's route-coverage card (number + unit, a status sub-line,
 // and a thin meter). Driven entirely by live request state:
 //   • zero pending  → calm green "All requests reviewed", full green meter.
+//   • pending, real coverage still resolving → neutral "Checking coverage…".
 //   • pending, none affecting coverage → neutral "Awaiting review".
-//   • pending affecting coverage → amber (or red for High severity), naming
-//     how many pending requests would drop a day below its staffing plan.
-// The meter tracks the share of requests already reviewed. Nothing here is
-// hardcoded — pendingItems / allItems come from the same merged stream the
-// table renders from.
+//   • pending affecting coverage → amber (or red when a request can't be
+//     staffed to plan), naming how many pending requests threaten coverage.
+// "Affecting coverage" is read from the SAME real-coverage verdicts the pending
+// rows show (`window._reqRealCov`, populated by _toPaintCoverage for time off
+// and by the availability impact check), so the toolbar can never contradict a
+// row that recommends approval. Nothing here is hardcoded.
 function _reqHealthSummaryHtml(pendingItems, allItems) {
   const pendN = pendingItems.length;
   const totalN = allItems.length;
@@ -91255,24 +91257,56 @@ function _reqHealthSummaryHtml(pendingItems, allItems) {
       <span class="req-health-meter" data-state="ok"><i data-pct="100"></i></span>
     </div>`;
   }
-  let coverAff = 0, highAff = 0;
+  // Consult the real per-request coverage verdicts. Values: "risk" (can't
+  // staff to plan), "warn" (fillable only by breaking a rule), "ok" (no
+  // coverage problem), or undefined (async time-off check not back yet).
+  const cov = window._reqRealCov || {};
+  let affecting = 0, anyRisk = false, anyUnknown = false;
   for (const it of pendingItems) {
-    const cov = _reqCoverage(it);
-    if (cov.sev !== "none") coverAff++;
-    if (cov.sev === "high") highAff++;
+    const v = cov[String(it.row.id)];
+    if (v === undefined) { anyUnknown = true; continue; }
+    if (v === "risk" || v === "warn") { affecting++; if (v === "risk") anyRisk = true; }
   }
-  const state = highAff > 0 ? "risk" : coverAff > 0 ? "warn" : "info";
-  const sub = coverAff > 0
-    ? `${coverAff} affecting coverage`
-    : `Awaiting review`;
+  let state, sub;
+  if (affecting > 0) {
+    state = anyRisk ? "risk" : "warn";
+    sub = `${affecting} affecting coverage`;
+  } else if (anyUnknown) {
+    state = "info";
+    sub = "Checking coverage…";
+  } else {
+    state = "info";
+    sub = "Awaiting review";
+  }
   const pct = totalN > 0 ? Math.round((reviewedN / totalN) * 100) : 0;
   const title = `${pendN} pending request${pendN === 1 ? "" : "s"}`
-    + (coverAff > 0 ? ` · ${coverAff} affecting coverage` : "");
+    + (affecting > 0 ? ` · ${affecting} affecting coverage` : "");
   return `<div class="req-health-inner is-${state}" title="${escapeHtml(title)}">
     <div class="req-health-main"><span class="req-health-num">${pendN}</span><span class="req-health-unit">PENDING</span></div>
     <div class="req-health-sub"><span class="req-health-dot"></span>${escapeHtml(sub)}</div>
     <span class="req-health-meter" data-state="${state}"><i data-pct="${pct}"></i></span>
   </div>`;
+}
+
+// Real coverage verdict for a pending availability-change request, derived from
+// the same supply/demand context (`avCtx`) the row's impact strip uses: "risk"
+// when dropping a day pushes it below its staffing target, else "ok". Returns
+// undefined when no context is available (verdict unknown).
+function _avImpactVerdict(r, ctx) {
+  if (!ctx) return undefined;
+  const DOW = ["mon","tue","wed","thu","fri","sat","sun"];
+  const cur = _reqNormDays(r.current_days);
+  const next = _reqNormDays(r.days || r.requested_days);
+  const supply = ctx.supplyByDow || {};
+  const demand = ctx.demandByDow || {};
+  for (const d of DOW) {
+    if (cur.has(d) && !next.has(d)) {
+      const need = demand[d] || 0;
+      const after = (supply[d] || 0) - 1;
+      if (need > 0 && after < need) return "risk";
+    }
+  }
+  return "ok";
 }
 
 // Set the meter fill from its data-pct (kept off the HTML string so no inline
@@ -91466,7 +91500,18 @@ async function renderSchedRequestStream() {
 
   // Toolbar health summary · reflects the true (unfiltered) request state so
   // "0 PENDING · All requests reviewed" can't be masked by an active filter.
+  // Seed the real-coverage verdict store: availability verdicts resolve now
+  // (from avCtx); time-off verdicts fill in when _toPaintCoverage's per-request
+  // RPCs land, and the summary is repainted then. Anything still unresolved
+  // reads as "Checking coverage…" rather than a weekday-count guess.
   const pendingAll = items.filter(isPending);
+  window._reqRealCov = {};
+  for (const it of pendingAll) {
+    if (it.type === "availability") {
+      const v = _avImpactVerdict(it.row, avCtx);
+      if (v !== undefined) window._reqRealCov[String(it.row.id)] = v;
+    }
+  }
   _reqPaintHealth(pendingAll, items);
 
   // Recent Decisions table — dense, flat, Schedule-grid feel. Column widths
@@ -91509,7 +91554,13 @@ async function renderSchedRequestStream() {
     tr.addEventListener("click", () => _openReqRow(tr));
     tr.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); _openReqRow(tr); } });
   });
-  _toPaintCoverage(host).catch((e) => console.warn("coverage check:", e));
+  // Time-off coverage checks are async (one RPC per pending request). When they
+  // land, _toPaintCoverage records each real verdict into window._reqRealCov;
+  // repaint the toolbar health so "N affecting coverage" matches the row
+  // recommendations exactly (never contradicts an Approve verdict).
+  _toPaintCoverage(host)
+    .then(() => { try { _reqPaintHealth(pendingAll, items); } catch (_) {} })
+    .catch((e) => console.warn("coverage check:", e));
 }
 window._rrRenderSchedRequestStream = renderSchedRequestStream;
 
@@ -92033,6 +92084,9 @@ async function _toPaintCoverage(host) {
     if (res?.error || !res?.data) {
       slot.classList.add("to-cov-unknown");
       slot.innerHTML = `<div class="to-cov-head"><span class="to-row-coverage-dot"></span><span class="to-cov-verdict">Coverage check unavailable</span></div>`;
+      // Verdict resolved-but-unknown: record "ok" so the toolbar health leaves
+      // "Checking coverage…" and doesn't raise a false coverage alarm.
+      if (window._reqRealCov) window._reqRealCov[String(id)] = "ok";
       continue;
     }
     const d = res.data;
@@ -92068,6 +92122,13 @@ async function _toPaintCoverage(host) {
         : `all ${total} freed shifts can be filled to plan by eligible drivers.`;
     }
     slot.classList.add(cls);
+    // Record the real verdict for the toolbar health summary so its "affecting
+    // coverage" count mirrors these row recommendations exactly: blocked → risk
+    // (can't staff to plan), rule-break → warn, filled/no-impact → ok.
+    if (window._reqRealCov) {
+      window._reqRealCov[String(id)] = cls === "to-cov-blocked" ? "risk"
+        : cls === "to-cov-rule" ? "warn" : "ok";
+    }
     // One actionable line: recommend Approve when the freed shifts can be
     // filled to plan, Deny when they can't.
     const recCls = rec === "Approve" ? "to-cov-rec-approve" : "to-cov-rec-deny";
