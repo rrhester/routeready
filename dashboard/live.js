@@ -25477,7 +25477,67 @@ async function loadReferralsSummary() {
   if (weeksEl) weeksEl.value = data.weeks ?? 4;
   const payIn = document.getElementById("ref-payout-input");
   if (payIn) payIn.value = Math.round((data.payout_cents ?? 0) / 100);
+
+  // Program config (milestone payouts + eligibility rules). Persisted via
+  // referral_settings_save; referral_summary returns them with defaults
+  // (needs migration 0527 — pre-migration these keys are absent and the
+  // hardcoded defaults below stand in, so the UI still renders).
+  const ms = data.milestones || {};
+  const setDollars = (id, cents, dflt) => {
+    const el = document.getElementById(id);
+    if (el) el.value = Math.round(((cents ?? dflt) || 0) / 100);
+  };
+  setDollars("ref-amt-hire", ms.hire_cents, 50000);
+  setDollars("ref-amt-30",   ms.d30_cents,  25000);
+  setDollars("ref-amt-60",   ms.d60_cents,  25000);
+  setDollars("ref-amt-90",   ms.d90_cents,  50000);
+  const el = data.eligibility || {};
+  const setChk = (id, v, dflt) => {
+    const c = document.getElementById(id);
+    if (c) c.checked = (v ?? dflt) !== false;
+  };
+  setChk("ref-enabled",       data.program_enabled, true);
+  setChk("ref-rule-active",   el.must_active,       true);
+  setChk("ref-rule-standing", el.must_standing,     true);
+  setChk("ref-rule-once",     el.count_once,        true);
+  if (typeof window._rrRefTotalRecalc === "function") { try { window._rrRefTotalRecalc(); } catch (_) {} }
 }
+
+// Persist the referral PROGRAM config (milestone payouts + eligibility
+// rules). The dashboard button used to fire a toast only (a mock); this
+// writes through referral_settings_save into dsps.metadata.referrals,
+// key-patched so it doesn't disturb the auto-invite settings. Graceful
+// pre-0527: the RPC accepts the extra keys once the migration is applied;
+// before that the write no-ops the new keys (older RPC ignores them) and
+// we surface a hint.
+async function saveReferralProgram(btn) {
+  const dollarsToCents = (id) => Math.round((parseFloat(document.getElementById(id)?.value || "0") || 0) * 100);
+  const chk = (id) => !!document.getElementById(id)?.checked;
+  const payload = {
+    program_enabled: chk("ref-enabled"),
+    milestones: {
+      hire_cents: dollarsToCents("ref-amt-hire"),
+      d30_cents:  dollarsToCents("ref-amt-30"),
+      d60_cents:  dollarsToCents("ref-amt-60"),
+      d90_cents:  dollarsToCents("ref-amt-90"),
+    },
+    eligibility: {
+      must_active:   chk("ref-rule-active"),
+      must_standing: chk("ref-rule-standing"),
+      count_once:    chk("ref-rule-once"),
+    },
+  };
+  if (btn) btn.disabled = true;
+  const { error } = await sb.rpc("referral_settings_save", { p_payload: payload });
+  if (btn) btn.disabled = false;
+  if (error) {
+    const needsMig = /program_enabled|milestones|eligibility|function|column/i.test(error.message || "");
+    toast(needsMig ? "Referral program save needs migration 0527" : ("Save failed: " + error.message), "warn");
+    return;
+  }
+  toast("Referral program saved · effective for future hires", "success");
+}
+window.saveReferralProgram = saveReferralProgram;
 
 async function loadReferralsLeaderboard() {
   const list = document.getElementById("ref-leaderboard");
@@ -78657,6 +78717,75 @@ window.gotoSettingsScheduling = gotoSettingsScheduling;
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
     const dr = document.getElementById("rr-recog-drawer");
+    if (dr && !dr.hidden) close();
+  });
+})();
+
+// ─── Referral program drawer ──────────────────────────────────────────
+// The referral program (KPIs, leaderboard, auto-invite, milestone payouts +
+// eligibility) lives on the Onboarding view now, in a slide-over opened
+// from the Funnel → Rules popover, rather than under Settings → Hiring
+// referrals. Same hoist pattern: the .settings-section[data-set=
+// "referrals"] node moves out of #view-settings on first open;
+// loadReferralsTab repaints (and prefills the now-persisted milestone /
+// eligibility fields via referral_summary) on each open.
+(function _rrReferralsDrawer() {
+  let hoisted = false;
+  function hoist() {
+    if (hoisted) return true;
+    const body = document.getElementById("rr-obref-body");
+    const sec =
+      document.querySelector('#view-settings .settings-section[data-set="referrals"]') ||
+      document.querySelector('.settings-section[data-set="referrals"]');
+    if (!body || !sec) return false;
+    sec.classList.remove("hidden");
+    body.appendChild(sec);
+    hoisted = true;
+    return true;
+  }
+  function open() {
+    const dr = document.getElementById("rr-obref-drawer");
+    const bd = document.getElementById("rr-obref-backdrop");
+    if (!dr) return;
+    hoist();
+    try {
+      const pop = document.getElementById("rr-funnel-rules-popover");
+      if (pop && !pop.hidden) {
+        const tog = document.getElementById("rr-funnel-rules-toggle");
+        if (tog) tog.setAttribute("aria-expanded", "false");
+        pop.hidden = true;
+      }
+    } catch (_) {}
+    if (bd) bd.hidden = false;
+    dr.hidden = false;
+    requestAnimationFrame(() => {
+      dr.classList.add("is-open");
+      if (bd) bd.classList.add("is-open");
+    });
+    if (typeof loadReferralsTab === "function") { try { setTimeout(loadReferralsTab, 0); } catch (_) {} }
+    const closeBtn = document.getElementById("rr-obref-close");
+    if (closeBtn) { try { closeBtn.focus(); } catch (_) {} }
+  }
+  function close() {
+    const dr = document.getElementById("rr-obref-drawer");
+    const bd = document.getElementById("rr-obref-backdrop");
+    if (dr) dr.classList.remove("is-open");
+    if (bd) bd.classList.remove("is-open");
+    setTimeout(() => {
+      if (dr) dr.hidden = true;
+      if (bd) bd.hidden = true;
+    }, 220);
+  }
+  window._rrOpenReferrals = open;
+  window._rrCloseReferrals = close;
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("#rr-obref-open")) { e.preventDefault(); open(); return; }
+    if (e.target.closest("#rr-obref-close")) { e.preventDefault(); close(); return; }
+    if (e.target.id === "rr-obref-backdrop") { close(); return; }
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    const dr = document.getElementById("rr-obref-drawer");
     if (dr && !dr.hidden) close();
   });
 })();

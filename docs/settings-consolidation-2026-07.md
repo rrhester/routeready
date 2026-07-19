@@ -123,9 +123,17 @@ Integrations** (org config only) + a per-user **Account & security** page.
     of `#view-settings`, preserving `#rr-messages-list` + `loadMessagesTab`
     (fired on each open). Settings→Hiring-messages nav tab removed. Browser-
     verified with Playwright. SW nonce `2026-07-19.7`.
-  - [ ] **3b — Referrals** → Onboarding (own tile/sub-view). Blocked on
-    wiring the mock "Save program" to a real RPC → needs a migration
-    (paste SQL in chat). Not started.
+  - [x] **3b — Referrals** → Onboarding. New "Referral program…" button in
+    the Funnel → Rules popover opens a slide-over hoisting the
+    `.settings-section[data-set="referrals"]` node (loadReferralsTab + all
+    handlers preserved). **Fixed the mock save:** the "Save program" button
+    now persists milestone payouts + eligibility rules through
+    `referral_settings_save` (**migration 0527** — key-wise patch so it
+    doesn't clobber the auto-invite settings; `referral_summary` returns the
+    new fields and `loadReferralsSummary` prefills them). Settings→Referrals
+    nav tab removed. Browser-verified (drawer opens, KPIs + prefill from the
+    persisted shape, save wired). SW nonce `2026-07-19.9`.
+    **Needs migration 0527 applied** (SQL pasted in chat; graceful until then).
 - [~] **Step 4 — Recognition / Portal sync** (split into 4a/4b)
   - [x] **4a — Recognition** → Messages. New Recognition button in the
     Messages header opens the shared slide-over, hoisting the

@@ -13565,7 +13565,8 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           /* Title + count sit above the stage tabs, both inside the white
              header (the old gray .hp-list-head card was removed). */
-          #view-pipeline .pa-ws-head-top{min-width:0}
+          #view-pipeline .pa-ws-head-top{min-width:0;display:flex;align-items:center;justify-content:space-between;gap:var(--s-3)}
+          #view-pipeline .pa-ws-head-actions{display:flex;gap:var(--s-2);flex:0 0 auto}
           #view-pipeline .pa-ws-title{font-size:var(--fs-15);font-weight:700;color:var(--text)}
           #view-pipeline .pa-ws-title #pa-ws-count{color:var(--text-subtle);font-weight:600}
           #view-pipeline .pa-ws-sub{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:1px}
@@ -33592,3 +33593,8 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 /* Recognition drawer carries its own header; hide the hoisted section's
    duplicate head/title inside it. */
 #rr-recog-body .settings-section-head{display:none}
+/* Small left-margin utility (referral-program button spacing). */
+.u-ml-2{margin-left:var(--s-2)}
+/* Referral-program drawer carries its own header; hide the hoisted
+   section's duplicate head/title inside it. */
+#rr-obref-body .settings-section-head{display:none}
