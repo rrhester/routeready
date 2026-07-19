@@ -230,11 +230,20 @@ is server-aggregated DSP-wide → needs a `p_station_id` migration (same as the
 Today fleet tile). NOTE vehicles must be ASSIGNED to stations (vehicles.station_id)
 or they only appear in All mode — operator sets van station in the van editor.
 
-**NEXT for the new-DSP push:** Messages (dispatch_channels_list returns
-station_id + kind; scope station-tied channels + DMs — DMs are the harder part;
-DSP-wide/null-station channels are a design call), then the aggregate KPI RPCs
-that need `p_station_id` migrations (fleet_execution_summary, pipeline_counts),
-then the pipeline/hiring page. Reuse `_rrDriverIdsAtStation` for driver lists,
+**SHIPPED — Messages scopes (new-DSP isolation):** DM inbox
+(`refreshDriverChatList` ~41860) filters `_msgInboxList` by driver_stations
+MEMBERSHIP (dispatch_chat_threads returns driver_id); channel lists
+(`refreshChannelList`/`refreshHrRoster`) filter station-tied channels by
+station_id, DSP-wide (null-station) channels stay visible in every scope.
+`_rrRerenderForScope` gained a view-messages branch that refreshes ONLY the DM
+inbox (calling the channel refreshers too CLOBBERS the shared list host — QA
+caught this: scoped DMs came back empty until I dropped them). Browser-QA'd:
+DM inbox All={d1,d2}, scope Boston={d2}, scope Chantilly={d1}, no errors.
+
+**NEXT for the new-DSP push:** the aggregate KPI RPCs that need `p_station_id`
+migrations (fleet_execution_summary → fleet exec strip + Today fleet tile;
+pipeline_counts → Today hiring tile), then the pipeline/hiring page (applicants
+by target station). Reuse `_rrDriverIdsAtStation` for driver lists,
 `rrStationScopeId()` + station_code/station_id for the rest.
 
 **SHIPPED — Requests + Targets daily drill-down (operator report "still see
