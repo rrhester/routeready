@@ -65536,6 +65536,39 @@ function _rrShowSmartFillSummary(s) {
 }
 window._rrShowSmartFillSummary = _rrShowSmartFillSummary;
 
+// Full post-run report · the skip/uncovered/unscheduled diagnostics text
+// that autoFillScheduleWeek stores on window._rrLastSmartFillDiagnostics.
+// Opened from the completion toast's "View results" button — the reasons a
+// seat (e.g. an XL helper seat) went unfilled live HERE, not in the console.
+function _rrShowSfRunReport() {
+  const text = window._rrLastSmartFillDiagnostics?.summary
+    || "No diagnostics recorded for the last run — run Smart Fill first.";
+  document.getElementById("rr-sf-runreport-backdrop")?.remove();
+  const backdrop = document.createElement("div");
+  backdrop.id = "rr-sf-runreport-backdrop";
+  backdrop.className = "rr-sfr-backdrop";
+  backdrop.innerHTML =
+    `<div role="dialog" aria-modal="true" aria-label="Smart Fill run results" class="rr-sfr-card">`
+    + `<div class="rr-sfr-head">`
+    + `<h3 class="rr-sfr-title">Smart Fill · run results</h3>`
+    + `<button type="button" id="rr-sf-runreport-x" aria-label="Close" class="rr-sfr-x">×</button>`
+    + `</div>`
+    + `<div class="rr-sfr-body">${escapeHtml(text)}</div>`
+    + `<div class="rr-sfr-foot">`
+    + `<button type="button" id="rr-sf-runreport-copy" class="btn btn-sm">Copy</button>`
+    + `<button type="button" id="rr-sf-runreport-done" class="btn btn-sm btn-primary">Done</button>`
+    + `</div></div>`;
+  backdrop.addEventListener("click", (ev) => {
+    if (ev.target === backdrop || ev.target.closest("#rr-sf-runreport-x") || ev.target.closest("#rr-sf-runreport-done")) {
+      backdrop.remove();
+    } else if (ev.target.closest("#rr-sf-runreport-copy")) {
+      try { navigator.clipboard.writeText(text); toast("Copied", "success"); } catch (_) {}
+    }
+  });
+  document.body.appendChild(backdrop);
+}
+window._rrShowSfRunReport = _rrShowSfRunReport;
+
 // "See the decision report" — surfaces the CP-SAT solver's full trace
 // report (why each driver was/wasn't used, what was left open) in a
 // scrollable modal. Previously the button called _rrSmartFillDiagnostics
@@ -66942,10 +66975,24 @@ async function autoFillScheduleWeek() {
       } catch (_) { /* default to showing */ }
       // The dark terminal console is retired; per-driver reasoning now lives
       // in the right-click "Why they were scheduled" card. When the summary
-      // toggle is on, surface a lightweight toast pointing operators there.
-      if (showPopup && typeof toast === "function") {
+      // toggle is on, surface a toast whose "View results" button opens the
+      // full run report (skips / uncovered seats / unscheduled drivers) —
+      // previously the toast had NO click action, so the reasons were only
+      // ever visible in the browser console (operator report 2026-07-19:
+      // "it doesn't let me open the run summary when I hit the toast").
+      if (showPopup) {
         const firstLine = summaryAlert.split("\n", 1)[0] || "Smart Fill finished";
-        toast(firstLine + " · right-click any driver for why", "info");
+        if (typeof toastAction === "function") {
+          toastAction(firstLine, {
+            kind: "info",
+            actions: [
+              { label: "View results", primary: true, onClick: () => { try { _rrShowSfRunReport(); } catch (_) {} } },
+              { label: "Dismiss" },
+            ],
+          });
+        } else if (typeof toast === "function") {
+          toast(firstLine + " · right-click any driver for why", "info");
+        }
       }
     } else {
       console.info("[Smart Fill] completed — no skipped shifts / unscheduled drivers reported.");
