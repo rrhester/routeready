@@ -91,6 +91,28 @@ t("driversNeededMix: pure XL day, no pad", () => {
   assert.equal(m.xlHelpers, 6);     // 3 × 2
 });
 
+t("driversNeededMix: HELPER-type routes cost 4 each, none certified", () => {
+  // 10 standard (×2) + 2 helper-routes (×4) = 28 bodies, +15% = 33.
+  const m = driversNeededMix({ standard: 10, xl: 0, helperRoutes: 2 }, { driversPerRoute: 2, padPct: 15 });
+  assert.equal(m.total, Math.ceil((10 * 2 + 2 * 4) * 1.15)); // 33
+  assert.equal(m.xlCertified, 0);                            // no certs on helper routes
+  assert.equal(m.xlHelpers, Math.ceil(2 * 2 * 1.15));        // 5 helper bodies
+  assert.equal(m.helperRoutes, 2);
+});
+
+t("driversNeededMix: XL + helper-route mix stacks; helpers pool", () => {
+  const m = driversNeededMix({ standard: 5, xl: 1, helperRoutes: 1 }, { driversPerRoute: 2, padPct: 0 });
+  assert.equal(m.total, 5 * 2 + 4 + 4);        // 18
+  assert.equal(m.xlCertified, 2);              // only the XL route needs certs
+  assert.equal(m.xlHelpers, 2 + 2);            // helpers from both kinds
+});
+
+t("driversNeededMix: omitted helperRoutes behaves exactly as before", () => {
+  const a = driversNeededMix({ standard: 20, xl: 5 }, { driversPerRoute: 2, padPct: 15 });
+  const b = driversNeededMix({ standard: 20, xl: 5, helperRoutes: 0 }, { driversPerRoute: 2, padPct: 15 });
+  assert.deepEqual(a, b);
+});
+
 t("driversNeededMix: negative / missing inputs floor to zero", () => {
   const m = driversNeededMix({ standard: -5, xl: undefined }, {});
   assert.equal(m.total, 0);

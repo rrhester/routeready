@@ -59,31 +59,38 @@ export const XL_DRIVERS_PER_ROUTE   = 4; // total bodies staffed per XL route
 export const XL_CERTIFIED_PER_ROUTE = 2; // of those four, must hold xl_certified
 // helpers per XL route = XL_DRIVERS_PER_ROUTE − XL_CERTIFIED_PER_ROUTE (= 2).
 
-// driversNeeded, but for a peak-day route MIX that separates XL routes from
-// standard ones. `mix` = { standard, xl } route counts on the week's busiest
-// (peak) day. Standard routes cost `driversPerRoute` each; XL routes cost
-// `xlDriversPerRoute` each, of which `xlCertifiedPerRoute` must be XL-
-// certified and the rest are helpers. The pad is a whole-plan buffer, so it
-// applies uniformly to every seat (certified or helper).
+// driversNeeded, but for a peak-day route MIX that separates two-body routes
+// from standard ones. `mix` = { standard, xl, helperRoutes } route counts on
+// the week's busiest (peak) day:
+//   · standard      — cost `driversPerRoute` each (default 2)
+//   · xl            — cost `xlDriversPerRoute` (4): 2 must be XL-certified,
+//                     2 ride as helpers
+//   · helperRoutes  — the HELPER service type: an SP-style route that
+//                     dispatches driver + helper. Same 4-body cost as XL
+//                     (2 drivers + 2 helpers incl. backups) but NOBODY
+//                     needs a certification.
+// The pad is a whole-plan buffer, so it applies uniformly to every seat.
 //
-// Returns { total, xlCertified, xlHelpers, standardRoutes, xlRoutes }.
-// `total` is the authoritative bodies-needed number and stays byte-identical
-// to driversNeeded(standard, …) when xl == 0, so a DSP with no XL routes sees
-// no change. The `xlCertified` / `xlHelpers` sub-totals are each rounded up
-// independently (conservative), so they can sum to slightly more than the XL
-// share of `total`; treat them as "at least this many of that kind".
+// Returns { total, xlCertified, xlHelpers, standardRoutes, xlRoutes,
+// helperRoutes }. `total` is the authoritative bodies-needed number and
+// stays byte-identical to driversNeeded(standard, …) when xl and
+// helperRoutes are 0, so a DSP running neither sees no change. `xlHelpers`
+// counts ALL helper bodies (XL + helper-route ones). The sub-totals are
+// each rounded up independently (conservative); treat them as "at least
+// this many of that kind".
 export function driversNeededMix(mix, opts = {}) {
   const std = Math.max(0, Number(mix && mix.standard) || 0);
   const xl  = Math.max(0, Number(mix && mix.xl) || 0);
+  const hr  = Math.max(0, Number(mix && mix.helperRoutes) || 0);
   const dpr    = clamp(Number(opts.driversPerRoute), 1, 5, 2);
   const xlDpr  = clamp(Number(opts.xlDriversPerRoute), 2, 8, XL_DRIVERS_PER_ROUTE);
   const xlCert = clamp(Number(opts.xlCertifiedPerRoute), 0, xlDpr, XL_CERTIFIED_PER_ROUTE);
   const pad    = clamp(Number(opts.padPct), 0, 200, 0);
   const mult   = 1 + pad / 100;
-  const total       = Math.ceil((std * dpr + xl * xlDpr) * mult);
+  const total       = Math.ceil((std * dpr + xl * xlDpr + hr * xlDpr) * mult);
   const xlCertified = Math.ceil(xl * xlCert * mult);
-  const xlHelpers   = Math.ceil(xl * (xlDpr - xlCert) * mult);
-  return { total, xlCertified, xlHelpers, standardRoutes: std, xlRoutes: xl };
+  const xlHelpers   = Math.ceil((xl * (xlDpr - xlCert) + hr * (xlDpr - xlCert)) * mult);
+  return { total, xlCertified, xlHelpers, standardRoutes: std, xlRoutes: xl, helperRoutes: hr };
 }
 
 // ── Supply ─────────────────────────────────────────────────────────────────

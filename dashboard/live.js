@@ -52660,6 +52660,7 @@ function _rrHireLeadDays() {
 let _okamiActiveCount = 0;
 let _okamiTotalsByDateCache = null;
 let _okamiXlByDateCache = null;
+let _okamiHelperByDateCache = null;
 let _okamiStartCache = null;
 
 // Given a week's per-day total-route + per-day XL-route lookups, return the
@@ -52668,16 +52669,19 @@ let _okamiStartCache = null;
 // XL count as standard. Peak-of-demand (not peak-of-routes) is what a plan
 // must staff to, since one XL-heavy day can out-demand a higher plain-route
 // day.
-function _rrOkamiWeekMix(weekStart, dpr, totalsByDate, xlByDate) {
-  let peakUnits = -1, mix = { standard: 0, xl: 0 }, routesMax = 0;
+function _rrOkamiWeekMix(weekStart, dpr, totalsByDate, xlByDate, helperByDate) {
+  let peakUnits = -1, mix = { standard: 0, xl: 0, helperRoutes: 0 }, routesMax = 0;
   for (let d = 0; d < 7; d++) {
     const iso = fmtIsoDate(addDays(weekStart, d));
     const total = totalsByDate.get(iso) || 0;
     if (total > routesMax) routesMax = total;
     const xl = Math.min(total, xlByDate?.get(iso) || 0);
-    const std = Math.max(0, total - xl);
-    const units = std * dpr + xl * 4; // XL_DRIVERS_PER_ROUTE
-    if (units > peakUnits) { peakUnits = units; mix = { standard: std, xl }; }
+    // HELPER-type routes (SP-style paired route: driver + uncertified
+    // helper) cost 4 bodies like XL, just with no cert requirement.
+    const hr = Math.min(Math.max(0, total - xl), helperByDate?.get(iso) || 0);
+    const std = Math.max(0, total - xl - hr);
+    const units = std * dpr + (xl + hr) * 4; // XL_DRIVERS_PER_ROUTE
+    if (units > peakUnits) { peakUnits = units; mix = { standard: std, xl, helperRoutes: hr }; }
   }
   return { mix, routesMax };
 }
@@ -52729,7 +52733,7 @@ function _okamiRecomputeFromCache(padPct) {
     // Skeleton / error rows have no gap cell — nothing to recompute into.
     if (!row.querySelector(".plan-gap")) continue;
     const weekStart = addDays(_okamiStartCache, w * 7);
-    const { mix: weekMix, routesMax } = _rrOkamiWeekMix(weekStart, dpr, _okamiTotalsByDateCache, _okamiXlByDateCache);
+    const { mix: weekMix, routesMax } = _rrOkamiWeekMix(weekStart, dpr, _okamiTotalsByDateCache, _okamiXlByDateCache, _okamiHelperByDateCache);
     const unplanned = routesMax === 0;
     // Same XL-aware demand as the full render — XL routes cost 4 drivers.
     const needed = unplanned ? 0 : rrDriversNeededMix(weekMix, { driversPerRoute: dpr, padPct }).total;
@@ -53433,6 +53437,10 @@ async function _renderOkamiLiveImpl() {
   // Any routes not broken out by wave/type fall through as standard (the SP
   // default), which is the safe, cheaper assumption.
   const xlByDate = new Map();
+  // Per-day HELPER-type route count (SP-style paired route: driver +
+  // uncertified helper — service_type_code === "HELPER"). Costs 4 bodies
+  // per route like XL, no certs.
+  const helperByDate = new Map();
   const typeTotalsByWeekIdx = Array.from({ length: RR_OKAMI_WEEKS }, () => ({}));
   // Per-(date × station × wave × type) demand buckets — the exact rows
   // okami_set_target upserts. Copy/fill/adjust/undo (the plan-editing
@@ -53450,6 +53458,7 @@ async function _renderOkamiLiveImpl() {
         const code = t?.service_type_code || "SP";
         if (typeBucket) typeBucket[code] = (typeBucket[code] || 0) + (t?.target_routes || 0);
         if (code === "XL") xlByDate.set(c.date, (xlByDate.get(c.date) || 0) + (t?.target_routes || 0));
+        if (code === "HELPER") helperByDate.set(c.date, (helperByDate.get(c.date) || 0) + (t?.target_routes || 0));
         if (!bucketsByDate.has(c.date)) bucketsByDate.set(c.date, []);
         bucketsByDate.get(c.date).push({
           stationId: c.station_id,
@@ -53465,6 +53474,7 @@ async function _renderOkamiLiveImpl() {
   // Cache for fast slider re-renders (no network round-trip per drag tick).
   _okamiTotalsByDateCache = totalsByDate;
   _okamiXlByDateCache = xlByDate;
+  _okamiHelperByDateCache = helperByDate;
   _okamiStartCache = start;
 
   // Staffing Plan Pad — 0–50% buffer above the 2× per-route baseline.
@@ -53526,7 +53536,7 @@ async function _renderOkamiLiveImpl() {
     // (2 XL-certified + 2 helpers) so a busy XL day can set demand above a
     // higher plain-route day. routesMax stays the total-route peak for the
     // editable input + sparkline; the mix drives the Needed number.
-    const { mix: weekMix } = _rrOkamiWeekMix(weekStart, _fcDpr, totalsByDate, xlByDate);
+    const { mix: weekMix } = _rrOkamiWeekMix(weekStart, _fcDpr, totalsByDate, xlByDate, helperByDate);
     // A week with zero routes has no plan — rendering it as a healthy
     // green surplus made "no data" look like "covered through October".
     const unplanned = routesMax === 0;
@@ -53543,11 +53553,12 @@ async function _renderOkamiLiveImpl() {
     const avail = Math.max(0, availRaw - notReady);
 
     const demand  = unplanned
-      ? { total: 0, xlCertified: 0, xlHelpers: 0, xlRoutes: 0 }
+      ? { total: 0, xlCertified: 0, xlHelpers: 0, xlRoutes: 0, helperRoutes: 0 }
       : rrDriversNeededMix(weekMix, { driversPerRoute: _fcDpr, padPct });
     const needed  = demand.total;
     const xlCertifiedNeeded = demand.xlCertified;
     const xlRoutesPeak = demand.xlRoutes;
+    const helperRoutesPeak = demand.helperRoutes || 0;
     const gap     = avail - needed;
     const hireBy  = addDays(weekStart, -leadDays);
 
@@ -53632,9 +53643,13 @@ async function _renderOkamiLiveImpl() {
     }
     const neededTitle = unplanned
       ? "No routes planned this week yet"
-      : xlRoutesPeak > 0
-        ? `ceil((${weekMix.standard} standard × ${_fcDpr} + ${weekMix.xl} XL × 4) × ${(1 + padPct / 100).toFixed(2)} pad) = ${needed} drivers`
-          + ` · ${xlCertifiedNeeded} must be XL-certified (each XL route: 2 certified + 2 helpers)`
+      : (xlRoutesPeak > 0 || helperRoutesPeak > 0)
+        ? `ceil((${weekMix.standard} standard × ${_fcDpr}`
+          + (xlRoutesPeak > 0 ? ` + ${weekMix.xl} XL × 4` : "")
+          + (helperRoutesPeak > 0 ? ` + ${weekMix.helperRoutes} helper-route × 4` : "")
+          + `) × ${(1 + padPct / 100).toFixed(2)} pad) = ${needed} drivers`
+          + (xlCertifiedNeeded > 0 ? ` · ${xlCertifiedNeeded} must be XL-certified (each XL route: 2 certified + 2 helpers)` : "")
+          + (helperRoutesPeak > 0 ? ` · helper routes run driver + helper, no certs` : "")
           + ` · avg day ${avgDay} routes${mixText}`
         : `ceil(peak ${routesMax} × ${_fcDpr} drivers/route × ${(1 + padPct / 100).toFixed(2)} pad) = ${needed} · avg day ${avgDay} routes${mixText}`;
 
@@ -64996,33 +65011,36 @@ async function loadScheduleInsights(scope) {
   // routes count as standard (the SP default).
   const routesByDate = new Map();
   const xlByDate = new Map();
+  const helperByDate = new Map();
   for (const c of cells) {
     routesByDate.set(c.date, (routesByDate.get(c.date) || 0) + (c.target_routes || 0));
     if (Array.isArray(c.targets_by_wave)) {
       for (const t of c.targets_by_wave) {
         if ((t?.service_type_code) === "XL") xlByDate.set(c.date, (xlByDate.get(c.date) || 0) + (t?.target_routes || 0));
+        if ((t?.service_type_code) === "HELPER") helperByDate.set(c.date, (helperByDate.get(c.date) || 0) + (t?.target_routes || 0));
       }
     }
   }
   // Peak DEMAND per day-of-week across the horizon: the date whose driver
   // demand (std×dpr + xl×4) is highest for that weekday sets the day's Needed.
   const peakRoutesByDow = Object.fromEntries(DOW.map(d => [d, 0]));      // total routes, for context
-  const peakMixByDow    = Object.fromEntries(DOW.map(d => [d, { standard: 0, xl: 0 }]));
+  const peakMixByDow    = Object.fromEntries(DOW.map(d => [d, { standard: 0, xl: 0, helperRoutes: 0 }]));
   const peakUnitsByDow  = Object.fromEntries(DOW.map(d => [d, -1]));
   // JS getDay: 0=Sun, 1=Mon, ..., 6=Sat. Map to our DOW key.
   const JS_DOW = { 0:"sun", 1:"mon", 2:"tue", 3:"wed", 4:"thu", 5:"fri", 6:"sat" };
   for (const [iso, routes] of routesByDate.entries()) {
     const dow = JS_DOW[new Date(iso + "T12:00:00").getDay()];
     const xl  = Math.min(routes, xlByDate.get(iso) || 0);
-    const std = Math.max(0, routes - xl);
-    const units = std * _availDpr + xl * 4;
+    const hr  = Math.min(Math.max(0, routes - xl), helperByDate.get(iso) || 0);
+    const std = Math.max(0, routes - xl - hr);
+    const units = std * _availDpr + (xl + hr) * 4;
     if (routes > peakRoutesByDow[dow]) peakRoutesByDow[dow] = routes;
-    if (units > peakUnitsByDow[dow]) { peakUnitsByDow[dow] = units; peakMixByDow[dow] = { standard: std, xl }; }
+    if (units > peakUnitsByDow[dow]) { peakUnitsByDow[dow] = units; peakMixByDow[dow] = { standard: std, xl, helperRoutes: hr }; }
   }
   const neededByDow = {};
   let _availHasXl = false;
   for (const d of DOW) {
-    if (peakMixByDow[d].xl > 0) _availHasXl = true;
+    if (peakMixByDow[d].xl > 0 || peakMixByDow[d].helperRoutes > 0) _availHasXl = true;
     neededByDow[d] = peakUnitsByDow[d] > 0
       ? rrDriversNeededMix(peakMixByDow[d], { driversPerRoute: _availDpr, padPct }).total
       : 0;
@@ -65143,7 +65161,7 @@ document.addEventListener("click", (e) => {
       <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-top:14px;margin-bottom:6px">Per-day math</div>
       <div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-bottom:6px">For each day, we count the active drivers whose availability includes that day, then divide by total active drivers.</div>
       <div style="font-family:ui-monospace,monospace;font-size:var(--fs-xs);background:var(--canvas);padding:var(--s-2) var(--s-2-5);border-radius:var(--r-sm);color:var(--text)">% available = available_drivers ÷ total_active_drivers</div>
-      <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px">Needed column shows OKAMI peak demand for context: <code>ceil((standard × ${m.dpr} + XL × 4) × (1 + ${m.padPct}%))</code>${m.hasXl ? " — XL routes staff 4 (driver + helper, ×2 for backups)" : ""}.</div>
+      <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px">Needed column shows OKAMI peak demand for context: <code>ceil((standard × ${m.dpr} + two-body routes × 4) × (1 + ${m.padPct}%))</code>${m.hasXl ? " — XL and Helper-type routes staff 4 (driver + helper, ×2 for backups)" : ""}.</div>
       <table style="width:100%;border-collapse:collapse;font-size:var(--fs-sm);margin-top:10px">
         <thead>
           <tr>

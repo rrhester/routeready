@@ -96,7 +96,34 @@ Smart-Fill completion toast now has "View results" → `_rrShowSfRunReport`
 modal (the diagnostics used to go console-only; that's how this was
 found). Apply order: 0518 → 0519 → **0520**.
 
-**Still DEFERRED:** nothing else outstanding on the XL model.
+**Post-0520 fix pass (2026-07-19, operator-driven):**
+- Drill-down day labels were Mon-first over Sunday-anchored weeks (typed
+  "Thu" saved to Wed) — headers now derive from real dates; never
+  reintroduce a static day-label list there.
+- Helper chips painted XL + false ⚠ "missing XL cert": the late sharp-color
+  CSS family ([data-rr-shift-id]) out-ranked the helper paint rule (fixed
+  with matching-specificity helper family at end of schedule-rrx.css), and
+  _computeWeekViolations now skips cert checks on helper seats.
+- **Vans (migration 0521):** helpers ride the paired XL driver's van — never
+  consume their own. _assignVansForRange + CP-SAT van model exclude
+  helper-kind seats; grid decorator zips helper→driver by (date/station/
+  wave/type) bucket and mirrors the van; driver_vehicle_days + today_roster
+  reuse the trainee-inherits-trainer-van machinery via an extended mate
+  lookup (via still reads 'trainee' — don't "fix" it, app-compatible).
+- **Route counts (migration 0522):** helper seats count as DRIVERS not
+  ROUTES (operator: 9 SP + 1 XL = 11 drivers, 10 routes). okami_grid
+  filled excludes helper kind; grid client counter same.
+- **HELPER service type (migration 0523):** the 0349-seeded HELPER type =
+  SP-style paired route (driver + helper, NO certs). generate_shifts pairs
+  a helper seat for requires_xl OR code='HELPER' buckets;
+  driversNeededMix gains {helperRoutes} bucket (4 bodies/route, 0
+  certified); Targets/availability builders read code==="HELPER" maps.
+- Smart-Fill completion toast now opens a run-report modal (_rrShowSfRun-
+  Report) — diagnostics were console-only; that report is how the 0520
+  refusals were found.
+- Apply order: 0518 → 0519 → 0520 → **0521 → 0522 → 0523**.
+
+**Still DEFERRED:** nothing else outstanding on the XL/helper model.
 
 ## DONE: Calendar 100-list (Onboarding → Calendar improvements)
 
