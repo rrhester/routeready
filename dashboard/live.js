@@ -22995,11 +22995,11 @@ async function refreshDriverStatRow(rows) {
     + `</button>`;
   const attendancePill =
     `<button type="button" class="sched-kpi-pill sched-kpi-action rr-kpi-attendance" data-rr-roster-attendance aria-haspopup="menu" aria-expanded="false" title="Attendance report &amp; policy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span class="sched-kpi-val">Attendance</span><span class="rr-kpi-chev" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 4 6 8 10 4"/></svg></span></button>`;
-  const metricsPill =
-    `<button type="button" class="sched-kpi-pill sched-kpi-action rr-kpi-metrics" data-rr-roster-metrics aria-haspopup="dialog" aria-expanded="false" title="Driver metrics · live roster overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg><span class="sched-kpi-val">Metrics</span></button>`;
   const addDriverPill =
     `<button type="button" class="sched-kpi-pill sched-kpi-action" data-rr-roster-add-driver aria-haspopup="menu" aria-expanded="false" title="Add a driver or bulk import"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span class="sched-kpi-val">Add driver</span><span class="rr-kpi-chev" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 4 6 8 10 4"/></svg></span></button>`;
-  const cmdBarHtml      = metricsPill + addDriverPill;
+  // Metrics button removed per operator — the command bar carries just the
+  // primary Add driver action (the Driver Metrics drawer is no longer surfaced).
+  const cmdBarHtml      = addDriverPill;
   const tableFilterHtml = activeFilterPill + attendancePill;
 
   // Paint the status + attendance filters into the driver table's own toolbar
@@ -23009,8 +23009,10 @@ async function refreshDriverStatRow(rows) {
 
   const rosterHost = document.getElementById("rr-roster-kpis");
   if (rosterHost) rosterHost.innerHTML = cmdBarHtml;
-  // Restore the Metrics drawer's persisted open state (and refresh its counts).
-  if (typeof _rrSyncMetricsDrawer === "function") _rrSyncMetricsDrawer();
+  // Metrics button removed (operator) — don't auto-restore the Metrics drawer;
+  // close it if a stale open flag would otherwise resurrect it with no button
+  // left to toggle it.
+  if (typeof _rrCloseMetricsDrawer === "function") _rrCloseMetricsDrawer({ keepState: true });
 
   // Onboarding page's roster mode · the visible KPI strip is
   // #rr-ob-kpis. Overwrite it with the roster pills while the
