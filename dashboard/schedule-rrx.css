@@ -3129,6 +3129,15 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift
   box-shadow: 0 1px 0 var(--rr-route-c-helper) !important;
   --rr-route-t: var(--rr-route-t-helper);
 }
+/* Helper seat on a HELPER-type route (service code HELPER, not XL) — its
+   own picker row so operators can tell XL helpers and Helper-route helpers
+   apart. Extra attribute out-ranks the generic helper rule above. */
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-kind="helper"][data-rr-service-code="HELPER"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: var(--rr-route-c-helper_route) !important;
+  border-color: color-mix(in srgb, var(--rr-route-c-helper_route) 78%, var(--rr-slate-900)) !important;
+  box-shadow: 0 1px 0 var(--rr-route-c-helper_route) !important;
+  --rr-route-t: var(--rr-route-t-helper_route);
+}
 
 /* PTO / time-off chips are clickable — clicking one offers to remove the
    approved time off (driver changed their mind). Signal that affordance
@@ -5442,6 +5451,22 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id][data-rr-shift-kind="helper"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
   background: color-mix(in srgb, var(--rr-route-c-helper) 88%, var(--rr-slate-400)) !important;
+}
+/* Sharp-family variant for HELPER-route helper seats — mirrors the helper
+   family above with the service-code qualifier so the Helper-route color
+   wins on those chips at the [data-rr-shift-id] specificity tier. */
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-shift-kind="helper"][data-rr-service-code="HELPER"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: var(--rr-route-c-helper_route) !important;
+  border: 1px solid color-mix(in srgb, var(--rr-route-c-helper_route) 78%, var(--rr-slate-900)) !important;
+  color: var(--rr-route-t-helper_route, var(--rr-gray-900)) !important;
+  --rr-route-t: var(--rr-route-t-helper_route);
+}
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-shift-kind="helper"][data-rr-service-code="HELPER"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) *,
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-shift-kind="helper"][data-rr-service-code="HELPER"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route {
+  color: var(--rr-route-t-helper_route, var(--rr-gray-900)) !important;
+}
+body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id][data-rr-shift-kind="helper"][data-rr-service-code="HELPER"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: color-mix(in srgb, var(--rr-route-c-helper_route) 88%, var(--rr-slate-400)) !important;
 }
 
 /* ============================================================
