@@ -177,14 +177,24 @@ on main. Branch reset from main for follow-ups (new PR each time).
 - NOTE the "Available fleet-wide under a station scope" is intentional (float
   model) — don't "fix" it to per-station roster.
 
+**SHIPPED — Attendance report** (`loadAttendanceLive` ~16236): scopes its
+driver list by driver_stations membership (`_rrDriverIdsAtStation` + station_id
+fallback); added station_id to the select. Same proven pattern; inspection-
+verified (syntax/lint/ratchet/tests green).
+
+**DEFERRED — Onboarding funnel:** has its own `#rr-ob-station` dropdown, but
+scoping the HIRING funnel by station is a genuine product call (applicants
+often aren't station-assigned yet → scoping could hide them). Left as-is;
+needs an operator decision (scope-and-hide-unassigned vs keep-flexible) before
+unifying to the lens. Broadcast already has station:<id> audience pills.
+
 **NEXT (Phase 3 server-side — needs a migration):** the Today's Plan KPI tiles
 + coverage rail (`fleet_execution_summary`, `pipeline_counts`, `today_plan`)
 are the LAST DSP-wide holdouts — they aggregate server-side with no per-station
 breakdown, so scoping them needs an optional `p_station_id` on those RPCs
 (pipeline/hiring is arguably DSP-wide; fleet + coverage are station-relevant).
-Also smaller: onboarding roster, broadcast audience default, attendance report
-(all reuse `_rrDriverIdsAtStation`). Then P4 All-mode per-station breakdowns.
-Branch reset from main per follow-up; open a NEW PR (old ones merged).
+Then P4 All-mode per-station breakdowns. Branch reset from main per follow-up;
+open a NEW PR (old ones merged).
 
 ## Active task: Staffing model — XL-route demand (branch claude/staffing-driver-requirements-1tw30l)
 
