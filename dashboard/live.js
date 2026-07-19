@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=ac48ca29dcfa";
-import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=ac48ca29dcfa";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=ac48ca29dcfa";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=ac48ca29dcfa";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=ac48ca29dcfa";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=ac48ca29dcfa";
-import { isChecklistComplete } from "./checklist-core.mjs?v=ac48ca29dcfa";
+import { planScheduleWeek } from "./scheduling-engine.js?v=cb122d866932";
+import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=cb122d866932";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=cb122d866932";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=cb122d866932";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=cb122d866932";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=cb122d866932";
+import { isChecklistComplete } from "./checklist-core.mjs?v=cb122d866932";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=ac48ca29dcfa";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=ac48ca29dcfa";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=ac48ca29dcfa";
+} from "./msg-core.mjs?v=cb122d866932";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=cb122d866932";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=cb122d866932";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -11986,11 +11986,11 @@ document.addEventListener("click", (e) => {
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") _rrCloseRosterCoach(); });
 
 // ── Roster row · ⋯ overflow menu ──────────────────────────────────────
-// The per-row ⋯ opens a popover that deep-links to each driver-record tab
-// (Attendance, Profile, …) and carries Message / Create coaching /
-// Terminate driver. Picking a tab opens the driver record on it; the
-// other items reuse the same entry points the driver drawer uses. Same
-// fixed, viewport-clamped popover mechanism as the coach menu above.
+// The per-row ⋯ is "go to / manage": an "Open record" disclosure that folds
+// the driver-record tab deep-links (Attendance, Profile, …) under one row,
+// plus Terminate. Message + Coach deliberately live as the row's own icons,
+// not here (one home per action). Picking a tab opens the driver record on
+// it. Same fixed, viewport-clamped popover mechanism as the coach menu above.
 let _rrRowMoreId = null;
 const _RR_ROW_MORE_TABS = [
   ["attendance",   "Attendance",   '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>'],
@@ -12021,35 +12021,12 @@ function _rrCloseRowMore() {
   const t = document.querySelector('[data-rr-row-more][aria-expanded="true"]');
   if (t) t.setAttribute("aria-expanded", "false");
 }
-function _rrOpenRowMore(trigger, driverId) {
-  if (!trigger) return;
-  _rrRowMoreId = driverId || null;
-  const pop = _rrEnsureRowMorePop();
-  const item = (action, label, icon, danger) =>
-    `<button type="button" role="menuitem" class="rr-status-picker-item${danger ? " is-danger" : ""}" data-rr-row-more-go="${action}">${icon}<span class="rr-status-picker-label">${escapeHtml(label)}</span></button>`;
-  const sep = '<div class="rr-status-picker-sep" role="separator"></div>';
-  const msgIcon   = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>';
-  const coachIcon = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>';
-  const termIcon  = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
-  const reactIcon = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><polyline points="3 3 3 8 8 8"/></svg>';
-  // A terminated driver can't be terminated again — swap that last item for a
-  // Reactivate action that flips them back to Active.
-  const _drv = (_rosterRows || []).find((row) => row.id === driverId);
-  const _isTerminated = _drv && _drv.status === "terminated";
-  pop.innerHTML =
-    _RR_ROW_MORE_TABS.map(([a, l, ic]) => item(a, l, ic)).join("") +
-    sep +
-    item("message", "Message", msgIcon) +
-    item("coach", "Create coaching", coachIcon) +
-    sep +
-    (_isTerminated
-      ? item("reactivate", "Reactivate driver", reactIcon)
-      : item("terminate", "Terminate driver", termIcon, true));
-  // Right-align to the trigger (it sits at the far right of the row),
-  // clamp to the viewport, and flip above / scroll when the tall menu
-  // would run off the bottom for lower rows.
+// Position (and re-clamp) the ⋯ popover against its trigger. Extracted so the
+// "Open record" disclosure can re-run it after the menu grows/shrinks, keeping
+// the popover flipped above / scrolled for lower rows.
+function _rrPositionRowMore(pop, trigger) {
   const r = trigger.getBoundingClientRect();
-  const popW = 232;
+  const popW = 244;
   pop.style.position = "fixed";
   pop.style.minWidth = `${popW}px`;
   pop.style.maxHeight = `${Math.max(160, window.innerHeight - 16)}px`;
@@ -12059,7 +12036,6 @@ function _rrOpenRowMore(trigger, driverId) {
   left = Math.max(8, Math.min(left, window.innerWidth - popW - 8));
   pop.style.left = `${left}px`;
   pop.style.top = `${r.bottom + 6}px`;
-  pop.hidden = false;
   const popH = pop.offsetHeight || 0;
   let top = r.bottom + 6;
   if (top + popH > window.innerHeight - 8) {
@@ -12067,6 +12043,42 @@ function _rrOpenRowMore(trigger, driverId) {
     top = above >= 8 ? above : Math.max(8, window.innerHeight - 8 - popH);
   }
   pop.style.top = `${top}px`;
+}
+function _rrOpenRowMore(trigger, driverId) {
+  if (!trigger) return;
+  _rrRowMoreId = driverId || null;
+  const pop = _rrEnsureRowMorePop();
+  const item = (action, label, icon, danger) =>
+    `<button type="button" role="menuitem" class="rr-status-picker-item${danger ? " is-danger" : ""}" data-rr-row-more-go="${action}">${icon}<span class="rr-status-picker-label">${escapeHtml(label)}</span></button>`;
+  const sep = '<div class="rr-status-picker-sep" role="separator"></div>';
+  const termIcon  = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
+  const reactIcon = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><polyline points="3 3 3 8 8 8"/></svg>';
+  // A terminated driver can't be terminated again — swap that last item for a
+  // Reactivate action that flips them back to Active.
+  const _drv = (_rosterRows || []).find((row) => row.id === driverId);
+  const _isTerminated = _drv && _drv.status === "terminated";
+  // "Open record" — a person icon + right-hand chevron that discloses the
+  // record deep-links below (the row itself opens the full record on click,
+  // so this menu group is only for jumping straight to a specific tab).
+  const recordIcon = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="10" r="2"/><path d="M13 9h4M13 13h4M6 16.5c.6-1.4 1.6-2 2.5-2s1.9.6 2.5 2"/></svg>';
+  const chevIcon   = '<svg class="rr-row-more-chev" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
+  // The ⋯ menu is now purely "go to / manage": navigation into the record
+  // folds under one disclosure, and the destructive row is quarantined at the
+  // bottom behind its own divider. Message + Coach are NOT here — they live as
+  // the always-visible row icons (one home per action, no duplication).
+  pop.innerHTML =
+    `<button type="button" role="menuitem" class="rr-status-picker-item rr-row-more-disclosure" data-rr-row-more-toggle aria-expanded="false" aria-controls="rr-row-more-tabs">${recordIcon}<span class="rr-status-picker-label">Open record</span>${chevIcon}</button>` +
+    `<div class="rr-row-more-tabs" id="rr-row-more-tabs" role="group" aria-label="Open record on a tab" hidden>` +
+      _RR_ROW_MORE_TABS.map(([a, l, ic]) => item(a, l, ic)).join("") +
+    `</div>` +
+    sep +
+    (_isTerminated
+      ? item("reactivate", "Reactivate driver", reactIcon)
+      : item("terminate", "Terminate driver", termIcon, true));
+  // Right-align to the trigger (far right of the row), clamp to the viewport,
+  // and flip above / scroll when the menu would run off the bottom.
+  pop.hidden = false;
+  _rrPositionRowMore(pop, trigger);
   trigger.setAttribute("aria-expanded", "true");
 }
 function _rrRowMoreDispatch(action, id) {
@@ -12111,6 +12123,21 @@ document.addEventListener("click", (e) => {
     if (!isOpen) _rrOpenRowMore(moreTrigger, id);
     return;
   }
+  const toggle = e.target.closest("[data-rr-row-more-toggle]");
+  if (toggle) {
+    e.preventDefault();
+    e.stopPropagation();
+    const grp = document.getElementById("rr-row-more-tabs");
+    const pop = document.getElementById("rr-row-more-pop");
+    if (grp) {
+      const willOpen = grp.hidden;
+      grp.hidden = !willOpen;
+      toggle.setAttribute("aria-expanded", String(willOpen));
+      const trig = document.querySelector('[data-rr-row-more][aria-expanded="true"]');
+      if (pop && trig) _rrPositionRowMore(pop, trig);  // re-clamp after growth
+    }
+    return;
+  }
   const go = e.target.closest("[data-rr-row-more-go]");
   if (go) {
     e.preventDefault();
@@ -12125,6 +12152,16 @@ document.addEventListener("click", (e) => {
   if (pop && !pop.hidden && !e.target.closest("#rr-row-more-pop")) _rrCloseRowMore();
 });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") _rrCloseRowMore(); });
+// Keyboard activation for the roster driver-name link (role=button). Click is
+// handled by the generic [data-rr-driver-id] delegate; this adds Enter/Space.
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" && e.key !== " ") return;
+  const link = e.target.closest && e.target.closest(".cell-name-link[data-rr-driver-id]");
+  if (!link) return;
+  e.preventDefault();
+  const id = link.getAttribute("data-rr-driver-id");
+  if (id && typeof openDriverDrawer === "function") openDriverDrawer(id);
+});
 
 // ── Schedule · Notes & Tasks panel (right utility rail) ───────────────
 // A polished productivity rail that slides out from the schedule's right
@@ -14283,7 +14320,7 @@ function _rowActionsFor(d) {
   // See driver's app · per-row icon. Opens a preview of what THIS driver sees
   // in the RouteReady driver app (openDriverAppPreview, via data-rr-driver-app).
   const appIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>';
-  const appBtn = `<button type="button" class="rr-row-action rr-row-action--app" data-rr-driver-app="${escapeHtml(d.id)}" title="See this driver’s app view" aria-label="See ${escapeHtml(displayDriverName(d))}’s app view">${appIcon}</button>`;
+  const appBtn = `<button type="button" class="rr-row-action rr-row-action--app" data-rr-driver-app="${escapeHtml(d.id)}" title="Preview driver app" aria-label="Preview ${escapeHtml(displayDriverName(d))}’s driver app">${appIcon}</button>`;
   // is-persistent → visible at rest (not only on row hover).
   return `<div class="rr-row-actions-bar is-persistent">${appBtn}${msgBtn}${coachBtn}${moreBtn}</div>`;
 }
@@ -14300,14 +14337,16 @@ function renderDriverRow(d) {
   const actions = _rowActionsFor(d);
   const health = _driverHealth(d.id);
   const healthTitle = { high: "High risk · final corrective action", medium: "Medium risk · written corrective action", due: "Coaching due", healthy: "Healthy" }[health];
-  // The row itself is no longer click-to-open — the record is reached
-  // per-tab from the ⋯ menu now (peek popups). Keep data-driver-id for row
-  // accenting / lookups, but drop data-rr-open-driver so a row click no
-  // longer pops the full driver record.
+  // The row body isn't click-to-open (too easy to mis-hit while scanning),
+  // but the driver NAME is: clicking it opens the full record via the generic
+  // [data-rr-driver-id] handler. That's what lets the ⋯ menu fold its eight
+  // record deep-links under one "Open record" disclosure instead of listing
+  // them all at the top level. Keyboard activation is wired in _rrOpenRowMore's
+  // keydown sibling below (role=button + Enter/Space).
   return `
     <tr data-driver-id="${d.id}" class="${(_ddOpenDriverId && d.id === _ddOpenDriverId) ? "is-record-open" : ""}">
       <td><div class="cell-driver"><div class="avatar-sm ${tier} rr-health-${health}" title="${healthTitle}" aria-label="${healthTitle}">${initials}</div>
-        <div class="cell-driver-text"><div class="cell-name"><span class="cell-name-text">${escapeHtml(display)}</span>${badges}</div>
+        <div class="cell-driver-text"><div class="cell-name"><span class="cell-name-text cell-name-link" data-rr-driver-id="${d.id}" role="button" tabindex="0" title="Open ${escapeHtml(display)}’s record">${escapeHtml(display)}</span>${badges}</div>
         ${certs}
         ${sub ? `<div class="cell-name-sub">${sub}</div>` : ""}</div></div></td>
       <td class="rr-att-points-cell">${_riskCell(d.id)}</td>
@@ -52447,9 +52486,10 @@ let _schedDriverSort = "alpha";
 
 // Unassign every driver from every shift in the visible week. Shifts stay;
 // only driver_id is cleared. Shared by the Open-shifts pool button
-// (#rr-unassign-week) and the driver-header icon (#rr-sched-unassign-week-icon).
-// The text button shows an "Unassigning…" label while in flight; the icon
-// just gets disabled + aria-busy so its SVG isn't clobbered.
+// (#rr-unassign-week) and the action-bar Build Schedule pill once the week
+// is built (window._rrRunUnassignAllShiftsForWeek). The text button shows an
+// "Unassigning…" label while in flight; other triggers just get disabled +
+// aria-busy so their glyph isn't clobbered.
 async function _runUnassignAllShiftsForWeek(triggerEl) {
   const dspId = window.RR?.dsp?.id;
   if (!dspId || !_schedStart) return;
@@ -52554,6 +52594,9 @@ async function _runUnassignAllShiftsForWeek(triggerEl) {
     _repaint();
   }
 }
+// Exported so the action-bar Build Schedule pill can run it as its inverse
+// action once the week is built (see _rrRefreshBuildScheduleToggle).
+window._rrRunUnassignAllShiftsForWeek = _runUnassignAllShiftsForWeek;
 
 // Click handler for the schedule driver-sort icon — opens a small
 // popover with three options (matches the Turnover KPI pattern).
@@ -52639,16 +52682,6 @@ document.addEventListener("click", (e) => {
       showIc.style.display = hidden ? "" : "none";
     }
     try { localStorage.setItem("rr-sched-hide-openshifts", hidden ? "1" : "0"); } catch (_) {}
-    return;
-  }
-  // Unassign all shifts this week — header-icon twin of the Open-shifts
-  // pool button. Same action: clears every driver assignment for the
-  // visible week (shifts stay). Shared logic in _runUnassignAllShiftsForWeek.
-  const unassignBtn = e.target.closest("#rr-sched-unassign-week-icon");
-  if (unassignBtn) {
-    e.preventDefault();
-    e.stopPropagation();
-    _runUnassignAllShiftsForWeek(unassignBtn);
     return;
   }
   // Density cycle — Standard → Compact → Ultra-compact → Standard.
@@ -63968,6 +64001,44 @@ async function _refreshAssignVansLabel() {
 }
 window._rrRefreshAssignVansLabel = _refreshAssignVansLabel;
 
+// ── Build Schedule ⇄ Unassign shifts toggle (action-bar pill).
+// Mirrors the Assign/Unassign Fleet pattern: when the visible week is
+// BUILT (all real routes covered), the Build Schedule pill flips to its
+// inverse — "Unassign shifts", which clears every driver assignment for
+// the week (shifts stay). An empty or still-open week keeps the pill as
+// "Build Schedule". The click handler in view-schedule.frag reads
+// dataset.rrBuilt to route the click to the right action.
+const _RR_BUILD_ICON = '<rect x="3" y="4" width="18" height="17" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="7" y1="13" x2="17" y2="13"/><line x1="7" y1="17" x2="13" y2="17"/>';
+const _RR_UNASSIGN_ICON = '<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="17" y1="8" x2="22" y2="13"/><line x1="22" y1="8" x2="17" y2="13"/>';
+function _rrRefreshBuildScheduleToggle(built) {
+  const ab = document.getElementById("rr-ab-smartfill");
+  if (!ab) return;
+  const was = ab.dataset.rrBuilt === "1";
+  ab.dataset.rrBuilt = built ? "1" : "0";
+  // Label text node (leading icon + trailing badge/caret spans are left
+  // in place — we only rewrite the middle text node).
+  const t = Array.from(ab.childNodes).find(n => n.nodeType === 3 && n.textContent.trim());
+  if (t) t.textContent = built ? " Unassign shifts " : " Build Schedule ";
+  ab.title = built
+    ? "Unassign every shift this week — clears all driver assignments (shifts stay)"
+    : "Build this week's schedule from your rules + OKAMI demand";
+  // Swap the leading glyph to the person-with-X "unassign" mark and back.
+  // Only touch the DOM when the state actually changes so we don't thrash
+  // the SVG on every repaint.
+  if (was !== built) {
+    const svg = ab.querySelector("svg");
+    if (svg) svg.innerHTML = built ? _RR_UNASSIGN_ICON : _RR_BUILD_ICON;
+  }
+  // The caret opens the Smart-Fill rules menu — only meaningful while
+  // building; the open-routes badge is meaningless once built. Hide both
+  // in the Unassign state.
+  const caret = document.getElementById("rr-ab-smartfill-caret");
+  if (caret) caret.hidden = built;
+  const badge = document.getElementById("rr-ab-sf-badge");
+  if (built && badge) badge.hidden = true;
+}
+window._rrRefreshBuildScheduleToggle = _rrRefreshBuildScheduleToggle;
+
 // Paint a small "Van X" line into every chip on the schedule grid
 // using vehicle_day_assignments for the visible week. Driver app
 // already sees the van via driver_vehicle_days — this brings the
@@ -72755,6 +72826,9 @@ async function renderScheduleWeek() {
         abMeter.innerHTML = `<i style="width:${abPct}%"></i>`;
       }
     }
+    // Build Schedule ⇄ Unassign shifts: the week is "built" once every real
+    // route is covered (cushion slack aside). Flip the action-bar pill.
+    _rrRefreshBuildScheduleToggle(abNeeded > 0 && abRouteGap === 0);
   } catch (e) { console.warn("action bar paint:", e); }
 
   // ── Week-range navigator label + Live/Draft pill (page header).
@@ -75466,8 +75540,8 @@ function bindSchedWeekNav() {
   });
 
   // ── Unassign all shifts this week (Open-shifts pool button)
-  // Shares _runUnassignAllShiftsForWeek with the driver-header icon twin
-  // (#rr-sched-unassign-week-icon, wired in the header-icon click handler).
+  // Shares _runUnassignAllShiftsForWeek with the action-bar Build Schedule
+  // pill (which flips to "Unassign shifts" once the week is built).
   sub.addEventListener("click", async (e) => {
     if (e.target.id !== "rr-unassign-week") return;
     e.preventDefault();
@@ -78191,17 +78265,224 @@ document.addEventListener("click", (e) => {
   }
 });
 
-// Helper for inline links in the Smart Fill snapshot view that used to
-// jump to the (now-removed) Schedule → Rules sub-tab. Drops the user
-// straight on Settings → Scheduling.
+// Helper for inline links (e.g. the Smart Fill snapshot view) that jump
+// to the DSP-wide scheduling rules. These now live in the Schedule Rules
+// drawer, not Settings → Scheduling — route callers to the schedule view
+// and pop the drawer.
 function gotoSettingsScheduling() {
-  if (typeof goto === "function") goto("settings");
+  if (typeof goto === "function") goto("schedule");
   setTimeout(() => {
-    const btn = document.querySelector('.settings-nav-item[data-set="scheduling"]');
-    if (btn && typeof setSettingsSection === "function") setSettingsSection(btn);
+    if (typeof window._rrOpenScheduleRules === "function") window._rrOpenScheduleRules();
   }, 50);
 }
 window.gotoSettingsScheduling = gotoSettingsScheduling;
+
+// ─── Schedule rules drawer ────────────────────────────────────────────
+// DSP-wide scheduling engine rules (working-hour limits, pay/OT, station
+// geofences, driver self-service, attendance windows, availability rules,
+// the enforced floor) live on the Schedule view now, in a slide-over
+// drawer, rather than under Settings → Scheduling. The section markup is
+// hoisted out of #view-settings on first open so every element id and its
+// delegated save handler is preserved verbatim — only the DOM parent
+// changes. On each open we fire the same loaders the Settings → Scheduling
+// tab click used to (loadAttendancePolicy / loadAvailabilityRequests /
+// the woc·pay·pickup·swap paint fns / geofences / attendance windows).
+(function _rrScheduleRulesDrawer() {
+  let hoisted = false;
+  function runLoaders() {
+    const loaders = [
+      typeof loadAttendancePolicy === "function" ? loadAttendancePolicy : null,
+      typeof loadAvailabilityRequests === "function" ? loadAvailabilityRequests : null,
+      typeof _rrWocPaintForm === "function" ? _rrWocPaintForm : null,
+      typeof _rrPayPaintForm === "function" ? _rrPayPaintForm : null,
+      typeof _rrPickupPaintForm === "function" ? _rrPickupPaintForm : null,
+      typeof _rrSwapPaintForm === "function" ? _rrSwapPaintForm : null,
+      typeof loadStationGeofences === "function" ? loadStationGeofences : null,
+      typeof loadAttendanceWindows === "function" ? loadAttendanceWindows : null,
+    ].filter(Boolean);
+    loaders.forEach((fn) => { try { setTimeout(fn, 0); } catch (_) {} });
+  }
+  function hoist() {
+    if (hoisted) return true;
+    const body = document.getElementById("rr-schedrules-body");
+    const sec =
+      document.querySelector('#view-settings .settings-section[data-set="scheduling"]') ||
+      document.querySelector('.settings-section[data-set="scheduling"]');
+    if (!body || !sec) return false;
+    sec.classList.remove("hidden"); // drawer owns visibility now
+    body.appendChild(sec);
+    hoisted = true;
+    return true;
+  }
+  function open() {
+    const dr = document.getElementById("rr-schedrules-drawer");
+    const bd = document.getElementById("rr-schedrules-backdrop");
+    if (!dr) return;
+    hoist();
+    if (bd) bd.hidden = false;
+    dr.hidden = false;
+    // Next frame so the transform/opacity transitions actually run.
+    requestAnimationFrame(() => {
+      dr.classList.add("is-open");
+      if (bd) bd.classList.add("is-open");
+    });
+    runLoaders();
+    const closeBtn = document.getElementById("rr-schedrules-close");
+    if (closeBtn) { try { closeBtn.focus(); } catch (_) {} }
+  }
+  function close() {
+    const dr = document.getElementById("rr-schedrules-drawer");
+    const bd = document.getElementById("rr-schedrules-backdrop");
+    if (dr) dr.classList.remove("is-open");
+    if (bd) bd.classList.remove("is-open");
+    setTimeout(() => {
+      if (dr) dr.hidden = true;
+      if (bd) bd.hidden = true;
+    }, 220);
+  }
+  window._rrOpenScheduleRules = open;
+  window._rrCloseScheduleRules = close;
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("#rr-schedrules-open")) { e.preventDefault(); open(); return; }
+    if (e.target.closest("#rr-schedrules-close")) { e.preventDefault(); close(); return; }
+    if (e.target.id === "rr-schedrules-backdrop") { close(); return; }
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    const dr = document.getElementById("rr-schedrules-drawer");
+    if (dr && !dr.hidden) close();
+  });
+})();
+
+// ─── Hiring message templates drawer ──────────────────────────────────
+// The SMS/email template editor lives on the Onboarding view now, in a
+// slide-over opened from the Funnel → Rules popover's "SMS & messaging"
+// block, rather than under Settings → Hiring messages. Same hoist pattern
+// as the Schedule rules drawer: the .settings-section[data-set=
+// "hiring-messages"] node is moved out of #view-settings on first open so
+// #rr-messages-list + every row handler is preserved; loadMessagesTab
+// repaints it on each open.
+(function _rrHiringMessagesDrawer() {
+  let hoisted = false;
+  function hoist() {
+    if (hoisted) return true;
+    const body = document.getElementById("rr-obmsg-body");
+    const sec =
+      document.querySelector('#view-settings .settings-section[data-set="hiring-messages"]') ||
+      document.querySelector('.settings-section[data-set="hiring-messages"]');
+    if (!body || !sec) return false;
+    sec.classList.remove("hidden");
+    body.appendChild(sec);
+    hoisted = true;
+    return true;
+  }
+  function open() {
+    const dr = document.getElementById("rr-obmsg-drawer");
+    const bd = document.getElementById("rr-obmsg-backdrop");
+    if (!dr) return;
+    hoist();
+    // Close the funnel rules popover behind it, if open.
+    try {
+      const pop = document.getElementById("rr-funnel-rules-popover");
+      if (pop && !pop.hidden) {
+        const tog = document.getElementById("rr-funnel-rules-toggle");
+        if (tog) tog.setAttribute("aria-expanded", "false");
+        pop.hidden = true;
+      }
+    } catch (_) {}
+    if (bd) bd.hidden = false;
+    dr.hidden = false;
+    requestAnimationFrame(() => {
+      dr.classList.add("is-open");
+      if (bd) bd.classList.add("is-open");
+    });
+    if (typeof loadMessagesTab === "function") { try { setTimeout(loadMessagesTab, 0); } catch (_) {} }
+    const closeBtn = document.getElementById("rr-obmsg-close");
+    if (closeBtn) { try { closeBtn.focus(); } catch (_) {} }
+  }
+  function close() {
+    const dr = document.getElementById("rr-obmsg-drawer");
+    const bd = document.getElementById("rr-obmsg-backdrop");
+    if (dr) dr.classList.remove("is-open");
+    if (bd) bd.classList.remove("is-open");
+    setTimeout(() => {
+      if (dr) dr.hidden = true;
+      if (bd) bd.hidden = true;
+    }, 220);
+  }
+  window._rrOpenHiringMessages = open;
+  window._rrCloseHiringMessages = close;
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("#rr-obmsg-open")) { e.preventDefault(); open(); return; }
+    if (e.target.closest("#rr-obmsg-close")) { e.preventDefault(); close(); return; }
+    if (e.target.id === "rr-obmsg-backdrop") { close(); return; }
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    const dr = document.getElementById("rr-obmsg-drawer");
+    if (dr && !dr.hidden) close();
+  });
+})();
+
+// ─── Recognition drawer ───────────────────────────────────────────────
+// Celebration auto-fire toggles live on the Messages view now (they ARE
+// message automation), in a slide-over opened from the Messages header,
+// rather than under Settings → Recognition. Same hoist pattern: the
+// .settings-section[data-set="recognition"] node moves out of
+// #view-settings on first open; loadRecognitionSettings repaints on each
+// open (mirroring the old nav-tab onclick).
+(function _rrRecognitionDrawer() {
+  let hoisted = false;
+  function hoist() {
+    if (hoisted) return true;
+    const body = document.getElementById("rr-recog-body");
+    const sec =
+      document.querySelector('#view-settings .settings-section[data-set="recognition"]') ||
+      document.querySelector('.settings-section[data-set="recognition"]');
+    if (!body || !sec) return false;
+    sec.classList.remove("hidden");
+    body.appendChild(sec);
+    hoisted = true;
+    return true;
+  }
+  function open() {
+    const dr = document.getElementById("rr-recog-drawer");
+    const bd = document.getElementById("rr-recog-backdrop");
+    if (!dr) return;
+    hoist();
+    if (bd) bd.hidden = false;
+    dr.hidden = false;
+    requestAnimationFrame(() => {
+      dr.classList.add("is-open");
+      if (bd) bd.classList.add("is-open");
+    });
+    if (typeof loadRecognitionSettings === "function") { try { setTimeout(loadRecognitionSettings, 0); } catch (_) {} }
+    const closeBtn = document.getElementById("rr-recog-close");
+    if (closeBtn) { try { closeBtn.focus(); } catch (_) {} }
+  }
+  function close() {
+    const dr = document.getElementById("rr-recog-drawer");
+    const bd = document.getElementById("rr-recog-backdrop");
+    if (dr) dr.classList.remove("is-open");
+    if (bd) bd.classList.remove("is-open");
+    setTimeout(() => {
+      if (dr) dr.hidden = true;
+      if (bd) bd.hidden = true;
+    }, 220);
+  }
+  window._rrOpenRecognition = open;
+  window._rrCloseRecognition = close;
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("#rr-recog-open")) { e.preventDefault(); open(); return; }
+    if (e.target.closest("#rr-recog-close")) { e.preventDefault(); close(); return; }
+    if (e.target.id === "rr-recog-backdrop") { close(); return; }
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    const dr = document.getElementById("rr-recog-drawer");
+    if (dr && !dr.hidden) close();
+  });
+})();
 
 
 // ─── Pay & overtime settings ──────────────────────────────────────────
@@ -90482,8 +90763,9 @@ function _rrRequestsToolbarHtml() {
     ${filterBtn("type", "Request type", "Filter by request type")}
     ${filterBtn("status", "Status", "Filter by status")}
     ${filterBtn("loc", "Location", "Filter by location")}
+    <div class="req-health" id="rr-req-health" role="status" aria-live="polite">${(window._reqHealth && window._reqHealth.html) || ""}</div>
     <button type="button" class="req-toolbar-act" id="rr-pto-report-btn" title="Download PTO report"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span>PTO report</span></button>
-    <button type="button" class="req-toolbar-act req-toolbar-primary" data-rr-req-settings aria-haspopup="dialog" aria-expanded="false" title="Driver-app request settings"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>Settings</span></button>
+    <button type="button" class="req-toolbar-act req-toolbar-primary" data-rr-req-settings aria-haspopup="dialog" aria-expanded="false" title="Driver-app request settings"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>Request settings</span></button>
     <span class="rr-roster-chrome-host" id="rr-req-chrome-host"></span>`;
 }
 
@@ -90735,16 +91017,14 @@ function _renderSchedRequestsActive() {
     _renderSchedRequestsKpis();
     return;
   }
-  // LEFT — one unified request stream (PTO + Unpaid + Availability).
+  // One unified request stream (PTO + Unpaid + Availability) → the Recent
+  // Decisions table + (when present) the compact Pending section. The redesign
+  // (2026-07) narrows this page to the reference's single decisions table on a
+  // bare page background — the right-hand reports column and the appended
+  // swaps/covers card are no longer mounted here (their builders remain defined
+  // for reuse elsewhere). Pending requests stay fully actionable in-page.
   try { renderSchedRequestStream(); }
   catch (e) { console.warn("renderSchedRequestStream:", e); }
-  // RIGHT — three operational reports.
-  try { _renderRequestsReports(); }
-  catch (e) { console.warn("_renderRequestsReports:", e); }
-  // Swaps & covers — the live peer-to-peer marketplace queue (100-list
-  // #56; replaces the old hardcoded mock panel).
-  try { _renderSchedSwapsPanel(); }
-  catch (e) { console.warn("_renderSchedSwapsPanel:", e); }
   _renderSchedRequestsKpis();
 }
 window._rrRenderSchedRequestsActive = _renderSchedRequestsActive;
@@ -90901,6 +91181,9 @@ function _renderSchedRequestsKpis() {
   // nodes; re-home it into the freshly-rendered host afterward.
   if (typeof _rrReturnChromeHome === "function") _rrReturnChromeHome();
   bar.innerHTML = _rrRequestsToolbarHtml();
+  // The toolbar rebuild reinjects the cached health markup as a string, so
+  // reapply the meter fill (data-pct → width) after it lands.
+  if (typeof _reqApplyHealthMeter === "function") _reqApplyHealthMeter(bar);
   // Filter clicks are handled by the delegated .rr-status-picker dropdown
   // wiring next to _rrRequestsToolbarHtml, so nothing to attach here.
   if (typeof _rrMoveChromeToRequests === "function") _rrMoveChromeToRequests();
@@ -91298,7 +91581,102 @@ function _reqCoverageImpactCell(it) {
   const { sev, count, dows } = _reqCoverage(it);
   const head = sev === "high" ? "High" : sev === "medium" ? "Medium" : "None";
   const sub = count === 0 ? "No coverage impact" : `${count} coverage day${count === 1 ? "" : "s"} affected`;
-  return `<div class="req-cov req-cov-${sev}"><div class="req-cov-card"><div class="req-cov-head"><span class="req-cov-sev">${head}</span></div><div class="req-cov-sub">${sub}</div></div>${_reqDayChips(dows)}</div>`;
+  return `<div class="req-cov req-cov-${sev}"><div class="req-cov-card"><div class="req-cov-head"><span class="req-cov-sev">${head}</span></div><div class="req-cov-sub">${sub}</div>${_reqDayChips(dows)}</div></div>`;
+}
+
+// Request-health summary for the toolbar — the Requests-page twin of the
+// Schedule action bar's route-coverage card (number + unit, a status sub-line,
+// and a thin meter). Driven entirely by live request state:
+//   • zero pending  → calm green "All requests reviewed", full green meter.
+//   • pending, real coverage still resolving → neutral "Checking coverage…".
+//   • pending, none affecting coverage → neutral "Awaiting review".
+//   • pending affecting coverage → amber (or red when a request can't be
+//     staffed to plan), naming how many pending requests threaten coverage.
+// "Affecting coverage" is read from the SAME real-coverage verdicts the pending
+// rows show (`window._reqRealCov`, populated by _toPaintCoverage for time off
+// and by the availability impact check), so the toolbar can never contradict a
+// row that recommends approval. Nothing here is hardcoded.
+function _reqHealthSummaryHtml(pendingItems, allItems) {
+  const pendN = pendingItems.length;
+  const totalN = allItems.length;
+  const reviewedN = Math.max(0, totalN - pendN);
+  if (pendN === 0) {
+    return `<div class="req-health-inner is-ok" title="All requests reviewed">
+      <div class="req-health-main"><span class="req-health-num">0</span><span class="req-health-unit">PENDING</span></div>
+      <div class="req-health-sub"><svg class="req-health-check" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>All requests reviewed</div>
+      <span class="req-health-meter" data-state="ok"><i data-pct="100"></i></span>
+    </div>`;
+  }
+  // Consult the real per-request coverage verdicts. Values: "risk" (can't
+  // staff to plan), "warn" (fillable only by breaking a rule), "ok" (no
+  // coverage problem), or undefined (async time-off check not back yet).
+  const cov = window._reqRealCov || {};
+  let affecting = 0, anyRisk = false, anyUnknown = false;
+  for (const it of pendingItems) {
+    const v = cov[String(it.row.id)];
+    if (v === undefined) { anyUnknown = true; continue; }
+    if (v === "risk" || v === "warn") { affecting++; if (v === "risk") anyRisk = true; }
+  }
+  let state, sub;
+  if (affecting > 0) {
+    state = anyRisk ? "risk" : "warn";
+    sub = `${affecting} affecting coverage`;
+  } else if (anyUnknown) {
+    state = "info";
+    sub = "Checking coverage…";
+  } else {
+    state = "info";
+    sub = "Awaiting review";
+  }
+  const pct = totalN > 0 ? Math.round((reviewedN / totalN) * 100) : 0;
+  const title = `${pendN} pending request${pendN === 1 ? "" : "s"}`
+    + (affecting > 0 ? ` · ${affecting} affecting coverage` : "");
+  return `<div class="req-health-inner is-${state}" title="${escapeHtml(title)}">
+    <div class="req-health-main"><span class="req-health-num">${pendN}</span><span class="req-health-unit">PENDING</span></div>
+    <div class="req-health-sub"><span class="req-health-dot"></span>${escapeHtml(sub)}</div>
+    <span class="req-health-meter" data-state="${state}"><i data-pct="${pct}"></i></span>
+  </div>`;
+}
+
+// Real coverage verdict for a pending availability-change request, derived from
+// the same supply/demand context (`avCtx`) the row's impact strip uses: "risk"
+// when dropping a day pushes it below its staffing target, else "ok". Returns
+// undefined when no context is available (verdict unknown).
+function _avImpactVerdict(r, ctx) {
+  if (!ctx) return undefined;
+  const DOW = ["mon","tue","wed","thu","fri","sat","sun"];
+  const cur = _reqNormDays(r.current_days);
+  const next = _reqNormDays(r.days || r.requested_days);
+  const supply = ctx.supplyByDow || {};
+  const demand = ctx.demandByDow || {};
+  for (const d of DOW) {
+    if (cur.has(d) && !next.has(d)) {
+      const need = demand[d] || 0;
+      const after = (supply[d] || 0) - 1;
+      if (need > 0 && after < need) return "risk";
+    }
+  }
+  return "ok";
+}
+
+// Set the meter fill from its data-pct (kept off the HTML string so no inline
+// style attribute lands in source — the design-lint ratchet stays clean). Safe
+// to call after any path that (re)injects the health markup.
+function _reqApplyHealthMeter(scope) {
+  const root = scope || document;
+  root.querySelectorAll(".req-health-meter > i[data-pct]").forEach((i) => {
+    i.style.width = `${Math.max(0, Math.min(100, Number(i.getAttribute("data-pct")) || 0))}%`;
+  });
+}
+window._reqApplyHealthMeter = _reqApplyHealthMeter;
+
+// Paint the toolbar health summary from the current stream state and cache the
+// markup so a toolbar re-render (which rebuilds innerHTML) shows it immediately.
+function _reqPaintHealth(pendingItems, allItems) {
+  const html = _reqHealthSummaryHtml(pendingItems, allItems);
+  window._reqHealth = { html };
+  const node = document.getElementById("rr-req-health");
+  if (node) { node.innerHTML = html; _reqApplyHealthMeter(node); }
 }
 
 // "Requested change" — what actually changed in plain words (bold primary +
@@ -91344,7 +91722,7 @@ function _reqDecidedRowHtml(it) {
   const chg = _reqRequestedChange(it);
   const dec = _reqDecisionParts(r);
   return `<tr class="req-trow" data-req-row="${escapeHtml(r.id)}" tabindex="0" role="button" aria-label="Open ${escapeHtml(name)} request detail">
-    <td class="req-td-driver"><div class="cell-driver"><div class="avatar-sm">${escapeHtml(_reqInitials(name))}</div><div class="cell-driver-text"><div class="cell-name"><span class="cell-name-text">${escapeHtml(name)}</span></div><div class="cell-name-sub">${escapeHtml(station)}</div></div></div></td>
+    <td class="req-td-driver"><div class="cell-driver"><div class="avatar-sm req-avatar">${escapeHtml(_reqInitials(name))}</div><div class="cell-driver-text"><div class="cell-name"><span class="cell-name-text">${escapeHtml(name)}</span></div><div class="cell-name-sub">${escapeHtml(station)}</div></div></div></td>
     <td>${_reqCoverageImpactCell(it)}</td>
     <td><div class="req-change"><div class="req-change-main">${escapeHtml(chg.primary)}</div><div class="req-change-sub">${escapeHtml(chg.sub)}</div></div></td>
     <td><span class="status-pill ${st[0]}">${st[1]}</span></td>
@@ -91469,20 +91847,42 @@ async function renderSchedRequestStream() {
   const _locLbl = document.querySelector('#rr-req-toolbar-bar [data-req-filter="loc"] .req-filter-label');
   if (_locLbl) _locLbl.textContent = _rrReqFilterLabel("loc");
 
+  // Toolbar health summary · reflects the true (unfiltered) request state so
+  // "0 PENDING · All requests reviewed" can't be masked by an active filter.
+  // Seed the real-coverage verdict store: availability verdicts resolve now
+  // (from avCtx); time-off verdicts fill in when _toPaintCoverage's per-request
+  // RPCs land, and the summary is repainted then. Anything still unresolved
+  // reads as "Checking coverage…" rather than a weekday-count guess.
+  const pendingAll = items.filter(isPending);
+  window._reqRealCov = {};
+  for (const it of pendingAll) {
+    if (it.type === "availability") {
+      const v = _avImpactVerdict(it.row, avCtx);
+      if (v !== undefined) window._reqRealCov[String(it.row.id)] = v;
+    }
+  }
+  _reqPaintHealth(pendingAll, items);
+
+  // Recent Decisions table — dense, flat, Schedule-grid feel. Column widths
+  // are fixed via a colgroup so they hold the reference proportions
+  // (Driver 22 · Coverage 19 · Change 25 · Status 15 · Date 16 · chevron).
+  const decidedTable = `<div class="req-table-wrap"><table class="req-table">
+    <colgroup><col class="req-col-driver"><col class="req-col-cov"><col class="req-col-change"><col class="req-col-status"><col class="req-col-date"><col class="req-col-chev"></colgroup>
+    <thead><tr><th>Driver</th><th>Coverage impact</th><th>Requested change</th><th>Status</th><th>Decision date</th><th class="req-th-chev" aria-hidden="true"></th></tr></thead>
+    <tbody>${decided.map(_reqDecidedRowHtml).join("")}</tbody></table></div>`;
+
   host.innerHTML = `
     <div class="req-page">
-      <section class="req-section">
+      ${pending.length ? `<section class="req-section">
         <div class="req-section-head"><span class="req-section-title">Pending Requests</span><span class="req-section-count">${pending.length}</span></div>
-        ${pending.length
-          ? `<div class="req-pending">${pending.map(pendingRowHtml).join("")}</div>`
-          : `<div class="req-allclear"><span class="req-allclear-ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg></span><div class="req-allclear-text"><div class="req-allclear-title">No pending requests</div><div class="req-allclear-sub">All caught up. New requests will appear here.</div></div></div>`}
-      </section>
+        <div class="req-pending">${pending.map(pendingRowHtml).join("")}</div>
+      </section>` : ``}
 
       <section class="req-section">
         <div class="req-section-head"><span class="req-section-title">Recent Decisions</span><span class="req-section-count">${decided.length}</span></div>
         ${decided.length
-          ? `<div class="req-table-wrap"><table class="req-table"><thead><tr><th>Driver</th><th>Coverage impact</th><th>Requested change</th><th>Status</th><th>Decision date</th><th class="req-th-chev" aria-hidden="true"></th></tr></thead><tbody>${decided.map(_reqDecidedRowHtml).join("")}</tbody></table></div>`
-          : `<div class="rr-empty-inline">No decided requests yet.</div>`}
+          ? decidedTable
+          : `<div class="req-nodata">${items.length ? "No requests match these filters." : "No decisions yet. Approved and denied requests will appear here."}</div>`}
       </section>
     </div>`;
 
@@ -91503,28 +91903,22 @@ async function renderSchedRequestStream() {
     tr.addEventListener("click", () => _openReqRow(tr));
     tr.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); _openReqRow(tr); } });
   });
-  _toPaintCoverage(host).catch((e) => console.warn("coverage check:", e));
-  // Stretch the card to fill the viewport so the page doesn't dead-end in
-  // empty space below a short table. Two rAFs so the toolbar + body have laid
-  // out before we measure the card's top.
-  requestAnimationFrame(() => requestAnimationFrame(_rrSizeRequestsCard));
+  // Time-off coverage checks are async (one RPC per pending request). When they
+  // land, _toPaintCoverage records each real verdict into window._reqRealCov;
+  // repaint the toolbar health so "N affecting coverage" matches the row
+  // recommendations exactly (never contradicts an Approve verdict).
+  _toPaintCoverage(host)
+    .then(() => { try { _reqPaintHealth(pendingAll, items); } catch (_) {} })
+    .catch((e) => console.warn("coverage check:", e));
 }
 window._rrRenderSchedRequestStream = renderSchedRequestStream;
 
-// Size the Requests card so its bottom sits just above the viewport edge
-// (robust to the toolbar height / top offset, like the roster's table sizing).
-function _rrSizeRequestsCard() {
-  const card = document.getElementById("rr-sched-req-stream-panel");
-  if (!card) return;
-  const sub = document.getElementById("sched-sub-requests");
-  if (!sub || getComputedStyle(sub).display === "none") return; // only when visible
-  const top = card.getBoundingClientRect().top;
-  const h = Math.max(360, Math.round(window.innerHeight - top - 20));
-  card.style.maxHeight = "none";
-  card.style.height = h + "px";
-}
+// The Requests redesign places the decisions table directly on the page
+// background (no full-height outer card), so the old viewport-fill sizing is
+// retired — the content flows and the page scrolls naturally. Kept as a
+// no-op shim so any lingering caller stays safe.
+function _rrSizeRequestsCard() {}
 window._rrSizeRequestsCard = _rrSizeRequestsCard;
-window.addEventListener("resize", () => { try { _rrSizeRequestsCard(); } catch (_) {} });
 
 // RIGHT column · three equally-sized operational reports.
 //   1 · Availability by day — active drivers available each weekday.
@@ -92039,6 +92433,9 @@ async function _toPaintCoverage(host) {
     if (res?.error || !res?.data) {
       slot.classList.add("to-cov-unknown");
       slot.innerHTML = `<div class="to-cov-head"><span class="to-row-coverage-dot"></span><span class="to-cov-verdict">Coverage check unavailable</span></div>`;
+      // Verdict resolved-but-unknown: record "ok" so the toolbar health leaves
+      // "Checking coverage…" and doesn't raise a false coverage alarm.
+      if (window._reqRealCov) window._reqRealCov[String(id)] = "ok";
       continue;
     }
     const d = res.data;
@@ -92074,6 +92471,13 @@ async function _toPaintCoverage(host) {
         : `all ${total} freed shifts can be filled to plan by eligible drivers.`;
     }
     slot.classList.add(cls);
+    // Record the real verdict for the toolbar health summary so its "affecting
+    // coverage" count mirrors these row recommendations exactly: blocked → risk
+    // (can't staff to plan), rule-break → warn, filled/no-impact → ok.
+    if (window._reqRealCov) {
+      window._reqRealCov[String(id)] = cls === "to-cov-blocked" ? "risk"
+        : cls === "to-cov-rule" ? "warn" : "ok";
+    }
     // One actionable line: recommend Approve when the freed shifts can be
     // filled to plan, Deny when they can't.
     const recCls = rec === "Approve" ? "to-cov-rec-approve" : "to-cov-rec-deny";

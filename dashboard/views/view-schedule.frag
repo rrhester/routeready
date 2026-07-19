@@ -1256,6 +1256,16 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="7.5 12.5 11 16 16.5 9"/></svg>
               Finalize
             </button>
+            <!-- Schedule rules · opens the DSP-wide scheduling-engine rules
+                 drawer (working-hour limits, pay/OT, geofences, self-
+                 service, attendance windows, availability rules, the
+                 enforced floor). These rules moved here off the former
+                 Settings → Scheduling tab; the section markup is hoisted
+                 into #rr-schedrules-body on first open. -->
+            <button class="sched-page-btn" id="rr-schedrules-open" type="button" title="DSP-wide scheduling rules · hours, pay, geofences, self-service, attendance">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+              Schedule rules
+            </button>
             <!-- Kudos · opens the Send Kudos modal (live.js). Below
                  it sits a Rules footer that lets the DSP toggle
                  which milestone banners appear on the schedule. -->
@@ -1897,6 +1907,15 @@
               var on   = function (id, fn) { var b = document.getElementById(id); if (b) b.addEventListener("click", fn); };
               on("rr-ab-smartfill", function (e) {
                 if (e.target.closest("#rr-ab-smartfill-caret")) return; // caret owns its click
+                // Single toggle: once the week is built (all routes covered)
+                // this pill becomes "Unassign shifts" and clears every driver
+                // assignment instead of building. State is set by
+                // _rrRefreshBuildScheduleToggle (live.js) via data-rr-built.
+                var self = document.getElementById("rr-ab-smartfill");
+                if (self && self.dataset.rrBuilt === "1" && window._rrRunUnassignAllShiftsForWeek) {
+                  window._rrRunUnassignAllShiftsForWeek(self);
+                  return;
+                }
                 fire("rr-sched-smartfill-h");
               });
               on("rr-ab-smartfill-caret", function (e) {
@@ -1970,20 +1989,10 @@
                      5 icons render as 4 on top + 1 on the bottom
                      until more are added. -->
                 <div class="rr-sched-driver-actions" style="display:grid;grid-template-columns:repeat(4, auto);grid-auto-rows:auto;gap:4px;margin-left:auto;align-items:center;justify-items:center">
-                  <!-- Focus mode · hides page chrome so the grid + open
-                       shifts fill the screen (Esc exits). Toggles
-                       body.rr-sched-focus; the click handler (live.js
-                       #rr-sched-focus-toggle) and styling (schedule-rrx.css)
-                       are already live. The .ic-focus-on/-off SVGs swap when
-                       focus engages. Restored to the driver header with the
-                       other subtle icons per operator request. -->
-                  <button class="rr-tf-icon" id="rr-sched-focus-toggle" type="button"
-                          title="Focus mode — hide page chrome so the schedule fills the screen (Esc to exit)"
-                          aria-label="Focus mode" aria-pressed="false"
-                          style="position:relative;top:0;right:0">
-                    <svg class="ic-focus-on" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
-                    <svg class="ic-focus-off" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg>
-                  </button>
+                  <!-- (Removed) Focus-mode header icon per operator request.
+                       The toggle logic + CSS remain live in case it's
+                       re-surfaced elsewhere; only the driver-header button is
+                       gone. -->
                   <!-- Hide / show the Open shifts rail. Unlike Focus mode
                        (which hides all page chrome), this only collapses the
                        right-hand Open shifts box so the grid fills that space.
@@ -2026,17 +2035,11 @@
                           style="position:relative;top:0;right:0">
                     <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11l-3-3"/><path d="M22 8l-3 3"/></svg>
                   </button>
-                  <!-- Unassign all shifts this week · header-icon twin of the
-                       Open-shifts pool button. Clears every driver assignment
-                       for the visible week (shifts stay; only the driver
-                       assignments are cleared). Handler in live.js keys on
-                       #rr-sched-unassign-week-icon → _runUnassignAllShiftsForWeek. -->
-                  <button class="rr-tf-icon" id="rr-sched-unassign-week-icon" type="button"
-                          title="Unassign all shifts this week — clears every driver assignment (shifts stay)"
-                          aria-label="Unassign all shifts this week"
-                          style="position:relative;top:0;right:0">
-                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="17" y1="8" x2="22" y2="13"/><line x1="22" y1="8" x2="17" y2="13"/></svg>
-                  </button>
+                  <!-- (Removed) Unassign-all-shifts header icon — the action
+                       now lives on the Build Schedule action-bar pill, which
+                       flips to "Unassign shifts" once the week is built. The
+                       Open-shifts pool button (#rr-unassign-week) still offers
+                       it too. -->
                   <!-- Weather forecast overlay · flips each day header from the
                        date + coverage/route counts to a single forecast glyph
                        (sun / cloud / rain / storm / snow / heat / cold / wind)
@@ -2991,3 +2994,23 @@
         </aside>
       </div>
     
+      <!-- ── Schedule rules drawer ──────────────────────────────────
+           DSP-wide scheduling engine rules, slid over the Schedule
+           view. Body is empty here; the .settings-section[data-set=
+           "scheduling"] node is hoisted in on first open by
+           _rrScheduleRulesDrawer (live.js), preserving every element id
+           + delegated save handler. position:fixed + hidden by default,
+           so it never affects flow layout or visual snapshots. -->
+      <div class="rr-schedrules-backdrop" id="rr-schedrules-backdrop" hidden></div>
+      <aside class="rr-schedrules-drawer" id="rr-schedrules-drawer" role="dialog" aria-modal="true" aria-labelledby="rr-schedrules-title" hidden>
+        <div class="rr-schedrules-head">
+          <div>
+            <h2 class="rr-schedrules-title" id="rr-schedrules-title">Schedule rules</h2>
+            <p class="rr-schedrules-sub">DSP-wide rules the schedule engine, Cover, and driver self-service all read. Per-week settings still live behind the Rules gear on the ribbon.</p>
+          </div>
+          <button type="button" class="rr-schedrules-close" id="rr-schedrules-close" aria-label="Close schedule rules">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="rr-schedrules-body" id="rr-schedrules-body"></div>
+      </aside>

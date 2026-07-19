@@ -6588,25 +6588,22 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
    name weight, rows darkened a few %.
    ───────────────────────────────────────────────────────────── */
 
-/* (9) Workspace tray behind the request stream — recessed
-   #F7F9FC, zero net displacement. */
+/* Requests redesign (2026-07) · the decisions table now sits directly on the
+   pale page background — no workspace tray, no outer card. Strip the tray so
+   the content aligns with the Schedule grid's page padding. */
 #view-schedule.rrx-schedule #sched-sub-requests .sched-requests-split {
-  background: #F7F9FC;
-  border-radius: 14px;
-  padding: 6px;
-  margin: -6px;
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+  margin: 0;
 }
 
-/* (2) Plant the unified request-stream container. It already
-   carries a white surface + radius + a 0 1px 4px shadow and a
-   --req-hairline (rgba .05) border; re-key it to the exact spec
-   surface so it matches the Schedule grid: crisp #E6EAF2
-   hairline, 12px corners, the single whisper shadow. Padding
-   preserved. */
+/* Strip the former outer stream card entirely (border / radius / shadow /
+   padding / height cap) so `.req-page` renders flat on the page. */
 #view-schedule.rrx-schedule #sched-sub-requests .sched-requests-card {
-  border: 1px solid #E6EAF2;
-  border-radius: 12px;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 /* (3) Control row — the filter/PTO toolbar. Add a quiet bottom
@@ -7180,4 +7177,67 @@ body.rr-sched-carrying #view-schedule #sched-sub-week .cal-cell[data-rr-cell="dr
      Tint via an inset box-shadow fill instead of background so we don't
      have to escalate priority, and the opaque white base is preserved. */
   box-shadow: inset 0 0 0 999px rgba(15, 23, 42, 0.03);
+}
+
+/* ── Schedule rules drawer ───────────────────────────────────────────
+   DSP-wide scheduling engine rules (working-hour limits, pay/OT,
+   geofences, driver self-service, attendance windows, availability
+   rules, the enforced floor) live on the Schedule view now — hoisted
+   from the former Settings → Scheduling tab into this slide-over on
+   first open, so every element id + delegated save handler is preserved
+   verbatim; only the DOM parent changes. Token-only so the design
+   ratchet holds (no raw hex, literal font-size, or bang-priority). */
+.rr-schedrules-backdrop {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay);
+  opacity: 0;
+  transition: opacity 0.18s ease;
+  z-index: 4000;
+}
+.rr-schedrules-backdrop.is-open { opacity: 1; }
+.rr-schedrules-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(760px, 96vw);
+  display: flex;
+  flex-direction: column;
+  background: var(--rr-bg-surface-1);
+  border-left: 1px solid var(--rr-border-primary);
+  box-shadow: var(--rr-shadow-8);
+  transform: translateX(100%);
+  transition: transform 0.2s ease;
+  z-index: 4001;
+}
+.rr-schedrules-drawer.is-open { transform: translateX(0); }
+.rr-schedrules-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--rr-space-120);
+  padding: var(--rr-space-160);
+  border-bottom: 1px solid var(--rr-border-secondary);
+  flex: 0 0 auto;
+}
+.rr-schedrules-title { font: var(--rr-font-title); margin: 0; }
+.rr-schedrules-sub { font: var(--rr-font-body); color: var(--text-subtle); margin: 6px 0 0; }
+.rr-schedrules-body { flex: 1 1 auto; overflow-y: auto; padding: var(--rr-space-160); }
+/* The hoisted section is a .settings-section.hidden; the drawer owns
+   its visibility, so force it visible inside the drawer body. */
+.rr-schedrules-body .settings-section,
+.rr-schedrules-body .settings-section.hidden { display: block; }
+.rr-schedrules-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  border: 1px solid var(--rr-border-secondary);
+  border-radius: var(--rr-radius-large);
+  background: var(--rr-bg-surface-1);
+  color: inherit;
+  cursor: pointer;
 }
