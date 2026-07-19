@@ -1840,16 +1840,25 @@ td.rr-lastcoach-col > span > span{color:var(--rr-gray-600) !important}
 #view-schedule .req-td-driver .avatar-sm.req-avatar{background:var(--canvas);color:var(--text-muted);border:1px solid var(--border);font-weight:700}
 /* Compact in-table empty message (no big empty-state panel). */
 #view-schedule .req-nodata{padding:22px 18px;border:1px solid var(--border);border-radius:7px;background:var(--surface);color:var(--text-subtle);font-size:var(--fs-sm)}
-#view-schedule .req-td-eff{color:var(--text-subtle);white-space:nowrap}
-#view-schedule .req-detail{color:var(--text);font-variant-numeric:tabular-nums}
-#view-schedule .req-detail-dim{color:var(--text-disabled)}
-/* Coverage Impact — green = added capacity, red = dropped, neutral = flat. */
-#view-schedule .req-impact{display:flex;flex-direction:column;line-height:1.25;min-width:140px}
-#view-schedule .req-impact-main{font-size:var(--fs-sm);font-weight:600}
-#view-schedule .req-impact-sub{font-size:var(--fs-xs);color:var(--text-subtle)}
-#view-schedule .req-impact-pos .req-impact-main{color:var(--rr-green-700)}
-#view-schedule .req-impact-neg .req-impact-main{color:#B42318}
-#view-schedule .req-impact-flat .req-impact-main{color:var(--text-subtle);font-weight:500}
+/* Inline row detail · drops open beneath a decision row (accordion — one open
+   at a time), replacing the old side-drawer. Animates via a 0fr→1fr grid row
+   like the applicants notes drawer. */
+#view-schedule .req-detail-row > .req-detail-cell{height:auto;padding:0;border-right:0;border-bottom:1px solid var(--border);background:var(--canvas)}
+#view-schedule .req-detail-wrap{display:grid;grid-template-rows:0fr;transition:grid-template-rows .28s cubic-bezier(.4,0,.2,1)}
+#view-schedule .req-detail-row.is-open > .req-detail-cell > .req-detail-wrap{grid-template-rows:1fr}
+#view-schedule .req-detail-inner{overflow:hidden;min-height:0}
+#view-schedule .req-detail-inner > *{padding-left:18px;padding-right:18px}
+#view-schedule .req-detail-type{padding-top:14px;font-size:var(--fs-10-5);font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle)}
+#view-schedule .req-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 28px;padding-top:10px;padding-bottom:16px}
+#view-schedule .req-detail-field-wide{grid-column:1 / -1}
+#view-schedule .req-detail-label{font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px}
+#view-schedule .req-detail-value{font-size:var(--fs-sm);color:var(--text);line-height:1.45}
+#view-schedule .req-detail-dim{color:var(--text-subtle)}
+/* Chevron rotates to point down when the row is open; the open row shares the
+   detail's subtle tint. */
+#view-schedule .req-trow .req-td-chev svg{transition:transform .2s ease}
+#view-schedule .req-trow.is-open .req-td-chev svg{transform:rotate(90deg)}
+#view-schedule .req-trow.is-open td{background:var(--canvas)}
 /* All-clear banner — compact full-width success bar (replaces the big empty card). */
 #view-schedule .req-allclear{display:flex;align-items:center;gap:14px;width:100%;min-height:76px;padding:16px 20px;border-radius:var(--r-lg);background:var(--canvas);border:1px solid var(--border)}
 #view-schedule .req-allclear-ic{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;background:rgba(22,163,74,.12);color:var(--rr-green-600);flex:0 0 auto}
@@ -1864,7 +1873,10 @@ td.rr-lastcoach-col > span > span{color:var(--rr-gray-600) !important}
    (border-radius:0, same as .shift-chip) and the app's canonical status
    palette (--green / --amber / --red + their -soft fills), so the Requests
    colors read as the same language as the schedule grid's cards. */
-#view-schedule .req-cov-card{display:inline-flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:3px;box-sizing:border-box;min-width:0;max-width:100%;padding:7px 10px;border:1px solid transparent;border-radius:0}
+/* Fixed footprint so every coverage block is the SAME size at all times,
+   regardless of severity or how many day tags it carries (tags are capped +
+   kept to one row; the count also lives in the sub-line). */
+#view-schedule .req-cov-card{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;box-sizing:border-box;width:168px;max-width:100%;height:72px;overflow:hidden;padding:8px 10px;border:1px solid transparent;border-radius:0}
 #view-schedule .req-cov-head{display:flex;align-items:center;gap:7px}
 #view-schedule .req-cov-sev{font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase}
 #view-schedule .req-cov-sub{font-size:var(--fs-sm);font-weight:500;color:var(--rr-slate-600);line-height:1.25}
@@ -1874,9 +1886,11 @@ td.rr-lastcoach-col > span > span{color:var(--rr-gray-600) !important}
 #view-schedule .req-cov-medium .req-cov-sev{color:var(--amber-dark)}
 #view-schedule .req-cov-none .req-cov-card{background:var(--green-soft);border-color:color-mix(in srgb,var(--green) 30%,transparent)}
 #view-schedule .req-cov-none .req-cov-sev{color:var(--green)}
-#view-schedule .req-cov-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px}
+/* One non-wrapping row of tags so the block height never changes. */
+#view-schedule .req-cov-chips{display:flex;flex-wrap:nowrap;gap:4px;margin-top:2px;overflow:hidden}
 /* Square day tags too, so the whole block reads as crisp Excel/Outlook cells. */
-#view-schedule .req-cov-chip{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:18px;padding:0 6px;border-radius:0;font-size:var(--fs-10-5);font-weight:600;color:var(--text-muted);background:var(--surface);border:1px solid var(--border)}
+#view-schedule .req-cov-chip{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:18px;padding:0 6px;border-radius:0;font-size:var(--fs-10-5);font-weight:600;color:var(--text-muted);background:var(--surface);border:1px solid var(--border)}
+#view-schedule .req-cov-chip-more{min-width:0;color:var(--text-subtle);background:transparent;border-color:transparent;padding:0 2px}
 
 /* ── Toolbar request-health summary · the Requests-page twin of the Schedule
    action bar's route-coverage card. Number + unit on top, a status sub-line,
@@ -1919,27 +1933,6 @@ td.rr-lastcoach-col > span > span{color:var(--rr-gray-600) !important}
 #view-schedule .req-table .status-pill-approved::before{background:var(--rr-green-600)}
 #view-schedule .req-table .status-pill-denied::before{background:var(--rr-red-600)}
 #view-schedule .req-table .status-pill-pending::before{background:var(--rr-amber-600)}
-/* Row detail panel — right-side drawer with the navy header treatment. */
-.rr-req-detail{position:fixed;inset:0;z-index:1200}
-.rr-req-detail-backdrop{position:absolute;inset:0;background:rgba(15,23,42,.20);opacity:0;transition:opacity .2s}
-.rr-req-detail.is-open .rr-req-detail-backdrop{opacity:1}
-.rr-req-detail-panel{position:absolute;top:0;right:0;height:100%;width:min(420px,92vw);background:var(--surface);border-left:1px solid var(--sidebar);box-shadow:-24px 0 60px -30px rgba(15,23,42,.45);display:flex;flex-direction:column;overflow:hidden;transform:translateX(100%);transition:transform .22s cubic-bezier(.32,.72,0,1)}
-.rr-req-detail.is-open .rr-req-detail-panel{transform:translateX(0)}
-.rr-reqd-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 18px;background:var(--sidebar)}
-.rr-reqd-title{font-size:var(--fs-base);font-weight:700;color:var(--rr-white)}
-.rr-reqd-sub{font-size:var(--fs-sm);color:rgba(255,255,255,.72);margin-top:2px}
-.rr-reqd-close{background:none;border:0;color:rgba(255,255,255,.85);font-size:var(--fs-xl);line-height:1;cursor:pointer;padding:0 4px}
-.rr-reqd-body{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:16px}
-.rr-reqd-field{display:flex;flex-direction:column;gap:5px}
-.rr-reqd-label{font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)}
-.rr-reqd-value{font-size:var(--fs-sm);color:var(--text);line-height:1.45}
-.rr-reqd-dim{color:var(--text-subtle)}
-.rr-reqd-body .req-cov{min-width:0}
-.rr-reqd-body .status-pill{display:inline-flex;align-items:center;padding:3px 10px;border-radius:999px;font-size:var(--fs-xs);font-weight:600;border:0;background:var(--canvas);color:var(--text-muted)}
-.rr-reqd-body .status-pill::before{display:none}
-.rr-reqd-body .status-pill-approved{background:rgba(22,163,74,.12);color:var(--rr-green-700)}
-.rr-reqd-body .status-pill-denied{background:rgba(220,38,38,.10);color:#B42318}
-.rr-reqd-body .status-pill-pending{background:rgba(217,119,6,.12);color:var(--rr-amber-700)}
 /* Request-type badge colors per spec: Availability=blue, PTO=purple, Unpaid=gray. */
 #view-schedule .req-type-badge.is-availability{background:rgba(37,99,235,.10);color:var(--rr-blue-700);border-color:transparent}
 #view-schedule .req-type-badge.is-pto{background:rgba(109,40,217,.10);color:#6D28D9;border-color:transparent}
@@ -1951,6 +1944,22 @@ td.rr-lastcoach-col > span > span{color:var(--rr-gray-600) !important}
    so the open list matches the schedule dropdowns, not the OS listbox) and the
    action buttons (PTO report, Settings) share it via .req-toolbar-act. */
 #view-schedule .req-toolbar-bar{display:flex;align-items:center;gap:var(--s-2-5);flex-wrap:wrap;margin:0 0 var(--s-4);padding-top:var(--s-4)}
+/* Driver search · same compact white control chrome as the filter buttons. */
+#view-schedule .req-toolbar-bar .req-search{position:relative;display:inline-flex;align-items:center;height:38px;flex:0 0 auto}
+#view-schedule .req-toolbar-bar .req-search-ic{position:absolute;left:11px;color:var(--text-subtle);pointer-events:none}
+#view-schedule .req-toolbar-bar .req-search-input{
+  height:38px;box-sizing:border-box;width:200px;
+  padding:0 12px 0 32px;
+  border-radius:var(--sch-radius, 8px);
+  border:1px solid var(--sidebar);
+  background-color:var(--surface);
+  box-shadow:0 1px 2px rgba(15,23,42,.04);
+  font:inherit;font-size:var(--fs-sm);font-weight:500;color:var(--text);
+  transition:box-shadow var(--t-fast),border-color var(--t-fast);
+}
+#view-schedule .req-toolbar-bar .req-search-input::placeholder{color:var(--text-subtle);font-weight:500}
+#view-schedule .req-toolbar-bar .req-search-input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+#view-schedule .req-toolbar-bar .req-search-input::-webkit-search-cancel-button{-webkit-appearance:none;appearance:none}
 #view-schedule .req-toolbar-bar .req-toolbar-filter,
 #view-schedule .req-toolbar-bar .req-toolbar-act{
   height:38px;line-height:1;
