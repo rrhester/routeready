@@ -1737,10 +1737,7 @@
               <div class="rr-tgt-set-editor" id="rr-sched-targets-st-host"></div>
             </div>
           </div>
-          <!-- Status pill removed per operator. The per-week save status still
-               surfaces via toasts / the Save Plan flow. -->
-          <span id="rr-sched-targets-rules-status" aria-live="polite" hidden></span>
-          <!-- Right side · Gap status card + Save Plan, then the shared
+          <!-- Right side · forecast KPI + auto-save status, then the shared
                top-right chrome (⋯ / bell / avatar) which is moved in from the
                Schedule action bar on Targets entry by _rrMoveChromeToTargets. -->
           <div class="rr-tgt-toolbar-right">
@@ -1754,8 +1751,12 @@
               <span class="rr-tgt-kpi-forecast-main" id="rr-tgt-kpi-forecast-main">—</span>
               <span class="rr-tgt-kpi-forecast-sub" id="rr-tgt-kpi-forecast-sub"></span>
             </div>
-            <span id="rr-tgt-save-status" class="rr-tgt-save-status" aria-live="polite"></span>
-            <button type="button" class="rr-tgt-save-plan" id="rr-tgt-save-plan" disabled title="Save this week's rules (Block / Cushion / Report / Waves) and rebuild its unassigned shifts">Apply changes</button>
+            <!-- No "Apply changes" button — the rules auto-save: Block/Cushion/
+                 Report time debounce-save on edit, waves + service types save
+                 from inside the Settings popover. This span is the quiet
+                 auto-save confirmation (Saving… / Saved), written by
+                 _flashOkamiTargetsStatus. -->
+            <span id="rr-sched-targets-rules-status" class="rr-tgt-autosave-status" aria-live="polite"></span>
             <span class="rr-tgt-chrome-host" id="rr-tgt-chrome-host"></span>
           </div>
         </div><!-- /#rr-sched-targets-kpis -->
