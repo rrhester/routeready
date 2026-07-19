@@ -6167,7 +6167,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   display:flex;justify-content:space-between;align-items:center;
   min-height:48px;
 }
-.msg-list-title{font-size:var(--fs-md);font-weight:700;color:var(--text);letter-spacing:-.005em;line-height:1.2}
+.msg-list-title{font-size:var(--fs-md);font-weight:700;color:var(--text);letter-spacing:-.005em;line-height:1.2;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .msg-list-search{
   margin:var(--s-3) var(--s-4) var(--s-2);padding:var(--s-2) var(--s-3);
   border:1px solid var(--border-strong);border-radius:var(--r-md);
@@ -7253,7 +7253,7 @@ body.rr-cmdk-open{ overflow:hidden }
   border-right:1px solid var(--border) !important;
   padding:0;
 }
-.msg-list-head{border-bottom:0 !important;padding:var(--s-4) var(--s-4) var(--s-2)}
+.msg-list-head{border-bottom:0 !important;padding:var(--s-4) var(--s-3) var(--s-2);gap:var(--s-2)}
 .msg-item{
   border-bottom:1px solid rgba(15,23,42,.06) !important;
   padding:9px var(--s-4) !important;
@@ -7894,7 +7894,7 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 
 /* ── Messages header · call-a-teammate + new-message buttons ─────────── */
-.msg-head-actions{ display:flex;align-items:center;gap:6px }
+.msg-head-actions{ display:flex;align-items:center;gap:4px;flex:0 0 auto }
 .msg-headbtn{
   width:30px;height:30px;border-radius:50%;flex:0 0 auto;
   display:inline-flex;align-items:center;justify-content:center;
