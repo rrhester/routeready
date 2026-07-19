@@ -30,7 +30,11 @@
             <button class="settings-nav-item" data-set="referrals" onclick="setSettingsSection(this)">Hiring referrals</button>
             <!-- SMS & messaging moved to Onboarding → Funnel ▸ Rules -->
             <!-- License renewals moved to Onboarding → Roster → Licences ▸ Rules -->
-            <button class="settings-nav-item" data-set="scheduling" onclick="setSettingsSection(this)">Scheduling</button>
+            <!-- Scheduling (DSP-wide engine rules) moved to the Schedule
+                 view → "Schedule rules" drawer. The section markup below
+                 (data-set="scheduling") is hoisted there on first open;
+                 this nav tab was removed so Settings holds org config
+                 only. -->
             <button class="settings-nav-item" data-set="recognition" onclick="setSettingsSection(this); if (typeof loadRecognitionSettings === 'function') loadRecognitionSettings();">Recognition</button>
             <button class="settings-nav-item" data-set="billing" onclick="setSettingsSection(this)">Billing</button>
           </nav>

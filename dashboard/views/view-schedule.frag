@@ -1256,6 +1256,16 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="7.5 12.5 11 16 16.5 9"/></svg>
               Finalize
             </button>
+            <!-- Schedule rules · opens the DSP-wide scheduling-engine rules
+                 drawer (working-hour limits, pay/OT, geofences, self-
+                 service, attendance windows, availability rules, the
+                 enforced floor). These rules moved here off the former
+                 Settings → Scheduling tab; the section markup is hoisted
+                 into #rr-schedrules-body on first open. -->
+            <button class="sched-page-btn" id="rr-schedrules-open" type="button" title="DSP-wide scheduling rules · hours, pay, geofences, self-service, attendance">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+              Schedule rules
+            </button>
             <!-- Kudos · opens the Send Kudos modal (live.js). Below
                  it sits a Rules footer that lets the DSP toggle
                  which milestone banners appear on the schedule. -->
@@ -3000,3 +3010,23 @@
         </aside>
       </div>
     
+      <!-- ── Schedule rules drawer ──────────────────────────────────
+           DSP-wide scheduling engine rules, slid over the Schedule
+           view. Body is empty here; the .settings-section[data-set=
+           "scheduling"] node is hoisted in on first open by
+           _rrScheduleRulesDrawer (live.js), preserving every element id
+           + delegated save handler. position:fixed + hidden by default,
+           so it never affects flow layout or visual snapshots. -->
+      <div class="rr-schedrules-backdrop" id="rr-schedrules-backdrop" hidden></div>
+      <aside class="rr-schedrules-drawer" id="rr-schedrules-drawer" role="dialog" aria-modal="true" aria-labelledby="rr-schedrules-title" hidden>
+        <div class="rr-schedrules-head">
+          <div>
+            <h2 class="rr-schedrules-title" id="rr-schedrules-title">Schedule rules</h2>
+            <p class="rr-schedrules-sub">DSP-wide rules the schedule engine, Cover, and driver self-service all read. Per-week settings still live behind the Rules gear on the ribbon.</p>
+          </div>
+          <button type="button" class="rr-schedrules-close" id="rr-schedrules-close" aria-label="Close schedule rules">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="rr-schedrules-body" id="rr-schedrules-body"></div>
+      </aside>

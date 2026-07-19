@@ -93,7 +93,28 @@ Integrations** (org config only) + a per-user **Account & security** page.
   verified with Playwright: nav shows the tab, pane renders all three
   controls, Workspace no longer carries them, deep-link lands. SW nonce
   bumped to `2026-07-19.5`.
-- [ ] Step 2 — Scheduling rules drawer
+- [x] **Step 2 — Scheduling rules drawer** — new "Schedule rules" button on
+  the Schedule ribbon opens a slide-over drawer (`#rr-schedrules-drawer`).
+  On first open, `_rrScheduleRulesDrawer` (live.js) HOISTS the
+  `.settings-section[data-set="scheduling"]` node out of `#view-settings`
+  into the drawer body — same DOM node, so every element id + delegated
+  save handler (`#rr-woc-save`, `#rr-pay-save`, `#rr-att-windows-save`,
+  geofences, self-service toggles) is preserved verbatim. On each open it
+  fires the exact loaders the old Settings→Scheduling tab click used
+  (`loadAttendancePolicy` / `loadAvailabilityRequests` / woc·pay·pickup·swap
+  paints / `loadStationGeofences` / `loadAttendanceWindows`). Settings→
+  Scheduling nav tab removed; `gotoSettingsScheduling()` now opens the
+  drawer. Drawer CSS is token-only (ratchet held). Browser-verified with
+  Playwright: tab gone from Settings, button present, drawer opens on-
+  screen, all 8 rule groups render (woc/pay/att-windows/geofences/pickup/
+  avail/floor), section left `#view-settings`, close works. SW nonce
+  `2026-07-19.6`.
+  - **NOTE / reversal:** code comments (`gotoSettingsScheduling`, the
+    77873/77888 handlers) show these rules were *previously* moved the
+    other way — from a Schedule "Rules" sub-tab INTO Settings→Scheduling.
+    This step reverses that placement per the operator's 2026-07-19 request
+    to consolidate settings onto the dashboard. Flagged in the PR so it's an
+    informed call. Shipped for operator browser QA — NOT auto-merged.
 - [ ] Step 3 — Hiring → Onboarding
 - [ ] Step 4 — Recognition / Portal sync
 - [ ] Step 5 — Settings home slim-down

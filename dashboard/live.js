@@ -77885,17 +77885,94 @@ document.addEventListener("click", (e) => {
   }
 });
 
-// Helper for inline links in the Smart Fill snapshot view that used to
-// jump to the (now-removed) Schedule → Rules sub-tab. Drops the user
-// straight on Settings → Scheduling.
+// Helper for inline links (e.g. the Smart Fill snapshot view) that jump
+// to the DSP-wide scheduling rules. These now live in the Schedule Rules
+// drawer, not Settings → Scheduling — route callers to the schedule view
+// and pop the drawer.
 function gotoSettingsScheduling() {
-  if (typeof goto === "function") goto("settings");
+  if (typeof goto === "function") goto("schedule");
   setTimeout(() => {
-    const btn = document.querySelector('.settings-nav-item[data-set="scheduling"]');
-    if (btn && typeof setSettingsSection === "function") setSettingsSection(btn);
+    if (typeof window._rrOpenScheduleRules === "function") window._rrOpenScheduleRules();
   }, 50);
 }
 window.gotoSettingsScheduling = gotoSettingsScheduling;
+
+// ─── Schedule rules drawer ────────────────────────────────────────────
+// DSP-wide scheduling engine rules (working-hour limits, pay/OT, station
+// geofences, driver self-service, attendance windows, availability rules,
+// the enforced floor) live on the Schedule view now, in a slide-over
+// drawer, rather than under Settings → Scheduling. The section markup is
+// hoisted out of #view-settings on first open so every element id and its
+// delegated save handler is preserved verbatim — only the DOM parent
+// changes. On each open we fire the same loaders the Settings → Scheduling
+// tab click used to (loadAttendancePolicy / loadAvailabilityRequests /
+// the woc·pay·pickup·swap paint fns / geofences / attendance windows).
+(function _rrScheduleRulesDrawer() {
+  let hoisted = false;
+  function runLoaders() {
+    const loaders = [
+      typeof loadAttendancePolicy === "function" ? loadAttendancePolicy : null,
+      typeof loadAvailabilityRequests === "function" ? loadAvailabilityRequests : null,
+      typeof _rrWocPaintForm === "function" ? _rrWocPaintForm : null,
+      typeof _rrPayPaintForm === "function" ? _rrPayPaintForm : null,
+      typeof _rrPickupPaintForm === "function" ? _rrPickupPaintForm : null,
+      typeof _rrSwapPaintForm === "function" ? _rrSwapPaintForm : null,
+      typeof loadStationGeofences === "function" ? loadStationGeofences : null,
+      typeof loadAttendanceWindows === "function" ? loadAttendanceWindows : null,
+    ].filter(Boolean);
+    loaders.forEach((fn) => { try { setTimeout(fn, 0); } catch (_) {} });
+  }
+  function hoist() {
+    if (hoisted) return true;
+    const body = document.getElementById("rr-schedrules-body");
+    const sec =
+      document.querySelector('#view-settings .settings-section[data-set="scheduling"]') ||
+      document.querySelector('.settings-section[data-set="scheduling"]');
+    if (!body || !sec) return false;
+    sec.classList.remove("hidden"); // drawer owns visibility now
+    body.appendChild(sec);
+    hoisted = true;
+    return true;
+  }
+  function open() {
+    const dr = document.getElementById("rr-schedrules-drawer");
+    const bd = document.getElementById("rr-schedrules-backdrop");
+    if (!dr) return;
+    hoist();
+    if (bd) bd.hidden = false;
+    dr.hidden = false;
+    // Next frame so the transform/opacity transitions actually run.
+    requestAnimationFrame(() => {
+      dr.classList.add("is-open");
+      if (bd) bd.classList.add("is-open");
+    });
+    runLoaders();
+    const closeBtn = document.getElementById("rr-schedrules-close");
+    if (closeBtn) { try { closeBtn.focus(); } catch (_) {} }
+  }
+  function close() {
+    const dr = document.getElementById("rr-schedrules-drawer");
+    const bd = document.getElementById("rr-schedrules-backdrop");
+    if (dr) dr.classList.remove("is-open");
+    if (bd) bd.classList.remove("is-open");
+    setTimeout(() => {
+      if (dr) dr.hidden = true;
+      if (bd) bd.hidden = true;
+    }, 220);
+  }
+  window._rrOpenScheduleRules = open;
+  window._rrCloseScheduleRules = close;
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("#rr-schedrules-open")) { e.preventDefault(); open(); return; }
+    if (e.target.closest("#rr-schedrules-close")) { e.preventDefault(); close(); return; }
+    if (e.target.id === "rr-schedrules-backdrop") { close(); return; }
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    const dr = document.getElementById("rr-schedrules-drawer");
+    if (dr && !dr.hidden) close();
+  });
+})();
 
 
 // ─── Pay & overtime settings ──────────────────────────────────────────
