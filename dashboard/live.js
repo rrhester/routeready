@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=b14c3ab109f3";
-import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=b14c3ab109f3";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=b14c3ab109f3";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=b14c3ab109f3";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=b14c3ab109f3";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=b14c3ab109f3";
-import { isChecklistComplete } from "./checklist-core.mjs?v=b14c3ab109f3";
+import { planScheduleWeek } from "./scheduling-engine.js?v=957dfd380c8c";
+import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=957dfd380c8c";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=957dfd380c8c";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=957dfd380c8c";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=957dfd380c8c";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=957dfd380c8c";
+import { isChecklistComplete } from "./checklist-core.mjs?v=957dfd380c8c";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=b14c3ab109f3";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=b14c3ab109f3";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=b14c3ab109f3";
+} from "./msg-core.mjs?v=957dfd380c8c";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=957dfd380c8c";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=957dfd380c8c";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -16234,7 +16234,7 @@ async function loadAttendanceLive() {
 
   const [driversRes, shiftsRes, coachingsRes, decisionsRes] = await Promise.all([
     sb.from("drivers")
-      .select("id, full_name, first_name, last_name, preferred_name, status, hire_date, station:station_id (code)")
+      .select("id, full_name, first_name, last_name, preferred_name, status, hire_date, station_id, station:station_id (code)")
       .eq("dsp_id", dspId)
       .order("full_name"),
     sb.from("shifts")
@@ -16273,7 +16273,16 @@ async function loadAttendanceLive() {
     return;
   }
 
-  const drivers   = driversRes.data || [];
+  let   drivers   = driversRes.data || [];
+  // Station scope · same driver_stations membership lens as the roster
+  // (primary station_id fallback pre-migration). "All" = untouched.
+  {
+    const _scope = (typeof rrStationScopeId === "function") ? rrStationScopeId() : null;
+    if (_scope) {
+      const ids = await _rrDriverIdsAtStation(_scope);
+      drivers = ids ? drivers.filter((d) => ids.has(d.id)) : drivers.filter((d) => d.station_id === _scope);
+    }
+  }
   const shifts    = shiftsRes.data  || [];
   // Only coachings the attendance policy produced — identified by a policy
   // source tag OR a triggering occurrence. Every policy path qualifies:
