@@ -75567,8 +75567,12 @@ async function _computeWeekViolations(shifts, drivers, timeOff, weekStartIso, we
 
       // Service-type cert gate: same logic Smart Fill uses to skip
       // ineligible drivers. Surfaces when an operator manually assigned
-      // a non-DOT driver onto a Step Van shift, etc.
-      const cert = serviceCerts.get(sh.service_type_id);
+      // a non-DOT driver onto a Step Van shift, etc. Helper seats are the
+      // ride-along body on an XL route and need NO certification
+      // (0518/0520) — flagging them painted a false ⚠ on every correctly
+      // staffed helper.
+      const cert = (sh.shift_kind || "regular") === "helper"
+        ? null : serviceCerts.get(sh.service_type_id);
       if (cert) {
         const stLabel = cert.label || cert.code || "this service type";
         if (cert.requires_dot && !d.dot_certified) {
