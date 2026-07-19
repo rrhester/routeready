@@ -76,12 +76,39 @@ NOT on the subscription, or All-mode loses cross-station updates.
   the floater's B shift correctly filtered out → blank row); back to All =
   3/3. No errors.
 
-**NEXT:** Phase 2 cont. — other schedule consumers (Today view single-date
-render ~62448, staff_schedule_grid ~52606/89011) then **roster** (needs the
-floating-driver `driver_stations` many-to-many — design it there), bans,
-drivers, onboarding, broadcast. Then P3 server `p_station_id`, P4 All-mode
-per-station breakdowns. All on branch claude/multi-station-toggle-2pljie
-(PR #4037).
+**SHIPPED — Phase 2 cont. (rest of the schedule family):**
+- **Staff week grid** (`_rrRenderStaffInWeekGrid` ~52602): when scoped,
+  filters staff shifts by `station_id` and shows only staff working that
+  station (staff_schedule_grid shifts carry station_id). Scope-aware empty
+  state ("No staff scheduled at this station… Switch to All stations").
+  Inspection-verified (same proven filter pattern; syntax/lint/ratchet
+  green) — not browser-driven (staff mode is a deep toggle).
+- **Today's Plan command center** (`loadTodayPlan` ~20148): scoped the
+  roster + live attendance by station — `rosterData` filtered by
+  `station_id`, `attData.rows` by `station_code` (mapped from the scoped
+  station id via `_rrStationList`). Roster-derived KPI counts scope along
+  with them. Drives BOTH the dashboard Today's Plan page AND the schedule
+  Today sub-view (shared shell). Browser-QA'd on the dashboard: All = 3
+  roster rows → scope Boston = 2 (the two DBO5 drivers) → back to All = 3.
+  RESIDUAL (→ P3): the fleet-readiness + hiring-pipeline tiles and the
+  coverage rail (fleet_execution_summary / pipeline_counts / today_plan)
+  stay DSP-wide — those RPCs aggregate across stations and need an optional
+  p_station_id for a consistent per-station version.
+- Re-render on scope change: `_rrSetStationScope` covers the schedule WEEK
+  grid (loadScheduleView), targets (loadOkamiView), and everything else via
+  refreshActiveView (→ view-dashboard → loadTodayPlan). The schedule
+  Today/Roster/staff SUB-views re-render on their next trigger (tab switch)
+  rather than instantly — the filters run on every render so data is always
+  correct, only the live auto-refresh of those sub-views is deferred.
+
+**NEXT:** **roster** page — needs the floating-driver `driver_stations`
+many-to-many (user chose the join-table model 2026-07-19: a driver can be a
+member of >1 station; keep drivers.station_id as 'primary'; migration +
+backfill existing station_id → one membership row; roster/bans scope by
+membership). Then bans, drivers, onboarding, broadcast. Then P3 server
+`p_station_id` (Today KPI tiles/coverage, okami/targets, generate_shifts,
+roster counts), P4 All-mode per-station breakdowns. Branch
+claude/multi-station-toggle-2pljie (PR #4037).
 
 ## Active task: Staffing model — XL-route demand (branch claude/staffing-driver-requirements-1tw30l)
 

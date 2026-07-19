@@ -279,7 +279,7 @@
 // v187 · Type scale moved to rem (project-review PR#41) so the driver's OS
 // text-size setting scales the app. (bust-cache rewrites this to the deploy
 // SHA at build; the literal just needs to differ so the CI gate is happy.)
-const SHELL_CACHE = "rr-app-shell-eeb2d9a9181b";
+const SHELL_CACHE = "rr-app-shell-f3edb9505a39";
 const SHELL_FILES = [
   "./",
   "index.html",

@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=eeb2d9a9181b";
-import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=eeb2d9a9181b";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=eeb2d9a9181b";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=eeb2d9a9181b";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=eeb2d9a9181b";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=eeb2d9a9181b";
-import { isChecklistComplete } from "./checklist-core.mjs?v=eeb2d9a9181b";
+import { planScheduleWeek } from "./scheduling-engine.js?v=f3edb9505a39";
+import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=f3edb9505a39";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=f3edb9505a39";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=f3edb9505a39";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=f3edb9505a39";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=f3edb9505a39";
+import { isChecklistComplete } from "./checklist-core.mjs?v=f3edb9505a39";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=eeb2d9a9181b";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=eeb2d9a9181b";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=eeb2d9a9181b";
+} from "./msg-core.mjs?v=f3edb9505a39";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=f3edb9505a39";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=f3edb9505a39";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -20145,11 +20145,31 @@ async function _refreshTodayPlanData() {
     sb.from("coachings").select("driver_id").eq("dsp_id", window.RR.dsp.id).is("archived_at", null).is("resolved_at", null).eq("severity", "final"),
   ]);
 
-  const attData    = (attRes.status === "fulfilled"    ? attRes.value.data    : null);
+  let   attData    = (attRes.status === "fulfilled"    ? attRes.value.data    : null);
   const attError   = (attRes.status === "fulfilled"    ? attRes.value.error   : attRes.reason);
-  const rosterData = (rosterRes.status === "fulfilled" ? rosterRes.value.data : null);
+  let   rosterData = (rosterRes.status === "fulfilled" ? rosterRes.value.data : null);
   const rosterError= (rosterRes.status === "fulfilled" ? rosterRes.value.error: rosterRes.reason);
   const otData     = (otRes.status === "fulfilled"     ? otRes.value.data     : null);
+
+  // ── Station scope · master multi-station lens (Phase 2) ────────────
+  // When scoped to one station, narrow the roster + live attendance to
+  // that station — both today_roster rows (station_id) and today_attendance
+  // rows (station_code) carry it, and the roster-derived KPI counts scope
+  // right along with them. The fleet-readiness and hiring-pipeline tiles
+  // stay DSP-wide: they're DSP-level concerns whose RPCs aggregate across
+  // stations, so a truly per-station version of those waits on server
+  // params (Phase 3). "All stations" (null) leaves everything untouched.
+  const _tpScopeStation = (typeof rrStationScopeId === "function") ? rrStationScopeId() : null;
+  if (_tpScopeStation) {
+    const _tpScopeCode = ((typeof _rrStationList !== "undefined" ? _rrStationList : [])
+      .find((s) => s.id === _tpScopeStation) || {}).code || null;
+    if (Array.isArray(rosterData)) {
+      rosterData = rosterData.filter((r) => r.station_id === _tpScopeStation);
+    }
+    if (attData && Array.isArray(attData.rows) && _tpScopeCode) {
+      attData = { ...attData, rows: attData.rows.filter((r) => r.station_code === _tpScopeCode) };
+    }
+  }
   if (otRes.status === "fulfilled" && otRes.value.error) {
     console.warn("today plan · overtime_intelligence:", otRes.value.error);
   }
@@ -52621,11 +52641,25 @@ async function _rrRenderStaffInWeekGrid() {
     return;
   }
   const staff  = (data && data.staff)  || [];
-  const shifts = (data && data.shifts) || [];
-  if (!staff.length) {
+  let   shifts = (data && data.shifts) || [];
+  // Station scope · when scoped to one station, show only that station's
+  // staff shifts and the staff members working it (staff shifts carry
+  // station_id). "All stations" (null) leaves everything as-is.
+  let staffList = staff;
+  const _scopeStation = (typeof rrStationScopeId === "function") ? rrStationScopeId() : null;
+  if (_scopeStation) {
+    shifts = shifts.filter((s) => s.station_id === _scopeStation);
+    const _worked = new Set(shifts.map((s) => s.staff_id));
+    staffList = staff.filter((m) => _worked.has(m.id));
+  }
+  if (!staffList.length) {
     const empty = document.createElement('div');
     empty.className = 'cal-grid rr-staff-week-row rr-staff-week-empty';
-    empty.innerHTML = '<div class="cal-cell-head" style="padding:14px 16px;color:var(--text-subtle)">No staff yet. Add dispatchers, fleet managers, HR, and other support staff to schedule them.</div>';
+    empty.innerHTML = `<div class="cal-cell-head" style="padding:14px 16px;color:var(--text-subtle)">${
+      _scopeStation && staff.length
+        ? "No staff scheduled at this station this week. Switch to All stations to see everyone."
+        : "No staff yet. Add dispatchers, fleet managers, HR, and other support staff to schedule them."
+    }</div>`;
     head.parentNode.appendChild(empty);
     return;
   }
@@ -52642,7 +52676,7 @@ async function _rrRenderStaffInWeekGrid() {
     hr: 'HR', ops_manager: 'Ops manager', other: 'Other',
   };
   const frag = document.createDocumentFragment();
-  staff.forEach((m) => {
+  staffList.forEach((m) => {
     const row = document.createElement('div');
     row.className = 'cal-grid rr-staff-week-row';
     row.dataset.rrStaffMember = m.id;
