@@ -2229,14 +2229,20 @@
                by _renderSchedRequestsKpis; lives here (not the shared KPI strip)
                so the schedule's display:none on that strip can't hide it. -->
           <div class="req-toolbar-bar" id="rr-req-toolbar-bar"></div>
-          <!-- Split screen · LEFT = one unified request stream (PTO,
-               Unpaid time off and Availability changes merged into a
-               single chronological queue). RIGHT = three equally-sized
-               operational reports. Both render at once via
-               _renderSchedRequestsActive. -->
+          <!-- Requests body · a compact Pending host (rendered above, only when
+               there are pending requests) followed by the Recent Decisions
+               container — one full-width white surface (thin cool-gray border,
+               ~10px corners, clipped) whose top holds a slim toolbar: the
+               "RECENT DECISIONS" label + live count on the left, and the driver
+               search + Type/Status filters on the right. The toolbar is built
+               once by _renderSchedRequestsKpis so the search input keeps focus
+               across a stream re-render; only the table body (#rr-sched-req-
+               stream) is rebuilt by renderSchedRequestStream. -->
           <div class="sched-requests-split">
-            <section class="sched-requests-card" id="rr-sched-req-stream-panel">
-              <div class="sched-requests-card-body" id="rr-sched-req-stream"><div class="rr-loading">Loading requests…</div></div>
+            <div class="req-pending-host" id="rr-sched-req-pending"></div>
+            <section class="req-decisions" id="rr-req-decisions">
+              <div class="req-decisions-bar" id="rr-req-decisions-toolbar"></div>
+              <div class="req-decisions-body" id="rr-sched-req-stream"><div class="rr-loading">Loading requests…</div></div>
             </section>
           </div>
         </div><!-- /sched-sub-requests -->

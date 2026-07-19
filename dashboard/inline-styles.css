@@ -1870,18 +1870,13 @@ td.rr-lastcoach-col > span > span{color:var(--rr-gray-600) !important}
 #view-schedule .req-allclear-ic{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;background:rgba(22,163,74,.12);color:var(--rr-green-600);flex:0 0 auto}
 #view-schedule .req-allclear-title{font-size:var(--fs-md);font-weight:600;color:var(--text)}
 #view-schedule .req-allclear-sub{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:1px}
-/* Coverage impact · a Schedule shift-chip look — the SAME pale-blue fill
-   (--sch-blue-soft), hairline blue border, and square corners as .shift-chip,
-   sized like a schedule card (fills the cell, ~52px). It's uniform for every
-   row; severity is read from the coloured level word, not the fill. */
-#view-schedule .req-cov{display:flex;flex-direction:column;align-items:stretch;min-width:0;max-width:100%}
-#view-schedule .req-cov-card{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;box-sizing:border-box;width:100%;max-width:100%;height:52px;overflow:hidden;padding:6px 9px;border-radius:0;background:var(--sch-blue-soft);border:1px solid rgba(37,99,235,.14)}
-#view-schedule .req-cov-sev{font-size:var(--fs-10-5);font-weight:700;letter-spacing:.04em;text-transform:uppercase;line-height:1.2}
+/* Coverage impact · informational, so it carries NO semantic colour and no
+   badge/fill/border/icon — every level (NONE / MEDIUM / HIGH) is the same
+   neutral dark navy, semibold + uppercased, over a muted one-line reason. It
+   must never compete with the decision STATUS pill. */
+#view-schedule .req-cov{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;min-width:0;max-width:100%}
+#view-schedule .req-cov-sev{font-size:var(--fs-10-5);font-weight:700;letter-spacing:.04em;text-transform:uppercase;line-height:1.2;color:var(--text)}
 #view-schedule .req-cov-sub{font-size:var(--fs-xs);font-weight:500;color:var(--text-muted);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-/* Severity word keeps its colour so the level still reads at a glance. */
-#view-schedule .req-cov-high .req-cov-sev{color:var(--red)}
-#view-schedule .req-cov-medium .req-cov-sev{color:var(--amber-dark)}
-#view-schedule .req-cov-none .req-cov-sev{color:var(--green)}
 
 /* ── Toolbar request-health summary · the Requests-page twin of the Schedule
    action bar's route-coverage card. Number + unit on top, a status sub-line,
@@ -1928,18 +1923,41 @@ td.rr-lastcoach-col > span > span{color:var(--rr-gray-600) !important}
 #view-schedule .req-type-badge.is-availability{background:rgba(37,99,235,.10);color:var(--rr-blue-700);border-color:transparent}
 #view-schedule .req-type-badge.is-pto{background:rgba(109,40,217,.10);color:#6D28D9;border-color:transparent}
 #view-schedule .req-type-badge.is-unpaid{background:rgba(15,23,42,.06);color:var(--text-muted);border-color:transparent}
-/* Requests controls live in a dedicated bar at the top of the Requests view.
-   Match the schedule top buttons exactly: rounded RECT (8px = --sch-radius, not
-   a full pill), thin border, white, ~38px tall, soft shadow. Both the filter
-   dropdowns (custom buttons opening an .rr-status-picker menu — see live.js —
-   so the open list matches the schedule dropdowns, not the OS listbox) and the
-   action buttons (PTO report, Settings) share it via .req-toolbar-act. */
+/* ── Page command bar (beneath the section tabs) ────────────────────────────
+   LEFT: the two neutral white page actions (PTO report + Request settings).
+   RIGHT: the inline KPI (pushed right, hairline divider) + the shared chrome.
+   Search + filters do NOT live here — they're in the decisions container. */
 #view-schedule .req-toolbar-bar{display:flex;align-items:center;gap:var(--s-2-5);flex-wrap:wrap;margin:0 0 var(--s-4);padding-top:var(--s-4)}
-/* Driver search · same compact white control chrome as the filter buttons. */
-#view-schedule .req-toolbar-bar .req-search{position:relative;display:inline-flex;align-items:center;height:38px;flex:0 0 auto}
-#view-schedule .req-toolbar-bar .req-search-ic{position:absolute;left:11px;color:var(--text-subtle);pointer-events:none}
-#view-schedule .req-toolbar-bar .req-search-input{
-  height:38px;box-sizing:border-box;width:200px;
+
+/* ── Recent Decisions container ─────────────────────────────────────────────
+   One full-width white surface: thin cool-gray border, ~10px corners, clipped,
+   minimal shadow. Compact Schedule-style density — no separate dashboard card,
+   no large page heading. */
+#view-schedule .req-decisions{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;box-shadow:0 1px 2px rgba(15,23,42,.03)}
+/* Slim table toolbar at the container top: label + count (left), search +
+   filters (right). One line at desktop widths; the tools wrap within the
+   toolbar before overlapping the title at narrow widths. */
+#view-schedule .req-decisions-bar{display:flex;align-items:center;justify-content:space-between;gap:var(--s-3);flex-wrap:wrap;padding:9px 12px;border-bottom:1px solid var(--border)}
+#view-schedule .req-dec-head{display:flex;align-items:center;gap:8px;min-width:0}
+#view-schedule .req-dec-title{font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted)}
+#view-schedule .req-dec-count{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--canvas);border:1px solid var(--border);font-size:var(--fs-10-5);font-weight:700;color:var(--text-subtle);line-height:1}
+#view-schedule .req-dec-tools{display:flex;align-items:center;gap:var(--s-2);flex-wrap:wrap;min-width:0}
+/* Table fills the container; scrolls horizontally only if it must. */
+#view-schedule .req-decisions-body{overflow-x:auto}
+#view-schedule .req-decisions-body .req-table{border:0}
+#view-schedule .req-decisions-body .req-nodata{border:0;border-radius:0;background:transparent;padding:26px 16px}
+/* Pending section (when present) sits above the container with a small gap;
+   nothing shows when there are no pending requests. */
+#view-schedule .req-pending-host:empty{display:none}
+#view-schedule .req-pending-host{margin-bottom:var(--s-3)}
+
+/* ── Shared control chrome · driver search + Type/Status filter dropdowns ────
+   Compact white controls (~38px, thin border, subtle shadow, 8px radius) that
+   match the Schedule toolbar buttons. Live inside the decisions toolbar. */
+#view-schedule .req-search{position:relative;display:inline-flex;align-items:center;height:38px;flex:0 1 auto}
+#view-schedule .req-search-ic{position:absolute;left:11px;color:var(--text-subtle);pointer-events:none}
+#view-schedule .req-search-input{
+  height:38px;box-sizing:border-box;width:200px;max-width:100%;
   padding:0 12px 0 32px;
   border-radius:var(--sch-radius, 8px);
   border:1px solid var(--sidebar);
@@ -1948,10 +1966,14 @@ td.rr-lastcoach-col > span > span{color:var(--rr-gray-600) !important}
   font:inherit;font-size:var(--fs-sm);font-weight:500;color:var(--text);
   transition:box-shadow var(--t-fast),border-color var(--t-fast);
 }
-#view-schedule .req-toolbar-bar .req-search-input::placeholder{color:var(--text-subtle);font-weight:500}
-#view-schedule .req-toolbar-bar .req-search-input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
-#view-schedule .req-toolbar-bar .req-search-input::-webkit-search-cancel-button{-webkit-appearance:none;appearance:none}
-#view-schedule .req-toolbar-bar .req-toolbar-filter,
+#view-schedule .req-search-input::placeholder{color:var(--text-subtle);font-weight:500}
+#view-schedule .req-search-input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+#view-schedule .req-search-input::-webkit-search-cancel-button{-webkit-appearance:none;appearance:none}
+/* Base chrome shared by the filter dropdowns (anywhere) and the command-bar
+   action buttons. Filter selector is tag-qualified (button.) so it out-ranks
+   the later .sched-page-btn:hover shorthand that would otherwise wipe the
+   chevron background. */
+#view-schedule button.req-toolbar-filter,
 #view-schedule .req-toolbar-bar .req-toolbar-act{
   height:38px;line-height:1;
   border-radius:var(--sch-radius, 8px);
@@ -1961,24 +1983,17 @@ td.rr-lastcoach-col > span > span{color:var(--rr-gray-600) !important}
   font:inherit;font-size:var(--fs-sm);font-weight:600;color:var(--text);
   transition:background-color var(--t-fast),box-shadow var(--t-fast);
 }
-/* Action buttons are self-contained (NOT .sched-page-btn) so the schedule
-   strip's icon rules — incl. `svg{color:var(--text)!important}`, which forced
-   the gear black — never reach them. Force the inline icon+label row. */
+/* Action buttons (PTO report, Request settings) — neutral white, inline
+   icon+label. Self-contained (NOT .sched-page-btn) so the schedule strip's icon
+   rules — incl. `svg{color:var(--text)!important}` — never reach them. Neither
+   is a blue primary; both match exactly. */
 #view-schedule .req-toolbar-bar .req-toolbar-act{appearance:none;-webkit-appearance:none;display:inline-flex;flex-direction:row;align-items:center;white-space:nowrap;gap:7px;padding:0 14px;cursor:pointer}
 #view-schedule .req-toolbar-bar .req-toolbar-act svg{width:14px;height:14px;flex:0 0 auto;color:var(--text-muted)}
-/* Settings button = solid accent fill with a white icon + label, matching the
-   roster "Add driver" button. Same height as the PTO report button beside it. */
-#view-schedule .req-toolbar-bar .req-toolbar-primary{background-color:var(--accent);border-color:var(--accent);color:var(--rr-white);box-shadow:none}
-#view-schedule .req-toolbar-bar .req-toolbar-primary svg{color:var(--rr-white)}
-#view-schedule .req-toolbar-bar .req-toolbar-primary:hover{background-color:var(--accent);border-color:var(--accent);box-shadow:none;filter:brightness(1.06)}
-#view-schedule .req-toolbar-bar .req-toolbar-primary[aria-expanded="true"]{background-color:var(--accent);filter:brightness(1.06);box-shadow:0 0 0 3px var(--accent-soft)}
 /* Filter dropdowns · full-height hairline divider (sidebar colour) before the
    chevron, like the schedule split buttons. Two backgrounds: the chevron, then
-   a 1px vertical line spanning the pill height. Buttons now, so the label is
-   centred with flex (the old select needed text-align-last tricks). Tag-
-   qualified (button.) so this out-ranks the .sched-page-btn:hover background
-   SHORTHAND, which otherwise wipes the chevron image on hover. */
-#view-schedule .req-toolbar-bar button.req-toolbar-filter{
+   a 1px vertical line spanning the pill height. Tag-qualified (button.) so this
+   out-ranks the .sched-page-btn:hover background SHORTHAND. */
+#view-schedule button.req-toolbar-filter{
   appearance:none;-webkit-appearance:none;-moz-appearance:none;cursor:pointer;
   display:inline-flex;flex-direction:row;align-items:center;justify-content:center;
   white-space:nowrap;
@@ -1990,11 +2005,11 @@ td.rr-lastcoach-col > span > span{color:var(--rr-gray-600) !important}
   background-position:right 13px center, right 30px center;
   background-size:11px, 1px 100%;
 }
-#view-schedule .req-toolbar-bar .req-toolbar-filter:hover,
-#view-schedule .req-toolbar-bar .req-toolbar-act:not(.req-toolbar-primary):hover{background-color:var(--canvas);box-shadow:0 4px 12px rgba(15,23,42,.06)}
-#view-schedule .req-toolbar-bar .req-toolbar-filter:focus-visible,
+#view-schedule button.req-toolbar-filter:hover,
+#view-schedule .req-toolbar-bar .req-toolbar-act:hover{background-color:var(--canvas);box-shadow:0 4px 12px rgba(15,23,42,.06)}
+#view-schedule button.req-toolbar-filter:focus-visible,
 #view-schedule .req-toolbar-bar .req-toolbar-act:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-soft)}
-#view-schedule .req-toolbar-bar .req-toolbar-filter[aria-expanded="true"]{background-color:var(--canvas);box-shadow:0 0 0 3px var(--accent-soft)}
+#view-schedule button.req-toolbar-filter[aria-expanded="true"]{background-color:var(--canvas);box-shadow:0 0 0 3px var(--accent-soft)}
 
 /* Driver-app request settings popover · opened from the Settings pill. A
    small floating card (position set inline at open time) with grouped on/off
