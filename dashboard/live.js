@@ -57696,6 +57696,7 @@ window._rrShowSfMenu = function (anchorBtn) {
   m.id = "rr-sf-menu";
   m.innerHTML = `
     <button type="button" class="rr-sf-menu-i" data-act="rules">Smart Rules</button>
+    <button type="button" class="rr-sf-menu-i" data-act="schedrules">Schedule rules</button>
     <button type="button" class="rr-sf-menu-i" data-act="colors">Schedule Colors</button>
     <style>
       #rr-sf-menu{position:fixed;z-index:1001;min-width:190px;background:#fff;
@@ -57722,12 +57723,24 @@ window._rrShowSfMenu = function (anchorBtn) {
       if (ab && pop && pop.parentElement !== ab) ab.appendChild(pop);
       if (pop && sfBtn) pop.style.setProperty("--rr-sf-pop-left", sfBtn.offsetLeft + "px");
       _rrToggleSchedColors(false);
+      _rrToggleScheduleRulesPop(false);
       _toggleSchedSmartFillRules(true);
+    } else if (act === "schedrules") {
+      // Schedule rules re-homes + anchors under the Build Schedule button
+      // exactly like the Smart Rules / Schedule Colors boxes, so all three
+      // menu entries open the same kind of popover.
+      const pop = document.getElementById("rr-schedrules-drawer");
+      if (ab && pop && pop.parentElement !== ab) ab.appendChild(pop);
+      if (pop && sfBtn) pop.style.setProperty("--rr-sf-pop-left", sfBtn.offsetLeft + "px");
+      _toggleSchedSmartFillRules(false);
+      _rrToggleSchedColors(false);
+      _rrToggleScheduleRulesPop(true);
     } else {
       const pop = document.getElementById("rr-sched-colors-popover");
       if (ab && pop && pop.parentElement !== ab) ab.appendChild(pop);
       if (pop && sfBtn) pop.style.setProperty("--rr-sf-pop-left", sfBtn.offsetLeft + "px");
       _toggleSchedSmartFillRules(false);
+      _rrToggleScheduleRulesPop(false);
       _rrToggleSchedColors(true);
     }
   });
@@ -78585,43 +78598,45 @@ window.gotoSettingsScheduling = gotoSettingsScheduling;
     hoisted = true;
     return true;
   }
-  function open() {
+  // Schedule rules now opens as an anchored popover under the Build
+  // Schedule button (re-homed into the action bar by _rrShowSfMenu),
+  // matching the Smart Fill Rules box it now shares a menu with — same
+  // white-card popover chrome (quiet header + X), same show/hide-by-hidden
+  // pattern as the sibling Schedule Colors popover.
+  function toggle(force) {
     const dr = document.getElementById("rr-schedrules-drawer");
-    const bd = document.getElementById("rr-schedrules-backdrop");
-    if (!dr) return;
+    if (!dr) return false;
     hoist();
-    if (bd) bd.hidden = false;
-    dr.hidden = false;
-    // Next frame so the transform/opacity transitions actually run.
-    requestAnimationFrame(() => {
-      dr.classList.add("is-open");
-      if (bd) bd.classList.add("is-open");
-    });
-    runLoaders();
-    const closeBtn = document.getElementById("rr-schedrules-close");
-    if (closeBtn) { try { closeBtn.focus(); } catch (_) {} }
+    const next = (typeof force === "boolean") ? force : dr.hidden;
+    dr.hidden = !next;
+    if (next) {
+      runLoaders();
+      const closeBtn = document.getElementById("rr-schedrules-close");
+      if (closeBtn) { try { closeBtn.focus(); } catch (_) {} }
+    }
+    return next;
   }
-  function close() {
-    const dr = document.getElementById("rr-schedrules-drawer");
-    const bd = document.getElementById("rr-schedrules-backdrop");
-    if (dr) dr.classList.remove("is-open");
-    if (bd) bd.classList.remove("is-open");
-    setTimeout(() => {
-      if (dr) dr.hidden = true;
-      if (bd) bd.hidden = true;
-    }, 220);
-  }
-  window._rrOpenScheduleRules = open;
-  window._rrCloseScheduleRules = close;
+  window._rrToggleScheduleRulesPop = toggle;
+  window._rrOpenScheduleRules = function () { return toggle(true); };
+  window._rrCloseScheduleRules = function () { return toggle(false); };
   document.addEventListener("click", (e) => {
-    if (e.target.closest("#rr-schedrules-open")) { e.preventDefault(); open(); return; }
-    if (e.target.closest("#rr-schedrules-close")) { e.preventDefault(); close(); return; }
-    if (e.target.id === "rr-schedrules-backdrop") { close(); return; }
+    if (e.target.closest("#rr-schedrules-open")) { e.preventDefault(); toggle(true); return; }
+    if (e.target.closest("#rr-schedrules-close")) { e.preventDefault(); toggle(false); return; }
+    // Outside-click dismiss — mirrors the Schedule Colors popover. Kept
+    // open while the Smart Fill page is up (same page-mode caveat) and
+    // while the caret menu / caret itself is the click target.
+    const pop = document.getElementById("rr-schedrules-drawer");
+    if (!window._rrSmartFillPageMode && pop && !pop.hidden
+        && !e.target.closest("#rr-schedrules-drawer")
+        && !e.target.closest("#rr-ab-smartfill-caret")
+        && !e.target.closest("#rr-sf-menu")) {
+      toggle(false);
+    }
   });
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
     const dr = document.getElementById("rr-schedrules-drawer");
-    if (dr && !dr.hidden) close();
+    if (dr && !dr.hidden) toggle(false);
   });
 })();
 

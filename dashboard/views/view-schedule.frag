@@ -1867,7 +1867,7 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="7" y1="13" x2="17" y2="13"/><line x1="7" y1="17" x2="13" y2="17"/></svg>
               Build Schedule
               <span class="rr-ab-badge" id="rr-ab-sf-badge" hidden>0</span>
-              <span class="rr-ab-caret" id="rr-ab-smartfill-caret" role="button" tabindex="0" title="Schedule rules" aria-haspopup="dialog">
+              <span class="rr-ab-caret" id="rr-ab-smartfill-caret" role="button" tabindex="0" title="Smart Rules · Schedule rules · Schedule Colors" aria-haspopup="menu">
                 <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
               </span>
             </button>
@@ -1882,17 +1882,12 @@
               <span class="rr-ab-coverage-main" id="rr-ab-coverage-main"></span>
               <span class="rr-ab-coverage-sub" id="rr-ab-coverage-sub"></span>
             </div>
-            <!-- Schedule rules · visible entry to the DSP-wide scheduling
-                 rules drawer (hours, pay, geofences, self-service,
-                 attendance, availability, the enforced floor). Calls the
-                 live.js controller global directly (the hoist button
-                 #rr-schedrules-open lives in the hidden legacy ribbon, so we
-                 can't reuse that id here). Distinct from the Build Schedule
-                 caret, which opens Smart Fill rules. -->
-            <button type="button" class="rr-ab-btn" id="rr-ab-schedrules" onclick="window._rrOpenScheduleRules&&window._rrOpenScheduleRules()" title="DSP-wide scheduling rules — hours, pay, geofences, self-service, attendance">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
-              Schedule rules
-            </button>
+            <!-- Schedule rules moved into the Build Schedule caret menu
+                 (Smart Rules / Schedule rules / Schedule Colors) — see
+                 _rrShowSfMenu. The standalone action-bar button was
+                 removed so the three rule/settings boxes share one entry
+                 point. The hidden legacy opener #rr-schedrules-open still
+                 lives in the ribbon for the delegated click handler. -->
             <button type="button" class="rr-ab-btn rr-ab-primary" id="rr-ab-finalize" title="Push this week's schedule to drivers">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
               Finalize
@@ -3005,21 +3000,21 @@
         </aside>
       </div>
     
-      <!-- ── Schedule rules drawer ──────────────────────────────────
-           DSP-wide scheduling engine rules, slid over the Schedule
-           view. Body is empty here; the .settings-section[data-set=
+      <!-- ── Schedule rules popover ─────────────────────────────────
+           DSP-wide scheduling engine rules. Opens from the Build
+           Schedule caret menu (Smart Rules / Schedule rules / Schedule
+           Colors) and is re-homed into the action bar + anchored under
+           the Build Schedule button by _rrShowSfMenu — same box chrome
+           as the Smart Fill Rules popover (white card, quiet header + X).
+           Body is empty here; the .settings-section[data-set=
            "scheduling"] node is hoisted in on first open by
            _rrScheduleRulesDrawer (live.js), preserving every element id
-           + delegated save handler. position:fixed + hidden by default,
-           so it never affects flow layout or visual snapshots. -->
-      <div class="rr-schedrules-backdrop" id="rr-schedrules-backdrop" hidden></div>
-      <aside class="rr-schedrules-drawer" id="rr-schedrules-drawer" role="dialog" aria-modal="true" aria-labelledby="rr-schedrules-title" hidden>
-        <div class="rr-schedrules-head">
-          <div>
-            <h2 class="rr-schedrules-title" id="rr-schedrules-title">Schedule rules</h2>
-            <p class="rr-schedrules-sub">DSP-wide rules the schedule engine, Cover, and driver self-service all read. Per-week settings still live behind the Rules gear on the ribbon.</p>
-          </div>
-          <button type="button" class="rr-schedrules-close" id="rr-schedrules-close" aria-label="Close schedule rules">
+           + delegated save handler. Hidden by default, so it never
+           affects flow layout or visual snapshots. -->
+      <aside class="rr-schedrules-drawer rr-policy-drawer" id="rr-schedrules-drawer" role="dialog" aria-modal="false" aria-labelledby="rr-schedrules-title" hidden>
+        <div class="rr-schedrules-head rr-pol-head">
+          <h2 class="rr-schedrules-title rr-pol-title" id="rr-schedrules-title">Schedule rules</h2>
+          <button type="button" class="rr-schedrules-close rr-pol-close" id="rr-schedrules-close" aria-label="Close schedule rules">
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>

@@ -7179,65 +7179,39 @@ body.rr-sched-carrying #view-schedule #sched-sub-week .cal-cell[data-rr-cell="dr
   box-shadow: inset 0 0 0 999px rgba(15, 23, 42, 0.03);
 }
 
-/* ── Schedule rules drawer ───────────────────────────────────────────
+/* ── Schedule rules popover ──────────────────────────────────────────
    DSP-wide scheduling engine rules (working-hour limits, pay/OT,
    geofences, driver self-service, attendance windows, availability
-   rules, the enforced floor) live on the Schedule view now — hoisted
-   from the former Settings → Scheduling tab into this slide-over on
-   first open, so every element id + delegated save handler is preserved
-   verbatim; only the DOM parent changes. Token-only so the design
-   ratchet holds (no raw hex, literal font-size, or bang-priority). */
-.rr-schedrules-backdrop {
-  position: fixed;
-  inset: 0;
-  background: var(--overlay);
-  opacity: 0;
-  transition: opacity 0.18s ease;
-  z-index: 4000;
-}
-.rr-schedrules-backdrop.is-open { opacity: 1; }
-.rr-schedrules-drawer {
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: min(760px, 96vw);
+   rules, the enforced floor). Opened from the Build Schedule caret menu
+   (Smart Rules / Schedule rules / Schedule Colors) and re-homed into the
+   action bar (#rr-sched-actionbar, position:relative) by _rrShowSfMenu,
+   anchored under the Build Schedule button via --rr-sf-pop-left. Same box
+   chrome as the Smart Fill Rules / Schedule Colors popovers: white card,
+   the .rr-pol-head quiet header + .rr-pol-close X (styled by the shared
+   .rr-policy-drawer rules in inline-styles.css), a scrollable body. The
+   scheduling .settings-section is hoisted into the body on first open, so
+   every element id + delegated save handler is preserved verbatim; only
+   the DOM parent changes. Token-only so the design ratchet holds. */
+#view-schedule .rr-schedrules-drawer {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: var(--rr-sf-pop-left, 0);
+  right: auto;
+  bottom: auto;
+  width: min(760px, calc(100vw - 96px));
+  max-height: min(680px, calc(100vh - 140px));
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   background: var(--rr-bg-surface-1);
-  border-left: 1px solid var(--rr-border-primary);
+  border: 1px solid var(--rr-border-primary);
+  border-radius: var(--rr-radius-large);
   box-shadow: var(--rr-shadow-8);
-  transform: translateX(100%);
-  transition: transform 0.2s ease;
-  z-index: 4001;
+  z-index: 600;
 }
-.rr-schedrules-drawer.is-open { transform: translateX(0); }
-.rr-schedrules-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--rr-space-120);
-  padding: var(--rr-space-160);
-  border-bottom: 1px solid var(--rr-border-secondary);
-  flex: 0 0 auto;
-}
-.rr-schedrules-title { font: var(--rr-font-title); margin: 0; }
-.rr-schedrules-sub { font: var(--rr-font-body); color: var(--text-subtle); margin: 6px 0 0; }
+#view-schedule .rr-schedrules-drawer[hidden] { display: none; }
 .rr-schedrules-body { flex: 1 1 auto; overflow-y: auto; padding: var(--rr-space-160); }
-/* The hoisted section is a .settings-section.hidden; the drawer owns
-   its visibility, so force it visible inside the drawer body. */
+/* The hoisted section is a .settings-section.hidden; the popover owns
+   its visibility, so force it visible inside the body. */
 .rr-schedrules-body .settings-section,
 .rr-schedrules-body .settings-section.hidden { display: block; }
-.rr-schedrules-close {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  flex: 0 0 auto;
-  border: 1px solid var(--rr-border-secondary);
-  border-radius: var(--rr-radius-large);
-  background: var(--rr-bg-surface-1);
-  color: inherit;
-  cursor: pointer;
-}
