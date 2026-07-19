@@ -57723,7 +57723,7 @@ window._rrShowSfMenu = function (anchorBtn) {
       if (ab && pop && pop.parentElement !== ab) ab.appendChild(pop);
       if (pop && sfBtn) pop.style.setProperty("--rr-sf-pop-left", sfBtn.offsetLeft + "px");
       _rrToggleSchedColors(false);
-      _rrToggleScheduleRulesPop(false);
+      window._rrToggleScheduleRulesPop(false);
       _toggleSchedSmartFillRules(true);
     } else if (act === "schedrules") {
       // Schedule rules re-homes + anchors under the Build Schedule button
@@ -57734,13 +57734,13 @@ window._rrShowSfMenu = function (anchorBtn) {
       if (pop && sfBtn) pop.style.setProperty("--rr-sf-pop-left", sfBtn.offsetLeft + "px");
       _toggleSchedSmartFillRules(false);
       _rrToggleSchedColors(false);
-      _rrToggleScheduleRulesPop(true);
+      window._rrToggleScheduleRulesPop(true);
     } else {
       const pop = document.getElementById("rr-sched-colors-popover");
       if (ab && pop && pop.parentElement !== ab) ab.appendChild(pop);
       if (pop && sfBtn) pop.style.setProperty("--rr-sf-pop-left", sfBtn.offsetLeft + "px");
       _toggleSchedSmartFillRules(false);
-      _rrToggleScheduleRulesPop(false);
+      window._rrToggleScheduleRulesPop(false);
       _rrToggleSchedColors(true);
     }
   });
