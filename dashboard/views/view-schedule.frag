@@ -1683,17 +1683,27 @@
              the Targets rules (Block / Cushion / Report time) become
              individual KPI pills with inline number inputs. -->
         <div id="rr-sched-targets-kpis" class="sched-kpi-pills tcp-kpi" role="group" aria-label="Targets rules" style="display:none">
-          <!-- Which week the rules edit · Block/Cushion/Report/Waves are
-               PER-WEEK settings (scheduling_settings_for_week) — without
-               this chip they read as global knobs over a 13-week table. -->
-          <div class="rr-tgt-kpi rr-tgt-rules-week" id="rr-tgt-rules-week" title="Block, Cushion, Report time and Wave times are per-week rules — they apply to the week shown here. Weeks without their own rules inherit from the most recent earlier week.">
-            <div class="rr-tgt-kpi-text">
-              <div class="rr-tgt-kpi-label">Rules for</div>
-              <div class="rr-tgt-kpi-val">
-                <span class="rr-tgt-rules-week-label" id="rr-tgt-rules-week-label">—</span>
-              </div>
-            </div>
+          <!-- Week navigator · the leading control, matching the Schedule
+               week nav (segmented [W##] · ‹ · ›). Block/Cushion/Report/Waves
+               are PER-WEEK settings (scheduling_settings_for_week); this
+               navigator names the week they apply to AND anchors the 13-week
+               horizon. The label reflects the currently-selected week (set by
+               loadSchedulingSettings / the nav handlers), never hardcoded.
+               RouteReady-blue border + text mark it as the primary selector. -->
+          <div class="rr-tgt-week-nav" id="rr-tgt-week-nav" role="group" aria-label="Plan week">
+            <button type="button" class="rr-tgt-week-nav-lbl" id="rr-tgt-week-today" title="Jump to the current week">
+              <span id="rr-tgt-week-nav-label">W—</span>
+            </button>
+            <button type="button" class="rr-tgt-week-nav-btn" id="rr-tgt-week-prev" title="Previous week" aria-label="Previous week">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <button type="button" class="rr-tgt-week-nav-btn" id="rr-tgt-week-next" title="Next week" aria-label="Next week">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
           </div>
+          <!-- Legacy id kept (hidden) so any straggler reader of the old
+               rules-week label doesn't throw; the nav label is authoritative. -->
+          <span id="rr-tgt-rules-week-label" hidden></span>
           <div class="rr-tgt-kpi">
             <div class="rr-tgt-kpi-text">
               <div class="rr-tgt-kpi-label">Block</div>
@@ -1717,7 +1727,7 @@
               <div class="rr-tgt-kpi-label">Report time</div>
               <div class="rr-tgt-kpi-val">
                 <input class="rr-tgt-kpi-input" id="rr-sched-targets-report-lead" type="number" min="0" max="120" step="5" autocomplete="off" aria-label="Report time minutes"/>
-                <span class="rr-tgt-kpi-unit">min</span>
+                <span class="rr-tgt-kpi-unit" title="minutes">m</span>
               </div>
             </div>
           </div>
@@ -1751,12 +1761,18 @@
                top-right chrome (⋯ / bell / avatar) which is moved in from the
                Schedule action bar on Targets entry by _rrMoveChromeToTargets. -->
           <div class="rr-tgt-toolbar-right">
-            <!-- The Forecast-gap card moved DOWN into the Targets card header
-                 (.rr-tgt-13w-actions) — in this strip it overflowed its
-                 auto-fit grid cell at laptop widths and painted over the
-                 Adjust…/Snapshots… row below. Same ids, same JS. -->
+            <!-- Inline forecasting KPI · styled like the Schedule "N / N ROUTES"
+                 status, NOT a card: no box/fill, a subtle left divider, small
+                 uppercase shortfall label (red only), a muted supporting line,
+                 and a thin red status rule underneath. Populated by
+                 _rrRefreshTargetsGapCard from the same model the table renders,
+                 so its numbers reconcile with the worst-gap row exactly. -->
+            <div class="rr-tgt-kpi-forecast" id="rr-tgt-kpi-forecast" hidden title="Largest weekly driver shortfall across the plan">
+              <span class="rr-tgt-kpi-forecast-main" id="rr-tgt-kpi-forecast-main">—</span>
+              <span class="rr-tgt-kpi-forecast-sub" id="rr-tgt-kpi-forecast-sub"></span>
+            </div>
             <span id="rr-tgt-save-status" class="rr-tgt-save-status" aria-live="polite"></span>
-            <button type="button" class="rr-tgt-save-plan" id="rr-tgt-save-plan" title="Save this week's rules (Block / Cushion / Report / Waves) and rebuild its unassigned shifts">Apply rules</button>
+            <button type="button" class="rr-tgt-save-plan" id="rr-tgt-save-plan" disabled title="Save this week's rules (Block / Cushion / Report / Waves) and rebuild its unassigned shifts">Apply changes</button>
             <span class="rr-tgt-chrome-host" id="rr-tgt-chrome-host"></span>
           </div>
         </div><!-- /#rr-sched-targets-kpis -->
@@ -2476,17 +2492,11 @@
                 </div>
                 <p class="rr-tgt-13w-sub">Model route demand and staffing requirements.</p>
               </div>
-              <div class="rr-tgt-13w-actions">
-                <!-- Forecast gap · relocated from the KPI strip (it overlapped
-                     the buttons here at laptop widths). Populated by
-                     _rrRefreshTargetsGapCard in live.js — ids unchanged. -->
-                <div class="rr-tgt-gap-card" id="rr-tgt-gap-card" hidden title="Largest weekly driver shortfall across the plan">
-                  <span class="rr-tgt-gap-card-label">Forecast gap</span>
-                  <span class="rr-tgt-gap-card-value" id="rr-tgt-gap-card-main">—</span>
-                  <span class="rr-tgt-gap-card-sub" id="rr-tgt-gap-card-sub" hidden></span>
-                  <span class="rr-tgt-gap-card-link" id="rr-tgt-gap-card-link" hidden>View analysis →</span>
-                </div>
-              </div>
+              <!-- Forecast gap moved out of this (now hidden) heading and into
+                   the command bar as the inline forecasting KPI
+                   (#rr-tgt-kpi-forecast). The empty actions slot is kept only
+                   so _rrOkamiRenderStationFilter still has its anchor. -->
+              <div class="rr-tgt-13w-actions"></div>
             </div>
             <div id="rr-sched-targets-13week-host">
               <div class="rr-tgt-13w-empty">Loading 13-week plan…</div>

@@ -55036,13 +55036,55 @@ async function renderScheduleTargetsSubView() {
   // is reachable via the row-expand button in the table itself).
   // Save-input delegation still binds in case they open a row.
   _bindOkamiDailyInputDelegation();
+  // Apply changes starts clean (disabled) on entry — no unsaved rule edits yet.
+  try { _rrTgtMarkRulesClean(); _rrTgtWaveDirty = false; } catch (_) {}
   // Populate the Block / Cushion / Report-time KPI strip inputs
   // from the per-week RPC. Same loader the popover + OKAMI page use.
   if (typeof loadSchedulingSettings === "function") {
     try { loadSchedulingSettings(); } catch (e) { console.warn("Targets sub-view settings:", e); }
   }
+  // Sync the week-navigator label to the anchored week.
+  try { _rrTgtSyncWeekNav(); } catch (_) {}
 }
 window.renderScheduleTargetsSubView = renderScheduleTargetsSubView;
+
+// ─── Targets week navigator ([W##] · ‹ · ›) ────────────────────────────────
+// Anchors the 13-week horizon AND the per-week rules on one week. Drives
+// _schedStart (so the rules RPC + the schedule grid stay consistent) and the
+// OKAMI anchor, then reloads settings + re-renders the table. The label always
+// reflects the currently-selected week (never hardcoded).
+function _rrTgtSyncWeekNav() {
+  const lbl = document.getElementById("rr-tgt-week-nav-label");
+  if (!lbl) return;
+  const iso = (typeof _schedStart === "string" && _schedStart) ? _schedStart : fmtIsoDate(startOfWeek(new Date()));
+  const d = new Date(iso + "T12:00:00");
+  lbl.textContent = `W${isoWeek(d)}`;
+  const todayMon = fmtIsoDate(startOfWeek(new Date()));
+  const todayBtn = document.getElementById("rr-tgt-week-today");
+  if (todayBtn) {
+    todayBtn.classList.toggle("is-on-today", iso === todayMon);
+    todayBtn.title = iso === todayMon ? "Showing the current week" : "Jump to the current week";
+  }
+}
+async function _rrTgtGoToWeek(iso) {
+  if (!iso) return;
+  _schedStart = iso;
+  _okamiStart = iso;
+  window._rrOkamiAnchorOverride = iso;
+  _rrTgtSyncWeekNav();
+  try { await loadSchedulingSettings(); } catch (e) { console.warn("Targets week nav settings:", e); }
+  try { await renderOkamiLive(); } catch (e) { console.warn("Targets week nav render:", e); }
+}
+function _rrTgtShiftWeek(deltaWeeks) {
+  const base = (typeof _schedStart === "string" && _schedStart) ? _schedStart : fmtIsoDate(startOfWeek(new Date()));
+  _rrTgtGoToWeek(fmtIsoDate(addDays(new Date(base + "T12:00:00"), deltaWeeks * 7)));
+}
+document.addEventListener("click", (e) => {
+  if (!e.target.closest) return;
+  if (e.target.closest("#rr-tgt-week-prev"))  { e.preventDefault(); _rrTgtShiftWeek(-1); return; }
+  if (e.target.closest("#rr-tgt-week-next"))  { e.preventDefault(); _rrTgtShiftWeek(1);  return; }
+  if (e.target.closest("#rr-tgt-week-today")) { e.preventDefault(); _rrTgtGoToWeek(fmtIsoDate(startOfWeek(new Date()))); return; }
+});
 
 async function _renderOkamiDailyPanelImpl(weekIdx, targetContainerId) {
   // The daily-detail panel renders into `okami-detail-content-${weekIdx}`
@@ -55442,6 +55484,17 @@ async function loadSchedulingSettings() {
     tgWeekLbl.textContent = `W${isoWeek(wkDate)}${s.is_inherited ? " · inherited" : ""}`;
     tgWeekLbl.title = s.is_inherited
       ? `Week of ${fmtMD(wkDate)} — showing rules inherited from an earlier week; saving makes them this week's own`
+      : `Week of ${fmtMD(wkDate)} — this week has its own saved rules`;
+  }
+  // The week navigator is the visible week indicator now — keep its label in
+  // sync (the "· inherited" note rides on the title, not the compact chip).
+  const tgNavLbl = document.getElementById("rr-tgt-week-nav-label");
+  if (tgNavLbl && _schedStart) {
+    const wkDate = new Date(_schedStart + "T12:00:00");
+    tgNavLbl.textContent = `W${isoWeek(wkDate)}`;
+    const navWrap = document.getElementById("rr-tgt-week-nav");
+    if (navWrap) navWrap.title = s.is_inherited
+      ? `Week of ${fmtMD(wkDate)} — rules inherited from an earlier week; Apply changes makes them this week's own`
       : `Week of ${fmtMD(wkDate)} — this week has its own saved rules`;
   }
 
@@ -56152,134 +56205,79 @@ window._rrReturnSchedDemandHome    = _rrReturnSchedDemandHome;
 window._rrMoveSchedDemandToTargets = _rrMoveSchedDemandToTargets;
 
 // ─── Targets toolbar · Gap status card + Save Plan + relocated chrome ──────
-// Gap card mirrors the Schedule Coverage card: shows the largest weekly driver
-// shortfall across the 13-week plan (worst = most-negative gap), red when short
-// and green when covered. Reads the rendered gap cells so it stays in lockstep
-// with the table without re-deriving the math.
+// Inline forecasting KPI — the toolbar status that reads like the Schedule
+// "N / N ROUTES" figure (no card): the largest weekly driver shortfall across
+// the 13-week plan (worst = most-negative gap), the week it lands in, and the
+// hire-by deadline. The shortfall + worst week are read from the SAME model the
+// table renders (window._rrOkamiModel.weeks), so the KPI reconciles with the
+// worst-gap row exactly. The forecast-core assessment still runs for the
+// deadline alerts + a smarter reachable hire-by, but never changes the
+// displayed shortfall (that would drift from the table).
 function _rrRefreshTargetsGapCard() {
-  const card = document.getElementById("rr-tgt-gap-card");
-  if (!card) return;
-  // Read through _rrReadOkamiWeeks (the same parser the Risk Forecast view
-  // uses) instead of scraping .plan-gap cells directly: it folds in the
-  // 13-week simulation's PTO-adjusted availability, so the card agrees
-  // with the projection after the operator runs Simulate.
-  let weeks = [];
-  try { weeks = (_rrReadOkamiWeeks() || []).filter((w) => Number.isFinite(w.gap)); } catch (_) {}
-  // Weeks with no routes planned are unknowns, not surpluses — they must
-  // not feed the assessment (a zero-demand week reads as "covered" and
-  // could mask the real horizon). They're surfaced as a count instead.
-  const unplannedCount = weeks.filter((w) => w.unplanned).length;
-  weeks = weeks.filter((w) => !w.unplanned);
-  if (!weeks.length) { card.hidden = true; return; }
-  // Shared forecast-core assessment (same one the Risk Forecast renders
-  // from): effective supply + hire-by reachability. Rates load lazily and
-  // this card repaints when they land.
+  const host = document.getElementById("rr-tgt-kpi-forecast");
+  if (!host) return; // standalone OKAMI page has no inline KPI — nothing to do
+  const mainEl = document.getElementById("rr-tgt-kpi-forecast-main");
+  const subEl = document.getElementById("rr-tgt-kpi-forecast-sub");
+
+  // Planned weeks straight from the rendered model — a zero-route week is an
+  // unknown, not a surplus, so it can't set "worst" or read as covered.
+  const modelWeeks = (window._rrOkamiModel?.weeks || []).filter((w) => Number.isFinite(w.gap));
+  const unplannedCount = modelWeeks.filter((w) => w.unplanned).length;
+  const planned = modelWeeks.filter((w) => !w.unplanned);
+  if (!planned.length) { host.hidden = true; return; }
+
+  // Worst = most-negative gap; exactly the value shown in that week's Gap cell.
+  let worstWk = planned[0];
+  for (const w of planned) if (w.gap < worstWk.gap) worstWk = w;
+  const worst = worstWk.gap;
+  host.hidden = false;
+
+  // Shared forecast-core assessment drives the deadline/worsening alerts and a
+  // reachable hire-by; rates load lazily and this repaints when they land.
   _rrEnsureForecastRates();
   let A = null;
-  try { A = _rrAssessOkamiPlan(weeks); } catch (_) {}
-  if (!A || !A.worstWeek) { card.hidden = true; return; }
-  const worst = A.worstWeek.gap;
-  card.hidden = false;
-  // Deadline/worsening alerts ride on the same freshly-computed result.
-  try { _rrTgtMaybeAlert(A); } catch (_) {}
-  const mainEl = document.getElementById("rr-tgt-gap-card-main");
-  if (mainEl) mainEl.textContent = `${worst > 0 ? "+" : ""}${worst} Driver${Math.abs(worst) === 1 ? "" : "s"}`;
-  card.classList.toggle("rr-tgt-gap-card--pos", worst >= 0);
-  // Name the worst week — "-104" alone doesn't say WHEN the cliff is.
-  const labelEl = card.querySelector(".rr-tgt-gap-card-label");
-  if (labelEl) {
-    labelEl.textContent = worst < 0 && A.worstWeek.label
-      ? `Forecast gap · worst ${A.worstWeek.label}`
-      : "Forecast gap";
-    if (A.worstWeek.dates) labelEl.title = worst < 0 ? `Deepest shortfall: ${A.worstWeek.label} (${A.worstWeek.dates})` : "";
-    // Station-filtered demand vs fleet-wide supply — say so.
-    const stn = window._rrOkamiModel?.stationFilter;
-    if (stn) {
-      labelEl.textContent += ` · ${stn} demand`;
-      labelEl.title = (labelEl.title ? labelEl.title + " — " : "") + "Demand filtered to one station; Available is still fleet-wide";
-    }
-  }
-  // Prescription line — the one action the number implies. Hire count =
-  // deepest shortfall among weeks hiring can still reach (one hire fills a
-  // seat in every later week, so weekly gaps are never summed); deadline =
-  // the earliest reachable hire-by. Once every short week is inside the
-  // hire lead time, "hire by <past date>" would be fiction — say what's
-  // actually left: mitigation.
-  const subEl = document.getElementById("rr-tgt-gap-card-sub");
-  const rx = A.prescription;
-  const fmtIsoShort = (iso) => (iso ? fmtMD(new Date(iso + "T12:00:00")) : "");
-  if (subEl) {
-    if (rx.action === "hire") {
-      // FT/PT split rides along when the flex engine has already scored the
-      // first reachable week (cache-only — the card never fetches flex).
-      let split = "";
-      const flexData = rx.firstReachable && rx.firstReachable.weekStartIso
-        ? _rrFlexBaseCached(rx.firstReachable.weekStartIso) : null;
-      const wi = flexData && flexData.whatIf;
-      if (wi && wi.driversNeeded > 0) split = ` (${wi.recommendedFtHires} FT + ${wi.recommendedPtHires} PT)`;
-      // Upper-funnel enrichment · when the planning payload is already
-      // cached, extend "Hire N" into the application quota it implies.
-      // Cold cache: kick the fetch and repaint this card once it lands
-      // (the fetch memoizes, so the repaint's re-entry takes the warm
-      // path and can't loop). Skipped when the line already carries the
-      // OT/flex tail — three clauses won't fit the card.
-      let appsSuffix = "";
-      if (!rx.unreachable.length && typeof _rrUpperFunnelMath === "function") {
-        if (_rrHiringPlanCache) {
-          const m = _rrUpperFunnelMath(_rrHiringPlanCache.data);
-          const unsourced = Math.max(0, Math.ceil(rx.hires - m.expectedHires));
-          if (unsourced > 0) appsSuffix = ` · ≈${_rrUfAppsNeeded(unsourced, m.e2ePct).toLocaleString()} apps`;
-        } else {
-          _rrFetchHiringPlanning().then(() => { try { _rrRefreshTargetsGapCard(); } catch (_) {} });
-        }
-      }
-      subEl.textContent = rx.unreachable.length
-        ? `Hire ${rx.hires}${split} by ${fmtIsoShort(rx.deadlineIso)} · ${rx.unreachable.length} wk${rx.unreachable.length === 1 ? "" : "s"} need OT/flex`
-        : `Hire ${rx.hires}${split} by ${fmtIsoShort(rx.deadlineIso)}` + appsSuffix;
-    } else if (rx.action === "mitigate") {
-      subEl.textContent = `Hire window passed — cover ${rx.shortNow} with OT/flex`;
-    } else {
-      subEl.textContent = "Staffed through the plan";
-    }
-    if (unplannedCount > 0) subEl.textContent += ` · ${unplannedCount} wk${unplannedCount === 1 ? "" : "s"} unplanned`;
-    subEl.hidden = false;
-  }
-  // Initial paint runs before the forecast rates land — shimmer the sub
-  // line instead of letting the number visibly re-compose in stages.
-  card.classList.toggle("is-loading", !window._rrForecastRates);
-  // A short plan gets a click-through to the full Risk forecast analysis
-  // (per-week narrative, hire-by dates, simulation deltas).
-  const clickable = worst < 0 && typeof _rrIntelShow === "function";
-  card.classList.toggle("is-clickable", clickable);
-  // Visible affordance — hover-only clickability is invisible.
-  const linkEl = document.getElementById("rr-tgt-gap-card-link");
-  if (linkEl) linkEl.hidden = !clickable;
-  if (clickable) {
-    card.setAttribute("role", "button");
-    card.setAttribute("tabindex", "0");
-    card.title = "Largest weekly driver shortfall — open the Risk forecast analysis";
+  try {
+    let weeks = [];
+    try { weeks = (_rrReadOkamiWeeks() || []).filter((w) => Number.isFinite(w.gap) && !w.unplanned); } catch (_) {}
+    if (weeks.length) A = _rrAssessOkamiPlan(weeks);
+    if (A) { try { _rrTgtMaybeAlert(A); } catch (_) {} }
+  } catch (_) { /* assessment is best-effort */ }
+
+  const stn = window._rrOkamiModel?.stationFilter;
+  host.classList.toggle("is-short", worst < 0);
+  host.classList.toggle("is-loading", !window._rrForecastRates);
+
+  if (worst < 0) {
+    const short = -worst;
+    if (mainEl) mainEl.textContent = `${short} DRIVER${short === 1 ? "" : "S"} SHORTFALL`;
+    // Hire-by: prefer the assessment's earliest reachable deadline (the
+    // "single forecast vocabulary" date), else the worst week's own hire-by
+    // (the value the hidden Hire-by column would show for that row).
+    const rx = A && A.prescription;
+    let hireBy = "";
+    if (rx && rx.action === "hire" && rx.deadlineIso) hireBy = fmtMD(new Date(rx.deadlineIso + "T12:00:00"));
+    else if (worstWk.hireBy && worstWk.hireBy !== "—") hireBy = worstWk.hireBy;
+    const tail = (rx && rx.action === "mitigate")
+      ? "hire window passed · OT/flex"
+      : (hireBy ? `Hire by ${hireBy}` : "");
+    const parts = [`Worst gap ${worstWk.label}`];
+    if (tail) parts.push(tail);
+    if (stn) parts.push(`${stn} demand`);
+    if (unplannedCount > 0) parts.push(`${unplannedCount} wk${unplannedCount === 1 ? "" : "s"} unplanned`);
+    if (subEl) subEl.textContent = parts.join(" · ");
+    host.title = worstWk.dates
+      ? `Deepest shortfall: ${worstWk.label} (${worstWk.dates})${stn ? " — demand filtered to one station; Available is fleet-wide" : ""}`
+      : "Largest weekly driver shortfall across the plan";
   } else {
-    card.removeAttribute("role");
-    card.removeAttribute("tabindex");
-    card.title = "Largest weekly driver shortfall across the plan";
+    if (mainEl) mainEl.textContent = "STAFFED";
+    const parts = ["Covered through the plan"];
+    if (stn) parts.push(`${stn} demand`);
+    if (unplannedCount > 0) parts.push(`${unplannedCount} wk${unplannedCount === 1 ? "" : "s"} unplanned`);
+    if (subEl) subEl.textContent = parts.join(" · ");
+    host.title = "Plan is staffed through the 13-week horizon";
   }
 }
 window._rrRefreshTargetsGapCard = _rrRefreshTargetsGapCard;
-
-// Gap card click-through → Risk forecast intel view (only armed while the
-// plan is short; _rrRefreshTargetsGapCard manages the is-clickable state).
-document.addEventListener("click", (e) => {
-  const card = e.target.closest && e.target.closest("#rr-tgt-gap-card.is-clickable");
-  if (!card) return;
-  try { _rrIntelShow("risk-forecast"); } catch (_) {}
-});
-document.addEventListener("keydown", (e) => {
-  if (e.key !== "Enter" && e.key !== " ") return;
-  const card = e.target.closest && e.target.closest("#rr-tgt-gap-card.is-clickable");
-  if (!card) return;
-  e.preventDefault();
-  try { _rrIntelShow("risk-forecast"); } catch (_) {}
-});
 
 // Graduated gap severity for the Targets gap pill: positive = covered (green);
 // negative scales light → medium → dark red with the size of the shortfall.
@@ -56306,11 +56304,21 @@ function _rrApplyGapClass(gapEl, gap) {
 // and even when it failed. Now: in-flight state, outcome from the
 // actual result, and a dirty accent only when there are unsaved rule
 // edits (routes never make it dirty — they're already saved).
+// Apply changes enables ONLY when there are unsaved rule edits. Dirty = solid
+// blue + clickable; clean = neutral + disabled. (Routes auto-save through
+// _rrOkamiApplyWrites, so they never make this dirty — this button's job is the
+// per-week Block/Cushion/Report/Waves save + shift rebuild.)
 function _rrTgtMarkRulesDirty() {
-  document.getElementById("rr-tgt-save-plan")?.classList.add("rr-tgt-save-plan--dirty");
+  const b = document.getElementById("rr-tgt-save-plan");
+  if (!b) return;
+  b.classList.add("rr-tgt-save-plan--dirty");
+  b.disabled = false;
 }
 function _rrTgtMarkRulesClean() {
-  document.getElementById("rr-tgt-save-plan")?.classList.remove("rr-tgt-save-plan--dirty");
+  const b = document.getElementById("rr-tgt-save-plan");
+  if (!b) return;
+  b.classList.remove("rr-tgt-save-plan--dirty");
+  b.disabled = true;
 }
 document.addEventListener("input", (e) => {
   if (!e.target.closest) return;
@@ -56341,9 +56349,11 @@ document.addEventListener("click", async (e) => {
       toast(`Apply failed: ${res?.error || "unknown error"}`, "warn");
     }
   } finally {
-    btn.disabled = false;
     btn.removeAttribute("aria-busy");
     btn.textContent = prevLabel;
+    // Re-enable only if edits remain (a failed apply keeps the dirty class so
+    // the operator can retry; a success cleared it → button returns to disabled).
+    btn.disabled = !btn.classList.contains("rr-tgt-save-plan--dirty");
   }
 });
 
