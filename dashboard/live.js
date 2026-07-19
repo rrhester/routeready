@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=b132eb8673a9";
-import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=b132eb8673a9";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=b132eb8673a9";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=b132eb8673a9";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=b132eb8673a9";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=b132eb8673a9";
-import { isChecklistComplete } from "./checklist-core.mjs?v=b132eb8673a9";
+import { planScheduleWeek } from "./scheduling-engine.js?v=dc241d952852";
+import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=dc241d952852";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=dc241d952852";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=dc241d952852";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=dc241d952852";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=dc241d952852";
+import { isChecklistComplete } from "./checklist-core.mjs?v=dc241d952852";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=b132eb8673a9";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=b132eb8673a9";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=b132eb8673a9";
+} from "./msg-core.mjs?v=dc241d952852";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=dc241d952852";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=dc241d952852";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -51300,10 +51300,19 @@ function refreshActiveView() {
     if (typeof loadStaffingOutlook === "function") loadStaffingOutlook();
   } else if (activeView === "view-checkin") {
     if (typeof loadCheckinView === "function") loadCheckinView();
+  } else if (activeView === "view-recognition") {
+    // Re-run the active recognition sub-pane so a station toggle rescopes it.
+    if (typeof window.loadRecognitionSubPane === "function") {
+      const rsub = document.querySelector("#view-recognition .subnav-item.active")?.getAttribute("data-sub") || "upcoming";
+      window.loadRecognitionSubPane(rsub);
+    }
   } else if (activeView === "view-admin") {
     if (typeof loadPlatformAdmin === "function") loadPlatformAdmin();
   } else if (activeView === "view-fleet2") {
     if (typeof loadFleetView === "function") loadFleetView();
+  } else if (activeView === "view-repair") {
+    // Self-registered module — re-fetch so a station toggle rescopes the queue.
+    if (window.RRRepair && typeof window.RRRepair.loadView === "function") window.RRRepair.loadView(true);
   } else if (activeView === "view-drive") {
     if (typeof loadDriveView === "function") loadDriveView();
   }
@@ -93128,6 +93137,16 @@ async function _loadRecognitionUpcoming() {
     return;
   }
   _recogUpcomingData = Array.isArray(data) ? data : [];
+  // Master station lens · scope celebrations to drivers at the selected
+  // station (driver_stations membership; rows carry driver_id). Pre-migration
+  // the set is null → no scoping (rows have no station column). "All" = as-is.
+  {
+    const _scope = (typeof rrStationScopeId === "function") ? rrStationScopeId() : null;
+    if (_scope) {
+      const ids = await _rrDriverIdsAtStation(_scope);
+      if (ids) _recogUpcomingData = _recogUpcomingData.filter((r) => ids.has(r.driver_id));
+    }
+  }
   _recogRenderUpcoming();
 }
 
@@ -93175,6 +93194,14 @@ async function _loadRecognitionHistory() {
     return;
   }
   _recogHistoryData = Array.isArray(data) ? data : [];
+  // Master station lens · same membership scope as the Upcoming pane.
+  {
+    const _scope = (typeof rrStationScopeId === "function") ? rrStationScopeId() : null;
+    if (_scope) {
+      const ids = await _rrDriverIdsAtStation(_scope);
+      if (ids) _recogHistoryData = _recogHistoryData.filter((r) => ids.has(r.driver_id));
+    }
+  }
   _recogRenderHistory();
 }
 

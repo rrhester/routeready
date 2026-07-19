@@ -301,6 +301,30 @@ Targets **Available** column stays fleet-wide (drivers float — deliberate).
 Migrations: **0525** (driver_stations) → **0526** (today_plan), both manual +
 graceful-degrading. Shipped PRs #4037/4046/4049/4051/4053/4055 (+ this one).
 
+**SHIPPED — Recognition + Repair Center scope (new-DSP isolation):**
+- **Recognition** (`_loadRecognitionUpcoming` / `_loadRecognitionHistory` ~93108):
+  both `recognition_upcoming` + `recognition_list` rows carry `driver_id`, so the
+  Upcoming + Sent/scheduled panes filter by driver_stations MEMBERSHIP
+  (`_rrDriverIdsAtStation`); pre-0525 the set is null → no scoping (rows have no
+  station column — graceful). refreshActiveView gained a view-recognition branch
+  that re-runs the ACTIVE sub-pane (`window.loadRecognitionSubPane`) on toggle.
+  Browser-QA'd (2-station stub + a floater): All=3, DBO5=2, DCA1=2, back to All=3.
+- **Repair Center** (`dashboard/repair/repair-ui.js` — self-registered module):
+  `loadView` now passes `p_station_id` to BOTH `repair_cases_list` (already
+  supported since 0486) and `repair_center_summary` (**migration 0530**), so the
+  queue + attention list + KPI strip all scope server-side. Summary has a graceful
+  no-arg fallback (pre-0530 the arg'd overload 404s → retry → DSP-wide strip still
+  paints). Per-page station dropdown retired when the switcher exists. live.js
+  refreshActiveView gained a view-repair branch (→ `RRRepair.loadView(true)`) so a
+  toggle re-fetches. Browser-QA'd: All queue/open=3, DBO5=1, DCA1=2, back=3,
+  dropdown hidden, arg'd summary called, no errors.
+- **Check-in** turned out to be DEAD (index.html line ~2193: "Today's check-in
+  view removed; live data lives at Drivers → Attendance → Today"). loadCheckinView
+  early-returns (no #view-checkin). The LIVE check-in surface is the Attendance
+  report (loadAttendanceLive), already scoped — so "check-in" is covered.
+- **Migration 0530** (repair_center_summary p_station_id) MANUAL — paste in chat.
+  Apply order for the lens: 0525 → 0526 → 0528 → 0529 → **0530**.
+
 ## Active task: Staffing model — XL-route demand (branch claude/staffing-driver-requirements-1tw30l)
 
 Operator's staffing model (2026-07-18): standard route = 2 drivers ×
