@@ -35,7 +35,7 @@ import {
   // (this file is in its FILES list). Without it the browser can pair a
   // fresh repair-ui.js with a stale cached repair-engine.js — a missing
   // export then kills the whole module graph and the page never boots.
-} from "./repair-engine.js?v=b132eb8673a9";
+} from "./repair-engine.js?v=dc241d952852";
 
 (() => {
   "use strict";
@@ -125,11 +125,21 @@ import {
     if (S.loading) return;
     S.loading = true;
     injectCss(); // the frag's toolbar buttons use the injected classes
+    // Master station lens · scope the whole Repair Center to the selected
+    // station (id null ⇒ "All" ⇒ byte-identical to before). repair_cases_list
+    // already accepts p_station_id; repair_center_summary gains it in 0530 —
+    // fall back to the no-arg call so the KPI strip still renders pre-migration.
+    const _stnId = (typeof window.rrStationScopeId === "function") ? window.rrStationScopeId() : null;
     try {
-      const [list, summary] = await Promise.all([
-        sb().rpc("repair_cases_list", { p_open_only: S.filters.openOnly }),
-        sb().rpc("repair_center_summary"),
+      const listArgs = { p_open_only: S.filters.openOnly };
+      if (_stnId) listArgs.p_station_id = _stnId;
+      let [list, summary] = await Promise.all([
+        sb().rpc("repair_cases_list", listArgs),
+        sb().rpc("repair_center_summary", _stnId ? { p_station_id: _stnId } : {}),
       ]);
+      // Pre-0530 the arg'd summary overload 404s — retry the no-arg fn so the
+      // strip still paints (DSP-wide until the migration lands).
+      if (summary.error && _stnId) summary = await sb().rpc("repair_center_summary");
       if (list.error) throw list.error;
       S.rows = Array.isArray(list.data) ? list.data : [];
       S.summary = summary.error ? null : summary.data;
@@ -312,6 +322,12 @@ import {
   function paintStationFilter() {
     const sel = el("rr-repair-f-station");
     if (!sel) return;
+    // The global sidebar switcher is the one station control — retire this
+    // per-page dropdown when it exists (the queue is already server-scoped).
+    if (typeof window.rrStationScope === "function") {
+      sel.style.display = "none";
+      if (S.filters.station) { S.filters.station = ""; }
+    }
     const stations = [...new Set(S.rows.map((r) => r.station_code).filter(Boolean))].sort();
     const current = S.filters.station;
     sel.innerHTML = `<option value="">Station: All</option>`
