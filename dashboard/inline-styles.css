@@ -17687,8 +17687,52 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-menu .rr-drawer-section-head .btn:hover{
             background:rgba(255,255,255,.24) !important;
           }
-          /* Service types carry rename inputs · give them more room. */
-          #view-schedule #rr-sched-targets-kpis #rr-tgt-st-menu{min-width:420px}
+          /* ── Settings · the single popover holding Block/Cushion/Report time
+             + the wave-times & service-type editors. Uses the shared
+             .rr-tgt-kpi-menu chrome; widened for the service-type rename rows. */
+          #view-schedule #rr-sched-targets-kpis #rr-tgt-settings-menu{min-width:420px}
+          /* Gear glyph on the Settings trigger. */
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-settings-ico{
+            width:15px;height:15px;flex:0 0 auto;color:var(--text-muted);
+          }
+          /* Block / Cushion / Report-time rows inside the popover · a tidy
+             two-column stack (label · field), separated from the editors below
+             by a hairline. */
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-set-rules{
+            display:flex;flex-direction:column;gap:8px;
+            padding:14px 0 12px;margin:0 0 4px;
+            border-bottom:1px solid var(--border);
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-set-row{
+            display:flex;align-items:center;justify-content:space-between;gap:14px;
+            font-size:var(--fs-sm);font-weight:600;color:var(--text);cursor:text;
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-set-row-lbl{
+            color:var(--text-muted);font-weight:600;
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-set-row-field{
+            display:inline-flex;align-items:center;gap:5px;
+            border:1px solid var(--border);border-radius:6px;
+            padding:5px 9px;background:var(--surface);
+            box-shadow:0 1px 1px rgba(15,23,42,.03);
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-set-row-field:focus-within{
+            border-color:var(--accent);box-shadow:0 0 0 3px rgba(37,99,235,.12);
+          }
+          /* Reset the inline-pill underline treatment for the boxed popover
+             inputs — here they read as normal fields. */
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-set-row-field .rr-tgt-kpi-input{
+            width:38px;text-align:right;text-decoration:none;color:var(--text);cursor:text;
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-set-row-field .rr-tgt-kpi-unit{
+            color:var(--text-subtle);opacity:1;font-weight:600;
+          }
+          /* Wave-times / Service-type editor hosts · spacing between the two
+             moved-in sections. */
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-set-editor:not(:empty){
+            padding-top:6px;
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-set-editor:empty{display:none}
           /* ── Targets toolbar · right side (Gap status card + Save Plan +
              the moved ⋯/bell/avatar chrome), mirroring the Schedule header. */
           #view-schedule #rr-sched-targets-kpis .rr-tgt-toolbar-right{
@@ -22040,6 +22084,9 @@ body.rr-cmdk-open{ overflow:hidden }
               border-radius:0;
               box-shadow:none;
               padding:0;
+              /* Top breathing room is set on the higher-specificity
+                 schedule-rrx.css .rr-tgt-13w rule (the tray) so it isn't
+                 overridden; here we only own the bottom gap. */
               margin-bottom:var(--s-3);
               overflow:visible;
               display:flex;flex-direction:column;
