@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=f796a1205010";
-import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=f796a1205010";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=f796a1205010";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=f796a1205010";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=f796a1205010";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=f796a1205010";
-import { isChecklistComplete } from "./checklist-core.mjs?v=f796a1205010";
+import { planScheduleWeek } from "./scheduling-engine.js?v=fc209b4f935c";
+import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=fc209b4f935c";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=fc209b4f935c";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=fc209b4f935c";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=fc209b4f935c";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=fc209b4f935c";
+import { isChecklistComplete } from "./checklist-core.mjs?v=fc209b4f935c";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=f796a1205010";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=f796a1205010";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=f796a1205010";
+} from "./msg-core.mjs?v=fc209b4f935c";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=fc209b4f935c";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=fc209b4f935c";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -1044,6 +1044,21 @@ function _rrRerenderForScope() {
   }
   if (v === "view-okami") {
     try { if (typeof loadOkamiView === "function") loadOkamiView(); } catch (_) {}
+    return;
+  }
+  if (v === "view-onboarding-ops") {
+    // Re-render the onboarding matrix AND the active sub-tab (Funnel →
+    // loadPipeline, Interview → loadInterviewDay) — refreshActiveView only
+    // re-runs loadOnboardingOps, which doesn't drive the pipeline sub-loaders.
+    try { if (typeof loadOnboardingOps === "function") loadOnboardingOps({ keepTab: true }); } catch (_) {}
+    try {
+      const sub = document.getElementById("view-onboarding-ops")?.getAttribute("data-obsub") || "overview";
+      if (sub === "funnel" && typeof loadPipeline === "function") {
+        loadPipeline(typeof getActiveStage === "function" ? getActiveStage() : "all");
+      } else if (sub === "interview" && typeof loadInterviewDay === "function") {
+        loadInterviewDay();
+      }
+    } catch (_) {}
     return;
   }
   if (v === "view-messages") {
@@ -2985,7 +3000,7 @@ async function loadPipeline(stage = "all") {
   // operator changes tabs.
   list.innerHTML = `${_PA_SKEL_CARD}${_PA_SKEL_CARD}${_PA_SKEL_CARD}${_PA_SKEL_CARD}`;
 
-  const [{ data: rows, error }, { data: counts }] = await Promise.all([
+  const [{ data: rowsRaw, error }, { data: counts }] = await Promise.all([
     sb.rpc("pipeline_list", { p_stage: stage, p_limit: 200 }),
     sb.rpc("pipeline_counts"),
   ]);
@@ -2993,6 +3008,15 @@ async function loadPipeline(stage = "all") {
     toast("Pipeline load failed: " + error.message, "warn");
     return;
   }
+  // Master station lens · applicants carry station_id/station_code (their target
+  // station). When scoped, show this station's applicants PLUS the unassigned
+  // pool (no target station yet), so scoping never hides someone still being
+  // sourced. The stage-tab counts come from pipeline_counts (DSP-wide aggregate)
+  // and stay DSP-wide until that RPC gets a p_station_id.
+  const _plScope = (typeof rrStationScopeId === "function") ? rrStationScopeId() : null;
+  const rows = _plScope
+    ? (rowsRaw ?? []).filter((r) => !r.station_id || r.station_id === _plScope)
+    : (rowsRaw ?? []);
 
   // Update tab counts. Always set (including 0) so the mockup defaults
   // don't bleed through when a stage is empty.
@@ -25109,7 +25133,17 @@ async function loadInterviewDay() {
 
   const { data: roster, error: rErr } = await sb.rpc("interview_day_roster", { p_day_id: day.id });
   if (rErr) { toast("Roster load failed: " + rErr.message, "warn"); return; }
-  renderInterviewDay(day, roster ?? []);
+  // Master station lens · applicants carry a target station (migration 0528
+  // surfaces station_id on the roster). When scoped, show only this station's
+  // interviews plus any unassigned applicant; the day's KPIs recompute from the
+  // filtered rows. Pre-migration (no station_id column) the roster isn't
+  // filtered, so nothing breaks until 0528 lands.
+  let _ivRoster = roster ?? [];
+  const _ivScope = (typeof rrStationScopeId === "function") ? rrStationScopeId() : null;
+  if (_ivScope) {
+    _ivRoster = _ivRoster.filter((r) => r.station_id === undefined || !r.station_id || r.station_id === _ivScope);
+  }
+  renderInterviewDay(day, _ivRoster);
 }
 
 function renderInterviewDay(day, rows) {

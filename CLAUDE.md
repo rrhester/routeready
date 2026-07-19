@@ -240,11 +240,32 @@ inbox (calling the channel refreshers too CLOBBERS the shared list host — QA
 caught this: scoped DMs came back empty until I dropped them). Browser-QA'd:
 DM inbox All={d1,d2}, scope Boston={d2}, scope Chantilly={d1}, no errors.
 
-**NEXT for the new-DSP push:** the aggregate KPI RPCs that need `p_station_id`
+**SHIPPED — Onboarding Funnel + Interview scope (operator report "funnel and
+interview still show the old station"):** these are the HIRING-PIPELINE sub-tabs
+of view-onboarding-ops (obSub funnel→`loadPipeline`, interview→`loadInterviewDay`)
+— NOT the readiness matrix (`loadOnboardingOps`) I'd scoped earlier. Fixed:
+- **Funnel** (`loadPipeline` ~2988): applicants carry `station_id`/`station_code`
+  (pipeline_list). Scopes to this station + the unassigned pool (no target
+  station yet); the scoped rows feed `_rrPipelineById`. Stage-tab counts
+  (pipeline_counts, DSP-wide aggregate) stay DSP-wide pending a p_station_id.
+- **Interview** (`loadInterviewDay` ~25119): **migration 0528** adds
+  `station_id`/`station_code` to `interview_day_roster` (appended cols, safe);
+  client filters the roster by station (+ unassigned), KPIs recompute from the
+  filtered rows. Graceful pre-migration (rows lack station_id → no filter).
+  **MANUAL — paste in chat.**
+- `_rrRerenderForScope` gained a view-onboarding-ops branch: re-runs
+  loadOnboardingOps({keepTab}) AND the active sub loader (funnel→loadPipeline,
+  interview→loadInterviewDay) so a toggle refreshes them (refreshActiveView only
+  drove the matrix).
+- Browser-QA'd Funnel: All=3 → Boston={Ben, Uma(unassigned)} → Chantilly={Ann,
+  Uma}. Interview inspection-verified (same filter pattern + 0528).
+
+**NEXT for the new-DSP push:** aggregate KPI RPCs needing `p_station_id`
 migrations (fleet_execution_summary → fleet exec strip + Today fleet tile;
-pipeline_counts → Today hiring tile), then the pipeline/hiring page (applicants
-by target station). Reuse `_rrDriverIdsAtStation` for driver lists,
-`rrStationScopeId()` + station_code/station_id for the rest.
+pipeline_counts → Today hiring tile + Funnel stage counts). Then Repair Center /
+Recognition / Check-in (vehicle/driver-based, client-side). Tool pages
+(Workbooks/Notebooks/Email/Drive) are DSP-level — pending operator confirm.
+Apply order for the lens: 0525 → 0526 → **0528**.
 
 **SHIPPED — Requests + Targets daily drill-down (operator report "still see
 both stations"):**
