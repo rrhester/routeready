@@ -5423,6 +5423,26 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff,
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff * {
   color: var(--rr-route-t-pto, var(--rr-gray-900)) !important;
 }
+/* Helper seat (shift_kind 'helper') — the ride-along body on an XL route.
+   MUST come after the sharp XL family above: a helper chip also carries
+   data-rr-service-code="XL", and the XL rules' [data-rr-shift-id] selector
+   out-ranks the base helper rule at ~3126, which made helper chips paint in
+   the XL color (operator report 2026-07-19: "helper routes are showing as
+   XL routes"). Same [data-rr-shift-id] specificity, later in source → the
+   DSP's Helper color wins. */
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-shift-kind="helper"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: var(--rr-route-c-helper) !important;
+  border: 1px solid color-mix(in srgb, var(--rr-route-c-helper) 78%, var(--rr-slate-900)) !important;
+  color: var(--rr-route-t-helper, var(--rr-gray-900)) !important;
+  --rr-route-t: var(--rr-route-t-helper);
+}
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-shift-kind="helper"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) *,
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-shift-kind="helper"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route {
+  color: var(--rr-route-t-helper, var(--rr-gray-900)) !important;
+}
+body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id][data-rr-shift-kind="helper"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: color-mix(in srgb, var(--rr-route-c-helper) 88%, var(--rr-slate-400)) !important;
+}
 
 /* ============================================================
    Density pass (operator 2026-06-13) · two-line shift cards +
