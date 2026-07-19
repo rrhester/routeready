@@ -115,6 +115,16 @@ Integrations** (org config only) + a per-user **Account & security** page.
     This step reverses that placement per the operator's 2026-07-19 request
     to consolidate settings onto the dashboard. Flagged in the PR so it's an
     informed call. Shipped for operator browser QA — NOT auto-merged.
-- [ ] Step 3 — Hiring → Onboarding
+- [~] **Step 3 — Hiring → Onboarding** (split into 3a/3b)
+  - [x] **3a — Hiring messages** → Onboarding. New "Edit message templates…"
+    button in the Funnel → Rules popover's "SMS & messaging" block opens a
+    shared slide-over (`.rr-slideover`, added to inline-styles.css for reuse)
+    that HOISTS the `.settings-section[data-set="hiring-messages"]` node out
+    of `#view-settings`, preserving `#rr-messages-list` + `loadMessagesTab`
+    (fired on each open). Settings→Hiring-messages nav tab removed. Browser-
+    verified with Playwright. SW nonce `2026-07-19.7`.
+  - [ ] **3b — Referrals** → Onboarding (own tile/sub-view). Blocked on
+    wiring the mock "Save program" to a real RPC → needs a migration
+    (paste SQL in chat). Not started.
 - [ ] Step 4 — Recognition / Portal sync
 - [ ] Step 5 — Settings home slim-down

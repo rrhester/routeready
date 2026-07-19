@@ -77965,6 +77965,76 @@ window.gotoSettingsScheduling = gotoSettingsScheduling;
   });
 })();
 
+// ─── Hiring message templates drawer ──────────────────────────────────
+// The SMS/email template editor lives on the Onboarding view now, in a
+// slide-over opened from the Funnel → Rules popover's "SMS & messaging"
+// block, rather than under Settings → Hiring messages. Same hoist pattern
+// as the Schedule rules drawer: the .settings-section[data-set=
+// "hiring-messages"] node is moved out of #view-settings on first open so
+// #rr-messages-list + every row handler is preserved; loadMessagesTab
+// repaints it on each open.
+(function _rrHiringMessagesDrawer() {
+  let hoisted = false;
+  function hoist() {
+    if (hoisted) return true;
+    const body = document.getElementById("rr-obmsg-body");
+    const sec =
+      document.querySelector('#view-settings .settings-section[data-set="hiring-messages"]') ||
+      document.querySelector('.settings-section[data-set="hiring-messages"]');
+    if (!body || !sec) return false;
+    sec.classList.remove("hidden");
+    body.appendChild(sec);
+    hoisted = true;
+    return true;
+  }
+  function open() {
+    const dr = document.getElementById("rr-obmsg-drawer");
+    const bd = document.getElementById("rr-obmsg-backdrop");
+    if (!dr) return;
+    hoist();
+    // Close the funnel rules popover behind it, if open.
+    try {
+      const pop = document.getElementById("rr-funnel-rules-popover");
+      if (pop && !pop.hidden) {
+        const tog = document.getElementById("rr-funnel-rules-toggle");
+        if (tog) tog.setAttribute("aria-expanded", "false");
+        pop.hidden = true;
+      }
+    } catch (_) {}
+    if (bd) bd.hidden = false;
+    dr.hidden = false;
+    requestAnimationFrame(() => {
+      dr.classList.add("is-open");
+      if (bd) bd.classList.add("is-open");
+    });
+    if (typeof loadMessagesTab === "function") { try { setTimeout(loadMessagesTab, 0); } catch (_) {} }
+    const closeBtn = document.getElementById("rr-obmsg-close");
+    if (closeBtn) { try { closeBtn.focus(); } catch (_) {} }
+  }
+  function close() {
+    const dr = document.getElementById("rr-obmsg-drawer");
+    const bd = document.getElementById("rr-obmsg-backdrop");
+    if (dr) dr.classList.remove("is-open");
+    if (bd) bd.classList.remove("is-open");
+    setTimeout(() => {
+      if (dr) dr.hidden = true;
+      if (bd) bd.hidden = true;
+    }, 220);
+  }
+  window._rrOpenHiringMessages = open;
+  window._rrCloseHiringMessages = close;
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("#rr-obmsg-open")) { e.preventDefault(); open(); return; }
+    if (e.target.closest("#rr-obmsg-close")) { e.preventDefault(); close(); return; }
+    if (e.target.id === "rr-obmsg-backdrop") { close(); return; }
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    const dr = document.getElementById("rr-obmsg-drawer");
+    if (dr && !dr.hidden) close();
+  });
+})();
+
 
 // ─── Pay & overtime settings ──────────────────────────────────────────
 // Per-DSP defaults that Cover and the schedule forecast read:

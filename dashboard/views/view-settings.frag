@@ -26,7 +26,11 @@
             <button class="settings-nav-item active" data-set="workspace" onclick="setSettingsSection(this)">Workspace</button>
             <button class="settings-nav-item" data-set="account" onclick="setSettingsSection(this)">Account &amp; security</button>
             <button class="settings-nav-item" data-set="team" onclick="setSettingsSection(this)">Team</button>
-            <button class="settings-nav-item" data-set="hiring-messages" onclick="setSettingsSection(this)">Hiring messages</button>
+            <!-- Hiring messages (SMS/email templates) moved to the
+                 Onboarding view → Funnel ▸ Rules ▸ "Edit message
+                 templates…" slide-over. The section markup below
+                 (data-set="hiring-messages") is hoisted there on first
+                 open; nav tab removed. -->
             <button class="settings-nav-item" data-set="referrals" onclick="setSettingsSection(this)">Hiring referrals</button>
             <!-- SMS & messaging moved to Onboarding → Funnel ▸ Rules -->
             <!-- License renewals moved to Onboarding → Roster → Licences ▸ Rules -->
