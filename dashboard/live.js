@@ -56293,65 +56293,13 @@ function _rrApplyGapClass(gapEl, gap) {
   gapEl.title = `Short ${m} driver${m === 1 ? "" : "s"}${sev === 3 ? " — severe" : sev === 2 ? " — significant" : ""}`;
 }
 
-// Apply rules · routes auto-save as you type; this button's real job is
-// "save Block/Cushion/Report + waves for the visible week AND rebuild
-// that week's unassigned shifts" (upsert → regenerate → cushion). It
-// used to toast 'Plan saved' unconditionally — before the save resolved
-// and even when it failed. Now: in-flight state, outcome from the
-// actual result, and a dirty accent only when there are unsaved rule
-// edits (routes never make it dirty — they're already saved).
-// Apply changes enables ONLY when there are unsaved rule edits. Dirty = solid
-// blue + clickable; clean = neutral + disabled. (Routes auto-save through
-// _rrOkamiApplyWrites, so they never make this dirty — this button's job is the
-// per-week Block/Cushion/Report/Waves save + shift rebuild.)
-function _rrTgtMarkRulesDirty() {
-  const b = document.getElementById("rr-tgt-save-plan");
-  if (!b) return;
-  b.classList.add("rr-tgt-save-plan--dirty");
-  b.disabled = false;
-}
-function _rrTgtMarkRulesClean() {
-  const b = document.getElementById("rr-tgt-save-plan");
-  if (!b) return;
-  b.classList.remove("rr-tgt-save-plan--dirty");
-  b.disabled = true;
-}
-document.addEventListener("input", (e) => {
-  if (!e.target.closest) return;
-  if ((e.target.id && (_RR_TARGETS_SUB_SETTING_IDS.has(e.target.id) || _RR_OKAMI_SETTING_IDS.has(e.target.id)))
-      || e.target.closest("#rr-set-waves")) {
-    _rrTgtMarkRulesDirty();
-  }
-});
-document.addEventListener("click", async (e) => {
-  const btn = e.target.closest && e.target.closest("#rr-tgt-save-plan");
-  if (!btn) return;
-  e.preventDefault();
-  if (btn.disabled || typeof _saveScheduleSettings !== "function") return;
-  const week = window._rrOkamiModel?.weeks?.[0]?.label
-    || (typeof _schedStart === "string" && _schedStart ? `wk of ${fmtMD(new Date(_schedStart + "T12:00:00"))}` : "this week");
-  btn.disabled = true;
-  btn.setAttribute("aria-busy", "true");
-  const prevLabel = btn.textContent;
-  btn.textContent = "Applying…";
-  try {
-    const res = await _saveScheduleSettings({ source: "nav" });
-    if (res?.ok) {
-      _rrTgtWaveDirty = false;
-      _rrTgtMarkRulesClean();
-      const cushionNote = res.cushionDelta > 0 ? ` (+${res.cushionDelta} cushion)` : "";
-      toast(`Rules applied — ${week} shifts rebuilt${cushionNote}`, "success");
-    } else {
-      toast(`Apply failed: ${res?.error || "unknown error"}`, "warn");
-    }
-  } finally {
-    btn.removeAttribute("aria-busy");
-    btn.textContent = prevLabel;
-    // Re-enable only if edits remain (a failed apply keeps the dirty class so
-    // the operator can retry; a success cleared it → button returns to disabled).
-    btn.disabled = !btn.classList.contains("rr-tgt-save-plan--dirty");
-  }
-});
+// The old toolbar "Apply changes" button is gone — the rules auto-save:
+// Block/Cushion/Report time debounce-save on edit (see the settings-triple
+// input listener), and waves + service types save from inside the Settings
+// popover. _rrTgtMarkRulesClean/Dirty are kept as safe no-ops because a few
+// call sites (the auto-save success path, Targets entry) still invoke them.
+function _rrTgtMarkRulesDirty() { /* no-op — no Apply button to flag */ }
+function _rrTgtMarkRulesClean() { /* no-op — no Apply button to clear */ }
 
 // The shared top-right chrome (⋯ overflow menu + bell + avatar) lives in the
 // Schedule action bar; relocate it into the Targets toolbar on entry (and back
