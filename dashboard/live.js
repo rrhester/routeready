@@ -57708,6 +57708,8 @@ window._rrShowSfMenu = function (anchorBtn) {
     <button type="button" class="rr-sf-menu-i" data-act="rules">Smart Rules</button>
     <button type="button" class="rr-sf-menu-i" data-act="schedrules">Schedule rules</button>
     <button type="button" class="rr-sf-menu-i" data-act="colors">Schedule Colors</button>
+    <div class="rr-sf-menu-sep" role="separator"></div>
+    <button type="button" class="rr-sf-menu-i" data-act="unassign-all" title="Strip every driver off this week's shifts — the seats stay open. Reversible via Undo.">Unassign all shifts</button>
     <style>
       #rr-sf-menu{position:fixed;z-index:1001;min-width:190px;background:#fff;
         border:1px solid #E5E8ED;border-radius:10px;box-shadow:0 10px 28px rgba(15,23,42,.12);
@@ -57715,6 +57717,7 @@ window._rrShowSfMenu = function (anchorBtn) {
       #rr-sf-menu .rr-sf-menu-i{display:block;width:100%;text-align:left;background:transparent;
         border:0;border-radius:6px;padding:9px 11px;cursor:pointer;color:#0F172A;font-size:13px}
       #rr-sf-menu .rr-sf-menu-i:hover{background:rgba(15,23,42,.05)}
+      #rr-sf-menu .rr-sf-menu-sep{height:1px;margin:5px 6px;background:rgba(15,23,42,.08)}
     </style>`;
   document.body.appendChild(m);
   const r = anchorBtn ? anchorBtn.getBoundingClientRect() : { left: 80, bottom: 80 };
@@ -57745,6 +57748,14 @@ window._rrShowSfMenu = function (anchorBtn) {
       _toggleSchedSmartFillRules(false);
       _rrToggleSchedColors(false);
       window._rrToggleScheduleRulesPop(true);
+    } else if (act === "unassign-all") {
+      // Clear the week: strip every driver off their shift (the seats stay
+      // open). Reversible via Undo; the shared helper owns the finalized /
+      // large-week confirm + the toast. No popover to re-home.
+      _toggleSchedSmartFillRules(false);
+      _rrToggleSchedColors(false);
+      window._rrToggleScheduleRulesPop(false);
+      if (window._rrRunUnassignAllShiftsForWeek) window._rrRunUnassignAllShiftsForWeek();
     } else {
       const pop = document.getElementById("rr-sched-colors-popover");
       if (ab && pop && pop.parentElement !== ab) ab.appendChild(pop);
