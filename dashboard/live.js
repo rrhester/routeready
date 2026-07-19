@@ -8173,6 +8173,14 @@ function _rosterSkeleton(colspan, n = 6) {
 }
 
 function _updateRosterHint(shown, total) {
+  // Live DRIVERS count badge in the table toolbar (2026-07 roster
+  // recreation) — tracks the stage total, or the matched count while a
+  // search/filter is active, so it always reflects what's on screen.
+  const badge = document.getElementById("rr-roster-count-badge");
+  if (badge) {
+    const filtering = !!(_rosterFilters.q || _rosterFilters.station || _rosterFilters.tenure || _rosterFilters.score);
+    badge.textContent = String(filtering ? shown : total);
+  }
   const el = document.getElementById("rr-roster-bar-hint");
   if (!el) return;
   if (_rosterFilters.q || _rosterFilters.station || _rosterFilters.tenure || _rosterFilters.score) {
@@ -14396,8 +14404,10 @@ function _rowActionsFor(d) {
   // in the RouteReady driver app (openDriverAppPreview, via data-rr-driver-app).
   const appIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>';
   const appBtn = `<button type="button" class="rr-row-action rr-row-action--app" data-rr-driver-app="${escapeHtml(d.id)}" title="Preview driver app" aria-label="Preview ${escapeHtml(displayDriverName(d))}’s driver app">${appIcon}</button>`;
-  // is-persistent → visible at rest (not only on row hover).
-  return `<div class="rr-row-actions-bar is-persistent">${appBtn}${msgBtn}${coachBtn}${moreBtn}</div>`;
+  // Reveal group (2026-07 roster recreation): the ⋯ overflow shows at rest;
+  // the phone / message / checklist quick actions fade in on row hover,
+  // keyboard focus, or when the row's record is open (selected).
+  return `<div class="rr-row-actions-bar rr-row-actions-reveal">${appBtn}${msgBtn}${coachBtn}${moreBtn}</div>`;
 }
 
 function renderDriverRow(d) {
@@ -14475,24 +14485,16 @@ function _driverHealth(id) {
   return "healthy";
 }
 
-// Recent attendance — a compact progress ring (KPI-widget style): % in the
-// centre, "worked / eligible days" beneath. Colour by band (≥95 green / 85-94
-// amber / <85 red). "—" when there are no eligible shifts in the window.
+// Recent attendance — calm typographic readout (2026-07 roster
+// recreation): the percentage as dark semibold text over a muted
+// "worked / eligible days" line. No progress ring / gauge / colored fill.
+// "—" when there are no eligible shifts in the window.
 function _attendanceCell(driverId) {
   const c = _rosterAttCounts && _rosterAttCounts.get ? _rosterAttCounts.get(driverId) : null;
   if (!c || c.pct == null || !c.eligible) return '<span class="u-subtle">—</span>';
-  const pct = Math.max(0, Math.min(100, c.pct));
-  const sev = pct >= 95 ? "good" : pct >= 85 ? "warn" : "bad";
-  const r = 18, circ = 2 * Math.PI * r, off = circ * (1 - pct / 100);
-  return `<div class="rr-attring rr-attring-${sev}" title="${c.worked} of ${c.eligible} eligible shifts worked (last 30 days)">`
-    + `<div class="rr-attring-circle">`
-    +   `<svg viewBox="0 0 40 40" aria-hidden="true">`
-    +     `<circle class="rr-attring-track" cx="20" cy="20" r="${r}" fill="none" stroke-width="3"/>`
-    +     `<circle class="rr-attring-prog" cx="20" cy="20" r="${r}" fill="none" stroke-width="3" stroke-linecap="round" stroke-dasharray="${circ.toFixed(2)}" stroke-dashoffset="${off.toFixed(2)}" transform="rotate(-90 20 20)"/>`
-    +   `</svg>`
-    +   `<span class="rr-attring-pct">${c.pct}%</span>`
-    + `</div>`
-    + `<div class="rr-attring-days">${c.worked} / ${c.eligible} days</div>`
+  return `<div class="rr-att2" title="${c.worked} of ${c.eligible} eligible shifts worked (last 30 days)">`
+    + `<span class="rr-att2-pct">${c.pct}%</span>`
+    + `<span class="rr-att2-sub">${c.worked} / ${c.eligible} days</span>`
     + `</div>`;
 }
 
@@ -22979,24 +22981,34 @@ async function refreshDriverStatRow(rows) {
     : _driverStage === "all"
       ? `${_rsStageCount} driver${_rsPlural} · all`
       : `${_rsStageCount} ${_rsStageLabel}`;
+  // Roster recreation (2026-07): the page-level command bar carries ONLY the
+  // primary actions — Metrics + Add driver (far left) — while search + the
+  // status/attendance filters live INSIDE the driver table's own toolbar
+  // (they search and filter the list). Two HTML groups are built here:
+  //   • cmdBarHtml       → the command bar / KPI strip host (Metrics + Add driver)
+  //   • tableFilterHtml  → the table toolbar's .rr-roster-toolbar-actions
+  //                        (status split-dropdown + Attendance dropdown)
   const activeFilterPill =
     `<button type="button" class="sched-kpi-pill sched-kpi-action rr-kpi-statusfilter" data-rr-roster-status-filter aria-haspopup="menu" aria-expanded="false" title="Filter the roster by status">`
     + `<span class="sched-kpi-text"><span class="sched-kpi-val">${statusFilterLabel}</span></span>`
     + `<span class="rr-kpi-chev" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 4 6 8 10 4"/></svg></span>`
     + `</button>`;
-  const rosterKpisHtml =
-    activeFilterPill +
-    // "Coach driver" toolbar pill removed (operator) — coaching now lives as a
-    // per-row icon next to Separate (see _rowActionsFor / data-rr-row-coach).
-    `<button type="button" class="sched-kpi-pill sched-kpi-action rr-kpi-attendance" data-rr-roster-attendance aria-haspopup="menu" aria-expanded="false" title="Attendance report &amp; policy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span class="sched-kpi-val">Attendance</span><span class="rr-kpi-chev" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 4 6 8 10 4"/></svg></span></button>` +
-    `<button type="button" class="sched-kpi-pill sched-kpi-action rr-kpi-metrics" data-rr-roster-metrics aria-haspopup="dialog" aria-expanded="false" title="Driver metrics · live roster overview" style="margin-left:auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg><span class="sched-kpi-val">Metrics</span></button>` +
+  const attendancePill =
+    `<button type="button" class="sched-kpi-pill sched-kpi-action rr-kpi-attendance" data-rr-roster-attendance aria-haspopup="menu" aria-expanded="false" title="Attendance report &amp; policy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span class="sched-kpi-val">Attendance</span><span class="rr-kpi-chev" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 4 6 8 10 4"/></svg></span></button>`;
+  const metricsPill =
+    `<button type="button" class="sched-kpi-pill sched-kpi-action rr-kpi-metrics" data-rr-roster-metrics aria-haspopup="dialog" aria-expanded="false" title="Driver metrics · live roster overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg><span class="sched-kpi-val">Metrics</span></button>`;
+  const addDriverPill =
     `<button type="button" class="sched-kpi-pill sched-kpi-action" data-rr-roster-add-driver aria-haspopup="menu" aria-expanded="false" title="Add a driver or bulk import"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span class="sched-kpi-val">Add driver</span><span class="rr-kpi-chev" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 4 6 8 10 4"/></svg></span></button>`;
-    // Metric pills (Final corrective / >30 days / DL expiring) removed per
-    // operator — the top bar is now status filter + Add/Coach actions, with
-    // the shared ⋯/bell/avatar chrome relocated into the roster toolbar.
+  const cmdBarHtml      = metricsPill + addDriverPill;
+  const tableFilterHtml = activeFilterPill + attendancePill;
+
+  // Paint the status + attendance filters into the driver table's own toolbar
+  // (a single shared node, so this covers every host the roster mounts in).
+  const _rttActions = document.querySelector("#dr-sub-roster .rr-roster-toolbar-actions");
+  if (_rttActions) _rttActions.innerHTML = tableFilterHtml;
 
   const rosterHost = document.getElementById("rr-roster-kpis");
-  if (rosterHost) rosterHost.innerHTML = rosterKpisHtml;
+  if (rosterHost) rosterHost.innerHTML = cmdBarHtml;
   // Restore the Metrics drawer's persisted open state (and refresh its counts).
   if (typeof _rrSyncMetricsDrawer === "function") _rrSyncMetricsDrawer();
 
@@ -23007,7 +23019,7 @@ async function refreshDriverStatRow(rows) {
   const obShell = document.getElementById("rr-ob-cmd");
   if (obShell && obShell.classList.contains("is-roster")) {
     const obHost = document.getElementById("rr-ob-kpis");
-    if (obHost) obHost.innerHTML = rosterKpisHtml;
+    if (obHost) obHost.innerHTML = cmdBarHtml;
   }
 
   // Schedule's embedded roster/attendance sub-view · paint the roster
@@ -23018,16 +23030,16 @@ async function refreshDriverStatRow(rows) {
     const schedHost = document.getElementById("rr-sched-kpis");
     if (schedHost) {
       if (window._schedKpiSavedHtml == null) window._schedKpiSavedHtml = schedHost.innerHTML;
-      // Park the relocated chrome (bell/avatar) + the live search input out of
-      // the strip BEFORE wiping it so neither is detached, then re-attach both
-      // into the fresh strip: search pill on the left, chrome on the right.
+      // Park the relocated chrome (bell/avatar) out of the strip BEFORE wiping
+      // it so it isn't detached, then re-attach it into the fresh command bar.
+      // Search + the status/attendance filters now live in the TABLE toolbar
+      // (2026-07 roster recreation), so the command bar carries only the
+      // primary actions (Metrics + Add driver) on the left and the shared
+      // ⋯/bell/avatar chrome on the right.
       if (typeof _rrReturnChromeHome === "function") _rrReturnChromeHome();
-      if (typeof _rrParkRosterSearch === "function") _rrParkRosterSearch();
       schedHost.innerHTML =
-        `<span class="rr-kpi-search-host" id="rr-kpi-search-host"></span>`
-        + rosterKpisHtml
+        cmdBarHtml
         + `<span class="rr-roster-chrome-host" id="rr-roster-chrome-host"></span>`;
-      if (typeof _rrMoveRosterSearchToStrip === "function") _rrMoveRosterSearchToStrip();
       if (typeof _rrMoveChromeToRoster === "function") _rrMoveChromeToRoster();
     }
   }

@@ -139,26 +139,30 @@
           <button type="button" class="rr-roster-view-chip" data-rr-view="onleave" aria-pressed="false" title="Drivers on leave of absence">On leave</button>
         </div>
 
-        <!-- Roster toolbar · controls live here, not in the column header,
-             so the table header only identifies columns (enterprise data-grid
-             pattern). Search on the left; status filter + Add driver on the
-             right. Sits inside #dr-sub-roster so it travels with the roster
-             into the Onboarding / Schedule embeds. -->
-        <div class="rr-roster-toolbar" id="rr-roster-toolbar" data-rr-no-drawer>
-          <div class="rr-roster-toolbar-search"></div>
-          <div class="rr-roster-toolbar-actions">
-            <!-- Status filter + Add driver live in the top KPI strip; the
-                 bell + avatar chrome is appended to the KPI strip's top-right
-                 corner (by refreshDriverStatRow / _rrMoveChromeToRoster). -->
-          </div>
-        </div>
-
         <!-- Split workspace · roster list (left) + inline driver record
              pane (right). The record docks here instead of opening as a
              modal/drawer overlay, so the header, KPI strip, sub-nav and
              roster stay visible and usable while editing a driver. -->
         <div class="roster-split" id="rr-roster-split">
         <div class="roster-split-list">
+        <!-- Table toolbar · lives INSIDE the driver-table card (enterprise
+             data-grid pattern): the DRIVERS count on the left, and the search +
+             status/attendance filters on the right (they search and filter the
+             list, so they belong with the table — NOT in the page command bar).
+             Sits inside #dr-sub-roster so it travels with the roster into the
+             Onboarding / Schedule embeds. -->
+        <div class="rr-roster-toolbar" id="rr-roster-toolbar" data-rr-no-drawer>
+          <div class="rr-roster-toolbar-title">
+            <span class="rr-rtt-label">Drivers</span>
+            <span class="rr-rtt-count" id="rr-roster-count-badge">0</span>
+          </div>
+          <div class="rr-roster-toolbar-search"></div>
+          <div class="rr-roster-toolbar-actions">
+            <!-- Status filter + Attendance dropdowns painted here by
+                 refreshDriverStatRow; the search input is relocated into
+                 .rr-roster-toolbar-search on render. -->
+          </div>
+        </div>
         <div class="table-wrap" id="rr-roster-table-wrap" style="max-height:calc(100vh - 360px);overflow-y:auto">
           <table class="table table-clickable">
             <thead id="rr-roster-thead">
