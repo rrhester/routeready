@@ -52,6 +52,10 @@ const XL_FRAC = parseFloat(arg("xl", "0.12"));
 const PROTECTION = arg("protection", "high") as PatternStrength;
 const ATTRITION = parseFloat(arg("attrition", "0")); // weekly separation rate
 const USE_AVAIL = flag("availability");
+// Weekly per-driver probability of tweaking one available weekday (only when
+// --availability is on). 0 = availability is frozen for a driver's tenure;
+// a small value (e.g. 0.02) models "very little availability change".
+const AVAIL_CHURN = parseFloat(arg("avail-churn", "0"));
 const SEED = parseInt(arg("seed", "1"), 10);
 
 // ---------------------------------------------------------------------------
@@ -114,6 +118,24 @@ function makeDriver(): DriverInput {
 
 let roster: DriverInput[] = Array.from({ length: N_DRIVERS }, makeDriver);
 
+// Swap one of a driver's available weekdays for a currently-unavailable one,
+// keeping the day COUNT the same (a driver whose availability "changes a
+// little" — same load, different day). Returns true if a swap happened.
+function tweakAvailability(d: DriverInput): boolean {
+  const av = d.saved_availability;
+  if (!av) return false;
+  const on = OP_DAYS.filter((off) => av[String(off % 7)] !== undefined);
+  const off = OP_DAYS.filter((o) => av[String(o % 7)] === undefined);
+  if (on.length === 0 || off.length === 0) return false;
+  const drop = on[Math.floor(rnd() * on.length)];
+  const add = off[Math.floor(rnd() * off.length)];
+  const next: WeeklyAvailability = { ...av };
+  delete next[String(drop % 7)];
+  next[String(add % 7)] = ALLDAY;
+  d.saved_availability = next;
+  return true;
+}
+
 // ---------------------------------------------------------------------------
 // Weekly open shifts. Mon–Sat operating week (skip Sunday). Demand per day is
 // a fraction of full driver capacity, with small week-to-week noise.
@@ -152,6 +174,7 @@ interface WeekSnap {
 const snaps: WeekSnap[] = [];
 const coverage: Array<{ total: number; filled: number }> = [];
 let totalSeparations = 0;
+let totalAvailTweaks = 0;
 
 for (let w = 0; w < N_WEEKS; w++) {
   // Attrition: separate drivers, then backfill to hold roster size.
@@ -163,6 +186,13 @@ for (let w = 0; w < N_WEEKS; w++) {
     }
     while (kept.length < N_DRIVERS) kept.push(makeDriver());
     roster = kept;
+  }
+
+  // Availability drift: a small fraction of drivers change one available day.
+  if (w > 0 && USE_AVAIL && AVAIL_CHURN > 0) {
+    for (const d of roster) {
+      if (rnd() < AVAIL_CHURN && tweakAvailability(d)) totalAvailTweaks++;
+    }
   }
 
   const weekStart = addDays(WEEK0, w * 7);
@@ -307,7 +337,7 @@ console.log(` XL routes: ${pct(XL_FRAC)}   pattern-protection: ${PROTECTION}   s
 console.log(
   ` attrition: ${ATTRITION > 0 ? pct(ATTRITION) + "/wk" : "off"}   availability constraints: ${
     USE_AVAIL ? "on" : "off"
-  }`,
+  }${USE_AVAIL && AVAIL_CHURN > 0 ? `   avail-drift: ${pct(AVAIL_CHURN)}/driver/wk` : ""}`,
 );
 console.log("─".repeat(66));
 console.log(` avg coverage           : ${pct(avgCov)}  (${avgFilled.toFixed(0)} routes/wk filled)`);
@@ -317,6 +347,12 @@ if (ATTRITION > 0) {
   console.log(
     ` roster turnover        : ${totalSeparations} separations over ${N_WEEKS - 1} wks ` +
       `(${perWk.toFixed(1)}/wk, ${pct(perWk / N_DRIVERS)} of roster/wk)`,
+  );
+}
+if (USE_AVAIL && AVAIL_CHURN > 0) {
+  console.log(
+    ` availability changes   : ${totalAvailTweaks} over ${N_WEEKS - 1} wks ` +
+      `(${(totalAvailTweaks / (N_WEEKS - 1)).toFixed(1)} drivers/wk changed a day)`,
   );
 }
 console.log("─".repeat(66));
