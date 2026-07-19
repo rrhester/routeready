@@ -9139,6 +9139,9 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-tgt-week-chips{display:inline-flex;gap:4px;margin-left:6px;vertical-align:middle}
 .rr-tgt-now-chip,.rr-tgt-month-chip,.rr-tgt-evt-chip{display:inline-flex;align-items:center;font-size:var(--fs-9);font-weight:600;letter-spacing:.02em;padding:1px 6px;border-radius:999px;line-height:1.5;white-space:nowrap}
 .rr-tgt-now-chip{background:var(--accent-soft);color:var(--accent-text)}
+/* P4 · per-station Needed breakdown under the combined total (All-stations,
+   multi-station). Small + muted so the 13-week table stays calm. */
+.rr-tgt-need-stn{margin-top:2px;font-size:var(--fs-2xs,var(--fs-xs));font-weight:500;color:var(--text-subtle);line-height:1.3;white-space:nowrap}
 .rr-tgt-month-chip{background:var(--canvas);border:1px solid var(--border);color:var(--text-subtle);text-transform:uppercase}
 .rr-tgt-evt-chip{background:var(--rr-amber-100);color:var(--rr-amber-800)}
 .rr-tgt-actual-chip{background:var(--canvas);border:1px solid var(--border);color:var(--text-muted);font-variant-numeric:tabular-nums}
