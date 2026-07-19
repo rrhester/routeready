@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=660374c5252f";
-import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=660374c5252f";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=660374c5252f";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=660374c5252f";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=660374c5252f";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=660374c5252f";
-import { isChecklistComplete } from "./checklist-core.mjs?v=660374c5252f";
+import { planScheduleWeek } from "./scheduling-engine.js?v=9472ce93ff33";
+import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=9472ce93ff33";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=9472ce93ff33";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=9472ce93ff33";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=9472ce93ff33";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=9472ce93ff33";
+import { isChecklistComplete } from "./checklist-core.mjs?v=9472ce93ff33";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=660374c5252f";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=660374c5252f";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=660374c5252f";
+} from "./msg-core.mjs?v=9472ce93ff33";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=9472ce93ff33";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=9472ce93ff33";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -52128,9 +52128,10 @@ let _schedDriverSort = "alpha";
 
 // Unassign every driver from every shift in the visible week. Shifts stay;
 // only driver_id is cleared. Shared by the Open-shifts pool button
-// (#rr-unassign-week) and the driver-header icon (#rr-sched-unassign-week-icon).
-// The text button shows an "Unassigning…" label while in flight; the icon
-// just gets disabled + aria-busy so its SVG isn't clobbered.
+// (#rr-unassign-week) and the action-bar Build Schedule pill once the week
+// is built (window._rrRunUnassignAllShiftsForWeek). The text button shows an
+// "Unassigning…" label while in flight; other triggers just get disabled +
+// aria-busy so their glyph isn't clobbered.
 async function _runUnassignAllShiftsForWeek(triggerEl) {
   const dspId = window.RR?.dsp?.id;
   if (!dspId || !_schedStart) return;
@@ -52323,16 +52324,6 @@ document.addEventListener("click", (e) => {
       showIc.style.display = hidden ? "" : "none";
     }
     try { localStorage.setItem("rr-sched-hide-openshifts", hidden ? "1" : "0"); } catch (_) {}
-    return;
-  }
-  // Unassign all shifts this week — header-icon twin of the Open-shifts
-  // pool button. Same action: clears every driver assignment for the
-  // visible week (shifts stay). Shared logic in _runUnassignAllShiftsForWeek.
-  const unassignBtn = e.target.closest("#rr-sched-unassign-week-icon");
-  if (unassignBtn) {
-    e.preventDefault();
-    e.stopPropagation();
-    _runUnassignAllShiftsForWeek(unassignBtn);
     return;
   }
   // Density cycle — Standard → Compact → Ultra-compact → Standard.
@@ -75160,8 +75151,8 @@ function bindSchedWeekNav() {
   });
 
   // ── Unassign all shifts this week (Open-shifts pool button)
-  // Shares _runUnassignAllShiftsForWeek with the driver-header icon twin
-  // (#rr-sched-unassign-week-icon, wired in the header-icon click handler).
+  // Shares _runUnassignAllShiftsForWeek with the action-bar Build Schedule
+  // pill (which flips to "Unassign shifts" once the week is built).
   sub.addEventListener("click", async (e) => {
     if (e.target.id !== "rr-unassign-week") return;
     e.preventDefault();
