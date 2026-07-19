@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=eaff2fcfe18b";
-import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=eaff2fcfe18b";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=eaff2fcfe18b";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=eaff2fcfe18b";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=eaff2fcfe18b";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=eaff2fcfe18b";
-import { isChecklistComplete } from "./checklist-core.mjs?v=eaff2fcfe18b";
+import { planScheduleWeek } from "./scheduling-engine.js?v=660374c5252f";
+import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=660374c5252f";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=660374c5252f";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=660374c5252f";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=660374c5252f";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=660374c5252f";
+import { isChecklistComplete } from "./checklist-core.mjs?v=660374c5252f";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=eaff2fcfe18b";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=eaff2fcfe18b";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=eaff2fcfe18b";
+} from "./msg-core.mjs?v=660374c5252f";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=660374c5252f";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=660374c5252f";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -906,6 +906,168 @@ function _paintWorkspaceChip() {
   }
 }
 _paintWorkspaceChip();
+
+// ─── Station scope · master multi-station lens ─────────────────────────
+// Many DSPs run more than one Amazon delivery station (DCA1, DBO5, …).
+// This is the ONE global "which station am I looking at?" switch: every
+// page reads it so an operator can give each station a blank-slate view
+// or see everything together ("All stations").
+//
+// Phase 1 (this block) is deliberately INERT for data — it owns the
+// state, the topbar control, per-user persistence, and a
+// `rr:station-changed` event. Per-page query/render scoping (later
+// phases) reads rrStationScope() / rrApplyStationFilter(), defined here
+// so consumers can land incrementally without re-plumbing the state.
+//
+// The control is revealed only when the DSP has >1 active station, so
+// single-station operators see no change at all.
+let _rrStationScope = "all";   // "all" | <station_id>
+let _rrStationList  = [];      // [{id, code, name, active}] active stations
+
+// Per-user AND per-DSP: two dispatchers sharing an account keep separate
+// lenses, and a platform admin hopping DSPs starts each one fresh.
+function _rrStationScopeKey() {
+  const dsp = (window.RR && window.RR.dsp && window.RR.dsp.id) || "nodsp";
+  const usr = (window.RR && window.RR.user && window.RR.user.id) || "nouser";
+  return `rr-station-scope:${dsp}:${usr}`;
+}
+
+// Public read API for later-phase consumers (and the console).
+// rrStationScope() → { id: <station_id>|null, all: bool }; id null ⇒ all.
+function rrStationScope() {
+  return { id: _rrStationScope === "all" ? null : _rrStationScope, all: _rrStationScope === "all" };
+}
+function rrStationScopeId()    { return _rrStationScope === "all" ? null : _rrStationScope; }
+function rrStationScopeIsAll() { return _rrStationScope === "all"; }
+
+// Append a station filter to a PostgREST query builder — unless we're in
+// "All stations" mode, where it returns the query untouched. Lets callers
+// wrap unconditionally: rrApplyStationFilter(sb.from("shifts").select("*")).
+function rrApplyStationFilter(query, col = "station_id") {
+  const id = rrStationScopeId();
+  return id ? query.eq(col, id) : query;
+}
+
+try {
+  window.rrStationScope      = rrStationScope;
+  window.rrStationScopeId    = rrStationScopeId;
+  window.rrStationScopeIsAll = rrStationScopeIsAll;
+  window.rrApplyStationFilter = rrApplyStationFilter;
+} catch (_) { /* window always present in the browser */ }
+
+function _rrStationLabel() {
+  if (_rrStationScope === "all") return "All stations";
+  const st = _rrStationList.find((s) => s.id === _rrStationScope);
+  return st ? (st.code || st.name || "Station") : "All stations";
+}
+
+// Paint the trigger label + rebuild the menu rows for the current state.
+function _rrPaintStationSwitch() {
+  const lbl = document.getElementById("rr-station-label");
+  if (lbl) lbl.textContent = _rrStationLabel();
+  const menu = document.getElementById("rr-station-menu");
+  if (!menu) return;
+  const rows = [{ id: "all", code: "All stations", name: "Everything together" }]
+    .concat(_rrStationList.map((s) => ({ id: s.id, code: s.code || "Station", name: s.name || "" })));
+  menu.innerHTML =
+    `<div class="rr-qat-menu-head">Station view</div>` +
+    rows.map((r) => {
+      const on = r.id === _rrStationScope;
+      return `<button type="button" class="rr-qat-opt" role="menuitemradio" aria-checked="${on ? "true" : "false"}" data-rr-station-opt="${escapeHtml(r.id)}">`
+        + `<span class="rr-qat-opt-check"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg></span>`
+        + `<span class="rr-qat-opt-lbl">${escapeHtml(r.code)}${r.name ? `<span class="rr-station-opt-sub">${escapeHtml(r.name)}</span>` : ""}</span>`
+        + `</button>`;
+    }).join("");
+}
+
+// Change the scope: persist, repaint, close the menu, then broadcast so
+// every open view re-renders through its (later-phase) station-aware
+// path. `silent` restores state at boot without firing the event/refresh.
+function _rrSetStationScope(next, { silent = false } = {}) {
+  const valid = next === "all" || _rrStationList.some((s) => s.id === next);
+  _rrStationScope = valid ? next : "all";
+  try { localStorage.setItem(_rrStationScopeKey(), _rrStationScope); } catch (_) {}
+  _rrPaintStationSwitch();
+  const menu = document.getElementById("rr-station-menu");
+  const btn  = document.getElementById("rr-station-btn");
+  if (menu) menu.hidden = true;
+  if (btn)  btn.setAttribute("aria-expanded", "false");
+  if (silent) return;
+  try {
+    window.dispatchEvent(new CustomEvent("rr:station-changed", { detail: rrStationScope() }));
+  } catch (_) {}
+  // Re-render the active view so the new lens takes effect immediately.
+  // Inert until a view actually reads rrStationScope() (later phases),
+  // but wiring it now means those land with zero extra plumbing.
+  try { if (typeof refreshActiveView === "function") refreshActiveView(); } catch (_) {}
+}
+
+function _rrWireStationSwitch() {
+  const btn  = document.getElementById("rr-station-btn");
+  const menu = document.getElementById("rr-station-menu");
+  if (!btn || !menu || btn._rrWired) return;
+  btn._rrWired = true;
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const willOpen = menu.hidden;
+    menu.hidden = !willOpen;
+    btn.setAttribute("aria-expanded", willOpen ? "true" : "false");
+  });
+  menu.addEventListener("click", (e) => {
+    const opt = e.target.closest("[data-rr-station-opt]");
+    if (!opt) return;
+    _rrSetStationScope(opt.getAttribute("data-rr-station-opt"));
+  });
+  // Click-away + Esc close (menu only; the pill keeps focus on Esc).
+  document.addEventListener("click", (e) => {
+    if (menu.hidden) return;
+    if (e.target.closest("#rr-station-switch")) return;
+    menu.hidden = true;
+    btn.setAttribute("aria-expanded", "false");
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !menu.hidden) {
+      menu.hidden = true;
+      btn.setAttribute("aria-expanded", "false");
+      btn.focus();
+    }
+  });
+}
+
+// Boot: load the DSP's active stations, restore the saved lens, and
+// reveal the control only for genuinely multi-station DSPs.
+async function _rrInitStationScope() {
+  try {
+    // Own query rather than getDriverStationsCached() — that helper's
+    // backing `let _driverStationsCache` is declared far below and is in
+    // the temporal dead zone this early in boot (calling it here throws).
+    const dspId = window.RR && window.RR.dsp && window.RR.dsp.id;
+    let stations = [];
+    if (dspId) {
+      const { data, error } = await sb.from("stations")
+        .select("id, code, name, active")
+        .eq("dsp_id", dspId)
+        .eq("active", true)
+        .order("code");
+      if (error) console.warn("stations load:", error.message);
+      else stations = data || [];
+    }
+    _rrStationList = Array.isArray(stations) ? stations : [];
+    let saved = "all";
+    try { saved = localStorage.getItem(_rrStationScopeKey()) || "all"; } catch (_) {}
+    _rrSetStationScope(saved, { silent: true });
+
+    const wrap = document.getElementById("rr-station-switch");
+    if (!wrap) return;
+    if (_rrStationList.length < 2) { wrap.hidden = true; return; } // single-station DSPs: no control
+    wrap.hidden = false;
+    _rrPaintStationSwitch();
+    _rrWireStationSwitch();
+  } catch (err) {
+    console.warn("station scope init:", (err && err.message) || err);
+  }
+}
+_rrInitStationScope();
 
 // ── Header account chip · initials + name/email in the account menu.
 // Companion to _paintWorkspaceChip; ids live in the topbar markup.

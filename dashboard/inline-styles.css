@@ -1216,6 +1216,45 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 }
 @keyframes hdr-refresh-spin{ from{transform:rotate(0)} to{transform:rotate(360deg)} }
 
+/* ── Station scope switcher · master multi-station lens ───────────────
+   The one global "which station am I looking at?" control, docked at the
+   top of the always-present sidebar (the topbar tool cluster relocates to
+   the rail foot at boot, so it can't host a global control). The trigger
+   adopts the dark-sidebar nav language; the flyout menu renders on a light
+   surface over the content and reuses the .rr-qat-opt row styling. Hidden
+   by live.js unless the DSP runs >1 active station, so single-station
+   operators never see chrome for a choice they don't have. */
+.rr-station{position:relative;margin:0 0 var(--s-3)}
+.rr-station[hidden]{display:none}
+.rr-station-btn{
+  display:flex;align-items:center;gap:var(--s-2);width:100%;
+  padding:7px var(--s-3);border-radius:var(--r-md);
+  background:transparent;border:1px solid var(--sidebar-divider);
+  color:var(--sidebar-ink-idle);cursor:pointer;text-align:left;
+  font:inherit;font-size:var(--fs-sm);font-weight:600;
+  transition:background var(--t-smooth),color var(--t-smooth),border-color var(--t-smooth);
+}
+.rr-station-btn:hover{background:var(--sidebar-hover);color:var(--sidebar-ink)}
+.rr-station-btn:focus-visible{outline:none;background:var(--sidebar-hover);color:var(--sidebar-ink);box-shadow:var(--ring-focus)}
+.rr-station-btn[aria-expanded="true"]{background:var(--sidebar-hover);color:var(--sidebar-ink);border-color:var(--sidebar-ink-idle)}
+.rr-station-pin{flex:0 0 auto}
+.rr-station-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rr-station-chev{flex:0 0 auto;opacity:.65}
+/* Collapsed rail: icon only, centered — the flyout still opens on click. */
+.sidebar.collapsed .rr-station-btn{justify-content:center;padding-left:0;padding-right:0}
+.sidebar.collapsed .rr-station-label,
+.sidebar.collapsed .rr-station-chev{display:none}
+.rr-station-menu{
+  position:absolute;top:calc(100% + 6px);left:0;z-index:80;
+  min-width:216px;max-height:60vh;overflow-y:auto;padding:5px;
+  background:var(--surface);border:1px solid var(--border-strong);
+  border-radius:var(--r-lg);box-shadow:var(--shadow-pop);
+  transform-origin:top left;
+  animation:rr-qat-menu-in .18s ease both;
+}
+.rr-station-menu[hidden]{display:none}
+.rr-station-opt-sub{color:var(--text-subtle);font-weight:400;margin-left:4px}
+
 /* ── Quick Access Toolbar (customizable) ─────────────────────────────
    Office-style QAT at the far top-left. The launcher (a horizontal bar
    with a down chevron under it) opens a small popover where the DSP
