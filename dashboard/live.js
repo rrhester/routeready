@@ -90413,8 +90413,9 @@ function _rrRequestsToolbarHtml() {
     ${filterBtn("type", "Request type", "Filter by request type")}
     ${filterBtn("status", "Status", "Filter by status")}
     ${filterBtn("loc", "Location", "Filter by location")}
+    <div class="req-health" id="rr-req-health" role="status" aria-live="polite">${(window._reqHealth && window._reqHealth.html) || ""}</div>
     <button type="button" class="req-toolbar-act" id="rr-pto-report-btn" title="Download PTO report"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span>PTO report</span></button>
-    <button type="button" class="req-toolbar-act req-toolbar-primary" data-rr-req-settings aria-haspopup="dialog" aria-expanded="false" title="Driver-app request settings"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>Settings</span></button>
+    <button type="button" class="req-toolbar-act req-toolbar-primary" data-rr-req-settings aria-haspopup="dialog" aria-expanded="false" title="Driver-app request settings"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>Request settings</span></button>
     <span class="rr-roster-chrome-host" id="rr-req-chrome-host"></span>`;
 }
 
@@ -90666,16 +90667,14 @@ function _renderSchedRequestsActive() {
     _renderSchedRequestsKpis();
     return;
   }
-  // LEFT — one unified request stream (PTO + Unpaid + Availability).
+  // One unified request stream (PTO + Unpaid + Availability) → the Recent
+  // Decisions table + (when present) the compact Pending section. The redesign
+  // (2026-07) narrows this page to the reference's single decisions table on a
+  // bare page background — the right-hand reports column and the appended
+  // swaps/covers card are no longer mounted here (their builders remain defined
+  // for reuse elsewhere). Pending requests stay fully actionable in-page.
   try { renderSchedRequestStream(); }
   catch (e) { console.warn("renderSchedRequestStream:", e); }
-  // RIGHT — three operational reports.
-  try { _renderRequestsReports(); }
-  catch (e) { console.warn("_renderRequestsReports:", e); }
-  // Swaps & covers — the live peer-to-peer marketplace queue (100-list
-  // #56; replaces the old hardcoded mock panel).
-  try { _renderSchedSwapsPanel(); }
-  catch (e) { console.warn("_renderSchedSwapsPanel:", e); }
   _renderSchedRequestsKpis();
 }
 window._rrRenderSchedRequestsActive = _renderSchedRequestsActive;
@@ -90832,6 +90831,9 @@ function _renderSchedRequestsKpis() {
   // nodes; re-home it into the freshly-rendered host afterward.
   if (typeof _rrReturnChromeHome === "function") _rrReturnChromeHome();
   bar.innerHTML = _rrRequestsToolbarHtml();
+  // The toolbar rebuild reinjects the cached health markup as a string, so
+  // reapply the meter fill (data-pct → width) after it lands.
+  if (typeof _reqApplyHealthMeter === "function") _reqApplyHealthMeter(bar);
   // Filter clicks are handled by the delegated .rr-status-picker dropdown
   // wiring next to _rrRequestsToolbarHtml, so nothing to attach here.
   if (typeof _rrMoveChromeToRequests === "function") _rrMoveChromeToRequests();
@@ -91229,7 +91231,68 @@ function _reqCoverageImpactCell(it) {
   const { sev, count, dows } = _reqCoverage(it);
   const head = sev === "high" ? "High" : sev === "medium" ? "Medium" : "None";
   const sub = count === 0 ? "No coverage impact" : `${count} coverage day${count === 1 ? "" : "s"} affected`;
-  return `<div class="req-cov req-cov-${sev}"><div class="req-cov-card"><div class="req-cov-head"><span class="req-cov-sev">${head}</span></div><div class="req-cov-sub">${sub}</div></div>${_reqDayChips(dows)}</div>`;
+  return `<div class="req-cov req-cov-${sev}"><div class="req-cov-card"><div class="req-cov-head"><span class="req-cov-sev">${head}</span></div><div class="req-cov-sub">${sub}</div>${_reqDayChips(dows)}</div></div>`;
+}
+
+// Request-health summary for the toolbar — the Requests-page twin of the
+// Schedule action bar's route-coverage card (number + unit, a status sub-line,
+// and a thin meter). Driven entirely by live request state:
+//   • zero pending  → calm green "All requests reviewed", full green meter.
+//   • pending, none affecting coverage → neutral "Awaiting review".
+//   • pending affecting coverage → amber (or red for High severity), naming
+//     how many pending requests would drop a day below its staffing plan.
+// The meter tracks the share of requests already reviewed. Nothing here is
+// hardcoded — pendingItems / allItems come from the same merged stream the
+// table renders from.
+function _reqHealthSummaryHtml(pendingItems, allItems) {
+  const pendN = pendingItems.length;
+  const totalN = allItems.length;
+  const reviewedN = Math.max(0, totalN - pendN);
+  if (pendN === 0) {
+    return `<div class="req-health-inner is-ok" title="All requests reviewed">
+      <div class="req-health-main"><span class="req-health-num">0</span><span class="req-health-unit">PENDING</span></div>
+      <div class="req-health-sub"><svg class="req-health-check" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>All requests reviewed</div>
+      <span class="req-health-meter" data-state="ok"><i data-pct="100"></i></span>
+    </div>`;
+  }
+  let coverAff = 0, highAff = 0;
+  for (const it of pendingItems) {
+    const cov = _reqCoverage(it);
+    if (cov.sev !== "none") coverAff++;
+    if (cov.sev === "high") highAff++;
+  }
+  const state = highAff > 0 ? "risk" : coverAff > 0 ? "warn" : "info";
+  const sub = coverAff > 0
+    ? `${coverAff} affecting coverage`
+    : `Awaiting review`;
+  const pct = totalN > 0 ? Math.round((reviewedN / totalN) * 100) : 0;
+  const title = `${pendN} pending request${pendN === 1 ? "" : "s"}`
+    + (coverAff > 0 ? ` · ${coverAff} affecting coverage` : "");
+  return `<div class="req-health-inner is-${state}" title="${escapeHtml(title)}">
+    <div class="req-health-main"><span class="req-health-num">${pendN}</span><span class="req-health-unit">PENDING</span></div>
+    <div class="req-health-sub"><span class="req-health-dot"></span>${escapeHtml(sub)}</div>
+    <span class="req-health-meter" data-state="${state}"><i data-pct="${pct}"></i></span>
+  </div>`;
+}
+
+// Set the meter fill from its data-pct (kept off the HTML string so no inline
+// style attribute lands in source — the design-lint ratchet stays clean). Safe
+// to call after any path that (re)injects the health markup.
+function _reqApplyHealthMeter(scope) {
+  const root = scope || document;
+  root.querySelectorAll(".req-health-meter > i[data-pct]").forEach((i) => {
+    i.style.width = `${Math.max(0, Math.min(100, Number(i.getAttribute("data-pct")) || 0))}%`;
+  });
+}
+window._reqApplyHealthMeter = _reqApplyHealthMeter;
+
+// Paint the toolbar health summary from the current stream state and cache the
+// markup so a toolbar re-render (which rebuilds innerHTML) shows it immediately.
+function _reqPaintHealth(pendingItems, allItems) {
+  const html = _reqHealthSummaryHtml(pendingItems, allItems);
+  window._reqHealth = { html };
+  const node = document.getElementById("rr-req-health");
+  if (node) { node.innerHTML = html; _reqApplyHealthMeter(node); }
 }
 
 // "Requested change" — what actually changed in plain words (bold primary +
@@ -91274,8 +91337,9 @@ function _reqDecidedRowHtml(it) {
            : ["status-pill-pending", "Pending"];
   const chg = _reqRequestedChange(it);
   const dec = _reqDecisionParts(r);
-  return `<tr class="req-trow" data-req-row="${escapeHtml(r.id)}" tabindex="0" role="button" aria-label="Open ${escapeHtml(name)} request detail">
-    <td class="req-td-driver"><div class="cell-driver"><div class="avatar-sm">${escapeHtml(_reqInitials(name))}</div><div class="cell-driver-text"><div class="cell-name"><span class="cell-name-text">${escapeHtml(name)}</span></div><div class="cell-name-sub">${escapeHtml(station)}</div></div></div></td>
+  const denied = r.status === "denied" ? " is-denied" : "";
+  return `<tr class="req-trow${denied}" data-req-row="${escapeHtml(r.id)}" tabindex="0" role="button" aria-label="Open ${escapeHtml(name)} request detail">
+    <td class="req-td-driver"><div class="cell-driver"><div class="avatar-sm req-avatar">${escapeHtml(_reqInitials(name))}</div><div class="cell-driver-text"><div class="cell-name"><span class="cell-name-text">${escapeHtml(name)}</span></div><div class="cell-name-sub">${escapeHtml(station)}</div></div></div></td>
     <td>${_reqCoverageImpactCell(it)}</td>
     <td><div class="req-change"><div class="req-change-main">${escapeHtml(chg.primary)}</div><div class="req-change-sub">${escapeHtml(chg.sub)}</div></div></td>
     <td><span class="status-pill ${st[0]}">${st[1]}</span></td>
@@ -91400,20 +91464,31 @@ async function renderSchedRequestStream() {
   const _locLbl = document.querySelector('#rr-req-toolbar-bar [data-req-filter="loc"] .req-filter-label');
   if (_locLbl) _locLbl.textContent = _rrReqFilterLabel("loc");
 
+  // Toolbar health summary · reflects the true (unfiltered) request state so
+  // "0 PENDING · All requests reviewed" can't be masked by an active filter.
+  const pendingAll = items.filter(isPending);
+  _reqPaintHealth(pendingAll, items);
+
+  // Recent Decisions table — dense, flat, Schedule-grid feel. Column widths
+  // are fixed via a colgroup so they hold the reference proportions
+  // (Driver 22 · Coverage 19 · Change 25 · Status 15 · Date 16 · chevron).
+  const decidedTable = `<div class="req-table-wrap"><table class="req-table">
+    <colgroup><col class="req-col-driver"><col class="req-col-cov"><col class="req-col-change"><col class="req-col-status"><col class="req-col-date"><col class="req-col-chev"></colgroup>
+    <thead><tr><th>Driver</th><th>Coverage impact</th><th>Requested change</th><th>Status</th><th>Decision date</th><th class="req-th-chev" aria-hidden="true"></th></tr></thead>
+    <tbody>${decided.map(_reqDecidedRowHtml).join("")}</tbody></table></div>`;
+
   host.innerHTML = `
     <div class="req-page">
-      <section class="req-section">
+      ${pending.length ? `<section class="req-section">
         <div class="req-section-head"><span class="req-section-title">Pending Requests</span><span class="req-section-count">${pending.length}</span></div>
-        ${pending.length
-          ? `<div class="req-pending">${pending.map(pendingRowHtml).join("")}</div>`
-          : `<div class="req-allclear"><span class="req-allclear-ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg></span><div class="req-allclear-text"><div class="req-allclear-title">No pending requests</div><div class="req-allclear-sub">All caught up. New requests will appear here.</div></div></div>`}
-      </section>
+        <div class="req-pending">${pending.map(pendingRowHtml).join("")}</div>
+      </section>` : ``}
 
       <section class="req-section">
         <div class="req-section-head"><span class="req-section-title">Recent Decisions</span><span class="req-section-count">${decided.length}</span></div>
         ${decided.length
-          ? `<div class="req-table-wrap"><table class="req-table"><thead><tr><th>Driver</th><th>Coverage impact</th><th>Requested change</th><th>Status</th><th>Decision date</th><th class="req-th-chev" aria-hidden="true"></th></tr></thead><tbody>${decided.map(_reqDecidedRowHtml).join("")}</tbody></table></div>`
-          : `<div class="rr-empty-inline">No decided requests yet.</div>`}
+          ? decidedTable
+          : `<div class="req-nodata">${items.length ? "No requests match these filters." : "No decisions yet. Approved and denied requests will appear here."}</div>`}
       </section>
     </div>`;
 
@@ -91435,27 +91510,15 @@ async function renderSchedRequestStream() {
     tr.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); _openReqRow(tr); } });
   });
   _toPaintCoverage(host).catch((e) => console.warn("coverage check:", e));
-  // Stretch the card to fill the viewport so the page doesn't dead-end in
-  // empty space below a short table. Two rAFs so the toolbar + body have laid
-  // out before we measure the card's top.
-  requestAnimationFrame(() => requestAnimationFrame(_rrSizeRequestsCard));
 }
 window._rrRenderSchedRequestStream = renderSchedRequestStream;
 
-// Size the Requests card so its bottom sits just above the viewport edge
-// (robust to the toolbar height / top offset, like the roster's table sizing).
-function _rrSizeRequestsCard() {
-  const card = document.getElementById("rr-sched-req-stream-panel");
-  if (!card) return;
-  const sub = document.getElementById("sched-sub-requests");
-  if (!sub || getComputedStyle(sub).display === "none") return; // only when visible
-  const top = card.getBoundingClientRect().top;
-  const h = Math.max(360, Math.round(window.innerHeight - top - 20));
-  card.style.maxHeight = "none";
-  card.style.height = h + "px";
-}
+// The Requests redesign places the decisions table directly on the page
+// background (no full-height outer card), so the old viewport-fill sizing is
+// retired — the content flows and the page scrolls naturally. Kept as a
+// no-op shim so any lingering caller stays safe.
+function _rrSizeRequestsCard() {}
 window._rrSizeRequestsCard = _rrSizeRequestsCard;
-window.addEventListener("resize", () => { try { _rrSizeRequestsCard(); } catch (_) {} });
 
 // RIGHT column · three equally-sized operational reports.
 //   1 · Availability by day — active drivers available each weekday.
