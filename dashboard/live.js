@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=5a29ca88fa50";
-import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=5a29ca88fa50";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=5a29ca88fa50";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=5a29ca88fa50";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=5a29ca88fa50";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=5a29ca88fa50";
-import { isChecklistComplete } from "./checklist-core.mjs?v=5a29ca88fa50";
+import { planScheduleWeek } from "./scheduling-engine.js?v=ac48ca29dcfa";
+import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=ac48ca29dcfa";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=ac48ca29dcfa";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=ac48ca29dcfa";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=ac48ca29dcfa";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=ac48ca29dcfa";
+import { isChecklistComplete } from "./checklist-core.mjs?v=ac48ca29dcfa";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=5a29ca88fa50";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=5a29ca88fa50";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=5a29ca88fa50";
+} from "./msg-core.mjs?v=ac48ca29dcfa";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=ac48ca29dcfa";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=ac48ca29dcfa";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -18059,6 +18059,8 @@ function _prefillWeatherInputs() {
       .then(({ data }) => { if (data && !addrEl.value) addrEl.value = data.business_address || data.address || ""; })
       .then(undefined, () => {});
   }
+  // Multi-station manager (owner-only section, further down the same card).
+  try { _rrLoadStationsManager(); } catch (_) {}
 }
 
 // Save DSP name → dsps.name, then refresh sidebar chip + page title.
@@ -18213,6 +18215,104 @@ if (typeof _legacyGotoForWeather === "function") {
     return r;
   };
 }
+
+// ─── Settings · Stations manager ───────────────────────────────────────
+// Lists the DSP's stations and lets an owner add a second one — which is
+// what turns ON the sidebar station switcher (the lens stays hidden until a
+// DSP has >=2 active stations). Stations write is owner-only via RLS and the
+// section is .rr-owner-only, so non-owners never see or use this. Rows are
+// class-only (no inline styles) so the design ratchet holds.
+async function _rrLoadStationsManager() {
+  const list = document.getElementById("rr-stations-list");
+  if (!list) return;
+  const dspId = window.RR && window.RR.dsp && window.RR.dsp.id;
+  if (!dspId) return;
+  const { data, error } = await sb.from("stations")
+    .select("id, code, name, active")
+    .eq("dsp_id", dspId)
+    .order("code");
+  if (error) {
+    list.innerHTML = `<div class="rr-stn-note rr-stn-err">Couldn't load stations: ${escapeHtml(error.message)}</div>`;
+    return;
+  }
+  const stations = data || [];
+  if (!stations.length) {
+    list.innerHTML = `<div class="rr-stn-note">No stations yet — add your first one below.</div>`;
+    return;
+  }
+  list.innerHTML = stations.map((s) => {
+    const activeCls   = s.active ? "rr-stn-on" : "rr-stn-off";
+    const badgeLabel  = s.active ? "Active" : "Inactive";
+    const toggleLabel = s.active ? "Deactivate" : "Activate";
+    return `<div class="rr-stn-row" data-rr-stn-id="${escapeHtml(s.id)}">`
+      + `<span class="rr-stn-code">${escapeHtml(s.code)}</span>`
+      + `<span class="rr-stn-name">${s.name ? escapeHtml(s.name) : ""}</span>`
+      + `<span class="rr-stn-badge ${activeCls}">${badgeLabel}</span>`
+      + `<button type="button" class="btn btn-sm rr-stn-toggle" data-rr-stn-toggle="${escapeHtml(s.id)}" data-rr-stn-next="${s.active ? "0" : "1"}">${toggleLabel}</button>`
+      + `</div>`;
+  }).join("");
+}
+window._rrLoadStationsManager = _rrLoadStationsManager;
+
+function _rrStationsSetStatus(text, isErr) {
+  const status = document.getElementById("rr-stations-status");
+  if (!status) return;
+  status.classList.toggle("rr-stn-err", !!isErr);
+  status.textContent = text;
+}
+
+// Add a station (owner). Re-runs _rrInitStationScope so the sidebar switcher
+// reveals the moment a DSP crosses into 2+ active stations — no reload.
+document.addEventListener("click", async (e) => {
+  const addBtn = e.target.closest("#rr-station-add-btn");
+  if (!addBtn) return;
+  e.preventDefault();
+  const dspId  = window.RR && window.RR.dsp && window.RR.dsp.id;
+  const codeEl = document.getElementById("rr-station-new-code");
+  const nameEl = document.getElementById("rr-station-new-name");
+  if (!dspId) return;
+  const code = (codeEl && codeEl.value || "").trim().toUpperCase();
+  const name = (nameEl && nameEl.value || "").trim();
+  if (!/^[A-Z0-9_-]{2,12}$/.test(code)) {
+    _rrStationsSetStatus("Station code must be 2–12 letters, numbers, - or _ (e.g. DBO5).", true);
+    return;
+  }
+  addBtn.disabled = true;
+  _rrStationsSetStatus("Adding…", false);
+  const { error } = await sb.from("stations").insert({ dsp_id: dspId, code, name: name || null, active: true });
+  addBtn.disabled = false;
+  if (error) {
+    _rrStationsSetStatus(
+      /duplicate|unique/i.test(error.message) ? `Station ${code} already exists.` : ("Couldn't add: " + error.message),
+      true,
+    );
+    return;
+  }
+  if (codeEl) codeEl.value = "";
+  if (nameEl) nameEl.value = "";
+  _rrStationsSetStatus(`Added ${code}.`, false);
+  _driverStationsCache = null;                       // other surfaces re-query stations
+  await _rrLoadStationsManager();
+  try { await _rrInitStationScope(); } catch (_) {}  // reveal the switcher if now >=2 active
+});
+
+// Activate / deactivate a station.
+document.addEventListener("click", async (e) => {
+  const tog = e.target.closest("[data-rr-stn-toggle]");
+  if (!tog) return;
+  e.preventDefault();
+  const id   = tog.getAttribute("data-rr-stn-toggle");
+  const next = tog.getAttribute("data-rr-stn-next") === "1";
+  if (!id) return;
+  tog.disabled = true;
+  const { error } = await sb.from("stations").update({ active: next }).eq("id", id);
+  tog.disabled = false;
+  if (error) { _rrStationsSetStatus("Couldn't update: " + error.message, true); return; }
+  _rrStationsSetStatus(next ? "Station activated." : "Station deactivated.", false);
+  _driverStationsCache = null;
+  await _rrLoadStationsManager();
+  try { await _rrInitStationScope(); } catch (_) {}
+});
 
 
 // ─── Dashboard · Today's tasks (Attendance card + header counts) ───────

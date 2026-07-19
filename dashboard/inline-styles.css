@@ -1255,6 +1255,17 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 .rr-station-menu[hidden]{display:none}
 .rr-station-opt-sub{color:var(--text-subtle);font-weight:400;margin-left:4px}
 
+/* Settings · Stations manager (list of the DSP's stations + add form). */
+.rr-stations-list{display:flex;flex-direction:column;gap:6px}
+.rr-stn-note{display:block;padding:4px 0;color:var(--text-subtle);font-size:var(--fs-xs)}
+.rr-stn-note.rr-stn-err{color:var(--red)}
+.rr-stn-row{display:flex;align-items:center;gap:var(--s-2);padding:6px 10px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface)}
+.rr-stn-code{font-weight:700;font-size:var(--fs-sm);color:var(--text)}
+.rr-stn-name{flex:1;min-width:0;color:var(--text-muted);font-size:var(--fs-sm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rr-stn-badge{font-size:var(--fs-xs);font-weight:600;padding:2px 8px;border-radius:var(--r-pill)}
+.rr-stn-on{background:var(--accent-soft);color:var(--accent-text)}
+.rr-stn-off{background:var(--surface-hover);color:var(--text-subtle)}
+
 /* ── Quick Access Toolbar (customizable) ─────────────────────────────
    Office-style QAT at the far top-left. The launcher (a horizontal bar
    with a down chevron under it) opens a small popover where the DSP

@@ -118,6 +118,23 @@ NOT on the subscription, or All-mode loses cross-station updates.
   fallback → scope Boston = {Bob} only (primary home), graceful. All-mode
   unchanged both ways. No errors.
 
+**SHIPPED — Settings → Stations manager (the unblock):**
+- CRITICAL GAP found answering "where are the toggles?": stations were only
+  ever created by seed migrations (0005/seed_demo) — NO UI/RPC to add one, so
+  the ≥2-station switcher was unreachable for real operators. Fixed:
+  `view-settings.frag` gains an owner-only "Stations" form-row (list + add
+  code/name + activate/deactivate); `dashboard/live.js` `_rrLoadStationsManager`
+  (list render, class-only rows so the ratchet holds) + delegated add/toggle
+  handlers writing `public.stations` directly (owner RLS). On add/toggle it
+  nulls `_driverStationsCache` and re-runs `_rrInitStationScope()` so the
+  sidebar switcher reveals the instant a DSP crosses to 2+ active stations —
+  no reload. Hooked into `_prefillWeatherInputs` (runs on Settings nav). CSS
+  `.rr-stn-*` in inline-styles.css, token-only.
+- Browser-QA'd (Playwright, stateful stations stub): single-station DSP =
+  switcher hidden + settings lists DCA1 → add "dbo5"/"Boston" = uppercased to
+  DBO5, list [DCA1,DBO5], "Added DBO5.", switcher REVEALS w/o reload, menu =
+  All/DCA1/DBO5 → invalid code "x" rejected with a helpful message. No errors.
+
 **NEXT:** **bans** (scope by driver_stations membership, same helper), then
 drivers detail/onboarding/broadcast. Then P3 server `p_station_id` (Today KPI
 tiles/coverage, okami/targets, generate_shifts, roster counts), P4 All-mode
