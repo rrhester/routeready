@@ -69158,7 +69158,17 @@ async function autoAssignDriversForWeek() {
       use_affinity:       _sfDS.affinity       !== false,
       use_van_pairings:   _sfDS.van_pairings   !== false,
       use_attendance:     _sfDS.attendance     !== false,
-      use_fifth_day_optin:_sfDS.fifth_day_optin!== false,
+      // The CP-SAT fifth-day relaxation (an opted-in driver may work ONE day
+      // past max_days) must follow the operator-facing "5th Day" mode, not
+      // just the advanced data-source checkbox: the mode's Off branch never
+      // writes dataSources.fifth_day_optin, so the stale/default `true` here
+      // let opted-in drivers take a 6th day while the popover read "5th Day:
+      // Off". Gate on fifth_day_fill (absent/false = Off). "Required" mode
+      // still sends false (it works through the 5-day target, not a cap bump)
+      // and the preview engine already gates on fifth_day_fill — this brings
+      // the solver payload into parity.
+      use_fifth_day_optin: sfRules.fifth_day_fill === true
+        && _sfDS.fifth_day_optin !== false,
       use_ad_hoc_rules:   _sfDS.ad_hoc_rules   !== false,
     };
     const _sfSolveTime  = Number.isFinite(sfRules.solveTimeMs) ? sfRules.solveTimeMs : 8000;
@@ -72210,19 +72220,28 @@ async function renderScheduleWeek() {
   for (const cell of (grid.coverage || [])) {
     targetByDate.set(cell.date, (targetByDate.get(cell.date) || 0) + (cell.target_routes || 0));
   }
-  // Coverage denominator per date = route target PLUS the cushion:
-  // round(target_routes × (1 + cushion%)). e.g. 7 routes @ 20% → round(8.4)
-  // = 8. ROUND, not ceil: the function that actually CREATES cushion seats
-  // (apply_cushion_to_week) rounds — "round not ceil" since migration 0077 —
-  // so a ceil here over-counts vs what gets built (7 @ 20% → ceil = 9, but
-  // only 8 are ever created), and that surplus showed as phantom "cushion
-  // seats open" the engine could never fill (schedule rounds up, engine rounds
-  // down). Rounding keeps the planned denominator in lockstep with the seats
-  // the engine materializes. Still the FIXED plan ceiling — computed from the
-  // keyed target + cushion %, never from the live shift-row count.
+  // Coverage denominator per date = route target PLUS the cushion, computed
+  // PER (date, station) — round(station_target × (1 + cushion%)) — then
+  // summed across stations. This mirrors apply_cushion_to_week (0534), which
+  // apportions each station-day's cushion total (one rounding of that total)
+  // across its wave/service-type buckets, so the planned denominator equals
+  // the cushion rows actually materialized. Rounding the cross-station sum
+  // here instead can promise a seat no station ever builds (12 + 13 routes
+  // @10% → round(27.5) = 28 planned vs 1 + 1 cushion rows) — a phantom
+  // "cushion seat open" no Smart Fill run could ever close. Still the FIXED
+  // plan ceiling — computed from the keyed target + cushion %, never from
+  // the live shift-row count.
   const denomByDate = new Map();
-  for (const [date, tgt] of targetByDate) {
-    denomByDate.set(date, Math.round(tgt * (1 + _cushionPct / 100)));
+  {
+    const tgtByDateStation = new Map();
+    for (const cell of (grid.coverage || [])) {
+      const k = cell.date + "|" + (cell.station_id || "");
+      tgtByDateStation.set(k, (tgtByDateStation.get(k) || 0) + (cell.target_routes || 0));
+    }
+    for (const [k, tgt] of tgtByDateStation) {
+      const date = k.slice(0, 10);
+      denomByDate.set(date, (denomByDate.get(date) || 0) + Math.round(tgt * (1 + _cushionPct / 100)));
+    }
   }
   // Count scheduled shift ROWS and FILLED rows per date separately, so the
   // denominator can stay the PLAN (not the row count). This makes overage
