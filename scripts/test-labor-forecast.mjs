@@ -8,6 +8,7 @@ import {
   coverageKind,
   driversNeeded,
   driversNeededMix,
+  driversNeededWeek,
   effectiveSupply,
   isoAddDays,
   XL_SEATS_PER_ROUTE,
@@ -132,6 +133,47 @@ t("driversNeededMix: explicit xlDriversPerRoute override still wins", () => {
   assert.equal(m.total, 4);
 });
 
+// ── driversNeededWeek (week-coverage demand) ────────────────────────────────
+
+t("driversNeededWeek: week coverage binds — 37 routes/day, 4-day drivers, +20%", () => {
+  // The operator's own scenario: 37 flat all week = 259 driver-shifts.
+  // 259 ÷ 4 = 64.75 dominates the 37-seat peak day → ceil(64.75 × 1.2) = 78.
+  const r = driversNeededWeek(
+    { weekSeats: 259, peakSeats: 37 },
+    { daysPerWeek: 4, padPct: 20 },
+  );
+  assert.equal(r.total, 78);
+});
+
+t("driversNeededWeek: peak-day floor binds when the week is light", () => {
+  // 40 seats on one day, nothing else: 40 ÷ 5 = 8 but the day still needs 40.
+  const r = driversNeededWeek({ weekSeats: 40, peakSeats: 40 }, { daysPerWeek: 5, padPct: 0 });
+  assert.equal(r.total, 40);
+});
+
+t("driversNeededWeek: coverage == peak when demand is flat over `days` days", () => {
+  // 10 seats/day Mon–Fri, 5-day drivers: 50 ÷ 5 = 10 = the peak. +10% → 11.
+  const r = driversNeededWeek({ weekSeats: 50, peakSeats: 10 }, { daysPerWeek: 5, padPct: 10 });
+  assert.equal(r.total, 11);
+});
+
+t("driversNeededWeek: certified + helper sub-totals get the same max(peak, week÷days)", () => {
+  // 2 XL routes every day of a 7-day week: 14 cert seats, peak 2.
+  // 4-day drivers → 14 ÷ 4 = 3.5 certified → 4 (no pad). Helpers identical.
+  const r = driversNeededWeek(
+    { weekSeats: 98, peakSeats: 14, weekCertSeats: 14, peakCertSeats: 2, weekHelperSeats: 14, peakHelperSeats: 2 },
+    { daysPerWeek: 4, padPct: 0 },
+  );
+  assert.equal(r.xlCertified, 4);
+  assert.equal(r.xlHelpers, 4);
+});
+
+t("driversNeededWeek: clamps bad inputs — days to [1,7] default 5, negatives to 0", () => {
+  assert.equal(driversNeededWeek({ weekSeats: 50, peakSeats: 10 }, {}).total, 10);          // days defaults 5
+  assert.equal(driversNeededWeek({ weekSeats: 70, peakSeats: 10 }, { daysPerWeek: 99 }).total, 10); // capped at 7
+  assert.equal(driversNeededWeek({ weekSeats: -5, peakSeats: -2 }, { daysPerWeek: 4 }).total, 0);
+});
+
 t("driversNeededMix: negative / missing inputs floor to zero", () => {
   const m = driversNeededMix({ standard: -5, xl: undefined }, {});
   assert.equal(m.total, 0);
@@ -151,6 +193,20 @@ t("assessPlan: demandOverride recomputes from routesMix, XL at 2 seats × ratio"
   });
   assert.equal(r.weeks[0].needed, Math.ceil((10 * 2 + 4 * 4) * 1.10)); // 40
   assert.equal(r.weeks[0].xlCertifiedNeeded, Math.ceil(4 * 2 * 1.10)); // 9
+});
+
+t("assessPlan: demandOverride prefers demandWeek (week-coverage) over routesMix", () => {
+  const weeks = mkWeeks([
+    // Carries BOTH: demandWeek must win. 259 shifts ÷ 4 = 64.75 → ×1.2 = 78.
+    { needed: 999, avail: 80, routesMax: 37,
+      routesMix: { standard: 37, xl: 0 },
+      demandWeek: { weekSeats: 259, peakSeats: 37 } },
+  ]);
+  const r = assessPlan(weeks, {
+    todayIso: "2026-07-06",
+    demandOverride: { daysPerWeek: 4, padPct: 20 },
+  });
+  assert.equal(r.weeks[0].needed, 78);
 });
 
 t("assessPlan: no override passes through the caller's XL-aware needed", () => {

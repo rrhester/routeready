@@ -95,6 +95,44 @@ export function driversNeededMix(mix, opts = {}) {
   return { total, xlCertified, xlHelpers, standardRoutes: std, xlRoutes: xl, helperRoutes: hr };
 }
 
+// ── Week-coverage demand ────────────────────────────────────────────────────
+// The authoritative "how many drivers do I actually need to fill the shifts"
+// model (operator ask 2026-07-20; replaces the peak-day × drivers-per-route
+// proxy on the Targets plan). A driver works `daysPerWeek` days, so covering
+// the week takes weekSeats ÷ daysPerWeek bodies — floored at the single
+// busiest day's seat count, because no roster smaller than the peak day can
+// dispatch it no matter how the week averages out. The pad is the whole-plan
+// buffer on top.
+//
+//   needed = ceil( max(peakSeats, weekSeats ÷ daysPerWeek) × (1 + pad%) )
+//
+// `demand` carries seat aggregates (a SEAT = one person dispatching on one
+// day; a standard route is 1 seat, XL/HELPER routes are 2 — driver + helper):
+//   · weekSeats / peakSeats           — all seats: Σ across the week / max day
+//   · weekCertSeats / peakCertSeats   — seats that must be XL-certified
+//                                       (1 per XL route per day)
+//   · weekHelperSeats / peakHelperSeats — helper seats (1 per XL or HELPER
+//                                       route per day)
+// The certified and helper sub-totals get the same max(peak, week÷days)
+// treatment so "at least this many of that kind" stays true per day AND
+// across the week.
+export function driversNeededWeek(demand, opts = {}) {
+  const d = demand || {};
+  const weekSeats   = Math.max(0, Number(d.weekSeats) || 0);
+  const peakSeats   = Math.max(0, Number(d.peakSeats) || 0);
+  const weekCert    = Math.max(0, Number(d.weekCertSeats) || 0);
+  const peakCert    = Math.max(0, Number(d.peakCertSeats) || 0);
+  const weekHelp    = Math.max(0, Number(d.weekHelperSeats) || 0);
+  const peakHelp    = Math.max(0, Number(d.peakHelperSeats) || 0);
+  const days = clamp(Number(opts.daysPerWeek), 1, 7, 5);
+  const pad  = clamp(Number(opts.padPct), 0, 200, 0);
+  const mult = 1 + pad / 100;
+  const total       = Math.ceil(Math.max(peakSeats, weekSeats / days) * mult);
+  const xlCertified = Math.ceil(Math.max(peakCert, weekCert / days) * mult);
+  const xlHelpers   = Math.ceil(Math.max(peakHelp, weekHelp / days) * mult);
+  return { total, xlCertified, xlHelpers, weekSeats, peakSeats, daysPerWeek: days };
+}
+
 // ── Supply ─────────────────────────────────────────────────────────────────
 
 // Effective supply for a future week = bodies on payroll, minus onboarding
@@ -143,10 +181,14 @@ export function coverageKind(needed, avail) {
 //          horizonWeeks = 4,
 //          extraSupply = null,            // { fromIso, count } — hypothetical
 //                                         // hires on the roster from fromIso on
-//          demandOverride = null }        // { driversPerRoute, padPct } —
-//                                         // recompute needed from routesMax
-//                                         // (weeks without routesMax keep
-//                                         // their planned needed)
+//          demandOverride = null }        // { daysPerWeek, padPct } (weeks
+//                                         // carrying demandWeek seat
+//                                         // aggregates recompute via the
+//                                         // week-coverage model) or the
+//                                         // legacy { driversPerRoute, padPct }
+//                                         // (recomputes from routesMix /
+//                                         // routesMax; weeks without either
+//                                         // keep their planned needed)
 //
 // Returns { weeks, worstWeek, driverWeeksShort, horizon, trend, firstBreak,
 //           headline, prescription } — everything the gap card and the risk
@@ -165,24 +207,31 @@ export function assessPlan(weeks, opts = {}) {
 
   const assessed = (weeks || []).map((w, i) => {
     const idx = Number.isFinite(Number(w.idx)) ? Number(w.idx) : i;
-    // When the sandbox overrides demand (dpr / pad), recompute needed from
-    // the route counts. Prefer the XL-aware peak-day mix when the caller
-    // carried one; XL routes keep their 4-per-route cost (driversNeededMix's
-    // default) even as the standard dpr dial moves. Weeks without a mix fall
-    // back to the flat single-count path.
-    const overrideMix = demandOverride && w.routesMix
+    // When the sandbox overrides demand (days-per-week / pad), recompute
+    // needed. Preferred: the week-coverage model over the caller's
+    // `demandWeek` seat aggregates (max(peak day, week ÷ days) × pad — the
+    // same math the Targets table renders). Legacy fallbacks for callers
+    // that only carry a peak-day mix or a flat route count.
+    const overrideWeek = demandOverride && w.demandWeek
+      ? driversNeededWeek(w.demandWeek, demandOverride)
+      : null;
+    const overrideMix = !overrideWeek && demandOverride && w.routesMix
       ? driversNeededMix(w.routesMix, demandOverride)
       : null;
-    const needed = overrideMix
-      ? overrideMix.total
-      : (demandOverride && Number.isFinite(Number(w.routesMax))
-        ? driversNeeded(w.routesMax, demandOverride)
-        : Math.max(0, Number(w.needed) || 0));
+    const needed = overrideWeek
+      ? overrideWeek.total
+      : overrideMix
+        ? overrideMix.total
+        : (demandOverride && Number.isFinite(Number(w.routesMax))
+          ? driversNeeded(w.routesMax, demandOverride)
+          : Math.max(0, Number(w.needed) || 0));
     // Of the drivers needed, how many must be XL-certified — recomputed under
     // an override, else passed through from the caller's own XL-aware render.
-    const xlCertifiedNeeded = overrideMix
-      ? overrideMix.xlCertified
-      : Math.max(0, Number(w.xlCertifiedNeeded) || 0);
+    const xlCertifiedNeeded = overrideWeek
+      ? overrideWeek.xlCertified
+      : overrideMix
+        ? overrideMix.xlCertified
+        : Math.max(0, Number(w.xlCertifiedNeeded) || 0);
     const supply = effectiveSupply(idx, w.avail, {
       onboardingNotReady: notReadyBy[w.weekStartIso] || 0,
       weeklyAttritionRate: opts.weeklyAttritionRate,

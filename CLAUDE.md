@@ -554,6 +554,35 @@ shifts + 20%"):**
   edit 2→1 recomputes Needed 25→13 live ((9SP+1XL)×1.1), persists across
   reload, single RPC call, tooltips show "XL × 2 … 1 certified + 1 helper".
 
+**REPLACED — Week-coverage Needed (2026-07-20, same day, operator: "I need to
+forecast how many drivers I will ACTUALLY need to fill the shifts" — screenshot
+showed the ratio model reading as arbitrary):** the peak-day × drivers-per-route
+formula (and its brand-new ⓘ ratio editor, PR #4096) is RETIRED. Needed is now
+**ceil(max(peak-day seats, weekly driver-shifts ÷ workdays-per-driver) × (1 +
+pad))** — a seat = one person dispatching one day (standard route 1, XL/HELPER
+2: driver + helper). Operator confirmed via AskUserQuestion: 4-day driver work
+week; replace outright (no legacy mode).
+- forecast-core: `driversNeededWeek(demand, {daysPerWeek, padPct})`; `assessPlan`
+  demandOverride is now `{daysPerWeek, padPct}` and prefers per-week `demandWeek`
+  seat aggregates (routesMix/routesMax legacy fallbacks kept). driversNeededMix
+  stays exported (legacy path + tests) but live.js no longer imports it.
+- live.js: `_rrOkamiWeekDemand` (replaces `_rrOkamiWeekMix`) builds
+  {weekSeats, peakSeats, weekCertSeats, peakCertSeats, weekHelperSeats,
+  peakHelperSeats}; render + `_okamiRecomputeFromCache` (which also refreshes
+  model.demandWeek) + P4 per-station breakdown + gap-pill explainer + pipeline
+  "Next 5 weeks" strip + availability popover (per-day needed = seats × pad)
+  all use it. Workdays lives at `dsps.metadata.staffing.workdays_per_week`
+  (default 5, ⓘ popover input `#rr-okami-wdw` — same metadata pattern as
+  plan_pad_pct/hire_lead_days, so NO migration). The ⓘ ratio input
+  `#rr-okami-dpr` is gone; hiring_settings drivers_per_route is now unread by
+  Targets (rates loader still fetches it, harmless). Risk-forecast Assumptions
+  bar: "Drivers/route" dial → "Days/driver · wk" (`c.wdw`).
+- Tooltip/popovers show the work: "ceil(max(peak day 38 seats, 260
+  driver-shifts ÷ 4 workdays = 65.0) × 1.10 pad) = 72 — covering the whole
+  week sets it". Tests 43 (driversNeededWeek + assessPlan demandWeek).
+  Browser-QA'd 9/9 (operator's 37-routes/day scenario: defaults 58 → workdays
+  4 → 72 instantly, persists across reload via dsps.metadata PATCH).
+
 **Still DEFERRED:** nothing else outstanding on the XL/helper model.
 
 ## DONE: Calendar 100-list (Onboarding → Calendar improvements)
