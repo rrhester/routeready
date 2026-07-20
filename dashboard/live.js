@@ -13509,6 +13509,9 @@ function _rrNtFormat(kind) {
 // ribbon. They're position:fixed, so we feed a viewport-relative top;
 // falls back to the CSS default when the schedule isn't laid out yet
 // (hidden view → rect top 0). All panels (Notes + Tasks + Forms) get synced.
+// Last measured top of the week grid header — the height the Requests and
+// Targets subs pin to (they carry no calendar grid of their own).
+let _rrRailWeekTop = 0;
 function _rrSyncNotesRailTop() {
   const rail = document.getElementById("rr-sched-util-rail");
   // Derive from the panel registry so a newly added rail panel (e.g.
@@ -13540,6 +13543,34 @@ function _rrSyncNotesRailTop() {
   const onOnboarding = !!(railView && railView.id === "view-onboarding-ops");
   const onFleet = !!(railView && railView.id === "view-fleet2");
   const onRoster = !!(window._schedRosterKpiActive && window._schedRosterKpiActive());
+  // Remember the week grid header's top whenever it is actually laid out
+  // (week sub active). The Requests + Targets subs host no calendar grid,
+  // so the selector walk below used to fall through to .tcp-body and park
+  // the rail well above their content cards (operator: the icon bar sits
+  // higher on Requests/Targets than on Schedule). Those subs reuse this
+  // remembered top so the icons start at the SAME height as on the week
+  // grid; their own content card is the fallback the first time round
+  // (entering Requests/Targets before the week grid has ever measured).
+  try {
+    const wk = document.querySelector("#view-schedule .cal-grid.head")
+      || document.querySelector("#view-schedule .cal-wrap");
+    if (wk) {
+      const wr = wk.getBoundingClientRect();
+      if (wr.top > 0 && (wr.width || wr.height)) _rrRailWeekTop = Math.round(wr.top);
+    }
+  } catch (_) {}
+  // The active schedule sub is detected from the DOM (display toggling),
+  // NOT _rrCurSchedSub — that `let` lives ~47k lines below and is still in
+  // its temporal dead zone when the boot tick loop first runs.
+  const _subShown = (id) => {
+    const el = document.getElementById(id);
+    if (!el) return false;
+    const r = el.getBoundingClientRect();
+    return !!(r.width || r.height);
+  };
+  const onSchedSubs = !onFleet && !onOnboarding && !onRoster;
+  const onRequests = onSchedSubs && _subShown("sched-sub-requests");
+  const onTargets = onSchedSubs && !onRequests && _subShown("sched-sub-targets");
   const sels = onFleet
     // Fleet → the planted workspace card of the ACTIVE sub-view (the
     // table card top is the Fleet analog of Schedule's grid header);
@@ -13550,9 +13581,15 @@ function _rrSyncNotesRailTop() {
     ? ["#view-onboarding-ops #obsub-pipeline", "#view-onboarding-ops #obsub-overview", "#view-onboarding-ops #obsub-workauth", "#view-onboarding-ops .page"]
     : onRoster
     ? ["#ob-roster-mount #rr-roster-table-wrap", "#ob-roster-mount .table-wrap", "#view-schedule .tcp-body"]
+    : onRequests
+    ? ["#sched-sub-requests .sched-requests-split", "#view-schedule .tcp-body"]
+    : onTargets
+    ? ["#rr-sched-targets-13week", "#view-schedule .tcp-body"]
     : ["#view-schedule .cal-grid.head", "#view-schedule .cal-wrap", "#view-schedule .tcp-body"];
-  let t = 0;
-  sels.some((s) => {
+  // Requests/Targets pin to the week grid's remembered top so the rail
+  // starts level with the Schedule page; the sels walk is their fallback.
+  let t = (onRequests || onTargets) ? (_rrRailWeekTop || 0) : 0;
+  if (!t) sels.some((s) => {
     const el = document.querySelector(s);
     if (!el) return false;
     const r = el.getBoundingClientRect();
