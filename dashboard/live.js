@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=82ed4d59ded6";
-import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=82ed4d59ded6";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=82ed4d59ded6";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=82ed4d59ded6";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=82ed4d59ded6";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=82ed4d59ded6";
-import { isChecklistComplete } from "./checklist-core.mjs?v=82ed4d59ded6";
+import { planScheduleWeek } from "./scheduling-engine.js?v=39b23fb00e85";
+import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=39b23fb00e85";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=39b23fb00e85";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=39b23fb00e85";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=39b23fb00e85";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=39b23fb00e85";
+import { isChecklistComplete } from "./checklist-core.mjs?v=39b23fb00e85";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=82ed4d59ded6";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=82ed4d59ded6";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=82ed4d59ded6";
+} from "./msg-core.mjs?v=39b23fb00e85";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=39b23fb00e85";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=39b23fb00e85";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -72884,9 +72884,50 @@ async function renderScheduleWeek() {
   // ── Day headers (skip first cell which is "Driver")
   // Headers show day name, day number, and a compact "filled / needed"
   // line — green/amber/red on the count itself conveys coverage state.
-  const headRow = sub.querySelector(".cal-grid.head");
+  // SELF-HEALING (operator report 2026-07-20 — schedule rendered with NO
+  // date/route header): the head row + its 8 cells are static frag markup
+  // that this pass only ever repaints IN PLACE — nothing recreates them.
+  // If a DOM accident in a long-lived session strips or shortens the row,
+  // every later render silently skips the header (heads[i+1] → break)
+  // while the driver rows + coverage card keep painting — a permanently
+  // dateless grid until a full reload. Rebuild the row / day cells here so
+  // the next render (30s poll / any nav) always restores the header.
+  let headRow = sub.querySelector(".cal-grid.head");
+  if (!headRow) {
+    const _calWrapEl = sub.querySelector(".cal-wrap");
+    if (_calWrapEl) {
+      headRow = document.createElement("div");
+      headRow.className = "cal-grid head";
+      _calWrapEl.prepend(headRow);
+    }
+  }
   if (headRow) {
-    const heads = headRow.querySelectorAll(".cal-cell-head");
+    let heads = headRow.querySelectorAll(".cal-cell-head");
+    // Day paints are positional (heads[i+1] = day i), so the corner cell
+    // (Driver label + header icon cluster) must be cell 0 and the row must
+    // hold exactly 8 cells. When the shape is wrong, rebuild: keep an
+    // intact corner if one survives (preserves the density/sort/… icon
+    // ids, whose handlers are delegated), else a minimal label-only corner
+    // (the icon cluster returns with the next full reload).
+    const _isCorner = (h) => !!(h && (h.querySelector("#rr-sched-row-label") || h.querySelector(".rr-sched-driver-actions")));
+    if (heads.length !== 8 || !_isCorner(heads[0])) {
+      const _corner = Array.from(heads).find(_isCorner);
+      headRow.textContent = "";
+      if (_corner) {
+        headRow.appendChild(_corner);
+      } else {
+        const c = document.createElement("div");
+        c.className = "cal-cell-head";
+        c.innerHTML = '<span id="rr-sched-row-label">Driver</span>';
+        headRow.appendChild(c);
+      }
+      for (let n = 1; n < 8; n++) {
+        const c = document.createElement("div");
+        c.className = "cal-cell-head";
+        headRow.appendChild(c);
+      }
+      heads = headRow.querySelectorAll(".cal-cell-head");
+    }
     // Per-day callout/attendance exposure (built earlier this render pass) so
     // the day headers can surface a subtle risk glyph + hover card without any
     // extra data plumbing.
