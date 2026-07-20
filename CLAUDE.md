@@ -407,7 +407,8 @@ misspoke on DOT). Pad stays DSP-configurable (default 10%, no change).
   to the old `driversNeeded()` when xl==0 (no change for non-XL DSPs).
   `assessPlan` threads a per-week `routesMix` through `demandOverride` so
   the Risk-forecast sandbox keeps XL at 4/route. Tests in
-  test-labor-forecast.mjs (32 pass).
+  test-labor-forecast.mjs (32 pass). (2026-07-20: XL cost now SCALES with
+  the ratio — see "Staffing formula" block below.)
 - `live.js` (renderOkamiLive + `_okamiRecomputeFromCache`): builds a
   per-day XL route map (`xlByDate`, `service_type_code === "XL"`), picks the
   peak **demand** day (std×2 + xl×4, not peak routes) via `_rrOkamiWeekMix`,
@@ -521,6 +522,37 @@ found). Apply order: 0518 → 0519 → **0520**.
   "needs their van" check, and the free-pool count (::text cast, safe
   pre-0518). PR #4025 merged; 0524 SQL pasted in chat.
 - Apply order: 0518 → 0519 → 0520 → 0521 → 0522 → 0523 → **0524**.
+
+**SHIPPED — Staffing formula: ratio editable on Targets + XL cost scales
+(2026-07-20, operator: "formula results in too many drivers — I want fill
+shifts + 20%"):**
+- FOUND: the "Staffing outlook" page (`loadStaffingOutlook`, the only UI
+  that ever edited `dsp_hiring_settings.drivers_per_route` via
+  `hiring_settings_set`) is ORPHANED — no nav item / launcher entry /
+  `#rr-outlook-body` markup anywhere (launcher's buildApps() view mirror
+  retired 2026-07-05 took its last entry point). So every DSP was stuck on
+  the default ratio 2.0 with no way to change it.
+- Drivers-per-route is now edited in the **Drivers-needed ⓘ header popover**
+  (`_rrOkamiFormulaHtml`, input `#rr-okami-dpr`, next to hire-lead-days).
+  KEY: it must live ON the table — `_rrMoveOkami13WeekToTargets()` relocates
+  only `.plan-table-wrap` into Schedule → Targets, so a control anywhere
+  else in view-okami.frag is INVISIBLE on the sub-view operators actually
+  use (burned an hour of QA). Delegated input handler = instant
+  `_okamiRecomputeFromCache` + debounced `hiring_settings_set`
+  (p_cushion_pct omitted → preserved), updates `_rrForecastRates`.
+- `forecast-core.js`: XL/HELPER route cost now SCALES with the ratio —
+  constants renamed `XL_SEATS_PER_ROUTE` (2 on-road) /
+  `XL_CERT_SEATS_PER_ROUTE` (1); `driversNeededMix` defaults
+  `xlDriversPerRoute = 2 × dpr`, `xlCertifiedPerRoute = 1 × dpr`.
+  Byte-identical at the default ratio 2 (4 bodies, 2 certified); at ratio 1
+  an XL route costs the 2 who dispatch. Peak-day pickers (`_rrOkamiWeekMix`
+  + availability popover) weigh XL at `2 × dpr` (no longer hard-coded ×4);
+  Needed tooltip + ⓘ formula text follow the ratio. 37 forecast tests.
+- "Fill shifts + 20%" = set ratio 1.0 (in the ⓘ popover) + Plan Pad 20%.
+  The debounced save + `hiring_settings_set` are the ONLY writers of
+  drivers_per_route now. Browser-QA'd (stateful stub, 9 checks): popover
+  edit 2→1 recomputes Needed 25→13 live ((9SP+1XL)×1.1), persists across
+  reload, single RPC call, tooltips show "XL × 2 … 1 certified + 1 helper".
 
 **Still DEFERRED:** nothing else outstanding on the XL/helper model.
 

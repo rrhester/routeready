@@ -9169,6 +9169,10 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-tgt-avail-sub{font-size:var(--fs-9);color:var(--text-subtle);line-height:1.3;margin-top:1px;white-space:nowrap}
 .rr-tgt-th-info{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;margin-left:5px;border-radius:50%;border:1px solid var(--border-strong);background:transparent;color:var(--text-subtle);font-size:var(--fs-10);font-weight:700;line-height:1;cursor:pointer;vertical-align:middle;padding:0}
 .rr-tgt-th-info:hover{background:var(--canvas);color:var(--text-muted)}
+/* Drivers-needed ⓘ popover · editable formula-knob rows (drivers-per-route
+   beside the hire-lead input). */
+.rr-tgt-formula-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.rr-tgt-formula-input{width:60px;text-align:right}
 
 .strategy-pills{display:flex;gap:3px;flex-wrap:wrap}
 .strategy-pill{

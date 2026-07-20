@@ -50,25 +50,27 @@ export function driversNeeded(routesPeak, opts = {}) {
 }
 
 // ── XL routes ────────────────────────────────────────────────────────────────
-// A standard route staffs one driver + one backup (driversPerRoute, default
-// 2). An XL route DISPATCHES with two people on the road — one XL-certified
-// driver and one helper (no cert) — so, backups included, it staffs FOUR:
-// two XL-certified drivers plus two helpers. The extra helper seat is why an
-// XL route costs double a standard route in the staffing plan.
-export const XL_DRIVERS_PER_ROUTE   = 4; // total bodies staffed per XL route
-export const XL_CERTIFIED_PER_ROUTE = 2; // of those four, must hold xl_certified
-// helpers per XL route = XL_DRIVERS_PER_ROUTE − XL_CERTIFIED_PER_ROUTE (= 2).
+// A standard route dispatches ONE person and costs `driversPerRoute` roster
+// bodies (the DSP's rostering ratio: 1 = just fill the seat, 2 = a full
+// backup per seat). An XL route DISPATCHES with TWO people on the road — one
+// XL-certified driver and one helper (no cert) — so it costs two on-road
+// seats, each carried at the SAME drivers-per-route ratio as a standard
+// seat. At the long-standing default ratio of 2 that's the familiar 4
+// bodies per XL route (2 certified + 2 helpers); at a ratio of 1 it's the
+// 2 who actually dispatch (1 certified + 1 helper).
+export const XL_SEATS_PER_ROUTE      = 2; // on-road bodies an XL route dispatches
+export const XL_CERT_SEATS_PER_ROUTE = 1; // of those, must hold xl_certified
 
-// driversNeeded, but for a peak-day route MIX that separates two-body routes
+// driversNeeded, but for a peak-day route MIX that separates two-seat routes
 // from standard ones. `mix` = { standard, xl, helperRoutes } route counts on
 // the week's busiest (peak) day:
 //   · standard      — cost `driversPerRoute` each (default 2)
-//   · xl            — cost `xlDriversPerRoute` (4): 2 must be XL-certified,
-//                     2 ride as helpers
+//   · xl            — cost `xlDriversPerRoute` each (default 2 seats ×
+//                     driversPerRoute): half must be XL-certified, half
+//                     ride as helpers
 //   · helperRoutes  — the HELPER service type: an SP-style route that
-//                     dispatches driver + helper. Same 4-body cost as XL
-//                     (2 drivers + 2 helpers incl. backups) but NOBODY
-//                     needs a certification.
+//                     dispatches driver + helper. Same two-seat cost as XL
+//                     but NOBODY needs a certification.
 // The pad is a whole-plan buffer, so it applies uniformly to every seat.
 //
 // Returns { total, xlCertified, xlHelpers, standardRoutes, xlRoutes,
@@ -83,8 +85,8 @@ export function driversNeededMix(mix, opts = {}) {
   const xl  = Math.max(0, Number(mix && mix.xl) || 0);
   const hr  = Math.max(0, Number(mix && mix.helperRoutes) || 0);
   const dpr    = clamp(Number(opts.driversPerRoute), 1, 5, 2);
-  const xlDpr  = clamp(Number(opts.xlDriversPerRoute), 2, 8, XL_DRIVERS_PER_ROUTE);
-  const xlCert = clamp(Number(opts.xlCertifiedPerRoute), 0, xlDpr, XL_CERTIFIED_PER_ROUTE);
+  const xlDpr  = clamp(Number(opts.xlDriversPerRoute), 1, 10, XL_SEATS_PER_ROUTE * dpr);
+  const xlCert = clamp(Number(opts.xlCertifiedPerRoute), 0, xlDpr, XL_CERT_SEATS_PER_ROUTE * dpr);
   const pad    = clamp(Number(opts.padPct), 0, 200, 0);
   const mult   = 1 + pad / 100;
   const total       = Math.ceil((std * dpr + xl * xlDpr + hr * xlDpr) * mult);
