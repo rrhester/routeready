@@ -335,6 +335,16 @@ Client is already correct pre-0532 thanks to the union. Browser-QA'd (stubbed
 {Bob,Carol} vs schedule {Bob,Nina} — post-fix roster = {Bob,Carol(float),Nina},
 DCA1 = {Alice,Carol}, All = 4, schedule agrees, no errors. Apply order:
 0525 → 0526 → 0528 → 0529 → 0530 → 0531 → **0532**.
+FOLLOW-UP (same day, operator: "these are not lent drivers — its not working"):
+drivers with a BLANK home (drivers.station_id null, e.g. graduated from the
+pipeline with no target station) and no membership row were STILL schedule-only
+— the home-union can't see them. `_rrDriverIdsAtStation` gained a THIRD source:
+drivers with assigned shifts at the station (−14d…+28d window, best-effort), so
+"scheduled here ⇒ on this station's roster". **Migration 0533** makes it
+durable: shifts trigger (assign driver → upsert is_primary=false membership,
+never touches the home flag) + 90-day backfill. Browser-QA'd (Zoe: null home,
+no membership, one DBO5 shift → appears in scoped DBO5 roster). Apply order:
+… → 0532 → **0533**.
 
 **SHIPPED — Recognition + Repair Center scope (new-DSP isolation):**
 - **Recognition** (`_loadRecognitionUpcoming` / `_loadRecognitionHistory` ~93108):
