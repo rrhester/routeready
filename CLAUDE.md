@@ -316,6 +316,26 @@ stub, pools all=50/DCA1=30/DBO5=20): All→50, DCA1→30, DBO5→20, back→50; 
 overload called; no errors. **Migration 0531 MANUAL — paste in chat.** Apply
 order: 0525 → 0526 → 0528 → 0529 → 0530 → **0531**.
 
+**SHIPPED — schedule/roster driver-count mismatch (operator report 2026-07-20
+"more drivers on my schedule than my roster") → migration 0532:** NOTHING wrote
+driver_stations after 0525's one-time backfill (Add-driver insert, driver-editor
+station change, CSV import all write only drivers.station_id) — so every driver
+hired or re-homed since 0525 had no membership row: visible on the scoped
+schedule (station_id + shifts lens) but hidden from the scoped roster
+(membership-only lens). Fix: `_rrDriverIdsAtStation` now returns membership
+UNION primary-home ids (matches the server RPCs 0526/0531 "station_id = p OR
+EXISTS membership"), fixing all ten membership-scoped surfaces at once (roster/
+licenses/work-auth/attendance/messages/requests/recognition×2/Targets pool);
+null only when BOTH sources fail. **Migration 0532** adds a sync trigger on
+public.drivers (insert/station change → upsert is_primary row, retire the old
+home's machine-written is_primary row; hand-added float rows untouched) + a
+repair backfill (re-adds missing homes, deletes stale machine primaries).
+Client is already correct pre-0532 thanks to the union. Browser-QA'd (stubbed
+2-station DSP; Nina homed DBO5 with NO membership row): pre-fix DBO5 roster =
+{Bob,Carol} vs schedule {Bob,Nina} — post-fix roster = {Bob,Carol(float),Nina},
+DCA1 = {Alice,Carol}, All = 4, schedule agrees, no errors. Apply order:
+0525 → 0526 → 0528 → 0529 → 0530 → 0531 → **0532**.
+
 **SHIPPED — Recognition + Repair Center scope (new-DSP isolation):**
 - **Recognition** (`_loadRecognitionUpcoming` / `_loadRecognitionHistory` ~93108):
   both `recognition_upcoming` + `recognition_list` rows carry `driver_id`, so the
