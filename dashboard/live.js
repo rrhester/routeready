@@ -955,19 +955,36 @@ try {
   window.rrApplyStationFilter = rrApplyStationFilter;
 } catch (_) { /* window always present in the browser */ }
 
-// Driver ids that are MEMBERS of a station via the driver_stations join
-// (floating drivers can belong to >1 station). Returns a Set, or null when
-// the join table isn't present yet (pre-migration 0525) so callers can fall
-// back to the primary drivers.station_id.
+// Driver ids that belong to a station: driver_stations MEMBERS (floating
+// drivers can belong to >1 station) UNION drivers whose primary home
+// (drivers.station_id) is the station. The union matters — nothing wrote
+// driver_stations between 0525's one-time backfill and 0532's sync trigger,
+// so drivers hired or re-homed in that window have no membership row and a
+// membership-only filter hides them from the scoped roster while the
+// schedule (which reads station_id + shifts) still shows them. This also
+// matches the server RPCs (0526/0531: station_id = p OR EXISTS membership).
+// Returns a Set, or null when NEITHER source is readable so callers can
+// fall back to row-level station fields.
 async function _rrDriverIdsAtStation(stationId) {
   const dspId = window.RR && window.RR.dsp && window.RR.dsp.id;
   if (!dspId || !stationId) return null;
-  const { data, error } = await sb.from("driver_stations")
-    .select("driver_id")
-    .eq("dsp_id", dspId)
-    .eq("station_id", stationId);
-  if (error) return null; // table missing / RLS — caller falls back to primary
-  return new Set((data || []).map((r) => r.driver_id));
+  const [memberRes, homeRes] = await Promise.all([
+    sb.from("driver_stations")
+      .select("driver_id")
+      .eq("dsp_id", dspId)
+      .eq("station_id", stationId),
+    sb.from("drivers")
+      .select("id")
+      .eq("dsp_id", dspId)
+      .eq("station_id", stationId),
+  ]);
+  // Pre-0525 the join table 404s — the primary-home set alone is still the
+  // right lens (same rows the callers' own fallbacks would keep).
+  if (memberRes.error && homeRes.error) return null;
+  const ids = new Set();
+  for (const r of (memberRes.error ? [] : memberRes.data || [])) ids.add(r.driver_id);
+  for (const r of (homeRes.error   ? [] : homeRes.data   || [])) ids.add(r.id);
+  return ids;
 }
 
 function _rrStationLabel() {
