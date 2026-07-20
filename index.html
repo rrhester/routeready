@@ -4,38 +4,38 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>RouteReady — The operating system for Amazon DSPs</title>
-<meta name="description" content="RouteReady runs your DSP — hiring, scheduling, performance, fleet, compliance, signed documents, AI vehicle-inspection. The operating system Amazon DSPs run on.">
+<meta name="description" content="RouteReady runs your DSP — scheduling, workforce planning, attendance, driver messaging, fleet, compliance, and a driver app. One system for the whole operation.">
+<link rel="canonical" href="https://gorouteready.com/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="RouteReady — The operating system for Amazon DSPs">
+<meta property="og:description" content="Scheduling, workforce planning, attendance, driver messaging, fleet, and compliance — one system for the whole operation.">
+<meta property="og:url" content="https://gorouteready.com/">
+<meta property="og:image" content="https://gorouteready.com/marketing/og-schedule.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="RouteReady — The operating system for Amazon DSPs">
+<meta name="twitter:description" content="Scheduling, workforce planning, attendance, driver messaging, fleet, and compliance — one system for the whole operation.">
+<meta name="twitter:image" content="https://gorouteready.com/marketing/og-schedule.jpg">
 <link rel="icon" type="image/png" href="/app/icons/favicon-32.png">
 <link rel="apple-touch-icon" href="/app/icons/apple-touch-icon.png">
 <meta name="theme-color" content="#2563EB">
 <style>
   @font-face{font-family:'Inter';font-style:normal;font-weight:400 700;font-display:swap;src:url(app/fonts/inter-var-latin.woff2) format('woff2')}
   /* ─────────────────────────────────────────────────────────────
-   RouteReady marketing site · Microsoft Fluent 2 / M365 surface
-   ────────────────────────────────────────────────────────────
-   Same brand language as the dashboard + driver app:
-   - communicationBlue chrome (#2563EB), communicationGreen,
-     indigo for warnings, communicationRed semantics
-   - Segoe UI Variable type stack (Inter as web fallback)
-   - Fluent functional radii + Fluent depth-4 / depth-8 shadow
-   - Hero is a solid brand-blue surface with a subtle Mica grain
-     — same texture as the driver app's home hero, so users
-     land on a marketing page that already reads like the
-     product they're about to buy.
-   Marketing room: feature icons, the inline dashboard mockup,
-   and the stat strip have visual character — but they all
-   sit inside the same restrained Fluent palette as the app.
-   ───────────────────────────────────────────────────────── */
+   RouteReady marketing site · calm enterprise surface
+   ─────────────────────────────────────────────────────────────
+   Same visual language as the operator dashboard: Fluent-style
+   neutrals on #F9FAFB, precise hairline borders, a restrained
+   depth ramp, and communicationBlue (#2563EB) used purposefully
+   — buttons, links, and one closing brand band. The primary
+   visual evidence on this page is the real product: genuine
+   dashboard/driver-app screenshots (fictional demo data) in
+   quiet browser/phone frames.
+   ───────────────────────────────────────────────────────────── */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth;-webkit-text-size-adjust:100%;scroll-padding-top:80px}
 body{
-  /* Segoe UI Variable Text leads — matches the driver app and
-     puts Windows + M365 visitors on Microsoft's flagship UI font.
-     Inter is the cross-platform web fallback the dashboard also
-     uses (loaded above), then platform UI fonts after that. */
-  font-family:"Inter","Segoe UI Variable Text","Segoe UI Variable","Segoe UI",
-    system-ui,-apple-system,sans-serif;
-  background:#F9FAFB;color:#111827;line-height:1.6;overflow-x:hidden;
+  font-family:"Inter","Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,sans-serif;
+  background:var(--canvas);color:var(--text);line-height:1.6;overflow-x:hidden;
   -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
   font-feature-settings:"ss01","cv11";
 }
@@ -44,7 +44,6 @@ svg{display:block}
 img{max-width:100%;display:block}
 
 :root{
-  /* Surfaces — Fluent 2 neutrals (matches the driver app :root) */
   --canvas:#F9FAFB;
   --surface:#FFFFFF;
   --surface-soft:#F3F4F6;
@@ -54,28 +53,18 @@ img{max-width:100%;display:block}
   --text-muted:#374151;
   --text-subtle:#6B7280;
 
-  /* Brand — Microsoft Fluent communicationBlue ramp */
   --blue:#2563EB;
-  --blue-hover:#1D4ED8;      /* communicationBlueShade10 */
-  --blue-strong:#1E40AF;     /* communicationBlueShade20 */
-  --blue-pressed:#1E3A8A;    /* communicationBlueShade30 */
-  --blue-tint:#479EF5;       /* communicationBlueTint20 */
-  --blue-tint-soft:#BFDBFE;  /* communicationBlueTint40 */
+  --blue-hover:#1D4ED8;
+  --blue-strong:#1E40AF;
+  --blue-pressed:#1E3A8A;
   --blue-soft:rgba(37,99,235,.08);
   --blue-border:rgba(37,99,235,.24);
 
-  /* Semantic — same Fluent palette as the product */
-  --green:#16A34A;           /* communicationGreen */
+  --green:#16A34A;
   --green-dark:#15803D;
   --green-soft:rgba(22,163,74,.10);
-  --indigo:#6366F1;          /* used for warnings + secondary accents */
-  --indigo-dark:#4338CA;
-  --indigo-soft:rgba(99,102,241,.10);
-  --red:#DC2626;             /* communicationRed */
-  --red-dark:#B91C1C;
-  --red-soft:rgba(220,38,38,.10);
+  --red:#DC2626;
 
-  /* Fluent functional radii (tightened from the iOS-ish defaults) */
   --r-sm:4px;
   --r-md:6px;
   --r-lg:8px;
@@ -83,288 +72,225 @@ img{max-width:100%;display:block}
   --r-2xl:16px;
   --max:1180px;
 
-  /* Fluent depth-2 / 4 / 8 ramp */
   --shadow-sm:0 .3px .9px rgba(0,0,0,.07), 0 1.6px 3.6px rgba(0,0,0,.11);
   --shadow-md:0 .8px 1.8px rgba(0,0,0,.07), 0 6.4px 14.4px rgba(0,0,0,.11);
   --shadow-lg:0 1.6px 3.6px rgba(0,0,0,.08), 0 12.8px 28.8px rgba(0,0,0,.13);
 }
 
-@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
-@keyframes pulse{0%,100%{opacity:.45}50%{opacity:1}}
-.fu{animation:fadeUp .7s cubic-bezier(.16,1,.3,1) both}
-.d1{animation-delay:.05s}.d2{animation-delay:.15s}.d3{animation-delay:.28s}
-.d4{animation-delay:.42s}.d5{animation-delay:.56s}
+/* Entry motion — hero only, and only when the visitor allows it. */
+.fu{opacity:1}
+@media (prefers-reduced-motion:no-preference){
+  @keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+  .fu{animation:fadeUp .6s cubic-bezier(.16,1,.3,1) both}
+  .d1{animation-delay:.04s}.d2{animation-delay:.1s}.d3{animation-delay:.18s}
+  .d4{animation-delay:.26s}.d5{animation-delay:.34s}
+}
 
 .wrap{width:100%;max-width:var(--max);margin:0 auto;padding:0 1.5rem}
 @media(min-width:768px){.wrap{padding:0 2.5rem}}
 
-/* ── NAV — Fluent Mica top bar ───────────────────────────────
-   Solid near-white surface (not frosted-glass on a slate
-   gradient — Fluent surfaces are honest), single neutralStroke
-   hairline at the bottom.  No box-shadow until you scroll. */
-nav{
+.skip-link{position:absolute;left:-9999px;top:0;background:var(--surface);color:var(--text);padding:10px 16px;border-radius:var(--r-md);border:1px solid var(--border-strong);z-index:500}
+.skip-link:focus{left:12px;top:12px}
+
+:where(a,button,summary):focus-visible{outline:2px solid var(--blue);outline-offset:2px;border-radius:var(--r-sm)}
+
+/* ── NAV ──────────────────────────────────────────────────── */
+nav.site{
   position:sticky;top:0;z-index:300;
-  background:#FFFFFFF2;                   /* opaque Mica feel */
+  background:#FFFFFFF2;
   -webkit-backdrop-filter:blur(20px) saturate(1.4);
   backdrop-filter:blur(20px) saturate(1.4);
   border-bottom:1px solid var(--border);
 }
-.nav-in{height:64px;max-width:var(--max);margin:0 auto;padding:0 1.5rem;display:flex;align-items:center;justify-content:space-between}
+.nav-in{height:64px;max-width:var(--max);margin:0 auto;padding:0 1.5rem;display:flex;align-items:center;justify-content:space-between;gap:12px}
 @media(min-width:768px){.nav-in{padding:0 2.5rem}}
-.nav-logo{display:flex;align-items:center;gap:10px}
-/* Bolt mark — solid Fluent communicationBlue, no gradient.
-   Matches the dashboard sidebar tile + the driver app icons. */
+.nav-logo{display:flex;align-items:center;gap:10px;flex-shrink:0}
 .bolt{
   width:30px;height:30px;border-radius:var(--r-md);
   background:var(--blue);
   display:inline-flex;align-items:center;justify-content:center;
-  flex-shrink:0;
-  box-shadow:var(--shadow-sm);
+  flex-shrink:0;box-shadow:var(--shadow-sm);
 }
 .bolt svg{width:16px;height:16px}
-.nav-name{font-family:'Inter Tight',sans-serif;font-size:18px;font-weight:600;letter-spacing:-.014em;color:var(--text)}
+.nav-name{font-size:18px;font-weight:600;letter-spacing:-.014em;color:var(--text)}
 .nav-r{display:flex;align-items:center;gap:8px}
 .nav-link{display:none;font-size:14px;color:var(--text-muted);font-weight:500;padding:8px 14px;border-radius:var(--r-md);transition:color .15s,background .15s}
-@media(min-width:768px){.nav-link{display:inline-flex}}
+@media(min-width:900px){.nav-link{display:inline-flex}}
 .nav-link:hover{color:var(--text);background:var(--surface-soft)}
+.nav-menu-btn{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border:1px solid var(--border-strong);border-radius:var(--r-md);background:transparent;cursor:pointer;color:var(--text)}
+.nav-menu-btn svg{width:18px;height:18px}
+@media(min-width:900px){.nav-menu-btn{display:none}}
+#mobile-menu{display:none;border-top:1px solid var(--border);background:#fff;padding:10px 1.5rem 16px}
+#mobile-menu.open{display:block}
+#mobile-menu a{display:block;padding:11px 6px;font-size:15px;font-weight:500;color:var(--text-muted);border-bottom:1px solid var(--border)}
+#mobile-menu a:last-child{border-bottom:0}
+#mobile-menu a:hover{color:var(--text)}
 
-/* Buttons · flat Fluent solid primary, Fluent subtle default */
-.btn{display:inline-flex;align-items:center;gap:8px;font-family:inherit;font-size:14px;font-weight:600;padding:9px 18px;border-radius:var(--r-md);border:1px solid transparent;cursor:pointer;transition:background .15s ease, border-color .15s ease;text-decoration:none;white-space:nowrap}
+/* Buttons — same language as the RouteReady dashboard. */
+.btn{display:inline-flex;align-items:center;gap:8px;font-family:inherit;font-size:14px;font-weight:600;padding:9px 18px;border-radius:var(--r-md);border:1px solid transparent;cursor:pointer;transition:background .15s ease,border-color .15s ease;text-decoration:none;white-space:nowrap}
 .btn-primary{background:var(--blue);color:#fff;border-color:var(--blue);box-shadow:var(--shadow-sm)}
 .btn-primary:hover{background:var(--blue-hover);border-color:var(--blue-hover)}
 .btn-primary:active{background:var(--blue-pressed);border-color:var(--blue-pressed)}
 .btn-ghost{background:transparent;color:var(--text);border-color:var(--border-strong)}
 .btn-ghost:hover{background:var(--surface);border-color:var(--blue-border)}
-.btn-lg{font-size:15px;padding:12px 22px;border-radius:var(--r-md)}
+.btn-lg{font-size:15px;padding:12px 22px}
 
-/* ── HERO — Fluent brand band ────────────────────────────────
-   The dominant marketing surface paints itself in the same
-   communicationBlue brand color the driver app's home hero
-   uses.  Single subtle Mica grain (no rainbow blooms, no
-   multi-color glows).  The "product runs on the same surface
-   you're looking at right now" tells the story without copy. */
+/* ── HERO — calm neutral surface, product as the evidence ── */
 .hero{
   position:relative;
-  padding:84px 1.5rem 80px;
+  padding:76px 0 0;
   text-align:center;
-  overflow:hidden;
   background:
-    /* Soft top-edge light bloom — adds dimensionality */
-    radial-gradient(120% 60% at 50% -20%, rgba(255,255,255,.18) 0%, rgba(255,255,255,0) 60%),
-    /* Brand surface — same ramp as the driver app's home hero
-       and the dashboard sidebar */
-    linear-gradient(180deg, #2563EB 0%, #1D4ED8 100%);
-  color:#fff;
-  isolation:isolate;
+    radial-gradient(80% 46% at 50% -8%, rgba(37,99,235,.06) 0%, rgba(37,99,235,0) 70%),
+    var(--canvas);
+  border-bottom:1px solid var(--border);
+  overflow:hidden;
 }
-@media(min-width:768px){.hero{padding:120px 2.5rem 110px}}
-.hero-bg{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:0}
-/* Mica-style fine fractal grain — matches the driver app +
-   header band, so the marketing site reads as one continuous
-   brand surface with the product. */
-.hero-grain{
-  position:absolute;inset:0;pointer-events:none;
-  opacity:.07;mix-blend-mode:overlay;
-  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='260' height='260'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
-  background-size:260px 260px;
-}
-/* Soft route-line graphic — a single restrained operational
-   motif (subtle horizontal curves suggesting roads), masked
-   downward so it doesn't compete with the headline. */
-.hero-lines{
-  position:absolute;inset:0;pointer-events:none;
-  opacity:.18;
-  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 480' fill='none' stroke='white' stroke-width='1.1' stroke-linecap='round'><path d='M-60 90 Q 180 30 360 100 T 880 88' opacity='.30'/><path d='M-60 178 Q 220 110 400 184 T 880 176' opacity='.22'/><path d='M-60 268 Q 200 200 380 280 T 880 268' opacity='.16'/><path d='M-60 360 Q 240 290 430 374 T 880 358' opacity='.10'/></svg>");
-  background-size:1100px auto;background-position:center 35%;background-repeat:no-repeat;
-  -webkit-mask-image:linear-gradient(180deg, rgba(0,0,0,.95) 0%, rgba(0,0,0,.55) 55%, rgba(0,0,0,0) 95%);
-  mask-image:linear-gradient(180deg, rgba(0,0,0,.95) 0%, rgba(0,0,0,.55) 55%, rgba(0,0,0,0) 95%);
-}
-
+@media(min-width:768px){.hero{padding-top:104px}}
 .eyebrow{
-  position:relative;z-index:1;
   display:inline-flex;align-items:center;gap:8px;
-  padding:6px 14px;
-  background:rgba(255,255,255,.14);
-  border:1px solid rgba(255,255,255,.20);
-  border-radius:var(--r-md);
-  font-size:12px;font-weight:600;color:#fff;letter-spacing:.04em;
-  margin-bottom:1.75rem;
+  padding:5px 13px;
+  background:var(--surface);
+  border:1px solid var(--border-strong);
+  border-radius:999px;
+  font-size:12px;font-weight:600;color:var(--text-muted);letter-spacing:.02em;
+  margin-bottom:1.5rem;
+  box-shadow:var(--shadow-sm);
 }
-.eyebrow .dot{width:7px;height:7px;border-radius:50%;background:#22C55E;box-shadow:0 0 0 2px rgba(19,161,14,.22);animation:pulse 2.4s ease-in-out infinite}
+.eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--green)}
 .hero-h{
-  position:relative;z-index:1;
-  font-family:'Inter Tight',sans-serif;font-weight:600;
-  font-size:clamp(36px,7vw,76px);line-height:1.04;letter-spacing:-.022em;
-  color:#fff;max-width:920px;margin:0 auto 1.25rem;
+  font-weight:650;
+  font-size:clamp(34px,6vw,64px);line-height:1.06;letter-spacing:-.025em;
+  color:var(--text);max-width:840px;margin:0 auto 1.2rem;padding:0 1.25rem;
 }
-/* Highlight phrase — readable Fluent communicationBlueTint40
-   instead of the multi-color gradient.  Stays in the brand
-   family and is far more legible than the violet→pink wash. */
-.hero-h .grad{color:#BFDBFE;font-weight:600}
-.hero-sub{position:relative;z-index:1;font-size:clamp(16px,2vw,20px);color:rgba(255,255,255,.86);max-width:640px;margin:0 auto 2.25rem;font-weight:400;line-height:1.6}
-.hero-cta{position:relative;z-index:1;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:2.5rem}
-/* Primary CTA on the dark brand surface — flip to a white
-   filled button (Microsoft's standard inverse primary). */
-.hero .btn-primary{background:#FFFFFF;color:var(--blue-strong);border-color:#FFFFFF}
-.hero .btn-primary:hover{background:#F3F4F6;border-color:#F3F4F6}
-.hero .btn-ghost{background:transparent;color:#fff;border-color:rgba(255,255,255,.30)}
-.hero .btn-ghost:hover{background:rgba(255,255,255,.10);border-color:rgba(255,255,255,.50)}
-.hero-trust{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;gap:24px;flex-wrap:wrap;font-size:13px;color:rgba(255,255,255,.78);font-weight:500}
+.hero-h .accent{color:var(--blue)}
+.hero-sub{font-size:clamp(16px,2vw,19px);color:var(--text-muted);max-width:660px;margin:0 auto 2rem;font-weight:400;line-height:1.65;padding:0 1.5rem}
+.hero-cta{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:1.5rem;padding:0 1.5rem}
+.hero-trust{display:flex;align-items:center;justify-content:center;gap:22px;flex-wrap:wrap;font-size:13px;color:var(--text-subtle);font-weight:500;padding:0 1.5rem}
 .hero-trust-item{display:inline-flex;align-items:center;gap:6px}
-.hero-trust-item svg{width:14px;height:14px;color:#9FD89F}  /* Fluent green tint */
+.hero-trust-item svg{width:14px;height:14px;color:var(--green)}
 
-/* Hero preview — the inline dashboard mockup floats half on
-   the brand band, half on the canvas below it. */
-.hero-preview{position:relative;z-index:1;max-width:1020px;margin:64px auto -120px;padding:0 1rem}
-.hero-preview-frame{
-  background:rgba(255,255,255,.20);
-  padding:6px;border-radius:var(--r-xl);
-  border:1px solid rgba(255,255,255,.24);
+/* Hero product image — real dashboard in a quiet browser frame. */
+.hero-shot{max-width:1120px;margin:52px auto -1px;padding:0 1.25rem}
+@media(min-width:768px){.hero-shot{padding:0 2.5rem}}
+
+/* Browser frame — restrained chrome around genuine screenshots. */
+.browser{
+  background:var(--surface);
+  border:1px solid var(--border-strong);
+  border-radius:var(--r-xl) var(--r-xl) 0 0;
   box-shadow:var(--shadow-lg);
+  overflow:hidden;
 }
-.hero-preview-inner{background:#fff;border-radius:var(--r-lg);overflow:hidden;display:grid;grid-template-columns:200px 1fr;min-height:320px;border:1px solid rgba(255,255,255,.0)}
-/* Sidebar paints Fluent communicationBlue — matches the real
-   product dashboard.  This is the moment the marketing visual
-   and the product visual become indistinguishable. */
-.hp-side{
-  background:linear-gradient(180deg, #2563EB 0%, #1D4ED8 100%);
-  color:#fff;
-  padding:18px 14px;
-  display:flex;flex-direction:column;gap:14px;
+.browser.rounded{border-radius:var(--r-xl)}
+.browser-bar{display:flex;align-items:center;gap:10px;height:38px;padding:0 14px;background:var(--surface-soft);border-bottom:1px solid var(--border)}
+.browser-dots{display:flex;gap:6px}
+.browser-dots span{width:9px;height:9px;border-radius:50%;background:rgba(15,23,42,.14)}
+.browser-url{flex:1;max-width:320px;margin:0 auto;height:22px;display:flex;align-items:center;justify-content:center;background:#fff;border:1px solid var(--border);border-radius:999px;font-size:11px;color:var(--text-subtle);font-weight:500;letter-spacing:.01em}
+.browser img{width:100%;height:auto;display:block}
+
+/* Phone frame for the driver app. */
+.phone{
+  background:#0F172A;
+  padding:10px;border-radius:34px;
+  box-shadow:var(--shadow-lg);
+  width:min(258px,72vw);
+  flex-shrink:0;
 }
-.hp-logo{display:flex;align-items:center;gap:8px;font-family:'Inter Tight',sans-serif;font-weight:600;font-size:14px;color:#fff;letter-spacing:-.014em}
-.hp-logo .b{width:20px;height:20px;border-radius:var(--r-sm);background:rgba(255,255,255,.18);display:inline-flex;align-items:center;justify-content:center}
-.hp-logo .b svg{width:11px;height:11px}
-.hp-nav{display:flex;flex-direction:column;gap:2px;margin-top:6px}
-.hp-nav-item{padding:7px 10px;font-size:11px;color:rgba(255,255,255,.72);border-radius:var(--r-sm);font-weight:500;display:flex;align-items:center;gap:8px}
-.hp-nav-item.active{background:rgba(255,255,255,.16);color:#fff;font-weight:600}
-.hp-nav-dot{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.36);flex-shrink:0}
-.hp-nav-item.active .hp-nav-dot{background:#fff}
-.hp-body{padding:18px 22px;display:flex;flex-direction:column;gap:14px;background:#F9FAFB}
-.hp-body-h{font-family:'Inter Tight',sans-serif;font-weight:600;font-size:15px;color:var(--text);letter-spacing:-.005em}
-.hp-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-.hp-kpi{background:#fff;border:1px solid var(--border);border-radius:var(--r-md);padding:8px 10px}
-.hp-kpi-label{font-size:9px;color:var(--text-subtle);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-bottom:4px}
-.hp-kpi-val{font-family:'Inter Tight',sans-serif;font-size:16px;font-weight:600;letter-spacing:-.014em;color:var(--text)}
-.hp-kpi-val.ok{color:var(--green)}
-.hp-kpi-val.warn{color:var(--indigo-dark)}
-.hp-grid{flex:1;background:#fff;border:1px solid var(--border);border-radius:var(--r-md);padding:10px;display:grid;grid-template-rows:auto repeat(3,1fr);gap:5px;font-size:9px}
-.hp-row{display:grid;grid-template-columns:90px repeat(7,1fr);gap:4px;align-items:center}
-.hp-row-h{color:var(--text-subtle);font-size:8px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
-.hp-cell{height:18px;background:var(--surface-soft);border-radius:var(--r-sm)}
-/* Schedule cells — restricted to the product palette: solid
-   Fluent communicationBlue, communicationGreen, indigo. */
-.hp-cell.fill-1{background:var(--blue)}
-.hp-cell.fill-2{background:var(--green)}
-.hp-cell.fill-3{background:var(--indigo)}
-.hp-cell.off{background:transparent;border:1px dashed var(--border-strong)}
-.hp-driver{font-size:9px;color:var(--text-muted);font-weight:500;display:flex;align-items:center;gap:6px}
-.hp-avatar{width:14px;height:14px;border-radius:50%;flex-shrink:0;color:#fff;font-size:7px;display:inline-flex;align-items:center;justify-content:center;font-weight:700}
+.phone-screen{border-radius:26px;overflow:hidden;background:#fff}
+.phone img{width:100%;height:auto;display:block}
 
-/* ── SECTION CHROME ─────────────────────────────────────── */
-section{padding:80px 0}
-@media(min-width:768px){section{padding:100px 0}}
-/* Reserve top space below the hero for the mockup that floats
-   half into this section. */
-section.first-after-hero{padding-top:180px}
-@media(min-width:768px){section.first-after-hero{padding-top:200px}}
-
-/* Section eyebrow — Fluent pill chip (matches the dashboard's
-   subnav badge pattern), not a bare label. */
+/* ── SECTION CHROME ───────────────────────────────────────── */
+section{padding:78px 0}
+@media(min-width:768px){section{padding:96px 0}}
 .section-eyebrow{
-  display:inline-flex;align-items:center;gap:8px;
-  padding:5px 12px;
-  background:var(--blue-soft);
-  border:1px solid var(--blue-border);
-  border-radius:var(--r-md);
-  font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
+  display:inline-flex;align-items:center;
+  font-size:12px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;
   color:var(--blue-strong);
-  margin-bottom:1.25rem;
+  margin-bottom:1rem;
 }
-.section-h{font-family:'Inter Tight',sans-serif;font-weight:600;font-size:clamp(28px,4.5vw,48px);line-height:1.10;letter-spacing:-.018em;color:var(--text);max-width:760px;margin-bottom:1rem}
-.section-sub{font-size:17px;color:var(--text-muted);max-width:580px;line-height:1.65;margin-bottom:3rem}
+.section-h{font-weight:650;font-size:clamp(26px,4vw,42px);line-height:1.12;letter-spacing:-.02em;color:var(--text);max-width:760px;margin-bottom:1rem}
+.section-sub{font-size:17px;color:var(--text-muted);max-width:620px;line-height:1.65}
 .section-head{margin-bottom:3rem}
 
-/* ── FEATURES — Fluent card grid ─────────────────────────── */
-.features{background:#FFFFFF}
+/* ── OUTCOMES STRIP ───────────────────────────────────────── */
+.outcomes{background:var(--surface);border-bottom:1px solid var(--border);padding:0}
+.outcomes-grid{display:grid;grid-template-columns:1fr;gap:1px;background:var(--border)}
+@media(min-width:640px){.outcomes-grid{grid-template-columns:1fr 1fr}}
+@media(min-width:1024px){.outcomes-grid{grid-template-columns:repeat(4,1fr)}}
+.outcome{background:var(--surface);padding:30px 26px}
+.outcome-h{font-size:15px;font-weight:650;letter-spacing:-.005em;color:var(--text);margin-bottom:.4rem;display:flex;align-items:center;gap:8px}
+.outcome-h svg{width:16px;height:16px;color:var(--blue);flex-shrink:0}
+.outcome-p{font-size:13.5px;color:var(--text-subtle);line-height:1.6}
+
+/* ── MODULE GRID ──────────────────────────────────────────── */
+.features{background:var(--surface)}
 .features-grid{display:grid;grid-template-columns:1fr;gap:1rem}
 @media(min-width:640px){.features-grid{grid-template-columns:1fr 1fr;gap:1.25rem}}
 @media(min-width:1024px){.features-grid{grid-template-columns:repeat(3,1fr)}}
-/* Card · Fluent depth-2 surface, single brand-blue hover edge.
-   Drops the per-card rainbow accent — every card is the same
-   product, so they all read in the same brand voice. */
-.feat{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:28px 26px;transition:background .15s ease, border-color .15s ease, box-shadow .15s ease, transform .15s ease;position:relative;overflow:hidden}
-.feat:hover{border-color:var(--blue-border);box-shadow:var(--shadow-md);transform:translateY(-2px)}
-.feat::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--blue);opacity:0;transition:opacity .15s}
-.feat:hover::before{opacity:1}
-.feat-icon{width:42px;height:42px;border-radius:var(--r-md);background:var(--blue-soft);color:var(--blue);border:1px solid var(--blue-border);display:inline-flex;align-items:center;justify-content:center;margin-bottom:1.25rem}
-.feat-icon svg{width:22px;height:22px}
-.feat-h{font-family:'Inter Tight',sans-serif;font-size:20px;font-weight:600;letter-spacing:-.014em;color:var(--text);margin-bottom:.5rem}
+.feat{background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-xl);padding:26px 24px;transition:border-color .15s ease,box-shadow .15s ease}
+.feat:hover{border-color:var(--blue-border);box-shadow:var(--shadow-md)}
+.feat-icon{width:40px;height:40px;border-radius:var(--r-md);background:var(--blue-soft);color:var(--blue);border:1px solid var(--blue-border);display:inline-flex;align-items:center;justify-content:center;margin-bottom:1.1rem}
+.feat-icon svg{width:20px;height:20px}
+.feat-h{font-size:18px;font-weight:650;letter-spacing:-.01em;color:var(--text);margin-bottom:.45rem}
 .feat-p{font-size:14px;color:var(--text-muted);line-height:1.65}
-/* Semantic data-c keys still drive a subtle hue shift for cards
-   the operator should read as "secondary / informational" — but
-   only within the product palette: blue (default), green (good
-   outcomes), indigo (in-the-loop signals), red (defensibility). */
-.feat[data-c="blue"], .feat[data-c="indigo"], .feat[data-c="violet"], .feat[data-c="teal"], .feat[data-c="pink"], .feat[data-c="amber"], .feat[data-c="emerald"]{
-  /* Restrict every legacy color to the product palette family.
-     Keeps existing HTML intact while cutting the rainbow. */
-}
-.feat[data-c="indigo"] .feat-icon,
-.feat[data-c="violet"] .feat-icon{
-  background:var(--indigo-soft);color:var(--indigo-dark);border-color:rgba(99,102,241,.24);
-}
-.feat[data-c="teal"] .feat-icon,
-.feat[data-c="emerald"] .feat-icon{
-  background:var(--green-soft);color:var(--green-dark);border-color:rgba(22,163,74,.24);
-}
-.feat[data-c="pink"] .feat-icon,
-.feat[data-c="amber"] .feat-icon{
-  background:var(--red-soft);color:var(--red-dark);border-color:rgba(220,38,38,.20);
-}
+.feat-icon.green{background:var(--green-soft);color:var(--green-dark);border-color:rgba(22,163,74,.24)}
 
-/* Pull-quote inside an AI feature — Fluent soft callout */
-.feat-quote{margin-top:14px;padding:10px 14px;background:var(--blue-soft);border-left:3px solid var(--blue);border-radius:var(--r-sm);font-family:'Inter Tight',sans-serif;font-style:italic;font-size:13px;color:var(--text);line-height:1.55}
+/* ── PRODUCT TOUR — alternating screenshot sections ───────── */
+.tour{background:var(--canvas)}
+.tour-item{display:grid;grid-template-columns:1fr;gap:2rem;align-items:center;padding:44px 0}
+.tour-item + .tour-item{border-top:1px solid var(--border)}
+@media(min-width:1024px){
+  .tour-item{grid-template-columns:5fr 7fr;gap:4rem;padding:58px 0}
+  .tour-item.flip .tour-copy{order:2}
+  .tour-item.flip .tour-media{order:1}
+}
+.tour-kicker{font-size:12px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;color:var(--blue-strong);margin-bottom:.8rem}
+.tour-h{font-weight:650;font-size:clamp(22px,3vw,30px);line-height:1.15;letter-spacing:-.017em;color:var(--text);margin-bottom:.9rem}
+.tour-p{font-size:15.5px;color:var(--text-muted);line-height:1.7;margin-bottom:1rem}
+.tour-list{list-style:none;display:flex;flex-direction:column;gap:.55rem;margin-top:.35rem}
+.tour-list li{display:flex;gap:10px;font-size:14.5px;color:var(--text-muted);line-height:1.55}
+.tour-list svg{width:15px;height:15px;color:var(--green);flex-shrink:0;margin-top:4px}
+.tour-media{min-width:0}
+.tour-phones{display:flex;gap:1.25rem;justify-content:center;flex-wrap:wrap}
+
+/* ── AI + COMPLIANCE ──────────────────────────────────────── */
+.band{background:var(--surface);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.cards-2{display:grid;grid-template-columns:1fr;gap:1.25rem}
+@media(min-width:768px){.cards-2{grid-template-columns:1fr 1fr}}
+.feat-quote{margin-top:14px;padding:10px 14px;background:var(--blue-soft);border-left:3px solid var(--blue);border-radius:var(--r-sm);font-style:italic;font-size:13px;color:var(--text);line-height:1.55}
 .feat-kbd{display:inline-block;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;background:var(--surface-soft);border:1px solid var(--border);border-radius:var(--r-sm);padding:1px 7px;color:var(--text);font-weight:500}
 
-/* ── HOW IT WORKS — flat Fluent step list ───────────────── */
-.how{background:#FFFFFF;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+/* ── HOW IT WORKS ─────────────────────────────────────────── */
 .how-grid{display:grid;grid-template-columns:1fr;gap:1.5rem}
 @media(min-width:768px){.how-grid{grid-template-columns:repeat(2,1fr);gap:2rem}}
 @media(min-width:1024px){.how-grid{grid-template-columns:repeat(4,1fr);gap:1.5rem}}
-.step{position:relative;padding:24px 0}
-.step-num{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:var(--r-md);background:var(--blue);color:#fff;font-family:'Inter Tight',sans-serif;font-weight:600;font-size:15px;letter-spacing:0;margin-bottom:1.25rem;box-shadow:var(--shadow-sm)}
-.step-h{font-family:'Inter Tight',sans-serif;font-size:18px;font-weight:600;letter-spacing:-.005em;color:var(--text);margin-bottom:.5rem}
+.step{padding:20px 0}
+.step-num{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:var(--r-md);background:var(--blue);color:#fff;font-weight:650;font-size:14px;margin-bottom:1rem;box-shadow:var(--shadow-sm)}
+.step-h{font-size:17px;font-weight:650;letter-spacing:-.005em;color:var(--text);margin-bottom:.45rem}
 .step-p{font-size:14px;color:var(--text-muted);line-height:1.65}
 
-/* ── BOTTOM CTA STRIP — Fluent brand band, again ──────────
-   Same surface as the hero so the page bookends with the
-   product's brand color top-and-bottom. */
-.cta-strip{
-  padding:0;
-  background:linear-gradient(180deg, #2563EB 0%, #1D4ED8 100%);
-  position:relative;overflow:hidden;color:#fff;
-  isolation:isolate;
-}
-.cta-strip::before{
-  /* Subtle Mica grain — same texture as the hero */
-  content:"";
-  position:absolute;inset:0;pointer-events:none;
-  opacity:.06;mix-blend-mode:overlay;
-  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='260' height='260'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
-  background-size:260px 260px;
-}
-.cta-inner{position:relative;text-align:center;padding:90px 1.5rem;max-width:760px;margin:0 auto;z-index:1}
-.cta-h{font-family:'Inter Tight',sans-serif;font-weight:600;font-size:clamp(28px,4vw,44px);line-height:1.10;letter-spacing:-.018em;color:#fff;margin-bottom:1rem}
-.cta-h .grad{color:#BFDBFE}
-.cta-sub{font-size:17px;color:rgba(255,255,255,.86);margin-bottom:2rem;line-height:1.6}
+/* ── WHO IT'S FOR ─────────────────────────────────────────── */
+.who-grid{display:grid;grid-template-columns:1fr;gap:1.25rem}
+@media(min-width:768px){.who-grid{grid-template-columns:repeat(3,1fr)}}
+.who{background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-xl);padding:26px 24px}
+.who-h{font-size:17px;font-weight:650;color:var(--text);margin-bottom:.35rem}
+.who-sub{font-size:13px;color:var(--text-subtle);margin-bottom:1rem}
+.who ul{list-style:none;display:flex;flex-direction:column;gap:.5rem}
+.who li{display:flex;gap:9px;font-size:14px;color:var(--text-muted);line-height:1.55}
+.who li svg{width:14px;height:14px;color:var(--blue);flex-shrink:0;margin-top:4px}
+
+/* ── CTA BAND — the one full-brand moment on the page ─────── */
+.cta-strip{background:linear-gradient(180deg,#2563EB 0%,#1D4ED8 100%);color:#fff;padding:0}
+.cta-inner{text-align:center;padding:84px 1.5rem;max-width:720px;margin:0 auto}
+.cta-h{font-weight:650;font-size:clamp(26px,4vw,40px);line-height:1.12;letter-spacing:-.02em;color:#fff;margin-bottom:1rem}
+.cta-sub{font-size:16.5px;color:rgba(255,255,255,.88);margin-bottom:2rem;line-height:1.65}
 .btn-on-dark{background:#fff;color:var(--blue-strong);border-color:#fff}
 .btn-on-dark:hover{background:#F3F4F6;border-color:#F3F4F6}
-.btn-on-dark-ghost{background:transparent;color:#fff;border-color:rgba(255,255,255,.30)}
-.btn-on-dark-ghost:hover{background:rgba(255,255,255,.10);border-color:rgba(255,255,255,.50)}
+.btn-on-dark-ghost{background:transparent;color:#fff;border-color:rgba(255,255,255,.35)}
+.btn-on-dark-ghost:hover{background:rgba(255,255,255,.10);border-color:rgba(255,255,255,.55)}
 
-/* ── FOOTER — Fluent dark surface ──────────────────────────
-   Microsoft's neutralBackground-Dark instead of indigo navy.
-   Brand mark stays Fluent communicationBlue. */
+/* ── FOOTER ───────────────────────────────────────────────── */
 footer{background:#111827;color:rgba(255,255,255,.65);padding:60px 0 40px;font-size:14px}
 .footer-in{max-width:var(--max);margin:0 auto;padding:0 1.5rem;display:grid;grid-template-columns:1fr;gap:2rem}
 @media(min-width:768px){.footer-in{padding:0 2.5rem;grid-template-columns:1.4fr 1fr 1fr 1fr}}
@@ -372,7 +298,7 @@ footer{background:#111827;color:rgba(255,255,255,.65);padding:60px 0 40px;font-s
 .footer-logo{display:flex;align-items:center;gap:10px}
 .footer-logo .nav-name{color:#fff}
 .footer-tag{font-size:13px;color:rgba(255,255,255,.60);line-height:1.6}
-.footer-col h4{font-family:'Inter Tight',sans-serif;font-size:13px;font-weight:600;color:#fff;letter-spacing:.06em;text-transform:uppercase;margin-bottom:14px}
+.footer-col h4{font-size:12px;font-weight:650;color:#fff;letter-spacing:.08em;text-transform:uppercase;margin-bottom:14px}
 .footer-col a{display:block;font-size:14px;color:rgba(255,255,255,.60);margin-bottom:10px;transition:color .15s}
 .footer-col a:hover{color:#fff}
 .footer-bottom{max-width:var(--max);margin:40px auto 0;padding:24px 1.5rem 0;border-top:1px solid rgba(255,255,255,.10);display:flex;justify-content:space-between;flex-wrap:wrap;gap:1rem;font-size:12px;color:rgba(255,255,255,.50)}
@@ -381,306 +307,415 @@ footer{background:#111827;color:rgba(255,255,255,.65);padding:60px 0 40px;font-s
 </head>
 <body>
 
-<nav>
+<a class="skip-link" href="#main-content">Skip to content</a>
+
+<nav class="site" aria-label="Main">
   <div class="nav-in">
     <a href="/" class="nav-logo" aria-label="RouteReady home">
-      <span class="bolt"><svg viewBox="0 0 24 24" fill="none"><path d="M14 2L4 13h7l-1 9 10-12h-7l1-8z" fill="#fff"/></svg></span>
+      <span class="bolt"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M14 2L4 13h7l-1 9 10-12h-7l1-8z" fill="#fff"/></svg></span>
       <span class="nav-name">RouteReady</span>
     </a>
     <div class="nav-r">
       <a class="nav-link" href="#features">Product</a>
-      <a class="nav-link" href="#ai">AI</a>
+      <a class="nav-link" href="#tour">Inside the product</a>
       <a class="nav-link" href="#compliance">Compliance</a>
       <a class="nav-link" href="#how">How it works</a>
       <a class="nav-link" href="/dashboard/login.html">Sign in</a>
       <a class="btn btn-primary" href="#cta">Book a demo</a>
+      <button class="nav-menu-btn" type="button" aria-expanded="false" aria-controls="mobile-menu" aria-label="Open menu" id="nav-menu-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+      </button>
     </div>
+  </div>
+  <div id="mobile-menu">
+    <a href="#features">Product</a>
+    <a href="#tour">Inside the product</a>
+    <a href="#compliance">Compliance</a>
+    <a href="#how">How it works</a>
+    <a href="/dashboard/login.html">Sign in</a>
   </div>
 </nav>
 
-<header class="hero">
-  <div class="hero-bg" aria-hidden="true">
-    <div class="hero-lines"></div>
-    <div class="hero-grain"></div>
-  </div>
+<main id="main-content">
 
-  <span class="eyebrow fu d1"><span class="dot"></span>The operating system for Amazon DSPs</span>
-  <h1 class="hero-h fu d2">Run your DSP. <span class="grad">RouteReady runs the rest.</span></h1>
-  <p class="hero-sub fu d3">Hiring, scheduling, performance, fleet, compliance — the entire operation in one place. Built by people who've actually run a DSP.</p>
+<header class="hero">
+  <span class="eyebrow fu d1"><span class="dot"></span>Built for Amazon Delivery Service Partners</span>
+  <h1 class="hero-h fu d2">Run your whole DSP <span class="accent">from one system.</span></h1>
+  <p class="hero-sub fu d3">RouteReady brings scheduling, workforce planning, attendance, driver messaging, and fleet management into one place — built by people who've actually run a DSP.</p>
   <div class="hero-cta fu d4">
     <a class="btn btn-primary btn-lg" href="#cta">Book a demo
-      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
     </a>
-    <a class="btn btn-ghost btn-lg" href="#features">See what it does</a>
+    <a class="btn btn-ghost btn-lg" href="#tour">See the product</a>
   </div>
   <div class="hero-trust fu d5">
-    <span class="hero-trust-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> 14-day free trial</span>
-    <span class="hero-trust-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> No credit card</span>
-    <span class="hero-trust-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Onboard in a week</span>
+    <span class="hero-trust-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg> 14-day free trial</span>
+    <span class="hero-trust-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg> No credit card</span>
+    <span class="hero-trust-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg> Onboard in a week</span>
   </div>
 
-  <div class="hero-preview fu d5" aria-hidden="true">
-    <div class="hero-preview-frame">
-      <div class="hero-preview-inner">
-        <aside class="hp-side">
-          <div class="hp-logo"><span class="b"><svg viewBox="0 0 24 24" fill="none"><path d="M14 2L4 13h7l-1 9 10-12h-7l1-8z" fill="#fff"/></svg></span> RouteReady</div>
-          <div class="hp-nav">
-            <div class="hp-nav-item"><span class="hp-nav-dot"></span>Today</div>
-            <div class="hp-nav-item"><span class="hp-nav-dot"></span>Hiring</div>
-            <div class="hp-nav-item"><span class="hp-nav-dot"></span>Drivers</div>
-            <div class="hp-nav-item active"><span class="hp-nav-dot"></span>Schedule</div>
-            <div class="hp-nav-item"><span class="hp-nav-dot"></span>Fleet</div>
-            <div class="hp-nav-item"><span class="hp-nav-dot"></span>Workflows</div>
-          </div>
-        </aside>
-        <main class="hp-body">
-          <div class="hp-body-h">Schedule · Week of May 11</div>
-          <div class="hp-kpis">
-            <div class="hp-kpi"><div class="hp-kpi-label">Hours</div><div class="hp-kpi-val">412h</div></div>
-            <div class="hp-kpi"><div class="hp-kpi-label">Coverage</div><div class="hp-kpi-val ok">100%</div></div>
-            <div class="hp-kpi"><div class="hp-kpi-label">Open</div><div class="hp-kpi-val">0</div></div>
-            <div class="hp-kpi"><div class="hp-kpi-label">Violations</div><div class="hp-kpi-val warn">2</div></div>
-          </div>
-          <div class="hp-grid">
-            <div class="hp-row hp-row-h"><span></span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div>
-            <div class="hp-row"><span class="hp-driver"><span class="hp-avatar" style="background:var(--blue)">CH</span>C. Hester</span><span class="hp-cell fill-1"></span><span class="hp-cell fill-1"></span><span class="hp-cell fill-1"></span><span class="hp-cell fill-1"></span><span class="hp-cell fill-1"></span><span class="hp-cell off"></span><span class="hp-cell off"></span></div>
-            <div class="hp-row"><span class="hp-driver"><span class="hp-avatar" style="background:var(--indigo)">JB</span>J. Beckett</span><span class="hp-cell off"></span><span class="hp-cell fill-3"></span><span class="hp-cell fill-3"></span><span class="hp-cell fill-3"></span><span class="hp-cell fill-3"></span><span class="hp-cell fill-3"></span><span class="hp-cell off"></span></div>
-            <div class="hp-row"><span class="hp-driver"><span class="hp-avatar" style="background:var(--green)">DP</span>D. Patterson</span><span class="hp-cell fill-2"></span><span class="hp-cell fill-2"></span><span class="hp-cell fill-2"></span><span class="hp-cell off"></span><span class="hp-cell fill-2"></span><span class="hp-cell fill-2"></span><span class="hp-cell off"></span></div>
-          </div>
-        </main>
+  <div class="hero-shot fu d5">
+    <figure class="browser">
+      <div class="browser-bar" aria-hidden="true">
+        <span class="browser-dots"><span></span><span></span><span></span></span>
+        <span class="browser-url">gorouteready.com/dashboard</span>
       </div>
-    </div>
+      <img
+        src="/marketing/schedule-week-1300w.webp"
+        srcset="/marketing/schedule-week-1300w.webp 1300w, /marketing/schedule-week-2600w.webp 2600w"
+        sizes="(min-width:1200px) 1040px, 92vw"
+        width="1560" height="940"
+        fetchpriority="high" decoding="async"
+        alt="RouteReady schedule: a full week grid of driver shifts with wave times and van assignments, showing 66 of 66 routes covered and a Finalize button">
+    </figure>
   </div>
 </header>
 
-<section id="features" class="features first-after-hero">
+<div class="outcomes" aria-label="What RouteReady does for your operation">
+  <div class="outcomes-grid">
+    <div class="outcome">
+      <div class="outcome-h"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/></svg>One live schedule</div>
+      <p class="outcome-p">Build the week against route targets, publish it, and every driver sees it instantly — no group texts, no spreadsheet copies.</p>
+    </div>
+    <div class="outcome">
+      <div class="outcome-h"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>Labor matched to demand</div>
+      <p class="outcome-p">A 13-week staffing forecast tells you how many drivers you'll need, how many you'll have, and when to start hiring.</p>
+    </div>
+    <div class="outcome">
+      <div class="outcome-h"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Attendance, handled the same way every time</div>
+      <p class="outcome-p">Live check-ins against the roster, no-show decisions with your policy applied, and a record behind every outcome.</p>
+    </div>
+    <div class="outcome">
+      <div class="outcome-h"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V15c0 .55.45 1 1 1h2"/><circle cx="6.5" cy="16.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/></svg>A fleet dispatch can trust</div>
+      <p class="outcome-p">Van status, documents, and repair deadlines in one roster — and a grounded van can never end up on tomorrow's schedule.</p>
+    </div>
+  </div>
+</div>
+
+<section id="features" class="features">
   <div class="wrap">
     <div class="section-head">
-      <span class="section-eyebrow">What's inside</span>
-      <h2 class="section-h">Every part of the operation, in one place.</h2>
-      <p class="section-sub">Stop stitching together six tools. RouteReady covers the full lifecycle — recruit, schedule, manage, retain.</p>
+      <span class="section-eyebrow">The platform</span>
+      <h2 class="section-h">Every part of the operation, connected.</h2>
+      <p class="section-sub">Most DSPs run on spreadsheets, group chats, and half a dozen logins. RouteReady replaces that patchwork with one system where the schedule, the roster, the fleet, and the drivers all talk to each other.</p>
     </div>
 
     <div class="features-grid">
-      <article class="feat" data-c="blue">
-        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg></div>
-        <h3 class="feat-h">Hiring pipeline</h3>
-        <p class="feat-p">Source from Indeed and your own postings, screen, schedule interviews on Cal.com, gate background checks. Applicants flow through automated stages — you only show up for the parts that matter.</p>
+      <article class="feat">
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+        <h3 class="feat-h">Scheduling</h3>
+        <p class="feat-p">A drag-and-drop week grid with route targets, wave times, and coverage math built in. Smart Fill staffs open shifts by certification and preferred days, and blocks assignments that break your rules.</p>
       </article>
-
-      <article class="feat" data-c="indigo">
-        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
-        <h3 class="feat-h">Schedule</h3>
-        <p class="feat-p">Drag-and-drop weekly calendar with time-off requests built in. Smart Fill matches drivers by certifications and preferred days, and blocks assignments that break compliance. Drivers see their week the moment it goes live.</p>
+      <article class="feat">
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
+        <h3 class="feat-h">Workforce planning</h3>
+        <p class="feat-p">A rolling 13-week view of routes vs. drivers needed vs. drivers available. Growing demand shows up as a hiring deadline months ahead — not as a panic the week it happens.</p>
       </article>
-
-      <article class="feat" data-c="teal">
-        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><polyline points="17 11 19 13 23 9"/></svg></div>
-        <h3 class="feat-h">Driver performance</h3>
-        <p class="feat-p">Coaching workflows, attendance tracking, tier scores. Spot the at-risk drivers before they become a callout you didn't see coming.</p>
+      <article class="feat">
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+        <h3 class="feat-h">Attendance &amp; time off</h3>
+        <p class="feat-p">Drivers check in from their phone; dispatch watches the waves fill in live. Time-off requests flow into the same schedule the shifts come from, so approvals never double-book a day.</p>
       </article>
-
-      <article class="feat" data-c="violet">
-        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
-        <h3 class="feat-h">Workflows &amp; checklists</h3>
-        <p class="feat-p">Custom forms with GPS, signature, and photo capture. Operational assignment boards with driver-acknowledgment loops. SOP checklists with per-item attribution. Every workflow your DSP needs, signed in the field, on the driver's home-screen app.</p>
+      <article class="feat">
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div>
+        <h3 class="feat-h">Driver messaging</h3>
+        <p class="feat-p">Direct messages, team channels, and broadcasts — with the driver's schedule and attendance in the same pane, so dispatch answers with context instead of tab-switching.</p>
       </article>
-
-      <article class="feat" data-c="amber">
-        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V15c0 .55.45 1 1 1h2"/><circle cx="6.5" cy="16.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/></svg></div>
+      <article class="feat">
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V15c0 .55.45 1 1 1h2"/><circle cx="6.5" cy="16.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/></svg></div>
         <h3 class="feat-h">Fleet</h3>
-        <p class="feat-p">Vehicles, registrations, repair orders, MCS-150 monitoring. Every grounded van shows two live countdowns — Open RO due (2 BD) and Repair due (14 BD) — Amazon's named DSP rules, on every row. Ground a van and tomorrow's assignment disappears automatically.</p>
+        <p class="feat-p">Every van's operational status, documents, mileage, and open issues in one roster. Repair orders track Amazon's 2-business-day and 14-business-day deadlines automatically.</p>
       </article>
-
-      <article class="feat" data-c="pink">
-        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
-        <h3 class="feat-h">Performance insights</h3>
-        <p class="feat-p">Real numbers from your real data. Attrition, attendance, OT cost, scorecard trend — the dashboard your AM never sends you.</p>
+      <article class="feat">
+        <div class="feat-icon green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="2" width="14" height="20" rx="2.5"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></div>
+        <h3 class="feat-h">The driver app</h3>
+        <p class="feat-p">Shifts, check-in, swaps, messages, documents, and onboarding on the driver's phone. New hires activate with one tap from a text — no passwords to reset on day one.</p>
       </article>
     </div>
   </div>
 </section>
 
-<section id="hiring" class="features" style="background:#F9FAFB;border-top:1px solid var(--border)">
+<section id="tour" class="tour">
   <div class="wrap">
     <div class="section-head">
-      <span class="section-eyebrow">Hiring &amp; onboarding</span>
-      <h2 class="section-h">From an Indeed upload to a signed-in driver — in one afternoon.</h2>
-      <p class="section-sub">RouteReady runs the whole pipeline. Bulk-ingest applicants, auto-send screening links, run Interview Day on a single screen, and hand the new hire a phone they can sign into in one tap.</p>
+      <span class="section-eyebrow">Inside the product</span>
+      <h2 class="section-h">This is the actual product.</h2>
+      <p class="section-sub">Real screens from the RouteReady dashboard and driver app, shown with demo data. What you see here is what your dispatchers use every morning.</p>
     </div>
 
-    <div class="features-grid">
-      <article class="feat" data-c="blue">
-        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
-        <h3 class="feat-h">Bulk-ingest from Indeed</h3>
-        <p class="feat-p">Paste your Indeed export and dozens of applicants land in your funnel in seconds — names, emails, phones, application dates, deduped against your existing pipeline. No copy-paste, no spreadsheet wrangling, no losing candidates between systems.</p>
-      </article>
-
-      <article class="feat" data-c="indigo">
-        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div>
-        <h3 class="feat-h">Auto-screen by SMS + email</h3>
-        <p class="feat-p">The moment an applicant lands in your funnel, they get a personalized screening link. They record a 60-second intro video, answer your auto-fail questions, and book their own interview on your calendar — without you sending a single message.</p>
-      </article>
-
-      <article class="feat" data-c="teal">
-        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
-        <h3 class="feat-h">Interview Day, one screen</h3>
-        <p class="feat-p">Today's bookings stacked by time. Watch each applicant's intro video before they walk in. Hit Hired, No Hire, or No Show — the system records the outcome, sends the appropriate auto-response, and (on a hire) creates the driver record automatically.</p>
-      </article>
-
-      <article class="feat" data-c="violet">
-        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2.5"/><line x1="12" y1="18" x2="12" y2="18"/></svg></div>
-        <h3 class="feat-h">Driver activates in one tap</h3>
-        <p class="feat-p">The new hire gets a welcome email with their personal activation link. Tap it, pick a 4-digit PIN, and they're signed in — phone already on file, install instructions for the home-screen PWA already in their chat thread from dispatch.</p>
-      </article>
-
-      <article class="feat" data-c="amber">
-        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
-        <h3 class="feat-h">Onboarding you actually control</h3>
-        <p class="feat-p">Build the blueprint once: profile, license front and back, I-9 Section 1, handbook signature, training videos, payroll setup. The driver works through it on their phone; you see exactly which step every new hire is on, in real time.</p>
-      </article>
-
-      <article class="feat" data-c="pink">
-        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></div>
-        <h3 class="feat-h">I-9 + signed docs, built in</h3>
-        <p class="feat-p">Federal Form I-9 Section 1 in the driver's app, Section 2 in yours — with the audit trail and document hash chain required to defend a re-verification. Custom NDAs, handbooks, drug-test consent: same envelope flow, same signed-record vault.</p>
-      </article>
-    </div>
-
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1px;background:var(--border);border:1px solid var(--border);border-radius:var(--r-xl);overflow:hidden;margin-top:3.5rem;box-shadow:var(--shadow-sm)">
-      <div style="background:#fff;padding:24px 20px;text-align:center">
-        <div style="font-family:'Inter Tight',sans-serif;font-weight:600;font-size:32px;color:var(--blue);letter-spacing:-.020em;line-height:1">&lt; 10 min</div>
-        <div style="font-size:12px;color:var(--text-subtle);font-weight:500;margin-top:6px;letter-spacing:.02em">From hire decision to driver signed in</div>
+    <div class="tour-item">
+      <div class="tour-copy">
+        <div class="tour-kicker">Daily operations</div>
+        <h3 class="tour-h">Start every morning already knowing where you stand.</h3>
+        <p class="tour-p">Today's Plan is the first screen dispatch opens: who's scheduled, who's checked in, which waves are out, and what actually needs a decision.</p>
+        <ul class="tour-list">
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Live check-ins against the day's roster, wave by wave</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Call-out exposure for the week ahead, with spare capacity per day</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Expiring licenses and open routes surfaced before they become problems</span></li>
+        </ul>
       </div>
-      <div style="background:#fff;padding:24px 20px;text-align:center">
-        <div style="font-family:'Inter Tight',sans-serif;font-weight:600;font-size:32px;color:var(--blue);letter-spacing:-.020em;line-height:1">0</div>
-        <div style="font-size:12px;color:var(--text-subtle);font-weight:500;margin-top:6px;letter-spacing:.02em">Copy-paste between systems</div>
-      </div>
-      <div style="background:#fff;padding:24px 20px;text-align:center">
-        <div style="font-family:'Inter Tight',sans-serif;font-weight:600;font-size:32px;color:var(--blue);letter-spacing:-.020em;line-height:1">1 tap</div>
-        <div style="font-size:12px;color:var(--text-subtle);font-weight:500;margin-top:6px;letter-spacing:.02em">Driver-app activation</div>
-      </div>
-      <div style="background:#fff;padding:24px 20px;text-align:center">
-        <div style="font-family:'Inter Tight',sans-serif;font-weight:600;font-size:32px;color:var(--green);letter-spacing:-.020em;line-height:1">Live</div>
-        <div style="font-size:12px;color:var(--text-subtle);font-weight:500;margin-top:6px;letter-spacing:.02em">Every step in real time</div>
+      <div class="tour-media">
+        <figure class="browser rounded">
+          <div class="browser-bar" aria-hidden="true"><span class="browser-dots"><span></span><span></span><span></span></span><span class="browser-url">gorouteready.com/dashboard</span></div>
+          <img loading="lazy" decoding="async" width="1560" height="940"
+            src="/marketing/today-plan-1200w.webp"
+            srcset="/marketing/today-plan-1200w.webp 1200w, /marketing/today-plan-2400w.webp 2400w"
+            sizes="(min-width:1024px) 640px, 92vw"
+            alt="RouteReady Today's Plan: 10 drivers scheduled across two waves, six checked in, call-out exposure covered through the week, and a wave-by-wave roster with van assignments and check-in status">
+        </figure>
       </div>
     </div>
+
+    <div class="tour-item flip">
+      <div class="tour-copy">
+        <div class="tour-kicker">Workforce planning</div>
+        <h3 class="tour-h">See a staffing gap in October while it's still July.</h3>
+        <p class="tour-p">The Targets page turns your route forecast into a hiring plan: drivers needed per week, drivers available, and the date you need to start hiring to stay covered.</p>
+        <ul class="tour-list">
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>13 weeks of routes, drivers needed, availability, and gap — one table</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Accounts for time off, onboarding ramp, and route types that need more people</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>A plain-English answer: how many to hire, and by when</span></li>
+        </ul>
+      </div>
+      <div class="tour-media">
+        <figure class="browser rounded">
+          <div class="browser-bar" aria-hidden="true"><span class="browser-dots"><span></span><span></span><span></span></span><span class="browser-url">gorouteready.com/dashboard</span></div>
+          <img loading="lazy" decoding="async" width="1560" height="940"
+            src="/marketing/targets-1200w.webp"
+            srcset="/marketing/targets-1200w.webp 1200w, /marketing/targets-2400w.webp 2400w"
+            sizes="(min-width:1024px) 640px, 92vw"
+            alt="RouteReady Targets: a 13-week workforce plan showing routes per week rising from 6 to 9, drivers needed versus available, per-week gaps, and a '4 drivers shortfall — hire by Aug 16' summary">
+        </figure>
+      </div>
+    </div>
+
+    <div class="tour-item">
+      <div class="tour-copy">
+        <div class="tour-kicker">Driver messaging</div>
+        <h3 class="tour-h">Answer drivers with their schedule right next to the thread.</h3>
+        <p class="tour-p">Every conversation lives in one inbox — with the driver's shift status, attendance, and app activity in the side panel, so dispatch never answers blind.</p>
+        <ul class="tour-list">
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Direct messages, HR threads, and team rooms in one place</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Read receipts and delivery states on every message</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Shift pickups and schedule changes confirmed right in the thread</span></li>
+        </ul>
+      </div>
+      <div class="tour-media">
+        <figure class="browser rounded">
+          <div class="browser-bar" aria-hidden="true"><span class="browser-dots"><span></span><span></span><span></span></span><span class="browser-url">gorouteready.com/dashboard</span></div>
+          <img loading="lazy" decoding="async" width="1560" height="940"
+            src="/marketing/messages-1200w.webp"
+            srcset="/marketing/messages-1200w.webp 1200w, /marketing/messages-2400w.webp 2400w"
+            sizes="(min-width:1024px) 640px, 92vw"
+            alt="RouteReady Messages: a dispatch inbox with driver threads on the left, an open conversation about a van issue and a Saturday shift pickup, and a driver details panel showing today's shift, attendance, and app activity">
+        </figure>
+      </div>
+    </div>
+
+    <div class="tour-item flip">
+      <div class="tour-copy">
+        <div class="tour-kicker">Fleet</div>
+        <h3 class="tour-h">Know every van's status before you assign it.</h3>
+        <p class="tour-p">The fleet roster tracks operational status, documents, driver reports, and repair state for every vehicle — and feeds it straight into scheduling, so vans and drivers are matched from the same source of truth.</p>
+        <ul class="tour-list">
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Registration and insurance expirations flagged weeks ahead</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Ground a van and every same-day and future assignment is removed automatically</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Repair Center tracks quotes, shops, and Amazon's repair deadlines</span></li>
+        </ul>
+      </div>
+      <div class="tour-media">
+        <figure class="browser rounded">
+          <div class="browser-bar" aria-hidden="true"><span class="browser-dots"><span></span><span></span><span></span></span><span class="browser-url">gorouteready.com/dashboard</span></div>
+          <img loading="lazy" decoding="async" width="1560" height="940"
+            src="/marketing/fleet-1200w.webp"
+            srcset="/marketing/fleet-1200w.webp 1200w, /marketing/fleet-2400w.webp 2400w"
+            sizes="(min-width:1024px) 640px, 92vw"
+            alt="RouteReady Fleet: a 13-van roster with VINs, operational status, document state, and one van flagged with registration due in 21 days">
+        </figure>
+      </div>
+    </div>
+
+    <div class="tour-item">
+      <div class="tour-copy">
+        <div class="tour-kicker">Roster &amp; onboarding</div>
+        <h3 class="tour-h">A driver roster that keeps itself current.</h3>
+        <p class="tour-p">Certifications, risk level, attendance, tenure, and app status on one screen — fed by the same data the schedule runs on, so it's never a stale export.</p>
+        <ul class="tour-list">
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>DOT, XL, and trainer status visible at a glance — and enforced by Smart Fill</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>30-day attendance and coaching history per driver</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Hiring pipeline, interview day, I-9, and onboarding steps in the same module</span></li>
+        </ul>
+      </div>
+      <div class="tour-media">
+        <figure class="browser rounded">
+          <div class="browser-bar" aria-hidden="true"><span class="browser-dots"><span></span><span></span><span></span></span><span class="browser-url">gorouteready.com/dashboard</span></div>
+          <img loading="lazy" decoding="async" width="1560" height="940"
+            src="/marketing/drivers-1200w.webp"
+            srcset="/marketing/drivers-1200w.webp 1200w, /marketing/drivers-2400w.webp 2400w"
+            sizes="(min-width:1024px) 640px, 92vw"
+            alt="RouteReady driver roster: 16 active drivers with certification chips for XL, DOT, and trainer, risk level, tenure, and per-driver actions">
+        </figure>
+      </div>
+    </div>
+
+    <div class="tour-item flip">
+      <div class="tour-copy">
+        <div class="tour-kicker">The driver experience</div>
+        <h3 class="tour-h">Drivers run their day from their phone.</h3>
+        <p class="tour-p">One tap to check in at the station. Their schedule two weeks out. Swaps and open-shift pickups without a phone call. The same system dispatch sees — from the driver's side.</p>
+        <ul class="tour-list">
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Check-in and check-out that feed dispatch's live attendance board</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Shift swaps, pickups, and time-off requests with dispatch approval built in</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Installs from a text message — works on any phone, no app store required</span></li>
+        </ul>
+      </div>
+      <div class="tour-media">
+        <div class="tour-phones">
+          <div class="phone"><div class="phone-screen">
+            <img loading="lazy" decoding="async" width="390" height="844"
+              src="/marketing/driver-app-today-450w.webp"
+              srcset="/marketing/driver-app-today-450w.webp 450w, /marketing/driver-app-today-900w.webp 900w"
+              sizes="(min-width:640px) 270px, 70vw"
+              alt="RouteReady driver app Today screen: on duty, 10:20 AM to 7:20 PM shift, checked in at 10:12 AM with van 103, and a check-out button">
+          </div></div>
+          <div class="phone"><div class="phone-screen">
+            <img loading="lazy" decoding="async" width="390" height="844"
+              src="/marketing/driver-app-schedule-450w.webp"
+              srcset="/marketing/driver-app-schedule-450w.webp 450w, /marketing/driver-app-schedule-900w.webp 900w"
+              sizes="(min-width:640px) 270px, 70vw"
+              alt="RouteReady driver app Schedule screen: a two-week calendar with nine shifts, today's shift card with station and van, and this week's shifts with offer-swap options">
+          </div></div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </section>
 
-<section id="ai" class="features" style="background:#fff;border-top:1px solid var(--border)">
+<section id="ai" class="band">
   <div class="wrap">
     <div class="section-head">
       <span class="section-eyebrow">AI inside the operation</span>
-      <h2 class="section-h">AI that sees what your operators miss.</h2>
-      <p class="section-sub">Not a chatbot. Operational AI wired into the surfaces your team uses every morning — comparing photos, answering questions, telling you how many drivers to hire and by when.</p>
+      <h2 class="section-h">AI that answers operational questions, not a chatbot.</h2>
+      <p class="section-sub">RouteReady's AI is wired into the surfaces your team already uses — comparing inspection photos, answering questions from your real data, and turning the forecast into a hiring recommendation.</p>
     </div>
-
     <div class="features-grid">
-      <article class="feat" data-c="violet">
-        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>
-        <h3 class="feat-h">DVIC AI damage detection</h3>
-        <p class="feat-p">Every morning, Claude vision compares today's inspection photos to yesterday's. New scratch? New dent? Flagged in seconds with area, severity, and confidence — before your driver leaves the lot. The defensible record for every damage chargeback you used to absorb.</p>
-        <div class="feat-quote">"AI sees the new damage before your driver leaves the lot."</div>
+      <article class="feat">
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>
+        <h3 class="feat-h">Vehicle-damage detection</h3>
+        <p class="feat-p">Each morning, AI vision compares today's inspection photos against yesterday's. A new scratch or dent is flagged with location and severity — before the van leaves the lot, and with a record you can use in a damage dispute.</p>
       </article>
-
-      <article class="feat" data-c="indigo">
-        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><path d="M11 8v3l2 1"/></svg></div>
+      <article class="feat">
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
         <h3 class="feat-h">Ask RouteReady</h3>
-        <p class="feat-p">Type <span class="feat-kbd">what was last week's callout rate?</span> in the topbar. Get a KPI card. Type <span class="feat-kbd">licenses expiring in 30 days?</span> Get a table. Pin it to your home dashboard. A structured Claude agent reads your real data through five DSP-scoped tools — no hallucinated numbers, no SQL to write.</p>
+        <p class="feat-p">Type <span class="feat-kbd">what was last week's callout rate?</span> and get a chart from your own data. The assistant reads your operation through scoped, structured queries — it can't invent numbers.</p>
       </article>
-
-      <article class="feat" data-c="blue">
-        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
-        <h3 class="feat-h">Hire 4 more by May 25</h3>
-        <p class="feat-p">RouteReady knows your route forecast, your roster, your onboarding pipeline, your weekend coverage, and your real conversion rate. The Staffing Outlook page combines all of it into one English sentence — how many drivers to hire, by when, and which days to prioritize. No more under-hire panic. No more over-hire OT.</p>
-        <div class="feat-quote">"Hire 4 more drivers — your busiest forecast week needs 22, you'll have 18. Prioritize weekend-available. Bring in ~16 more applicants."</div>
-      </article>
-
-      <article class="feat" data-c="teal">
-        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg></div>
-        <h3 class="feat-h">Verify any signed document. No login.</h3>
-        <p class="feat-p">Every signed envelope is sealed with ECDSA P-256 cryptography and an RFC 3161 trusted timestamp from a third-party authority. Hand your lawyer a link to <span class="feat-kbd">/verify/&lt;token&gt;</span>. They check the chain client-side. They don't need our app. They don't need an account. We're not in the loop. That's the point.</p>
+      <article class="feat">
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
+        <h3 class="feat-h">Staffing recommendations</h3>
+        <p class="feat-p">The staffing outlook combines your route forecast, roster, onboarding pipeline, and conversion rate into one sentence: how many drivers to hire, by when, and which availability to prioritize.</p>
+        <div class="feat-quote">"Hire 4 more drivers by Aug 16 — your worst week needs 22, you'll have 18."</div>
       </article>
     </div>
   </div>
 </section>
 
-<section id="compliance" class="features" style="background:#F9FAFB;border-top:1px solid var(--border)">
+<section id="compliance">
   <div class="wrap">
     <div class="section-head">
       <span class="section-eyebrow">Compliance &amp; defensibility</span>
-      <h2 class="section-h">Court-grade by default. Silent until it isn't.</h2>
-      <p class="section-sub">Amazon's DSP rules, FMCSA deadlines, federal I-9, and the full audit chain — enforced server-side, surfaced as one stoplight score, and quiet when there's nothing to act on. Most platforms drown operators in alerts. Ours speak only when you need to act.</p>
+      <h2 class="section-h">Quiet until you need to act. Defensible when it counts.</h2>
+      <p class="section-sub">Amazon's fleet rules, FMCSA deadlines, federal I-9, and a verifiable audit trail — enforced in the system itself, not in a binder. Alerts fire when action is needed, not as background noise.</p>
     </div>
-
-    <div class="features-grid">
-      <article class="feat" data-c="amber">
-        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
-        <h3 class="feat-h">Amazon 2-BD &amp; 14-BD rules, enforced</h3>
-        <p class="feat-p">Every grounded van shows two live countdowns — Open RO due (2 business days), Repair due (14 business days) — mapped directly to Amazon's named DSP rules. The compliance board flags them as separate exceptions so you can clear them one at a time, with a permanent audit row on each.</p>
+    <div class="cards-2">
+      <article class="feat">
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+        <h3 class="feat-h">Amazon repair deadlines, counted for you</h3>
+        <p class="feat-p">Every grounded van shows two live countdowns — open repair order due in 2 business days, repair complete due in 14 — mapped to Amazon's named DSP rules, with an audit row on every status change.</p>
       </article>
-
-      <article class="feat" data-c="indigo">
-        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
-        <h3 class="feat-h">FMCSA MCS-150 from your USDOT</h3>
-        <p class="feat-p">Tell us your USDOT. We'll tell you when your next biennial filing is due — computed from the digits, the way the federal rule actually works. Yellow at 60 days out. Red the day it lapses. Most owners don't realize it's deterministic. Now you do — and your operating authority doesn't quietly expire.</p>
+      <article class="feat">
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+        <h3 class="feat-h">Grounded vans can't be scheduled</h3>
+        <p class="feat-p">Flip a van to grounded and every same-day and future assignment to it is removed, each with an audit record. The dispatch board can't disagree with the fleet board, because they're the same data.</p>
       </article>
-
-      <article class="feat" data-c="violet">
-        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
-        <h3 class="feat-h">Grounded vans can't be assigned</h3>
-        <p class="feat-p">Flip a van to grounded. Every same-day-and-future assignment to that van is deleted — with an audit row on each. Your dispatch board cannot lie about which van is drivable. The most expensive operational mistake at a DSP, structurally impossible.</p>
+      <article class="feat">
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
+        <h3 class="feat-h">I-9 and signed documents, built in</h3>
+        <p class="feat-p">Form I-9 Section 1 in the driver's app, Section 2 in yours. Handbooks, NDAs, and consents flow through the same signing envelope — sealed with cryptographic signatures and a trusted timestamp. Anyone can <a href="/verify" style="color:var(--blue);font-weight:600">verify a document</a> from a link, no account needed.</p>
       </article>
-
-      <article class="feat" data-c="emerald">
-        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
-        <h3 class="feat-h">Hash-chained audit, everywhere</h3>
-        <p class="feat-p">Documents, assignments, compliance events, coaching edits — every meaningful action is appended to a SHA-256 chain. Re-walkable. Independently verifiable. The packet you hand an adjudicator, an ICE auditor, or an unemployment hearing is the packet that was true on the day.</p>
-      </article>
-
-      <article class="feat" data-c="blue">
-        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 5c0 1.66 4 3 9 3s9-1.34 9-3-4-3-9-3-9 1.34-9 3"/></svg></div>
-        <h3 class="feat-h">Closed-loop attendance &amp; coaching</h3>
-        <p class="feat-p">Click Approve on a no-show. The system stamps the shift status, evaluates your policy ladder, drafts the coaching record at the right severity, sends it to the driver's task feed, and waits for the signed acknowledgment. One click. Documented. Defensible. Every driver, every time, the same way.</p>
-      </article>
-
-      <article class="feat" data-c="teal">
-        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg></div>
-        <h3 class="feat-h">Compliance noise that isn't</h3>
-        <p class="feat-p">"Driver has no van" doesn't fire if there's an auto-assignable van in the pool. Snoozed exceptions log a permanent audit row and re-fire after 14 days. The board stays quiet until it isn't — so when it lights up, you act. Alert fatigue is why most platforms fail. Ours is silent until it isn't.</p>
+      <article class="feat">
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <h3 class="feat-h">An audit trail you can hand to anyone</h3>
+        <p class="feat-p">Documents, assignments, attendance decisions, and coaching records append to a tamper-evident hash chain. The packet you hand an adjudicator or auditor is the record as it existed on the day.</p>
       </article>
     </div>
   </div>
 </section>
 
-<section id="how" class="how">
+<section id="how" class="band">
   <div class="wrap">
     <div class="section-head">
       <span class="section-eyebrow">How it works</span>
-      <h2 class="section-h">From sign-up to running your week — in days, not months.</h2>
+      <h2 class="section-h">From first call to running your week — in days, not months.</h2>
     </div>
-
     <div class="how-grid">
       <div class="step">
         <div class="step-num">1</div>
         <h3 class="step-h">Book a demo</h3>
-        <p class="step-p">30-min walkthrough so we both confirm RouteReady actually fits your operation.</p>
+        <p class="step-p">A 30-minute walkthrough of the product with your operation in mind — so we both confirm RouteReady actually fits.</p>
       </div>
       <div class="step">
         <div class="step-num">2</div>
         <h3 class="step-h">Connect your DSP portal</h3>
-        <p class="step-p"><a href="/download" style="color:var(--blue);font-weight:600;text-decoration:underline;text-decoration-color:var(--blue-border);text-underline-offset:3px">Install the desktop sync app</a>. Sign in once with your normal SSO. Pull DSP-portal reports straight into RouteReady — no manual exports.</p>
+        <p class="step-p"><a href="/download" style="color:var(--blue);font-weight:600;text-decoration:underline;text-decoration-color:var(--blue-border);text-underline-offset:3px">Install the desktop sync app</a> and sign in with your normal SSO. Your portal reports flow into RouteReady — no manual exports.</p>
       </div>
       <div class="step">
         <div class="step-num">3</div>
-        <h3 class="step-h">We onboard your team</h3>
-        <p class="step-p">Drivers self-activate by text — one tap to sign in. Dispatchers get a 60-min training. You're staffing inside a week.</p>
+        <h3 class="step-h">Your team onboards itself</h3>
+        <p class="step-p">Drivers activate from a text with one tap. Dispatchers get a one-hour training. Most teams are staffing inside a week.</p>
       </div>
       <div class="step">
         <div class="step-num">4</div>
-        <h3 class="step-h">Run smarter, hire smarter</h3>
-        <p class="step-p">One source of truth for your DSP. Less time in spreadsheets, more time in the building.</p>
+        <h3 class="step-h">Run the week from one place</h3>
+        <p class="step-p">Schedule, attendance, messages, fleet, and hiring in one system — with less time in spreadsheets and more time in the building.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="who">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="section-eyebrow">Who it's for</span>
+      <h2 class="section-h">Built for the people who run the operation.</h2>
+    </div>
+    <div class="who-grid">
+      <div class="who">
+        <h3 class="who-h">Owners</h3>
+        <p class="who-sub">See the whole business without asking for reports.</p>
+        <ul>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>A 13-week staffing plan tied to your real route forecast</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Attendance, attrition, and overtime trends from live data</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Compliance and signed records that hold up under scrutiny</span></li>
+        </ul>
+      </div>
+      <div class="who">
+        <h3 class="who-h">Dispatchers</h3>
+        <p class="who-sub">One screen for the day, one system for the week.</p>
+        <ul>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Live check-ins, wave status, and open routes at a glance</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Schedule changes that notify drivers automatically</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Driver messages with schedule context in the same pane</span></li>
+        </ul>
+      </div>
+      <div class="who">
+        <h3 class="who-h">Drivers</h3>
+        <p class="who-sub">Everything they need, nothing they don't.</p>
+        <ul>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Their schedule, van, and wave time on their phone</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>One-tap check-in, swaps, and time-off requests</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Onboarding, documents, and paychecks-day questions in one app</span></li>
+        </ul>
       </div>
     </div>
   </div>
@@ -688,22 +723,24 @@ footer{background:#111827;color:rgba(255,255,255,.65);padding:60px 0 40px;font-s
 
 <section id="cta" class="cta-strip">
   <div class="cta-inner">
-    <h2 class="cta-h">Run the operation. <span class="grad">RouteReady runs the rest.</span></h2>
-    <p class="cta-sub">A 30-minute demo and a 14-day trial. See the closed loops, the AI vision, and the compliance score that goes silent until it actually has something to say. If RouteReady doesn't earn its place inside the first week, you walk away — no awkward sales call to dodge.</p>
-    <div class="hero-cta">
+    <h2 class="cta-h">See RouteReady with your numbers in it.</h2>
+    <p class="cta-sub">A 30-minute demo and a 14-day trial with your own routes and roster. If it doesn't earn its place inside the first week, you walk away.</p>
+    <div class="hero-cta" style="margin-bottom:0;padding:0">
       <a class="btn btn-on-dark btn-lg" href="mailto:hello@gorouteready.com?subject=RouteReady demo">Book a demo
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
       </a>
       <a class="btn btn-on-dark-ghost btn-lg" href="/dashboard/login.html">Already a user? Sign in</a>
     </div>
   </div>
 </section>
 
+</main>
+
 <footer>
   <div class="footer-in">
     <div class="footer-brand">
       <a href="/" class="footer-logo">
-        <span class="bolt"><svg viewBox="0 0 24 24" fill="none"><path d="M14 2L4 13h7l-1 9 10-12h-7l1-8z" fill="#fff"/></svg></span>
+        <span class="bolt"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M14 2L4 13h7l-1 9 10-12h-7l1-8z" fill="#fff"/></svg></span>
         <span class="nav-name">RouteReady</span>
       </a>
       <p class="footer-tag">The operating system for Amazon Delivery Service Partners.</p>
@@ -711,6 +748,7 @@ footer{background:#111827;color:rgba(255,255,255,.65);padding:60px 0 40px;font-s
     <div class="footer-col">
       <h4>Product</h4>
       <a href="#features">Features</a>
+      <a href="#tour">Inside the product</a>
       <a href="#ai">AI</a>
       <a href="#compliance">Compliance</a>
       <a href="#how">How it works</a>
@@ -731,12 +769,28 @@ footer{background:#111827;color:rgba(255,255,255,.65);padding:60px 0 40px;font-s
   </div>
   <div class="footer-bottom">
     <span>© <span id="yr"></span> RouteReady. Not affiliated with Amazon.com, Inc.</span>
-    <span>Made for DSPs.</span>
+    <span>Product screens shown with demo data.</span>
   </div>
 </footer>
 
 <script>
 document.getElementById('yr').textContent = new Date().getFullYear();
+(function () {
+  var btn = document.getElementById('nav-menu-btn');
+  var menu = document.getElementById('mobile-menu');
+  if (!btn || !menu) return;
+  btn.addEventListener('click', function () {
+    var open = menu.classList.toggle('open');
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    btn.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+  });
+  menu.addEventListener('click', function (e) {
+    if (e.target.tagName === 'A') {
+      menu.classList.remove('open');
+      btn.setAttribute('aria-expanded', 'false');
+    }
+  });
+})();
 </script>
 
 </body>
