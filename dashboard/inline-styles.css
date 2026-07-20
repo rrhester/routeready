@@ -22857,8 +22857,9 @@ body.rr-cmdk-open{ overflow:hidden }
 
         /* ── Row 1 · Fleet view tabs · verbatim twin of Schedule's
            #rr-sched-viewseg tab bar (schedule-rrx.css:435-491): flat
-           transparent row, 14px/600 labels, 18px glyphs, light-blue
-           underline + primary ink on the active tab. ─────────────── */
+           row on a slate-200 hairline baseline, slate-700/600 labels,
+           18px glyphs, blue-600 underline + near-black ink on the
+           active tab (enterprise pass 2026-07). ──────────────────── */
         #rr-fleet-viewseg {
           display: flex;
           align-items: stretch;
@@ -22868,6 +22869,7 @@ body.rr-cmdk-open{ overflow:hidden }
           padding: 0 8px;
           background: transparent;
           border: 0;
+          border-bottom: 1px solid var(--rr-slate-200);
           border-radius: 0;
           overflow: visible;
           margin-bottom: 14px;
@@ -22885,7 +22887,7 @@ body.rr-cmdk-open{ overflow:hidden }
           border-bottom: 2px solid transparent;
           border-radius: 0;
           background: transparent;
-          color: var(--rr-fg-secondary, var(--rr-gray-500));
+          color: var(--rr-slate-700);
           font-family: var(--rr-font-family, Inter, system-ui, sans-serif);
           font-size: var(--fs-base);
           font-weight: 600;
@@ -22899,12 +22901,12 @@ body.rr-cmdk-open{ overflow:hidden }
           flex: 0 0 auto;
           stroke-width: 1.8;
         }
-        #rr-fleet-viewseg .rr-viewseg-btn:hover { color: var(--rr-fg-primary, var(--rr-gray-800)); }
+        #rr-fleet-viewseg .rr-viewseg-btn:hover { color: var(--rr-gray-900); }
         #rr-fleet-viewseg .rr-viewseg-btn.active {
-          color: var(--rr-fg-primary, var(--rr-gray-800));
-          border-bottom-color: rgb(194, 231, 255);
+          color: var(--rr-gray-900);
+          border-bottom-color: var(--rr-blue-600);
         }
-        #rr-fleet-viewseg .rr-viewseg-btn.active svg { color: var(--rr-fg-primary, var(--rr-gray-800)); }
+        #rr-fleet-viewseg .rr-viewseg-btn.active svg { color: var(--rr-gray-900); }
         #rr-fleet-viewseg .rr-viewseg-btn:focus-visible {
           outline: 2px solid var(--accent, var(--rr-blue-600));
           outline-offset: -3px;
@@ -32065,6 +32067,7 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
   padding: 0 8px;
   background: transparent;
   border: 0;
+  border-bottom: 1px solid var(--rr-slate-200);
   border-radius: 0;
   overflow: visible;
   margin-bottom: 14px;
@@ -32082,7 +32085,7 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
   border-bottom: 2px solid transparent;
   border-radius: 0;
   background: transparent;
-  color: var(--rr-fg-secondary, var(--rr-gray-500));
+  color: var(--rr-slate-700);
   font-family: var(--rr-font-family, Inter, system-ui, sans-serif);
   font-size: var(--fs-base);
   font-weight: 600;
@@ -32096,12 +32099,12 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
   flex: 0 0 auto;
   stroke-width: 1.8;
 }
-#rr-wb-viewseg .rr-viewseg-btn:hover { color: var(--rr-fg-primary, var(--rr-gray-800)); }
+#rr-wb-viewseg .rr-viewseg-btn:hover { color: var(--rr-gray-900); }
 #rr-wb-viewseg .rr-viewseg-btn.active {
-  color: var(--rr-fg-primary, var(--rr-gray-800));
-  border-bottom-color: rgb(194, 231, 255);
+  color: var(--rr-gray-900);
+  border-bottom-color: var(--rr-blue-600);
 }
-#rr-wb-viewseg .rr-viewseg-btn.active svg { color: var(--rr-fg-primary, var(--rr-gray-800)); }
+#rr-wb-viewseg .rr-viewseg-btn.active svg { color: var(--rr-gray-900); }
 #rr-wb-viewseg .rr-viewseg-btn:focus-visible {
   outline: 2px solid var(--accent, var(--rr-blue-600));
   outline-offset: -3px;
@@ -33078,6 +33081,7 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
   padding: 0 8px;
   background: transparent;
   border: 0;
+  border-bottom: 1px solid var(--rr-slate-200);
   border-radius: 0;
   overflow: visible;
   margin-bottom: 14px;
@@ -33095,7 +33099,7 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
   border-bottom: 2px solid transparent;
   border-radius: 0;
   background: transparent;
-  color: var(--rr-fg-secondary, var(--text-muted));
+  color: var(--rr-slate-700);
   font-family: var(--rr-font-family, inherit);
   font-size: var(--fs-base);
   font-weight: 600;
@@ -33104,12 +33108,12 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
   transition: color var(--t-fast), border-color var(--t-fast);
 }
 #rr-repair-viewseg .rr-viewseg-btn svg { width: 18px; height: 18px; flex: 0 0 auto; stroke-width: 1.8; }
-#rr-repair-viewseg .rr-viewseg-btn:hover { color: var(--rr-fg-primary, var(--text)); }
+#rr-repair-viewseg .rr-viewseg-btn:hover { color: var(--rr-gray-900); }
 #rr-repair-viewseg .rr-viewseg-btn.active {
-  color: var(--rr-fg-primary, var(--text));
+  color: var(--rr-gray-900);
   border-bottom-color: var(--rr-blue-600, var(--accent));
 }
-#rr-repair-viewseg .rr-viewseg-btn.active svg { color: var(--rr-fg-primary, var(--text)); }
+#rr-repair-viewseg .rr-viewseg-btn.active svg { color: var(--rr-gray-900); }
 #rr-repair-viewseg .rr-viewseg-btn:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -3px;

@@ -1864,16 +1864,16 @@ body.rr-ob-compact #view-onboarding-ops.rrx-onboarding .ob-tb-btn svg {
 #rr-ob-viewseg {
   display: flex;
   align-items: stretch;
-  gap: 2px;
+  gap: 6px;
   width: 100%;
   box-sizing: border-box;
   padding: 0 8px;
-  /* Transparent fill + no bottom hairline so the tab strip blends into the
-     page, matching the Schedule strip (#rr-sched-viewseg). The active tab's
-     blue underline still lives on the .active button rule below. */
+  /* Transparent fill; a hairline divider runs under the whole tab row,
+     matching the Schedule strip (#rr-sched-viewseg, enterprise pass
+     2026-07). The active tab's blue underline overlaps it. */
   background: transparent;
   border: 0;
-  border-bottom: 0;
+  border-bottom: 1px solid var(--rr-slate-200);
   border-radius: 0;
   overflow: visible;
   margin-bottom: 14px;          /* breathing room between the tabs and the toolbar below */
@@ -1891,7 +1891,7 @@ body.rr-ob-compact #view-onboarding-ops.rrx-onboarding .ob-tb-btn svg {
   border-bottom: 2px solid transparent;
   border-radius: 0;
   background: transparent;
-  color: var(--rr-fg-secondary, var(--rr-gray-500));
+  color: var(--rr-slate-700);
   font-family: var(--rr-font-family, Inter, system-ui, sans-serif);
   font-size: var(--fs-base);
   font-weight: 600;
@@ -1905,15 +1905,15 @@ body.rr-ob-compact #view-onboarding-ops.rrx-onboarding .ob-tb-btn svg {
   flex: 0 0 auto;
   stroke-width: 1.8;
 }
-#rr-ob-viewseg .rr-viewseg-btn:hover { color: var(--rr-fg-primary, var(--rr-gray-800)); }
+#rr-ob-viewseg .rr-viewseg-btn:hover { color: var(--rr-gray-900); }
 #rr-ob-viewseg .rr-viewseg-btn.active {
   /* Match the Schedule strip (#rr-sched-viewseg) exactly: active label/icon in
-     primary ink, underline in the same light-blue accent. Shares the same tokens
-     so the two strips can't drift apart. */
-  color: var(--rr-fg-primary, var(--rr-gray-800));
-  border-bottom-color: rgb(194, 231, 255);
+     near-black ink with a clear blue underline (enterprise pass 2026-07).
+     Shares the same tokens so the two strips can't drift apart. */
+  color: var(--rr-gray-900);
+  border-bottom-color: var(--rr-blue-600);
 }
-#rr-ob-viewseg .rr-viewseg-btn.active svg { color: var(--rr-fg-primary, var(--rr-gray-800)); }
+#rr-ob-viewseg .rr-viewseg-btn.active svg { color: var(--rr-gray-900); }
 #rr-ob-viewseg .rr-viewseg-btn:focus-visible {
   outline: 2px solid var(--accent, var(--rr-blue-600));
   outline-offset: -3px;
