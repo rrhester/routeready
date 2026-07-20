@@ -53510,20 +53510,27 @@ function _rrOkamiWeekCoverage(weekStart, weekStartIso, totalsByDate, xlByDate, h
 }
 
 // Paint one week's Coverage cell (td 9 — appended after the CSS-hidden
-// Strategy/Hire-by/Status trio, so it renders right after Gap).
-function _rrOkamiPaintCoverage(row, cov, unplanned) {
+// Strategy/Hire-by/Status trio, so it renders right after Gap). `gap` gives
+// the week-volume context: a clean day-shape next to a red gap must NOT
+// read as "you're fine" — it reads "No day gaps" (the shortfall is volume;
+// hiring closes it), operator report 2026-07-20.
+function _rrOkamiPaintCoverage(row, cov, unplanned, gap) {
   const btn = row.querySelector("[data-rr-okami-cov]");
   if (!btn) return;
   if (!cov || unplanned) { btn.hidden = true; return; }
   btn.hidden = false;
   btn.classList.remove("ok", "thin", "short");
   btn.classList.add(cov.kind);
-  btn.innerHTML = `<span class="rr-tgt-cov-dot"></span><span>${cov.verdict}</span>`;
+  const volumeShort = cov.kind === "ok" && Number(gap) < 0;
+  const verdict = volumeShort ? `<span class="vg">No day gaps</span>` : cov.verdict;
+  btn.innerHTML = `<span class="rr-tgt-cov-dot"></span><span>${verdict}</span>`;
   const worst = cov.days.filter((x) => x.status !== "ok")
     .map((x) => `${RR_DOW_LABEL[x.dow]}: ${x.avail} available for ${x.seats} seat${x.seats === 1 ? "" : "s"}`).join(" · ");
-  btn.title = (cov.kind === "ok"
-    ? "Every day fills with buffer"
-    : worst) + " — click for the day-by-day";
+  btn.title = (volumeShort
+    ? `Every day has enough available drivers — the ${gap} gap is weekly volume (each driver works only part of the week). Hiring closes it; no day is structurally blocked.`
+    : cov.kind === "ok"
+      ? "Every day fills with buffer"
+      : worst) + " — click for the day-by-day";
 }
 
 // The scoped roster snapshot the current render used (recompute reuses it).
@@ -53553,7 +53560,18 @@ document.addEventListener("click", (e) => {
   }).join("");
   const acts = [];
   if (mw.gap < 0) {
-    acts.push(`<div class="rr-covpop-act"><span class="rr-covpop-tag hire">Hire</span><span><b>Hire ${-mw.gap}${mw.hireBy && mw.hireBy !== "—" ? ` by ${escapeHtml(mw.hireBy)}` : ""}</b> to close the weekly volume gap${cov.days.some((d) => d.status === "short") ? " — prioritize candidates available on the short days" : ""}.</span></div>`);
+    // A hire-by date already behind us can't save THIS week — say so
+    // instead of prescribing a deadline in the past (operator report:
+    // "Hire 24 by Jul 5" rendered mid-July).
+    const hireByIso = mw.weekStartIso
+      ? fmtIsoDate(addDays(new Date(mw.weekStartIso + "T12:00:00"), -_rrHireLeadDays()))
+      : null;
+    const windowPast = hireByIso && hireByIso < fmtIsoDate(new Date());
+    const shortNote = cov.days.some((d) => d.status === "short")
+      ? " — prioritize candidates available on the short days" : "";
+    acts.push(windowPast
+      ? `<div class="rr-covpop-act"><span class="rr-covpop-tag hire">Hire</span><span><b>The hiring window for this week has passed</b> (lead time ${_rrHireLeadDays()}d) — cover it with OT, pickups or flex now. Hiring ${-mw.gap} still fixes the later weeks that share this gap${shortNote}.</span></div>`
+      : `<div class="rr-covpop-act"><span class="rr-covpop-tag hire">Hire</span><span><b>Hire ${-mw.gap}${mw.hireBy && mw.hireBy !== "—" ? ` by ${escapeHtml(mw.hireBy)}` : ""}</b> to close the weekly volume gap${shortNote}.</span></div>`);
   }
   for (const d of cov.days.filter((x) => x.status === "short").slice(0, 2)) {
     acts.push(`<div class="rr-covpop-act"><span class="rr-covpop-tag move">Rebalance</span><span><b>${RR_DOW_LABEL[d.dow]} is short ${d.short}</b> — only ${d.avail} drivers can work it. Ask for ${d.short} pickup${d.short === 1 ? "" : "s"}, or widen availability to include ${RR_DOW_LABEL[d.dow]}.</span></div>`);
@@ -53737,7 +53755,7 @@ function _okamiRecomputeFromCache(padPct) {
     // daily saves change the seat maps.
     const cov = unplanned ? null
       : _rrOkamiWeekCoverage(weekStart, fmtIsoDate(weekStart), _okamiTotalsByDateCache, _okamiXlByDateCache, _okamiHelperByDateCache, padPct, _rrOkamiCovSnap);
-    _rrOkamiPaintCoverage(row, cov, unplanned);
+    _rrOkamiPaintCoverage(row, cov, unplanned, gap);
     if (modelWeeks && modelWeeks[w]) {
       modelWeeks[w].needed = needed;
       modelWeeks[w].gap = gap;
@@ -54600,7 +54618,7 @@ async function _renderOkamiLiveImpl() {
     // shape vs the roster's availability shape for this week.
     const weekCov = unplanned ? null
       : _rrOkamiWeekCoverage(weekStart, weekStartIso, totalsByDate, xlByDate, helperByDate, padPct, _covRoster);
-    _rrOkamiPaintCoverage(row, weekCov, unplanned);
+    _rrOkamiPaintCoverage(row, weekCov, unplanned, gap);
 
     modelWeeks.push({
       idx: w,
