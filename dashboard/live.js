@@ -955,20 +955,28 @@ try {
   window.rrApplyStationFilter = rrApplyStationFilter;
 } catch (_) { /* window always present in the browser */ }
 
-// Driver ids that belong to a station: driver_stations MEMBERS (floating
-// drivers can belong to >1 station) UNION drivers whose primary home
-// (drivers.station_id) is the station. The union matters — nothing wrote
-// driver_stations between 0525's one-time backfill and 0532's sync trigger,
-// so drivers hired or re-homed in that window have no membership row and a
-// membership-only filter hides them from the scoped roster while the
-// schedule (which reads station_id + shifts) still shows them. This also
-// matches the server RPCs (0526/0531: station_id = p OR EXISTS membership).
-// Returns a Set, or null when NEITHER source is readable so callers can
-// fall back to row-level station fields.
+// Driver ids that belong to a station — the UNION of three sources:
+//   1. driver_stations MEMBERS (floating drivers can belong to >1 station);
+//   2. drivers whose primary home (drivers.station_id) is the station —
+//      nothing wrote driver_stations between 0525's one-time backfill and
+//      0532's sync trigger, so drivers hired or re-homed in that window
+//      have no membership row;
+//   3. drivers SCHEDULED at the station (shifts in a recent/upcoming
+//      window) — a driver can have a blank home (e.g. graduated from the
+//      pipeline with no target station) and no membership row, yet work
+//      the station every day. The schedule lens already shows them via
+//      shift.station_id; without this source the roster hides them and
+//      the two pages disagree (operator report 2026-07-20). Migration
+//      0533 mirrors this server-side (shift assignment → membership row).
+// Matches the server RPCs' "station_id = p OR EXISTS membership" (0526/
+// 0531) plus the schedule's shift lens. Returns a Set, or null when the
+// membership AND home sources both fail so callers can fall back to
+// row-level station fields.
 async function _rrDriverIdsAtStation(stationId) {
   const dspId = window.RR && window.RR.dsp && window.RR.dsp.id;
   if (!dspId || !stationId) return null;
-  const [memberRes, homeRes] = await Promise.all([
+  const _today = new Date();
+  const [memberRes, homeRes, shiftRes] = await Promise.all([
     sb.from("driver_stations")
       .select("driver_id")
       .eq("dsp_id", dspId)
@@ -977,13 +985,24 @@ async function _rrDriverIdsAtStation(stationId) {
       .select("id")
       .eq("dsp_id", dspId)
       .eq("station_id", stationId),
+    sb.from("shifts")
+      .select("driver_id")
+      .eq("dsp_id", dspId)
+      .eq("station_id", stationId)
+      .not("driver_id", "is", null)
+      .gte("date", fmtIsoDate(addDays(_today, -14)))
+      .lte("date", fmtIsoDate(addDays(_today, 28)))
+      .limit(10000)
+      .then((r) => r, (e) => ({ error: e })),
   ]);
   // Pre-0525 the join table 404s — the primary-home set alone is still the
-  // right lens (same rows the callers' own fallbacks would keep).
+  // right lens (same rows the callers' own fallbacks would keep). The
+  // shifts source is best-effort either way.
   if (memberRes.error && homeRes.error) return null;
   const ids = new Set();
   for (const r of (memberRes.error ? [] : memberRes.data || [])) ids.add(r.driver_id);
   for (const r of (homeRes.error   ? [] : homeRes.data   || [])) ids.add(r.id);
+  for (const r of (shiftRes.error  ? [] : shiftRes.data  || [])) ids.add(r.driver_id);
   return ids;
 }
 
