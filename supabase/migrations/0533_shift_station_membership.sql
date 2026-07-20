@@ -28,8 +28,14 @@ as $$
 begin
   -- Seat rows generated unassigned (driver_id null) are filtered by the
   -- trigger's WHEN clause; station_id is NOT NULL by schema, but guard
-  -- anyway so a malformed row can never abort the assignment write.
-  if new.driver_id is not null and new.station_id is not null then
+  -- anyway so a malformed row can never abort the assignment write. The
+  -- EXISTS checks matter: shifts can carry driver ids that no longer
+  -- exist in public.drivers (drivers hard-deleted, their shifts kept —
+  -- seen in production during the 0533 backfill), and an FK violation
+  -- here would abort the operator's shift write.
+  if new.driver_id is not null and new.station_id is not null
+     and exists (select 1 from public.drivers  d  where d.id  = new.driver_id)
+     and exists (select 1 from public.stations st where st.id = new.station_id) then
     insert into public.driver_stations (dsp_id, driver_id, station_id, is_primary)
     values (new.dsp_id, new.driver_id, new.station_id, false)
     on conflict (driver_id, station_id) do nothing;
@@ -46,11 +52,14 @@ create trigger trg_sync_shift_station_membership
   execute function private.sync_shift_station_membership();
 
 -- Backfill: membership from actual scheduled work — last 90 days plus all
--- future assigned shifts. DO NOTHING keeps existing rows' is_primary intact.
+-- future assigned shifts. JOINs (not just NOT NULL) because shifts can
+-- reference drivers/stations that were since deleted — inserting those
+-- ids violates driver_stations' FKs and aborts the whole migration.
+-- DO NOTHING keeps existing rows' is_primary intact.
 insert into public.driver_stations (dsp_id, driver_id, station_id, is_primary)
 select distinct s.dsp_id, s.driver_id, s.station_id, false
 from public.shifts s
-where s.driver_id is not null
-  and s.station_id is not null
-  and s.date >= current_date - 90
+join public.drivers  d  on d.id  = s.driver_id
+join public.stations st on st.id = s.station_id
+where s.date >= current_date - 90
 on conflict (driver_id, station_id) do nothing;
