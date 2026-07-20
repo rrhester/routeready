@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import {
   assessPlan,
   coverageKind,
+  dayCoverage,
   driversNeeded,
   driversNeededMix,
   driversNeededWeek,
@@ -166,6 +167,20 @@ t("driversNeededWeek: certified + helper sub-totals get the same max(peak, weekÃ
   );
   assert.equal(r.xlCertified, 4);
   assert.equal(r.xlHelpers, 4);
+});
+
+t("dayCoverage: short when the day can't fill its routes", () => {
+  assert.deepEqual(dayCoverage(37, 30, 20), { status: "short", short: 7 });
+});
+
+t("dayCoverage: thin fills the routes but misses the padded target", () => {
+  assert.equal(dayCoverage(37, 41, 20).status, "thin"); // padded target ceil(44.4)=45
+  assert.equal(dayCoverage(37, 44, 20).status, "thin");
+});
+
+t("dayCoverage: ok at the padded target; zero-route days are trivially ok", () => {
+  assert.equal(dayCoverage(37, 45, 20).status, "ok");
+  assert.equal(dayCoverage(0, 0, 20).status, "ok");
 });
 
 t("driversNeededWeek: clamps bad inputs â€” days to [1,7] default 5, negatives to 0", () => {

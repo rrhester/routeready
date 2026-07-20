@@ -81,22 +81,23 @@
                 <th scope="col" class="center">Strategy</th>
                 <th scope="col" class="center">Hire by</th>
                 <th scope="col">Status</th>
+                <th scope="col">Coverage</th>
               </tr>
             </thead>
             <tbody id="okami-tbody">
-              <tr class="rr-okami-skel-row"><td colspan="8"><div class="rr-okami-skel"></div></td></tr>
-              <tr class="rr-okami-skel-row"><td colspan="8"><div class="rr-okami-skel"></div></td></tr>
-              <tr class="rr-okami-skel-row"><td colspan="8"><div class="rr-okami-skel"></div></td></tr>
-              <tr class="rr-okami-skel-row"><td colspan="8"><div class="rr-okami-skel"></div></td></tr>
-              <tr class="rr-okami-skel-row"><td colspan="8"><div class="rr-okami-skel"></div></td></tr>
-              <tr class="rr-okami-skel-row"><td colspan="8"><div class="rr-okami-skel"></div></td></tr>
-              <tr class="rr-okami-skel-row"><td colspan="8"><div class="rr-okami-skel"></div></td></tr>
-              <tr class="rr-okami-skel-row"><td colspan="8"><div class="rr-okami-skel"></div></td></tr>
-              <tr class="rr-okami-skel-row"><td colspan="8"><div class="rr-okami-skel"></div></td></tr>
-              <tr class="rr-okami-skel-row"><td colspan="8"><div class="rr-okami-skel"></div></td></tr>
-              <tr class="rr-okami-skel-row"><td colspan="8"><div class="rr-okami-skel"></div></td></tr>
-              <tr class="rr-okami-skel-row"><td colspan="8"><div class="rr-okami-skel"></div></td></tr>
-              <tr class="rr-okami-skel-row"><td colspan="8"><div class="rr-okami-skel"></div></td></tr>
+              <tr class="rr-okami-skel-row"><td colspan="9"><div class="rr-okami-skel"></div></td></tr>
+              <tr class="rr-okami-skel-row"><td colspan="9"><div class="rr-okami-skel"></div></td></tr>
+              <tr class="rr-okami-skel-row"><td colspan="9"><div class="rr-okami-skel"></div></td></tr>
+              <tr class="rr-okami-skel-row"><td colspan="9"><div class="rr-okami-skel"></div></td></tr>
+              <tr class="rr-okami-skel-row"><td colspan="9"><div class="rr-okami-skel"></div></td></tr>
+              <tr class="rr-okami-skel-row"><td colspan="9"><div class="rr-okami-skel"></div></td></tr>
+              <tr class="rr-okami-skel-row"><td colspan="9"><div class="rr-okami-skel"></div></td></tr>
+              <tr class="rr-okami-skel-row"><td colspan="9"><div class="rr-okami-skel"></div></td></tr>
+              <tr class="rr-okami-skel-row"><td colspan="9"><div class="rr-okami-skel"></div></td></tr>
+              <tr class="rr-okami-skel-row"><td colspan="9"><div class="rr-okami-skel"></div></td></tr>
+              <tr class="rr-okami-skel-row"><td colspan="9"><div class="rr-okami-skel"></div></td></tr>
+              <tr class="rr-okami-skel-row"><td colspan="9"><div class="rr-okami-skel"></div></td></tr>
+              <tr class="rr-okami-skel-row"><td colspan="9"><div class="rr-okami-skel"></div></td></tr>
             </tbody>
             <tfoot id="okami-tfoot"></tfoot>
           </table>

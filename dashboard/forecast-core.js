@@ -133,6 +133,25 @@ export function driversNeededWeek(demand, opts = {}) {
   return { total, xlCertified, xlHelpers, weekSeats, peakSeats, daysPerWeek: days };
 }
 
+// ── Day coverage ────────────────────────────────────────────────────────────
+// Classifies ONE day of the plan against the drivers actually able to work
+// it. `seats` = people the day dispatches (standard route 1, XL/HELPER 2);
+// `avail` = drivers whose availability covers the day, minus approved time
+// off and not-yet-ready onboarders.
+//   short — can't fill the routes (avail < seats); `short` = seats uncovered
+//   thin  — fills, but below the padded target: one callout opens a route
+//   ok    — covered with buffer (avail ≥ ceil(seats × (1 + pad)))
+// A day with no routes is trivially ok.
+export function dayCoverage(seats, avail, padPct) {
+  const s = Math.max(0, Number(seats) || 0);
+  const a = Math.max(0, Number(avail) || 0);
+  const pad = clamp(Number(padPct), 0, 200, 0);
+  if (s <= 0) return { status: "ok", short: 0 };
+  if (a < s) return { status: "short", short: s - a };
+  if (a < Math.ceil(s * (1 + pad / 100))) return { status: "thin", short: 0 };
+  return { status: "ok", short: 0 };
+}
+
 // ── Supply ─────────────────────────────────────────────────────────────────
 
 // Effective supply for a future week = bodies on payroll, minus onboarding

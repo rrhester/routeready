@@ -583,6 +583,39 @@ week; replace outright (no legacy mode).
   Browser-QA'd 9/9 (operator's 37-routes/day scenario: defaults 58 → workdays
   4 → 72 instantly, persists across reload via dsps.metadata PATCH).
 
+**SHIPPED — Staffing planner: roster calibration + day-coverage (2026-07-20,
+operator approved via annotated HTML mockup, artifact e286e1ef…; feedback
+"clean, simple, informative" — verdict-text rows, no per-row day strip):**
+- **Roster capacity loader** `_rrEnsureRosterCapacity()` (live.js): one
+  background fetch per 10 min — active+onboarding drivers with
+  `metadata.availability.days` (null = schedulable ANY day, matches the
+  scheduler), approved `time_off_requests` over the horizon (expanded to a
+  `driverId|iso` ptoSet), last-28d assigned shifts. Derives `availAvg` (days
+  marked available, drivers-with-set only) and `schedAvg` (distinct days per
+  driver-week, weeks-worked only). Targets render paints without it and
+  repaints when it lands.
+- **ⓘ popover "From your roster"** (`_rrOkamiRosterCalHtml`): both measured
+  numbers + one-click **Use** buttons (`data-rr-okami-wdw-use`) that drive
+  the existing `#rr-okami-wdw` input handler (instant recompute + metadata
+  save). No more SQL to calibrate workdays.
+- **Coverage column**: the 13-week rows gained an appended 9th td (indexes
+  0–7 untouched — colspans bumped to 9 incl. frag skeleton; the CSS-hidden
+  Strategy/Hire-by/Status trio makes it render right after Gap). Per week
+  `_rrOkamiWeekCoverage` checks each date's SEAT demand vs drivers able to
+  work that day (availability DOW − PTO − not-ready onboarders; station
+  lens applied like the Available pool). forecast-core `dayCoverage(seats,
+  avail, pad)` classifies short/thin/ok. Cell = dot + verdict ("Sun short
+  7 · Sat thin" / "All days covered"); click → `_paOpenPopover` day-by-day
+  (avail bars vs seat ticks, geometry applied as JS style props — the
+  inline-style ratchet stays flat) + "What fixes it" actions: Hire (weekly
+  gap, hire-by), Rebalance (short days: pickups/widen availability),
+  Buffer (thin days). Coverage re-derives in `_okamiRecomputeFromCache`
+  (pad slider, workdays, daily saves) and lives on modelWeeks[w].coverage.
+- Tests 46 (dayCoverage). Browser-QA'd 8/8 (63-driver stub roster with
+  availability shapes: Needed 63→78 via Use(4.0), coverage "Sun short 7 ·
+  Sat thin", popover "30 avail · 37 seats · short 7" + Hire 15/Rebalance/
+  Buffer actions, metadata persisted, no errors).
+
 **Still DEFERRED:** nothing else outstanding on the XL/helper model.
 
 ## DONE: Calendar 100-list (Onboarding → Calendar improvements)
@@ -876,10 +909,13 @@ keep the drill-down window at 4 weeks unless they ask again). Shipped
 in 7 batches on `claude/page-improvement-ideas-8t4c1m`. Key facts that
 stay true:
 - The 13-week table's rows are now GENERATED (`_rrOkamiEnsureRows`,
-  live.js) — view-okami.frag ships only a skeleton. The 8-column
-  positional DOM contract + `tr:not(.okami-detail)` order + weeks 0–3
-  drill-down ids are preserved for all consumers (sim annotations,
-  Plan-Pad recompute, mock pipeline, DOM-fallback readers).
+  live.js) — view-okami.frag ships only a skeleton. The positional DOM
+  contract + `tr:not(.okami-detail)` order + weeks 0–3 drill-down ids are
+  preserved for all consumers (sim annotations, Plan-Pad recompute, mock
+  pipeline, DOM-fallback readers). 2026-07-20: rows carry NINE tds — the
+  original eight (Week | Routes | Needed | Available | Gap | Strategy |
+  Hire by | Status, cols 6–8 CSS-hidden) plus an APPENDED 9th Coverage td
+  (renders right after Gap). Indexes 0–7 unchanged; colspans are 9.
 - All plan edits flow through `_rrOkamiApplyWrites` (bucket writes with
   prevs → one-op Undo). `saveOkamiWeek` is gone.
 - Available is a per-week projection (active_drivers_for_horizon −
