@@ -340,6 +340,26 @@ order: 0525 → 0526 → 0528 → 0529 → 0530 → **0531**.
 - **Migration 0530** (repair_center_summary p_station_id) MANUAL — paste in chat.
   Apply order for the lens: 0525 → 0526 → 0528 → 0529 → **0530**.
 
+**SHIPPED — Targets daily-save fixes (2026-07-20, PRs #4089/#4092, operator
+reports "targets don't save after I key them" / "routes box = highest day"):**
+- `saveOkamiDaily` is now LENS-AWARE: scoped → ONE okami_set_target to the
+  scoped station (others untouched); All-mode keeps legacy first-station-full/
+  rest-zero. Pre-fix it always wrote first-by-code + zeroed the rest, so keying
+  while scoped to a non-first station (e.g. DCA1 vs DBO5) wrote to the WRONG
+  station and ZEROED the one on screen — values "vanished" on reload.
+- Scope toggle re-renders an OPEN daily drill-down (`_rrRerenderOpenOkamiDaily`
+  in `_rrRerenderForScope` schedule/okami branches) — the panel fetches its own
+  okami_grid, so the table re-render alone left it stale.
+- After every daily save, `_rrOkamiPatchAfterDailySave` folds the write into
+  `_rrOkamiBucketsByDate` + totals/xl/helper caches, then PATCHES (never
+  re-renders — full render mid-typing = the historical keystroke glitch): the
+  week's Routes input (operator rule: ALWAYS the week's highest single day;
+  skipped if focused), model routesMax/unplanned, the drill-down footer
+  (`data-rr-okami-daily-total`/`-peak`), and Needed/Gap/tfoot/KPI via
+  `_okamiRecomputeFromCache` (the Plan-Pad no-refetch path). Browser-QA'd
+  21 checks (stateful 2-station stub): scoped single-write + persistence
+  across re-render/reload, live peak tracking, focus retention, All parity.
+
 ## Active task: Staffing model — XL-route demand (branch claude/staffing-driver-requirements-1tw30l)
 
 Operator's staffing model (2026-07-18): standard route = 2 drivers ×
