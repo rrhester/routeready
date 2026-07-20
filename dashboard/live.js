@@ -1040,10 +1040,12 @@ function _rrRerenderForScope() {
         window.schedSub(sub);
       }
     } catch (_) {}
+    _rrRerenderOpenOkamiDaily();
     return;
   }
   if (v === "view-okami") {
     try { if (typeof loadOkamiView === "function") loadOkamiView(); } catch (_) {}
+    _rrRerenderOpenOkamiDaily();
     return;
   }
   if (v === "view-onboarding-ops") {
@@ -1071,6 +1073,20 @@ function _rrRerenderForScope() {
     return;
   }
   try { if (typeof refreshActiveView === "function") refreshActiveView(); } catch (_) {}
+}
+
+// An OPEN Targets daily drill-down fetches its own okami_grid, so the table
+// re-render above doesn't refresh it — without this it keeps showing the
+// PREVIOUS scope's numbers after a station toggle. Renders only when a
+// detail row is open; safe to run alongside the table's own re-render (the
+// panel is the sole writer of its container).
+function _rrRerenderOpenOkamiDaily() {
+  try {
+    const openIdx = (typeof openOkamiDetailIndex === "function") ? openOkamiDetailIndex() : null;
+    if (openIdx != null && typeof window.renderOkamiDailyPanel === "function") {
+      window.renderOkamiDailyPanel(openIdx);
+    }
+  } catch (_) {}
 }
 
 function _rrWireStationSwitch() {
@@ -55414,18 +55430,33 @@ async function saveOkamiDaily(weekIdx, iso, routes, waveIdx = 0, stId = null) {
     toast("No stations configured — add a station before setting OKAMI", "warn");
     return;
   }
-  // Single-station mode: write the full value to the first station and
+  // Master station lens: the drill-down READS only the scoped station's
+  // demand, so a typed value must WRITE to that station's bucket and leave
+  // every other station untouched. (The unscoped fallthrough below writes
+  // first-station-full/others-zero — under a scope that both vanished the
+  // typed value on re-read and wiped the other station's plan.)
+  const scopeId = (typeof rrStationScopeId === "function") ? rrStationScopeId() : null;
+  const scopedStation = scopeId ? _okamiStations.find((s) => s.id === scopeId) : null;
+  // All-stations mode: write the full value to the first station and
   // zero out the rest. Avoids the rounding drift you'd get from
   // round(routes / station_count) when station_count > 1.
-  const calls = _okamiStations.map((s, idx) =>
-    sb.rpc("okami_set_target", {
-      p_date:             iso,
-      p_station_id:       s.id,
-      p_target:           idx === 0 ? routes : 0,
-      p_wave_index:       waveIdx,
-      p_service_type_id:  stId,
-    })
-  );
+  const calls = scopedStation
+    ? [sb.rpc("okami_set_target", {
+        p_date:             iso,
+        p_station_id:       scopedStation.id,
+        p_target:           routes,
+        p_wave_index:       waveIdx,
+        p_service_type_id:  stId,
+      })]
+    : _okamiStations.map((s, idx) =>
+      sb.rpc("okami_set_target", {
+        p_date:             iso,
+        p_station_id:       s.id,
+        p_target:           idx === 0 ? routes : 0,
+        p_wave_index:       waveIdx,
+        p_service_type_id:  stId,
+      })
+    );
   const results = await Promise.all(calls);
   const firstErr = results.find(r => r.error);
   if (firstErr) { toast("Save failed: " + firstErr.error.message, "warn"); return; }
