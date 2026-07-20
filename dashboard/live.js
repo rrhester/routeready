@@ -55333,8 +55333,8 @@ async function _renderOkamiDailyPanelImpl(weekIdx, targetContainerId) {
         ${rowsHtml}
       </div>
       <div style="grid-column:1 / -1;display:flex;justify-content:space-between;font-size:var(--fs-xs);color:var(--text-subtle);padding:var(--s-2-5) 4px 0">
-        <span>Week total <strong style="color:var(--text)">${totalRoutes}</strong> routes</span>
-        <span>Peak day <strong style="color:var(--text)">${peakRoutes} routes</strong> · cushion applied in Schedule</span>
+        <span>Week total <strong style="color:var(--text)" data-rr-okami-daily-total>${totalRoutes}</strong> routes</span>
+        <span>Peak day <strong style="color:var(--text)" data-rr-okami-daily-peak>${peakRoutes} routes</strong> · cushion applied in Schedule</span>
       </div>
     </div>`;
 
@@ -55489,30 +55489,78 @@ async function saveOkamiDaily(weekIdx, iso, routes, waveIdx = 0, stId = null) {
   // All-stations mode: write the full value to the first station and
   // zero out the rest. Avoids the rounding drift you'd get from
   // round(routes / station_count) when station_count > 1.
-  const calls = scopedStation
-    ? [sb.rpc("okami_set_target", {
-        p_date:             iso,
-        p_station_id:       scopedStation.id,
-        p_target:           routes,
-        p_wave_index:       waveIdx,
-        p_service_type_id:  stId,
-      })]
-    : _okamiStations.map((s, idx) =>
-      sb.rpc("okami_set_target", {
-        p_date:             iso,
-        p_station_id:       s.id,
-        p_target:           idx === 0 ? routes : 0,
-        p_wave_index:       waveIdx,
-        p_service_type_id:  stId,
-      })
-    );
-  const results = await Promise.all(calls);
+  const stationWrites = scopedStation
+    ? [{ stationId: scopedStation.id, value: routes }]
+    : _okamiStations.map((s, idx) => ({ stationId: s.id, value: idx === 0 ? routes : 0 }));
+  const results = await Promise.all(stationWrites.map((wr) =>
+    sb.rpc("okami_set_target", {
+      p_date:             iso,
+      p_station_id:       wr.stationId,
+      p_target:           wr.value,
+      p_wave_index:       waveIdx,
+      p_service_type_id:  stId,
+    })
+  ));
   const firstErr = results.find(r => r.error);
   if (firstErr) { toast("Save failed: " + firstErr.error.message, "warn"); return; }
-  // Don't re-render anything after a daily save — that's what was causing
-  // the per-keystroke glitch. The operator's input keeps focus + value;
-  // the 13-week Routes(max) cell will refresh on next view focus
-  // (window.focus listener + 30s heartbeat both call refreshActiveView).
+  // Never RE-RENDER after a daily save — that's what caused the historical
+  // per-keystroke glitch (the operator's input must keep focus + value).
+  // Instead, surgically patch the week row so Routes always equals the
+  // week's highest single day while they key.
+  try { _rrOkamiPatchAfterDailySave(weekIdx, iso, waveIdx, stId, stationWrites); } catch (_) {}
+}
+
+// Keep the 13-week surface live while the operator keys daily targets: fold
+// the just-saved bucket write(s) into the render caches, then PATCH the
+// week's Routes cell (operator rule: always the week's highest single day),
+// the open drill-down footer, and Needed/Gap — via _okamiRecomputeFromCache,
+// the same no-refetch path the Plan-Pad slider uses. Touches no DOM the
+// operator is typing in.
+function _rrOkamiPatchAfterDailySave(weekIdx, iso, waveIdx, stId, stationWrites) {
+  if (!_okamiTotalsByDateCache) return; // 13-week table not rendered yet
+  const buckets = window._rrOkamiBucketsByDate;
+  if (!(buckets instanceof Map)) return;
+  const code = (stId && (_okamiServiceTypes || []).find((t) => t.id === stId)?.code) || "SP";
+  let day = buckets.get(iso);
+  if (!day) { day = []; buckets.set(iso, day); }
+  for (const wr of stationWrites) {
+    const entry = day.find((b) => b.stationId === wr.stationId
+      && (b.waveIndex || 0) === waveIdx
+      && (b.serviceTypeId ?? null) === (stId ?? null));
+    if (entry) entry.value = wr.value;
+    else day.push({ stationId: wr.stationId, waveIndex: waveIdx, serviceTypeId: stId ?? null, code, value: wr.value });
+  }
+  // Re-derive this date's cache entries from the (scope-consistent) buckets.
+  let total = 0, xl = 0, helper = 0;
+  for (const b of day) {
+    total += b.value || 0;
+    if (b.code === "XL") xl += b.value || 0;
+    else if (b.code === "HELPER") helper += b.value || 0;
+  }
+  _okamiTotalsByDateCache.set(iso, total);
+  if (_okamiXlByDateCache) _okamiXlByDateCache.set(iso, xl);
+  if (_okamiHelperByDateCache) _okamiHelperByDateCache.set(iso, helper);
+
+  let routesMax = 0, weekTotal = 0;
+  for (let d = 0; d < 7; d++) {
+    const v = _okamiTotalsByDateCache.get(_rrOkamiWeekIso(weekIdx, d)) || 0;
+    weekTotal += v;
+    if (v > routesMax) routesMax = v;
+  }
+  const routesInp = document.querySelector(`input.plan-route-input[data-rr-okami-week-idx="${weekIdx}"]`);
+  if (routesInp && document.activeElement !== routesInp) routesInp.value = String(routesMax);
+  // Keep the published model in lockstep — Esc-restore on the Routes cell,
+  // the gap card, and the Risk Forecast all read it.
+  const mw = window._rrOkamiModel?.weeks?.[weekIdx];
+  if (mw) { mw.routesMax = routesMax; mw.unplanned = routesMax === 0; }
+
+  const totEl = document.querySelector(`#okami-detail-content-${weekIdx} [data-rr-okami-daily-total]`);
+  if (totEl) totEl.textContent = String(weekTotal);
+  const peakEl = document.querySelector(`#okami-detail-content-${weekIdx} [data-rr-okami-daily-peak]`);
+  if (peakEl) peakEl.textContent = `${routesMax} routes`;
+
+  const pad = Math.max(0, Math.min(50, Number(window.RR?.dsp?.metadata?.staffing?.plan_pad_pct ?? 10) || 0));
+  _okamiRecomputeFromCache(pad);
 }
 
 // ─── Settings · Scheduling (block hours, cushion, waves) ───────────────────
