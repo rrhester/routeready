@@ -45,7 +45,10 @@
           <span id="rr-okami-targets-rules-status" aria-live="polite" style="font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums"></span>
         </div>
 
-        <!-- Single staffing-plan input — Plan Pad % above the 2× baseline. -->
+        <!-- Single staffing-plan input — Plan Pad % above the per-route
+             baseline. (The formula's other knob, Drivers per route, is
+             edited in the Drivers-needed ⓘ header popover — it must ride
+             WITH the table, which relocates into Schedule → Targets.) -->
         <div id="rr-okami-pad-row" style="margin-bottom:var(--s-4);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s-3-5) var(--s-4);display:flex;align-items:center;gap:var(--s-3-5);flex-wrap:wrap">
           <div style="flex:0 0 auto">
             <div style="font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Staffing Plan Pad</div>

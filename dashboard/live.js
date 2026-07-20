@@ -53373,11 +53373,12 @@ let _okamiHelperByDateCache = null;
 let _okamiStartCache = null;
 
 // Given a week's per-day total-route + per-day XL-route lookups, return the
-// peak-day mix that drives staffing: the day whose driver DEMAND (standard×2
-// + xl×4) is highest, split into { standard, xl } routes. Routes not tagged
-// XL count as standard. Peak-of-demand (not peak-of-routes) is what a plan
-// must staff to, since one XL-heavy day can out-demand a higher plain-route
-// day.
+// peak-day mix that drives staffing: the day whose driver DEMAND
+// (standard×dpr + xl×2dpr — XL dispatches two seats, each carried at the
+// same drivers-per-route ratio) is highest, split into { standard, xl }
+// routes. Routes not tagged XL count as standard. Peak-of-demand (not
+// peak-of-routes) is what a plan must staff to, since one XL-heavy day can
+// out-demand a higher plain-route day.
 function _rrOkamiWeekMix(weekStart, dpr, totalsByDate, xlByDate, helperByDate) {
   let peakUnits = -1, mix = { standard: 0, xl: 0, helperRoutes: 0 }, routesMax = 0;
   for (let d = 0; d < 7; d++) {
@@ -53386,10 +53387,10 @@ function _rrOkamiWeekMix(weekStart, dpr, totalsByDate, xlByDate, helperByDate) {
     if (total > routesMax) routesMax = total;
     const xl = Math.min(total, xlByDate?.get(iso) || 0);
     // HELPER-type routes (SP-style paired route: driver + uncertified
-    // helper) cost 4 bodies like XL, just with no cert requirement.
+    // helper) cost two seats like XL, just with no cert requirement.
     const hr = Math.min(Math.max(0, total - xl), helperByDate?.get(iso) || 0);
     const std = Math.max(0, total - xl - hr);
-    const units = std * dpr + (xl + hr) * 4; // XL_DRIVERS_PER_ROUTE
+    const units = std * dpr + (xl + hr) * 2 * dpr; // XL_SEATS_PER_ROUTE × ratio
     if (units > peakUnits) { peakUnits = units; mix = { standard: std, xl, helperRoutes: hr }; }
   }
   return { mix, routesMax };
@@ -53423,6 +53424,37 @@ document.addEventListener("input", (e) => {
   }, 500);
 });
 
+// Drivers-per-route input in the Drivers-needed ⓘ header popover (it must
+// live ON the table, like the hire-lead input, because only .plan-table-wrap
+// travels into Schedule → Targets — a control outside it stays hidden on
+// #view-okami). The other knob of Needed = routes × ratio × (1 + pad%).
+// Edits the hiring-settings drivers_per_route (shared with the forecast
+// sandbox and the availability popover via _rrForecastRates); this is its
+// ONLY live editor now that the old Staffing-outlook page is unreachable.
+// Same pattern as the pad slider: instant recompute, debounced server save.
+let _okamiDprSaveTimer = null;
+document.addEventListener("input", (e) => {
+  if (e.target?.id !== "rr-okami-dpr") return;
+  const raw = parseFloat(e.target.value);
+  if (!Number.isFinite(raw)) return; // mid-typing (empty field) — wait
+  const v = Math.max(1, Math.min(5, raw));
+  window._rrForecastRates = { ...(window._rrForecastRates || {}), driversPerRoute: v };
+  const padPct = Math.max(0, Math.min(50,
+    Number(window.RR?.dsp?.metadata?.staffing?.plan_pad_pct ?? 10) || 0));
+  if (!_okamiTotalsByDateCache) {
+    if (typeof renderOkamiLive === "function") renderOkamiLive();
+  } else {
+    _okamiRecomputeFromCache(padPct);
+  }
+  if (_okamiDprSaveTimer) clearTimeout(_okamiDprSaveTimer);
+  _okamiDprSaveTimer = setTimeout(async () => {
+    const { error } = await sb.rpc("hiring_settings_set", { p_drivers_per_route: v });
+    if (error) { _rrSwallow("hiring_settings_set", error); return; }
+    // Re-assert over any in-flight forecast-rates fetch that raced the save.
+    if (window._rrForecastRates) window._rrForecastRates.driversPerRoute = v;
+  }, 600);
+});
+
 // Recompute Drivers Needed + Gap cells from cached data, no network call.
 // Used when the operator drags the Staffing Plan Pad slider — instant
 // feedback without waiting for okami_grid to round-trip.
@@ -53444,7 +53476,7 @@ function _okamiRecomputeFromCache(padPct) {
     const weekStart = addDays(_okamiStartCache, w * 7);
     const { mix: weekMix, routesMax } = _rrOkamiWeekMix(weekStart, dpr, _okamiTotalsByDateCache, _okamiXlByDateCache, _okamiHelperByDateCache);
     const unplanned = routesMax === 0;
-    // Same XL-aware demand as the full render — XL routes cost 4 drivers.
+    // Same XL-aware demand as the full render — XL routes cost 2 seats × dpr.
     const needed = unplanned ? 0 : rrDriversNeededMix(weekMix, { driversPerRoute: dpr, padPct }).total;
     // Per-week projected availability from the model (the full render
     // computed it from the horizon RPC); flat count only as a fallback.
@@ -53786,7 +53818,9 @@ function _rrOkamiFormulaHtml() {
       <div style="font-family:var(--font-mono,monospace);font-size:var(--fs-xs);color:var(--text-muted)">ceil( peak routes/day × drivers-per-route × (1 + plan pad) )</div>
       ${example}
       <div style="margin-top:8px;display:grid;gap:6px;font-size:var(--fs-xs);color:var(--text-muted)">
-        <div><b>Drivers per route</b> — ${dpr} · set in Hiring settings (1 primary + backups)</div>
+        <div class="rr-tgt-formula-row"><b>Drivers per route</b> —
+          <input class="form-input form-input-sm rr-tgt-formula-input" id="rr-okami-dpr" type="number" min="1" max="5" step="0.5" value="${dpr}" aria-label="Drivers per route"/>
+          · roster bodies per route seat: 1 = just fill the seats, 2 = a full backup per seat. XL/helper routes cost two seats.</div>
         <div><b>Plan pad</b> — ${pad}% · extra <i>hires</i> buffer, the slider on the OKAMI page</div>
         <div><b>Cushion</b>${cushion != null ? ` — ${cushion}%` : ""} · different thing: adds extra <i>shifts</i> when the schedule is built, not extra drivers</div>
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><b>Hire lead time</b> —
@@ -53956,14 +53990,15 @@ async function _renderOkamiLiveImpl() {
 
   const totalsByDate = new Map();
   const filledByDate = new Map();
-  // Per-day XL route count (service_type_code === "XL"). XL routes staff
-  // FOUR drivers each (2 XL-certified + 2 helpers) vs a standard route's two,
-  // so the demand math needs the XL slice separated from the all-type total.
-  // Any routes not broken out by wave/type fall through as standard (the SP
-  // default), which is the safe, cheaper assumption.
+  // Per-day XL route count (service_type_code === "XL"). XL routes dispatch
+  // TWO people (1 XL-certified + 1 helper) vs a standard route's one, each
+  // seat costed at the drivers-per-route ratio, so the demand math needs the
+  // XL slice separated from the all-type total. Any routes not broken out by
+  // wave/type fall through as standard (the SP default), the safe, cheaper
+  // assumption.
   const xlByDate = new Map();
   // Per-day HELPER-type route count (SP-style paired route: driver +
-  // uncertified helper — service_type_code === "HELPER"). Costs 4 bodies
+  // uncertified helper — service_type_code === "HELPER"). Costs two seats
   // per route like XL, no certs.
   const helperByDate = new Map();
   const typeTotalsByWeekIdx = Array.from({ length: RR_OKAMI_WEEKS }, () => ({}));
@@ -54080,10 +54115,11 @@ async function _renderOkamiLiveImpl() {
       weekRoutes += t;
       if (t > routesMax) routesMax = t;
     }
-    // Peak-day route mix (standard vs XL) — XL routes staff 4 drivers each
-    // (2 XL-certified + 2 helpers) so a busy XL day can set demand above a
-    // higher plain-route day. routesMax stays the total-route peak for the
-    // editable input; the mix drives the Needed number.
+    // Peak-day route mix (standard vs XL) — XL routes dispatch two people
+    // (1 XL-certified + 1 helper), each costed at the drivers-per-route
+    // ratio (so 4 bodies at the default 2× ratio), so a busy XL day can set
+    // demand above a higher plain-route day. routesMax stays the
+    // total-route peak for the editable input; the mix drives Needed.
     const { mix: weekMix } = _rrOkamiWeekMix(weekStart, _fcDpr, totalsByDate, xlByDate, helperByDate);
     // A week with zero routes has no plan — rendering it as a healthy
     // green surplus made "no data" look like "covered through October".
@@ -54196,14 +54232,18 @@ async function _renderOkamiLiveImpl() {
       mixText = " · mix " + mixEntries.sort((a, b) => b[1] - a[1])
         .map(([code, v]) => `${code} ${Math.round((v / mixTotal) * 100)}%`).join(", ");
     }
+    // Two-seat routes (XL / HELPER) cost 2 × the drivers-per-route ratio —
+    // the two on-road seats each carry the same backup ratio as a standard
+    // seat (4 at the default 2×; 2 when the ratio is 1 = fill-the-seats).
+    const _xlCost = 2 * _fcDpr;
     const neededTitle = unplanned
       ? "No routes planned this week yet"
       : (xlRoutesPeak > 0 || helperRoutesPeak > 0)
         ? `ceil((${weekMix.standard} standard × ${_fcDpr}`
-          + (xlRoutesPeak > 0 ? ` + ${weekMix.xl} XL × 4` : "")
-          + (helperRoutesPeak > 0 ? ` + ${weekMix.helperRoutes} helper-route × 4` : "")
+          + (xlRoutesPeak > 0 ? ` + ${weekMix.xl} XL × ${_xlCost}` : "")
+          + (helperRoutesPeak > 0 ? ` + ${weekMix.helperRoutes} helper-route × ${_xlCost}` : "")
           + `) × ${(1 + padPct / 100).toFixed(2)} pad) = ${needed} drivers`
-          + (xlCertifiedNeeded > 0 ? ` · ${xlCertifiedNeeded} must be XL-certified (each XL route: 2 certified + 2 helpers)` : "")
+          + (xlCertifiedNeeded > 0 ? ` · ${xlCertifiedNeeded} must be XL-certified (each XL route: ${_fcDpr} certified + ${_xlCost - _fcDpr} helper${_xlCost - _fcDpr === 1 ? "" : "s"})` : "")
           + (helperRoutesPeak > 0 ? ` · helper routes run driver + helper, no certs` : "")
           + ` · avg day ${avgDay} routes${mixText}`
         : `ceil(peak ${routesMax} × ${_fcDpr} drivers/route × ${(1 + padPct / 100).toFixed(2)} pad) = ${needed} · avg day ${avgDay} routes${mixText}`;
@@ -54279,8 +54319,8 @@ async function _renderOkamiLiveImpl() {
       routesMax, weekRoutes, needed,
       // XL-aware demand: routesMix is the peak-day standard/XL split, so the
       // Risk-forecast sandbox (assessPlan demandOverride) recomputes needed
-      // with XL routes still costing 4 each. xlCertifiedNeeded = of `needed`,
-      // how many must hold xl_certified.
+      // with XL routes still costing 2 seats × the ratio. xlCertifiedNeeded
+      // = of `needed`, how many must hold xl_certified.
       routesMix: weekMix,
       xlCertifiedNeeded, xlRoutes: xlRoutesPeak,
       avail,
@@ -65585,9 +65625,9 @@ async function loadScheduleInsights(scope) {
   }
 
   // Per-day peak demand from OKAMI, XL-aware: standard routes cost the
-  // drivers-per-route ratio (2), XL routes cost 4 (driver + helper, ×2 for
-  // backups). Same driversNeededMix math as the 13-week plan, so this popover
-  // agrees with Targets instead of the old flat ×2.
+  // drivers-per-route ratio, XL routes cost two on-road seats at that same
+  // ratio (driver + helper). Same driversNeededMix math as the 13-week plan,
+  // so this popover agrees with Targets instead of the old flat ×2.
   const padPct = Math.max(0, Math.min(50, Number(window.RR?.dsp?.metadata?.staffing?.plan_pad_pct ?? 10) || 0));
   const _availDpr = window._rrForecastRates?.driversPerRoute ?? 2;
   const cells = (gridRes?.data || []);
@@ -65606,7 +65646,8 @@ async function loadScheduleInsights(scope) {
     }
   }
   // Peak DEMAND per day-of-week across the horizon: the date whose driver
-  // demand (std×dpr + xl×4) is highest for that weekday sets the day's Needed.
+  // demand (std×dpr + xl×2dpr) is highest for that weekday sets the day's
+  // Needed.
   const peakRoutesByDow = Object.fromEntries(DOW.map(d => [d, 0]));      // total routes, for context
   const peakMixByDow    = Object.fromEntries(DOW.map(d => [d, { standard: 0, xl: 0, helperRoutes: 0 }]));
   const peakUnitsByDow  = Object.fromEntries(DOW.map(d => [d, -1]));
@@ -65617,7 +65658,7 @@ async function loadScheduleInsights(scope) {
     const xl  = Math.min(routes, xlByDate.get(iso) || 0);
     const hr  = Math.min(Math.max(0, routes - xl), helperByDate.get(iso) || 0);
     const std = Math.max(0, routes - xl - hr);
-    const units = std * _availDpr + (xl + hr) * 4;
+    const units = std * _availDpr + (xl + hr) * 2 * _availDpr;
     if (routes > peakRoutesByDow[dow]) peakRoutesByDow[dow] = routes;
     if (units > peakUnitsByDow[dow]) { peakUnitsByDow[dow] = units; peakMixByDow[dow] = { standard: std, xl, helperRoutes: hr }; }
   }
@@ -65745,7 +65786,7 @@ document.addEventListener("click", (e) => {
       <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-top:14px;margin-bottom:6px">Per-day math</div>
       <div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-bottom:6px">For each day, we count the active drivers whose availability includes that day, then divide by total active drivers.</div>
       <div style="font-family:ui-monospace,monospace;font-size:var(--fs-xs);background:var(--canvas);padding:var(--s-2) var(--s-2-5);border-radius:var(--r-sm);color:var(--text)">% available = available_drivers ÷ total_active_drivers</div>
-      <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px">Needed column shows OKAMI peak demand for context: <code>ceil((standard × ${m.dpr} + two-body routes × 4) × (1 + ${m.padPct}%))</code>${m.hasXl ? " — XL and Helper-type routes staff 4 (driver + helper, ×2 for backups)" : ""}.</div>
+      <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px">Needed column shows OKAMI peak demand for context: <code>ceil((standard × ${m.dpr} + two-body routes × ${2 * m.dpr}) × (1 + ${m.padPct}%))</code>${m.hasXl ? ` — XL and Helper-type routes dispatch two people (driver + helper), each at the ${m.dpr}× ratio` : ""}.</div>
       <table style="width:100%;border-collapse:collapse;font-size:var(--fs-sm);margin-top:10px">
         <thead>
           <tr>
