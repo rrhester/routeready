@@ -625,6 +625,40 @@ operator approved via annotated HTML mockup, artifact e286e1ef…; feedback
   Sat thin", popover "30 avail · 37 seats · short 7" + Hire 15/Rebalance/
   Buffer actions, metadata persisted, no errors).
 
+**SHIPPED — Phantom cushion seats + 5th-day cap leak (2026-07-20, operator
+report "how can I have shifts not filled … drivers who were not provided
+with shifts" / "dig in — something is off"; screenshot: every day 27/28,
+"All routes covered · 7 cushion seats open", two 0h drivers):**
+- ROOT CAUSE (seats): the board's planned denominator rounds the DAY TOTAL
+  once — round(target × (1+cushion%)) — while apply_cushion_to_week
+  (0347/0519) rounded PER (date, station, wave, service_type) bucket.
+  Sum-of-rounds ≠ round-of-sum (e.g. 24 SP + 1 XL @10% → round(2.4)+
+  round(0.1) = 2 cushion rows vs plan 3): the promised seat has NO shift
+  row, the solver never receives it, NO driver can ever fill it, and the
+  banner reads "N cushion seats open" forever while idle drivers sit at 0h
+  and every diagnostic says "all covered". **Migration 0534** re-issues
+  apply_cushion_to_week apportioning each station-day's cushion TOTAL (one
+  rounding — the plan's) across its buckets by largest remainder (fuzz-
+  tested 20k cases: Σ always equals the plan, zero-fraction buckets never
+  gain a seat, single-bucket days byte-identical to 0519). Client
+  `denomByDate` (renderScheduleWeek) now rounds per (date, station) then
+  sums, matching the SQL on multi-station DSPs too. Playwright before/after
+  on a stubbed 12+13-route 2-station week: PRE-fix reproduces the
+  operator's exact banner ("27/28 · 189/196 · All routes covered · 7
+  cushion seats open", no errors, every real row filled); POST-fix 27/27 ·
+  189/189 all-covered; single-station 25@10% byte-identical (28/28).
+- SECOND FIX (5th day): the CP-SAT payload sent `use_fifth_day_optin` from
+  the Advanced data-source default — the 5th-Day mode's OFF branch never
+  writes `dataSources.fifth_day_optin` — so the solver granted opted-in
+  drivers max_days+1 while the popover read "5th Day: Off" (verified
+  against the real solver: 6 days at Max Days 5). The payload now gates it
+  on `fifth_day_fill === true`, parity with the preview engine's step8d.
+- The 0h-drivers half of such reports is the run report's job (pool
+  exclusion / availability / scoring competition) — but with the rows
+  actually materialized, Smart Fill can now USE idle drivers to close them.
+- **0534 MANUAL — paste in chat.** Independent of the 0525–0533 lens
+  chain; safe anytime after 0519. QA harness: `_qa-cushion.mjs`.
+
 **Still DEFERRED:** nothing else outstanding on the XL/helper model.
 
 ## DONE: Calendar 100-list (Onboarding → Calendar improvements)
