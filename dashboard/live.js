@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=aa12af29b138";
-import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=aa12af29b138";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=aa12af29b138";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=aa12af29b138";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=aa12af29b138";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=aa12af29b138";
-import { isChecklistComplete } from "./checklist-core.mjs?v=aa12af29b138";
+import { planScheduleWeek } from "./scheduling-engine.js?v=4552d14798b8";
+import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=4552d14798b8";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=4552d14798b8";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=4552d14798b8";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=4552d14798b8";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=4552d14798b8";
+import { isChecklistComplete } from "./checklist-core.mjs?v=4552d14798b8";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=aa12af29b138";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=aa12af29b138";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=aa12af29b138";
+} from "./msg-core.mjs?v=4552d14798b8";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=4552d14798b8";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=4552d14798b8";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -53823,9 +53823,14 @@ async function _renderOkamiLiveImpl() {
   // null pre-0525 → primary drivers.station_id fallback. All = fleet-wide.
   const _okScopeId = (typeof rrStationScopeId === "function") ? rrStationScopeId() : null;
   const _okMemberIds = _okScopeId ? await _rrDriverIdsAtStation(_okScopeId) : null;
+  // Use membership only when it actually has rows — an EMPTY set (join table
+  // present but nobody assigned to this station yet, or 0525 not backfilled)
+  // must NOT collapse the pool to zero via `.in("id", [])`; fall back to the
+  // primary drivers.station_id like the pre-migration path does.
+  const _okUseMembers = !!(_okMemberIds && _okMemberIds.size > 0);
   const _okScopeDrivers = (q) => {
     if (!_okScopeId) return q;
-    return _okMemberIds ? q.in("id", Array.from(_okMemberIds)) : q.eq("station_id", _okScopeId);
+    return _okUseMembers ? q.in("id", Array.from(_okMemberIds)) : q.eq("station_id", _okScopeId);
   };
 
   let [gridRes, drvRes, onbRes, horizonRes] = await Promise.all([
@@ -53850,10 +53855,19 @@ async function _renderOkamiLiveImpl() {
       : { p_first_week_start: _okamiStart, p_weeks: RR_OKAMI_WEEKS }),
   ]);
   // Pre-0531 the station-scoped overload 404s → retry fleet-wide so the
-  // Available column still renders (DSP-wide until the migration is applied).
+  // Available column still renders. When that happens under a scope the
+  // per-week projection is FLEET-wide, so we must NOT show it as the
+  // station's Available — the render below falls back to the station-scoped
+  // driver COUNT instead (loses per-week PTO granularity until 0531, but the
+  // headcount is correctly the station's, not the fleet's).
+  let _okHorizonFellBack = false;
   if (horizonRes.error && _okScopeId) {
+    _okHorizonFellBack = true;
     horizonRes = await sb.rpc("active_drivers_for_horizon", { p_first_week_start: _okamiStart, p_weeks: RR_OKAMI_WEEKS });
   }
+  // True only when the projection we hold is scope-appropriate (fleet-wide in
+  // All mode, or the real per-station overload succeeded under a scope).
+  const _okHorizonUsable = !(_okScopeId && _okHorizonFellBack);
 
   if (gridRes.error || drvRes.error) {
     const msg = gridRes.error?.message || drvRes.error?.message;
@@ -54041,7 +54055,10 @@ async function _renderOkamiLiveImpl() {
 
     // Per-week availability: payroll minus approved time-off (horizon
     // RPC), minus onboarding drivers not yet road-ready that week.
-    const hz = availByWeek.get(weekStartIso);
+    // Under a station scope where the per-station horizon overload isn't
+    // applied yet (0531), availByWeek is fleet-wide — ignore it and use the
+    // station-scoped driver count (_okamiActiveCount) so Available narrows.
+    const hz = _okHorizonUsable ? availByWeek.get(weekStartIso) : null;
     const payroll  = hz ? (hz.total_active ?? _okamiActiveCount) : _okamiActiveCount;
     const offCount = hz ? (hz.on_time_off || 0) : 0;
     const availRaw = hz ? Math.max(0, hz.available ?? _okamiActiveCount) : _okamiActiveCount;
@@ -54049,7 +54066,7 @@ async function _renderOkamiLiveImpl() {
     // belong to this station (membership, or primary station_id fallback)
     // count against its Available — matches the scoped pool above.
     const _okOnbAtStation = (o) =>
-      !_okScopeId || (_okMemberIds ? _okMemberIds.has(o.id) : o.station_id === _okScopeId);
+      !_okScopeId || (_okUseMembers ? _okMemberIds.has(o.id) : o.station_id === _okScopeId);
     const notReady = onbList
       ? onbList.filter((o) => (!o.hire_date || o.hire_date > weekStartIso) && _okOnbAtStation(o)).length
       : onboardingCount;
