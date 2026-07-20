@@ -611,6 +611,15 @@ operator approved via annotated HTML mockup, artifact e286e1ef…; feedback
   gap, hire-by), Rebalance (short days: pickups/widen availability),
   Buffer (thin days). Coverage re-derives in `_okamiRecomputeFromCache`
   (pad slider, workdays, daily saves) and lives on modelWeeks[w].coverage.
+- **REMOVED same day (operator: "I don't find it helpful … remove the
+  coverage and the gap pop out")**: the Coverage column (9th td — table back
+  to the 8-td contract, colspans 8) AND the Gap-pill explainer popover
+  (`_rrOkamiGapExplainHtml` + its click binding; the pill is a static
+  indicator again). NOTE the popover hosted the "Edit history" button — the
+  okami_demand_audit feed (0513) currently has NO UI entry point (handler
+  code kept; re-home it if asked). KEPT: the ⓘ "From your roster"
+  calibration + `_rrEnsureRosterCapacity` (trimmed — no PTO fetch) and
+  forecast-core `dayCoverage` (pure + tested, no UI consumer).
 - Tests 46 (dayCoverage). Browser-QA'd 8/8 (63-driver stub roster with
   availability shapes: Needed 63→78 via Use(4.0), coverage "Sun short 7 ·
   Sat thin", popover "30 avail · 37 seats · short 7" + Hire 15/Rebalance/
