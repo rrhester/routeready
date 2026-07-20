@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=39b23fb00e85";
-import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=39b23fb00e85";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=39b23fb00e85";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=39b23fb00e85";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=39b23fb00e85";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=39b23fb00e85";
-import { isChecklistComplete } from "./checklist-core.mjs?v=39b23fb00e85";
+import { planScheduleWeek } from "./scheduling-engine.js?v=aa12af29b138";
+import { assessPlan as rrAssessLaborPlan, driversNeededMix as rrDriversNeededMix, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=aa12af29b138";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=aa12af29b138";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=aa12af29b138";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=aa12af29b138";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=aa12af29b138";
+import { isChecklistComplete } from "./checklist-core.mjs?v=aa12af29b138";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=39b23fb00e85";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=39b23fb00e85";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=39b23fb00e85";
+} from "./msg-core.mjs?v=aa12af29b138";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=aa12af29b138";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=aa12af29b138";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -3929,7 +3929,7 @@ function _rrEnsureForecastRates() {
       sb.from("shifts").select("id", { count: "exact", head: true }).eq("dsp_id", dspId).gte("date", since60).in("status", ["scheduled", "completed", "called_off", "no_show"]),
       sb.from("drivers").select("id", { count: "exact", head: true }).eq("dsp_id", dspId).eq("status", "terminated").gte("updated_at", since90),
       sb.from("drivers").select("id", { count: "exact", head: true }).eq("dsp_id", dspId).eq("status", "active"),
-      sb.from("drivers").select("id, hire_date").eq("dsp_id", dspId).eq("status", "onboarding"),
+      sb.from("drivers").select("id, hire_date, station_id").eq("dsp_id", dspId).eq("status", "onboarding"),
       sb.rpc("hiring_settings_get"),
     ]);
     const totalShifts = totalRes.count || 0;
@@ -3941,7 +3941,7 @@ function _rrEnsureForecastRates() {
     const weeklyAttritionRate = activeCount > 0
       ? Math.min(0.10, (terms90 / (90 / 7)) / activeCount)
       : 0;
-    const onboarding = (onbRes.data || []).map((d) => ({ id: d.id, hire_date: d.hire_date || null }));
+    const onboarding = (onbRes.data || []).map((d) => ({ id: d.id, hire_date: d.hire_date || null, station_id: d.station_id || null }));
     const dprRaw = Number(hsRes?.data?.drivers_per_route);
     const driversPerRoute = Number.isFinite(dprRaw) ? Math.max(1, Math.min(5, dprRaw)) : 2;
     const rates = {
@@ -4263,10 +4263,16 @@ async function _rrSimulateNext13Weeks() {
   if (status) status.textContent = "in progress";
 
   try {
-    const { data, error } = await sb.rpc("active_drivers_for_horizon", {
-      p_first_week_start: baseIso,
-      p_weeks: 13,
-    });
+    // Scope the projection to the same station as the table (operator:
+    // each station is its own DSP). p_station_id lands in migration 0531;
+    // pre-migration the arg'd overload 404s → retry fleet-wide.
+    const _simScope = (typeof rrStationScopeId === "function") ? rrStationScopeId() : null;
+    let { data, error } = await sb.rpc("active_drivers_for_horizon", _simScope
+      ? { p_first_week_start: baseIso, p_weeks: 13, p_station_id: _simScope }
+      : { p_first_week_start: baseIso, p_weeks: 13 });
+    if (error && _simScope) {
+      ({ data, error } = await sb.rpc("active_drivers_for_horizon", { p_first_week_start: baseIso, p_weeks: 13 }));
+    }
     if (error) throw error;
     const rows = Array.isArray(data) ? data : [];
     const cache = {};
@@ -53794,24 +53800,44 @@ async function _renderOkamiLiveImpl() {
   // with no flash.
   _rrOkamiShowSkeleton(tbody);
 
-  const [gridRes, drvRes, onbRes, horizonRes] = await Promise.all([
+  // Master station lens · resolve the scope up front so the driver-POOL
+  // (Available) scopes to the station too, not just demand. Operator: each
+  // station is its own DSP — the Available headcount must be the station's,
+  // not the fleet's. Membership set is floating-aware (driver_stations);
+  // null pre-0525 → primary drivers.station_id fallback. All = fleet-wide.
+  const _okScopeId = (typeof rrStationScopeId === "function") ? rrStationScopeId() : null;
+  const _okMemberIds = _okScopeId ? await _rrDriverIdsAtStation(_okScopeId) : null;
+  const _okScopeDrivers = (q) => {
+    if (!_okScopeId) return q;
+    return _okMemberIds ? q.in("id", Array.from(_okMemberIds)) : q.eq("station_id", _okScopeId);
+  };
+
+  let [gridRes, drvRes, onbRes, horizonRes] = await Promise.all([
     sb.rpc("okami_grid", { p_start: _okamiStart, p_weeks: RR_OKAMI_WEEKS }),
-    sb.from("drivers")
+    _okScopeDrivers(sb.from("drivers")
       .select("id, status", { count: "exact", head: true })
       .eq("dsp_id", dspId)
-      .in("status", ["active", "onboarding"]),
+      .in("status", ["active", "onboarding"])),
     // Onboarding split — they're on payroll but not route-ready, so the
     // Available column separates them instead of silently counting them.
-    sb.from("drivers")
+    _okScopeDrivers(sb.from("drivers")
       .select("id", { count: "exact", head: true })
       .eq("dsp_id", dspId)
-      .eq("status", "onboarding"),
+      .eq("status", "onboarding")),
     // Per-week availability projection (payroll minus approved time-off
     // overlapping each week) — the same RPC the Risk-Forecast Simulate
     // uses, now folded into the base table so "Available" is a per-week
-    // projection instead of one flat snapshot repeated 13 times.
-    sb.rpc("active_drivers_for_horizon", { p_first_week_start: _okamiStart, p_weeks: RR_OKAMI_WEEKS }),
+    // projection instead of one flat snapshot repeated 13 times. When
+    // scoped, p_station_id (migration 0531) narrows the pool to the station.
+    sb.rpc("active_drivers_for_horizon", _okScopeId
+      ? { p_first_week_start: _okamiStart, p_weeks: RR_OKAMI_WEEKS, p_station_id: _okScopeId }
+      : { p_first_week_start: _okamiStart, p_weeks: RR_OKAMI_WEEKS }),
   ]);
+  // Pre-0531 the station-scoped overload 404s → retry fleet-wide so the
+  // Available column still renders (DSP-wide until the migration is applied).
+  if (horizonRes.error && _okScopeId) {
+    horizonRes = await sb.rpc("active_drivers_for_horizon", { p_first_week_start: _okamiStart, p_weeks: RR_OKAMI_WEEKS });
+  }
 
   if (gridRes.error || drvRes.error) {
     const msg = gridRes.error?.message || drvRes.error?.message;
@@ -53837,8 +53863,9 @@ async function _renderOkamiLiveImpl() {
   // Multi-station DSPs get a station filter (the grid is per-station;
   // summing hides one station being badly short). When set, every cache
   // below is built from the filtered rows, so the table, editing ops,
-  // chart and tfoot all follow — Available stays fleet-wide (drivers
-  // aren't per-station here) and the surfaces note that.
+  // chart and tfoot all follow. Available is now ALSO station-scoped
+  // (driver-pool counts + the horizon projection above), so a scoped view
+  // is a true blank-slate "new DSP" — demand AND supply for that station.
   const stationsInGrid = [];
   {
     const seen = new Set();
@@ -53851,9 +53878,9 @@ async function _renderOkamiLiveImpl() {
     stationsInGrid.sort((a, b) => String(a.code).localeCompare(String(b.code)));
     // Master station lens drives the Targets scope — one control (the sidebar
     // switcher), not a second per-page dropdown. Global "all" (null) = the
-    // fleet-wide plan; a scoped station filters DEMAND to it (Available stays
-    // fleet-wide, since drivers float between stations).
-    if (typeof rrStationScopeId === "function") _rrOkamiStationFilter = rrStationScopeId();
+    // fleet-wide plan; a scoped station filters DEMAND to it, and the
+    // Available pool above is scoped to the same station (new-DSP view).
+    _rrOkamiStationFilter = _okScopeId;
     if (_rrOkamiStationFilter && !seen.has(_rrOkamiStationFilter)) _rrOkamiStationFilter = null;
   }
   const useCells = _rrOkamiStationFilter
@@ -54002,8 +54029,13 @@ async function _renderOkamiLiveImpl() {
     const payroll  = hz ? (hz.total_active ?? _okamiActiveCount) : _okamiActiveCount;
     const offCount = hz ? (hz.on_time_off || 0) : 0;
     const availRaw = hz ? Math.max(0, hz.available ?? _okamiActiveCount) : _okamiActiveCount;
+    // Station-scoped when a station is selected: only onboarding drivers who
+    // belong to this station (membership, or primary station_id fallback)
+    // count against its Available — matches the scoped pool above.
+    const _okOnbAtStation = (o) =>
+      !_okScopeId || (_okMemberIds ? _okMemberIds.has(o.id) : o.station_id === _okScopeId);
     const notReady = onbList
-      ? onbList.filter((o) => !o.hire_date || o.hire_date > weekStartIso).length
+      ? onbList.filter((o) => (!o.hire_date || o.hire_date > weekStartIso) && _okOnbAtStation(o)).length
       : onboardingCount;
     const avail = Math.max(0, availRaw - notReady);
 
@@ -54061,7 +54093,7 @@ async function _renderOkamiLiveImpl() {
       let joinChip = "";
       if (onbList && w > 0) {
         const prevIso = fmtIsoDate(addDays(weekStart, -7));
-        const grads = onbList.filter((o) => o.hire_date && o.hire_date <= weekStartIso && o.hire_date > prevIso).length;
+        const grads = onbList.filter((o) => o.hire_date && o.hire_date <= weekStartIso && o.hire_date > prevIso && _okOnbAtStation(o)).length;
         if (grads > 0) joinChip = `<span class="rr-tgt-join-chip" title="${grads} onboarding driver${grads === 1 ? "" : "s"} become route-ready this week">+${grads} join</span>`;
       }
       chipsEl.innerHTML =

@@ -296,10 +296,25 @@ and refreshes live on toggle: switcher, Stations manager, schedule (week/staff/
 today/**requests**), drivers (roster/licenses/work-auth), targets+forecast
 (13-week + **daily drill-down** + P4 All-mode breakdown), attendance report,
 onboarding funnel, Today's Plan roster + coverage rail. DSP-wide by design:
-fleet-readiness + hiring-pipeline KPI tiles (vans pooled, hiring DSP-wide); the
-Targets **Available** column stays fleet-wide (drivers float — deliberate).
+fleet-readiness + hiring-pipeline KPI tiles (vans pooled, hiring DSP-wide).
 Migrations: **0525** (driver_stations) → **0526** (today_plan), both manual +
 graceful-degrading. Shipped PRs #4037/4046/4049/4051/4053/4055 (+ this one).
+
+**REVERSED — Targets "Available" now scopes per station (operator report
+2026-07-20: "my second station shows my first station's driver count"):** the
+earlier "Available stays fleet-wide (drivers float — deliberate)" call is
+OVERRIDDEN by the new-DSP directive. `_renderOkamiLiveImpl` now resolves the
+scope up front (`_okScopeId` + membership set `_okMemberIds`) and scopes the
+WHOLE supply side: the active/onboarding driver-pool count queries (membership
+`.in(id,…)`, primary `station_id` fallback), the per-week
+`active_drivers_for_horizon` projection (**migration 0531** adds `p_station_id`
+to it + `active_drivers_for_week`; graceful no-arg fallback pre-migration), AND
+the onboarding not-ready subtraction (`onbList` gained `station_id`; `notReady`
++ graduation chips filter by station). `_rrOkamiStationFilter = _okScopeId`. The
+"Simulate 13 wks" button scopes the same way. Browser-QA'd (2-station horizon
+stub, pools all=50/DCA1=30/DBO5=20): All→50, DCA1→30, DBO5→20, back→50; arg'd
+overload called; no errors. **Migration 0531 MANUAL — paste in chat.** Apply
+order: 0525 → 0526 → 0528 → 0529 → 0530 → **0531**.
 
 **SHIPPED — Recognition + Repair Center scope (new-DSP isolation):**
 - **Recognition** (`_loadRecognitionUpcoming` / `_loadRecognitionHistory` ~93108):
