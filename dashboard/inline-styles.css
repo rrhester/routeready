@@ -9183,40 +9183,6 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-tgt-use{padding:2px 9px;border:1px solid var(--accent-border);background:var(--accent-soft);color:var(--accent-text);border-radius:var(--r-pill);font-size:var(--fs-xs);font-weight:700;cursor:pointer}
 .rr-tgt-use:hover{background:var(--accent-soft-strong)}
 
-/* Targets · Coverage column (appended td 9 — renders right after Gap since
-   the Strategy/Hire-by/Status trio stays CSS-hidden) + its popover. */
-.rr-tgt-cov{display:inline-flex;align-items:center;gap:7px;border:0;background:transparent;padding:2px 5px;border-radius:var(--r-sm);font:inherit;font-size:var(--fs-sm);color:var(--text-muted);cursor:pointer;white-space:nowrap}
-.rr-tgt-cov:hover{background:var(--canvas)}
-.rr-tgt-cov-dot{flex:0 0 8px;width:8px;height:8px;border-radius:50%}
-.rr-tgt-cov.ok .rr-tgt-cov-dot{background:var(--green)}
-.rr-tgt-cov.thin .rr-tgt-cov-dot{background:var(--amber-bright)}
-.rr-tgt-cov.short .rr-tgt-cov-dot{background:var(--red)}
-.rr-tgt-cov .vr,.rr-covpop-body .vr{color:var(--red-dark);font-weight:700}
-.rr-tgt-cov .va,.rr-covpop-body .va{color:var(--amber-dark);font-weight:600}
-.rr-tgt-cov .vg,.rr-covpop-body .vg{color:var(--green-dark);font-weight:700}
-.rr-covpop-body{padding:12px 14px;display:flex;flex-direction:column;gap:10px;font-size:var(--fs-sm);color:var(--text-muted)}
-.rr-covpop-days{display:flex;flex-direction:column;gap:6px}
-.rr-covpop-day{display:grid;grid-template-columns:32px minmax(150px,1fr) auto;gap:10px;align-items:center}
-.rr-covpop-dl{font-weight:700;color:var(--text-muted)}
-.rr-covpop-bar{position:relative;height:12px;background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-sm)}
-.rr-covpop-fill{position:absolute;top:1px;bottom:1px;left:1px;border-radius:3px}
-.rr-covpop-fill.ok{background:var(--green-soft);border-right:3px solid var(--green)}
-.rr-covpop-fill.thin{background:var(--amber-soft);border-right:3px solid var(--amber)}
-.rr-covpop-fill.short{background:var(--red-soft);border-right:3px solid var(--red)}
-.rr-covpop-tick{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--sidebar-bg);border-radius:1px}
-.rr-covpop-tick-pad{opacity:.35}
-.rr-covpop-stat{white-space:nowrap;font-variant-numeric:tabular-nums}
-.rr-covpop-key{font-size:var(--fs-xs);color:var(--text-subtle)}
-.rr-covpop-tick-demo{display:inline-block;width:2px;height:10px;background:var(--sidebar-bg);vertical-align:-1px;margin-right:5px}
-.rr-covpop-acth{font-size:var(--fs-10);font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--text-subtle)}
-.rr-covpop-acts{display:flex;flex-direction:column;gap:7px}
-.rr-covpop-act{display:flex;gap:8px;align-items:baseline;font-size:var(--fs-sm);border:1px solid var(--border);border-radius:var(--r-md);padding:7px 10px;background:var(--surface)}
-.rr-covpop-act b{color:var(--text)}
-.rr-covpop-tag{flex:0 0 auto;font-size:var(--fs-10);font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:1px 7px;border-radius:var(--r-pill)}
-.rr-covpop-tag.hire{background:var(--red-soft);color:var(--red-dark)}
-.rr-covpop-tag.move{background:var(--accent-soft);color:var(--accent-text)}
-.rr-covpop-tag.buf{background:var(--amber-soft);color:var(--amber-dark)}
-.rr-covpop-tag.ok{background:var(--green-soft);color:var(--green-dark)}
 
 .strategy-pills{display:flex;gap:3px;flex-wrap:wrap}
 .strategy-pill{
