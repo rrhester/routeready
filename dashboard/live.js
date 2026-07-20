@@ -13556,7 +13556,22 @@ function _rrSyncNotesRailTop() {
       || document.querySelector("#view-schedule .cal-wrap");
     if (wk) {
       const wr = wk.getBoundingClientRect();
-      if (wr.top > 0 && (wr.width || wr.height)) _rrRailWeekTop = Math.round(wr.top);
+      if (wr.top > 0 && (wr.width || wr.height)) {
+        // Reject measurements where the header sits above the schedule
+        // body (a mid-scroll / mid-layout transient) — storing one would
+        // ride the rail up on the next Requests/Targets visit.
+        const bodyEl = document.querySelector("#view-schedule .tcp-body");
+        const bTop = bodyEl ? bodyEl.getBoundingClientRect().top : 0;
+        const wt = Math.round(wr.top);
+        if (!(bTop > 0) || wt >= Math.round(bTop)) {
+          _rrRailWeekTop = wt;
+          // Persist per viewport width so a session that enters Requests/
+          // Targets before the week grid ever lays out (fast toggle, deep
+          // entry) still pins to the exact week line instead of the
+          // content-card fallback (which sits a touch higher).
+          try { localStorage.setItem("rr-rail-week-top:" + window.innerWidth, String(wt)); } catch (_) {}
+        }
+      }
     }
   } catch (_) {}
   // The active schedule sub is detected from the DOM (display toggling),
@@ -13589,6 +13604,14 @@ function _rrSyncNotesRailTop() {
   // Requests/Targets pin to the week grid's remembered top so the rail
   // starts level with the Schedule page; the sels walk is their fallback.
   let t = (onRequests || onTargets) ? (_rrRailWeekTop || 0) : 0;
+  if (!t && (onRequests || onTargets)) {
+    // Week grid never measured this session — recover the line persisted
+    // by a previous session at this viewport width.
+    try {
+      const saved = Math.round(parseFloat(localStorage.getItem("rr-rail-week-top:" + window.innerWidth) || "")) || 0;
+      if (saved > 0) { t = saved; _rrRailWeekTop = saved; }
+    } catch (_) {}
+  }
   if (!t) sels.some((s) => {
     const el = document.querySelector(s);
     if (!el) return false;
