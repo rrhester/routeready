@@ -94,11 +94,27 @@ await page.keyboard.press("Escape");
 await page.waitForTimeout(300);
 R.moreClosedOnEscape=await page.evaluate(()=>document.getElementById("rr-ivcal-more-menu")?.hidden===true);
 
-// settings gear (back in view) opens the settings popover
+// settings gear opens the two-column sheet BELOW the gear, fully on-screen
 await page.click("#rr-cal-ribbon .oc-settings-btn");
 await page.waitForTimeout(400);
-R.settingsOpens=await page.evaluate(()=>!!document.getElementById("rr-ivcal-setmenu"));
-await page.keyboard.press("Escape");
+R.settings=await page.evaluate(()=>{
+  const m=document.getElementById("rr-ivcal-setmenu");
+  if(!m)return null;const r=m.getBoundingClientRect();
+  const gear=document.querySelector("#rr-cal-ribbon .oc-settings-btn").getBoundingClientRect();
+  return {w:Math.round(r.width),top:Math.round(r.top),
+    belowGear:r.top>=gear.bottom,
+    inViewport:r.top>=0&&r.left>=0&&r.right<=innerWidth&&r.bottom<=innerHeight,
+    cols:m.querySelectorAll(".oc-set-col").length,
+    title:m.querySelector(".oc-set-title")?.textContent.trim()};
+});
+// a control inside the sheet still works (time format seg)
+await page.click('#rr-ivcal-setmenu [data-set-clock] [data-ck="24"]');
+await page.waitForTimeout(500);
+R.settingsClockWorks=await page.evaluate(()=>document.querySelector('#rr-ivcal-setmenu [data-set-clock] [data-ck="24"]')?.classList.contains("on"));
+await page.click('#rr-ivcal-setmenu [data-set-clock] [data-ck="12"]');
+await page.waitForTimeout(400);
+await page.screenshot({path:"/tmp/claude-0/calhd-settings.png"});
+R.settingsCloseBtn=await page.evaluate(()=>{document.querySelector("#rr-ivcal-setmenu [data-set-close]")?.click();return !document.getElementById("rr-ivcal-setmenu");});
 await page.waitForTimeout(300);
 
 // zoom via the visible ＋ still re-renders (row height changes)
