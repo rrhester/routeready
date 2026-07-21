@@ -698,6 +698,13 @@ Browser-QA'd (`_qa-sacard.mjs`, okami+horizon stubs): covered state (need
 free fix 4.7 days, hire 22 ≈ 88 applicants @25%), live pad edit 20→10 →
 card updates instantly (80/65 → short 15, fix 4.3); on-Targets placement
 verified; no errors.
+**REMOVED same day (operator: "no — I don't like it"):** the card, its
+`.rr-sa-*` CSS, and `_qa-sacard.mjs` are gone (PR right after the ship).
+KEPT: `_rrForecastRates.funnelConversion` (the measured 120-day
+applicant→hire rate — tiny, harmless, useful to future surfaces) and the
+owner-simple mockup (artifact b877fc1a) if a lighter home — e.g. inside
+the Drivers-needed ⓘ popover — is ever wanted. Don't rebuild a prominent
+Targets-page card without a fresh explicit ask.
 
 **Still DEFERRED:** nothing else outstanding on the XL/helper model.
 
