@@ -3976,13 +3976,19 @@ function _rrEnsureForecastRates() {
     if (!dspId) return null;
     const since60 = fmtIsoDate(addDays(new Date(), -60));
     const since90 = new Date(Date.now() - 90 * 86400000).toISOString();
-    const [calloutRes, totalRes, termRes, activeRes, onbRes, hsRes] = await Promise.all([
+    const since120 = new Date(Date.now() - 120 * 86400000).toISOString();
+    const [calloutRes, totalRes, termRes, activeRes, onbRes, hsRes, recHiresRes, recApplRes] = await Promise.all([
       sb.from("shifts").select("id", { count: "exact", head: true }).eq("dsp_id", dspId).gte("date", since60).in("status", ["called_off", "no_show"]),
       sb.from("shifts").select("id", { count: "exact", head: true }).eq("dsp_id", dspId).gte("date", since60).in("status", ["scheduled", "completed", "called_off", "no_show"]),
       sb.from("drivers").select("id", { count: "exact", head: true }).eq("dsp_id", dspId).eq("status", "terminated").gte("updated_at", since90),
       sb.from("drivers").select("id", { count: "exact", head: true }).eq("dsp_id", dspId).eq("status", "active"),
       sb.from("drivers").select("id, hire_date, station_id").eq("dsp_id", dspId).eq("status", "onboarding"),
       sb.rpc("hiring_settings_get"),
+      // Funnel conversion for the staffing-answer card: drivers created vs
+      // applicants created over the trailing 120 days (same measurement as
+      // the staffing outlook's blended rate). Best-effort head counts.
+      sb.from("drivers").select("id", { count: "exact", head: true }).eq("dsp_id", dspId).gte("created_at", since120),
+      sb.from("applicants").select("id", { count: "exact", head: true }).eq("dsp_id", dspId).gte("created_at", since120),
     ]);
     const totalShifts = totalRes.count || 0;
     const calloutRate = totalShifts > 0 ? Math.min(0.5, (calloutRes.count || 0) / totalShifts) : 0;
@@ -3996,8 +4002,16 @@ function _rrEnsureForecastRates() {
     const onboarding = (onbRes.data || []).map((d) => ({ id: d.id, hire_date: d.hire_date || null, station_id: d.station_id || null }));
     const dprRaw = Number(hsRes?.data?.drivers_per_route);
     const driversPerRoute = Number.isFinite(dprRaw) ? Math.max(1, Math.min(5, dprRaw)) : 2;
+    // Blended applicant→hire rate, clamped like the staffing outlook's
+    // (a thin funnel defaults to 25%). Null only when the count queries fail.
+    const recAppl = recApplRes?.count ?? null;
+    const recHires = recHiresRes?.count ?? null;
+    const funnelConversion = (recAppl != null && recAppl > 0 && recHires != null)
+      ? Math.max(0.05, Math.min(0.95, recHires / recAppl))
+      : 0.25;
     const rates = {
       calloutRate, weeklyAttritionRate, onboarding, driversPerRoute,
+      funnelConversion,
       terms90, activeCount, totalShifts60: totalShifts, loadedAt: Date.now(),
     };
     window._rrForecastRates = rates;
@@ -53800,6 +53814,12 @@ function _rrUsHolidaysInWeek(weekStart) {
 // Footer summary line — totals across the horizon (reads the published
 // model, so it stays correct after Plan-Pad recomputes too).
 function _rrOkamiRenderTfoot() {
+  // The staffing-answer card re-renders on every totals refresh — this is
+  // the one seam every model-mutating path already flows through (full
+  // render, pad/workdays edits, daily saves), so the card can never go
+  // stale against the table. Runs before the foot's own early-returns so
+  // an empty model still clears the card.
+  try { _rrRenderStaffingAnswer(); } catch (_) { /* card is best-effort */ }
   const foot = document.getElementById("okami-tfoot");
   if (!foot) return;
   const weeks = window._rrOkamiModel?.weeks || [];
@@ -53851,6 +53871,99 @@ function _rrOkamiRenderTfoot() {
     <span class="rr-okami-foot-item"><b>${short}</b> wk short</span>
     ${unplanned ? `<span class="rr-okami-foot-item"><b>${unplanned}</b> wk unplanned</span>` : ""}
   </td></tr>${paceHtml}`;
+}
+
+// ─── Staffing answer · the owner-level verdict card above the 13-week table
+// ("You're N drivers short this week" + the plain math + two fixes) —
+// operator-approved mockup 2026-07-21. Lives INSIDE .plan-table-wrap so it
+// travels with the table into Schedule → Targets (anything outside the wrap
+// never reaches the sub-view operators actually use). Reads the SAME
+// published model as the table (window._rrOkamiModel), so its numbers can
+// never disagree with the Needed / Available / Gap columns.
+function _rrRenderStaffingAnswer() {
+  const wrap = document.querySelector(".plan-table-wrap");
+  if (!wrap) return;
+  const old = document.getElementById("rr-sa-card");
+  const weeks = window._rrOkamiModel?.weeks || [];
+  const todayIso = fmtIsoDate(new Date());
+  // "This week" = the model row containing today; a future-anchored table
+  // falls back to its first planned week so the card still answers.
+  let wk = weeks.find((w) => !w.unplanned && w.demandWeek
+    && w.weekStartIso <= todayIso
+    && todayIso <= fmtIsoDate(addDays(new Date(w.weekStartIso + "T12:00:00"), 6)));
+  if (!wk) wk = weeks.find((w) => !w.unplanned && w.demandWeek);
+  if (!wk || !Number.isFinite(wk.needed) || !Number.isFinite(wk.avail) || wk.needed <= 0) {
+    old?.remove();
+    return;
+  }
+  const need = wk.needed;
+  const have = wk.avail;
+  const short = Math.max(0, need - have);
+  const seats = Math.round(wk.demandWeek.weekSeats || 0);
+  const peak = Math.round(wk.demandWeek.peakSeats || 0);
+  const workdays = _rrWorkdaysPerWeek();
+  const pad = Math.max(0, Math.min(50, Number(window.RR?.dsp?.metadata?.staffing?.plan_pad_pct ?? 10) || 0));
+  const padF = 1 + pad / 100;
+  // When the busiest single day (not the weekly average) is what set
+  // `needed`, say so — "231 ÷ 3.5" would not explain the number.
+  const peakGoverns = Math.ceil(peak * padF) >= Math.ceil((seats / Math.max(0.1, workdays)) * padF);
+  // Free fix: the workday average at which the current roster covers the
+  // week (peak-day floor permitting) — shown only when it's actually
+  // reachable under the Smart Fill Max Days ceiling.
+  let freeFix = null;
+  if (short > 0 && have > 0 && Math.ceil(peak * padF) <= have) {
+    const wStar = Math.ceil((seats * padF / have) * 10) / 10;
+    let cap = 5;
+    try {
+      const sf = window._rrLoadSfRules?.() || {};
+      if (Number.isFinite(sf.maxDaysOverride)) cap = sf.maxDaysOverride;
+    } catch (_) { /* keep default cap */ }
+    if (wStar > workdays && wStar <= cap) freeFix = wStar;
+  }
+  const conv = Number(window._rrForecastRates?.funnelConversion) || 0.25;
+  const applicants = short > 0 ? Math.ceil(short / conv) : 0;
+  const readyLbl = addDays(new Date(), _rrHireLeadDays())
+    .toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const scopeCode = window._rrOkamiModel?.stationFilter;
+  const multiStation = Array.isArray(window._rrStationList)
+    && window._rrStationList.filter((s) => s && s.active !== false).length > 1;
+  const scopeLbl = multiStation ? (scopeCode ? escapeHtml(scopeCode) : "all stations") : "";
+  const mathThird = peakGoverns
+    ? `Busiest day needs ${peak} on the road, plus the ${pad}% margin`
+    : `${seats} ÷ ${workdays}, plus the ${pad}% margin`;
+  const card = document.createElement("div");
+  card.id = "rr-sa-card";
+  card.className = "rr-sa " + (short > 0 ? "rr-sa-short" : "rr-sa-ok");
+  card.innerHTML =
+    `<div class="rr-sa-verdict">
+      <div class="rr-sa-eyebrow">${escapeHtml(wk.label)} · ${escapeHtml(wk.dates)}${scopeLbl ? ` · ${scopeLbl}` : ""}</div>
+      <div class="rr-sa-title">${short > 0 ? `You're ${short} driver${short === 1 ? "" : "s"} short this week.` : "You're covered this week."}</div>
+      <div class="rr-sa-sub">You need <b>${need}</b> — you can count on <b>${have}</b>${short === 0 ? ` (${have - need} spare)` : ""}.</div>
+      <div class="rr-sa-bars" aria-hidden="true">
+        <div class="rr-sa-bar-row"><span class="rr-sa-bar-lab">Need</span><span class="rr-sa-track"><span class="rr-sa-fill rr-sa-fill-need"></span></span><span class="rr-sa-val">${need}</span></div>
+        <div class="rr-sa-bar-row"><span class="rr-sa-bar-lab">Have</span><span class="rr-sa-track"><span class="rr-sa-fill rr-sa-fill-have"></span></span><span class="rr-sa-val">${have}</span></div>
+      </div>
+    </div>
+    <div class="rr-sa-body">
+      <div class="rr-sa-math">
+        <div class="rr-sa-row"><span>Days of driving to cover this week</span><b>${seats}</b></div>
+        <div class="rr-sa-row"><span>Days your average driver works</span><b>${workdays} / week</b></div>
+        <div class="rr-sa-row"><span>${escapeHtml(mathThird)}</span><b>= ${need} drivers</b></div>
+      </div>
+      ${short > 0 ? `<div class="rr-sa-fixes">
+        ${freeFix ? `<div class="rr-sa-fix rr-sa-fix-free"><div class="rr-sa-fix-h">Free — no hiring</div>Get the average driver to <b>${freeFix} days</b> a week. Your ${have} then cover everything.</div>` : ""}
+        <div class="rr-sa-fix"><div class="rr-sa-fix-h">${freeFix ? "Or hire" : "Hire"}</div>Hire <b>${short}</b> — roughly <b>${applicants} applicant${applicants === 1 ? "" : "s"}</b> at your ~${Math.round(conv * 100)}% funnel conversion. A hire today is on the road ≈ <b>${escapeHtml(readyLbl)}</b>.</div>
+      </div>` : ""}
+    </div>`;
+  // Bar geometry as style props, not style="" attributes — the design-lint
+  // inline-style ratchet stays flat (same approach as the roster popover).
+  const maxN = Math.max(need, have, 1);
+  const needFill = card.querySelector(".rr-sa-fill-need");
+  const haveFill = card.querySelector(".rr-sa-fill-have");
+  if (needFill) needFill.style.width = Math.round(need / maxN * 100) + "%";
+  if (haveFill) haveFill.style.width = Math.round(have / maxN * 100) + "%";
+  if (old) old.replaceWith(card);
+  else wrap.insertBefore(card, wrap.firstChild);
 }
 
 // Who changed this week's plan — reads okami_demand_audit (migration
