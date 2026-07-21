@@ -27833,43 +27833,33 @@ body.rr-cmdk-open{ overflow:hidden }
    inset so the controls sit flush-left like Schedule's action bar. */
 #view-onboarding-ops[data-obsub="calendar"] .page-header.sched-nav-heading{ margin-top:-10px !important; padding-top:0 !important; padding-bottom:0 !important; align-items:center !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon{ padding-left:0 !important; margin-left:-6px !important; }
-/* Create pill relocated into the header (left of Work Week) · light-blue
-   pill sized to the control row; the create menu drops below it. */
-#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .rr-cal-create{
+/* ⋮ overflow (#rr-ivcal-more) · the header's quiet catch-all (2026-07-21
+   two-row redesign) — hosts New event / New task, the time-scale zoom, and
+   Calendar settings, replacing the retired Create pill + zoom seg + gear.
+   Same white-card menu language the Create menu used; opens right-aligned
+   because the trigger sits at the header's far right edge. */
+#view-onboarding-ops[data-obsub="calendar"] .oc-bar-more{
   position:relative !important; display:inline-flex !important; align-items:center !important;
-  margin:0 8px 0 0 !important; order:0 !important;
 }
-/* Create · a white command pill in the Schedule chrome (enterprise
-   pass 2026-07-11 — the light-blue #C2E7FF fill + navy edge was the
-   exact recipe the Schedule pass retired from the week-nav). */
-#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .rr-cal-create-trigger{
-  height:36px !important; min-width:0 !important; padding:0 14px !important; gap:8px !important;
-  background:var(--rr-white) !important; color:var(--rr-gray-900) !important;
-  border:1px solid var(--rr-ctl-border) !important; border-radius:6px !important;
-  box-shadow:none !important; font-size:var(--fs-12-5) !important; font-weight:600 !important;
-  cursor:pointer !important;
-}
-#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .rr-cal-create-trigger:hover{ background:var(--rr-ctl-hover) !important; }
-#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .rr-cal-create-plus{ width:16px !important; height:16px !important; color:var(--rr-gray-900) !important; flex:0 0 auto !important; }
-#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .rr-cal-create-caret{ width:12px !important; height:12px !important; color:var(--rr-gray-900) !important; flex:0 0 auto !important; }
-#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .rr-cal-create-menu{
-  position:absolute !important; top:calc(100% + 6px) !important; left:0 !important; z-index:60 !important;
-  min-width:200px !important; background:var(--rr-white) !important; border:1px solid #E8EDF5 !important;
+#view-onboarding-ops[data-obsub="calendar"] .rr-ivcal-more-menu{
+  position:absolute !important; top:calc(100% + 6px) !important; right:0 !important; left:auto !important; z-index:80 !important;
+  min-width:200px !important; background:var(--rr-white) !important; border:1px solid var(--rr-ctl-border) !important;
   border-radius:12px !important; box-shadow:0 10px 30px rgba(15,23,42,.14) !important;
   padding:6px !important; display:flex !important; flex-direction:column !important; gap:2px !important;
 }
-#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .rr-cal-create-menu[hidden]{ display:none !important; }
-#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .rr-cal-create-item{
-  display:flex !important; align-items:center !important; gap:10px !important; width:100% !important;
+#view-onboarding-ops[data-obsub="calendar"] .rr-ivcal-more-menu[hidden]{ display:none !important; }
+#view-onboarding-ops[data-obsub="calendar"] .rr-ivcal-more-item{
+  display:flex !important; align-items:center !important; width:100% !important;
   padding:8px 10px !important; border:0 !important; background:transparent !important; border-radius:8px !important;
-  font-size:var(--fs-md) !important; color:var(--rr-gray-900) !important; cursor:pointer !important; text-align:left !important;
+  font-size:var(--fs-md) !important; font-weight:500 !important; line-height:1.2 !important;
+  color:var(--rr-gray-900) !important; cursor:pointer !important; text-align:left !important; white-space:nowrap !important;
 }
-#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .rr-cal-create-item:hover{ background:var(--rr-ctl-hover) !important; }
-/* The menu icons carry no width/height attrs (they're sized in CSS like the
-   sidebar variant). Without this rule the ribbon-docked Create menu rendered
-   each SVG at its unconstrained intrinsic size — giant icons filling each row. */
-#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .rr-cal-create-item svg{
-  width:18px !important; height:18px !important; flex:0 0 auto !important; opacity:.85 !important;
+#view-onboarding-ops[data-obsub="calendar"] .rr-ivcal-more-item:hover,
+#view-onboarding-ops[data-obsub="calendar"] .rr-ivcal-more-item:focus-visible{
+  background:var(--rr-ctl-hover) !important; outline:none !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] .rr-ivcal-more-sep{
+  height:1px !important; margin:4px 6px !important; background:var(--rr-slate-200) !important;
 }
 /* Collapse the 115px tcp-strip height lock (onboarding-rrx.css:258) so the
    hidden-title calendar header hugs its controls instead of leaving a tall
@@ -28188,10 +28178,12 @@ body.rr-cmdk-open{ overflow:hidden }
    no !important is needed for the calendar-body overrides.
    ════════════════════════════════════════════════════════════════════════ */
 
-/* Header band → flat zone stacking: title row · controls row · KPI strip. */
+/* Header band → flat zone stacking: title row · controls row · KPI strip.
+   Tightened 2026-07-21 (two-row redesign): the toolbar hugs the tab row
+   above and the calendar below, recovering ~25% of the old header height. */
 #view-onboarding-ops[data-obsub="calendar"] .page-header.sched-nav-heading{
   background:transparent !important; border:0 !important; box-shadow:none !important;
-  padding-top:6px !important; padding-bottom:14px !important;
+  padding-top:2px !important; padding-bottom:8px !important;
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon{
   display:flex !important; flex-direction:column !important; align-items:stretch !important;
@@ -29671,72 +29663,12 @@ body.rr-cmdk-open{ overflow:hidden }
   #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev:hover{ transform:none !important; }
 }
 
-/* ════════════════════════════════════════════════════════════════════════
-   CALENDAR · "Create" pill (Google-Calendar style) — top of the .oc-side
-   sidebar. Pill trigger + dropdown menu (Interview / Event / Task) cloned
-   from the view-switcher dropdown (.rr-cal-viewdd-*), restyled on-brand as
-   an accent-filled rounded pill. Plus the compact "New task" dialog the
-   Task item opens. Scoped to the calendar view only.
-   ════════════════════════════════════════════════════════════════════════ */
-#view-onboarding-ops[data-obsub="calendar"] .oc-side .rr-cal-create{
-  position:relative !important; display:block !important; margin:2px 0 12px !important;
-}
-/* Trigger · accent-filled rounded pill with + icon, label and caret. */
-#view-onboarding-ops[data-obsub="calendar"] .oc-side .rr-cal-create-trigger{
-  display:inline-flex !important; align-items:center !important; justify-content:flex-start !important;
-  gap:10px !important; height:46px !important; min-width:138px !important; padding:0 20px 0 16px !important; margin:0 !important;
-  /* The calendar's floating primary — Amazon orange, never blue
-     (enterprise pass 2026-07-11). */
-  background:var(--rr-amber-primary) !important; color:var(--rr-white) !important;
-  border:0 !important; border-radius:24px !important;
-  box-shadow:0 10px 28px rgba(15,23,42,.16), 0 2px 6px rgba(15,23,42,.08) !important;
-  font-size:var(--fs-base) !important; font-weight:700 !important; line-height:1 !important; white-space:nowrap !important;
-  cursor:pointer !important; transition:box-shadow .15s ease, background .15s ease !important;
-}
-#view-onboarding-ops[data-obsub="calendar"] .oc-side .rr-cal-create-trigger:hover{
-  background:var(--rr-amber-primary-hover) !important;
-  box-shadow:0 14px 34px rgba(15,23,42,.2), 0 3px 8px rgba(15,23,42,.1) !important;
-}
-#view-onboarding-ops[data-obsub="calendar"] .oc-side .rr-cal-create-plus{
-  width:20px !important; height:20px !important; flex:0 0 auto !important;
-}
-#view-onboarding-ops[data-obsub="calendar"] .oc-side .rr-cal-create-label{ flex:0 1 auto !important; }
-#view-onboarding-ops[data-obsub="calendar"] .oc-side .rr-cal-create-caret{
-  width:12px !important; height:12px !important; flex:0 0 auto !important; margin-left:auto !important;
-  transition:transform .15s ease !important;
-}
-#view-onboarding-ops[data-obsub="calendar"] .oc-side .rr-cal-create-trigger[aria-expanded="true"] .rr-cal-create-caret{
-  transform:rotate(180deg) !important;
-}
-/* Dropdown panel · white card, navy outline, drops under the pill. */
-#view-onboarding-ops[data-obsub="calendar"] .oc-side .rr-cal-create-menu{
-  position:absolute !important; top:calc(100% + 6px) !important; left:0 !important; z-index:80 !important;
-  display:flex !important; flex-direction:column !important; gap:2px !important;
-  min-width:204px !important; width:max-content !important; padding:6px !important; margin:0 !important;
-  background:var(--rr-white) !important; border:1.5px solid var(--sidebar-bg, var(--rr-slate-900)) !important; border-radius:14px !important;
-  box-shadow:0 10px 28px rgba(15,23,42,.16), 0 2px 6px rgba(15,23,42,.08) !important;
-  animation:rrCalCreateIn .14s ease !important;
-}
-@keyframes rrCalCreateIn{ from{ opacity:0; transform:translateY(-4px); } to{ opacity:1; transform:none; } }
-#view-onboarding-ops[data-obsub="calendar"] .oc-side .rr-cal-create-menu[hidden]{ display:none !important; }
-/* Menu rows · 34px, icon + label, light-blue hover (matches the viewdd menu). */
-#view-onboarding-ops[data-obsub="calendar"] .oc-side .rr-cal-create-item{
-  display:flex !important; flex-direction:row !important; align-items:center !important; justify-content:flex-start !important;
-  gap:12px !important; width:100% !important; min-width:0 !important; height:34px !important; padding:0 12px !important; margin:0 !important;
-  background:transparent !important; color:var(--sidebar-bg, var(--rr-slate-900)) !important;
-  border:0 !important; border-radius:8px !important; box-shadow:none !important;
-  font-size:var(--fs-md) !important; font-weight:500 !important; line-height:1 !important; white-space:nowrap !important;
-  text-align:left !important; cursor:pointer !important;
-}
-#view-onboarding-ops[data-obsub="calendar"] .oc-side .rr-cal-create-item svg{
-  width:18px !important; height:18px !important; flex:0 0 auto !important; opacity:.85 !important;
-}
-#view-onboarding-ops[data-obsub="calendar"] .oc-side .rr-cal-create-item:hover,
-#view-onboarding-ops[data-obsub="calendar"] .oc-side .rr-cal-create-item:focus-visible{
-  background:var(--rr-ctl-hover) !important; color:var(--rr-gray-900) !important; outline:none !important;
-}
+/* (The sidebar "Create" pill CSS was removed with the pill itself —
+   2026-07-21 calendar-header redesign. Event/Task creation lives in the
+   header's ⋮ overflow, styled at the .rr-ivcal-more-* rules above; the
+   New-task dialog below is still opened by that menu's Task item.) */
 
-/* ── New-task dialog · compact centered modal (the Task menu item opens it). */
+/* ── New-task dialog · compact centered modal (the ⋮ Task menu item opens it). */
 .rr-cal-task-overlay{
   position:fixed !important; inset:0 !important; z-index:4000 !important;
   display:flex !important; align-items:center !important; justify-content:center !important;
@@ -29795,9 +29727,6 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 .rr-cal-task-add:hover{ background:var(--rr-amber-primary-hover) !important; }
 @media (prefers-reduced-motion: reduce){
-  #view-onboarding-ops[data-obsub="calendar"] .oc-side .rr-cal-create-menu,
-  #view-onboarding-ops[data-obsub="calendar"] .oc-side .rr-cal-create-trigger,
-  #view-onboarding-ops[data-obsub="calendar"] .oc-side .rr-cal-create-caret,
   .rr-cal-task-overlay,
   .rr-cal-task-card{ animation:none !important; transition:none !important; }
 }
@@ -30235,35 +30164,13 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-mini-d.in-range{ background:var(--rrp-selected) !important; color:var(--rrp-blue) !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-mini-d.today{ background:var(--rrp-blue) !important; color:var(--rr-white) !important; }
 
-/* ── Create button · white pill with the navy border the other page
-   buttons use (Smart Fill / Work Week / Availability), not a blue CTA. ── */
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .rr-cal-create-trigger{
-  height:36px !important; border-radius:6px !important;
-  /* White command pill — the #C2E7FF fill + navy edge is the recipe
-     the Schedule pass retired (enterprise pass 2026-07-11). */
-  background:var(--rr-white) !important; color:var(--rrp-ink) !important;
-  border:1px solid var(--rr-ctl-border) !important;
-  box-shadow:none !important;
-  transition:background .15s var(--rrp-ease) !important;
-}
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .rr-cal-create-trigger:hover{
-  background:var(--rr-ctl-hover) !important;
-  transform:none !important; box-shadow:none !important;
-}
-/* + and caret glyphs inherit the dark ink now the fill is white */
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .rr-cal-create-plus,
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .rr-cal-create-caret{ color:var(--rrp-ink) !important; }
-
-/* App-launcher dock in the calendar header · drop the hairline divider
-   (the global .rr-launcher-dock:not(:empty) border-left) per operator, and
-   space the launcher + bell that placeLauncher() parks here. */
-#view-onboarding-ops[data-obsub="calendar"] .rr-launcher-dock:not(:empty){
-  border-left:0 !important; padding-left:6px !important; margin-left:4px !important;
-  display:inline-flex !important; align-items:center !important; gap:4px !important;
-}
-/* Ensure the borrowed notification bell shows while docked here. */
-#view-onboarding-ops[data-obsub="calendar"] .rr-launcher-dock #rr-hdr-notif{
-  display:inline-flex !important;
+/* App-launcher dock · HIDDEN on the calendar sub (2026-07-21 redesign — the
+   app-grid + notification bell left the header). placeLauncher() skips an
+   invisible dock (offsetParent check) and returns the launcher + bell to
+   their global home, so nothing is lost — the header just stays quiet. The
+   dock keeps working on the Overview sub, which still shows this ribbon. */
+#view-onboarding-ops[data-obsub="calendar"] .rr-launcher-dock{
+  display:none !important;
 }
 
 /* ── Design-review fix (2026-07): restore functional cursors ──────────────────
@@ -30842,6 +30749,10 @@ html.rr-wb-popout-boot .app{min-height:100vh;background:var(--canvas)}
 /* The floating app launcher stays off the Workbooks screens — the
    workbook chrome owns that corner (operator request 2026-07-05). */
 body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
+/* …and off the Onboarding Calendar (two-row header redesign 2026-07-21:
+   the app-grid + bell left the calendar header; with its dock hidden the
+   launcher would otherwise float back into the corner it just vacated). */
+body:has(#view-onboarding-ops.view.active[data-obsub="calendar"]) .rr-applauncher.rr-al-fixed{display:none}
 #view-workbooks .wb-tb svg{width:16px;height:16px}
 #view-workbooks .wb-tb-txt{font-size:var(--fs-md);line-height:1;width:16px;display:inline-block;text-align:center}
 #view-workbooks .wb-tb-textc{border-bottom:2.5px solid var(--red);padding-bottom:1px}
@@ -32579,29 +32490,50 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
   flex-wrap:wrap !important; row-gap:8px !important; gap:8px !important;
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .ob-tab-divider{ display:none !important; }
-#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .rr-cal-create{ order:0 !important; margin:0 !important; }
+/* Pull the calendar body up under the compact toolbar (the generic
+   #obsub-pipeline reservation is 17px — sized for the Funnel's KPI band). */
+#view-onboarding-ops[data-obsub="calendar"] #obsub-pipeline{ margin-top:6px !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .oc-bar-nav{
   order:0; display:inline-flex; align-items:center; gap:6px; min-width:0;
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .rr-cal-viewgroup{ order:1 !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .rr-cal-newgroup{ order:2 !important; margin-left:auto !important; gap:6px !important; }
-#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .oc-bar-utils{
+#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .oc-bar-utils,
+#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .oc-bar-more{
   display:inline-flex; align-items:center; gap:6px;
 }
-/* Toolbar buttons (docked or not) · 36px, 6px radius, one border system. */
+/* Toolbar buttons (docked or not) · 32px compact row, 6px radius, one border
+   system (2026-07-21 redesign: the header lost ~25% of its height — the
+   bordered controls dropped 36→32px and the quiet icons went borderless). */
 #view-onboarding-ops[data-obsub="calendar"] .oc-bar-nav .oc-btn,
-#view-onboarding-ops[data-obsub="calendar"] .oc-bar-utils .oc-btn{
+#view-onboarding-ops[data-obsub="calendar"] .oc-bar-utils .oc-btn,
+#view-onboarding-ops[data-obsub="calendar"] .oc-bar-more .oc-btn{
   appearance:none; cursor:pointer; font:inherit; line-height:1;
   display:inline-flex; align-items:center; justify-content:center; gap:6px;
-  height:36px !important; padding:0 12px !important;
+  height:32px !important; padding:0 12px !important;
   background:var(--rr-white) !important; color:var(--rr-gray-900) !important;
   border:1px solid var(--rr-ctl-border) !important; border-radius:6px !important;
   font-size:var(--fs-12-5) !important; font-weight:600 !important; box-shadow:none !important;
   transition:background .12s ease, border-color .12s ease;
 }
 #view-onboarding-ops[data-obsub="calendar"] .oc-bar-nav .oc-btn:hover,
-#view-onboarding-ops[data-obsub="calendar"] .oc-bar-utils .oc-btn:hover{
+#view-onboarding-ops[data-obsub="calendar"] .oc-bar-utils .oc-btn:hover,
+#view-onboarding-ops[data-obsub="calendar"] .oc-bar-more .oc-btn:hover{
   background:var(--rr-ctl-hover) !important; border-color:var(--rr-ctl-border-hover) !important;
+}
+/* Quiet borderless icons · sidebar toggle, search, ⋮ — light gray borders
+   are reserved for the controls that need definition (Today / ‹ › / views). */
+#view-onboarding-ops[data-obsub="calendar"] .oc-bar-nav .oc-side-toggle,
+#view-onboarding-ops[data-obsub="calendar"] .oc-bar-utils .oc-search-btn,
+#view-onboarding-ops[data-obsub="calendar"] .oc-bar-more .oc-btn{
+  background:transparent !important; border-color:transparent !important;
+  color:var(--rr-slate-600) !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] .oc-bar-nav .oc-side-toggle:hover,
+#view-onboarding-ops[data-obsub="calendar"] .oc-bar-utils .oc-search-btn:hover,
+#view-onboarding-ops[data-obsub="calendar"] .oc-bar-more .oc-btn:hover{
+  background:var(--rr-ctl-hover) !important; border-color:transparent !important;
+  color:var(--rr-gray-900) !important;
 }
 /* Today button · "on today" active state, mirroring the Schedule page's
    #rr-sched-week-today.is-on-today (blue text + blue outline) so it reads as
@@ -32624,12 +32556,15 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
   outline:2px solid var(--rr-blue-600); outline-offset:1px;
 }
 #view-onboarding-ops[data-obsub="calendar"] .oc-bar-nav .oc-ico,
-#view-onboarding-ops[data-obsub="calendar"] .oc-bar-utils .oc-ico{
-  width:36px !important; padding:0 !important;
+#view-onboarding-ops[data-obsub="calendar"] .oc-bar-utils .oc-ico,
+#view-onboarding-ops[data-obsub="calendar"] .oc-bar-more .oc-ico{
+  width:32px !important; padding:0 !important;
 }
+/* Sidebar toggle stays quiet even while the panel is open — aria-pressed
+   carries the state; the reference design keeps this icon borderless. */
 #view-onboarding-ops[data-obsub="calendar"] .oc-bar-nav .oc-side-toggle.on{
-  color:var(--rr-blue-700) !important; background:rgba(37,99,235,.08) !important;
-  border-color:rgba(37,99,235,.30) !important;
+  color:var(--rr-gray-900) !important; background:transparent !important;
+  border-color:transparent !important;
 }
 /* The date range is the strongest text element in the header. */
 #view-onboarding-ops[data-obsub="calendar"] .oc-bar-nav .oc-period{
@@ -32637,41 +32572,29 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
   color:var(--rr-gray-900) !important; margin:0 8px 0 6px !important;
   letter-spacing:-.01em; white-space:nowrap;
 }
-/* Zoom segment matches the 36px control system. */
-#view-onboarding-ops[data-obsub="calendar"] .oc-bar-utils .oc-seg{
-  height:36px; display:inline-flex; align-items:stretch;
-  border:1px solid var(--rr-ctl-border) !important; border-radius:6px !important; overflow:hidden;
-  background:var(--rr-white);
-}
-#view-onboarding-ops[data-obsub="calendar"] .oc-bar-utils .oc-seg button{
-  appearance:none; cursor:pointer; font:inherit; border:0;
-  border-left:1px solid var(--rr-ctl-border); background:var(--rr-white);
-  color:var(--rr-gray-900); padding:0 10px; min-width:32px; font-size:var(--fs-15);
-}
-#view-onboarding-ops[data-obsub="calendar"] .oc-bar-utils .oc-seg button:first-child{ border-left:0; }
-#view-onboarding-ops[data-obsub="calendar"] .oc-bar-utils .oc-seg button:hover{ background:var(--rr-ctl-hover); }
-/* Ribbon pills (Create / Work Week / Availability) resolve to the same 6px
-   radius + 13px weight as the toolbar buttons. */
+/* (Zoom seg rules removed 2026-07-21 — the −/＋ seg left the toolbar; the
+   time scale is adjusted from the ⋮ overflow or Ctrl/⌘-scroll on the grid.) */
+/* Ribbon pills (Work Week / Availability) resolve to the same 6px radius +
+   compact 32px height as the toolbar buttons. */
 #view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .rr-cal-viewdd-trigger,
-#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon #rr-iv-rules-toggle,
-#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .rr-cal-create-trigger{
-  border-radius:6px !important; height:36px !important;
+#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon #rr-iv-rules-toggle{
+  border-radius:6px !important; height:32px !important;
   font-size:var(--fs-12-5) !important; font-weight:600 !important;
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .rr-cal-viewdd-trigger:focus-visible,
-#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon #rr-iv-rules-toggle:focus-visible,
-#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .rr-cal-create-trigger:focus-visible{
+#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon #rr-iv-rules-toggle:focus-visible{
   outline:2px solid var(--rr-blue-600); outline-offset:1px;
 }
 /* Primary · "+ Schedule interview". After _ivcalDockBar inserts the utils
    cluster the button is no longer :first-child, so the amber rules re-land
    here on the plain .subnav-item (the only one left in the group). */
 /* Schedule interview · RouteReady blue, the page's single clearest action
-   (redesign 2026-07-12 — was Amazon orange). */
+   (redesign 2026-07-12 — was Amazon orange). The ONLY solid-blue control in
+   the header (2026-07-21 redesign). */
 #view-onboarding-ops[data-obsub="calendar"] .rr-cal-newgroup .subnav-item{
   background:var(--rr-blue-700) !important; color:var(--rr-white) !important;
   border:1px solid var(--rr-blue-700) !important; border-radius:6px !important;
-  height:36px !important; padding:0 14px !important;
+  height:32px !important; padding:0 14px !important;
   font-weight:600 !important; font-size:var(--fs-12-5) !important; box-shadow:none !important;
 }
 #view-onboarding-ops[data-obsub="calendar"] .rr-cal-newgroup .subnav-item:hover{

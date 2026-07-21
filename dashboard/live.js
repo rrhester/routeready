@@ -9738,10 +9738,14 @@ document.addEventListener("click", (e) => {
     }
     return;
   }
-  const item = e.target.closest("#rr-cal-create-menu [data-rr-cal-create]");
+  // Items live in the ⋮ overflow (#rr-ivcal-more-menu) since the 2026-07-21
+  // header redesign; the legacy #rr-cal-create-menu selector is kept so any
+  // other host of the create menu keeps working.
+  const item = e.target.closest("#rr-cal-create-menu [data-rr-cal-create], #rr-ivcal-more-menu [data-rr-cal-create]");
   if (item) {
     const kind = item.getAttribute("data-rr-cal-create");
     _rrCloseCalCreateMenu();
+    if (typeof _rrCloseIvcalMoreMenu === "function") _rrCloseIvcalMoreMenu();
     if (kind === "task") {
       _rrCalNewTaskDialog();
     } else if (typeof window.rrIvcalNewEvent === "function") {
@@ -9770,6 +9774,42 @@ document.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
   const cm = document.getElementById("rr-cal-create-menu");
   if (cm && !cm.hidden) _rrCloseCalCreateMenu();
+});
+
+// Calendar ⋮ overflow (#rr-ivcal-more) · New event / New task / zoom /
+// Calendar settings — the actions displaced from the toolbar by the
+// 2026-07-21 two-row header redesign. Document-delegated like the
+// view-switcher dropdown above, so it survives the calendar's re-renders
+// (the menu itself is rebuilt by _ivcalRenderNow and docked into the ribbon
+// by _ivcalDockBar). Item actions are wired elsewhere: [data-rr-cal-create]
+// in the create handler above, [data-ivcal-zoom]/[data-ivcal-settings] in
+// _ivcalRenderNow.
+function _rrCloseIvcalMoreMenu() {
+  const m = document.getElementById("rr-ivcal-more-menu");
+  const t = document.getElementById("rr-ivcal-more-trigger");
+  if (m) m.hidden = true;
+  if (t) t.setAttribute("aria-expanded", "false");
+}
+document.addEventListener("click", (e) => {
+  if (!e.target.closest) return;
+  const trig = e.target.closest("#rr-ivcal-more-trigger");
+  if (trig) {
+    e.preventDefault(); e.stopPropagation();
+    const m = document.getElementById("rr-ivcal-more-menu");
+    if (m) {
+      const open = m.hidden;
+      m.hidden = !open;
+      trig.setAttribute("aria-expanded", open ? "true" : "false");
+    }
+    return;
+  }
+  const m = document.getElementById("rr-ivcal-more-menu");
+  if (m && !m.hidden && !e.target.closest("#rr-ivcal-more")) _rrCloseIvcalMoreMenu();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  const m = document.getElementById("rr-ivcal-more-menu");
+  if (m && !m.hidden) _rrCloseIvcalMoreMenu();
 });
 
 // Compact "New task" dialog opened by the Create → Task menu item. Creates a
@@ -27563,25 +27603,11 @@ function _isoWeek(d) {
   firstThu.setUTCDate(firstThu.getUTCDate() - firstDay + 3);
   return 1 + Math.round((x - firstThu) / (7 * 24 * 3600 * 1000));
 }
-// Google-Calendar-style "Create" pill for the top of the .oc-side sidebar.
-// An accent-filled pill trigger + a dropdown menu (Interview / Event / Task).
-// Open/close is handled by a document-delegated listener (see below) so it
-// survives sidebar re-renders, mirroring the #rr-cal-viewdd handler.
-function _ivcalCreatePill() {
-  const plus = `<svg class="rr-cal-create-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
-  const caret = `<svg class="rr-cal-create-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>`;
-  const icoInterview = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 10l4.55-2.28A1 1 0 0 1 21 8.62v6.76a1 1 0 0 1-1.45.9L15 14"/><rect x="3" y="6" width="12" height="12" rx="2"/></svg>`;
-  const icoEvent = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`;
-  const icoTask = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>`;
-  return `<div class="rr-cal-create">
-    <button type="button" class="rr-cal-create-trigger" id="rr-cal-create-trigger" aria-haspopup="menu" aria-expanded="false" aria-controls="rr-cal-create-menu" title="Create">${plus}<span class="rr-cal-create-label">Create</span>${caret}</button>
-    <div class="rr-cal-create-menu" id="rr-cal-create-menu" role="menu" aria-label="Create" hidden>
-      <button type="button" class="rr-cal-create-item" role="menuitem" data-rr-cal-create="interview">${icoInterview}<span>Interview</span></button>
-      <button type="button" class="rr-cal-create-item" role="menuitem" data-rr-cal-create="event">${icoEvent}<span>Event</span></button>
-      <button type="button" class="rr-cal-create-item" role="menuitem" data-rr-cal-create="task">${icoTask}<span>Task</span></button>
-    </div>
-  </div>`;
-}
+// (The Google-Calendar-style "Create" pill was retired in the 2026-07-21
+// calendar-header redesign. Its Event/Task items live on as
+// data-rr-cal-create rows inside the ⋮ overflow menu (#rr-ivcal-more-menu,
+// built in _ivcalRenderNow); the document-delegated [data-rr-cal-create]
+// handler below is unchanged and serves both the old and new hosts.)
 function _ivcalMiniMonths() {
   // Single clean month (Google-style), prev/next arrows in the header.
   const first = _ivcalMiniBase();
@@ -27722,20 +27748,38 @@ function _ivcalRenderNow() {
           <button class="oc-btn oc-ico" data-ivcal-nav="1" title="Next" aria-label="Next ${_ivcalView === "day" ? "day" : "period"}">${_chevR}</button>
           <span class="oc-period">${escapeHtml(_ivcalPeriodLabel())}</span>
         </div>`;
+  // Right cluster · one quiet search icon. Zoom/settings/create moved into
+  // the ⋮ overflow below (calendar-header redesign 2026-07-21) so the only
+  // solid action in the header is the frag's "+ Schedule interview" primary.
   const _barUtils = `<div class="oc-bar-group oc-bar-utils">
-          ${(_ivcalView === "month" || _ivcalView === "year" || _ivcalView === "agenda") ? "" : `<div class="oc-seg oc-zoom" title="Time scale — make slots bigger or smaller"><button data-ivcal-zoom="-8" aria-label="Smaller time slots">−</button><button data-ivcal-zoom="8" aria-label="Bigger time slots">＋</button></div>`}
           <button class="oc-btn oc-ico oc-search-btn" data-ivcal-search title="Search events (/)" aria-label="Search events"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
-          <button class="oc-btn oc-ico" data-ivcal-settings title="Calendar settings" aria-label="Calendar settings"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+        </div>`;
+  // ⋮ overflow · hosts the displaced toolbar actions: New event / New task
+  // (the retired Create pill's items — "Interview" is the primary button),
+  // the time-scale zoom, and Calendar settings (the retired gear). The menu
+  // must NOT carry .oc-menu — _ivcalCloseMenus() REMOVES that class from the
+  // document on every render. Open/close is document-delegated (mirrors
+  // #rr-cal-viewdd); zoom/settings/create items reuse their existing wiring.
+  const _barMore = `<div class="oc-bar-group oc-bar-more" id="rr-ivcal-more">
+          <button class="oc-btn oc-ico" type="button" id="rr-ivcal-more-trigger" aria-haspopup="menu" aria-expanded="false" aria-controls="rr-ivcal-more-menu" title="More calendar actions" aria-label="More calendar actions"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+          <div class="rr-ivcal-more-menu" id="rr-ivcal-more-menu" role="menu" aria-label="More calendar actions" hidden>
+            <button type="button" class="rr-ivcal-more-item" role="menuitem" data-rr-cal-create="event">New event</button>
+            <button type="button" class="rr-ivcal-more-item" role="menuitem" data-rr-cal-create="task">New task</button>
+            ${(_ivcalView === "month" || _ivcalView === "year" || _ivcalView === "agenda") ? "" : `<div class="rr-ivcal-more-sep" role="separator"></div>
+            <button type="button" class="rr-ivcal-more-item" role="menuitem" data-ivcal-zoom="8">Bigger time slots</button>
+            <button type="button" class="rr-ivcal-more-item" role="menuitem" data-ivcal-zoom="-8">Smaller time slots</button>`}
+            <div class="rr-ivcal-more-sep" role="separator"></div>
+            <button type="button" class="rr-ivcal-more-item" role="menuitem" data-ivcal-settings>Calendar settings…</button>
+          </div>
         </div>`;
   const _fullHtml = `
     <div class="oc${_ivcalSideOpen ? "" : " oc-side-closed"}">
       ${_ivcalSideOpen ? `<div class="oc-side">
         <button class="oc-side-x" data-ivcal-side title="Hide calendar panel" aria-label="Hide calendar panel">«</button>
-        ${_ivcalCreatePill()}
         ${_ivcalAwaiting()}
         ${_ivcalMiniMonths()}${_ivcalMyCalendars()}</div>` : ""}
       <div class="oc-main">
-        <div class="oc-bar">${_ivcalSideOpen ? "" : _ivcalCreatePill()}${_barNav}<span class="oc-sp"></span>${_barUtils}</div>
+        <div class="oc-bar">${_barNav}<span class="oc-sp"></span>${_barUtils}${_barMore}</div>
         ${_ivcalAvailNudge()}
         ${inner}
         ${_ivcalMultiSel.size ? `<div class="oc-bulkbar" role="toolbar" aria-label="Selection actions"><span class="oc-bulk-n">${_ivcalMultiSel.size} selected</span><button type="button" class="oc-btn oc-bulk-cancel" data-ivcal-bulk-cancel>Cancel events</button><button type="button" class="oc-btn" data-ivcal-bulk-clear>Clear</button></div>` : ""}
@@ -27757,18 +27801,10 @@ function _ivcalRenderNow() {
   host.classList.toggle("rr-oc-inplace", _hadOc && _paintSig === _ivcalLastPaintSig);
   _ivcalLastPaintSig = _paintSig;
 
-  // Operator: host the Create pill in the page header, to the LEFT of the
-  // Work Week / Availability view controls, instead of the calendar sidebar.
-  // The create menu is wired document-delegated, so it keeps working after the
-  // move; we drop any previously-relocated pill first to avoid stacking.
-  (function _ivcalDockCreate(){
-    var sub = document.querySelector("#rr-cal-ribbon .subnav");
-    if (!sub) return;
-    var stale = sub.querySelector(".rr-cal-create"); if (stale) stale.remove();
-    var cp = host.querySelector(".rr-cal-create");
-    var vg = sub.querySelector(".rr-cal-viewgroup");
-    if (cp && vg) sub.insertBefore(cp, vg);
-  })();
+  // (The Google-style "Create" pill was retired in the 2026-07-21 header
+  // redesign — its Event/Task items live in the ⋮ overflow now, and the
+  // "+ Schedule interview" primary covers interviews. _ivcalDockBar below
+  // still sweeps any stale .rr-cal-create out of the ribbon.)
 
   // Keep the current-time line ticking (created once, cheap minute updates).
   if (!_ivcalNowTimer) _ivcalNowTimer = setInterval(_ivcalTickNow, 60000);
@@ -27780,7 +27816,15 @@ function _ivcalRenderNow() {
   host.querySelectorAll("[data-ivcal-side]").forEach(btn => btn.onclick = (e) => { e.stopPropagation(); _ivcalToggleSide(); });
   host.querySelectorAll("[data-ivcal-zoom]").forEach(btn => btn.onclick = () => _ivcalSetZoom(parseInt(btn.getAttribute("data-ivcal-zoom"), 10)));
   host.querySelector("[data-ivcal-search]")?.addEventListener("click", () => _ivcalOpenSearch());
-  host.querySelector("[data-ivcal-settings]")?.addEventListener("click", (e) => { e.stopPropagation(); _ivcalSettingsMenu(e.currentTarget); });
+  // Settings lives in the ⋮ overflow now — anchor its popover to the ⋮
+  // TRIGGER (always visible), not the menu item, which is display:none the
+  // moment the menu closes and would give the popover a 0,0 anchor rect.
+  host.querySelector("[data-ivcal-settings]")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const anchor = document.getElementById("rr-ivcal-more-trigger") || e.currentTarget;
+    if (typeof _rrCloseIvcalMoreMenu === "function") _rrCloseIvcalMoreMenu();
+    _ivcalSettingsMenu(anchor);
+  });
   host.querySelectorAll("[data-ivcal-nav]").forEach(btn => btn.onclick = () => _ivcalNav(parseInt(btn.getAttribute("data-ivcal-nav"), 10)));
   // Mini-calendar (date navigator) wiring.
   host.querySelectorAll("[data-mini-nav]").forEach(b => b.onclick = () => {
@@ -28135,9 +28179,15 @@ function _ivcalRenderNow() {
     const navC = bar.querySelector(".oc-bar-nav");
     const utilC = bar.querySelector(".oc-bar-utils");
     if (!vg || !ng || !navC || !utilC) return;
-    sub.querySelectorAll(".oc-bar-nav, .oc-bar-utils").forEach(n => n.remove());
+    sub.querySelectorAll(".oc-bar-nav, .oc-bar-utils, .oc-bar-more, .rr-cal-create").forEach(n => n.remove());
     sub.insertBefore(navC, vg);
     ng.insertBefore(utilC, ng.firstChild);
+    // ⋮ overflow docks to the END of the action group, after the
+    // "+ Schedule interview" primary (search · primary · ⋮ — the reference
+    // order). The hidden "New" caption/divider spans sit after it in DOM but
+    // are display:none on the calendar sub, so the visual order holds.
+    const moreC = bar.querySelector(".oc-bar-more");
+    if (moreC) ng.appendChild(moreC);
     bar.remove();
   })();
 
@@ -61206,12 +61256,15 @@ function _rrViewSegPoll() {
 // placement, and the same persistent-container padding reservation (set-once,
 // !important, never reset). Routing goes through rrObNav — the same dispatcher
 // the sidebar children use — so highlight + behaviour stay in sync.
+// Text-only tabs (calendar-header redesign 2026-07-21): the icons were
+// dropped so the row reads as a quiet enterprise tab bar — label + blue
+// underline carry the state, matching the reference design.
 const _RR_OB_VIEWSEG_VIEWS = [
-  ["calendar",  "Calendar",  '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>'],
-  ["overview",  "Overview",  '<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>'],
-  ["funnel",    "Funnel",    '<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>'],
-  ["interview", "Interview", '<path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="9" y="2" width="6" height="4" rx="1"/><path d="M9 14l2 2 4-4"/>'],
-  ["workauth",  "Work auth", '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><polyline points="9 15 11 17 15 13"/>'],
+  ["calendar",  "Calendar"],
+  ["overview",  "Overview"],
+  ["funnel",    "Funnel"],
+  ["interview", "Interview"],
+  ["workauth",  "Work auth"],
 ];
 function _rrSyncObViewSeg(sub) {
   const seg = document.getElementById("rr-ob-viewseg");
@@ -61235,7 +61288,7 @@ function _rrBuildObViewSeg() {
   el.setAttribute("role", "tablist");
   el.setAttribute("aria-label", "Onboarding view");
   el.innerHTML = _RR_OB_VIEWSEG_VIEWS.map(v =>
-    `<button type="button" class="rr-viewseg-btn" role="tab" aria-selected="false" aria-label="${v[1]}" data-rr-viewseg="${v[0]}" title="${v[1]}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${v[2]}</svg><span class="rr-viewseg-label">${v[1]}</span></button>`
+    `<button type="button" class="rr-viewseg-btn" role="tab" aria-selected="false" aria-label="${v[1]}" data-rr-viewseg="${v[0]}" title="${v[1]}"><span class="rr-viewseg-label">${v[1]}</span></button>`
   ).join("");
   el.querySelectorAll("[data-rr-viewseg]").forEach(b =>
     b.addEventListener("click", () => window.rrObViewSeg(b.getAttribute("data-rr-viewseg"))));
