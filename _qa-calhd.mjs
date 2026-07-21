@@ -1,8 +1,10 @@
 // QA harness · Onboarding → Calendar two-row header redesign (2026-07-21).
 // Row 1 = #rr-ob-viewseg text-only tabs; Row 2 = #rr-cal-ribbon toolbar
-// (side toggle · Today · ‹ › · bold range · Work Week ▾ | search · primary ·
-// ⋮ overflow). Asserts the removed controls stay gone, the displaced actions
-// live in the ⋮ menu, nav/toggle still work, and Overview keeps its header.
+// (side toggle · Today · ‹ › · bold range · Work Week ▾ | zoom −＋ · search ·
+// settings gear · ⋮ create menu). Operator pass 2026-07-21: the Schedule
+// interview primary is GONE, zoom/settings are back in view, and the ⋮ holds
+// the create actions (New interview / event / task). Also asserts the header
+// rhythm survives, nav/toggle work, and Overview keeps its header.
 import { chromium } from "playwright";
 const DSP="11111111-1111-1111-1111-111111111111", UID="22222222-2222-2222-2222-222222222222", HOST="https://doiwrhkirgblcvuskhno.supabase.co";
 const b64=(o)=>Buffer.from(JSON.stringify(o)).toString("base64url");
@@ -67,10 +69,12 @@ const snap=()=>page.evaluate(()=>{
     viewdd:vis($("#rr-cal-ribbon #rr-cal-viewdd")),
     viewLabel:$("#rr-cal-viewdd-current")?.textContent?.trim(),
     search:vis($("#rr-cal-ribbon [data-ivcal-search]")),
-    primary:(()=>{const b=$("#rr-cal-ribbon .rr-cal-newgroup .subnav-item");if(!vis(b))return null;const cs=getComputedStyle(b);return {t:b.textContent.trim(),bg:cs.backgroundColor,h:Math.round(b.getBoundingClientRect().height)};})(),
+    zoomSegVisible:vis($("#rr-cal-ribbon .oc-zoom")),
+    gearVisible:vis($("#rr-cal-ribbon .oc-settings-btn")),
+    primaryGone:!$("#rr-cal-ribbon .rr-cal-newgroup .subnav-item"),
     more:vis($("#rr-ivcal-more-trigger")),
-    // visual order of the right cluster (search → primary → ⋮)
-    rightOrder:(()=>{const ids=[["search","#rr-cal-ribbon [data-ivcal-search]"],["primary","#rr-cal-ribbon .rr-cal-newgroup .subnav-item"],["more","#rr-ivcal-more-trigger"]];
+    // visual order of the right cluster (zoom → search → gear → ⋮)
+    rightOrder:(()=>{const ids=[["zoom","#rr-cal-ribbon .oc-zoom"],["search","#rr-cal-ribbon [data-ivcal-search]"],["gear","#rr-cal-ribbon .oc-settings-btn"],["more","#rr-ivcal-more-trigger"]];
       return ids.map(([k,s])=>{const e=$(s);return e?[k,Math.round(e.getBoundingClientRect().left)]:[k,null];}).sort((a,b)=>(a[1]??1e9)-(b[1]??1e9)).map(x=>x[0]).join(",");})(),
   };
 });
@@ -86,18 +90,20 @@ R.moreMenu=await page.evaluate(()=>{
   return {open:!!m&&!m.hidden,items:[...(m?.querySelectorAll(".rr-ivcal-more-item")||[])].map(b=>b.textContent.trim())};
 });
 await page.screenshot({path:"/tmp/claude-0/calhd-more.png"});
-await page.click('#rr-ivcal-more-menu [data-ivcal-settings]');
+await page.keyboard.press("Escape");
+await page.waitForTimeout(300);
+R.moreClosedOnEscape=await page.evaluate(()=>document.getElementById("rr-ivcal-more-menu")?.hidden===true);
+
+// settings gear (back in view) opens the settings popover
+await page.click("#rr-cal-ribbon .oc-settings-btn");
 await page.waitForTimeout(400);
 R.settingsOpens=await page.evaluate(()=>!!document.getElementById("rr-ivcal-setmenu"));
-R.moreClosedAfterSettings=await page.evaluate(()=>document.getElementById("rr-ivcal-more-menu")?.hidden===true);
 await page.keyboard.press("Escape");
 await page.waitForTimeout(300);
 
-// zoom via ⋮ still re-renders (row height changes)
+// zoom via the visible ＋ still re-renders (row height changes)
 const rhBefore=await page.evaluate(()=>getComputedStyle(document.querySelector("#rr-ivcal .oc-col")).height);
-await page.click("#rr-ivcal-more-trigger");
-await page.waitForTimeout(250);
-await page.click('#rr-ivcal-more-menu [data-ivcal-zoom="8"]');
+await page.click('#rr-cal-ribbon .oc-zoom [data-ivcal-zoom="8"]');
 await page.waitForTimeout(600);
 const rhAfter=await page.evaluate(()=>getComputedStyle(document.querySelector("#rr-ivcal .oc-col")).height);
 R.zoomWorks=rhBefore!==rhAfter;

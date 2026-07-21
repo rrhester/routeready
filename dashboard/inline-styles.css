@@ -27831,7 +27831,7 @@ body.rr-cmdk-open{ overflow:hidden }
    `> .page > .page-header` child selector never matched). -10px takes the
    Work-Week row from a 24px gap to ~14px; the ribbon reset removes the left
    inset so the controls sit flush-left like Schedule's action bar. */
-#view-onboarding-ops[data-obsub="calendar"] .page-header.sched-nav-heading{ margin-top:-10px !important; padding-top:0 !important; padding-bottom:0 !important; align-items:center !important; }
+#view-onboarding-ops[data-obsub="calendar"] .page-header.sched-nav-heading{ margin-top:0 !important; padding-top:0 !important; padding-bottom:0 !important; align-items:center !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon{ padding-left:0 !important; margin-left:-6px !important; }
 /* ⋮ overflow (#rr-ivcal-more) · the header's quiet catch-all (2026-07-21
    two-row redesign) — hosts New event / New task, the time-scale zoom, and
@@ -27857,9 +27857,6 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-onboarding-ops[data-obsub="calendar"] .rr-ivcal-more-item:hover,
 #view-onboarding-ops[data-obsub="calendar"] .rr-ivcal-more-item:focus-visible{
   background:var(--rr-ctl-hover) !important; outline:none !important;
-}
-#view-onboarding-ops[data-obsub="calendar"] .rr-ivcal-more-sep{
-  height:1px !important; margin:4px 6px !important; background:var(--rr-slate-200) !important;
 }
 /* Collapse the 115px tcp-strip height lock (onboarding-rrx.css:258) so the
    hidden-title calendar header hugs its controls instead of leaving a tall
@@ -28179,11 +28176,15 @@ body.rr-cmdk-open{ overflow:hidden }
    ════════════════════════════════════════════════════════════════════════ */
 
 /* Header band → flat zone stacking: title row · controls row · KPI strip.
-   Tightened 2026-07-21 (two-row redesign): the toolbar hugs the tab row
-   above and the calendar below, recovering ~25% of the old header height. */
+   Spacing matches the Schedule page's rhythm (operator 2026-07-21): the
+   tab-row divider → toolbar gap comes from #rr-ob-viewseg's 14px
+   margin-bottom + this top padding, and the toolbar → grid gap from this
+   bottom padding + #obsub-pipeline's margin — same air as Schedule's
+   tabs → action bar → week grid. Mirrored in the rrObFunnelChrome
+   inline-important layer (index.html). */
 #view-onboarding-ops[data-obsub="calendar"] .page-header.sched-nav-heading{
   background:transparent !important; border:0 !important; box-shadow:none !important;
-  padding-top:2px !important; padding-bottom:8px !important;
+  padding-top:6px !important; padding-bottom:10px !important;
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon{
   display:flex !important; flex-direction:column !important; align-items:stretch !important;
@@ -32490,9 +32491,9 @@ body:has(#view-onboarding-ops.view.active[data-obsub="calendar"]) .rr-applaunche
   flex-wrap:wrap !important; row-gap:8px !important; gap:8px !important;
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .ob-tab-divider{ display:none !important; }
-/* Pull the calendar body up under the compact toolbar (the generic
-   #obsub-pipeline reservation is 17px — sized for the Funnel's KPI band). */
-#view-onboarding-ops[data-obsub="calendar"] #obsub-pipeline{ margin-top:6px !important; }
+/* Toolbar → grid gap · paired with the band's bottom padding to match the
+   Schedule page's toolbar → week-grid air (operator 2026-07-21). */
+#view-onboarding-ops[data-obsub="calendar"] #obsub-pipeline{ margin-top:16px !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .oc-bar-nav{
   order:0; display:inline-flex; align-items:center; gap:6px; min-width:0;
 }
@@ -32521,16 +32522,19 @@ body:has(#view-onboarding-ops.view.active[data-obsub="calendar"]) .rr-applaunche
 #view-onboarding-ops[data-obsub="calendar"] .oc-bar-more .oc-btn:hover{
   background:var(--rr-ctl-hover) !important; border-color:var(--rr-ctl-border-hover) !important;
 }
-/* Quiet borderless icons · sidebar toggle, search, ⋮ — light gray borders
-   are reserved for the controls that need definition (Today / ‹ › / views). */
+/* Quiet borderless icons · sidebar toggle, search, settings gear, ⋮ — light
+   gray borders are reserved for the controls that need definition
+   (Today / ‹ › / views / the zoom seg). */
 #view-onboarding-ops[data-obsub="calendar"] .oc-bar-nav .oc-side-toggle,
 #view-onboarding-ops[data-obsub="calendar"] .oc-bar-utils .oc-search-btn,
+#view-onboarding-ops[data-obsub="calendar"] .oc-bar-utils .oc-settings-btn,
 #view-onboarding-ops[data-obsub="calendar"] .oc-bar-more .oc-btn{
   background:transparent !important; border-color:transparent !important;
   color:var(--rr-slate-600) !important;
 }
 #view-onboarding-ops[data-obsub="calendar"] .oc-bar-nav .oc-side-toggle:hover,
 #view-onboarding-ops[data-obsub="calendar"] .oc-bar-utils .oc-search-btn:hover,
+#view-onboarding-ops[data-obsub="calendar"] .oc-bar-utils .oc-settings-btn:hover,
 #view-onboarding-ops[data-obsub="calendar"] .oc-bar-more .oc-btn:hover{
   background:var(--rr-ctl-hover) !important; border-color:transparent !important;
   color:var(--rr-gray-900) !important;
@@ -32572,8 +32576,20 @@ body:has(#view-onboarding-ops.view.active[data-obsub="calendar"]) .rr-applaunche
   color:var(--rr-gray-900) !important; margin:0 8px 0 6px !important;
   letter-spacing:-.01em; white-space:nowrap;
 }
-/* (Zoom seg rules removed 2026-07-21 — the −/＋ seg left the toolbar; the
-   time scale is adjusted from the ⋮ overflow or Ctrl/⌘-scroll on the grid.) */
+/* Zoom segment · back in view (operator 2026-07-21), matched to the compact
+   32px control system. */
+#view-onboarding-ops[data-obsub="calendar"] .oc-bar-utils .oc-seg{
+  height:32px; display:inline-flex; align-items:stretch;
+  border:1px solid var(--rr-ctl-border) !important; border-radius:6px !important; overflow:hidden;
+  background:var(--rr-white);
+}
+#view-onboarding-ops[data-obsub="calendar"] .oc-bar-utils .oc-seg button{
+  appearance:none; cursor:pointer; font:inherit; border:0;
+  border-left:1px solid var(--rr-ctl-border); background:var(--rr-white);
+  color:var(--rr-gray-900); padding:0 10px; min-width:32px; font-size:var(--fs-15);
+}
+#view-onboarding-ops[data-obsub="calendar"] .oc-bar-utils .oc-seg button:first-child{ border-left:0; }
+#view-onboarding-ops[data-obsub="calendar"] .oc-bar-utils .oc-seg button:hover{ background:var(--rr-ctl-hover); }
 /* Ribbon pills (Work Week / Availability) resolve to the same 6px radius +
    compact 32px height as the toolbar buttons. */
 #view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .rr-cal-viewdd-trigger,
@@ -32585,32 +32601,9 @@ body:has(#view-onboarding-ops.view.active[data-obsub="calendar"]) .rr-applaunche
 #view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon #rr-iv-rules-toggle:focus-visible{
   outline:2px solid var(--rr-blue-600); outline-offset:1px;
 }
-/* Primary · "+ Schedule interview". After _ivcalDockBar inserts the utils
-   cluster the button is no longer :first-child, so the amber rules re-land
-   here on the plain .subnav-item (the only one left in the group). */
-/* Schedule interview · RouteReady blue, the page's single clearest action
-   (redesign 2026-07-12 — was Amazon orange). The ONLY solid-blue control in
-   the header (2026-07-21 redesign). */
-#view-onboarding-ops[data-obsub="calendar"] .rr-cal-newgroup .subnav-item{
-  background:var(--rr-blue-700) !important; color:var(--rr-white) !important;
-  border:1px solid var(--rr-blue-700) !important; border-radius:6px !important;
-  height:32px !important; padding:0 14px !important;
-  font-weight:600 !important; font-size:var(--fs-12-5) !important; box-shadow:none !important;
-}
-#view-onboarding-ops[data-obsub="calendar"] .rr-cal-newgroup .subnav-item:hover{
-  background:var(--rr-blue-800) !important; border-color:var(--rr-blue-800) !important;
-  color:var(--rr-white) !important;
-}
-#view-onboarding-ops[data-obsub="calendar"] .rr-cal-newgroup .subnav-item:active{
-  filter:brightness(.96);
-}
-#view-onboarding-ops[data-obsub="calendar"] .rr-cal-newgroup .subnav-item:focus-visible{
-  outline:2px solid var(--rr-blue-600); outline-offset:2px;
-}
-/* Show the plus glyph on the primary (the generic rule hides tile SVGs). */
-#view-onboarding-ops[data-obsub="calendar"] .rr-cal-newgroup .subnav-item > svg{
-  display:inline-block !important; width:14px !important; height:14px !important;
-}
+/* (The "+ Schedule interview" primary was retired 2026-07-21 — its blue
+   rules went with it. Interview creation lives in the ⋮ create menu, grid
+   double-click, and the composer paths.) */
 
 /* ── Grid frame · 64px gutter, timezone pinned at the top ─────────────── */
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-head,

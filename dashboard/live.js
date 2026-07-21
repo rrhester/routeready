@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=a597de3f0298";
-import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=a597de3f0298";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=a597de3f0298";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=a597de3f0298";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=a597de3f0298";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=a597de3f0298";
-import { isChecklistComplete } from "./checklist-core.mjs?v=a597de3f0298";
+import { planScheduleWeek } from "./scheduling-engine.js?v=c61245e578c3";
+import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=c61245e578c3";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=c61245e578c3";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=c61245e578c3";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=c61245e578c3";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=c61245e578c3";
+import { isChecklistComplete } from "./checklist-core.mjs?v=c61245e578c3";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=a597de3f0298";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=a597de3f0298";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=a597de3f0298";
+} from "./msg-core.mjs?v=c61245e578c3";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=c61245e578c3";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=c61245e578c3";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -27791,28 +27791,25 @@ function _ivcalRenderNow() {
           <button class="oc-btn oc-ico" data-ivcal-nav="1" title="Next" aria-label="Next ${_ivcalView === "day" ? "day" : "period"}">${_chevR}</button>
           <span class="oc-period">${escapeHtml(_ivcalPeriodLabel())}</span>
         </div>`;
-  // Right cluster · one quiet search icon. Zoom/settings/create moved into
-  // the ⋮ overflow below (calendar-header redesign 2026-07-21) so the only
-  // solid action in the header is the frag's "+ Schedule interview" primary.
+  // Right cluster · zoom −/＋ + search + settings gear stay VISIBLE (operator
+  // 2026-07-21: "I need the settings and the plus/minus tool back in view").
   const _barUtils = `<div class="oc-bar-group oc-bar-utils">
+          ${(_ivcalView === "month" || _ivcalView === "year" || _ivcalView === "agenda") ? "" : `<div class="oc-seg oc-zoom" title="Time scale — make slots bigger or smaller"><button data-ivcal-zoom="-8" aria-label="Smaller time slots">−</button><button data-ivcal-zoom="8" aria-label="Bigger time slots">＋</button></div>`}
           <button class="oc-btn oc-ico oc-search-btn" data-ivcal-search title="Search events (/)" aria-label="Search events"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
+          <button class="oc-btn oc-ico oc-settings-btn" data-ivcal-settings title="Calendar settings" aria-label="Calendar settings"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
         </div>`;
-  // ⋮ overflow · hosts the displaced toolbar actions: New event / New task
-  // (the retired Create pill's items — "Interview" is the primary button),
-  // the time-scale zoom, and Calendar settings (the retired gear). The menu
-  // must NOT carry .oc-menu — _ivcalCloseMenus() REMOVES that class from the
-  // document on every render. Open/close is document-delegated (mirrors
-  // #rr-cal-viewdd); zoom/settings/create items reuse their existing wiring.
+  // ⋮ overflow · CREATE actions only (the "+ Schedule interview" primary was
+  // retired 2026-07-21, so the retired Create pill's full item set lives
+  // here: Interview / Event / Task, same data-rr-cal-create wiring). The
+  // menu must NOT carry .oc-menu — _ivcalCloseMenus() REMOVES that class
+  // from the document on every render. Open/close is document-delegated
+  // (mirrors #rr-cal-viewdd).
   const _barMore = `<div class="oc-bar-group oc-bar-more" id="rr-ivcal-more">
-          <button class="oc-btn oc-ico" type="button" id="rr-ivcal-more-trigger" aria-haspopup="menu" aria-expanded="false" aria-controls="rr-ivcal-more-menu" title="More calendar actions" aria-label="More calendar actions"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
-          <div class="rr-ivcal-more-menu" id="rr-ivcal-more-menu" role="menu" aria-label="More calendar actions" hidden>
+          <button class="oc-btn oc-ico" type="button" id="rr-ivcal-more-trigger" aria-haspopup="menu" aria-expanded="false" aria-controls="rr-ivcal-more-menu" title="New interview, event, or task" aria-label="New interview, event, or task"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+          <div class="rr-ivcal-more-menu" id="rr-ivcal-more-menu" role="menu" aria-label="Create" hidden>
+            <button type="button" class="rr-ivcal-more-item" role="menuitem" data-rr-cal-create="interview">New interview</button>
             <button type="button" class="rr-ivcal-more-item" role="menuitem" data-rr-cal-create="event">New event</button>
             <button type="button" class="rr-ivcal-more-item" role="menuitem" data-rr-cal-create="task">New task</button>
-            ${(_ivcalView === "month" || _ivcalView === "year" || _ivcalView === "agenda") ? "" : `<div class="rr-ivcal-more-sep" role="separator"></div>
-            <button type="button" class="rr-ivcal-more-item" role="menuitem" data-ivcal-zoom="8">Bigger time slots</button>
-            <button type="button" class="rr-ivcal-more-item" role="menuitem" data-ivcal-zoom="-8">Smaller time slots</button>`}
-            <div class="rr-ivcal-more-sep" role="separator"></div>
-            <button type="button" class="rr-ivcal-more-item" role="menuitem" data-ivcal-settings>Calendar settings…</button>
           </div>
         </div>`;
   const _fullHtml = `
@@ -27859,15 +27856,7 @@ function _ivcalRenderNow() {
   host.querySelectorAll("[data-ivcal-side]").forEach(btn => btn.onclick = (e) => { e.stopPropagation(); _ivcalToggleSide(); });
   host.querySelectorAll("[data-ivcal-zoom]").forEach(btn => btn.onclick = () => _ivcalSetZoom(parseInt(btn.getAttribute("data-ivcal-zoom"), 10)));
   host.querySelector("[data-ivcal-search]")?.addEventListener("click", () => _ivcalOpenSearch());
-  // Settings lives in the ⋮ overflow now — anchor its popover to the ⋮
-  // TRIGGER (always visible), not the menu item, which is display:none the
-  // moment the menu closes and would give the popover a 0,0 anchor rect.
-  host.querySelector("[data-ivcal-settings]")?.addEventListener("click", (e) => {
-    e.stopPropagation();
-    const anchor = document.getElementById("rr-ivcal-more-trigger") || e.currentTarget;
-    if (typeof _rrCloseIvcalMoreMenu === "function") _rrCloseIvcalMoreMenu();
-    _ivcalSettingsMenu(anchor);
-  });
+  host.querySelector("[data-ivcal-settings]")?.addEventListener("click", (e) => { e.stopPropagation(); _ivcalSettingsMenu(e.currentTarget); });
   host.querySelectorAll("[data-ivcal-nav]").forEach(btn => btn.onclick = () => _ivcalNav(parseInt(btn.getAttribute("data-ivcal-nav"), 10)));
   // Mini-calendar (date navigator) wiring.
   host.querySelectorAll("[data-mini-nav]").forEach(b => b.onclick = () => {
