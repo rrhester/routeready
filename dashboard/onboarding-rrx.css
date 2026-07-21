@@ -1878,7 +1878,10 @@ body.rr-ob-compact #view-onboarding-ops.rrx-onboarding .ob-tb-btn svg {
   border-bottom: 1px solid var(--rr-slate-200);
   border-radius: 0;
   overflow: visible;
-  margin-bottom: 8px;           /* breathing room between the tabs and the toolbar below */
+  /* Match the Schedule strip's rhythm exactly (operator 2026-07-21: "the
+     space between the upper tabs and the buttons and the schedule — that is
+     the space needed on the calendar view"). */
+  margin-bottom: 14px;          /* breathing room between the tabs and the toolbar below */
 }
 #rr-ob-viewseg .rr-viewseg-btn {
   display: inline-flex;
@@ -1886,7 +1889,7 @@ body.rr-ob-compact #view-onboarding-ops.rrx-onboarding .ob-tb-btn svg {
   justify-content: center;
   width: auto;
   height: auto;
-  padding: 9px 14px 8px;
+  padding: 13px 16px 12px;
   margin-bottom: -1px;
   border: 0;
   border-bottom: 2px solid transparent;

@@ -386,16 +386,13 @@
                  Rules live on the Week tile. Wired in live.js. order:1 = first. -->
             <div class="sched-ribbon-group" data-group="calendar-controls" id="rr-cal-ribbon" style="order:1;position:relative">
               <div class="subnav" data-rr-tabbar="calendar-controls">
-                <!-- New-action subgroup (Schedule Interview — the page's one
-                     primary) · same full-height group treatment as the
-                     view-selector below, so the "New" group caption centers
-                     under it and sits on the strip's bottom line, mirroring
-                     "Rules". -->
+                <!-- Right-cluster host · _ivcalDockBar docks the calendar's
+                     utils (zoom · search · settings) and the ⋮ overflow here.
+                     The "Schedule interview" primary was RETIRED (operator
+                     2026-07-21) — interview creation lives in the ⋮ menu
+                     (New interview), on grid double-click, and in the event
+                     composer paths. -->
                 <div class="rr-cal-newgroup">
-                <button class="subnav-item" type="button" onclick="rrIvcalNewEvent()" title="Schedule a new interview">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                  <span>Schedule interview</span>
-                </button>
                 <!-- "Add calendar" left the ribbon (enterprise pass
                      2026-07-11): a setup task, not a daily command — and a
                      duplicate of the "+" on the sidebar's My-calendars
