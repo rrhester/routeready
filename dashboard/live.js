@@ -53534,6 +53534,41 @@ document.addEventListener("input", (e) => {
   }, 500);
 });
 
+// Same value, edited from the Drivers-needed ⓘ popover. The pad-row slider
+// above lives OUTSIDE .plan-table-wrap in view-okami.frag, and only the
+// table-wrap relocates into Schedule → Targets — so on the sub-view
+// operators actually use, the slider is unreachable and the pad was
+// effectively read-only (the popover text used to point at it anyway).
+// Mirrors the Workdays input: clamp, instant recompute, debounced
+// dsps.metadata save; also syncs the frag slider when both exist so the
+// two controls never disagree.
+let _okamiPadInpSaveTimer = null;
+document.addEventListener("input", (e) => {
+  if (e.target?.id !== "rr-okami-pad-inp") return;
+  const raw = parseInt(e.target.value, 10);
+  if (!Number.isFinite(raw)) return; // mid-typing (empty field) — wait
+  const pct = Math.max(0, Math.min(50, raw));
+  if (window.RR?.dsp?.metadata) {
+    window.RR.dsp.metadata.staffing = { ...(window.RR.dsp.metadata.staffing || {}), plan_pad_pct: pct };
+  }
+  const padSlider = document.getElementById("rr-okami-pad");
+  if (padSlider && Number(padSlider.value) !== pct) padSlider.value = pct;
+  const padLbl = document.getElementById("rr-okami-pad-val");
+  if (padLbl) padLbl.textContent = `${pct}%`;
+  if (!_okamiTotalsByDateCache) {
+    if (typeof renderOkamiLive === "function") renderOkamiLive();
+  } else {
+    _okamiRecomputeFromCache(pct);
+  }
+  if (_okamiPadInpSaveTimer) clearTimeout(_okamiPadInpSaveTimer);
+  _okamiPadInpSaveTimer = setTimeout(async () => {
+    const dspId = window.RR?.dsp?.id;
+    if (!dspId) return;
+    const { error } = await sb.from("dsps").update({ metadata: window.RR.dsp.metadata || {} }).eq("id", dspId);
+    if (error) _rrSwallow("plan_pad_pct save", error);
+  }, 500);
+});
+
 // Workdays-per-driver input in the Drivers-needed ⓘ header popover (it must
 // live ON the table, like the hire-lead input, because only .plan-table-wrap
 // travels into Schedule → Targets — a control outside it stays hidden on
@@ -53909,7 +53944,9 @@ function _rrOkamiFormulaHtml() {
           days/week · how many days a driver typically works. A route is 1 driver-shift per day; XL/helper routes are 2 (driver + helper).</div>
         ${_rrOkamiRosterCalHtml()}
         <div><b>Peak-day floor</b> — the roster can never be smaller than the busiest single day's seats, however the week averages out</div>
-        <div><b>Plan pad</b> — ${pad}% · extra <i>hires</i> buffer, the slider on the OKAMI page</div>
+        <div class="rr-tgt-formula-row"><b>Plan pad</b> —
+          <input class="form-input form-input-sm rr-tgt-formula-input" id="rr-okami-pad-inp" type="number" min="0" max="50" step="5" value="${pad}" aria-label="Staffing plan pad percent"/>
+          % · extra <i>hires</i> buffer on top of the staffing math (the schedule cushion below is a separate thing)</div>
         <div><b>Cushion</b>${cushion != null ? ` — ${cushion}%` : ""} · different thing: adds extra <i>shifts</i> when the schedule is built, not extra drivers</div>
         <div class="rr-tgt-formula-row"><b>Hire lead time</b> —
           <input class="form-input form-input-sm rr-tgt-formula-input" id="rr-tgt-hire-lead" type="number" min="7" max="120" step="1" value="${_rrHireLeadDays()}"/>

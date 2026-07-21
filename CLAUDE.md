@@ -659,6 +659,24 @@ with shifts" / "dig in — something is off"; screenshot: every day 27/28,
 - **0534 MANUAL — paste in chat.** Independent of the 0525–0533 lens
   chain; safe anytime after 0519. QA harness: `_qa-cushion.mjs`.
 
+**SHIPPED — Plan pad editable in the ⓘ popover (2026-07-21, operator: "I
+want the staffing to only assume 10% buffer"):** the pad had become
+READ-ONLY in practice — `#rr-okami-pad-row` (the slider) sits OUTSIDE
+`.plan-table-wrap` in view-okami.frag, and only the table-wrap relocates
+into Schedule → Targets, so the sub-view operators actually use never shows
+it (the ⓘ text even pointed at "the slider on the OKAMI page"). Same
+orphaned-control class as the retired Staffing-outlook ratio editor. Fixed:
+the Drivers-needed ⓘ popover's static Plan-pad line is now an editable
+input `#rr-okami-pad-inp` (0–50, step 5, same rr-tgt-formula-row pattern as
+Workdays/Hire-lead), with a document-level listener mirroring the wdw one
+(clamp → metadata.staffing.plan_pad_pct → instant _okamiRecomputeFromCache
+→ debounced dsps PATCH → syncs the frag slider if both exist). Browser-QA'd
+(13-wk okami stub, 24 SP + 1 XL/day, DSP stored pad 20): popover shows 20,
+type 10 → Needed 44→41 instantly (ceil(36.4×1.2)→ceil(36.4×1.1) exact),
+PATCH carries plan_pad_pct:10, reopen shows 10, no errors. QA harness:
+`_qa-padinp.mjs`. The operator sets their 10% themselves in the popover —
+per-DSP data, nothing to migrate.
+
 **Still DEFERRED:** nothing else outstanding on the XL/helper model.
 
 ## DONE: Calendar 100-list (Onboarding → Calendar improvements)
