@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=4552d14798b8";
-import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=4552d14798b8";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=4552d14798b8";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=4552d14798b8";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=4552d14798b8";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=4552d14798b8";
-import { isChecklistComplete } from "./checklist-core.mjs?v=4552d14798b8";
+import { planScheduleWeek } from "./scheduling-engine.js?v=a597de3f0298";
+import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=a597de3f0298";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=a597de3f0298";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=a597de3f0298";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=a597de3f0298";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=a597de3f0298";
+import { isChecklistComplete } from "./checklist-core.mjs?v=a597de3f0298";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=4552d14798b8";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=4552d14798b8";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=4552d14798b8";
+} from "./msg-core.mjs?v=a597de3f0298";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=a597de3f0298";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=a597de3f0298";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -87580,6 +87580,20 @@ function _flRenderRoster() {
 
   const rows = _flApplyRosterFilters(_fleetRows);
   if (rows.length === 0) {
+    // Under a station scope an empty roster usually means the vans just
+    // haven't been ASSIGNED to this station yet (unassigned vans show only
+    // under "All stations") — say so instead of the misleading "No vans yet".
+    const _flEmptyScope = (typeof rrStationScopeId === "function") ? rrStationScopeId() : null;
+    if (_fleetRows.length === 0 && _flEmptyScope) {
+      const st = ((typeof _rrStationList !== "undefined" ? _rrStationList : [])
+        .find((s) => s.id === _flEmptyScope) || {});
+      tbody.innerHTML = `<tr><td colspan="7"><div class="fl-empty">
+          <div class="ic">${_flVanIconSvg()}</div>
+          <h3>No vans at ${escapeHtml(st.code || st.name || "this station")} yet</h3>
+          <p>Vans without a station appear only under “All stations”. Switch to All stations, open a van, and set its <strong>Station</strong> on the Profile tab to bring it into this view.</p>
+        </div></td></tr>`;
+      return;
+    }
     tbody.innerHTML = _fleetRows.length === 0
       ? `<tr><td colspan="7"><div class="fl-empty">
           <div class="ic">${_flVanIconSvg()}</div>
@@ -88709,7 +88723,10 @@ async function openFleetDrawer(vehicleId, opts) {
     await loadFleetDrawer(vehicleId);
   } else {
     _fdVehicle = {
-      vehicle: { id: null, name: "", kind: "van", status: "active", ownership: "dsp_owned", operational_status: "operational" },
+      // A van added while the station lens is scoped starts at that station
+      // (All mode → no station); the Profile select shows + can change it.
+      vehicle: { id: null, name: "", kind: "van", status: "active", ownership: "dsp_owned", operational_status: "operational",
+                 station_id: (typeof rrStationScopeId === "function" ? rrStationScopeId() : null) },
       drivers: [], logs: []
     };
     document.getElementById("rr-fd-title").textContent = "Add van";
@@ -88895,6 +88912,23 @@ function _fdOverviewHtml(v, drivers, logs) {
   `;
 }
 
+// Station assignment — the master station lens scopes the whole Fleet page
+// by vehicles.station_id, and a van with no station shows only under "All
+// stations". vehicle_record_save has accepted p_station_id since 0231; this
+// select is the operator's way to actually set it. Options come from the
+// boot-loaded active-station list; a van homed at a now-inactive station
+// keeps a labelled option so the select stays truthful.
+function _fdStationField(v) {
+  const list = (typeof _rrStationList !== "undefined" && Array.isArray(_rrStationList)) ? _rrStationList : [];
+  if (!list.length) return "";
+  const options = [{ value: "", label: "— No station" }]
+    .concat(list.map((s) => ({ value: s.id, label: [s.code, s.name].filter(Boolean).join(" — ") || "Station" })));
+  if (v && v.station_id && !list.some((s) => s.id === v.station_id)) {
+    options.push({ value: v.station_id, label: `${v.station_code || "Current station"} (inactive)` });
+  }
+  return _fdField("station_id", "Station", "select", { options });
+}
+
 function _fdProfileHtml(v) {
   return `
     <div class="fd-section">
@@ -88920,6 +88954,7 @@ function _fdProfileHtml(v) {
         { value: "cargo_van", label: "Cargo Van" },
         { value: "box_truck", label: "Box Truck" },
       ]})}
+      ${_fdStationField(v)}
       <!-- Operational status is governed by the Fleet roster, not the
            drawer.  Show it read-only with a hint to the operator. -->
       <div class="fd-field">
