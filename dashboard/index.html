@@ -905,7 +905,10 @@
                 band.style.setProperty('align-items', 'center', 'important');
                 band.style.setProperty('justify-content', 'flex-start', 'important');
                 band.style.setProperty('gap', '10px', 'important');
-                band.style.setProperty('padding', '0 18px 8px', 'important');
+                // Right pad 52px = the fixed utility rail's width, so the
+                // borrowed bell/avatar stop at the card edge (the same
+                // reserve #obsub-pipeline makes) instead of under the rail.
+                band.style.setProperty('padding', '0 52px 8px 18px', 'important');
                 if (actions) actions.style.setProperty('flex', '0 0 auto', 'important');
                 // Relocate the filter tabs into the top bar, left of the actions.
                 if (tabs && actions && tabs.parentNode !== band) band.insertBefore(tabs, actions);
@@ -999,8 +1002,13 @@
                 // air from this 10px bottom pad + #obsub-pipeline's margin.
                 // Mirrors inline-styles.css ("Header band → flat zone
                 // stacking"); inline-important here so a stale ?v= CSS bundle
-                // can't fight it.
-                band.style.setProperty('padding', key === 'calendar' ? '6px 20px 10px' : '0 18px 8px', 'important');
+                // can't fight it. Right pad 52px on every sub = the fixed
+                // utility rail's width, so the header's right-aligned icons
+                // (calendar ⋯/gear cluster, Overview's launcher dock) end
+                // flush with the cards below (#obsub-pipeline reserves the
+                // same 52px) instead of running under the rail — matching
+                // the Schedule week action bar (operator 2026-07-21).
+                band.style.setProperty('padding', key === 'calendar' ? '6px 52px 10px 20px' : '0 52px 8px 18px', 'important');
                 // Kill any vertical ribbon-group hairline.
                 band.querySelectorAll('.sched-ribbon-group').forEach(function (g) {
                   g.style.setProperty('border-left', '0', 'important');

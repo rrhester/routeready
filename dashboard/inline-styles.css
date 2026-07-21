@@ -17555,7 +17555,13 @@ body.rr-cmdk-open{ overflow:hidden }
             justify-content:flex-start;
             gap:8px;
             min-width:0;
-            padding:0 !important;
+            /* Right pad = the rail reserve (--rr-rail-reserve, defined at the
+               end of this file): the strip sits OUTSIDE .tcp-body, so without
+               this its right-aligned chrome (launcher + bell in
+               #rr-tgt-chrome-host) ran under the fixed utility rail instead
+               of ending at the table edge like the week action bar. */
+            padding:0 var(--rr-rail-reserve, 52px) 0 0 !important;
+            transition:padding-right 240ms cubic-bezier(.2, 0, .2, 1);
             background:transparent !important;
             border:0 !important;
             box-shadow:none !important;
@@ -33673,3 +33679,27 @@ body:has(#view-onboarding-ops.view.active[data-obsub="calendar"]) .rr-applaunche
 .rr-tgt-fs .rr-tgt-formula-row b{color:var(--text)}
 .rr-tgt-fs-meas{font-size:var(--fs-xs);color:var(--text-subtle);display:inline-flex;align-items:center;gap:6px;margin-left:4px}
 .rr-tgt-fs-note{font-size:var(--fs-xs);color:var(--text-subtle)}
+
+/* ─── Right utility-rail reserve token (2026-07-21) ──────────────────────
+   52px = the fixed right utility rail's width (schedule-rrx.css:5675).
+   The week grid clears it via .tcp-body{padding-right:52px}
+   (schedule-rrx.css:6030), but the Roster/Targets KPI strips sit OUTSIDE
+   .tcp-body, so their right-aligned chrome (app launcher + bell, docked
+   by _rrMoveChromeToRoster/_rrMoveChromeToTargets) rendered UNDER the
+   rail instead of stopping at the card edge like the week action bar
+   (operator report 2026-07-21). The strips consume this token as their
+   right padding; while a rail panel (Notes / Tasks / …) is open it widens
+   to mirror the .tcp-body push, so the chrome slides left with the cards
+   instead of hiding beneath the open panel. */
+#view-schedule{--rr-rail-reserve:52px}
+#view-schedule.rr-notes-open{--rr-rail-reserve:calc(min(360px, 86vw) + 52px)}
+/* The roster-mode strip needs (0,2,3,0) specificity: both schedule-rrx.css
+   AND its runtime-injected cache-proof copy (which loads AFTER this file)
+   assert `#view-schedule.rrx-schedule #rr-sched-kpis.sched-kpi-pills
+   {padding:0}` at (0,2,2,0) — the extra .tcp-kpi class outranks them
+   without an importance escalation. (#rr-sched-targets-kpis takes the reserve
+   directly in its own padding rule higher up in this file.) */
+#view-schedule.rrx-schedule #rr-sched-kpis.sched-kpi-pills.tcp-kpi{
+  padding-right:var(--rr-rail-reserve, 52px);
+  transition:padding-right 240ms cubic-bezier(.2, 0, .2, 1);
+}
