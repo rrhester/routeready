@@ -33720,3 +33720,43 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 /* Referral-program drawer carries its own header; hide the hoisted
    section's duplicate head/title inside it. */
 #rr-obref-body .settings-section-head{display:none}
+
+/* ─── Staffing answer card · owner verdict above the 13-week table ───────
+   Rendered by _rrRenderStaffingAnswer (live.js) as the first child of
+   .plan-table-wrap, so it rides the table between #view-okami and
+   Schedule → Targets. Inside the base wrap (bordered card) it renders as
+   a flush banner; on the Targets sub-view (transparent wrap) it carries
+   its own card chrome. Token-only. */
+.rr-sa{border-bottom:1px solid var(--border);background:var(--surface)}
+#view-schedule #sched-sub-targets .rr-tgt-13w .rr-sa{border:1px solid var(--border);border-radius:var(--r-lg);margin-bottom:var(--s-3);overflow:hidden}
+.rr-sa-verdict{padding:var(--s-4) var(--s-5);text-align:center}
+.rr-sa-short .rr-sa-verdict{background:var(--amber-soft)}
+.rr-sa-ok .rr-sa-verdict{background:var(--green-soft)}
+.rr-sa-eyebrow{font-size:var(--fs-xs);font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-subtle)}
+.rr-sa-title{font-size:var(--fs-xl);font-weight:800;letter-spacing:-.01em;margin-top:2px;color:var(--text)}
+.rr-sa-short .rr-sa-title{color:var(--amber-dark)}
+.rr-sa-ok .rr-sa-title{color:var(--green-dark)}
+.rr-sa-sub{font-size:var(--fs-md);color:var(--text-muted);margin-top:2px}
+.rr-sa-sub b{color:var(--text);font-variant-numeric:tabular-nums}
+.rr-sa-bars{max-width:400px;margin:var(--s-3) auto 0;display:grid;gap:6px}
+.rr-sa-bar-row{display:flex;align-items:center;gap:10px}
+.rr-sa-bar-lab{flex:0 0 40px;text-align:right;font-size:var(--fs-xs);color:var(--text-muted)}
+.rr-sa-track{flex:1;height:20px;border-radius:6px;background:var(--canvas);position:relative;overflow:hidden}
+.rr-sa-fill{position:absolute;top:0;left:0;bottom:0;border-radius:6px}
+.rr-sa-fill-need{background:var(--amber)}
+.rr-sa-ok .rr-sa-fill-need{background:var(--green)}
+.rr-sa-fill-have{background:var(--accent)}
+.rr-sa-val{flex:0 0 30px;text-align:left;font-size:var(--fs-md);font-weight:700;font-variant-numeric:tabular-nums;color:var(--text)}
+.rr-sa-body{display:grid;grid-template-columns:1fr 1fr;gap:var(--s-5);padding:var(--s-4) var(--s-5)}
+.rr-sa-ok .rr-sa-body{grid-template-columns:1fr;max-width:560px;margin:0 auto}
+@media (max-width:900px){.rr-sa-body{grid-template-columns:1fr}}
+.rr-sa-row{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--border-subtle);font-size:var(--fs-md)}
+.rr-sa-row:last-child{border-bottom:0}
+.rr-sa-row span{color:var(--text-muted)}
+.rr-sa-row b{color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap}
+.rr-sa-fixes{display:grid;gap:8px;align-content:start}
+.rr-sa-fix{border-radius:var(--r-md);padding:10px 14px;font-size:var(--fs-md);color:var(--text-muted);background:var(--canvas);line-height:1.5}
+.rr-sa-fix b{color:var(--text)}
+.rr-sa-fix-free{background:var(--green-soft)}
+.rr-sa-fix-h{font-size:var(--fs-10);font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:3px}
+.rr-sa-fix-free .rr-sa-fix-h{color:var(--green-dark)}

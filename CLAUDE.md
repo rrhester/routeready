@@ -677,6 +677,28 @@ PATCH carries plan_pad_pct:10, reopen shows 10, no errors. QA harness:
 `_qa-padinp.mjs`. The operator sets their 10% themselves in the popover —
 per-DSP data, nothing to migrate.
 
+**SHIPPED — Staffing answer card (2026-07-21, operator approved the
+owner-simple mockup, artifact b877fc1a: "yes — build it"):** the owner-level
+verdict above the 13-week table — "You're N drivers short this week" (or
+covered), need-vs-have bars, the plain math (week seats ÷ workdays + pad),
+and two fixes: FREE (the workday average at which the current roster covers
+the week — shown only when reachable under the Smart Fill Max Days cap and
+the peak-day floor) or HIRE (gap → applicants via a measured 120-day
+funnel conversion added to `_rrForecastRates.funnelConversion`, road-ready
+date via hire lead). `_rrRenderStaffingAnswer` renders it as the FIRST
+CHILD of `.plan-table-wrap` so it travels with the table into Schedule →
+Targets (the orphaned-control lesson), reads `window._rrOkamiModel` (never
+disagrees with the table columns), and re-renders via a hook at the top of
+`_rrOkamiRenderTfoot` — the one seam every model-refresh path flows
+through (full render, pad/workdays edits, daily saves). Peak-governed weeks
+swap the divide line for "Busiest day needs N on the road". CSS `.rr-sa-*`
+token-only; bar widths as JS style props (inline-style ratchet flat).
+Browser-QA'd (`_qa-sacard.mjs`, okami+horizon stubs): covered state (need
+44 / have 50 / 6 spare / green, no fixes), short state (87/65 → short 22,
+free fix 4.7 days, hire 22 ≈ 88 applicants @25%), live pad edit 20→10 →
+card updates instantly (80/65 → short 15, fix 4.3); on-Targets placement
+verified; no errors.
+
 **Still DEFERRED:** nothing else outstanding on the XL/helper model.
 
 ## DONE: Calendar 100-list (Onboarding → Calendar improvements)
