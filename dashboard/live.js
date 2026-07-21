@@ -53921,51 +53921,46 @@ function _rrOkamiEnhanceHeader() {
 // work week (what availability allows / what recent schedules actually
 // averaged) with one-click adoption into the Workdays input. Empty until
 // the roster-capacity fetch lands (the popover regenerates on each open).
-function _rrOkamiRosterCalHtml() {
-  const cap = _rrEnsureRosterCapacity();
-  if (!cap || (cap.availAvg == null && cap.schedAvg == null)) return "";
-  const fmt1 = (v) => (Math.round(v * 10) / 10).toFixed(1);
-  const useBtn = (v) => `<button type="button" class="rr-tgt-use" data-rr-okami-wdw-use="${fmt1(Math.max(1, Math.min(7, v)))}">Use</button>`;
-  const rows = [];
-  if (cap.availAvg != null) {
-    rows.push(`<div class="rr-tgt-roster-row"><span>Availability allows · avg days marked available (${cap.availWith} of ${cap.activeTotal} drivers set)</span><span class="rr-tgt-roster-r"><span class="n">${fmt1(cap.availAvg)}</span>${useBtn(cap.availAvg)}</span></div>`);
-  }
-  if (cap.schedAvg != null) {
-    rows.push(`<div class="rr-tgt-roster-row"><span>Actually scheduled · avg days worked per working driver, last 4 weeks</span><span class="rr-tgt-roster-r"><span class="n">${fmt1(cap.schedAvg)}</span>${useBtn(cap.schedAvg)}</span></div>`);
-  }
-  return `<div class="rr-tgt-roster-cal">
-    <div class="rr-tgt-roster-cal-h">From your roster</div>
-    ${rows.join("")}
-    <div class="rr-tgt-roster-note">Availability is a ceiling; the scheduled average is what you can count on.</div>
-  </div>`;
-}
+// Drivers-needed ⓘ — radically simplified 2026-07-21 (operator: "I want
+// this to be way more simple"): one sentence, one worked line, the three
+// inputs, one footnote. The formula notation, peak-day-floor prose,
+// cushion paragraph and the two-row "From your roster" box are gone; the
+// measured worked-days average survives as a one-glance hint + Use button
+// beside the Days input (its data-rr-okami-wdw-use handler is unchanged).
+// Input ids (#rr-okami-wdw / #rr-okami-pad-inp / #rr-tgt-hire-lead) are
+// contracts with their document-level listeners — don't rename.
 function _rrOkamiFormulaHtml() {
   const workdays = _rrWorkdaysPerWeek();
   const pad = Math.max(0, Math.min(50, Number(window.RR?.dsp?.metadata?.staffing?.plan_pad_pct ?? 10) || 0));
-  const cushionRaw = Number(window._rrEffectiveSettings?.cushion_pct);
-  const cushion = Number.isFinite(cushionRaw) ? cushionRaw : null;
   const wk = (window._rrOkamiModel?.weeks || []).find((w) => !w.unplanned && w.demandWeek);
-  const example = wk
-    ? `<div style="margin:8px 0;color:var(--text)">e.g. ${escapeHtml(wk.label)}: ${wk.demandWeek.weekSeats} driver-shifts ÷ ${workdays} = ${(wk.demandWeek.weekSeats / workdays).toFixed(1)}, peak day ${wk.demandWeek.peakSeats} → ceil(${Math.max(wk.demandWeek.peakSeats, wk.demandWeek.weekSeats / workdays).toFixed(1)} × ${(1 + pad / 100).toFixed(2)}) = <b>${wk.needed}</b></div>`
-    : "";
+  // Honest even in the rare peak-governed week (busiest day > weekly avg).
+  let example = "";
+  if (wk) {
+    const padF = 1 + pad / 100;
+    const peakGoverns = Math.ceil(wk.demandWeek.peakSeats * padF)
+      >= Math.ceil((wk.demandWeek.weekSeats / Math.max(0.1, workdays)) * padF);
+    example = peakGoverns
+      ? `<div class="rr-tgt-fs-ex">${escapeHtml(wk.label)}: busiest day <b>${wk.demandWeek.peakSeats}</b> shifts, +${pad}% = <b>${wk.needed}</b> drivers</div>`
+      : `<div class="rr-tgt-fs-ex">${escapeHtml(wk.label)}: <b>${wk.demandWeek.weekSeats}</b> shifts ÷ <b>${workdays}</b> days each, +${pad}% = <b>${wk.needed}</b> drivers</div>`;
+  }
+  const cap = _rrEnsureRosterCapacity();
+  const sched = (cap && typeof cap === "object" && cap.schedAvg != null)
+    ? (Math.round(Math.max(1, Math.min(7, cap.schedAvg)) * 10) / 10).toFixed(1)
+    : null;
   return `<div class="pa-pop-h">Drivers needed</div>
-    <div style="padding:12px 14px;line-height:1.5">
-      <div style="font-family:var(--font-mono,monospace);font-size:var(--fs-xs);color:var(--text-muted)">ceil( max( peak-day seats, weekly driver-shifts ÷ workdays per driver ) × (1 + plan pad) )</div>
+    <div class="rr-tgt-fs">
+      <div class="rr-tgt-fs-what">Enough drivers to cover every shift in the week, plus a buffer.</div>
       ${example}
-      <div style="margin-top:8px;display:grid;gap:6px;font-size:var(--fs-xs);color:var(--text-muted)">
-        <div class="rr-tgt-formula-row"><b>Workdays per driver</b> —
-          <input class="form-input form-input-sm rr-tgt-formula-input" id="rr-okami-wdw" type="number" min="1" max="7" step="0.5" value="${workdays}" aria-label="Workdays per driver per week"/>
-          days/week · how many days a driver typically works. A route is 1 driver-shift per day; XL/helper routes are 2 (driver + helper).</div>
-        ${_rrOkamiRosterCalHtml()}
-        <div><b>Peak-day floor</b> — the roster can never be smaller than the busiest single day's seats, however the week averages out</div>
-        <div class="rr-tgt-formula-row"><b>Plan pad</b> —
-          <input class="form-input form-input-sm rr-tgt-formula-input" id="rr-okami-pad-inp" type="number" min="0" max="50" step="5" value="${pad}" aria-label="Staffing plan pad percent"/>
-          % · extra <i>hires</i> buffer on top of the staffing math (the schedule cushion below is a separate thing)</div>
-        <div><b>Cushion</b>${cushion != null ? ` — ${cushion}%` : ""} · different thing: adds extra <i>shifts</i> when the schedule is built, not extra drivers</div>
-        <div class="rr-tgt-formula-row"><b>Hire lead time</b> —
-          <input class="form-input form-input-sm rr-tgt-formula-input" id="rr-tgt-hire-lead" type="number" min="7" max="120" step="1" value="${_rrHireLeadDays()}"/>
-          days · training/onboarding runway behind every hire-by deadline</div>
-      </div>
+      <div class="rr-tgt-formula-row"><b>Days per driver</b> —
+        <input class="form-input form-input-sm rr-tgt-formula-input" id="rr-okami-wdw" type="number" min="1" max="7" step="0.5" value="${workdays}" aria-label="Workdays per driver per week"/>
+        ${sched ? `<span class="rr-tgt-fs-meas">yours average ${sched} <button type="button" class="rr-tgt-use" data-rr-okami-wdw-use="${sched}">Use</button></span>` : ""}</div>
+      <div class="rr-tgt-formula-row"><b>Buffer</b> —
+        <input class="form-input form-input-sm rr-tgt-formula-input" id="rr-okami-pad-inp" type="number" min="0" max="50" step="5" value="${pad}" aria-label="Staffing plan pad percent"/>
+        %</div>
+      <div class="rr-tgt-formula-row"><b>Hire lead time</b> —
+        <input class="form-input form-input-sm rr-tgt-formula-input" id="rr-tgt-hire-lead" type="number" min="7" max="120" step="1" value="${_rrHireLeadDays()}"/>
+        days</div>
+      <div class="rr-tgt-fs-note">Buffer = extra drivers on top of the math. The schedule cushion (extra shifts) is separate.</div>
     </div>`;
 }
 // Persist the hire lead time on dsps.metadata (same pattern as the Plan

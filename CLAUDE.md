@@ -706,6 +706,21 @@ owner-simple mockup (artifact b877fc1a) if a lighter home — e.g. inside
 the Drivers-needed ⓘ popover — is ever wanted. Don't rebuild a prominent
 Targets-page card without a fresh explicit ask.
 
+**SHIPPED — Drivers-needed ⓘ radically simplified (2026-07-21, operator:
+"I want this to be way more simple"):** `_rrOkamiFormulaHtml` is now one
+sentence + one worked line ("W29: 196 shifts ÷ 3.5 days each, +10% = 62
+drivers"; peak-governed weeks say "busiest day N shifts" instead) + the
+three inputs (Days per driver / Buffer % / Hire lead time — ids unchanged,
+listeners untouched) + one footnote (buffer vs cushion). GONE: the mono
+formula notation, peak-day-floor + cushion paragraphs, and the two-row
+"From your roster" box (`_rrOkamiRosterCalHtml` deleted) — the measured
+worked-days average survives as an inline "yours average 3.1 · Use" hint
+beside the Days input (same `data-rr-okami-wdw-use` handler).
+`_rrEnsureRosterCapacity` still loads it. CSS `.rr-tgt-fs*` token-only;
+popover text ~368 chars (was ~4×). Browser-QA'd via `_qa-padinp.mjs`
+(extended): notation/prose gone, inputs present, pad edit 20→10 still
+recomputes 44→41 + persists + round-trips; screenshot eyeballed.
+
 **Still DEFERRED:** nothing else outstanding on the XL/helper model.
 
 ## DONE: Calendar 100-list (Onboarding → Calendar improvements)

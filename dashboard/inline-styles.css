@@ -33720,3 +33720,13 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 /* Referral-program drawer carries its own header; hide the hoisted
    section's duplicate head/title inside it. */
 #rr-obref-body .settings-section-head{display:none}
+
+/* ─── Drivers-needed ⓘ · simplified formula popover (2026-07-21) ── */
+.rr-tgt-fs{padding:12px 14px;display:grid;gap:10px;line-height:1.5}
+.rr-tgt-fs-what{font-size:var(--fs-md);color:var(--text)}
+.rr-tgt-fs-ex{font-size:var(--fs-md);color:var(--text-muted)}
+.rr-tgt-fs-ex b{color:var(--text);font-variant-numeric:tabular-nums}
+.rr-tgt-fs .rr-tgt-formula-row{font-size:var(--fs-md);color:var(--text-muted)}
+.rr-tgt-fs .rr-tgt-formula-row b{color:var(--text)}
+.rr-tgt-fs-meas{font-size:var(--fs-xs);color:var(--text-subtle);display:inline-flex;align-items:center;gap:6px;margin-left:4px}
+.rr-tgt-fs-note{font-size:var(--fs-xs);color:var(--text-subtle)}
