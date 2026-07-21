@@ -1704,15 +1704,15 @@
           <!-- Legacy id kept (hidden) so any straggler reader of the old
                rules-week label doesn't throw; the nav label is authoritative. -->
           <span id="rr-tgt-rules-week-label" hidden></span>
-          <!-- Settings · one control that gathers all the per-week planning
-               rules — Block / Cushion / Report time inputs PLUS the Wave-times
-               and Service-type editors — into a single popover, instead of five
-               separate pills. Every input + host id is preserved, so
-               loadSchedulingSettings, the dirty tracking, and
-               _rrMoveSchedDemandToTargets (which drops the live wave/service
-               editors into the two hosts below) all keep working unchanged. -->
+          <!-- Settings · gathers the per-week planning rules — Block / Cushion /
+               Report time inputs PLUS the Wave-times editor — into one popover.
+               Service types moved OUT to their own toolbar dropdown (operator
+               2026-07-21) — see the Service-types wrap below. Every input +
+               host id is preserved, so loadSchedulingSettings, the dirty
+               tracking, and _rrMoveSchedDemandToTargets (which drops the live
+               wave/service editors into the hosts) all keep working unchanged. -->
           <div class="rr-tgt-kpi-menu-wrap">
-            <button type="button" class="rr-tgt-kpi rr-tgt-kpi-btn" id="rr-tgt-settings-btn" aria-haspopup="true" aria-expanded="false" aria-controls="rr-tgt-settings-menu" title="Per-week planning rules · block, cushion, report time, wave times, service types">
+            <button type="button" class="rr-tgt-kpi rr-tgt-kpi-btn" id="rr-tgt-settings-btn" aria-haspopup="true" aria-expanded="false" aria-controls="rr-tgt-settings-menu" title="Per-week planning rules · block, cushion, report time, wave times">
               <svg class="rr-tgt-settings-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
               <span class="rr-tgt-kpi-label">Settings</span>
               <span class="rr-tgt-kpi-caret" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 4 6 8 10 4"/></svg></span>
@@ -1732,8 +1732,22 @@
                   <span class="rr-tgt-set-row-field"><input class="rr-tgt-kpi-input" id="rr-sched-targets-report-lead" type="number" min="0" max="120" step="5" autocomplete="off" aria-label="Report time minutes"/><span class="rr-tgt-kpi-unit" title="minutes">m</span></span>
                 </label>
               </div>
-              <!-- Live wave-start-times + service-type editors move in here. -->
+              <!-- Live wave-start-times editor moves in here. -->
               <div class="rr-tgt-set-editor" id="rr-sched-targets-waves-host"></div>
+            </div>
+          </div>
+          <!-- Service types · its own toolbar button + dropdown (operator
+               2026-07-21: "I want service types out of this box"). Hosts the
+               SAME live editor node (#rr-set-service-types' section, dropped
+               in by _rrMoveSchedDemandToTargets) — toggles/renames auto-save
+               via set_service_type, so no Save foot is needed here. -->
+          <div class="rr-tgt-kpi-menu-wrap">
+            <button type="button" class="rr-tgt-kpi rr-tgt-kpi-btn" id="rr-tgt-st-btn" aria-haspopup="true" aria-expanded="false" aria-controls="rr-tgt-st-menu" title="Service types · activate the route categories your DSP runs">
+              <svg class="rr-tgt-settings-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+              <span class="rr-tgt-kpi-label">Service types</span>
+              <span class="rr-tgt-kpi-caret" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 4 6 8 10 4"/></svg></span>
+            </button>
+            <div class="rr-tgt-kpi-menu rr-tgt-settings-menu" id="rr-tgt-st-menu" role="group" aria-label="Service types" hidden>
               <div class="rr-tgt-set-editor" id="rr-sched-targets-st-host"></div>
             </div>
           </div>
