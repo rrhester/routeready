@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=c61245e578c3";
-import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=c61245e578c3";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=c61245e578c3";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=c61245e578c3";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=c61245e578c3";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=c61245e578c3";
-import { isChecklistComplete } from "./checklist-core.mjs?v=c61245e578c3";
+import { planScheduleWeek } from "./scheduling-engine.js?v=2cebc4f4aa04";
+import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=2cebc4f4aa04";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=2cebc4f4aa04";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=2cebc4f4aa04";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=2cebc4f4aa04";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=2cebc4f4aa04";
+import { isChecklistComplete } from "./checklist-core.mjs?v=2cebc4f4aa04";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=c61245e578c3";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=c61245e578c3";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=c61245e578c3";
+} from "./msg-core.mjs?v=2cebc4f4aa04";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=2cebc4f4aa04";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=2cebc4f4aa04";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -32116,8 +32116,25 @@ function _ivcalSettingsMenu(btn) {
     : `<div class="oc-set-bp-empty">No booking pages yet.</div>`;
   const menu = document.createElement("div");
   menu.id = "rr-ivcal-setmenu";
-  menu.className = "oc-menu oc-setmenu";
+  // NOT .oc-menu: _ivcalCloseMenus() removes that class on every calendar
+  // re-render, which closed this sheet the instant any setting rerender()'d
+  // (and whenever a background repaint landed). The sheet owns its chrome
+  // (.oc-setmenu) and closes on outside mousedown / Escape / the ✕ only.
+  menu.className = "oc-setmenu";
+  // Two-column settings SHEET (operator 2026-07-21: the old single 236px
+  // column read narrow + awkward and, being taller than the viewport, got
+  // pinned under the OS window controls). Left column = display/behavior
+  // preferences; right column = tools, reminders, availability & booking.
+  // Every data-* hook and class is unchanged, so the listeners below and the
+  // async reminders fill keep working regardless of the column wrappers.
+  const xIco = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
   menu.innerHTML = `
+    <div class="oc-set-head">
+      <span class="oc-set-title">Calendar settings</span>
+      <button type="button" class="oc-set-x" data-set-close aria-label="Close calendar settings">${xIco}</button>
+    </div>
+    <div class="oc-set-cols">
+    <div class="oc-set-col">
     <div class="oc-set-sec">
       <div class="oc-set-h">Timezone</div>
       <input class="oc-set-tz" data-set-tz list="rr-tzlist" value="${escapeHtml(curTz)}" spellcheck="false" autocomplete="off" aria-label="Calendar timezone" placeholder="Type to search zones…">
@@ -32171,6 +32188,11 @@ function _ivcalSettingsMenu(btn) {
       </div>
       <label class="oc-set-row"><input type="checkbox" data-set-weeknums${_ivWeekNums ? " checked" : ""}> Show week numbers</label>
       <label class="oc-set-row" title="Show a small preview card after hovering an event for half a second"><input type="checkbox" data-set-hoverpeek${_ivHoverPeek ? " checked" : ""}> Event hover preview</label>
+    </div>
+    </div>
+    <div class="oc-set-col">
+    <div class="oc-set-sec">
+      <div class="oc-set-h">Tools</div>
       <button type="button" class="oc-set-link" data-set-print role="menuitem">
         <span class="oc-set-link-ico"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></span>
         <span class="oc-set-link-lbl">Print calendar…</span>
@@ -32210,13 +32232,31 @@ function _ivcalSettingsMenu(btn) {
       <button type="button" class="oc-set-link oc-set-add" data-set-bp-new role="menuitem">
         <span class="oc-set-link-ico">${addIco}</span><span class="oc-set-link-lbl">New booking page</span>
       </button>
+    </div>
+    </div>
     </div>`;
   document.body.appendChild(menu);
-  menu.style.maxHeight = Math.max(240, window.innerHeight - 24) + "px";
+  // Place BELOW the gear, right-aligned to it, never off the top of the
+  // window: the sheet caps its height to the space under the anchor and
+  // scrolls internally. (The old path gave the tall single-column menu a
+  // viewport-sized max-height, so _ivcalPlaceMenu flipped it ABOVE the
+  // button and pinned it at the window top — clipped under the OS window
+  // controls in the installed app.)
+  const _ar = btn.getBoundingClientRect();
+  menu.style.maxHeight = Math.max(320, window.innerHeight - _ar.bottom - 16) + "px";
   menu.style.overflowY = "auto";
-  _ivcalPlaceMenu(menu, btn);
-  const closeMenu = () => { menu.remove(); document.removeEventListener("mousedown", off); };
+  {
+    const mw = menu.offsetWidth;
+    let _mt = _ar.bottom + 8;
+    if (_mt + menu.offsetHeight > window.innerHeight - 8) _mt = Math.max(8, window.innerHeight - 8 - menu.offsetHeight);
+    menu.style.left = Math.max(8, Math.min(_ar.right - mw, window.innerWidth - mw - 8)) + "px";
+    menu.style.top = _mt + "px";
+  }
+  const onKey = (ev) => { if (ev.key === "Escape") closeMenu(); };
+  const closeMenu = () => { menu.remove(); document.removeEventListener("mousedown", off); document.removeEventListener("keydown", onKey); };
   const rerender = () => { _ivSavePrefs(); _ivcalRender(); };
+  menu.querySelector("[data-set-close]")?.addEventListener("click", () => closeMenu());
+  document.addEventListener("keydown", onKey);
 
   // Timezone — persist server-side, optimistically update the grid label first.
   // Free-text input backed by the full IANA datalist (#78): only a real zone
