@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=2cebc4f4aa04";
-import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=2cebc4f4aa04";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=2cebc4f4aa04";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=2cebc4f4aa04";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=2cebc4f4aa04";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=2cebc4f4aa04";
-import { isChecklistComplete } from "./checklist-core.mjs?v=2cebc4f4aa04";
+import { planScheduleWeek } from "./scheduling-engine.js?v=2521fd0a59b2";
+import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=2521fd0a59b2";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=2521fd0a59b2";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=2521fd0a59b2";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=2521fd0a59b2";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=2521fd0a59b2";
+import { isChecklistComplete } from "./checklist-core.mjs?v=2521fd0a59b2";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=2cebc4f4aa04";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=2cebc4f4aa04";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=2cebc4f4aa04";
+} from "./msg-core.mjs?v=2521fd0a59b2";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=2521fd0a59b2";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=2521fd0a59b2";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -56706,9 +56706,10 @@ function _rrReturnSchedDemandHome() {
   if (waveSec && waveSec.parentElement !== adv) adv.appendChild(waveSec);
   if (stSec   && stSec.parentElement   !== adv) adv.appendChild(stSec);
   if (foot    && foot.parentElement    !== adv) adv.appendChild(foot);
-  // Collapse the Targets Settings dropdown so it doesn't reopen stale next visit.
-  const sm = document.getElementById("rr-tgt-settings-menu"); if (sm) sm.hidden = true;
-  const sb = document.getElementById("rr-tgt-settings-btn"); if (sb) sb.setAttribute("aria-expanded", "false");
+  // Collapse the Targets dropdowns (Settings + Service types) so they don't
+  // reopen stale next visit. _rrTgtHideMenus is declared later in this file
+  // but function declarations hoist, so it's callable here.
+  if (typeof _rrTgtHideMenus === "function") _rrTgtHideMenus();
 }
 function _rrMoveSchedDemandToTargets() {
   const wavesHost = document.getElementById("rr-sched-targets-waves-host");
@@ -56916,13 +56917,20 @@ document.addEventListener("click", (e) => {
   if (e.target.closest("#rr-set-sched-save")) _rrTgtWaveDirty = false; // explicit save
 });
 
+// Two toolbar dropdowns since 2026-07-21: Settings (rules + wave times) and
+// Service types (its own button — operator: "service types out of this box").
+const _RR_TGT_MENUS = [
+  ["rr-tgt-settings-menu", "rr-tgt-settings-btn"],
+  ["rr-tgt-st-menu", "rr-tgt-st-btn"],
+];
 function _rrTgtMenusOpen() {
-  const m = document.getElementById("rr-tgt-settings-menu");
-  return (m && !m.hidden) ? [m] : [];
+  return _RR_TGT_MENUS.map(([mid]) => document.getElementById(mid)).filter((m) => m && !m.hidden);
 }
 function _rrTgtHideMenus() {
-  const m = document.getElementById("rr-tgt-settings-menu"); if (m && !m.hidden) m.hidden = true;
-  const b = document.getElementById("rr-tgt-settings-btn"); if (b) b.setAttribute("aria-expanded", "false");
+  _RR_TGT_MENUS.forEach(([mid, bid]) => {
+    const m = document.getElementById(mid); if (m && !m.hidden) m.hidden = true;
+    const b = document.getElementById(bid); if (b) b.setAttribute("aria-expanded", "false");
+  });
 }
 async function _rrTgtCloseMenus() {
   if (!_rrTgtMenusOpen().length) return true;
@@ -56946,32 +56954,37 @@ async function _rrTgtCloseMenus() {
   return true;
 }
 document.addEventListener("click", (e) => {
-  const toggle = e.target.closest && e.target.closest("#rr-tgt-settings-btn");
+  const toggle = e.target.closest && e.target.closest("#rr-tgt-settings-btn, #rr-tgt-st-btn");
   if (toggle) {
     e.preventDefault();
-    const menu = document.getElementById("rr-tgt-settings-menu");
+    const menu = document.getElementById(toggle.getAttribute("aria-controls"));
     const willOpen = menu ? menu.hidden : false;
     if (willOpen) {
-      // Opening — immediate.
-      menu.hidden = false;
-      toggle.setAttribute("aria-expanded", "true");
+      // Opening — close the sibling dropdown first (routing through the
+      // unsaved-wave-edits guard in case Settings was open mid-edit).
+      _rrTgtCloseMenus().then(() => {
+        menu.hidden = false;
+        toggle.setAttribute("aria-expanded", "true");
+      });
     } else {
       // Closing — routes through the unsaved-wave-edits guard.
       _rrTgtCloseMenus();
     }
     return;
   }
-  // Click outside the Settings popover (and not on its trigger) closes it.
+  // Click outside both popovers (and not on a trigger) closes them.
   if (!e.target.closest || !e.target.closest(".rr-tgt-kpi-menu-wrap")) {
     if (_rrTgtMenusOpen().length) _rrTgtCloseMenus();
   }
 });
-// Esc closes the Settings popover and returns focus to its trigger.
+// Esc closes the open popover and returns focus to its trigger.
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
-  if (!_rrTgtMenusOpen().length) return;
+  const open = _rrTgtMenusOpen()[0];
+  if (!open) return;
   e.preventDefault();
-  _rrTgtCloseMenus().then(() => { document.getElementById("rr-tgt-settings-btn")?.focus(); });
+  const bid = (_RR_TGT_MENUS.find(([mid]) => mid === open.id) || [])[1] || "rr-tgt-settings-btn";
+  _rrTgtCloseMenus().then(() => { document.getElementById(bid)?.focus(); });
 });
 
 // Ensure the OKAMI 13-week table is back inside #view-okami before

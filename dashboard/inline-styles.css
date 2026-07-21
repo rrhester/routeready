@@ -17714,6 +17714,9 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-menu[hidden]{display:none}
           #view-schedule #rr-sched-targets-kpis #rr-tgt-settings-menu{min-width:420px}
+          /* Service-types dropdown (own toolbar button since 2026-07-21) —
+             same width as Settings so the editor rows don't cramp. */
+          #view-schedule #rr-sched-targets-kpis #rr-tgt-st-menu{min-width:420px}
           /* Gear glyph on the Settings trigger. */
           #view-schedule #rr-sched-targets-kpis .rr-tgt-settings-ico{
             width:15px;height:15px;flex:0 0 auto;color:var(--text-muted);
