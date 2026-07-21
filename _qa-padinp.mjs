@@ -58,6 +58,18 @@ await page.click(".rr-tgt-th-info");
 await page.waitForTimeout(600);
 R.padInputInitial=await page.evaluate(()=>document.getElementById("rr-okami-pad-inp")?.value);
 R.staleSliderTextGone=await page.evaluate(()=>!document.querySelector(".pa-pop")?.textContent.includes("slider on the OKAMI page"));
+R.simple=await page.evaluate(()=>{
+  const t=document.querySelector(".pa-pop")?.textContent||"";
+  return {
+    formulaNotationGone:!t.includes("ceil( max("),
+    peakFloorProseGone:!t.includes("Peak-day floor"),
+    cushionProseGone:!t.includes("different thing"),
+    exampleLine:(t.match(/W\d+: .*drivers/)||[null])[0],
+    inputs:["rr-okami-wdw","rr-okami-pad-inp","rr-tgt-hire-lead"].map(id=>!!document.getElementById(id)),
+    chars:t.length,
+  };
+});
+try{await page.locator(".pa-pop").screenshot({path:"/tmp/claude-0/fs-popover.png"});}catch(_){}
 await page.fill("#rr-okami-pad-inp","10");
 await page.waitForTimeout(1400);
 R.neededAt10=await readNeeded();
