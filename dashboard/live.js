@@ -1006,6 +1006,49 @@ async function _rrDriverIdsAtStation(stationId) {
   return ids;
 }
 
+// Vehicle ids that belong to a station — a van "belongs" where its DRIVERS
+// work, exactly like the drivers-roster lens (0532/0533 lesson: don't demand
+// a hand-maintained station field when the operating data already says where
+// things run). A van is at the station when:
+//   1. its standing driver chain (vehicle_driver_assignments — primary +
+//      backups) contains a driver who is at the station per
+//      _rrDriverIdsAtStation (membership ∪ home ∪ scheduled); or
+//   2. a recent/upcoming vehicle_day_assignments row puts a station driver
+//      in it (covers one-off loans outside the chain).
+// The EXPLICIT vehicles.station_id (van record → Profile → Station) is a
+// third source the CALLERS union in from their own row data — it pins a van
+// to a station regardless of drivers. Returns a Set, or null when the driver
+// lens itself is unavailable so callers fall back to explicit-station-only.
+async function _rrVanIdsAtStation(stationId) {
+  const dspId = window.RR && window.RR.dsp && window.RR.dsp.id;
+  if (!dspId || !stationId) return null;
+  const driverIds = await _rrDriverIdsAtStation(stationId);
+  if (!driverIds) return null;
+  const _today = new Date();
+  const [chainRes, dayRes] = await Promise.all([
+    sb.from("vehicle_driver_assignments")
+      .select("vehicle_id, driver_id")
+      .eq("dsp_id", dspId)
+      .limit(10000)
+      .then((r) => r, (e) => ({ error: e })),
+    sb.from("vehicle_day_assignments")
+      .select("vehicle_id, driver_id")
+      .eq("dsp_id", dspId)
+      .gte("date", fmtIsoDate(addDays(_today, -28)))
+      .lte("date", fmtIsoDate(addDays(_today, 14)))
+      .limit(10000)
+      .then((r) => r, (e) => ({ error: e })),
+  ]);
+  const ids = new Set();
+  for (const r of (chainRes.error ? [] : chainRes.data || [])) {
+    if (r.driver_id && driverIds.has(r.driver_id)) ids.add(r.vehicle_id);
+  }
+  for (const r of (dayRes.error ? [] : dayRes.data || [])) {
+    if (r.driver_id && driverIds.has(r.driver_id)) ids.add(r.vehicle_id);
+  }
+  return ids;
+}
+
 function _rrStationLabel() {
   if (_rrStationScope === "all") return "All stations";
   const st = _rrStationList.find((s) => s.id === _rrStationScope);
@@ -63402,15 +63445,23 @@ async function renderSchedVanAssignmentsBoard() {
 
   _wsVehicles = Array.isArray(vRes?.data) ? vRes.data.filter(v => !v.archived_at) : [];
   // Master station lens · show only the selected station's vans (each station
-  // is its own fleet). Vans carry station_id/station_code once migration 0529
-  // lands; pre-migration (no station keys on the row) the board isn't filtered.
+  // is its own fleet). Same union as the Fleet roster so the tabs agree:
+  // explicit station (station_id/station_code, once migration 0529 lands) OR
+  // the van's drivers work at the station (_rrVanIdsAtStation). Pre-0529 rows
+  // without station keys still scope through the driver lens.
   {
     const _vaScope = (typeof rrStationScopeId === "function") ? rrStationScopeId() : null;
-    if (_vaScope && _wsVehicles.some((v) => ("station_id" in v) || ("station_code" in v))) {
+    if (_vaScope) {
       const _vaCode = ((typeof _rrStationList !== "undefined" ? _rrStationList : [])
         .find((s) => s.id === _vaScope) || {}).code || null;
-      _wsVehicles = _wsVehicles.filter((v) =>
-        v.station_id === _vaScope || (_vaCode && v.station_code === _vaCode));
+      let _vaVanSet = null;
+      try { _vaVanSet = await _rrVanIdsAtStation(_vaScope); } catch (_) {}
+      const hasStationKeys = _wsVehicles.some((v) => ("station_id" in v) || ("station_code" in v));
+      if (hasStationKeys || _vaVanSet) {
+        _wsVehicles = _wsVehicles.filter((v) =>
+          v.station_id === _vaScope || (_vaCode && v.station_code === _vaCode)
+          || (_vaVanSet && _vaVanSet.has(v.id)));
+      }
     }
   }
   _wsDrivers = (Array.isArray(dRes?.data) ? dRes.data : []).map(d => {
@@ -87049,16 +87100,23 @@ async function _flLoadRoster() {
   }
   _fleetRows = Array.isArray(data) ? data : [];
   // Master station lens · scope the whole fleet page to the selected station
-  // (each station is its own fleet — vehicles carry station_id/station_code).
-  // Filtering _fleetRows here scopes the roster, tab counts, coverage card,
-  // and issues all at once. "All stations" leaves the full fleet. Vehicles
-  // with no station assigned show only in All mode.
+  // (each station is its own fleet — filtering _fleetRows here scopes the
+  // roster, tab counts, coverage card, and issues all at once). A van counts
+  // as "at" the station when its EXPLICIT station matches (van record →
+  // Profile → Station) OR its drivers work there (_rrVanIdsAtStation — chain
+  // + day assignments through the driver lens), so operators don't have to
+  // hand-assign every van before the lens shows anything. "All stations"
+  // leaves the full fleet; a van with no station and no station drivers
+  // shows only in All mode.
   {
     const _flScope = (typeof rrStationScopeId === "function") ? rrStationScopeId() : null;
     if (_flScope) {
       const _flCode = ((typeof _rrStationList !== "undefined" ? _rrStationList : [])
         .find((s) => s.id === _flScope) || {}).code || null;
-      _fleetRows = _fleetRows.filter((v) => _flCode && v.station_code === _flCode);
+      let _flVanSet = null;
+      try { _flVanSet = await _rrVanIdsAtStation(_flScope); } catch (_) {}
+      _fleetRows = _fleetRows.filter((v) =>
+        (_flCode && v.station_code === _flCode) || (_flVanSet && _flVanSet.has(v.id)));
     }
   }
   // vehicle-photos is private (0445) — sign the thumbnails up front so the
@@ -87590,7 +87648,7 @@ function _flRenderRoster() {
       tbody.innerHTML = `<tr><td colspan="7"><div class="fl-empty">
           <div class="ic">${_flVanIconSvg()}</div>
           <h3>No vans at ${escapeHtml(st.code || st.name || "this station")} yet</h3>
-          <p>Vans without a station appear only under “All stations”. Switch to All stations, open a van, and set its <strong>Station</strong> on the Profile tab to bring it into this view.</p>
+          <p>A van shows here automatically once its drivers work at this station, or when you set its <strong>Station</strong> directly (All stations → open the van → Profile). Until then it stays under “All stations”.</p>
         </div></td></tr>`;
       return;
     }
