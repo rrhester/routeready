@@ -956,6 +956,16 @@ textarea,
    .nav-icon-color sibling is ever reintroduced. */
 .nav-item .nav-icon-color{display:none}
 .nav-badge{ display:none }
+/* Unread-mail dot on the Email nav item (EM#16) · house rule is dots,
+   not counts, on nav — the number lives in the item's title tooltip.
+   Sits on the icon's top-right corner so it survives the collapsed
+   icon-only rail too. */
+.sidebar .rr-nav-email-dot{
+  position:absolute;top:6px;left:24px;width:7px;height:7px;border-radius:50%;
+  background:var(--rr-blue-500, var(--rr-blue-600));
+  pointer-events:none;
+}
+.sidebar .rr-nav-email-dot[hidden]{display:none}
 
 /* Sidebar footer · the docked tool cluster (bell / settings / account —
    the .topbar element live.js moves here) stacks VERTICALLY under the
@@ -25405,6 +25415,17 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Delivery-state line in the reading-pane meta block (EM#2). */
           #view-email .em-preview-status{font-size:var(--fs-xs);color:var(--text-subtle)}
           #view-email .em-preview-status-failed{color:var(--rr-red-700)}
+          /* Calm new-mail pill (EM#20) · floats at the top of the list
+             when realtime inserts arrive while the operator is scrolled
+             into the list; clicking pulls the fresh rows. */
+          #view-email .em-newmail-pill{
+            position:sticky;top:6px;z-index:3;display:block;margin:6px auto;
+            padding:4px 14px;border:0;border-radius:999px;cursor:pointer;
+            background:var(--rr-blue-600);color:var(--rr-white);
+            font-size:var(--fs-xs);font-weight:600;
+            box-shadow:var(--shadow-md, none);
+          }
+          #view-email .em-newmail-pill:hover{background:var(--rr-blue-700)}
           #view-email .em-msg-subject{
             font-size:var(--fs-md);color:var(--text);
             white-space:nowrap;overflow:hidden;text-overflow:ellipsis;

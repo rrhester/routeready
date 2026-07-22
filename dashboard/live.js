@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=da3db2572861";
-import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=da3db2572861";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=da3db2572861";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=da3db2572861";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=da3db2572861";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=da3db2572861";
-import { isChecklistComplete } from "./checklist-core.mjs?v=da3db2572861";
+import { planScheduleWeek } from "./scheduling-engine.js?v=bea61fdebfd7";
+import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=bea61fdebfd7";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=bea61fdebfd7";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=bea61fdebfd7";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=bea61fdebfd7";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=bea61fdebfd7";
+import { isChecklistComplete } from "./checklist-core.mjs?v=bea61fdebfd7";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=da3db2572861";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=da3db2572861";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=da3db2572861";
+} from "./msg-core.mjs?v=bea61fdebfd7";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=bea61fdebfd7";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=bea61fdebfd7";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -95004,6 +95004,7 @@ document.addEventListener("click", (e) => {
     inboxSort:       "desc",  // "desc" | "asc"
     searchQuery:     "",      // toolbar "Search mail" · client-side filter
     messagesTotal:   0,       // exact folder total (differs from messages.length at the 200 cap)
+    pendingNew:      0,       // realtime arrivals not yet pulled into the list (EM#20 pill)
     collapsedGroups: new Set(),
     readMessages:    new Set(),
     foldersError:    null,    // load-failure message → inline retry state
@@ -95043,7 +95044,35 @@ document.addEventListener("click", (e) => {
   function saveSort()      { try { localStorage.setItem(SORT_KEY,      state.inboxSort); } catch (_) {} }
   function saveFilter()    { try { localStorage.setItem(FILTER_KEY,    state.inboxFilter); } catch (_) {} }
   function saveCollapsed() { try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...state.collapsedGroups])); } catch (_) {} }
-  function markRead(id)    { if (!state.readMessages.has(id)) { state.readMessages.add(id); saveRead(); } }
+  // Server read state (EM#13, migration 0535) · is_read lives on the row
+  // with team-inbox semantics — any operator reading a message marks it
+  // handled for the whole DSP. The localStorage set stays as the
+  // pre-migration fallback and same-session cache. Capability probe:
+  // null = unknown, flips false on the first missing-column error so we
+  // stop paying for doomed queries.
+  let _srvReadState = null;
+  function isRead(m) {
+    if (!m) return true;
+    if (m.direction === "outbound") return true; // your own mail is never "unread"
+    if (m.is_read === true) return true;
+    return state.readMessages.has(m.id);
+  }
+  function markRead(id) {
+    if (!state.readMessages.has(id)) { state.readMessages.add(id); saveRead(); }
+    const m = state.messages.find(x => x.id === id);
+    if (m && m.direction === "inbound" && m.is_read === false) {
+      m.is_read = true; // optimistic — realtime echoes the real write
+      try { sb.from("email_messages").update({ is_read: true }).eq("id", id).then(() => {}, () => {}); } catch (_) {}
+    }
+  }
+  function markUnread(id) {
+    state.readMessages.delete(id); saveRead();
+    const m = state.messages.find(x => x.id === id);
+    if (m && m.is_read === true) {
+      m.is_read = false;
+      try { sb.from("email_messages").update({ is_read: false }).eq("id", id).then(() => {}, () => {}); } catch (_) {}
+    }
+  }
   let inboxChannel = null;
   // Load-generation token (EM#1) · selectFolder awaits loadMessages with
   // no ordering guarantee, so two quick folder clicks can resolve out of
@@ -95130,16 +95159,17 @@ document.addEventListener("click", (e) => {
     if (!state.activeFolderId) { state.messages = []; return; }
     const gen = ++_loadGen;
     const folderId = state.activeFolderId;
-    // cc_emails (EM#4 — reply-all's Cc carry-over reads it) and
-    // error_message (EM#2 — the failed-send status line) joined the
-    // select 2026-07; retry with the legacy column list if a pre-0319
-    // project is missing cc_emails so the whole list doesn't break.
+    // cc_emails (EM#4 — reply-all's Cc carry-over reads it),
+    // error_message (EM#2 — the failed-send status line), and is_read
+    // (EM#13, migration 0535) joined the select; retry with the legacy
+    // column list if a pre-migration project is missing any of them so
+    // the whole list doesn't break.
     let { data, error } = await sb.from("email_messages")
-      .select("id, from_email, to_email, cc_emails, subject, body_text, body_html, direction, status, error_message, created_at")
+      .select("id, from_email, to_email, cc_emails, subject, body_text, body_html, direction, status, error_message, is_read, created_at")
       .eq("folder_id", folderId)
       .order("created_at", { ascending: false })
       .limit(200);
-    if (error && /cc_emails|error_message/.test(error.message || "")) {
+    if (error && /cc_emails|error_message|is_read/.test(error.message || "")) {
       ({ data, error } = await sb.from("email_messages")
         .select("id, from_email, to_email, subject, body_text, body_html, direction, status, created_at")
         .eq("folder_id", folderId)
@@ -95150,6 +95180,7 @@ document.addEventListener("click", (e) => {
     if (error) { console.error("email_messages load failed:", error); state.messages = []; state.messagesError = error.message || "load failed"; return; }
     state.messagesError = null;
     state.messages = data || [];
+    state.pendingNew = 0; // fresh rows include anything the pill promised
     // Honest header count at the 200-row cap (EM#11 partial — exact
     // per-folder totals move server-side with the counts RPC, EM#66).
     state.messagesTotal = state.messages.length;
@@ -95200,6 +95231,23 @@ document.addEventListener("click", (e) => {
         out[folder.id] = error ? 0 : (count ?? 0);
         continue;
       }
+      // Post-0535 the badge is a TRUE unread count (persistent until the
+      // message is read — EM#13); pre-migration it falls back to the old
+      // "new since last visited" approximation below. One failed probe
+      // flips the capability flag so we stop paying for doomed queries.
+      if (_srvReadState !== false) {
+        const { count: unreadCount, error: unreadErr } = await sb.from("email_messages")
+          .select("*", { count: "exact", head: true })
+          .eq("folder_id", folder.id)
+          .eq("direction", "inbound")
+          .eq("is_read", false);
+        if (!unreadErr) {
+          _srvReadState = true;
+          out[folder.id] = unreadCount ?? 0;
+          continue;
+        }
+        _srvReadState = false;
+      }
       let q = sb.from("email_messages")
         .select("*", { count: "exact", head: true })
         .eq("folder_id", folder.id)
@@ -95212,40 +95260,164 @@ document.addEventListener("click", (e) => {
       out[folder.id] = count ?? 0;
     }
     state.folderCounts = out;
+    refreshNavUnread();
   }
 
-  function subscribeRealtime() {
-    if (inboxChannel) {
-      try { sb.removeChannel(inboxChannel); } catch (_) {}
-      inboxChannel = null;
+  // Sidebar nav indicator (EM#16) · a quiet dot on the Email nav item
+  // when the Inbox has unread mail (house rule: dots, not counts, on
+  // nav — the exact number lives in the title tooltip). Pre-0535 there
+  // is no server read state to trust, so the dot stays hidden.
+  function refreshNavUnread() {
+    const navItem = document.querySelector('.sidebar .nav-item[data-view="email"]');
+    if (!navItem) return;
+    let dot = document.getElementById("rr-nav-email-dot");
+    if (!dot) {
+      dot = document.createElement("span");
+      dot.id = "rr-nav-email-dot";
+      dot.className = "rr-nav-email-dot";
+      dot.setAttribute("aria-hidden", "true");
+      dot.hidden = true;
+      navItem.appendChild(dot);
     }
-    if (!state.activeFolderId) return;
-    if (state.activeFolderId === DOCS_FOLDER_ID) {
-      inboxChannel = sb.channel("rr-fb-docs")
-        .on("postgres_changes",
-          { event: "*", schema: "public", table: "document_intake" },
-          async () => {
-            await loadDocuments();
-            await loadFolderCounts();
-            renderFolders();
-            renderInbox();
-            renderPreview();
-          })
-        .subscribe();
+    const inbox = state.folders.find(f => f.kind === "inbox");
+    const n = (_srvReadState === true && inbox) ? (state.folderCounts[inbox.id] || 0) : 0;
+    dot.hidden = !(n > 0);
+    navItem.title = n > 0 ? `Email — ${n} unread` : "Email";
+  }
+
+  // Debounced badge/dot refresh · realtime events and read/unread flips
+  // funnel through here so a burst (queue drain, bulk mark-read) costs
+  // one counts pass, not N.
+  let _countsT = 0;
+  function scheduleCountsRefresh() {
+    clearTimeout(_countsT);
+    _countsT = setTimeout(async () => {
+      await loadFolderCounts();
+      renderFolders();
+    }, 350);
+  }
+
+  // One DSP-wide channel for the page lifetime (EM#18) — the old
+  // per-active-folder subscription meant mail arriving anywhere else
+  // moved no badge until a manual refresh. Narrowing happens at
+  // query/render time, not on the subscription (the Wave F rule).
+  let _subRetries = 0;
+  function subscribeRealtime() {
+    if (inboxChannel) return;
+    const dsp = currentDspId();
+    if (!dsp) {
+      // Boot ordering — the DSP context lands moments after auth; retry
+      // briefly rather than subscribing unfiltered.
+      if (++_subRetries <= 20) setTimeout(subscribeRealtime, 500);
       return;
     }
-    inboxChannel = sb.channel("rr-fb-inbox-" + state.activeFolderId)
+    inboxChannel = sb.channel("rr-fb-live")
       .on("postgres_changes",
-        { event: "*", schema: "public", table: "email_messages",
-          filter: "folder_id=eq." + state.activeFolderId },
-        async () => {
+        { event: "*", schema: "public", table: "email_messages", filter: "dsp_id=eq." + dsp },
+        onMailEvent)
+      .on("postgres_changes",
+        { event: "*", schema: "public", table: "document_intake", filter: "dsp_id=eq." + dsp },
+        onDocsEvent)
+      .subscribe();
+  }
+
+  // Realtime → UI. Coalesced (300ms trailing) so a queue drain of N
+  // sends costs one reload, not N. An INSERT into the folder being read
+  // while the operator is scrolled into the list becomes a calm "new
+  // mail" pill (EM#20) instead of a scroll-jumping re-render.
+  let _rtMailT = 0;
+  function onMailEvent(payload) {
+    const row = (payload && payload.new && payload.new.id) ? payload.new
+      : (payload && payload.old) || {};
+    if (payload?.eventType === "INSERT" && row.direction === "inbound") maybeNotify(row);
+    const active = state.activeFolderId;
+    if (active && active !== DOCS_FOLDER_ID) {
+      // DELETE payloads may carry only the PK — unknown folder refreshes
+      // to be safe.
+      const touchesActive = row.folder_id ? row.folder_id === active : true;
+      if (payload?.eventType === "INSERT" && row.direction === "inbound" && row.folder_id === active) {
+        const inboxEl = document.getElementById("rr-em-inbox");
+        if (inboxEl && inboxEl.scrollTop > 40) {
+          state.pendingNew++;
+          renderNewMailPill();
+          scheduleCountsRefresh();
+          return;
+        }
+      }
+      if (touchesActive) {
+        clearTimeout(_rtMailT);
+        _rtMailT = setTimeout(async () => {
           await loadMessages();
-          await loadFolderCounts();
-          renderFolders();
           renderInbox();
           renderPreview();
-        })
-      .subscribe();
+        }, 300);
+      }
+    }
+    scheduleCountsRefresh();
+  }
+
+  let _rtDocsT = 0;
+  function onDocsEvent() {
+    clearTimeout(_rtDocsT);
+    _rtDocsT = setTimeout(async () => {
+      if (state.activeFolderId === DOCS_FOLDER_ID) {
+        await loadDocuments();
+        renderDocsInbox();
+        renderDocsPreview();
+      }
+      scheduleCountsRefresh();
+    }, 300);
+  }
+
+  // Calm-arrival pill (EM#20) · prepended to the list host; clicking it
+  // pulls the fresh rows and scrolls back to the top.
+  function renderNewMailPill() {
+    const inboxEl = document.getElementById("rr-em-inbox");
+    if (!inboxEl) return;
+    let pill = document.getElementById("rr-em-newmail-pill");
+    if (!(state.pendingNew > 0)) { if (pill) pill.remove(); return; }
+    if (!pill) {
+      pill = document.createElement("button");
+      pill.type = "button";
+      pill.id = "rr-em-newmail-pill";
+      pill.className = "em-newmail-pill";
+      pill.setAttribute("data-em-newmail", "1");
+      inboxEl.prepend(pill);
+    }
+    pill.textContent = state.pendingNew === 1
+      ? "1 new message — show"
+      : `${state.pendingNew} new messages — show`;
+  }
+
+  // Desktop notification for inbound mail (EM#17) · strict opt-in via
+  // the ⋮ menu (browser permission + a local pref). Client-side v1 —
+  // fires only while a dashboard tab is open; phone push stays with the
+  // notifications backlog.
+  const NOTIFY_KEY = "rr-em-notify";
+  function notifyEnabled() {
+    try {
+      return localStorage.getItem(NOTIFY_KEY) === "1"
+        && typeof Notification !== "undefined"
+        && Notification.permission === "granted";
+    } catch (_) { return false; }
+  }
+  function maybeNotify(row) {
+    try {
+      if (!notifyEnabled()) return;
+      // Skip when the operator is already looking at the Email page.
+      if (document.visibilityState === "visible" && document.querySelector("#view-email.view.active")) return;
+      const n = new Notification(
+        row.from_email ? `New email from ${row.from_email}` : "New email",
+        { body: row.subject || "(no subject)", tag: "rr-email-" + (row.id || "") },
+      );
+      n.onclick = () => {
+        try {
+          window.focus();
+          if (typeof window.goto === "function") window.goto("email");
+          n.close();
+        } catch (_) {}
+      };
+    } catch (_) {}
   }
 
   // ── Rendering ───────────────────────────────────────────────────
@@ -95386,7 +95558,7 @@ document.addEventListener("click", (e) => {
     // dropdown drive the same state).
     let messages = state.messages.slice();
     if (state.inboxFilter === "unread") {
-      messages = messages.filter(m => !state.readMessages.has(m.id));
+      messages = messages.filter(m => !isRead(m));
     }
     // Toolbar search · client-side filter over the loaded folder.
     const q = state.searchQuery.trim().toLowerCase();
@@ -95407,7 +95579,7 @@ document.addEventListener("click", (e) => {
       if (countEl) countEl.textContent = `${messages.length} of ${state.messages.length}`;
     }
 
-    const unreadCount = state.messages.filter(m => !state.readMessages.has(m.id)).length;
+    const unreadCount = state.messages.filter(m => !isRead(m)).length;
     const sortLabel = state.inboxSort === "desc" ? "Newest" : "Oldest";
     const sortIcon = state.inboxSort === "desc"
       ? `<svg viewBox="0 0 16 16" width="11" height="11" fill="currentColor" aria-hidden="true"><path d="M3 5l5 6 5-6z"/></svg>`
@@ -95445,6 +95617,7 @@ document.addEventListener("click", (e) => {
         sub = "No messages to display.";
       }
       inbox.innerHTML = toolbarHtml + emptyStateHtml(icon, label, sub);
+      renderNewMailPill();
       return;
     }
 
@@ -95475,11 +95648,12 @@ document.addEventListener("click", (e) => {
     }).join("");
 
     inbox.innerHTML = toolbarHtml + groupsHtml;
+    renderNewMailPill();
   }
 
   function messageRowHtml(m) {
     const isActive  = m.id === state.activeMessageId;
-    const isUnread  = !state.readMessages.has(m.id);
+    const isUnread  = !isRead(m);
     const isInbound = m.direction === "inbound";
     const who = (isInbound ? m.from_email : m.to_email) || "(unknown)";
     const subject = m.subject || "(no subject)";
@@ -95522,14 +95696,20 @@ document.addEventListener("click", (e) => {
   // buttons reuse the long-standing delegated [data-em-act] handler,
   // which acts on state.activeMessageId. The leading back button only
   // shows when the reading pane is a narrow-width slide-over.
-  function readBarHtml() {
+  function readBarHtml(m) {
     const act = (a, label, svg) => `<button type="button" class="em-read-act" data-em-act="${a}" title="${label}">${svg}<span>${label}</span></button>`;
+    // Mark-unread (EM#14) only makes sense on inbound mail — your own
+    // sends are never "unread".
+    const unreadAct = m && m.direction === "inbound"
+      ? act("unread", "Mark unread", `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/><circle cx="19" cy="5" r="3" fill="currentColor" stroke="none"/></svg>`)
+      : "";
     return `<div class="em-read-bar" role="toolbar" aria-label="Message actions">
       <button type="button" class="em-read-back" data-em-preview-back aria-label="Back to message list" title="Back to list">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
       </button>
       ${act("archive", "Archive", `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>`)}
       ${act("delete", "Delete", `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>`)}
+      ${unreadAct}
       <span class="em-read-sep" aria-hidden="true"></span>
       ${act("reply", "Reply", `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>`)}
       ${act("reply-all", "Reply All", `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 17 2 12 7 7"/><polyline points="12 17 7 12 12 7"/><path d="M22 18v-2a4 4 0 0 0-4-4H7"/></svg>`)}
@@ -95587,7 +95767,7 @@ document.addEventListener("click", (e) => {
       return "";
     })();
     preview.innerHTML = `
-      ${readBarHtml()}
+      ${readBarHtml(m)}
       <div class="em-preview-header">
         <div class="em-preview-subject">${escapeHtmlLocal(m.subject || "(no subject)")}</div>
         <div class="em-preview-meta">
@@ -95990,9 +96170,12 @@ document.addEventListener("click", (e) => {
     state.activeDocId = null;
     if (id !== DOCS_FOLDER_ID) setDocsSplitMode(null);
     try { localStorage.setItem(ACTIVE_KEY, id); } catch (_) {}
-    // Mark this folder as viewed so its "new mail" badge clears.
+    state.pendingNew = 0;
+    // Pre-0535 the badge is "new since last visited", so visiting clears
+    // it. Post-0535 it's a true unread count (EM#13) — visiting doesn't
+    // clear it, reading does.
     setFolderLastViewed(id);
-    state.folderCounts[id] = 0;
+    if (_srvReadState !== true) state.folderCounts[id] = 0;
     renderFolders();
     renderHeader();
     // Paint a transient "loading" state in the inbox while we fetch.
@@ -96006,13 +96189,15 @@ document.addEventListener("click", (e) => {
   }
 
   function selectMessage(id) {
-    const wasUnread = !state.readMessages.has(id);
+    const m0 = state.messages.find(x => x.id === id);
+    const wasUnread = m0 ? !isRead(m0) : false;
     state.activeMessageId = id;
     markRead(id);
     if (wasUnread) {
       // Unread → read transition: re-render so the row's bold + blue
       // rail clear, and the All/Unread tab counter ticks down.
       renderInbox();
+      scheduleCountsRefresh();
     } else {
       document.querySelectorAll("#rr-em-inbox .em-msg-row").forEach(row => {
         row.classList.toggle("active", row.getAttribute("data-em-msg") === id);
@@ -96030,6 +96215,7 @@ document.addEventListener("click", (e) => {
     closeMessagePopout();
     markRead(m.id);
     renderInbox();
+    scheduleCountsRefresh();
     const when = m.created_at ? new Date(m.created_at).toLocaleString() : "";
     const isInbound = m.direction === "inbound";
     const body = (messageText(m) || "").replace(/\s+$/g, "");
@@ -96731,6 +96917,12 @@ document.addEventListener("click", (e) => {
     if (open) {
       const item = document.getElementById("rr-em-menu-folders");
       if (item) item.textContent = folderPaneVisible() ? "Hide folder pane" : "Show folder pane";
+      const notif = document.getElementById("rr-em-menu-notify");
+      if (notif) {
+        let on = false;
+        try { on = localStorage.getItem(NOTIFY_KEY) === "1"; } catch (_) {}
+        notif.textContent = `Desktop notifications: ${on ? "On" : "Off"}`;
+      }
       const first = m.querySelector("[role=menuitem]");
       if (first) first.focus();
     }
@@ -96758,9 +96950,53 @@ document.addEventListener("click", (e) => {
     grid.classList.toggle("rr-folders-hidden", pref === "hidden");
     grid.classList.toggle("rr-folders-shown", pref === "shown");
   }
+  // Mark all read (EM#15) · flips every loaded row locally, then sweeps
+  // the whole folder server-side so rows beyond the 200-row page flip
+  // too (post-0535; pre-migration the local pass still covers the page).
+  async function markAllRead() {
+    if (!state.activeFolderId || state.activeFolderId === DOCS_FOLDER_ID) return;
+    state.messages.forEach(m => {
+      if (m.direction !== "inbound") return;
+      state.readMessages.add(m.id);
+      if (m.is_read === false) m.is_read = true;
+    });
+    saveRead();
+    try {
+      await sb.from("email_messages")
+        .update({ is_read: true })
+        .eq("folder_id", state.activeFolderId)
+        .eq("is_read", false)
+        .then(() => {}, () => {});
+    } catch (_) {}
+    renderInbox();
+    scheduleCountsRefresh();
+  }
+
   function handleMoreMenu(cmd) {
     closeMoreMenu();
     if (cmd === "copy-address") { copyTeamAddress(); return; }
+    if (cmd === "mark-all-read") { markAllRead(); return; }
+    if (cmd === "toggle-notify") {
+      // Desktop-notification opt-in (EM#17). Enabling asks the browser;
+      // a denied permission stays off with a hint instead of silently
+      // half-enabling.
+      try {
+        if (localStorage.getItem(NOTIFY_KEY) === "1") {
+          localStorage.removeItem(NOTIFY_KEY);
+        } else if (typeof Notification === "undefined") {
+          if (typeof toast === "function") toast("This browser doesn't support notifications", "warn");
+        } else {
+          Notification.requestPermission().then((perm) => {
+            if (perm === "granted") {
+              try { localStorage.setItem(NOTIFY_KEY, "1"); } catch (_) {}
+            } else if (typeof toast === "function") {
+              toast("Notifications are blocked for this site — allow them in the browser first", "warn");
+            }
+          });
+        }
+      } catch (_) {}
+      return;
+    }
     if (cmd === "toggle-folders") { setFolderPaneVisible(!folderPaneVisible()); return; }
     if (cmd === "new-folder") {
       setFolderPaneVisible(true);
@@ -96836,6 +97072,18 @@ document.addEventListener("click", (e) => {
     {
       const nav = e.target.closest("#view-email [data-em-nav]");
       if (nav) { e.preventDefault(); handleNavTab(nav.getAttribute("data-em-nav")); return; }
+    }
+    // New-mail pill (EM#20) · pull the fresh rows and scroll to top.
+    if (e.target.closest("[data-em-newmail]")) {
+      e.preventDefault();
+      state.pendingNew = 0;
+      loadMessages().then(() => {
+        renderInbox();
+        renderPreview();
+        const inboxEl = document.getElementById("rr-em-inbox");
+        if (inboxEl) inboxEl.scrollTop = 0;
+      });
+      return;
     }
     // Reading-pane back button (narrow-width slide-over).
     if (e.target.closest("[data-em-preview-back]")) {
@@ -97086,6 +97334,17 @@ document.addEventListener("click", (e) => {
       }
       if (action === "delete")  { e.preventDefault(); moveSelectedToKind("trash");   return; }
       if (action === "archive") { e.preventDefault(); moveSelectedToKind("archive"); return; }
+      if (action === "unread") {
+        // Mark unread (EM#14) · the message stays open — clicking another
+        // row and back re-marks it read via selectMessage.
+        e.preventDefault();
+        if (state.activeMessageId) {
+          markUnread(state.activeMessageId);
+          renderInbox();
+          scheduleCountsRefresh();
+        }
+        return;
+      }
       // Document AI sparkle · one-shot spin on click. Real Google
       // Document AI wiring slots in here when the integration lands.
       if (action === "ai") {
@@ -97377,6 +97636,18 @@ document.addEventListener("click", (e) => {
     if (document.visibilityState === "hidden") persistInboxWidth();
   });
 
+  // Cross-tab read-state sync (EM#19) · another dashboard tab marking
+  // mail read updates this one's bold rows. Post-0535 realtime does the
+  // heavy lifting; this keeps the localStorage fallback consistent too.
+  window.addEventListener("storage", (e) => {
+    if (e.key !== READ_KEY) return;
+    try {
+      const r = JSON.parse(e.newValue || "[]");
+      state.readMessages = new Set(Array.isArray(r) ? r : []);
+    } catch (_) { return; }
+    if (document.querySelector("#view-email.view.active")) renderInbox();
+  });
+
   // ── Boot · render whenever the email view becomes ready ─────────
   async function init() {
     if (!document.getElementById("rr-em-folders")) return false;
@@ -97405,6 +97676,10 @@ document.addEventListener("click", (e) => {
   // Expose the rich composer so other views (e.g. the interview calendar)
   // can open a prefilled "New email" without duplicating the editor.
   window.rrOpenEmailComposer = openComposer;
+  // Test seam · lets the Playwright QA harness inject a synthetic
+  // postgres_changes payload (websockets don't reach the stubbed
+  // sandbox). Not for app code — call nothing through this in features.
+  window._rrEmSimulateMailEvent = onMailEvent;
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);
   } else {

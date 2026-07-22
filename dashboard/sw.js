@@ -37,7 +37,7 @@
 //   you bump the nonce below, describe the deploy in the commit message, not
 //   here.
 
-const SW_DEPLOY_NONCE = "2026-07-22.2";
+const SW_DEPLOY_NONCE = "2026-07-22.3";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without
