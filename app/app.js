@@ -911,6 +911,47 @@ function writeSession(s) {
   }
 }
 
+// ── Driver-owned file signing ───────────────────────────────────────
+// The driver PWA runs as the anon Postgres role, so it can't be scoped
+// per-tenant by storage RLS. Instead of a bucket-wide anon SELECT policy
+// (which let any anon-key holder sign ANY tenant's files — audit B-1),
+// reads of the three private driver buckets go through the
+// `driver-file-sign` edge function: it validates the session token,
+// confirms ownership server-side (migration 0536), and mints the signed
+// URL. These two helpers are drop-in replacements for
+// sb.storage.from(bucket).createSignedUrl(s)(…) — same return shape — so
+// the call sites are unchanged apart from swapping the callee.
+async function _signDriverFile(bucket, path, ttl = 3600) {
+  const s = readSession();
+  if (!path || !s?.token) return { data: null, error: { message: "no_token_or_path" } };
+  try {
+    const resp = await fetch(`${cfg.SUPABASE_URL}/functions/v1/driver-file-sign`, {
+      method: "POST",
+      headers: {
+        "Content-Type":  "application/json",
+        "Authorization": "Bearer " + cfg.SUPABASE_ANON_KEY,
+        "apikey":        cfg.SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({ token: s.token, bucket, path, expires_in: ttl }),
+    });
+    if (!resp.ok) return { data: null, error: { message: "HTTP " + resp.status } };
+    const body = await resp.json().catch(() => null);
+    return body?.signed_url
+      ? { data: { signedUrl: body.signed_url }, error: null }
+      : { data: null, error: { message: (body && body.error) || "no_url" } };
+  } catch (e) {
+    return { data: null, error: { message: (e && e.message) || "network" } };
+  }
+}
+// Drop-in for createSignedUrls: returns { data: [{ path, signedUrl, error }], error }.
+async function _signDriverFiles(bucket, paths, ttl = 3600) {
+  const data = await Promise.all((paths || []).map(async (p) => {
+    const { data: d } = await _signDriverFile(bucket, p, ttl);
+    return { path: p, signedUrl: d?.signedUrl || null, error: d?.signedUrl ? null : "sign_failed" };
+  }));
+  return { data, error: null };
+}
+
 // ── Toast ───────────────────────────────────────────────────────────
 function toast(msg, kind = "default") {
   // Normalize kind aliases: a dozen call sites say "success"/"info" but
@@ -1261,7 +1302,7 @@ async function refreshDriverProfile(session, { force } = {}) {
       photoUrl = null;
     } else if (data.photo_path !== cur.photo_path || !photoUrl) {
       try {
-        const { data: _ps } = await sb.storage.from("driver-photos").createSignedUrl(data.photo_path, 7 * 24 * 60 * 60);
+        const { data: _ps } = await _signDriverFile("driver-photos", data.photo_path, 7 * 24 * 60 * 60);
         photoUrl = _ps?.signedUrl || null;
       } catch (_) { photoUrl = null; }
     }
@@ -7001,9 +7042,7 @@ async function _rrSignChatAttachments() {
       continue;
     }
     try {
-      const { data, error } = await sb.storage
-        .from("driver-chat-attachments")
-        .createSignedUrl(path, 60 * 60 * 8); // 8h
+      const { data, error } = await _signDriverFile("driver-chat-attachments", path, 60 * 60 * 8); // 8h
       if (error || !data?.signedUrl) continue;
       if (el.tagName === "IMG" || el.tagName === "AUDIO") {
         // Bind load BEFORE assigning src so the loaded flag flips even
@@ -7617,7 +7656,7 @@ async function renderTeam() {
   try {
     const _paths = list.map((d) => d.photo_path).filter(Boolean);
     if (_paths.length) {
-      const { data: _sig } = await sb.storage.from("driver-photos").createSignedUrls(_paths, 7 * 24 * 60 * 60);
+      const { data: _sig } = await _signDriverFiles("driver-photos", _paths, 7 * 24 * 60 * 60);
       const _m = new Map((_sig || []).filter((s) => s && s.path && s.signedUrl && !s.error).map((s) => [s.path, s.signedUrl]));
       for (const d of list) d.photo_url = d.photo_path ? (_m.get(d.photo_path) || null) : null;
     }
@@ -8710,13 +8749,11 @@ async function renderSettingsLicense(opts) {
   let dlImgUrl = null;
   let dlBackUrl = null;
   if (prof?.dl_image_path) {
-    const { data: signed } = await sb.storage.from("driver-documents")
-      .createSignedUrl(prof.dl_image_path, 60 * 60);
+    const { data: signed } = await _signDriverFile("driver-documents", prof.dl_image_path, 60 * 60);
     dlImgUrl = signed?.signedUrl || null;
   }
   if (prof?.dl_back_image_path) {
-    const { data: signed } = await sb.storage.from("driver-documents")
-      .createSignedUrl(prof.dl_back_image_path, 60 * 60);
+    const { data: signed } = await _signDriverFile("driver-documents", prof.dl_back_image_path, 60 * 60);
     dlBackUrl = signed?.signedUrl || null;
   }
   const dlNeedsVerify = (!!prof?.dl_image_path || !!prof?.dl_back_image_path) && !prof?.dl_expires_on;
@@ -10072,7 +10109,7 @@ function _dataUrlToBlob(dataUrl) {
 // private bucket). Returns null on failure so callers can fall back.
 async function _clkSignedUrl(path) {
   try {
-    const { data } = await sb.storage.from("driver-documents").createSignedUrl(path, 3600);
+    const { data } = await _signDriverFile("driver-documents", path, 3600);
     return data?.signedUrl || null;
   } catch (_) { return null; }
 }

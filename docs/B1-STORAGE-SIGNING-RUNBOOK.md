@@ -23,6 +23,7 @@ shipping them changes nothing on their own:
 |---|---|---|
 | Ownership RPC | `supabase/migrations/0536_driver_file_ownership.sql` | `public.driver_can_read_file(token, bucket, path)` — validates the token → driver, then checks ownership per bucket. Service-role only. **Validated against PostgreSQL 16: 13/13 assertions pass, incl. cross-tenant denial.** |
 | Signing edge fn | `supabase/functions/driver-file-sign/index.ts` | Token + bucket + path → ownership check → signed URL, or 403. Registered `--no-verify-jwt` in `config.toml` + the deploy workflow. |
+| Driver-app switch | `app/app.js` (`_signDriverFile` / `_signDriverFiles` + 6 read sites) | **Now implemented** — all six file reads go through `driver-file-sign` instead of the direct anon `createSignedUrl`. Syntax + eslint clean; `SHELL_CACHE` bumped. Still needs on-device QA (below) before 0537. |
 
 **Ownership rules** (mirroring how the app stores files):
 - `driver-photos` (`<driver_id>/…`) — any driver **in the caller's own DSP**
@@ -45,16 +46,19 @@ shipping them changes nothing on their own:
 
 1. **Ship + merge this branch.** Merging deploys the `driver-file-sign` edge
    function automatically (it's in the `Deploy Supabase` workflow's
-   no-verify-jwt list). Apply **migration 0536** by hand in the SQL Editor.
-   → Nothing changes for users yet; the app still uses the old anon path.
-2. **Make the driver-app change** (spec below), deploy the PWA. Now the app
-   reads files through `driver-file-sign`, while the anon policies *still
-   exist* as an inert backstop.
-3. **QA on a real device** (checklist below). The new path is the only one the
+   no-verify-jwt list) **and the driver-app change** (the PWA now reads through
+   `driver-file-sign`). Apply **migration 0536** by hand in the SQL Editor.
+   → The app now uses the new signing path, while the anon policies *still
+   exist* as an inert backstop — so nothing is broken even if a read regresses.
+2. **QA on a real device** (checklist below). The new path is the only one the
    app uses now, so anything broken shows here — before any policy is dropped.
-4. **Only once QA is green:** apply **migration 0537** in the SQL Editor. The
+3. **Only once QA is green:** apply **migration 0537** in the SQL Editor. The
    cross-tenant hole is now closed. Re-run the driver QA once more to confirm
    files still load with the anon policies gone.
+
+The driver-app read sites are already switched (the spec below documents what
+changed, for review + QA). Because the helpers preserve the supabase-js return
+shape, the change is a callee swap at six sites plus two helpers.
 
 At no point is there a window where the leak is closed but drivers are broken:
 the app switches while the old policy still works, and the policy drops only
