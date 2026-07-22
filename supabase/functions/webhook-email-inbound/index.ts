@@ -394,6 +394,11 @@ Deno.serve(async (req) => {
             attachments,
           });
         }
+        // Paperclip flag (0536) — best-effort; errors pre-migration.
+        await supa.from("email_messages")
+          .update({ has_attachments: true })
+          .eq("id", row.id as string)
+          .then(() => {}, () => {});
       }
       // Repair Center matching is idempotent (event-guarded in SQL),
       // so redeliveries are safe to re-run — they backfill attachments
@@ -403,7 +408,7 @@ Deno.serve(async (req) => {
     }
   }
 
-  const { data: insertedEmail } = await supa.from("email_messages").insert({
+  const baseRow = {
     dsp_id: dsp.id,
     applicant_id: applicantId,
     folder_id: folderId,
@@ -416,7 +421,20 @@ Deno.serve(async (req) => {
     body_html: bodyHtml,
     provider: "inbound",
     provider_message_id: messageId,
+  };
+  // from_name + has_attachments are 0536 columns. The function deploys
+  // ahead of the manually-applied migration, so a failed insert here
+  // MUST retry with the legacy column set — anything else silently
+  // drops inbound mail.
+  let ins = await supa.from("email_messages").insert({
+    ...baseRow,
+    from_name: _extractSenderName(data.from),
+    has_attachments: attachments.length > 0,
   }).select("id").single();
+  if (ins.error && /from_name|has_attachments/.test(ins.error.message ?? "")) {
+    ins = await supa.from("email_messages").insert(baseRow).select("id").single();
+  }
+  const insertedEmail = ins.data;
 
   // 6. Attachments → document_intake. Every attached file (PDF, image,
   // Excel, …) gets streamed into the `document-intake` Storage bucket

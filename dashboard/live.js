@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=77f0fb93e2b2";
-import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=77f0fb93e2b2";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=77f0fb93e2b2";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=77f0fb93e2b2";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=77f0fb93e2b2";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=77f0fb93e2b2";
-import { isChecklistComplete } from "./checklist-core.mjs?v=77f0fb93e2b2";
+import { planScheduleWeek } from "./scheduling-engine.js?v=34e8041354b6";
+import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=34e8041354b6";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=34e8041354b6";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=34e8041354b6";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=34e8041354b6";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=34e8041354b6";
+import { isChecklistComplete } from "./checklist-core.mjs?v=34e8041354b6";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=77f0fb93e2b2";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=77f0fb93e2b2";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=77f0fb93e2b2";
+} from "./msg-core.mjs?v=34e8041354b6";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=34e8041354b6";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=34e8041354b6";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -94984,6 +94984,12 @@ document.addEventListener("click", (e) => {
   // them from the same folders aside, so we surface a virtual folder
   // entry and dispatch the loaders/renderers below on this id.
   const DOCS_FOLDER_ID = "__docs__";
+  // Virtual views over email_messages (0536): Starred spans folders,
+  // Snoozed lists hidden-until-wake mail. Neither is a real fb_folders
+  // row — loaders/renderers dispatch on these ids like Documents does.
+  const STARRED_FOLDER_ID = "__starred__";
+  const SNOOZED_FOLDER_ID = "__snoozed__";
+  const isVirtualFolderId = (id) => typeof id === "string" && id.startsWith("__");
   const ICONS = {
     inbox:   `<svg class="em-folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>`,
     drafts:  `<svg class="em-folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`,
@@ -94992,6 +94998,8 @@ document.addEventListener("click", (e) => {
     trash:   `<svg class="em-folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>`,
     docs:    `<svg class="em-folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>`,
     folder:  `<svg class="em-folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`,
+    starred: `<svg class="em-folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`,
+    snoozed: `<svg class="em-folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>`,
   };
 
   const state = {
@@ -95136,20 +95144,47 @@ document.addEventListener("click", (e) => {
   // (EM#13, migration 0535) joined the select; the LEGACY list is the
   // retry when a pre-migration project is missing any of them, so the
   // whole list doesn't break.
-  const SELECT_FULL   = "id, from_email, to_email, cc_emails, subject, body_text, body_html, direction, status, error_message, is_read, created_at";
+  // Three select tiers: FULL adds the 0536 metadata (star / snooze /
+  // sender name / paperclip), MID is the 0535 shape (server read
+  // state), LEGACY is the pre-migration floor. Tiered so a DB that has
+  // 0535 but not 0536 degrades one step, not all the way (dropping
+  // is_read would silently un-read every message).
+  const SELECT_FULL   = "id, from_email, from_name, to_email, cc_emails, subject, body_text, body_html, direction, status, error_message, is_read, is_starred, snoozed_until, has_attachments, created_at";
+  const SELECT_MID    = "id, from_email, to_email, cc_emails, subject, body_text, body_html, direction, status, error_message, is_read, created_at";
   const SELECT_LEGACY = "id, from_email, to_email, subject, body_text, body_html, direction, status, created_at";
+  // 0536 capability · null = unknown, set by the first page fetch.
+  // Gates the Starred/Snoozed virtual folders, the star/snooze UI, and
+  // the composer's has_attachments stamp.
+  let _srvMetaState = null;
+  function _msgPageQuery(select, folderId) {
+    const nowIso = new Date().toISOString();
+    let q = sb.from("email_messages").select(select);
+    if (folderId === STARRED_FOLDER_ID) {
+      q = q.eq("is_starred", true);
+    } else if (folderId === SNOOZED_FOLDER_ID) {
+      q = q.not("snoozed_until", "is", null).gt("snoozed_until", nowIso);
+    } else {
+      q = q.eq("folder_id", folderId);
+      // Snoozed mail hides from its folder until the wake time (EM#25).
+      // Applied optimistically on the FULL tier (capability may still be
+      // unknown on the first load) — a pre-0536 DB fails this query on
+      // the select columns and falls through to the MID tier unfiltered.
+      if (_srvMetaState !== false && select === SELECT_FULL) {
+        q = q.or(`snoozed_until.is.null,snoozed_until.lte.${nowIso}`);
+      }
+    }
+    return q.order("created_at", { ascending: false });
+  }
   async function _fetchMessagePage(folderId, from) {
-    let { data, error } = await sb.from("email_messages")
-      .select(SELECT_FULL)
-      .eq("folder_id", folderId)
-      .order("created_at", { ascending: false })
-      .range(from, from + 199);
+    let { data, error } = await _msgPageQuery(SELECT_FULL, folderId).range(from, from + 199);
+    if (!error) {
+      if (_srvMetaState !== true) { _srvMetaState = true; _syncVirtualFolders(); }
+    } else if (/is_starred|snoozed_until|from_name|has_attachments/.test(error.message || "")) {
+      if (_srvMetaState !== false) { _srvMetaState = false; _syncVirtualFolders(); }
+      ({ data, error } = await _msgPageQuery(SELECT_MID, folderId).range(from, from + 199));
+    }
     if (error && /cc_emails|error_message|is_read/.test(error.message || "")) {
-      ({ data, error } = await sb.from("email_messages")
-        .select(SELECT_LEGACY)
-        .eq("folder_id", folderId)
-        .order("created_at", { ascending: false })
-        .range(from, from + 199));
+      ({ data, error } = await _msgPageQuery(SELECT_LEGACY, folderId).range(from, from + 199));
     }
     return { data, error };
   }
@@ -95173,6 +95208,26 @@ document.addEventListener("click", (e) => {
     renderInbox();
   }
 
+  // Insert/remove the Starred + Snoozed virtual entries based on the
+  // 0536 capability. Runs when the capability flips (first page fetch)
+  // and after every folder reload.
+  function _syncVirtualFolders(skipRender) {
+    const has = state.folders.some(f => f.id === STARRED_FOLDER_ID);
+    if (_srvMetaState === true && !has && state.folders.length) {
+      const at = state.folders.findIndex(f => f.id === DOCS_FOLDER_ID) + 1;
+      state.folders.splice(at, 0,
+        { id: STARRED_FOLDER_ID, name: "Starred", kind: "starred", position: -0.6, parent_id: null },
+        { id: SNOOZED_FOLDER_ID, name: "Snoozed", kind: "snoozed", position: -0.5, parent_id: null });
+      if (!skipRender) renderFolders();
+    } else if (_srvMetaState === false && has) {
+      state.folders = state.folders.filter(f => f.id !== STARRED_FOLDER_ID && f.id !== SNOOZED_FOLDER_ID);
+      if (state.activeFolderId === STARRED_FOLDER_ID || state.activeFolderId === SNOOZED_FOLDER_ID) {
+        state.activeFolderId = (state.folders.find(f => f.kind === "inbox") || state.folders[0])?.id || null;
+      }
+      if (!skipRender) renderFolders();
+    }
+  }
+
   async function loadFolders() {
     const { data, error } = await sb.from("fb_folders")
       .select("id, name, kind, position, parent_id")
@@ -95187,6 +95242,7 @@ document.addEventListener("click", (e) => {
       { id: DOCS_FOLDER_ID, name: "Documents", kind: "docs", position: -1, parent_id: null },
       ...(data || []),
     ];
+    _syncVirtualFolders(/* skipRender */ true);
     // Pick the active folder: last-remembered if still valid, else
     // the Inbox kind, else the first folder we have.
     let remembered = null;
@@ -95213,7 +95269,7 @@ document.addEventListener("click", (e) => {
     // Honest header count at the 200-row cap (EM#11 partial — exact
     // per-folder totals move server-side with the counts RPC, EM#66).
     state.messagesTotal = state.messages.length;
-    if (state.messages.length === 200) {
+    if (state.messages.length === 200 && !isVirtualFolderId(folderId)) {
       const { count } = await sb.from("email_messages")
         .select("*", { count: "exact", head: true })
         .eq("folder_id", folderId);
@@ -95249,6 +95305,12 @@ document.addEventListener("click", (e) => {
   async function loadFolderCounts() {
     const out = {};
     for (const folder of state.folders) {
+      // Virtual views carry no "new mail" badge — their ids aren't
+      // uuids, so a count query would 400 on every refresh.
+      if (folder.id === STARRED_FOLDER_ID || folder.id === SNOOZED_FOLDER_ID) {
+        out[folder.id] = 0;
+        continue;
+      }
       const lastViewed = getFolderLastViewed(folder.id);
       if (folder.id === DOCS_FOLDER_ID) {
         // Docs badge = pending docs since last visit.
@@ -95519,7 +95581,7 @@ document.addEventListener("click", (e) => {
       ${iconFor(f.kind)}
       <span class="em-folder-name">${escapeHtmlLocal(f.name)}</span>
       <span class="em-folder-count${newCount > 0 ? " has-new" : ""}" aria-hidden="true">${countDisplay}</span>
-      ${isDocs ? "" : `<span class="em-folder-add" role="button" tabindex="0" data-em-folder-add-child="${escapeHtmlLocal(f.id)}" aria-label="Add subfolder" title="Add subfolder"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>`}
+      ${isVirtualFolderId(f.id) ? "" : `<span class="em-folder-add" role="button" tabindex="0" data-em-folder-add-child="${escapeHtmlLocal(f.id)}" aria-label="Add subfolder" title="Add subfolder"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>`}
       ${isCustom ? `<span class="em-folder-delete" role="button" tabindex="0" data-em-folder-delete="${escapeHtmlLocal(f.id)}" aria-label="Delete folder" title="Delete folder"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>` : ""}
     </button>`;
   }
@@ -95638,7 +95700,7 @@ document.addEventListener("click", (e) => {
     // checked. Move targets every folder except the current one.
     const selCount = state.selectedIds.size;
     const bulkMoveItems = state.folders
-      .filter(f => f.id !== state.activeFolderId && f.id !== DOCS_FOLDER_ID)
+      .filter(f => f.id !== state.activeFolderId && !isVirtualFolderId(f.id))
       .map(f => `<button type="button" class="em-popout-move-item" role="menuitem" data-em-bulk-move="${escapeHtmlLocal(f.id)}">${iconFor(f.kind)}<span>${escapeHtmlLocal(f.name)}</span></button>`)
       .join("");
     inbox.classList.toggle("em-bulk-active", selCount > 0);
@@ -95681,6 +95743,12 @@ document.addEventListener("click", (e) => {
           sub = "Set a station code in Settings to activate your team email address.";
           extra = `<button type="button" class="em-empty-cta" data-em-empty-settings>Open Settings</button>`;
         }
+      } else if (f && f.kind === "starred") {
+        label = "Nothing starred";
+        sub = "Click the star on a message to pin it here.";
+      } else if (f && f.kind === "snoozed") {
+        label = "Nothing snoozed";
+        sub = "Snoozed messages hide from their folder until their wake time, then return.";
       } else if (f && f.kind === "custom") {
         label = "Nothing filed here yet";
         sub = "Drag messages here to organise them.";
@@ -95739,9 +95807,12 @@ document.addEventListener("click", (e) => {
     const isInbound = m.direction === "inbound";
     // Direction affordance (EM#27): in Sent/Archive/custom folders an
     // outbound row reads "To: x" so mixed folders scan correctly.
+    // Inbound rows prefer the sender's display name (EM#28, 0536) —
+    // the address stays reachable in the tooltip.
     const who = isInbound
-      ? (m.from_email || "(unknown)")
+      ? (m.from_name || m.from_email || "(unknown)")
       : "To: " + (m.to_email || "(unknown)");
+    const whoTitle = isInbound && m.from_name ? (m.from_email || "") : "";
     const subject = m.subject || "(no subject)";
     const snippet = (messageText(m) || "").replace(/\s+/g, " ").slice(0, 110);
     const when = m.created_at ? formatRelative(new Date(m.created_at)) : "";
@@ -95756,10 +95827,26 @@ document.addEventListener("click", (e) => {
       : (st === "failed")
         ? `<span class="em-msg-status em-msg-status-failed">Failed</span>`
         : "";
+    // Star toggle (EM#24) + paperclip (EM#26) + snooze chip (EM#25) —
+    // all 0536-gated; pre-migration rows lack the fields so nothing
+    // renders.
+    const isStarred = m.is_starred === true;
+    const starHtml = _srvMetaState === true
+      ? `<span class="em-msg-star${isStarred ? " starred" : ""}" role="button" tabindex="-1" data-em-msg-star="${escapeHtmlLocal(m.id)}" aria-label="${isStarred ? "Unstar" : "Star"} message" title="${isStarred ? "Unstar" : "Star"}"><svg viewBox="0 0 24 24" width="13" height="13" fill="${isStarred ? "currentColor" : "none"}" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span>`
+      : "";
+    const clipHtml = m.has_attachments === true
+      ? `<span class="em-msg-clip" aria-label="Has attachments" title="Has attachments"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></span>`
+      : "";
+    const snoozeChip = (m.snoozed_until && new Date(m.snoozed_until).getTime() > Date.now())
+      ? `<span class="em-msg-snooze-chip" title="Snoozed until ${escapeHtmlLocal(new Date(m.snoozed_until).toLocaleString())}">until ${escapeHtmlLocal(new Date(m.snoozed_until).toLocaleDateString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" }))}</span>`
+      : "";
     return `<button type="button" class="em-msg-row${isActive ? " active" : ""}${isUnread ? " unread" : ""}${isChecked ? " selected" : ""}" data-em-msg="${escapeHtmlLocal(m.id)}" draggable="true">
       <div class="em-msg-row-line1">
         <span class="em-msg-check${isChecked ? " checked" : ""}" role="checkbox" aria-checked="${isChecked}" tabindex="-1" data-em-msg-check="${escapeHtmlLocal(m.id)}" aria-label="Select message" title="Select (Shift-click for a range)">${isChecked ? `<svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 8.5 6.5 12 13 4"/></svg>` : ""}</span>
-        <span class="em-msg-who">${escapeHtmlLocal(who)}</span>
+        ${starHtml}
+        <span class="em-msg-who"${whoTitle ? ` title="${escapeHtmlLocal(whoTitle)}"` : ""}>${escapeHtmlLocal(who)}</span>
+        ${clipHtml}
+        ${snoozeChip}
         ${stPill}
         <span class="em-msg-when" title="${escapeHtmlLocal(whenTitle)}">${escapeHtmlLocal(when)}</span>
       </div>
@@ -95793,6 +95880,26 @@ document.addEventListener("click", (e) => {
     const unreadAct = m && m.direction === "inbound"
       ? act("unread", "Mark unread", `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/><circle cx="19" cy="5" r="3" fill="currentColor" stroke="none"/></svg>`)
       : "";
+    // Star + snooze (EM#24/25) · 0536-gated. Snooze targets inbound
+    // triage; the star works on any message.
+    const isStarred = m && m.is_starred === true;
+    const starAct = (m && _srvMetaState === true)
+      ? act("star", isStarred ? "Unstar" : "Star", `<svg viewBox="0 0 24 24" fill="${isStarred ? "currentColor" : "none"}" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`)
+      : "";
+    const isSnoozed = m && m.snoozed_until && new Date(m.snoozed_until).getTime() > Date.now();
+    const snoozeAct = (m && m.direction === "inbound" && _srvMetaState === true)
+      ? `<div class="em-popout-move-wrap em-snooze-wrap">
+          <button type="button" class="em-read-act" data-em-act="snooze" aria-haspopup="menu" aria-expanded="false" title="Snooze — hide until later">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg><span>Snooze</span>
+          </button>
+          <div class="em-popout-move-menu em-snooze-menu" hidden role="menu" aria-label="Snooze until">
+            <button type="button" class="em-popout-move-item" role="menuitem" data-em-snooze="4h">Later today (+4 hours)</button>
+            <button type="button" class="em-popout-move-item" role="menuitem" data-em-snooze="tomorrow">Tomorrow 8:00 AM</button>
+            <button type="button" class="em-popout-move-item" role="menuitem" data-em-snooze="nextweek">Next Monday 8:00 AM</button>
+            ${isSnoozed ? `<button type="button" class="em-popout-move-item" role="menuitem" data-em-snooze="clear">Unsnooze now</button>` : ""}
+          </div>
+        </div>`
+      : "";
     return `<div class="em-read-bar" role="toolbar" aria-label="Message actions">
       <button type="button" class="em-read-back" data-em-preview-back aria-label="Back to message list" title="Back to list">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
@@ -95800,6 +95907,8 @@ document.addEventListener("click", (e) => {
       ${act("archive", "Archive", `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>`)}
       ${act("delete", "Delete", `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>`)}
       ${unreadAct}
+      ${starAct}
+      ${snoozeAct}
       <span class="em-read-sep" aria-hidden="true"></span>
       ${act("reply", "Reply", `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>`)}
       ${act("reply-all", "Reply All", `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 17 2 12 7 7"/><polyline points="12 17 7 12 12 7"/><path d="M22 18v-2a4 4 0 0 0-4-4H7"/></svg>`)}
@@ -95861,7 +95970,7 @@ document.addEventListener("click", (e) => {
       <div class="em-preview-header">
         <div class="em-preview-subject">${escapeHtmlLocal(m.subject || "(no subject)")}</div>
         <div class="em-preview-meta">
-          <div><strong>From:</strong> ${escapeHtmlLocal(m.from_email || "—")}</div>
+          <div><strong>From:</strong> ${escapeHtmlLocal(m.from_name ? `${m.from_name} <${m.from_email || "—"}>` : (m.from_email || "—"))}</div>
           <div><strong>To:</strong> ${escapeHtmlLocal(m.to_email || "—")}</div>
           ${ccLine}
           <div><strong>${isInbound ? "Received" : "Sent"}:</strong> ${escapeHtmlLocal(when)}</div>
@@ -96315,7 +96424,7 @@ document.addEventListener("click", (e) => {
     // / Close. Move opens a popover listing every folder; click a
     // folder name to relocate the message and close the popout.
     const moveTargets = state.folders
-      .filter(f => f.id !== state.activeFolderId)
+      .filter(f => f.id !== state.activeFolderId && !isVirtualFolderId(f.id))
       .map(f => `<button type="button" class="em-popout-move-item" data-rr-popout-move-target="${escapeHtmlLocal(f.id)}">${iconFor(f.kind)}<span>${escapeHtmlLocal(f.name)}</span></button>`)
       .join("");
     const iconBar = `<div class="em-popout-iconbar">
@@ -96849,6 +96958,9 @@ document.addEventListener("click", (e) => {
         name: a.name, url: a.url, content_type: a.content_type, size: a.size,
         storage_path: a.storage_path,
       }));
+      // Paperclip flag (EM#26) · capability-gated so a pre-0536 DB
+      // never fails the send over an unknown column.
+      if (_srvMetaState === true) insertRow.has_attachments = true;
     }
     const { error } = await sb.from("email_messages").insert(insertRow);
     if (error) {
@@ -96891,11 +97003,11 @@ document.addEventListener("click", (e) => {
   // and the way back from a mis-click. One slot; a new move replaces
   // the previous undo.
   let _emUndo = null;
-  function recordUndo(ids, fromFolderId, label) {
-    if (!ids || !ids.length || !fromFolderId) return;
+  function recordUndo(ids, label, undoPatch) {
+    if (!ids || !ids.length || !undoPatch) return;
     if (_emUndo && _emUndo.timer) clearTimeout(_emUndo.timer);
     _emUndo = {
-      ids: ids.slice(), fromFolderId, label,
+      ids: ids.slice(), undoPatch, label,
       timer: setTimeout(() => { _emUndo = null; renderUndoBar(); }, 8000),
     };
     renderUndoBar();
@@ -96919,7 +97031,7 @@ document.addEventListener("click", (e) => {
     clearTimeout(u.timer);
     _emUndo = null;
     renderUndoBar();
-    const err = await _patchIn(u.ids, { folder_id: u.fromFolderId });
+    const err = await _patchIn(u.ids, u.undoPatch);
     if (err) {
       if (typeof toast === "function") toast("Undo failed: " + err.message, "warn");
       return;
@@ -96928,6 +97040,56 @@ document.addEventListener("click", (e) => {
     renderInbox();
     renderPreview();
     scheduleCountsRefresh();
+  }
+
+  // ── Star + snooze (EM#24/25, 0536) ──────────────────────────────
+  async function toggleStar(id) {
+    const m = state.messages.find(x => x.id === id);
+    if (!m) return;
+    const next = !(m.is_starred === true);
+    m.is_starred = next; // optimistic
+    renderInbox();
+    if (state.activeMessageId === id) renderPreview();
+    const { error } = await sb.from("email_messages")
+      .update({ is_starred: next }).eq("id", id);
+    if (error) {
+      m.is_starred = !next;
+      renderInbox();
+      if (typeof toast === "function") toast("Couldn't update star: " + error.message, "warn");
+    }
+  }
+  function _snoozeDate(kind) {
+    const now = new Date();
+    if (kind === "4h") return new Date(now.getTime() + 4 * 3600_000);
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 8, 0, 0);
+    if (kind === "tomorrow") { d.setDate(d.getDate() + 1); return d; }
+    if (kind === "nextweek") {
+      const add = ((8 - d.getDay()) % 7) || 7;
+      d.setDate(d.getDate() + add);
+      return d;
+    }
+    return null;
+  }
+  async function snoozeMessage(id, kind) {
+    const m = state.messages.find(x => x.id === id);
+    if (!m) return;
+    const until = kind === "clear" ? null : _snoozeDate(kind);
+    if (kind !== "clear" && !until) return;
+    const iso = until ? until.toISOString() : null;
+    const { error } = await sb.from("email_messages")
+      .update({ snoozed_until: iso }).eq("id", id);
+    if (error) {
+      if (typeof toast === "function") toast("Couldn't snooze: " + error.message, "warn");
+      return;
+    }
+    m.snoozed_until = iso;
+    if (until) {
+      recordUndo([id], `Snoozed until ${until.toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}`, { snoozed_until: null });
+      if (state.activeMessageId === id) state.activeMessageId = null;
+    }
+    await loadMessages();
+    renderInbox();
+    renderPreview();
   }
 
   // ── Bulk actions over the selection (EM#22) ─────────────────────
@@ -96943,7 +97105,11 @@ document.addEventListener("click", (e) => {
     state.selectedIds.clear();
     state.selectAnchor = null;
     if (state.activeMessageId && ids.includes(state.activeMessageId)) state.activeMessageId = null;
-    recordUndo(ids, from, `Moved ${ids.length === 1 ? "1 message" : `${ids.length} messages`} to ${folderName}`);
+    // No undo from a virtual view — the rows came from many different
+    // real folders, so a single restore target doesn't exist.
+    if (!isVirtualFolderId(from)) {
+      recordUndo(ids, `Moved ${ids.length === 1 ? "1 message" : `${ids.length} messages`} to ${folderName}`, { folder_id: from });
+    }
     await loadMessages();
     renderInbox();
     renderPreview();
@@ -96973,6 +97139,7 @@ document.addEventListener("click", (e) => {
   // ── Move arbitrary message to a folder by id (drag-and-drop) ───
   async function moveMessageToFolderId(messageId, folderId) {
     if (!messageId || !folderId) return;
+    if (isVirtualFolderId(folderId)) return; // Starred/Snoozed/Docs aren't real folders
     const target = state.folders.find(f => f.id === folderId);
     if (!target) return;
     const fromFolderId = state.activeFolderId; // rows on screen live here
@@ -96983,7 +97150,9 @@ document.addEventListener("click", (e) => {
       if (typeof toast === "function") toast("Couldn't move message: " + error.message, "warn");
       return;
     }
-    recordUndo([messageId], fromFolderId, `Moved to ${target.name}`);
+    if (!isVirtualFolderId(fromFolderId)) {
+      recordUndo([messageId], `Moved to ${target.name}`, { folder_id: fromFolderId });
+    }
     // If the moved message was selected, clear the preview (it's no
     // longer in the current folder view).
     if (state.activeMessageId === messageId) {
@@ -97015,7 +97184,9 @@ document.addEventListener("click", (e) => {
       if (typeof toast === "function") toast("Couldn't move message: " + error.message, "warn");
       return;
     }
-    recordUndo([movedId], fromFolderId, `Moved to ${target.name}`);
+    if (!isVirtualFolderId(fromFolderId)) {
+      recordUndo([movedId], `Moved to ${target.name}`, { folder_id: fromFolderId });
+    }
     state.activeMessageId = null;
     await loadMessages();
     renderInbox();
@@ -97404,6 +97575,23 @@ document.addEventListener("click", (e) => {
       if (typeof window.goto === "function") window.goto("settings");
       return;
     }
+    // Star toggle on a list row (EM#24) — before row-select so the
+    // click doesn't also open the message.
+    const starEl = e.target.closest("[data-em-msg-star]");
+    if (starEl) {
+      e.preventDefault(); e.stopPropagation();
+      toggleStar(starEl.getAttribute("data-em-msg-star"));
+      return;
+    }
+    // Snooze menu picks (EM#25).
+    {
+      const sn = e.target.closest("[data-em-snooze]");
+      if (sn) {
+        e.preventDefault();
+        if (state.activeMessageId) snoozeMessage(state.activeMessageId, sn.getAttribute("data-em-snooze"));
+        return;
+      }
+    }
     // Hover-trash icon on a message row — must run before the row
     // select handler so the click doesn't also select the message.
     const delMsg = e.target.closest("[data-em-msg-delete]");
@@ -97634,6 +97822,21 @@ document.addEventListener("click", (e) => {
           markUnread(state.activeMessageId);
           renderInbox();
           scheduleCountsRefresh();
+        }
+        return;
+      }
+      if (action === "star") {
+        e.preventDefault();
+        if (state.activeMessageId) toggleStar(state.activeMessageId);
+        return;
+      }
+      if (action === "snooze") {
+        e.preventDefault();
+        const menu = act.parentElement && act.parentElement.querySelector(".em-snooze-menu");
+        if (menu) {
+          const open = menu.hidden;
+          menu.hidden = !open;
+          act.setAttribute("aria-expanded", String(open));
         }
         return;
       }
