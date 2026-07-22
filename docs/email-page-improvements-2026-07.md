@@ -15,7 +15,18 @@ mail, reply to the wrong person, or read wrong state; **[med]** = worth
 scheduling; **[low]** = polish.
 
 **STATUS (2026-07-22): Batches A (EM#1–12) + B (EM#13–20) + C1
-(EM#21/22/23/27/29/30/31/32) SHIPPED.** C1 notes: pagination is a
+(EM#21/22/23/27/29/30/31/32) + C2 (EM#24/25/26/28) SHIPPED — all of
+sections A–C done.** C2 notes: **migration 0536** adds
+is_starred/snoozed_until/from_name/has_attachments (+ backfills from
+document_intake and the attachments jsonb). The select is now THREE
+tiers (FULL 0536 → MID 0535 → LEGACY) so a 0535-but-not-0536 DB
+degrades one step without losing server read state. Starred + Snoozed
+are VIRTUAL views (`__starred__`/`__snoozed__`, same pattern as
+Documents) — guards keep them out of move targets/undo sources/badge
+counts. Snooze presets: +4h / tomorrow 8am / next Monday 8am, undo
+clears the wake time. webhook-email-inbound stamps
+from_name/has_attachments with a legacy-column insert retry so a
+pre-0536 DB never drops mail. C1 notes: pagination is a
 "Load 200 more" tail row over `.range()` pages sharing the EM#1 race
 guard; bulk PATCHes chunk `.in()` at 100 ids; the undo bar (8s, one
 slot) covers hover-trash, read-bar moves, drag, popout AND bulk — with

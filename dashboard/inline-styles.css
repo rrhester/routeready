@@ -25431,6 +25431,24 @@ body.rr-cmdk-open{ overflow:hidden }
             background:var(--rr-blue-600);border-color:var(--rr-blue-600);
           }
           #view-email .em-msg-row.selected{background:var(--rr-blue-50, rgba(37,99,235,.07))}
+          /* Star toggle on rows (EM#24) · hover-revealed like the
+             checkbox; starred rows keep it lit. */
+          #view-email .em-msg-star{
+            flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;
+            width:16px;height:16px;color:var(--text-subtle);
+            opacity:0;transition:opacity var(--t-fast, .12s);cursor:pointer;user-select:none;
+          }
+          #view-email .em-msg-row:hover .em-msg-star,
+          #view-email .em-msg-star.starred{opacity:1}
+          #view-email .em-msg-star.starred{color:var(--rr-amber-500, var(--rr-amber-800))}
+          #view-email .em-msg-star:hover{color:var(--rr-amber-800)}
+          /* Paperclip indicator (EM#26) + snooze wake chip (EM#25). */
+          #view-email .em-msg-clip{flex:0 0 auto;color:var(--text-subtle);display:inline-flex}
+          #view-email .em-msg-snooze-chip{
+            flex:0 0 auto;font-size:var(--fs-10);font-weight:600;
+            color:var(--rr-amber-800);background:var(--rr-amber-100);
+            border-radius:999px;padding:0 7px;line-height:1.5;white-space:nowrap;
+          }
           /* Bulk-action bar (EM#22) · sits under the All/Unread toolbar
              while rows are checked. */
           #view-email .em-bulk-bar{
