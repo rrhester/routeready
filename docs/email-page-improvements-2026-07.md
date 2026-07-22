@@ -14,9 +14,19 @@ Email-redesign merge #4113). Impact tags: **[high]** = operators lose
 mail, reply to the wrong person, or read wrong state; **[med]** = worth
 scheduling; **[low]** = polish.
 
-**STATUS (2026-07-22): Batches A (EM#1–12) + B (EM#13–20) + C1
-(EM#21/22/23/27/29/30/31/32) + C2 (EM#24/25/26/28) SHIPPED — all of
-sections A–C done.** C2 notes: **migration 0536** adds
+**STATUS (2026-07-22): Batches A–C (EM#1–32) + D1
+(EM#34/36/37/42 + EM#74) SHIPPED.** D1 notes: the HTML view (EM#34) is
+opt-in per the review — plain text stays the default; body_html renders
+ONLY inside a fully-sandboxed iframe (no allow-scripts / no
+allow-same-origin) whose srcdoc carries its own `default-src 'none'`
+CSP, with remote images blocked until a per-message "Show images"
+click (verified in QA: an embedded `<script>` cannot run and a tracker
+pixel cannot load). EM#36 shipped with EM#74 (Retry flips
+failed→queued for the drain). EM#37's chips re-sign via storage_path
+so week-old sends still open. `delivered_at` joined all three select
+tiers (0002-era column — safe everywhere). Remaining in D: EM#33
+threading, EM#38 print, EM#39 export, EM#40 add-to-contacts, EM#41
+context chips (D2). C2 notes: **migration 0536** adds
 is_starred/snoozed_until/from_name/has_attachments (+ backfills from
 document_intake and the attachments jsonb). The select is now THREE
 tiers (FULL 0536 → MID 0535 → LEGACY) so a 0535-but-not-0536 DB
