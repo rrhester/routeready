@@ -25393,6 +25393,18 @@ body.rr-cmdk-open{ overflow:hidden }
             font-size:var(--fs-xs);color:var(--text-subtle);flex:0 0 auto;
             font-variant-numeric:tabular-nums;
           }
+          /* Outbound delivery-state pill on a message row (EM#2) —
+             queued/sending = amber, failed = red, sent rows carry none. */
+          #view-email .em-msg-status{
+            flex:0 0 auto;display:inline-block;padding:0 7px;border-radius:999px;
+            font-size:var(--fs-10);font-weight:700;letter-spacing:.03em;
+            text-transform:uppercase;line-height:1.5;
+          }
+          #view-email .em-msg-status-pending{background:var(--rr-amber-100);color:var(--rr-amber-800)}
+          #view-email .em-msg-status-failed{background:var(--rr-red-50);color:var(--rr-red-700)}
+          /* Delivery-state line in the reading-pane meta block (EM#2). */
+          #view-email .em-preview-status{font-size:var(--fs-xs);color:var(--text-subtle)}
+          #view-email .em-preview-status-failed{color:var(--rr-red-700)}
           #view-email .em-msg-subject{
             font-size:var(--fs-md);color:var(--text);
             white-space:nowrap;overflow:hidden;text-overflow:ellipsis;

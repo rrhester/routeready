@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=2521fd0a59b2";
-import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=2521fd0a59b2";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=2521fd0a59b2";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=2521fd0a59b2";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=2521fd0a59b2";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=2521fd0a59b2";
-import { isChecklistComplete } from "./checklist-core.mjs?v=2521fd0a59b2";
+import { planScheduleWeek } from "./scheduling-engine.js?v=da3db2572861";
+import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=da3db2572861";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=da3db2572861";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=da3db2572861";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=da3db2572861";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=da3db2572861";
+import { isChecklistComplete } from "./checklist-core.mjs?v=da3db2572861";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=2521fd0a59b2";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=2521fd0a59b2";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=2521fd0a59b2";
+} from "./msg-core.mjs?v=da3db2572861";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=da3db2572861";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=da3db2572861";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -95003,6 +95003,7 @@ document.addEventListener("click", (e) => {
     inboxFilter:     "all",   // "all" | "unread"
     inboxSort:       "desc",  // "desc" | "asc"
     searchQuery:     "",      // toolbar "Search mail" · client-side filter
+    messagesTotal:   0,       // exact folder total (differs from messages.length at the 200 cap)
     collapsedGroups: new Set(),
     readMessages:    new Set(),
     foldersError:    null,    // load-failure message → inline retry state
@@ -95044,6 +95045,11 @@ document.addEventListener("click", (e) => {
   function saveCollapsed() { try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...state.collapsedGroups])); } catch (_) {} }
   function markRead(id)    { if (!state.readMessages.has(id)) { state.readMessages.add(id); saveRead(); } }
   let inboxChannel = null;
+  // Load-generation token (EM#1) · selectFolder awaits loadMessages with
+  // no ordering guarantee, so two quick folder clicks can resolve out of
+  // order and paint folder A's rows under folder B's title. Every loader
+  // takes a ticket; stale resolutions drop their result on the floor.
+  let _loadGen = 0;
 
   // Folder "new mail" tracking: we don't have an is_read column on
   // email_messages, so we approximate "new" as "received after the
@@ -95068,6 +95074,24 @@ document.addEventListener("click", (e) => {
   function escapeHtmlLocal(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
   }
+  // Plain text from an HTML-only body (EM#10) · snippet, search, quoting,
+  // and the preview fallback all read body_text, which is null on rows
+  // that arrived or were composed as HTML only. Style/script blocks go
+  // first so CSS soup never leaks into snippets; input is capped so a
+  // multi-MB marketing email can't stall a 200-row render.
+  function textFromHtmlLocal(html) {
+    if (!html) return "";
+    return String(html).slice(0, 8000)
+      .replace(/<(style|script)[^>]*>[\s\S]*?<\/\1\s*>/gi, " ")
+      .replace(/<\s*br\s*\/?\s*>/gi, "\n")
+      .replace(/<\/\s*(p|div|tr|li|h[1-6])\s*>/gi, "\n")
+      .replace(/<[^>]+>/g, "")
+      .replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&")
+      .replace(/&lt;/gi, "<").replace(/&gt;/gi, ">").replace(/&quot;/gi, '"').replace(/&#39;/gi, "'")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  }
+  function messageText(m) { return m.body_text || textFromHtmlLocal(m.body_html); }
   function iconFor(kind) { return ICONS[kind] || ICONS.folder; }
 
   function currentDspId() {
@@ -95104,14 +95128,38 @@ document.addEventListener("click", (e) => {
   async function loadMessages() {
     if (state.activeFolderId === DOCS_FOLDER_ID) { await loadDocuments(); return; }
     if (!state.activeFolderId) { state.messages = []; return; }
-    const { data, error } = await sb.from("email_messages")
-      .select("id, from_email, to_email, subject, body_text, body_html, direction, status, created_at")
-      .eq("folder_id", state.activeFolderId)
+    const gen = ++_loadGen;
+    const folderId = state.activeFolderId;
+    // cc_emails (EM#4 — reply-all's Cc carry-over reads it) and
+    // error_message (EM#2 — the failed-send status line) joined the
+    // select 2026-07; retry with the legacy column list if a pre-0319
+    // project is missing cc_emails so the whole list doesn't break.
+    let { data, error } = await sb.from("email_messages")
+      .select("id, from_email, to_email, cc_emails, subject, body_text, body_html, direction, status, error_message, created_at")
+      .eq("folder_id", folderId)
       .order("created_at", { ascending: false })
       .limit(200);
+    if (error && /cc_emails|error_message/.test(error.message || "")) {
+      ({ data, error } = await sb.from("email_messages")
+        .select("id, from_email, to_email, subject, body_text, body_html, direction, status, created_at")
+        .eq("folder_id", folderId)
+        .order("created_at", { ascending: false })
+        .limit(200));
+    }
+    if (gen !== _loadGen) return; // stale — a newer folder click won
     if (error) { console.error("email_messages load failed:", error); state.messages = []; state.messagesError = error.message || "load failed"; return; }
     state.messagesError = null;
     state.messages = data || [];
+    // Honest header count at the 200-row cap (EM#11 partial — exact
+    // per-folder totals move server-side with the counts RPC, EM#66).
+    state.messagesTotal = state.messages.length;
+    if (state.messages.length === 200) {
+      const { count } = await sb.from("email_messages")
+        .select("*", { count: "exact", head: true })
+        .eq("folder_id", folderId);
+      if (gen !== _loadGen) return;
+      if (Number.isFinite(count)) state.messagesTotal = count;
+    }
     // If the previously-selected message is no longer in the list (folder
     // switch, deletion, etc.), clear the preview.
     if (state.activeMessageId && !state.messages.some(m => m.id === state.activeMessageId)) {
@@ -95120,11 +95168,13 @@ document.addEventListener("click", (e) => {
   }
 
   async function loadDocuments() {
+    const gen = ++_loadGen;
     const { data, error } = await sb.from("document_intake")
       .select("id, source, sender_email, sender_name, storage_path, file_name, file_size_bytes, mime_type, status, classified_type, classified_type_label, classification_score, classification_summary, classification_error, classification_model, extracted_data, created_at, email_message_id, uploaded_by")
       .neq("status", "dismissed")
       .order("created_at", { ascending: false })
       .limit(200);
+    if (gen !== _loadGen) return; // stale — a newer folder click won
     if (error) { console.error("document_intake load failed:", error); state.documents = []; return; }
     state.documents = data || [];
     if (state.activeDocId && !state.documents.some(d => d.id === state.activeDocId)) {
@@ -95152,7 +95202,10 @@ document.addEventListener("click", (e) => {
       }
       let q = sb.from("email_messages")
         .select("*", { count: "exact", head: true })
-        .eq("folder_id", folder.id);
+        .eq("folder_id", folder.id)
+        // "New mail" means mail that ARRIVED (EM#9) — without this, every
+        // send ticks the Sent folder's badge as if new mail came in.
+        .eq("direction", "inbound");
       if (lastViewed) q = q.gt("created_at", lastViewed);
       const { count, error } = await q;
       if (error) { out[folder.id] = 0; continue; }
@@ -95281,7 +95334,10 @@ document.addEventListener("click", (e) => {
         count.textContent = n === 1 ? "1 document" : `${n} documents`;
       } else {
         const n = state.messages.length;
-        count.textContent = n === 1 ? "1 message" : `${n} messages`;
+        const total = state.messagesTotal || n;
+        count.textContent = total > n
+          ? `${n} of ${total} messages`
+          : (n === 1 ? "1 message" : `${n} messages`);
       }
     }
   }
@@ -95336,7 +95392,7 @@ document.addEventListener("click", (e) => {
     const q = state.searchQuery.trim().toLowerCase();
     if (q) {
       messages = messages.filter(m =>
-        [m.subject, m.from_email, m.to_email, m.body_text]
+        [m.subject, m.from_email, m.to_email, messageText(m)]
           .some(v => (v || "").toLowerCase().includes(q)));
     }
     // Sort by date.
@@ -95427,11 +95483,20 @@ document.addEventListener("click", (e) => {
     const isInbound = m.direction === "inbound";
     const who = (isInbound ? m.from_email : m.to_email) || "(unknown)";
     const subject = m.subject || "(no subject)";
-    const snippet = (m.body_text || "").replace(/\s+/g, " ").slice(0, 110);
+    const snippet = (messageText(m) || "").replace(/\s+/g, " ").slice(0, 110);
     const when = m.created_at ? formatRelative(new Date(m.created_at)) : "";
+    // Outbound delivery state (EM#2) · a failed/still-queued send must
+    // not sit in Sent looking identical to delivered mail.
+    const st = isInbound ? "" : (m.status || "");
+    const stPill = (st === "queued" || st === "sending")
+      ? `<span class="em-msg-status em-msg-status-pending">${st === "queued" ? "Queued" : "Sending…"}</span>`
+      : (st === "failed")
+        ? `<span class="em-msg-status em-msg-status-failed">Failed</span>`
+        : "";
     return `<button type="button" class="em-msg-row${isActive ? " active" : ""}${isUnread ? " unread" : ""}" data-em-msg="${escapeHtmlLocal(m.id)}" draggable="true">
       <div class="em-msg-row-line1">
         <span class="em-msg-who">${escapeHtmlLocal(who)}</span>
+        ${stPill}
         <span class="em-msg-when">${escapeHtmlLocal(when)}</span>
       </div>
       <div class="em-msg-subject">${escapeHtmlLocal(subject)}</div>
@@ -95502,9 +95567,25 @@ document.addEventListener("click", (e) => {
     const isInbound = m.direction === "inbound";
     // Plaintext rendering only — body_html is intentionally not injected
     // to avoid remote-content / tracking-pixel shenanigans in the
-    // operator dashboard. If body_text is empty, fall back to a short
-    // note rather than an empty pane.
-    const body = (m.body_text || "").replace(/\s+$/g, "");
+    // operator dashboard. HTML-only rows fall back to a stripped-tags
+    // text pass (EM#10) so the pane is never blank.
+    const body = (messageText(m) || "").replace(/\s+$/g, "");
+    const ccLine = Array.isArray(m.cc_emails) && m.cc_emails.length
+      ? `<div><strong>Cc:</strong> ${escapeHtmlLocal(m.cc_emails.join(", "))}</div>`
+      : "";
+    // Outbound delivery state (EM#2) · queued/sending/failed get a line
+    // under the meta; failed carries the provider's reason when stored.
+    const stLine = (() => {
+      if (isInbound) return "";
+      const st = m.status || "";
+      if (st === "failed") {
+        const why = m.error_message ? ` — ${m.error_message}` : "";
+        return `<div class="em-preview-status em-preview-status-failed"><strong>Not delivered</strong>${escapeHtmlLocal(why)}</div>`;
+      }
+      if (st === "queued")  return `<div class="em-preview-status">Queued — sends within a minute</div>`;
+      if (st === "sending") return `<div class="em-preview-status">Sending…</div>`;
+      return "";
+    })();
     preview.innerHTML = `
       ${readBarHtml()}
       <div class="em-preview-header">
@@ -95512,7 +95593,9 @@ document.addEventListener("click", (e) => {
         <div class="em-preview-meta">
           <div><strong>From:</strong> ${escapeHtmlLocal(m.from_email || "—")}</div>
           <div><strong>To:</strong> ${escapeHtmlLocal(m.to_email || "—")}</div>
+          ${ccLine}
           <div><strong>${isInbound ? "Received" : "Sent"}:</strong> ${escapeHtmlLocal(when)}</div>
+          ${stLine}
         </div>
       </div>
       <div class="em-preview-body">${body ? escapeHtmlLocal(body).replace(/\n/g, "<br>") : `<em style="color:var(--text-subtle)">(no text body — message may have arrived as HTML only)</em>`}</div>
@@ -95949,7 +96032,7 @@ document.addEventListener("click", (e) => {
     renderInbox();
     const when = m.created_at ? new Date(m.created_at).toLocaleString() : "";
     const isInbound = m.direction === "inbound";
-    const body = (m.body_text || "").replace(/\s+$/g, "");
+    const body = (messageText(m) || "").replace(/\s+$/g, "");
     // Icon strip: Delete / Reply / Reply All / Forward / Move-to-folder
     // / Close. Move opens a popover listing every folder; click a
     // folder name to relocate the message and close the popout.
@@ -95980,6 +96063,7 @@ document.addEventListener("click", (e) => {
         <div class="em-popout-meta">
           <div><strong>From:</strong> ${escapeHtmlLocal(m.from_email || "—")}</div>
           <div><strong>To:</strong> ${escapeHtmlLocal(m.to_email || "—")}</div>
+          ${Array.isArray(m.cc_emails) && m.cc_emails.length ? `<div><strong>Cc:</strong> ${escapeHtmlLocal(m.cc_emails.join(", "))}</div>` : ""}
           <div><strong>${isInbound ? "Received" : "Sent"}:</strong> ${escapeHtmlLocal(when)}</div>
         </div>
         <div class="em-popout-body">${body ? escapeHtmlLocal(body).replace(/\n/g, "<br>") : `<em style="color:var(--text-subtle)">(no text body)</em>`}</div>
@@ -96031,7 +96115,22 @@ document.addEventListener("click", (e) => {
   async function deleteFolder(id) {
     const f = state.folders.find(x => x.id === id);
     if (!f || f.kind !== "custom") return;
-    if (!confirm(`Delete folder "${f.name}"? Its messages will move to Inbox.`)) return;
+    const kids = state.folders.filter(x => x.parent_id === id);
+    const kidNote = kids.length ? " Its subfolders will move up a level." : "";
+    if (!confirm(`Delete folder "${f.name}"? Its messages will move to Inbox.${kidNote}`)) return;
+    // Re-parent child folders FIRST (EM#6) — fb_folders.parent_id is ON
+    // DELETE CASCADE (0321), so deleting a parent would silently wipe
+    // the whole subtree and set-null-strand every message filed in it.
+    if (kids.length) {
+      const { error: kidErr } = await sb.from("fb_folders")
+        .update({ parent_id: f.parent_id || null })
+        .eq("parent_id", id);
+      if (kidErr) {
+        if (typeof toast === "function") toast("Couldn't move subfolders: " + kidErr.message, "warn");
+        return;
+      }
+      kids.forEach(k => { k.parent_id = f.parent_id || null; });
+    }
     // Reparent messages to Inbox before removing the folder so nothing
     // gets orphaned. On-delete-set-null on email_messages.folder_id would
     // strand them outside any folder view, which is worse than moving
@@ -96072,8 +96171,10 @@ document.addEventListener("click", (e) => {
   function quoteOriginal(m) {
     if (!m) return "";
     const when = m.created_at ? new Date(m.created_at).toLocaleString() : "";
-    const from = m.from_email || "(unknown)";
-    const text = (m.body_text || "").replace(/\s+$/g, "");
+    // Outbound rows' from_email is our own team address (stamped at send
+    // time) or null pre-send — attribute those to "you" (EM#3).
+    const from = m.direction === "outbound" ? "you" : (m.from_email || "(unknown)");
+    const text = (messageText(m) || "").replace(/\s+$/g, "");
     const quoted = text.split("\n").map(l => "> " + l).join("\n");
     return `\n\nOn ${when}, ${from} wrote:\n${quoted}`;
   }
@@ -96094,7 +96195,12 @@ document.addEventListener("click", (e) => {
       return;
     }
     if ((mode === "reply" || mode === "reply-all") && original) {
-      to = original.from_email || "";
+      // Direction-aware target (EM#3): replying to a message YOU sent
+      // (Sent folder, popout) must go back to its recipient — its
+      // from_email is the DSP's own team address (or null pre-send).
+      to = original.direction === "outbound"
+        ? (original.to_email || "")
+        : (original.from_email || "");
       const s = original.subject || "";
       subject = s ? (/^re:/i.test(s) ? s : "Re: " + s) : "";
       body = quoteOriginal(original);
@@ -96386,16 +96492,35 @@ document.addEventListener("click", (e) => {
     }).join("");
   }
 
+  // Set by sendComposerDraft just before it closes the composer so the
+  // queued row's attachment files survive; every other close path
+  // deletes the picked-but-unsent uploads (EM#8 — files upload at pick
+  // time, so an abandoned composer would otherwise orphan them).
+  let _composerAttachmentsSent = false;
   function closeComposer() {
     const m = document.getElementById("rr-em-composer");
     if (m) m.remove();
+    if (!_composerAttachmentsSent) {
+      const paths = composerAttachments.map(a => a.storage_path).filter(Boolean);
+      if (paths.length) {
+        try { sb.storage.from("fleet-bridge-attachments").remove(paths).then(() => {}, () => {}); } catch (_) {}
+      }
+    }
+    composerAttachments = [];
+    _composerAttachmentsSent = false;
     composerOnCancel = null;
     composerApplicantId = null;
     composerTemplateId  = null;
     composerOnSent      = null;
   }
 
+  // In-flight guard (EM#5) · the bottom Send button disables itself but
+  // the ribbon Send tile and Cmd/Ctrl+Enter route here too — one flag
+  // covers every entry point so a double-click can't queue two copies.
+  let _emSendInFlight = false;
   async function sendComposerDraft() {
+   if (_emSendInFlight) return;
+   _emSendInFlight = true;
    try {
     const toInp      = document.getElementById("rr-em-composer-to");
     const ccInp      = document.getElementById("rr-em-composer-cc");
@@ -96439,8 +96564,12 @@ document.addEventListener("click", (e) => {
     // which case omitting the field lets the insert still succeed.
     if (cc.length > 0) insertRow.cc_emails = cc;
     if (composerAttachments.length > 0) {
+      // storage_path rides along (EM#7) so send-email can re-sign a
+      // fresh URL at send time — the 7-day signed URL frozen here goes
+      // stale on rows that retry later than that.
       insertRow.attachments = composerAttachments.map(a => ({
         name: a.name, url: a.url, content_type: a.content_type, size: a.size,
+        storage_path: a.storage_path,
       }));
     }
     const { error } = await sb.from("email_messages").insert(insertRow);
@@ -96454,6 +96583,7 @@ document.addEventListener("click", (e) => {
     // Run the post-send hook (e.g. flip applicant status) before we tear down
     // the composer, since closeComposer() clears composerOnSent.
     if (typeof composerOnSent === "function") { try { await composerOnSent(); } catch (_) {} }
+    _composerAttachmentsSent = true; // the queued row references these files — keep them
     closeComposer();
     // If we're on the Sent folder, the realtime subscription will refresh.
     // If we're on a different folder, no UI change is needed.
@@ -96461,6 +96591,8 @@ document.addEventListener("click", (e) => {
     if (typeof toast === "function") toast("Send error: " + (err?.message || err), "warn");
     const sb2 = document.getElementById("rr-em-composer-send");
     if (sb2) { sb2.disabled = false; sb2.textContent = "Send"; }
+   } finally {
+    _emSendInFlight = false;
    }
   }
 
@@ -96538,6 +96670,10 @@ document.addEventListener("click", (e) => {
   // DSP, painted by _paintWorkspaceChip) — clicking copies it.
   function copyTeamAddress() {
     const el = document.getElementById("rr-fb-team-email");
+    // Mid-flash the label literally reads "Copied to clipboard" (EM#12)
+    // — a second click inside the 1.4s window must not copy that string.
+    const chipEl = document.getElementById("rr-em-account");
+    if (chipEl && chipEl.dataset.copied) return;
     const addr = ((el && el.textContent) || "").trim();
     if (!addr) { if (typeof toast === "function") toast("Team address not set yet — add a station code in Settings", "warn"); return; }
     // Success toasts are suppressed app-wide (operator request, see
@@ -96824,7 +96960,12 @@ document.addEventListener("click", (e) => {
       e.preventDefault();
       const i = parseInt(chipX.getAttribute("data-rr-chip-remove"), 10);
       if (Number.isFinite(i)) {
-        composerAttachments.splice(i, 1);
+        const removed = composerAttachments.splice(i, 1)[0];
+        // The file uploaded at pick time — removing the chip must also
+        // remove the object or it's orphaned forever (EM#8).
+        if (removed?.storage_path) {
+          try { sb.storage.from("fleet-bridge-attachments").remove([removed.storage_path]).then(() => {}, () => {}); } catch (_) {}
+        }
         renderComposerChips();
       }
       return;

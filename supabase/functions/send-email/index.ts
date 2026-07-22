@@ -10,7 +10,7 @@ import { fetchWithTimeout, safeJson } from "../_shared/http.ts";
 import { buildIcsRequest } from "../_shared/ics.ts";
 import { encodeBase64 } from "https://deno.land/std@0.208.0/encoding/base64.ts";
 
-interface Attachment { name?: string; url?: string; path?: string; content_type?: string; size?: number }
+interface Attachment { name?: string; url?: string; path?: string; content_type?: string; size?: number; storage_path?: string }
 interface QueuedRow {
   id: string; dsp_id: string; applicant_id: string | null; folder_id: string | null;
   to_email: string; cc_emails: string[] | null;
@@ -233,7 +233,21 @@ Deno.serve(async (req) => {
     for (const a of att) {
       if (!a) continue;
       const isMsgAtt = !!a.path || /\/object\/(?:public|sign)\/message-attachments\//.test(String(a.url || ""));
-      const url = isMsgAtt ? await signMessageAttachment(supa, a) : (a.url || null);
+      let url: string | null;
+      if (isMsgAtt) {
+        url = await signMessageAttachment(supa, a);
+      } else if (a.storage_path) {
+        // Fleet Bridge composer files carry their bucket path so we can
+        // sign a FRESH url here — the composer's stored 7-day URL goes
+        // stale on rows that fail and retry later than that. Fall back
+        // to the stored URL if signing hiccups.
+        const { data: signed } = await supa.storage
+          .from("fleet-bridge-attachments")
+          .createSignedUrl(a.storage_path, 60 * 60);
+        url = signed?.signedUrl || a.url || null;
+      } else {
+        url = a.url || null;
+      }
       if (url) outAtts.push({ filename: a.name || "attachment", path: url, content_type: a.content_type });
     }
 
