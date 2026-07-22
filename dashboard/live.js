@@ -95002,8 +95002,11 @@ document.addEventListener("click", (e) => {
     folderCounts:    {},   // { folderId: count of NEW messages since last visit }
     inboxFilter:     "all",   // "all" | "unread"
     inboxSort:       "desc",  // "desc" | "asc"
+    searchQuery:     "",      // toolbar "Search mail" · client-side filter
     collapsedGroups: new Set(),
     readMessages:    new Set(),
+    foldersError:    null,    // load-failure message → inline retry state
+    messagesError:   null,
     // Documents pseudo-folder state — populated when
     // activeFolderId === DOCS_FOLDER_ID.
     documents:       [],
@@ -95077,7 +95080,8 @@ document.addEventListener("click", (e) => {
       .select("id, name, kind, position, parent_id")
       .order("position", { ascending: true })
       .order("name",     { ascending: true });
-    if (error) { console.error("fb_folders load failed:", error); state.folders = []; return; }
+    if (error) { console.error("fb_folders load failed:", error); state.folders = []; state.foldersError = error.message || "load failed"; return; }
+    state.foldersError = null;
     // Pin the Documents pseudo-folder to the top of the system list.
     // It isn't a real fb_folders row — clicking it dispatches to the
     // document_intake loaders/renderers instead of the email ones.
@@ -95105,7 +95109,8 @@ document.addEventListener("click", (e) => {
       .eq("folder_id", state.activeFolderId)
       .order("created_at", { ascending: false })
       .limit(200);
-    if (error) { console.error("email_messages load failed:", error); state.messages = []; return; }
+    if (error) { console.error("email_messages load failed:", error); state.messages = []; state.messagesError = error.message || "load failed"; return; }
+    state.messagesError = null;
     state.messages = data || [];
     // If the previously-selected message is no longer in the list (folder
     // switch, deletion, etc.), clear the preview.
@@ -95194,8 +95199,12 @@ document.addEventListener("click", (e) => {
   function renderFolders() {
     const host = document.getElementById("rr-em-folders");
     if (!host) return;
+    if (state.foldersError) {
+      host.innerHTML = `<div class="em-folder-note"><span>Couldn't load folders.</span><button type="button" class="em-folder-retry" data-em-folders-retry>Retry</button></div>`;
+      return;
+    }
     if (!state.folders.length) {
-      host.innerHTML = `<div class="em-folder-empty" style="padding:var(--s-3) var(--s-4);color:var(--text-subtle);font-size:var(--fs-xs)">Loading folders…</div>`;
+      host.innerHTML = `<div class="em-folder-note">Loading folders…</div>`;
       return;
     }
     // Index folders by parent_id so we can render the tree recursively.
@@ -95292,16 +95301,43 @@ document.addEventListener("click", (e) => {
     return                  { key: "older",      label: "Older" };
   }
 
+  // Centered pane empty/status state · small outlined icon + heading +
+  // supporting line (mockup pattern). `icon` picks a glyph from the
+  // tiny set below; label/sub are already-escaped by callers via
+  // escapeHtmlLocal where they carry user text.
+  const EMPTY_ICONS = {
+    mail: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg>`,
+    doc:  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`,
+    search: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`,
+    warn: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16.5" x2="12.01" y2="16.5"/></svg>`,
+  };
+  function emptyStateHtml(icon, label, sub, extraHtml = "") {
+    return `<div class="em-placeholder">
+      <span class="em-placeholder-icon" aria-hidden="true">${EMPTY_ICONS[icon] || EMPTY_ICONS.mail}</span>
+      <span class="em-placeholder-label">${label}</span>
+      ${sub ? `<div>${sub}</div>` : ""}
+      ${extraHtml}
+    </div>`;
+  }
+
   function renderInbox() {
     if (state.activeFolderId === DOCS_FOLDER_ID) { renderDocsInbox(); return; }
     renderHeader();
     const inbox = document.getElementById("rr-em-inbox");
     if (!inbox) return;
 
-    // Filter by All / Unread tab.
+    // Filter by All / Unread tab (pills + the toolbar "All mail"
+    // dropdown drive the same state).
     let messages = state.messages.slice();
     if (state.inboxFilter === "unread") {
       messages = messages.filter(m => !state.readMessages.has(m.id));
+    }
+    // Toolbar search · client-side filter over the loaded folder.
+    const q = state.searchQuery.trim().toLowerCase();
+    if (q) {
+      messages = messages.filter(m =>
+        [m.subject, m.from_email, m.to_email, m.body_text]
+          .some(v => (v || "").toLowerCase().includes(q)));
     }
     // Sort by date.
     messages.sort((a, b) => {
@@ -95309,6 +95345,11 @@ document.addEventListener("click", (e) => {
       const bv = new Date(b.created_at).getTime();
       return state.inboxSort === "asc" ? av - bv : bv - av;
     });
+    // While searching, the pane count reads "shown of total".
+    if (q) {
+      const countEl = document.getElementById("rr-em-main-count");
+      if (countEl) countEl.textContent = `${messages.length} of ${state.messages.length}`;
+    }
 
     const unreadCount = state.messages.filter(m => !state.readMessages.has(m.id)).length;
     const sortLabel = state.inboxSort === "desc" ? "Newest" : "Oldest";
@@ -95325,13 +95366,29 @@ document.addEventListener("click", (e) => {
 
     if (messages.length === 0) {
       const f = state.folders.find(x => x.id === state.activeFolderId);
-      const empty = state.inboxFilter === "unread"
-        ? "All caught up — no unread messages."
-        : (f && f.kind === "custom" ? "Drag messages here to organise them." : "This folder is empty.");
-      inbox.innerHTML = toolbarHtml + `<div class="em-placeholder">
-        <span class="em-placeholder-label">${state.inboxFilter === "unread" ? "Nothing unread" : "No messages"}</span>
-        <div>${empty}</div>
-      </div>`;
+      let icon = "mail", label, sub;
+      if (state.messagesError) {
+        icon = "warn";
+        label = "Couldn't load messages";
+        sub = `${escapeHtmlLocal(state.messagesError)} — use Refresh to try again.`;
+      } else if (q) {
+        icon = "search";
+        label = "No matches";
+        sub = `No messages match “${escapeHtmlLocal(state.searchQuery.trim())}”.`;
+      } else if (state.inboxFilter === "unread") {
+        label = "Nothing unread";
+        sub = "All caught up — no unread messages.";
+      } else if (f && f.kind === "inbox") {
+        label = "Your inbox is clear";
+        sub = "No messages to display.";
+      } else if (f && f.kind === "custom") {
+        label = "Nothing filed here yet";
+        sub = "Drag messages here to organise them.";
+      } else {
+        label = "No messages";
+        sub = "No messages to display.";
+      }
+      inbox.innerHTML = toolbarHtml + emptyStateHtml(icon, label, sub);
       return;
     }
 
@@ -95395,20 +95452,50 @@ document.addEventListener("click", (e) => {
     return d.toLocaleDateString();
   }
 
+  // Contextual message actions · rendered ABOVE the open message
+  // (mockup: the page header carries no message-level actions). The
+  // buttons reuse the long-standing delegated [data-em-act] handler,
+  // which acts on state.activeMessageId. The leading back button only
+  // shows when the reading pane is a narrow-width slide-over.
+  function readBarHtml() {
+    const act = (a, label, svg) => `<button type="button" class="em-read-act" data-em-act="${a}" title="${label}">${svg}<span>${label}</span></button>`;
+    return `<div class="em-read-bar" role="toolbar" aria-label="Message actions">
+      <button type="button" class="em-read-back" data-em-preview-back aria-label="Back to message list" title="Back to list">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      ${act("archive", "Archive", `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>`)}
+      ${act("delete", "Delete", `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>`)}
+      <span class="em-read-sep" aria-hidden="true"></span>
+      ${act("reply", "Reply", `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>`)}
+      ${act("reply-all", "Reply All", `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 17 2 12 7 7"/><polyline points="12 17 7 12 12 7"/><path d="M22 18v-2a4 4 0 0 0-4-4H7"/></svg>`)}
+      ${act("forward", "Forward", `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 17 20 12 15 7"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/></svg>`)}
+    </div>`;
+  }
+
+  // Signals the narrow-width slide-over CSS whether the reading pane
+  // has something to show (email selection or docs drill-down).
+  function syncPreviewOpen() {
+    const split = document.getElementById("rr-em-split");
+    if (!split) return;
+    const open = state.activeFolderId === DOCS_FOLDER_ID
+      ? !!state.activeDocId
+      : !!state.activeMessageId;
+    split.classList.toggle("em-preview-open", open);
+  }
+
   function renderPreview() {
+    syncPreviewOpen();
     if (state.activeFolderId === DOCS_FOLDER_ID) { renderDocsPreview(); return; }
     const preview = document.getElementById("rr-em-preview");
     if (!preview) return;
     if (!state.activeMessageId) {
-      preview.innerHTML = `<div class="em-placeholder">
-        <span class="em-placeholder-label">No message selected</span>
-        <div>Pick a thread from the inbox to preview it here.</div>
-      </div>`;
+      preview.innerHTML = emptyStateHtml("doc", "No message selected",
+        "Choose a message from the inbox to preview it here.");
       return;
     }
     const m = state.messages.find(x => x.id === state.activeMessageId);
     if (!m) {
-      preview.innerHTML = `<div class="em-placeholder"><span class="em-placeholder-label">Message not found</span></div>`;
+      preview.innerHTML = emptyStateHtml("warn", "Message not found", "");
       return;
     }
     const when = m.created_at ? new Date(m.created_at).toLocaleString() : "";
@@ -95419,6 +95506,7 @@ document.addEventListener("click", (e) => {
     // note rather than an empty pane.
     const body = (m.body_text || "").replace(/\s+$/g, "");
     preview.innerHTML = `
+      ${readBarHtml()}
       <div class="em-preview-header">
         <div class="em-preview-subject">${escapeHtmlLocal(m.subject || "(no subject)")}</div>
         <div class="em-preview-meta">
@@ -95507,14 +95595,24 @@ document.addEventListener("click", (e) => {
       </label>
       <input type="file" id="rr-em-docs-upload" accept=".pdf,image/*,.xlsx,.xls,.csv,.doc,.docx,.txt" hidden multiple>
     </div>`;
-    if (state.documents.length === 0) {
-      inbox.innerHTML = toolbar + `<div class="em-placeholder">
-        <span class="em-placeholder-label">No pending documents</span>
-        <div>PDFs, photos, and spreadsheets attached to inbound mail land here. You can also upload one manually.</div>
-      </div>`;
+    // Toolbar search applies here too — filter by name / summary / sender.
+    const q = state.searchQuery.trim().toLowerCase();
+    let docs = state.documents;
+    if (q) {
+      docs = docs.filter(d =>
+        [d.file_name, d.classification_summary, d.sender_email, d.sender_name]
+          .some(v => (v || "").toLowerCase().includes(q)));
+      const countEl = document.getElementById("rr-em-main-count");
+      if (countEl) countEl.textContent = `${docs.length} of ${state.documents.length}`;
+    }
+    if (docs.length === 0) {
+      inbox.innerHTML = toolbar + (q
+        ? emptyStateHtml("search", "No matches", `No documents match “${escapeHtmlLocal(state.searchQuery.trim())}”.`)
+        : emptyStateHtml("doc", "No pending documents",
+            "PDFs, photos, and spreadsheets attached to inbound mail land here. You can also upload one manually."));
       return;
     }
-    inbox.innerHTML = toolbar + state.documents.map(docRowHtml).join("");
+    inbox.innerHTML = toolbar + docs.map(docRowHtml).join("");
   }
 
   function docRowHtml(d) {
@@ -95624,6 +95722,7 @@ document.addEventListener("click", (e) => {
   }
 
   async function renderDocsPreview() {
+    syncPreviewOpen();
     const preview = document.getElementById("rr-em-preview");
     if (!preview) return;
     if (!state.activeDocId) {
@@ -95704,6 +95803,8 @@ document.addEventListener("click", (e) => {
 
   function backToDocsList() {
     state.activeDocId = null;
+    setDocsSplitMode("list");
+    syncPreviewOpen();
     renderDocsInbox();
     // Clear the preview pane content too (it's hidden in list mode).
     const preview = document.getElementById("rr-em-preview");
@@ -96411,9 +96512,209 @@ document.addEventListener("click", (e) => {
     renderPreview();
   }
 
+  // ── Toolbar commands (redesign 2026-07-21) ──────────────────────
+  // Refresh · re-runs the existing loaders for whatever's on screen.
+  let _refreshing = false;
+  async function refreshMail(fullFolders) {
+    if (_refreshing) return;
+    _refreshing = true;
+    const btn = document.getElementById("rr-em-refresh");
+    if (btn) { btn.disabled = true; btn.classList.add("is-busy"); btn.setAttribute("aria-busy", "true"); }
+    try {
+      if (fullFolders || state.foldersError || !state.folders.length) await loadFolders();
+      await loadFolderCounts();
+      renderFolders();
+      await loadMessages();
+      renderInbox();
+      renderPreview();
+      subscribeRealtime();
+    } finally {
+      _refreshing = false;
+      if (btn) { btn.disabled = false; btn.classList.remove("is-busy"); btn.removeAttribute("aria-busy"); }
+    }
+  }
+
+  // Account chip · the address is display-only (one team address per
+  // DSP, painted by _paintWorkspaceChip) — clicking copies it.
+  function copyTeamAddress() {
+    const el = document.getElementById("rr-fb-team-email");
+    const addr = ((el && el.textContent) || "").trim();
+    if (!addr) { if (typeof toast === "function") toast("Team address not set yet — add a station code in Settings", "warn"); return; }
+    // Success toasts are suppressed app-wide (operator request, see
+    // mock-wiring toast()), so confirm inline: flash the chip label.
+    const done = () => {
+      const chip = document.getElementById("rr-em-account");
+      if (!el || !chip || chip.dataset.copied) return;
+      chip.dataset.copied = "1";
+      chip.classList.add("is-copied");
+      const prev = el.textContent;
+      el.textContent = "Copied to clipboard";
+      setTimeout(() => {
+        el.textContent = prev;
+        chip.classList.remove("is-copied");
+        delete chip.dataset.copied;
+      }, 1400);
+    };
+    const fallback = () => {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = addr;
+        ta.setAttribute("readonly", "");
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        ta.remove();
+        done();
+      } catch (_) {
+        if (typeof toast === "function") toast("Couldn't copy the address", "warn");
+      }
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(addr).then(done, fallback);
+    } else {
+      fallback();
+    }
+  }
+
+  // Overflow (⋮) menu.
+  function closeMoreMenu() {
+    const m = document.getElementById("rr-em-more-menu");
+    const b = document.getElementById("rr-em-more");
+    if (m) m.hidden = true;
+    if (b) b.setAttribute("aria-expanded", "false");
+  }
+  function toggleMoreMenu() {
+    const m = document.getElementById("rr-em-more-menu");
+    const b = document.getElementById("rr-em-more");
+    if (!m) return;
+    const open = m.hidden;
+    m.hidden = !open;
+    if (b) b.setAttribute("aria-expanded", String(open));
+    if (open) {
+      const item = document.getElementById("rr-em-menu-folders");
+      if (item) item.textContent = folderPaneVisible() ? "Hide folder pane" : "Show folder pane";
+      const first = m.querySelector("[role=menuitem]");
+      if (first) first.focus();
+    }
+  }
+  // Folder-pane collapse · explicit choice persists; with no explicit
+  // choice the pane auto-collapses below 1080px (CSS media rule).
+  const FOLDERS_VIS_KEY = "rr-em-folder-pane";
+  function folderPaneVisible() {
+    const aside = document.querySelector("#view-email .em-aside");
+    return !!(aside && getComputedStyle(aside).display !== "none");
+  }
+  function setFolderPaneVisible(show) {
+    const grid = document.getElementById("rr-em-grid");
+    if (!grid) return;
+    grid.classList.toggle("rr-folders-hidden", !show);
+    grid.classList.toggle("rr-folders-shown", !!show);
+    try { localStorage.setItem(FOLDERS_VIS_KEY, show ? "shown" : "hidden"); } catch (_) {}
+  }
+  function restoreFolderPanePref() {
+    let pref = null;
+    try { pref = localStorage.getItem(FOLDERS_VIS_KEY); } catch (_) {}
+    if (pref !== "shown" && pref !== "hidden") return; // auto (media-query) behavior
+    const grid = document.getElementById("rr-em-grid");
+    if (!grid) return;
+    grid.classList.toggle("rr-folders-hidden", pref === "hidden");
+    grid.classList.toggle("rr-folders-shown", pref === "shown");
+  }
+  function handleMoreMenu(cmd) {
+    closeMoreMenu();
+    if (cmd === "copy-address") { copyTeamAddress(); return; }
+    if (cmd === "toggle-folders") { setFolderPaneVisible(!folderPaneVisible()); return; }
+    if (cmd === "new-folder") {
+      setFolderPaneVisible(true);
+      const form = document.getElementById("rr-em-new-folder-form");
+      const inp  = document.getElementById("rr-em-new-folder-input");
+      if (form) form.hidden = false;
+      if (inp) { inp.value = ""; inp.focus(); }
+    }
+  }
+
+  // Workspace nav tabs · each routes to the app's REAL surface for
+  // that noun (no phantom sub-pages): Templates = the hiring
+  // message-template drawer (lives on the Onboarding view, so
+  // navigate there first — the slide-over can't render inside a
+  // hidden view), Contacts = the utility-rail directory panel,
+  // Settings = workspace settings.
+  function handleNavTab(which) {
+    if (which === "email") return; // already here
+    if (which === "settings") {
+      if (typeof window.goto === "function") window.goto("settings");
+      return;
+    }
+    if (which === "contacts") {
+      // Direct module-scope call — live.js is an ES module, so the rail
+      // panel manager is NOT reachable via window.*.
+      if (typeof _rrNtPanelToggle === "function") _rrNtPanelToggle("contacts");
+      return;
+    }
+    if (which === "templates") {
+      if (typeof window.goto === "function") window.goto("onboarding-ops");
+      let tries = 0;
+      const t = setInterval(() => {
+        if (typeof window._rrOpenHiringMessages === "function" && document.getElementById("rr-obmsg-drawer")) {
+          clearInterval(t);
+          window._rrOpenHiringMessages();
+        } else if (++tries > 20) {
+          clearInterval(t);
+        }
+      }, 100);
+    }
+  }
+
+  // Keep the toolbar "All mail / Unread" dropdown in lockstep with the
+  // message-list pills (both drive state.inboxFilter).
+  function syncScopeSelect() {
+    const sel = document.getElementById("rr-em-scope");
+    if (sel && sel.value !== state.inboxFilter) sel.value = state.inboxFilter;
+  }
+
   // ── Event wiring ────────────────────────────────────────────────
   document.addEventListener("click", (e) => {
     if (!e.target.closest) return;
+    // Overflow menu · clicking anywhere outside it closes it (doesn't
+    // swallow the click — other handlers below still run).
+    {
+      const menu = document.getElementById("rr-em-more-menu");
+      if (menu && !menu.hidden && !e.target.closest(".em-more-wrap")) closeMoreMenu();
+    }
+    // Toolbar commands.
+    if (e.target.closest("#rr-em-refresh")) { e.preventDefault(); refreshMail(); return; }
+    if (e.target.closest("#rr-em-account")) { e.preventDefault(); copyTeamAddress(); return; }
+    if (e.target.closest("#rr-em-settings")) {
+      e.preventDefault();
+      if (typeof window.goto === "function") window.goto("settings");
+      return;
+    }
+    if (e.target.closest("#rr-em-more")) { e.preventDefault(); toggleMoreMenu(); return; }
+    {
+      const item = e.target.closest("#rr-em-more-menu [data-em-menu]");
+      if (item) { e.preventDefault(); handleMoreMenu(item.getAttribute("data-em-menu")); return; }
+    }
+    // Workspace nav tabs.
+    {
+      const nav = e.target.closest("#view-email [data-em-nav]");
+      if (nav) { e.preventDefault(); handleNavTab(nav.getAttribute("data-em-nav")); return; }
+    }
+    // Reading-pane back button (narrow-width slide-over).
+    if (e.target.closest("[data-em-preview-back]")) {
+      e.preventDefault();
+      state.activeMessageId = null;
+      renderInbox();
+      renderPreview();
+      return;
+    }
+    // Folder-list retry after a load failure.
+    if (e.target.closest("[data-em-folders-retry]")) {
+      e.preventDefault();
+      refreshMail(true);
+      return;
+    }
     // Delete (× on hover) takes precedence over the folder-button click.
     const del = e.target.closest("[data-em-folder-delete]");
     if (del) {
@@ -96528,13 +96829,15 @@ document.addEventListener("click", (e) => {
       }
       return;
     }
-    // Inbox toolbar: All / Unread tabs.
+    // Inbox toolbar: All / Unread tabs (mirrored into the toolbar's
+    // "All mail" dropdown — one state, two controls).
     {
       const tab = e.target.closest("[data-em-inbox-filter]");
       if (tab) {
         e.preventDefault();
         state.inboxFilter = tab.getAttribute("data-em-inbox-filter") === "unread" ? "unread" : "all";
         saveFilter();
+        syncScopeSelect();
         renderInbox();
         return;
       }
@@ -96664,6 +96967,37 @@ document.addEventListener("click", (e) => {
     e.target.value = "";
     if (files.length === 0) return;
     uploadDocs(files);
+  });
+
+  // Toolbar "All mail / Unread" dropdown → same state as the pills.
+  document.addEventListener("change", (e) => {
+    if (!e.target || e.target.id !== "rr-em-scope") return;
+    state.inboxFilter = e.target.value === "unread" ? "unread" : "all";
+    saveFilter();
+    renderInbox();
+  });
+
+  // Toolbar search · debounced client-side filter of the loaded folder.
+  let _searchDebounce = 0;
+  document.addEventListener("input", (e) => {
+    if (!e.target || e.target.id !== "rr-em-search") return;
+    const v = e.target.value || "";
+    clearTimeout(_searchDebounce);
+    _searchDebounce = setTimeout(() => {
+      state.searchQuery = v;
+      renderInbox();
+    }, 150);
+  });
+
+  // Escape closes the overflow menu (and returns focus to its button).
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    const m = document.getElementById("rr-em-more-menu");
+    if (m && !m.hidden) {
+      closeMoreMenu();
+      const b = document.getElementById("rr-em-more");
+      if (b) b.focus();
+    }
   });
 
   // Smart Fill (Schedule ribbon) · same visual one-shot spin as the
@@ -96808,7 +97142,7 @@ document.addEventListener("click", (e) => {
   // ── Inbox / preview resizer ─────────────────────────────────────
   const SPLIT_KEY  = "rr-email-split-w";
   const MIN_W = 240;       // collapse-guard so neither pane vanishes
-  const DEFAULT_W = 360;
+  const DEFAULT_W = 430;   // mockup: ~430px message-list pane
   function setInboxWidth(px, persist) {
     const split = document.getElementById("rr-em-split");
     if (!split) return;
@@ -96908,6 +97242,8 @@ document.addEventListener("click", (e) => {
     if (state.booted) return true;
     state.booted = true;
     loadInboxPrefs();
+    syncScopeSelect();
+    restoreFolderPanePref();
     restoreInboxWidth();
     renderFolders();   // shows "Loading folders…" while the query runs
     renderInbox();

@@ -24877,207 +24877,158 @@ body.rr-cmdk-open{ overflow:hidden }
         
 /* ── block 40 · index.html:28440 ── */
 
-          /* Fleet Bridge chrome · brought to the TCP spec so the
-             header strip + cmd-tabs match Schedule + Onboarding
-             pixel-for-pixel. Tokens live in dashboard/tcp.css:
-               --tcp-strip-h     = 115px
-               --tcp-cmd-tabs-h  =  28px
-               --tcp-title-w     = 240px
-             Per operator preference there's no KPI strip on this
-             surface — Fleet Bridge stops at the header card and
-             the email grid takes over. */
-          /* cmd-shell · flex-column wrapper. cmd-tabs sit IN-FLOW
-             above the strip card (same pattern as Onboarding); the
-             previous absolute positioning made the strip card sit
-             ~28px higher than Schedule's because the tabs ate no
-             in-flow space. With the tabs in-flow the strip card
-             lands at the same Y as Schedule's. */
-          #view-email .em-cmd-shell{
-            position:relative;
-            display:flex;flex-direction:column;
-            margin-bottom:var(--s-4);
+          /* Email chrome · two-level header (redesign 2026-07-21,
+             operator mockup). Level 1 is a compact workspace nav-tab
+             row (Email active with a brand underline), level 2 is a
+             32px command toolbar — the same control height as
+             Schedule's compact controls. Both use the shared --rr-*
+             tokens; no oversized icon tiles, no strip card. */
+          #view-email .em-nav{
+            display:flex;align-items:center;gap:var(--rr-space-40);
+            flex:0 0 auto;
+            border-bottom:1px solid var(--rr-border-primary);
+            margin-bottom:var(--rr-space-120);
           }
-          #view-email .em-cmd-shell .em-header{margin-bottom:0}
+          #view-email .em-nav-tab{
+            appearance:none;background:transparent;border:0;cursor:pointer;
+            display:inline-flex;align-items:center;gap:var(--rr-space-80);
+            padding:var(--rr-space-100) var(--rr-space-120);
+            margin-bottom:-1px;
+            font:var(--rr-font-body-strong);color:var(--rr-fg-secondary);
+            border-bottom:2px solid transparent;
+            border-radius:var(--rr-radius-small) var(--rr-radius-small) 0 0;
+            transition:color var(--rr-motion-fast),border-color var(--rr-motion-fast),background var(--rr-motion-fast);
+          }
+          #view-email .em-nav-tab svg{width:16px;height:16px;flex:0 0 auto}
+          #view-email .em-nav-tab:hover{color:var(--rr-fg-primary);background:var(--rr-bg-hover)}
+          #view-email .em-nav-tab.active{
+            color:var(--rr-brand-primary);
+            border-bottom-color:var(--rr-brand-primary);
+            background:transparent;
+          }
+          #view-email .em-nav-tab:focus-visible{outline:none;box-shadow:var(--ring-focus)}
 
-          /* cmd-tabs · plain-text labels above the strip card,
-             matching Schedule's .sched-v2-cmd-tabs (transparent
-             everything, active = brand blue text). In-flow so they
-             reserve real layout height instead of overlapping the
-             topbar above. */
-          #view-email .em-cmd-tabs{
-            position:static;
-            display:inline-flex;align-self:flex-start;
-            gap:2px;
-            margin:0 0 -1px 0;padding:0;
-            z-index:1;
+          /* Command toolbar · one 32px-tall row of compact controls. */
+          #view-email .em-toolbar{
+            display:flex;align-items:center;gap:var(--rr-space-80);
+            flex:0 0 auto;flex-wrap:nowrap;min-width:0;
+            margin-bottom:var(--rr-space-120);
           }
-          #view-email .em-cmd-tab{
-            appearance:none;background:transparent;cursor:pointer;font:inherit;
-            font-size:var(--fs-xs);font-weight:600;letter-spacing:.04em;text-transform:uppercase;
-            color:var(--rr-fg-secondary);
-            padding:var(--rr-space-60) var(--rr-space-120);
-            border:1px solid transparent;border-bottom:0;
-            border-radius:var(--rr-radius-medium) var(--rr-radius-medium) 0 0;
-            transition:color var(--rr-motion-fast);
+          #view-email .em-toolbar-spacer{flex:1 1 auto;min-width:0}
+          /* New email · blue-outlined per the mockup — white fill,
+             brand border + label. The page's one coloured control. */
+          #view-email .em-btn-new{
+            display:inline-flex;align-items:center;gap:var(--rr-space-60);
+            height:32px;padding:0 var(--rr-space-120);flex:0 0 auto;
+            background:var(--rr-bg-surface-1);
+            border:1px solid var(--rr-brand-primary);
+            border-radius:var(--rr-radius-medium);
+            color:var(--rr-brand-primary);
+            font:var(--rr-font-body-strong);cursor:pointer;white-space:nowrap;
+            transition:background var(--rr-motion-fast),box-shadow var(--rr-motion-fast);
           }
-          #view-email .em-cmd-tab:hover:not(.active){background:transparent}
-          #view-email .em-cmd-tab.active{
-            color:var(--rr-brand-primary);background:transparent;border-color:transparent;
-          }
-          #view-email .em-cmd-tab:focus-visible{outline:none;color:var(--rr-brand-primary)}
-
-          /* Header card · locked to the TCP strip height so Fleet
-             Bridge's chrome matches Schedule + Onboarding. Same
-             padding (11px 18px), same background, same border, no
-             box-shadow — Schedule dropped that for the flatter
-             Fluent look. */
-          #view-email .em-header{
-            display:flex;align-items:center;justify-content:flex-start;
-            gap:var(--s-3);flex-wrap:nowrap;
-            padding:11px 18px;
-            margin-bottom:var(--s-4);
+          #view-email .em-btn-new svg{width:15px;height:15px;flex:0 0 auto}
+          #view-email .em-btn-new:hover{background:var(--rr-bg-selected)}
+          #view-email .em-btn-new:active{background:var(--rr-brand-soft)}
+          #view-email .em-btn-new:focus-visible{outline:none;box-shadow:var(--ring-focus)}
+          #view-email .em-btn-new:disabled{opacity:.5;cursor:not-allowed}
+          /* Quiet bordered 32px icon buttons (refresh / gear / ⋯). */
+          #view-email .em-tool-btn{
+            width:32px;height:32px;flex:0 0 auto;
+            display:inline-flex;align-items:center;justify-content:center;
             background:var(--rr-bg-surface-1);
             border:1px solid var(--rr-border-primary);
             border-radius:var(--rr-radius-medium);
-            box-shadow:none;
-            min-height:var(--tcp-strip-h);
-            height:var(--tcp-strip-h);
-            max-height:var(--tcp-strip-h);
-            box-sizing:border-box;
+            color:var(--rr-fg-secondary);cursor:pointer;
+            transition:background var(--rr-motion-fast),color var(--rr-motion-fast),border-color var(--rr-motion-fast);
           }
-          /* Title block · matches Schedule's .sched-v2-title rules
-             exactly (flex 0 0 240px, centered, margin-right + pad-
-             right that line up with Schedule's first-hairline x).
-             The page-icon (mail glyph) is hidden — Schedule's strip
-             has no icon next to the title, so Fleet Bridge drops
-             it too. */
-          #view-email .em-header .page-header-l{
-            flex:0 0 var(--tcp-title-w);
-            align-self:center;
-            display:flex;flex-direction:column;justify-content:center;
-            /* Override the global .page-header-l { align-items:center }
-               at index.html:1070 — in a flex-COLUMN that rule centers
-               children horizontally, which made the title + sub read
-               centered instead of left-justified. */
-            align-items:flex-start;
-            min-width:0;
-            margin-right:var(--rr-space-160);
-            padding-right:var(--rr-space-120);
-          }
-          #view-email .em-header .page-icon{display:none !important}
-
-          /* Title + subtitle typography pinned to Schedule's
-             .sched-v2-title rules — same font tokens, same letter-
-             spacing, same nowrap behavior. */
-          #view-email .em-header .page-title{
-            font:var(--rr-font-subtitle);
-            color:var(--rr-fg-primary);
-            letter-spacing:-.01em;
-            margin:0;
-            white-space:nowrap;
-          }
-          #view-email .em-header .page-sub{
-            font:var(--rr-font-caption);
+          #view-email .em-tool-btn svg{width:15px;height:15px}
+          #view-email .em-tool-btn:hover{background:var(--rr-bg-hover);color:var(--rr-fg-primary)}
+          #view-email .em-tool-btn:active{background:var(--surface-pressed)}
+          #view-email .em-tool-btn:focus-visible{outline:none;border-color:var(--rr-brand-primary);box-shadow:var(--ring-focus)}
+          #view-email .em-tool-btn:disabled{opacity:.5;cursor:default}
+          #view-email .em-tool-btn.is-busy svg{animation:em-tool-spin .8s linear infinite}
+          @keyframes em-tool-spin{to{transform:rotate(360deg)}}
+          /* Search mail · quiet bordered field, grows to a cap. */
+          #view-email .em-search{
+            display:flex;align-items:center;gap:var(--rr-space-80);
+            flex:0 1 340px;min-width:150px;height:32px;
+            padding:0 var(--rr-space-120);
+            background:var(--rr-bg-surface-1);
+            border:1px solid var(--rr-border-primary);
+            border-radius:var(--rr-radius-medium);
             color:var(--rr-fg-secondary);
-            margin:2px 0 0;
-            white-space:nowrap;
+            transition:border-color var(--rr-motion-fast),box-shadow var(--rr-motion-fast);
           }
-          /* Action ribbon · icon tiles matching the schedule strip.
-             Left-anchored so the first icon sits flush with the icon
-             strips on the schedule / fleet / pipeline pages. */
-          /* Action ribbon · first hairline divider sits at the
-             same X as Schedule's (border-left + matching margin/
-             padding produce the same 1px line in the same place,
-             since the title block left of it is locked to the same
-             240px + 16px margin-right). */
-          #view-email .em-actions{
-            display:flex;align-items:center;gap:8px;
-            flex-wrap:nowrap;min-width:0;
-            margin-left:var(--rr-space-160);
-            padding-left:var(--rr-space-160);
-            border-left:1px solid rgba(15,23,42,.16);
+          #view-email .em-search svg{width:14px;height:14px;flex:0 0 auto}
+          #view-email .em-search:hover{border-color:var(--rr-border-input)}
+          #view-email .em-search:focus-within{border-color:var(--accent);box-shadow:var(--ring-focus)}
+          #view-email .em-search input{
+            flex:1 1 auto;min-width:0;border:0;background:transparent;outline:none;
+            font:var(--rr-font-body);color:var(--rr-fg-primary);padding:0;
           }
-          #view-email .em-action{
-            appearance:none;cursor:pointer;font:inherit;
-            display:inline-flex;flex-direction:column;
-            align-items:center;justify-content:center;gap:4px;
-            min-width:62px;padding:6px 10px 7px;
-            background:transparent;border:0;border-radius:6px;
-            color:var(--text-muted);
-            transition:background var(--t-fast),color var(--t-fast);
+          #view-email .em-search input::placeholder{color:var(--rr-fg-secondary)}
+          /* All-mail filter · reuses select.form-input (shared arrow),
+             sized to the 32px toolbar line. */
+          #view-email select.em-scope{
+            width:auto;max-width:none;flex:0 0 auto;
+            height:32px;padding-top:0;padding-bottom:0;
+            font-size:var(--fs-md);box-shadow:none;
+            border-color:var(--rr-border-primary);
+            color:var(--rr-fg-primary);cursor:pointer;
           }
-          /* Tile SVG bumped 28 → 33px so the action tiles read at
-             the same visual weight as Schedule's .sched-v2-tile
-             icons (operator-requested +18% bump applied globally).
-             Cap/join pinned to butt/miter for the same reason — the
-             inline `stroke-linecap` on these SVGs varies and we
-             want the rendered glyph weight identical to Schedule. */
-          #view-email .em-action svg{
-            width:33px;height:33px;stroke-width:1.6;
-            stroke-linecap:butt;stroke-linejoin:miter;
+          #view-email select.em-scope:hover:not(:focus){border-color:var(--rr-border-input)}
+          /* Account chip · the DSP's team address (painted by
+             _paintWorkspaceChip into #rr-fb-team-email). Click copies. */
+          #view-email .em-account{
+            display:inline-flex;align-items:center;gap:var(--rr-space-80);
+            height:32px;padding:0 var(--rr-space-100);
+            flex:0 1 auto;min-width:0;max-width:300px;
+            background:var(--rr-bg-surface-1);
+            border:1px solid var(--rr-border-primary);
+            border-radius:var(--rr-radius-medium);
+            font:var(--rr-font-body);color:var(--rr-fg-primary);
+            cursor:pointer;
+            transition:background var(--rr-motion-fast),border-color var(--rr-motion-fast);
           }
-          #view-email .em-action span{font-size:var(--fs-md);font-weight:500}
-          #view-email .em-action:hover{background:rgba(15,23,42,.04);color:var(--text)}
-          #view-email .em-action:focus-visible{
-            outline:none;background:rgba(15,23,42,.04);color:var(--text);
-            box-shadow:var(--ring-focus);
+          #view-email .em-account-label{
+            min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
           }
-          /* Stacked Reply / Reply All / Forward · three compact rows in
-             a single tile. Divider matches the first hairline (title
-             block → actions): same color + same 16px margin/pad so
-             the two visible dividers on this strip read as one
-             consistent rule. */
-          #view-email .em-action-stack{
-            display:flex;flex-direction:column;gap:1px;
-            margin-left:var(--rr-space-160);
-            padding-left:var(--rr-space-160);
-            border-left:1px solid rgba(15,23,42,.16);
+          #view-email .em-account-label:empty::before{
+            content:"Team address";color:var(--rr-fg-secondary);
           }
-          #view-email .em-action-stack-btn{
-            appearance:none;cursor:pointer;font:inherit;
-            display:inline-flex;align-items:center;gap:8px;
-            padding:4px 8px;min-width:110px;
-            background:transparent;border:0;border-radius:4px;
-            color:var(--text-muted);font-size:var(--fs-sm);font-weight:500;
-            transition:background var(--t-fast),color var(--t-fast);
+          #view-email .em-account svg{width:12px;height:12px;flex:0 0 auto;color:var(--rr-fg-secondary)}
+          #view-email .em-account:hover{background:var(--rr-bg-hover)}
+          #view-email .em-account:focus-visible{outline:none;border-color:var(--rr-brand-primary);box-shadow:var(--ring-focus)}
+          /* Post-copy flash · green = semantic "done" (success toasts
+             are suppressed app-wide, so the chip confirms inline). */
+          #view-email .em-account.is-copied{border-color:var(--rr-success);color:var(--rr-success)}
+          /* Overflow menu. */
+          #view-email .em-more-wrap{position:relative;flex:0 0 auto}
+          #view-email .em-more-menu{
+            position:absolute;top:calc(100% + 4px);right:0;z-index:30;
+            min-width:200px;padding:var(--rr-space-40);
+            background:var(--rr-bg-surface-1);
+            border:1px solid var(--rr-border-primary);
+            border-radius:var(--rr-radius-medium);
+            box-shadow:var(--rr-shadow-4);
+            display:flex;flex-direction:column;gap:2px;
           }
-          #view-email .em-action-stack-btn svg{width:14px;height:14px;flex:0 0 auto;stroke-width:1.7}
-          #view-email .em-action-stack-btn:hover{background:rgba(15,23,42,.04);color:var(--text)}
-          #view-email .em-action-stack-btn:focus-visible{
-            outline:none;background:rgba(15,23,42,.04);color:var(--text);
-            box-shadow:var(--ring-focus);
+          #view-email .em-more-menu[hidden]{display:none}
+          #view-email .em-more-item{
+            display:block;width:100%;text-align:left;
+            padding:var(--rr-space-80) var(--rr-space-100);
+            border:0;background:transparent;cursor:pointer;
+            border-radius:var(--rr-radius-small);
+            font:var(--rr-font-body);color:var(--rr-fg-primary);
           }
-          /* Document AI · same vibe as the Schedule's Smart Fill /
-             Unassign tiles: soft purple-to-pink gradient pill, dark
-             purple icon + label (not white-on-vibrant). Click still
-             triggers the one-shot spin on the sparkle icon. */
-          #view-email .em-action.em-action-ai{
-            position:relative;color:var(--text-muted);
-            background:transparent;
-            box-shadow:none;
-          }
-          #view-email .em-action.em-action-ai span{color:var(--rr-blue-800);font-weight:600}
-          #view-email .em-action.em-action-ai svg{color:var(--rr-blue-800);fill:var(--rr-blue-800)}
-          #view-email .em-action.em-action-ai:hover{
-            color:var(--rr-blue-800);filter:brightness(.98);
-          }
-          #view-email .em-action.em-action-ai:focus-visible{
-            outline:none;
-            box-shadow:0 0 0 2px var(--rr-white),0 0 0 4px #3B82F6;
-          }
-          #view-email .em-action.em-action-ai svg{transform-origin:50% 50%}
-          #view-email .em-action.em-action-ai.is-spinning svg{
-            animation:em-ai-spin .9s cubic-bezier(.2,.7,.2,1);
-          }
-          @keyframes em-ai-spin{
-            from{transform:rotate(0)}
-            to{transform:rotate(360deg)}
-          }
+          #view-email .em-more-item:hover{background:var(--rr-bg-hover)}
+          #view-email .em-more-item:focus-visible{outline:none;box-shadow:var(--ring-focus)}
           @media (max-width:980px){
-            #view-email .em-actions{display:none}
+            #view-email .em-account{display:none}
           }
-          /* Fleet Bridge view · viewport-locked. The whole view fills
-             the .main column's height and doesn't allow the page to
+          /* Email view · viewport-locked. The whole view fills the
+             .main column's height and doesn't allow the page to
              scroll — every internal scrollbar (folder list, inbox
              list, message preview) is self-contained. */
           #view-email.active{
@@ -25086,82 +25037,81 @@ body.rr-cmdk-open{ overflow:hidden }
             min-height:0;overflow:hidden;
           }
           /* The view's .page wrapper sits between #view-email and the
-             em-cmd-shell / em-grid children. Without this rule it's
-             a plain block with auto height, so em-grid (flex:1 1 auto)
-             has no flex parent and shrinks to its content — leaving
-             empty space below the cards down to the viewport bottom. */
+             em-nav / em-toolbar / em-grid children. Without this rule
+             it's a plain block with auto height, so em-grid
+             (flex:1 1 auto) has no flex parent and shrinks to its
+             content — leaving empty space below the card down to the
+             viewport bottom. */
           #view-email > .page{
             display:flex;flex-direction:column;
             flex:1 1 auto;min-height:0;
             height:100%;
-            /* Match Onboarding's .page padding (12px top, 20px else).
-               Fleet Bridge has cmd-tabs in-flow above the strip card
-               (same pattern as Onboarding), so it needs the same
-               top padding to land its strip card at the SAME Y as
-               Schedule's. Schedule uses 20px top + 20px from its
-               hidden legacy shell = 40px; Onboarding + Fleet Bridge
-               use 12px top + 28px in-flow tabs = 40px. */
             padding:12px var(--rr-space-200) var(--rr-space-200) var(--rr-space-200) !important;
           }
-          #view-email .em-cmd-shell{flex:0 0 auto}
-          /* Layout · aside on the LEFT (open-shifts-sized), main on the
-             RIGHT (calendar-sized) — the opposite of the schedule. */
+          /* One unified workspace card · folders | message list |
+             reading pane, separated by hairlines. White surface, 1px
+             cool-gray border, the shared 6px radius, no shadow —
+             matches the Schedule/Onboarding card language. */
           #view-email .em-grid{
-            display:grid;grid-template-columns:240px minmax(0,1fr);
-            /* Constrain the single grid row to the available flex space
-               (minus em-cmd-shell). Without this, the row is content-sized,
-               em-split stretches past the viewport, and the inbox's
-               overflow-y:scroll has nothing to scroll because its
-               container is already as tall as its content. */
-            grid-template-rows:minmax(0,1fr);
-            gap:var(--s-3);align-items:stretch;
-            flex:1 1 auto;min-height:0;
+            display:flex;align-items:stretch;
+            flex:1 1 auto;min-height:0;min-width:0;
+            background:var(--rr-bg-surface-1);
+            border:1px solid var(--rr-border-primary);
+            border-radius:var(--rr-radius-medium);
+            box-shadow:none;
+            overflow:hidden;
           }
           #view-email .em-aside{
-            display:flex;flex-direction:column;
-            background:var(--surface);
-            border:1px solid var(--sch-line,var(--border));
-            border-radius:var(--r-lg);
-            box-shadow:var(--shadow-xs);
-            padding:var(--s-4);
-            min-height:0;
+            flex:0 0 270px;width:270px;min-width:0;
+            display:flex;flex-direction:column;min-height:0;
+            border-right:1px solid var(--rr-border-primary);
+            padding:var(--s-3);
             overflow-y:auto;
+            background:transparent;
           }
           #view-email .em-main{
-            background:var(--surface);
-            border:1px solid var(--sch-line,var(--border));
-            border-radius:var(--r-lg);
-            box-shadow:var(--shadow-xs);
-            padding:var(--s-4);
+            flex:1 1 auto;min-width:0;min-height:0;
             display:flex;flex-direction:column;
-            min-height:0;overflow:hidden;
+          }
+          /* Folder-pane collapse · explicit (overflow-menu toggle,
+             either direction) or automatic below 1080px unless the
+             operator explicitly re-opened it. */
+          #view-email .em-grid.rr-folders-hidden .em-aside{display:none}
+          @media (max-width:1080px){
+            #view-email .em-grid:not(.rr-folders-shown) .em-aside{display:none}
           }
           #view-email .em-placeholder{
             display:flex;flex-direction:column;align-items:center;justify-content:center;
-            gap:8px;color:var(--text-subtle);font-size:var(--fs-md);
-            height:100%;min-height:300px;text-align:center;
+            gap:6px;color:var(--rr-fg-secondary);font-size:var(--fs-sm);
+            height:100%;min-height:220px;text-align:center;
+            padding:var(--s-6) var(--s-4);
           }
+          #view-email .em-placeholder-icon{color:var(--rr-fg-disabled);margin-bottom:2px}
+          #view-email .em-placeholder-icon svg{width:42px;height:42px;display:block}
           #view-email .em-placeholder-label{
-            font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;
-            text-transform:uppercase;color:var(--text-subtle);
+            font-size:var(--fs-base);font-weight:600;color:var(--rr-fg-primary);
           }
 
           /* —— Folders panel ——————————————————————————————————— */
           #view-email .em-aside-head{
             display:flex;align-items:center;justify-content:space-between;
-            margin:-4px 0 10px;
+            margin:0 0 8px;padding:2px 4px 0 10px;
           }
           #view-email .em-aside-title{
             font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;
             text-transform:uppercase;color:var(--text-subtle);
           }
+          /* "+" · icon-only create-folder affordance (mockup). */
           #view-email .em-new-folder-btn{
-            display:inline-flex;align-items:center;gap:5px;
+            display:inline-flex;align-items:center;justify-content:center;
+            width:24px;height:24px;
             background:transparent;border:0;cursor:pointer;font:inherit;
-            color:var(--sch-blue);font-size:var(--fs-xs);font-weight:600;
-            padding:4px 8px;border-radius:4px;
+            color:var(--text-subtle);
+            padding:0;border-radius:var(--rr-radius-small);
+            transition:background var(--rr-motion-fast),color var(--rr-motion-fast);
           }
-          #view-email .em-new-folder-btn:hover{background:rgba(37,99,235,.08)}
+          #view-email .em-new-folder-btn:hover{background:var(--rr-bg-hover);color:var(--rr-brand-primary)}
+          #view-email .em-new-folder-btn:focus-visible{outline:none;box-shadow:var(--ring-focus);color:var(--rr-brand-primary)}
           #view-email .em-new-folder-form{
             display:flex;align-items:center;gap:6px;margin:0 0 10px;
           }
@@ -25197,14 +25147,16 @@ body.rr-cmdk-open{ overflow:hidden }
             color:var(--text);font-size:var(--fs-md);border-radius:4px;
             transition:background var(--t-fast),color var(--t-fast);
           }
-          #view-email .em-folder:hover{background:rgba(15,23,42,.04)}
+          #view-email .em-folder:hover{background:var(--rr-bg-hover)}
+          /* Selected folder · restrained pale-blue fill, dark label,
+             brand icon (mockup). */
           #view-email .em-folder.active{
-            background:rgba(37,99,235,.10);color:var(--sch-blue);font-weight:600;
+            background:var(--rr-bg-selected);color:var(--rr-fg-primary);font-weight:600;
           }
           #view-email .em-folder-icon{
             width:16px;height:16px;flex:0 0 auto;color:var(--text-subtle);
           }
-          #view-email .em-folder.active .em-folder-icon{color:var(--sch-blue)}
+          #view-email .em-folder.active .em-folder-icon{color:var(--rr-brand-primary)}
           #view-email .em-folder-name{
             flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
           }
@@ -25212,18 +25164,19 @@ body.rr-cmdk-open{ overflow:hidden }
             font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);
             font-variant-numeric:tabular-nums;
           }
-          #view-email .em-folder.active .em-folder-count{color:var(--sch-blue)}
-          /* Pill badge when there are unread/new messages. */
+          #view-email .em-folder.active .em-folder-count{color:var(--rr-brand-primary)}
+          /* Pill badge when there are unread/new messages · NEUTRAL
+             gray (2026-07-21 redesign) — orange stays reserved for
+             warnings/primary actions elsewhere in the app; a routine
+             folder total isn't a warning. */
           #view-email .em-folder-count.has-new{
-            /* Unread badge · amber "needs attention" (app-wide unread
-               convention, e.g. .subnav-pill-badge) — not a solid blue fill. */
-            background:var(--amber);color:var(--text-inverse);
+            background:var(--rr-gray-100);color:var(--rr-gray-700);
             border-radius:var(--r-pill);padding:1px 7px;min-width:18px;
             font-size:var(--fs-10);line-height:1.4;text-align:center;
             display:inline-block;
           }
           #view-email .em-folder.active .em-folder-count.has-new{
-            background:var(--rr-white);color:var(--amber-dark);
+            background:var(--rr-bg-surface-1);color:var(--rr-brand-primary);
           }
           #view-email .em-folder-delete{
             display:none;background:transparent;border:0;cursor:pointer;
@@ -25246,15 +25199,33 @@ body.rr-cmdk-open{ overflow:hidden }
             border-top:1px solid var(--border-subtle,rgba(15,23,42,.06));
           }
           #view-email .em-folder-section:first-child{border-top:0;margin-top:0;padding-top:2px}
+          /* Loading / error notes in the folder list. */
+          #view-email .em-folder-note{
+            padding:var(--s-3) var(--s-2);
+            color:var(--text-subtle);font-size:var(--fs-xs);
+            display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+          }
+          #view-email .em-folder-retry{
+            appearance:none;cursor:pointer;font:inherit;
+            font-size:var(--fs-xs);font-weight:600;
+            color:var(--rr-brand-primary);
+            background:transparent;border:1px solid var(--rr-border-primary);
+            border-radius:var(--rr-radius-small);padding:2px 8px;
+          }
+          #view-email .em-folder-retry:hover{background:var(--rr-bg-selected)}
+          #view-email .em-folder-retry:focus-visible{outline:none;box-shadow:var(--ring-focus)}
 
-          /* —— Main pane header ——————————————————————————————————— */
+          /* —— Message-list pane header ————————————————————————————
+             Lives INSIDE the list pane (mockup): "Inbox" left, count
+             right, hairline underneath. */
           #view-email .em-main-head{
             display:flex;align-items:center;justify-content:space-between;
-            gap:10px;margin:-2px 0 12px;
-            padding-bottom:10px;border-bottom:1px solid var(--border);
+            gap:10px;flex:0 0 auto;
+            padding:var(--s-3) var(--s-4) var(--s-2-5);
+            border-bottom:1px solid var(--rr-border-secondary);
           }
           #view-email .em-main-title{
-            font-size:var(--fs-lg);font-weight:600;color:var(--text);
+            font-size:var(--fs-base);font-weight:600;color:var(--text);
           }
           #view-email .em-main-count{
             font-size:var(--fs-xs);color:var(--text-subtle);
@@ -25262,54 +25233,42 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-email .em-messages{min-height:300px}
 
-          /* —— Inbox / preview split · draggable divider ——————————————
-             Two-column layout inside the main pane: scrollable inbox on
-             the left, message preview on the right, vertical resizer
-             between them. Width persists in localStorage. */
-          #view-email .em-main{display:flex;flex-direction:column;min-height:0}
+          /* —— Message list / reading pane split ——————————————————
+             Flex row inside the main pane: the list pane (header +
+             scrollable inbox) at --em-inbox-w, a draggable hairline
+             resizer, and the reading pane filling the rest. Width
+             persists in localStorage. */
           #view-email .em-split{
-            /* Bulletproof scrollable inbox: em-split is a positioning
-               context, and em-inbox / em-resizer / em-preview are
-               absolutely positioned children that share its exact
-               height. This sidesteps the flex/grid min-height
-               propagation that was leaving em-inbox content-sized
-               (so overflow:scroll had nothing to scroll). */
-            position:relative;
+            position:relative;display:flex;align-items:stretch;
             flex:1 1 0;min-height:0;min-width:0;
           }
+          #view-email .em-list-pane{
+            flex:0 0 var(--em-inbox-w,430px);width:var(--em-inbox-w,430px);
+            min-width:0;min-height:0;
+            display:flex;flex-direction:column;
+          }
           #view-email .em-inbox{
-            position:absolute;top:0;bottom:0;left:0;
-            width:var(--em-inbox-w,360px);
-            min-width:0;overflow-y:scroll;
-            padding:0 12px 0 0;
-          }
-          #view-email .em-inbox::-webkit-scrollbar{width:12px}
-          #view-email .em-inbox::-webkit-scrollbar-thumb{
-            background:var(--border-strong,#c1c5cb);border-radius:6px;
-            border:2px solid var(--surface);
-          }
-          #view-email .em-inbox::-webkit-scrollbar-thumb:hover{
-            background:#9aa3ad;
-          }
-          #view-email .em-inbox::-webkit-scrollbar-track{
-            background:transparent;
+            flex:1 1 auto;min-height:0;
+            overflow-y:auto;
+            padding:0 var(--s-2) var(--s-2);
+            scrollbar-width:thin;
+            scrollbar-color:var(--border-strong) transparent;
           }
           #view-email .em-resizer{
-            position:absolute;top:0;bottom:0;
-            left:var(--em-inbox-w,360px);width:6px;
+            flex:0 0 6px;position:relative;
             cursor:col-resize;background:transparent;user-select:none;
-            z-index:2;
+            z-index:2;margin-left:-3px;
           }
           #view-email .em-resizer::before{
             content:"";position:absolute;left:50%;top:0;bottom:0;
-            width:1px;background:var(--border);
+            width:1px;background:var(--rr-border-primary);
             transform:translateX(-50%);
             transition:width var(--t-fast),background var(--t-fast);
           }
           #view-email .em-resizer:hover::before,
           #view-email .em-resizer:focus-visible::before,
           #view-email .em-resizer.is-dragging::before{
-            width:2px;background:var(--sch-blue);
+            width:2px;background:var(--rr-brand-primary);
           }
           #view-email .em-resizer:focus-visible{outline:none}
           #view-email .em-resizer.is-dragging{
@@ -25320,10 +25279,9 @@ body.rr-cmdk-open{ overflow:hidden }
           body.em-resizing,
           body.em-resizing *{cursor:col-resize !important;user-select:none}
           #view-email .em-preview{
-            position:absolute;top:0;bottom:0;right:0;
-            left:calc(var(--em-inbox-w,360px) + 6px);
-            min-width:0;overflow-y:auto;
-            padding:0 0 0 12px;
+            flex:1 1 auto;min-width:0;min-height:0;
+            overflow-y:auto;
+            padding:0 var(--s-4) var(--s-4);
             scrollbar-width:thin;
             scrollbar-color:var(--border-strong) transparent;
           }
@@ -25415,8 +25373,9 @@ body.rr-cmdk-open{ overflow:hidden }
           #rr-em-composer-body[contenteditable=true]:empty::before{
             content:attr(data-placeholder);color:var(--text-subtle);pointer-events:none;
           }
-          #view-email .em-msg-row:hover{background:rgba(15,23,42,.04)}
-          #view-email .em-msg-row.active{background:rgba(37,99,235,.10)}
+          #view-email .em-msg-row:hover{background:var(--rr-bg-hover)}
+          #view-email .em-msg-row.active{background:var(--rr-bg-selected)}
+          #view-email .em-msg-row:focus-visible{outline:none;box-shadow:var(--ring-focus);z-index:1}
           #view-email .em-msg-row-line1{
             display:flex;align-items:center;justify-content:space-between;gap:8px;
           }
@@ -25442,22 +25401,25 @@ body.rr-cmdk-open{ overflow:hidden }
             content:"";position:absolute;left:2px;top:10px;bottom:10px;
             width:3px;background:var(--accent);border-radius:2px;
           }
-          /* Inbox toolbar · sticky row with All/Unread tabs + sort. */
+          /* Inbox toolbar · sticky row with All/Unread pills + sort. */
           #view-email .em-inbox-toolbar{
-            position:sticky;top:0;z-index:2;background:var(--surface);
+            position:sticky;top:0;z-index:2;background:var(--rr-bg-surface-1);
             display:flex;align-items:center;justify-content:space-between;
-            gap:8px;padding:4px 6px 8px 6px;
-            border-bottom:1px solid var(--border-subtle,rgba(15,23,42,.06));
+            gap:8px;padding:8px 6px;
+            border-bottom:1px solid var(--rr-border-secondary);
           }
-          #view-email .em-inbox-tabs{display:flex;gap:2px}
+          #view-email .em-inbox-tabs{display:flex;gap:4px}
           #view-email .em-inbox-tab{
-            padding:5px 10px;border:0;background:transparent;
-            border-radius:4px;font:inherit;font-size:var(--fs-md);font-weight:500;
+            padding:4px 12px;border:0;background:transparent;
+            border-radius:var(--rr-radius-pill);
+            font:inherit;font-size:var(--fs-sm);font-weight:600;
             color:var(--text-subtle);cursor:pointer;
             display:inline-flex;align-items:center;gap:6px;
+            transition:background var(--rr-motion-fast),color var(--rr-motion-fast);
           }
-          #view-email .em-inbox-tab:hover{background:rgba(15,23,42,.04);color:var(--text)}
-          #view-email .em-inbox-tab.active{background:rgba(37,99,235,.10);color:var(--accent)}
+          #view-email .em-inbox-tab:hover{background:var(--rr-bg-hover);color:var(--text)}
+          #view-email .em-inbox-tab.active{background:var(--rr-bg-selected);color:var(--rr-brand-primary)}
+          #view-email .em-inbox-tab:focus-visible{outline:none;box-shadow:var(--ring-focus)}
           #view-email .em-tab-count{
             background:var(--accent);color:var(--rr-white);font-size:var(--fs-10);
             padding:1px 6px;border-radius:9px;min-width:18px;
@@ -25466,14 +25428,16 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-email .em-inbox-sort{
             display:inline-flex;align-items:center;gap:5px;
             padding:5px 8px;border:0;background:transparent;
-            border-radius:4px;font:inherit;font-size:var(--fs-sm);
+            border-radius:var(--rr-radius-small);font:inherit;font-size:var(--fs-sm);
             color:var(--text-subtle);cursor:pointer;
           }
-          #view-email .em-inbox-sort:hover{background:rgba(15,23,42,.04);color:var(--text)}
-          /* Date-bucket ribbon · sticky group header. */
+          #view-email .em-inbox-sort:hover{background:var(--rr-bg-hover);color:var(--text)}
+          #view-email .em-inbox-sort:focus-visible{outline:none;box-shadow:var(--ring-focus)}
+          /* Date-bucket ribbon · sticky group header (top offset =
+             the sticky inbox toolbar's height). */
           #view-email .em-msg-group{display:flex;flex-direction:column}
           #view-email .em-msg-group-header{
-            position:sticky;top:36px;z-index:1;
+            position:sticky;top:42px;z-index:1;
             display:flex;align-items:center;gap:6px;width:100%;
             padding:6px 10px;border:0;cursor:pointer;
             background:rgba(15,23,42,.035);color:var(--text-subtle);
@@ -25492,8 +25456,7 @@ body.rr-cmdk-open{ overflow:hidden }
             font-size:var(--fs-10);font-weight:500;padding:1px 7px;border-radius:9px;
             letter-spacing:0;text-transform:none;
           }
-          /* Always-visible scrollbar for the inbox list. */
-          #view-email .em-inbox{overflow-y:scroll}
+          /* (The inbox scrollbar is thin/auto — see .em-inbox above.) */
           /* Folder · "+" icon on hover for adding a sub-folder. */
           #view-email .em-folder-add{
             display:none;background:transparent;border:0;cursor:pointer;
@@ -25576,9 +25539,47 @@ body.rr-cmdk-open{ overflow:hidden }
             font-size:var(--fs-base);line-height:1.55;color:var(--text);
             word-wrap:break-word;background:var(--rr-white);
           }
-          /* —— Message preview pane ———————————————————————————————— */
+          /* —— Reading pane ———————————————————————————————————————— */
+          /* Contextual message actions · Archive / Delete / Reply /
+             Reply All / Forward render ABOVE the open message only
+             (never in the page header). Sticky so they stay reachable
+             while scrolling a long message. */
+          #view-email .em-read-bar{
+            position:sticky;top:0;z-index:2;
+            display:flex;align-items:center;gap:2px;
+            padding:var(--s-2) 0;margin:0 0 var(--s-3);
+            background:var(--rr-bg-surface-1);
+            border-bottom:1px solid var(--rr-border-secondary);
+          }
+          #view-email .em-read-act{
+            display:inline-flex;align-items:center;gap:6px;
+            height:28px;padding:0 var(--s-2-5);
+            border:1px solid transparent;border-radius:var(--rr-radius-medium);
+            background:transparent;color:var(--text-muted);
+            font:inherit;font-size:var(--fs-sm);font-weight:500;cursor:pointer;
+            transition:background var(--rr-motion-fast),color var(--rr-motion-fast);
+          }
+          #view-email .em-read-act svg{width:14px;height:14px;flex:0 0 auto}
+          #view-email .em-read-act:hover{background:var(--rr-bg-hover);color:var(--rr-fg-primary)}
+          #view-email .em-read-act:focus-visible{outline:none;box-shadow:var(--ring-focus)}
+          #view-email .em-read-sep{
+            width:1px;height:18px;background:var(--rr-border-primary);
+            margin:0 var(--s-2);flex:0 0 auto;
+          }
+          /* Back-to-list · only shown when the reading pane is a
+             slide-over (narrow widths, media rule below). */
+          #view-email .em-read-back{
+            display:none;align-items:center;justify-content:center;
+            width:28px;height:28px;flex:0 0 auto;
+            border:1px solid transparent;border-radius:var(--rr-radius-medium);
+            background:transparent;color:var(--text-muted);cursor:pointer;
+            margin-right:2px;
+          }
+          #view-email .em-read-back svg{width:15px;height:15px}
+          #view-email .em-read-back:hover{background:var(--rr-bg-hover);color:var(--rr-fg-primary)}
+          #view-email .em-read-back:focus-visible{outline:none;box-shadow:var(--ring-focus)}
           #view-email .em-preview-header{
-            padding:0 6px 14px;
+            padding:0 0 14px;
             border-bottom:1px solid var(--border-subtle,rgba(15,23,42,.06));
             margin-bottom:14px;
           }
@@ -25597,23 +25598,34 @@ body.rr-cmdk-open{ overflow:hidden }
             padding:0 6px;font-size:var(--fs-base);line-height:1.55;color:var(--text);
             word-wrap:break-word;
           }
-          @media (max-width:980px){
-            #view-email .em-split{grid-template-columns:1fr}
-            #view-email .em-resizer,
-            #view-email .em-preview{display:none}
-            #view-email .em-inbox{padding-right:0}
-            #view-email .em-aside,
-            #view-email .em-main{position:static;height:auto;min-height:calc(100vh - 200px)}
-          }
-          @media (max-width:1180px){
-            #view-email .em-grid{grid-template-columns:1fr}
-            #view-email .em-aside{position:static;max-height:none}
+          /* Narrow desktop · the message list takes the full main
+             pane and the reading pane becomes a slide-over that opens
+             when a message is selected (live.js toggles
+             .em-preview-open on #rr-em-split; the read-bar's back
+             button clears the selection to slide it away). */
+          @media (max-width:960px){
+            #view-email .em-resizer{display:none}
+            #view-email .em-list-pane{flex:1 1 auto;width:auto}
+            #view-email .em-preview{
+              position:absolute;inset:0;z-index:5;
+              background:var(--rr-bg-surface-1);
+              transform:translateX(102%);
+              transition:transform var(--rr-motion-standard);
+              box-shadow:var(--rr-shadow-8);
+              padding:0 var(--s-4) var(--s-4);
+            }
+            #view-email .em-split.em-preview-open .em-preview{transform:none}
+            #view-email .em-read-back{display:inline-flex}
+            /* Documents drill-down manages its own list/detail modes —
+               the detail pane must stay in normal flow, not off-canvas. */
+            #view-email .em-split.em-split-docs-detail .em-preview{
+              position:static;transform:none;box-shadow:none;
+            }
           }
           /* Documents pseudo-folder · pinned at top of the System list,
              muted accent so it reads as "different kind of inbox" without
              stealing attention from the email tabs. */
           #view-email .em-folder.em-folder-docs .em-folder-icon{color:var(--accent-7,var(--rr-blue-600))}
-          #view-email .em-folder.em-folder-docs.active .em-folder-icon{color:var(--rr-white)}
           /* Upload pill sits in the docs inbox toolbar. */
           #view-email .em-docs-toolbar{
             display:flex;align-items:center;justify-content:flex-end;
@@ -25736,13 +25748,13 @@ body.rr-cmdk-open{ overflow:hidden }
              so each view gets the entire main area. */
           #view-email .em-split.em-split-docs-list .em-preview,
           #view-email .em-split.em-split-docs-list .em-resizer{display:none}
-          #view-email .em-split.em-split-docs-list .em-inbox{
-            width:auto;right:0;padding-right:0;
+          #view-email .em-split.em-split-docs-list .em-list-pane{
+            flex:1 1 auto;width:auto;
           }
-          #view-email .em-split.em-split-docs-detail .em-inbox,
+          #view-email .em-split.em-split-docs-detail .em-list-pane,
           #view-email .em-split.em-split-docs-detail .em-resizer{display:none}
           #view-email .em-split.em-split-docs-detail .em-preview{
-            left:0;padding-left:0;
+            padding:0;
             display:flex;flex-direction:column;
           }
           #view-email .em-split.em-split-docs-detail .em-preview-header{flex:0 0 auto}

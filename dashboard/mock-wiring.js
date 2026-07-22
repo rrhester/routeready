@@ -311,11 +311,11 @@
     try {
       var _rrAV = target ? target.id : ('view-' + view);
       document.body.dataset.rrActiveView = _rrAV;
-      // Leaving the rail host views (Schedule / Onboarding-Ops / Fleet):
-      // close any open panel so it can't linger over a view that doesn't
-      // host the rail.
+      // Leaving the rail host views (Schedule / Onboarding-Ops / Fleet /
+      // Email): close any open panel so it can't linger over a view that
+      // doesn't host the rail.
       if (_rrAV !== 'view-schedule' && _rrAV !== 'view-onboarding-ops' &&
-          _rrAV !== 'view-fleet2' &&
+          _rrAV !== 'view-fleet2' && _rrAV !== 'view-email' &&
           typeof window._rrNtPanelCloseAll === 'function') {
         window._rrNtPanelCloseAll();
       }
