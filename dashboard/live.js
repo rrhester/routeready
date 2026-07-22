@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=bea61fdebfd7";
-import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=bea61fdebfd7";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=bea61fdebfd7";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=bea61fdebfd7";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=bea61fdebfd7";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=bea61fdebfd7";
-import { isChecklistComplete } from "./checklist-core.mjs?v=bea61fdebfd7";
+import { planScheduleWeek } from "./scheduling-engine.js?v=77f0fb93e2b2";
+import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=77f0fb93e2b2";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=77f0fb93e2b2";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=77f0fb93e2b2";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=77f0fb93e2b2";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=77f0fb93e2b2";
+import { isChecklistComplete } from "./checklist-core.mjs?v=77f0fb93e2b2";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=bea61fdebfd7";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=bea61fdebfd7";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=bea61fdebfd7";
+} from "./msg-core.mjs?v=77f0fb93e2b2";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=77f0fb93e2b2";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=77f0fb93e2b2";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -95005,6 +95005,8 @@ document.addEventListener("click", (e) => {
     searchQuery:     "",      // toolbar "Search mail" · client-side filter
     messagesTotal:   0,       // exact folder total (differs from messages.length at the 200 cap)
     pendingNew:      0,       // realtime arrivals not yet pulled into the list (EM#20 pill)
+    selectedIds:     new Set(), // multi-select for bulk actions (EM#22)
+    selectAnchor:    null,      // last-toggled id · shift-click ranges from here
     collapsedGroups: new Set(),
     readMessages:    new Set(),
     foldersError:    null,    // load-failure message → inline retry state
@@ -95128,6 +95130,49 @@ document.addEventListener("click", (e) => {
   }
 
   // ── Data loaders ────────────────────────────────────────────────
+  // Column lists shared by the first page and the load-more pages.
+  // cc_emails (EM#4 — reply-all's Cc carry-over reads it),
+  // error_message (EM#2 — the failed-send status line), and is_read
+  // (EM#13, migration 0535) joined the select; the LEGACY list is the
+  // retry when a pre-migration project is missing any of them, so the
+  // whole list doesn't break.
+  const SELECT_FULL   = "id, from_email, to_email, cc_emails, subject, body_text, body_html, direction, status, error_message, is_read, created_at";
+  const SELECT_LEGACY = "id, from_email, to_email, subject, body_text, body_html, direction, status, created_at";
+  async function _fetchMessagePage(folderId, from) {
+    let { data, error } = await sb.from("email_messages")
+      .select(SELECT_FULL)
+      .eq("folder_id", folderId)
+      .order("created_at", { ascending: false })
+      .range(from, from + 199);
+    if (error && /cc_emails|error_message|is_read/.test(error.message || "")) {
+      ({ data, error } = await sb.from("email_messages")
+        .select(SELECT_LEGACY)
+        .eq("folder_id", folderId)
+        .order("created_at", { ascending: false })
+        .range(from, from + 199));
+    }
+    return { data, error };
+  }
+
+  // "Load 200 more" (EM#21) · appends the next page in created_at order.
+  // Shares the race-guard generation with loadMessages so a folder
+  // switch mid-append drops the stale page.
+  async function loadMoreMessages() {
+    if (!state.activeFolderId || state.activeFolderId === DOCS_FOLDER_ID) return;
+    const gen = ++_loadGen;
+    const folderId = state.activeFolderId;
+    const { data, error } = await _fetchMessagePage(folderId, state.messages.length);
+    if (gen !== _loadGen) return;
+    if (error) {
+      if (typeof toast === "function") toast("Couldn't load more: " + error.message, "warn");
+      return;
+    }
+    const have = new Set(state.messages.map(m => m.id));
+    for (const r of data || []) if (!have.has(r.id)) state.messages.push(r);
+    if ((data || []).length < 200) state.messagesTotal = state.messages.length;
+    renderInbox();
+  }
+
   async function loadFolders() {
     const { data, error } = await sb.from("fb_folders")
       .select("id, name, kind, position, parent_id")
@@ -95159,23 +95204,7 @@ document.addEventListener("click", (e) => {
     if (!state.activeFolderId) { state.messages = []; return; }
     const gen = ++_loadGen;
     const folderId = state.activeFolderId;
-    // cc_emails (EM#4 — reply-all's Cc carry-over reads it),
-    // error_message (EM#2 — the failed-send status line), and is_read
-    // (EM#13, migration 0535) joined the select; retry with the legacy
-    // column list if a pre-migration project is missing any of them so
-    // the whole list doesn't break.
-    let { data, error } = await sb.from("email_messages")
-      .select("id, from_email, to_email, cc_emails, subject, body_text, body_html, direction, status, error_message, is_read, created_at")
-      .eq("folder_id", folderId)
-      .order("created_at", { ascending: false })
-      .limit(200);
-    if (error && /cc_emails|error_message|is_read/.test(error.message || "")) {
-      ({ data, error } = await sb.from("email_messages")
-        .select("id, from_email, to_email, subject, body_text, body_html, direction, status, created_at")
-        .eq("folder_id", folderId)
-        .order("created_at", { ascending: false })
-        .limit(200));
-    }
+    const { data, error } = await _fetchMessagePage(folderId, 0);
     if (gen !== _loadGen) return; // stale — a newer folder click won
     if (error) { console.error("email_messages load failed:", error); state.messages = []; state.messagesError = error.message || "load failed"; return; }
     state.messagesError = null;
@@ -95548,15 +95577,12 @@ document.addEventListener("click", (e) => {
     </div>`;
   }
 
-  function renderInbox() {
-    if (state.activeFolderId === DOCS_FOLDER_ID) { renderDocsInbox(); return; }
-    renderHeader();
-    const inbox = document.getElementById("rr-em-inbox");
-    if (!inbox) return;
-
+  // The filtered+sorted list the pane shows — extracted (EM#23) so the
+  // keyboard navigator walks exactly what the operator sees.
+  function visibleMessages() {
+    let messages = state.messages.slice();
     // Filter by All / Unread tab (pills + the toolbar "All mail"
     // dropdown drive the same state).
-    let messages = state.messages.slice();
     if (state.inboxFilter === "unread") {
       messages = messages.filter(m => !isRead(m));
     }
@@ -95573,6 +95599,22 @@ document.addEventListener("click", (e) => {
       const bv = new Date(b.created_at).getTime();
       return state.inboxSort === "asc" ? av - bv : bv - av;
     });
+    return messages;
+  }
+
+  function renderInbox() {
+    if (state.activeFolderId === DOCS_FOLDER_ID) { renderDocsInbox(); return; }
+    renderHeader();
+    const inbox = document.getElementById("rr-em-inbox");
+    if (!inbox) return;
+
+    const messages = visibleMessages();
+    const q = state.searchQuery.trim().toLowerCase();
+    // Selection can outlive the rows that carried it (moves, reloads) —
+    // prune so the bulk bar's count never lies.
+    for (const id of [...state.selectedIds]) {
+      if (!state.messages.some(m => m.id === id)) state.selectedIds.delete(id);
+    }
     // While searching, the pane count reads "shown of total".
     if (q) {
       const countEl = document.getElementById("rr-em-main-count");
@@ -95592,9 +95634,30 @@ document.addEventListener("click", (e) => {
       <button type="button" class="em-inbox-sort" data-em-inbox-sort title="Toggle sort order">${sortLabel} ${sortIcon}</button>
     </div>`;
 
+    // Bulk-action bar (EM#22) · replaces triage-by-one when rows are
+    // checked. Move targets every folder except the current one.
+    const selCount = state.selectedIds.size;
+    const bulkMoveItems = state.folders
+      .filter(f => f.id !== state.activeFolderId && f.id !== DOCS_FOLDER_ID)
+      .map(f => `<button type="button" class="em-popout-move-item" role="menuitem" data-em-bulk-move="${escapeHtmlLocal(f.id)}">${iconFor(f.kind)}<span>${escapeHtmlLocal(f.name)}</span></button>`)
+      .join("");
+    inbox.classList.toggle("em-bulk-active", selCount > 0);
+    const bulkHtml = selCount === 0 ? "" : `<div class="em-bulk-bar" role="toolbar" aria-label="Bulk actions">
+      <span class="em-bulk-count">${selCount} selected</span>
+      <button type="button" class="em-bulk-btn" data-em-bulk="read">Read</button>
+      <button type="button" class="em-bulk-btn" data-em-bulk="unread">Unread</button>
+      <button type="button" class="em-bulk-btn" data-em-bulk="archive">Archive</button>
+      <button type="button" class="em-bulk-btn" data-em-bulk="trash">Trash</button>
+      <div class="em-popout-move-wrap em-bulk-move-wrap">
+        <button type="button" class="em-bulk-btn" data-em-bulk="move" aria-haspopup="menu" aria-expanded="false">Move ▾</button>
+        <div class="em-popout-move-menu em-bulk-move-menu" hidden role="menu" aria-label="Move to folder">${bulkMoveItems || ""}</div>
+      </div>
+      <button type="button" class="em-bulk-btn em-bulk-clear" data-em-bulk="clear" aria-label="Clear selection" title="Clear selection">✕</button>
+    </div>`;
+
     if (messages.length === 0) {
       const f = state.folders.find(x => x.id === state.activeFolderId);
-      let icon = "mail", label, sub;
+      let icon = "mail", label, sub, extra = "";
       if (state.messagesError) {
         icon = "warn";
         label = "Couldn't load messages";
@@ -95607,8 +95670,17 @@ document.addEventListener("click", (e) => {
         label = "Nothing unread";
         sub = "All caught up — no unread messages.";
       } else if (f && f.kind === "inbox") {
+        // First-run teaching moment (EM#32): the empty inbox is where a
+        // new operator learns the team address exists at all.
         label = "Your inbox is clear";
-        sub = "No messages to display.";
+        const addr = ((document.getElementById("rr-fb-team-email") || {}).textContent || "").trim();
+        if (addr) {
+          sub = `Mail sent to <strong>${escapeHtmlLocal(addr)}</strong> lands here.`;
+          extra = `<button type="button" class="em-empty-cta" data-em-empty-copy>Copy address</button>`;
+        } else {
+          sub = "Set a station code in Settings to activate your team email address.";
+          extra = `<button type="button" class="em-empty-cta" data-em-empty-settings>Open Settings</button>`;
+        }
       } else if (f && f.kind === "custom") {
         label = "Nothing filed here yet";
         sub = "Drag messages here to organise them.";
@@ -95616,8 +95688,9 @@ document.addEventListener("click", (e) => {
         label = "No messages";
         sub = "No messages to display.";
       }
-      inbox.innerHTML = toolbarHtml + emptyStateHtml(icon, label, sub);
+      inbox.innerHTML = toolbarHtml + emptyStateHtml(icon, label, sub, extra);
       renderNewMailPill();
+      renderUndoBar();
       return;
     }
 
@@ -95647,18 +95720,34 @@ document.addEventListener("click", (e) => {
       </div>`;
     }).join("");
 
-    inbox.innerHTML = toolbarHtml + groupsHtml;
+    // "Load 200 more" tail (EM#21) · shown when the folder holds more
+    // than the loaded pages; hidden while searching (the search covers
+    // only loaded rows — EM#67 moves search server-side).
+    const remaining = (state.messagesTotal || 0) - state.messages.length;
+    const tailHtml = (!q && remaining > 0)
+      ? `<button type="button" class="em-loadmore" data-em-loadmore>Load ${Math.min(200, remaining)} more <span class="em-loadmore-sub">(${remaining} older)</span></button>`
+      : "";
+
+    inbox.innerHTML = toolbarHtml + bulkHtml + groupsHtml + tailHtml;
     renderNewMailPill();
+    renderUndoBar();
   }
 
   function messageRowHtml(m) {
     const isActive  = m.id === state.activeMessageId;
     const isUnread  = !isRead(m);
     const isInbound = m.direction === "inbound";
-    const who = (isInbound ? m.from_email : m.to_email) || "(unknown)";
+    // Direction affordance (EM#27): in Sent/Archive/custom folders an
+    // outbound row reads "To: x" so mixed folders scan correctly.
+    const who = isInbound
+      ? (m.from_email || "(unknown)")
+      : "To: " + (m.to_email || "(unknown)");
     const subject = m.subject || "(no subject)";
     const snippet = (messageText(m) || "").replace(/\s+/g, " ").slice(0, 110);
     const when = m.created_at ? formatRelative(new Date(m.created_at)) : "";
+    // Hover shows the full timestamp behind the relative one (EM#29).
+    const whenTitle = m.created_at ? new Date(m.created_at).toLocaleString() : "";
+    const isChecked = state.selectedIds.has(m.id);
     // Outbound delivery state (EM#2) · a failed/still-queued send must
     // not sit in Sent looking identical to delivered mail.
     const st = isInbound ? "" : (m.status || "");
@@ -95667,11 +95756,12 @@ document.addEventListener("click", (e) => {
       : (st === "failed")
         ? `<span class="em-msg-status em-msg-status-failed">Failed</span>`
         : "";
-    return `<button type="button" class="em-msg-row${isActive ? " active" : ""}${isUnread ? " unread" : ""}" data-em-msg="${escapeHtmlLocal(m.id)}" draggable="true">
+    return `<button type="button" class="em-msg-row${isActive ? " active" : ""}${isUnread ? " unread" : ""}${isChecked ? " selected" : ""}" data-em-msg="${escapeHtmlLocal(m.id)}" draggable="true">
       <div class="em-msg-row-line1">
+        <span class="em-msg-check${isChecked ? " checked" : ""}" role="checkbox" aria-checked="${isChecked}" tabindex="-1" data-em-msg-check="${escapeHtmlLocal(m.id)}" aria-label="Select message" title="Select (Shift-click for a range)">${isChecked ? `<svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 8.5 6.5 12 13 4"/></svg>` : ""}</span>
         <span class="em-msg-who">${escapeHtmlLocal(who)}</span>
         ${stPill}
-        <span class="em-msg-when">${escapeHtmlLocal(when)}</span>
+        <span class="em-msg-when" title="${escapeHtmlLocal(whenTitle)}">${escapeHtmlLocal(when)}</span>
       </div>
       <div class="em-msg-subject">${escapeHtmlLocal(subject)}</div>
       ${snippet ? `<div class="em-msg-snippet">${escapeHtmlLocal(snippet)}</div>` : ""}
@@ -96171,6 +96261,8 @@ document.addEventListener("click", (e) => {
     if (id !== DOCS_FOLDER_ID) setDocsSplitMode(null);
     try { localStorage.setItem(ACTIVE_KEY, id); } catch (_) {}
     state.pendingNew = 0;
+    state.selectedIds.clear();
+    state.selectAnchor = null;
     // Pre-0535 the badge is "new since last visited", so visiting clears
     // it. Post-0535 it's a true unread count (EM#13) — visiting doesn't
     // clear it, reading does.
@@ -96782,11 +96874,108 @@ document.addEventListener("click", (e) => {
    }
   }
 
+  // Chunked bulk PATCH · .in() lists ride the query string, so cap each
+  // call at 100 ids to stay clear of URL-length limits.
+  async function _patchIn(ids, patch) {
+    for (let i = 0; i < ids.length; i += 100) {
+      const { error } = await sb.from("email_messages")
+        .update(patch)
+        .in("id", ids.slice(i, i + 100));
+      if (error) return error;
+    }
+    return null;
+  }
+
+  // Undo for destructive moves (EM#31) · success toasts are suppressed
+  // app-wide, so this inline bar is the ONLY feedback a move happened —
+  // and the way back from a mis-click. One slot; a new move replaces
+  // the previous undo.
+  let _emUndo = null;
+  function recordUndo(ids, fromFolderId, label) {
+    if (!ids || !ids.length || !fromFolderId) return;
+    if (_emUndo && _emUndo.timer) clearTimeout(_emUndo.timer);
+    _emUndo = {
+      ids: ids.slice(), fromFolderId, label,
+      timer: setTimeout(() => { _emUndo = null; renderUndoBar(); }, 8000),
+    };
+    renderUndoBar();
+  }
+  function renderUndoBar() {
+    const inboxEl = document.getElementById("rr-em-inbox");
+    if (!inboxEl) return;
+    let bar = document.getElementById("rr-em-undo-bar");
+    if (!_emUndo) { if (bar) bar.remove(); return; }
+    if (!bar) {
+      bar = document.createElement("div");
+      bar.id = "rr-em-undo-bar";
+      bar.className = "em-undo-bar";
+      inboxEl.prepend(bar);
+    }
+    bar.innerHTML = `<span>${escapeHtmlLocal(_emUndo.label)}</span><button type="button" class="em-undo-btn" data-em-undo>Undo</button>`;
+  }
+  async function undoLastMove() {
+    if (!_emUndo) return;
+    const u = _emUndo;
+    clearTimeout(u.timer);
+    _emUndo = null;
+    renderUndoBar();
+    const err = await _patchIn(u.ids, { folder_id: u.fromFolderId });
+    if (err) {
+      if (typeof toast === "function") toast("Undo failed: " + err.message, "warn");
+      return;
+    }
+    await loadMessages();
+    renderInbox();
+    renderPreview();
+    scheduleCountsRefresh();
+  }
+
+  // ── Bulk actions over the selection (EM#22) ─────────────────────
+  async function bulkMove(folderId, folderName) {
+    const ids = [...state.selectedIds];
+    if (!ids.length) return;
+    const from = state.activeFolderId;
+    const err = await _patchIn(ids, { folder_id: folderId });
+    if (err) {
+      if (typeof toast === "function") toast("Couldn't move: " + err.message, "warn");
+      return;
+    }
+    state.selectedIds.clear();
+    state.selectAnchor = null;
+    if (state.activeMessageId && ids.includes(state.activeMessageId)) state.activeMessageId = null;
+    recordUndo(ids, from, `Moved ${ids.length === 1 ? "1 message" : `${ids.length} messages`} to ${folderName}`);
+    await loadMessages();
+    renderInbox();
+    renderPreview();
+    scheduleCountsRefresh();
+  }
+  async function bulkMarkRead(read) {
+    const ids = [...state.selectedIds];
+    if (!ids.length) return;
+    ids.forEach(id => {
+      const m = state.messages.find(x => x.id === id);
+      if (read) {
+        state.readMessages.add(id);
+        if (m && m.is_read === false) m.is_read = true;
+      } else {
+        state.readMessages.delete(id);
+        if (m && m.is_read === true) m.is_read = false;
+      }
+    });
+    saveRead();
+    await _patchIn(ids, { is_read: read }); // pre-0535 → error, local state carries
+    state.selectedIds.clear();
+    state.selectAnchor = null;
+    renderInbox();
+    scheduleCountsRefresh();
+  }
+
   // ── Move arbitrary message to a folder by id (drag-and-drop) ───
   async function moveMessageToFolderId(messageId, folderId) {
     if (!messageId || !folderId) return;
     const target = state.folders.find(f => f.id === folderId);
     if (!target) return;
+    const fromFolderId = state.activeFolderId; // rows on screen live here
     const { error } = await sb.from("email_messages")
       .update({ folder_id: folderId })
       .eq("id", messageId);
@@ -96794,7 +96983,7 @@ document.addEventListener("click", (e) => {
       if (typeof toast === "function") toast("Couldn't move message: " + error.message, "warn");
       return;
     }
-    if (typeof toast === "function") toast(`Moved to ${target.name}`, "success");
+    recordUndo([messageId], fromFolderId, `Moved to ${target.name}`);
     // If the moved message was selected, clear the preview (it's no
     // longer in the current folder view).
     if (state.activeMessageId === messageId) {
@@ -96803,6 +96992,7 @@ document.addEventListener("click", (e) => {
     await loadMessages();
     renderInbox();
     renderPreview();
+    scheduleCountsRefresh();
   }
 
   // ── Delete / archive (move selected to that kind's folder) ──────
@@ -96816,18 +97006,21 @@ document.addEventListener("click", (e) => {
       if (typeof toast === "function") toast(`No ${kind} folder found`, "warn");
       return;
     }
+    const movedId = state.activeMessageId;
+    const fromFolderId = state.activeFolderId;
     const { error } = await sb.from("email_messages")
       .update({ folder_id: target.id })
-      .eq("id", state.activeMessageId);
+      .eq("id", movedId);
     if (error) {
       if (typeof toast === "function") toast("Couldn't move message: " + error.message, "warn");
       return;
     }
-    if (typeof toast === "function") toast(`Moved to ${target.name}`, "success");
+    recordUndo([movedId], fromFolderId, `Moved to ${target.name}`);
     state.activeMessageId = null;
     await loadMessages();
     renderInbox();
     renderPreview();
+    scheduleCountsRefresh();
   }
 
   // ── Toolbar commands (redesign 2026-07-21) ──────────────────────
@@ -96923,6 +97116,12 @@ document.addEventListener("click", (e) => {
         try { on = localStorage.getItem(NOTIFY_KEY) === "1"; } catch (_) {}
         notif.textContent = `Desktop notifications: ${on ? "On" : "Off"}`;
       }
+      const dens = document.getElementById("rr-em-menu-density");
+      if (dens) {
+        let on = false;
+        try { on = localStorage.getItem(DENSITY_KEY) === "compact"; } catch (_) {}
+        dens.textContent = `Compact rows: ${on ? "On" : "Off"}`;
+      }
       const first = m.querySelector("[role=menuitem]");
       if (first) first.focus();
     }
@@ -96972,10 +97171,29 @@ document.addEventListener("click", (e) => {
     scheduleCountsRefresh();
   }
 
+  // Row-density preference (EM#30) · compact hides snippets + tightens
+  // padding — triage mode for busy inboxes.
+  const DENSITY_KEY = "rr-em-density";
+  function applyDensity() {
+    const grid = document.getElementById("rr-em-grid");
+    if (!grid) return;
+    let compact = false;
+    try { compact = localStorage.getItem(DENSITY_KEY) === "compact"; } catch (_) {}
+    grid.classList.toggle("em-compact", compact);
+  }
+
   function handleMoreMenu(cmd) {
     closeMoreMenu();
     if (cmd === "copy-address") { copyTeamAddress(); return; }
     if (cmd === "mark-all-read") { markAllRead(); return; }
+    if (cmd === "toggle-density") {
+      try {
+        const on = localStorage.getItem(DENSITY_KEY) === "compact";
+        localStorage.setItem(DENSITY_KEY, on ? "comfortable" : "compact");
+      } catch (_) {}
+      applyDensity();
+      return;
+    }
     if (cmd === "toggle-notify") {
       // Desktop-notification opt-in (EM#17). Enabling asks the browser;
       // a denied permission stays off with a hint instead of silently
@@ -97110,6 +97328,80 @@ document.addEventListener("click", (e) => {
     if (folder) {
       e.preventDefault();
       selectFolder(folder.getAttribute("data-em-folder"));
+      return;
+    }
+    // Selection checkbox (EM#22) — before the row-select handler so a
+    // check click doesn't also open the message. Shift-click extends
+    // the range from the last-toggled row.
+    const chk = e.target.closest("[data-em-msg-check]");
+    if (chk) {
+      e.preventDefault(); e.stopPropagation();
+      const id = chk.getAttribute("data-em-msg-check");
+      const listIds = visibleMessages().map(m => m.id);
+      if (e.shiftKey && state.selectAnchor && listIds.includes(state.selectAnchor) && listIds.includes(id)) {
+        const a = listIds.indexOf(state.selectAnchor);
+        const b = listIds.indexOf(id);
+        const [lo, hi] = a < b ? [a, b] : [b, a];
+        for (let i = lo; i <= hi; i++) state.selectedIds.add(listIds[i]);
+      } else if (state.selectedIds.has(id)) {
+        state.selectedIds.delete(id);
+      } else {
+        state.selectedIds.add(id);
+      }
+      state.selectAnchor = id;
+      renderInbox();
+      return;
+    }
+    // Bulk-action bar buttons (EM#22).
+    const bulkBtn = e.target.closest("[data-em-bulk]");
+    if (bulkBtn) {
+      e.preventDefault();
+      const act = bulkBtn.getAttribute("data-em-bulk");
+      if (act === "clear") { state.selectedIds.clear(); state.selectAnchor = null; renderInbox(); return; }
+      if (act === "move") {
+        const menu = bulkBtn.parentElement && bulkBtn.parentElement.querySelector(".em-bulk-move-menu");
+        if (menu) {
+          const open = menu.hidden;
+          menu.hidden = !open;
+          bulkBtn.setAttribute("aria-expanded", String(open));
+        }
+        return;
+      }
+      if (act === "read" || act === "unread") { bulkMarkRead(act === "read"); return; }
+      if (act === "archive" || act === "trash") {
+        const t = state.folders.find(f => f.kind === act);
+        if (t) bulkMove(t.id, t.name);
+        else if (typeof toast === "function") toast(`No ${act} folder configured`, "warn");
+        return;
+      }
+      return;
+    }
+    {
+      const bulkTarget = e.target.closest("[data-em-bulk-move]");
+      if (bulkTarget) {
+        e.preventDefault();
+        const f = state.folders.find(x => x.id === bulkTarget.getAttribute("data-em-bulk-move"));
+        if (f) bulkMove(f.id, f.name);
+        return;
+      }
+    }
+    // "Load 200 more" tail row (EM#21).
+    if (e.target.closest("[data-em-loadmore]")) {
+      e.preventDefault();
+      loadMoreMessages();
+      return;
+    }
+    // Undo the last move (EM#31).
+    if (e.target.closest("[data-em-undo]")) {
+      e.preventDefault();
+      undoLastMove();
+      return;
+    }
+    // Empty-inbox CTAs (EM#32).
+    if (e.target.closest("[data-em-empty-copy]")) { e.preventDefault(); copyTeamAddress(); return; }
+    if (e.target.closest("[data-em-empty-settings]")) {
+      e.preventDefault();
+      if (typeof window.goto === "function") window.goto("settings");
       return;
     }
     // Hover-trash icon on a message row — must run before the row
@@ -97400,6 +97692,72 @@ document.addEventListener("click", (e) => {
     }
   });
 
+  // List keyboard navigation (EM#23) · Gmail-adjacent keys, active only
+  // on the Email view with no overlay open and focus outside form
+  // fields: ↑/↓ walk the visible list, Enter pops the message out,
+  // E archives, Delete trashes, U toggles read, C composes, Escape
+  // clears the selection.
+  document.addEventListener("keydown", (e) => {
+    if (e.defaultPrevented) return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (!document.querySelector("#view-email.view.active")) return;
+    if (document.getElementById("rr-em-composer") || document.getElementById("rr-em-popout")) return;
+    const ae = document.activeElement;
+    if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.tagName === "SELECT" || ae.isContentEditable)) return;
+    if (state.activeFolderId === DOCS_FOLDER_ID) return;
+    if (e.key === "Escape") {
+      if (state.selectedIds.size) {
+        state.selectedIds.clear();
+        state.selectAnchor = null;
+        renderInbox();
+      }
+      return;
+    }
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      const list = visibleMessages();
+      if (!list.length) return;
+      e.preventDefault();
+      const idx = list.findIndex(m => m.id === state.activeMessageId);
+      const next = e.key === "ArrowDown"
+        ? Math.min(idx + 1, list.length - 1)
+        : Math.max(idx < 0 ? 0 : idx - 1, 0);
+      selectMessage(list[next].id);
+      const row = document.querySelector(`#rr-em-inbox [data-em-msg="${list[next].id}"]`);
+      if (row) row.scrollIntoView({ block: "nearest" });
+      return;
+    }
+    if (e.key === "Enter" && state.activeMessageId) {
+      e.preventDefault();
+      openMessagePopout(state.activeMessageId);
+      return;
+    }
+    if ((e.key === "e" || e.key === "E") && state.activeMessageId) {
+      e.preventDefault();
+      moveSelectedToKind("archive");
+      return;
+    }
+    if ((e.key === "Delete" || e.key === "Backspace") && state.activeMessageId) {
+      e.preventDefault();
+      moveSelectedToKind("trash");
+      return;
+    }
+    if (e.key === "c" || e.key === "C") {
+      e.preventDefault();
+      openComposer({ mode: "new" });
+      return;
+    }
+    if ((e.key === "u" || e.key === "U") && state.activeMessageId) {
+      e.preventDefault();
+      const m = state.messages.find(x => x.id === state.activeMessageId);
+      if (!m) return;
+      if (m.direction === "inbound" && isRead(m)) markUnread(m.id);
+      else markRead(m.id);
+      renderInbox();
+      scheduleCountsRefresh();
+      return;
+    }
+  });
+
   // Smart Fill (Schedule ribbon) · same visual one-shot spin as the
   // Document AI sparkle. We don't preventDefault — the existing
   // auto-staff click handler still fires; this only attaches the
@@ -97657,6 +98015,7 @@ document.addEventListener("click", (e) => {
     syncScopeSelect();
     restoreFolderPanePref();
     restoreInboxWidth();
+    applyDensity();
     renderFolders();   // shows "Loading folders…" while the query runs
     renderInbox();
     renderPreview();

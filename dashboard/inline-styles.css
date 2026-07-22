@@ -25415,6 +25415,74 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Delivery-state line in the reading-pane meta block (EM#2). */
           #view-email .em-preview-status{font-size:var(--fs-xs);color:var(--text-subtle)}
           #view-email .em-preview-status-failed{color:var(--rr-red-700)}
+          /* Selection checkbox on rows (EM#22) · hover-revealed; always
+             visible while a selection is active or on the checked row. */
+          #view-email .em-msg-check{
+            flex:0 0 auto;width:15px;height:15px;border-radius:4px;
+            border:1px solid var(--border);background:var(--surface);
+            display:inline-flex;align-items:center;justify-content:center;
+            color:var(--rr-white);opacity:0;transition:opacity var(--t-fast, .12s);
+            user-select:none;cursor:pointer;
+          }
+          #view-email .em-msg-row:hover .em-msg-check,
+          #view-email .em-msg-row.selected .em-msg-check,
+          #view-email .em-bulk-active .em-msg-check{opacity:1}
+          #view-email .em-msg-check.checked{
+            background:var(--rr-blue-600);border-color:var(--rr-blue-600);
+          }
+          #view-email .em-msg-row.selected{background:var(--rr-blue-50, rgba(37,99,235,.07))}
+          /* Bulk-action bar (EM#22) · sits under the All/Unread toolbar
+             while rows are checked. */
+          #view-email .em-bulk-bar{
+            display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+            padding:6px 10px;border-bottom:1px solid var(--border-subtle, var(--border));
+            background:var(--rr-blue-50, rgba(37,99,235,.06));
+            position:sticky;top:0;z-index:2;
+          }
+          #view-email .em-bulk-count{
+            font-size:var(--fs-xs);font-weight:600;color:var(--text);
+            margin-right:2px;
+          }
+          #view-email .em-bulk-btn{
+            border:1px solid var(--border);background:var(--surface);
+            border-radius:6px;padding:3px 10px;cursor:pointer;font:inherit;
+            font-size:var(--fs-xs);font-weight:600;color:var(--text);
+          }
+          #view-email .em-bulk-btn:hover{border-color:var(--rr-blue-600);color:var(--rr-blue-700)}
+          #view-email .em-bulk-clear{margin-left:auto}
+          /* Undo bar (EM#31) · the only feedback a move happened (success
+             toasts are suppressed app-wide) and the way back from it. */
+          #view-email .em-undo-bar{
+            position:sticky;top:6px;z-index:3;
+            display:flex;align-items:center;justify-content:center;gap:10px;
+            margin:6px 10px;padding:6px 12px;border-radius:8px;
+            background:var(--rr-slate-800, var(--text));color:var(--rr-white);
+            font-size:var(--fs-xs);box-shadow:var(--shadow-md, none);
+          }
+          #view-email .em-undo-btn{
+            border:0;background:transparent;color:var(--rr-blue-300, var(--rr-blue-600));
+            font:inherit;font-size:var(--fs-xs);font-weight:700;cursor:pointer;
+            text-transform:uppercase;letter-spacing:.04em;
+          }
+          /* Load-more tail row (EM#21). */
+          #view-email .em-loadmore{
+            display:block;width:calc(100% - 20px);margin:8px auto 12px;
+            padding:7px 12px;border:1px dashed var(--border);border-radius:8px;
+            background:transparent;cursor:pointer;font:inherit;
+            font-size:var(--fs-sm);font-weight:600;color:var(--rr-blue-700);
+          }
+          #view-email .em-loadmore:hover{border-color:var(--rr-blue-600);background:var(--rr-blue-50, rgba(37,99,235,.05))}
+          #view-email .em-loadmore-sub{color:var(--text-subtle);font-weight:500}
+          /* Empty-inbox CTA (EM#32). */
+          #view-email .em-empty-cta{
+            margin-top:10px;border:1px solid var(--border);border-radius:6px;
+            background:var(--surface);padding:5px 14px;cursor:pointer;
+            font:inherit;font-size:var(--fs-sm);font-weight:600;color:var(--rr-blue-700);
+          }
+          #view-email .em-empty-cta:hover{border-color:var(--rr-blue-600)}
+          /* Compact row density (EM#30) · snippets off, tighter rows. */
+          #view-email .em-compact .em-msg-snippet{display:none}
+          #view-email .em-compact .em-msg-row{padding-top:5px;padding-bottom:5px}
           /* Calm new-mail pill (EM#20) · floats at the top of the list
              when realtime inserts arrive while the operator is scrolled
              into the list; clicking pulls the fresh rows. */

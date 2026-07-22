@@ -497,10 +497,20 @@
     if (el) cdSetPill(el, 'cat');
   }
 
-  // Keyboard: 'C' opens drawer, Esc closes
+  // Keyboard: 'C' opens drawer, Esc closes. Guards: never while typing
+  // (inputs, textareas, AND contenteditable — the email composer body /
+  // notebooks are contenteditable, and the bare check used to steal
+  // focus mid-sentence on every 'c'), never over the email overlays,
+  // and not on the Email view at all — 'c' composes there (EM#23).
   document.addEventListener('keydown', function(e){
     if (e.key === 'Escape') closeCoachDrawer();
-    if (e.key === 'c' && !e.metaKey && !e.ctrlKey && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+    if (e.key === 'c' && !e.metaKey && !e.ctrlKey
+        && document.activeElement.tagName !== 'INPUT'
+        && document.activeElement.tagName !== 'TEXTAREA'
+        && !(document.activeElement && document.activeElement.isContentEditable)
+        && !document.getElementById('rr-em-composer')
+        && !document.getElementById('rr-em-popout')
+        && !document.querySelector('#view-email.view.active')) {
       openCoachDrawer();
     }
   });
