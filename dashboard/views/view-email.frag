@@ -61,6 +61,7 @@
               <button type="button" class="em-more-item" role="menuitem" data-em-menu="mark-all-read">Mark all read</button>
               <button type="button" class="em-more-item" role="menuitem" data-em-menu="new-folder">New folder…</button>
               <button type="button" class="em-more-item" role="menuitem" data-em-menu="toggle-folders" id="rr-em-menu-folders">Hide folder pane</button>
+              <button type="button" class="em-more-item" role="menuitem" data-em-menu="toggle-density" id="rr-em-menu-density">Compact rows: Off</button>
               <button type="button" class="em-more-item" role="menuitem" data-em-menu="toggle-notify" id="rr-em-menu-notify">Desktop notifications: Off</button>
               <button type="button" class="em-more-item" role="menuitem" data-em-menu="copy-address">Copy team address</button>
             </div>

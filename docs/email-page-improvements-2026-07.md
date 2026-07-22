@@ -14,7 +14,18 @@ Email-redesign merge #4113). Impact tags: **[high]** = operators lose
 mail, reply to the wrong person, or read wrong state; **[med]** = worth
 scheduling; **[low]** = polish.
 
-**STATUS (2026-07-22): Batches A (EM#1–12) + B (EM#13–20) SHIPPED.**
+**STATUS (2026-07-22): Batches A (EM#1–12) + B (EM#13–20) + C1
+(EM#21/22/23/27/29/30/31/32) SHIPPED.** C1 notes: pagination is a
+"Load 200 more" tail row over `.range()` pages sharing the EM#1 race
+guard; bulk PATCHes chunk `.in()` at 100 ids; the undo bar (8s, one
+slot) covers hover-trash, read-bar moves, drag, popout AND bulk — with
+success toasts suppressed it is the only feedback a move happened.
+Found while QA'ing EM#23: mock-wiring's global **'c' shortcut opened
+the coach drawer from ANY view and stole focus even while typing in
+contenteditables** (email composer body, notebooks) — its guard now
+covers contenteditable + the email view/overlays. Remaining from C:
+EM#24/25/26/28 (star, snooze, paperclip, sender names) ship as C2 with
+migration 0536. EM#23's `/`-focuses-search ergonomics stay with EM#71.
 Batch B notes: read state is server-side via **migration 0535**
 (`email_messages.is_read`, team-inbox semantics — any operator reading
 a message marks it handled for the DSP; one-shot backfill starts
