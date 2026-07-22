@@ -14,7 +14,24 @@ Email-redesign merge #4113). Impact tags: **[high]** = operators lose
 mail, reply to the wrong person, or read wrong state; **[med]** = worth
 scheduling; **[low]** = polish.
 
-**STATUS (2026-07-22): Batch A (EM#1–12) SHIPPED** — all twelve
+**STATUS (2026-07-22): Batches A (EM#1–12) + B (EM#13–20) SHIPPED.**
+Batch B notes: read state is server-side via **migration 0535**
+(`email_messages.is_read`, team-inbox semantics — any operator reading
+a message marks it handled for the DSP; one-shot backfill starts
+existing mail read; graceful localStorage fallback pre-migration, one
+failed probe stops further is_read queries). Folder badges upgraded
+from "new since last visited" to true unread counts post-0535. EM#16
+shipped as a nav DOT + tooltip count, not a numeric pill — house rule
+(operator: dots not counts on nav; the retired `.nav-badge` family).
+EM#17 shipped client-side (browser Notification on inbound while a
+dashboard tab is open, strict opt-in via the ⋮ menu); phone push stays
+with the notifications backlog. EM#18 replaced the per-active-folder
+realtime subscription with one DSP-wide channel (narrow at
+query/render, the Wave F rule) + 300ms coalescing (most of EM#93).
+EM#20's pill: INSERT into the folder being read while scrolled → "N new
+messages — show" instead of a scroll-jumping re-render.
+
+**STATUS (2026-07-22, earlier): Batch A (EM#1–12) SHIPPED** — all twelve
 correctness fixes. Notes: EM#6 turned out worse than written — the 0321
 `parent_id` FK is ON DELETE **CASCADE**, so deleting a parent silently
 wiped the whole subtree (children now re-parent up a level first).

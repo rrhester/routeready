@@ -58,8 +58,10 @@
               <svg viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg>
             </button>
             <div class="em-more-menu" id="rr-em-more-menu" role="menu" aria-label="More email actions" hidden>
+              <button type="button" class="em-more-item" role="menuitem" data-em-menu="mark-all-read">Mark all read</button>
               <button type="button" class="em-more-item" role="menuitem" data-em-menu="new-folder">New folder…</button>
               <button type="button" class="em-more-item" role="menuitem" data-em-menu="toggle-folders" id="rr-em-menu-folders">Hide folder pane</button>
+              <button type="button" class="em-more-item" role="menuitem" data-em-menu="toggle-notify" id="rr-em-menu-notify">Desktop notifications: Off</button>
               <button type="button" class="em-more-item" role="menuitem" data-em-menu="copy-address">Copy team address</button>
             </div>
           </div>
