@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=2521fd0a59b2";
-import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=2521fd0a59b2";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=2521fd0a59b2";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=2521fd0a59b2";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=2521fd0a59b2";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=2521fd0a59b2";
-import { isChecklistComplete } from "./checklist-core.mjs?v=2521fd0a59b2";
+import { planScheduleWeek } from "./scheduling-engine.js?v=902f7f51bd8a";
+import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=902f7f51bd8a";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=902f7f51bd8a";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=902f7f51bd8a";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=902f7f51bd8a";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=902f7f51bd8a";
+import { isChecklistComplete } from "./checklist-core.mjs?v=902f7f51bd8a";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=2521fd0a59b2";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=2521fd0a59b2";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=2521fd0a59b2";
+} from "./msg-core.mjs?v=902f7f51bd8a";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=902f7f51bd8a";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=902f7f51bd8a";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -5349,6 +5349,39 @@ const _legacyFilter = window.filterPipelineStage;
 window.filterPipelineStage = function (btn) {
   if (typeof _legacyFilter === "function") _legacyFilter(btn);
   loadPipeline(btn.getAttribute("data-stage") ?? "all");
+};
+
+// Real support channel (replaces the former placeholder toasts in the Help
+// modal). Opens the operator's mail client prefilled to support@gorouteready.com
+// with the current page, workspace, account, browser, and app version so a
+// problem report arrives with the context we'd otherwise have to ask for.
+const RR_SUPPORT_EMAIL = "support@gorouteready.com";
+window.rrContactSupport = function (kind) {
+  let subject = "RouteReady support request";
+  if (kind === "feature") subject = "RouteReady feature request";
+  else if (kind === "question") subject = "RouteReady question";
+  let ctx = "";
+  try {
+    const dsp = (window.RR && window.RR.dsp) || {};
+    const usr = (window.RR && window.RR.user) || {};
+    const ver = (typeof _RR_SCHEMA_EXPECTED === "number") ? String(_RR_SCHEMA_EXPECTED) : "n/a";
+    ctx = [
+      "",
+      "",
+      "— — — (please describe the issue above this line) — — —",
+      "Page: " + (location.hash || "#/"),
+      "Workspace: " + (dsp.name || dsp.short_code || "n/a"),
+      "Account: " + (usr.email || "n/a") + " (" + (usr.role || "n/a") + ")",
+      "App schema: " + ver,
+      "Browser: " + (navigator.userAgent || "n/a"),
+      "When: " + new Date().toISOString(),
+    ].join("\n");
+  } catch (_) { /* best-effort context only */ }
+  const href = "mailto:" + RR_SUPPORT_EMAIL +
+    "?subject=" + encodeURIComponent(subject) +
+    "&body=" + encodeURIComponent(ctx);
+  try { if (typeof closeModal === "function") closeModal("modal-help"); } catch (_) {}
+  window.location.href = href;
 };
 
 const _legacyGoto = window.goto;
@@ -27494,7 +27527,7 @@ let _ivcalSchemaProbed = false;
 // calendar_schema_version() froze at 498 while later migrations kept
 // shipping. Bump when a migration the DASHBOARD depends on lands; the
 // legacy probe stays as fallback until 0504 is applied.
-const _RR_SCHEMA_EXPECTED = 504;
+const _RR_SCHEMA_EXPECTED = 534;
 async function _ivcalSchemaProbe() {
   if (_ivcalSchemaProbed) return;
   _ivcalSchemaProbed = true;
@@ -27523,6 +27556,42 @@ async function _ivcalSchemaProbe() {
     try { sessionStorage.setItem("rr_ivcal_schema_dismissed", "1"); } catch (_) {}
   };
   host.insertAdjacentElement("beforebegin", note);
+}
+
+// Global schema-drift banner. The calendar-only probe above only fired when
+// an operator happened to open the calendar; a behind-schema DB affects most
+// pages (scoping, staffing, repair, etc.), so surface it on EVERY page at
+// boot. Same ledger source (rr_schema_version), same dismissal semantics,
+// mounted at the top of the main content area so it rides above any view.
+let _rrGlobalSchemaProbed = false;
+async function _rrGlobalSchemaProbe() {
+  if (_rrGlobalSchemaProbed) return;
+  _rrGlobalSchemaProbed = true;
+  try { if (sessionStorage.getItem("rr_global_schema_dismissed")) return; } catch (_) {}
+  let ver = 0;
+  try {
+    const { data, error } = await sb.rpc("rr_schema_version");
+    if (!error && typeof data === "number") ver = data;
+  } catch (_) {}
+  if (!ver) {
+    try {
+      const { data, error } = await sb.rpc("calendar_schema_version");
+      if (!error && typeof data === "number") ver = data;
+    } catch (_) {}
+  }
+  if (!ver || ver >= _RR_SCHEMA_EXPECTED) return;
+  const host = document.getElementById("main-content");
+  if (!host || document.getElementById("rr-global-schemanote")) return;
+  const note = document.createElement("div");
+  note.id = "rr-global-schemanote";
+  note.className = "oc-schema-note";
+  note.setAttribute("role", "status");
+  note.innerHTML = `<span>Your database is behind this app — some features need migrations you haven't applied yet. Run the SQL through <strong>0${_RR_SCHEMA_EXPECTED}</strong> in the Supabase SQL Editor (currently at 0${ver}).</span><button type="button" aria-label="Dismiss">×</button>`;
+  note.querySelector("button").onclick = () => {
+    note.remove();
+    try { sessionStorage.setItem("rr_global_schema_dismissed", "1"); } catch (_) {}
+  };
+  host.insertAdjacentElement("afterbegin", note);
 }
 
 function _ivcalWeekStart(d) { const x = new Date(d); x.setHours(0,0,0,0); const off = _ivWeekStartMon ? ((x.getDay()+6)%7) : x.getDay(); x.setDate(x.getDate() - off); return x; }
@@ -52889,6 +52958,10 @@ window._rrHideBootOverlay = function () {
   setTimeout(() => o.remove(), 450);
 };
 setTimeout(window._rrHideBootOverlay, 1600);
+
+// Surface schema drift on every page (not just the calendar) once boot has
+// resolved auth + workspace. Best-effort; never blocks boot.
+try { _rrGlobalSchemaProbe(); } catch (_) {}
 
 // Inline runtime styles for live-rendered surfaces.
 const _styleEl = document.createElement("style");

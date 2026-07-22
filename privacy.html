@@ -8,7 +8,7 @@
 <link rel="apple-touch-icon" href="/app/icons/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/marketing.css?v=2521fd0a59b2">
+<link rel="stylesheet" href="/marketing.css?v=902f7f51bd8a">
 
 </head>
 <body>
@@ -150,10 +150,10 @@
         <p>We share applicant information only with the specific DSP operator whose posting generated the application. DSP operators are data controllers and are independently responsible for their use of applicant data in accordance with their service agreement with RouteReady.</p>
         <p>We use the following third-party service providers to operate our platform. Each operates under a Data Processing Agreement (DPA) or equivalent data protection commitment with RouteReady and is bound to protect data and use it only as directed:</p>
         <ul>
+          <li><strong>Supabase</strong> — primary database and encrypted file storage for applicant, driver, and operational data, with row-level tenant isolation (SOC 2 Type II)</li>
           <li><strong>Twilio</strong> — automated SMS delivery and carrier-level opt-out management</li>
-          <li><strong>Google Workspace</strong> — data storage, pipeline management, and reporting (SOC 2 Type II)</li>
-          <li><strong>Airtable</strong> — applicant data management and pipeline operations</li>
-          <li><strong>Cal.com</strong> — interview scheduling and booking management</li>
+          <li><strong>Resend</strong> — transactional and notification email delivery</li>
+          <li><strong>Google Cloud</strong> — document parsing (Document AI) and optional interview-calendar synchronization</li>
           <li><strong>Indeed</strong> — applicant sourcing via DSP-authorized integration</li>
         </ul>
         <p>We do not share data with any other third parties except as required by applicable law or valid legal process.</p>
@@ -184,7 +184,7 @@
           <li>Encrypted data transmission (TLS) for all data in transit</li>
           <li>Access controls limiting data access to authorized RouteReady personnel with documented access policies</li>
           <li>Multi-factor authentication required for all systems containing personal data</li>
-          <li>Data storage within Google Workspace and Airtable, both of which maintain SOC 2 Type II compliance</li>
+          <li>Data storage within Supabase (managed PostgreSQL and object storage), which maintains SOC 2 Type II compliance, with row-level security enforcing per-DSP tenant isolation</li>
           <li>Regular review of data handling practices, documented annually</li>
         </ul>
         <p>No transmission over the internet is 100% secure. We cannot guarantee absolute security but take all reasonable steps to protect the information we hold.</p>
