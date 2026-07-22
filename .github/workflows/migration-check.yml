@@ -147,6 +147,19 @@ jobs:
           set -euo pipefail
           psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/audit_coverage_test.sql
 
+      - name: Compliance-gate tests (0535 · EDV cert + license protection window)
+        # The audit's root-cause fix for "a cert rule drifted out of the SQL
+        # gates because nothing tested them." Asserts the three assignment
+        # gates (staff_assign_violations / driver_can_take_shift /
+        # driver_can_take_shift_after_swap) block an uncertified driver from a
+        # requires_edv route, allow a certified one, exempt helper seats, and
+        # enforce the license protection window when configured.
+        env:
+          SUPABASE_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: |
+          set -euo pipefail
+          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/cert_gate_test.sql
+
       - name: Cross-tenant isolation test (customer-#1 pre-flight)
         # The core product promise: one tenant cannot read or write another's
         # data. Stands up TWO tenants and, dropped to the real `authenticated`
