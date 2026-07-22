@@ -14,6 +14,17 @@ Email-redesign merge #4113). Impact tags: **[high]** = operators lose
 mail, reply to the wrong person, or read wrong state; **[med]** = worth
 scheduling; **[low]** = polish.
 
+**STATUS (2026-07-22): Batch A (EM#1–12) SHIPPED** — all twelve
+correctness fixes. Notes: EM#6 turned out worse than written — the 0321
+`parent_id` FK is ON DELETE **CASCADE**, so deleting a parent silently
+wiped the whole subtree (children now re-parent up a level first).
+EM#11 shipped as the honest partial ("N of M messages" via one exact
+count at the 200 cap); exact-count-everywhere still lands with EM#66's
+counts RPC. EM#4/EM#35 shipped together (`cc_emails` selected with a
+pre-0319 fallback + rendered in preview/popout). EM#7 spans client
+(`storage_path` in the queued row) + `send-email` (re-signs fresh at
+send time; auto-deploys, backward-safe for old rows).
+
 Context worth knowing:
 
 - Messages live in `public.email_messages` (the legacy transactional
