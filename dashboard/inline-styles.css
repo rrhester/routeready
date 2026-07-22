@@ -26144,6 +26144,12 @@ body.rr-cmdk-open{ overflow:hidden }
   .view > .page{padding-top:calc(env(titlebar-area-height, 33px) + 4px)!important}
   #view-schedule.rrx-schedule > .page,
   #view-onboarding-ops > .page{padding-top:calc(env(titlebar-area-height, 33px) + 4px)!important}
+  /* Email's redesigned header padding is id-scoped (#view-email >
+     .page, importance-flagged), which out-specifies the .view > .page
+     reservation above — re-assert at matching specificity or the
+     nav-tab row sits under the OS title-bar band (operator report
+     2026-07-22). */
+  #view-email > .page{padding-top:calc(env(titlebar-area-height, 33px) + 4px)!important}
   body::before{
     content:"";position:fixed;top:0;left:0;right:0;
     /* +4px so the band reaches the content's top edge: the page padding-top

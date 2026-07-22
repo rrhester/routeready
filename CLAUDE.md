@@ -33,6 +33,14 @@ pane), hairline-divided, no shadow. Facts that stay true:
   `.em-list-pane` (flex layout replaced the absolute-positioned split).
 - The old `em-cmd-tabs` (Email/Print-Download) were dead (no handler,
   display:none'd app-wide) and were REMOVED from the frag.
+- DESKTOP-APP GOTCHA (operator report, fixed same day): `#view-email >
+  .page` is id-scoped + !important, so it OUT-SPECIFIES the WCO
+  media block's `.view > .page` title-bar reservation — the nav tabs
+  slid under the OS title-bar band in the installed app. The WCO block
+  (`@media (display-mode: window-controls-overlay)`, inline-styles
+  ~26140) now re-asserts `#view-email > .page{padding-top:…}` at
+  matching specificity, same pattern as Schedule/Onboarding. ANY future
+  id-scoped page padding rule needs the same mirror there.
 - QA harness pattern: scratchpad qa-email.mjs (66 checks, stateful
   fb_folders/email_messages/document_intake stub).
 
