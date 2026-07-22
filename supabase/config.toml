@@ -255,6 +255,9 @@ verify_jwt = false
 [functions.driver-document-fetch]
 verify_jwt = false
 
+[functions.driver-file-sign]
+verify_jwt = false
+
 [functions.vehicle-document-fetch]
 verify_jwt = false
 
