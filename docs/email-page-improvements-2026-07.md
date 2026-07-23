@@ -14,8 +14,18 @@ Email-redesign merge #4113). Impact tags: **[high]** = operators lose
 mail, reply to the wrong person, or read wrong state; **[med]** = worth
 scheduling; **[low]** = polish.
 
-**STATUS (2026-07-22): Batches A–C (EM#1–32) + D1
-(EM#34/36/37/42 + EM#74) SHIPPED.** D1 notes: the HTML view (EM#34) is
+**STATUS (2026-07-22): Batches A–D (EM#1–42) + EM#74 SHIPPED — sections
+A–D complete.** D2 notes: EM#33 shipped as the client-side v1 the item
+allows for — the reading pane shows the full conversation (same
+normalized subject + same counterpart address, fetched across folders so
+the Sent half appears beside the inbound half) as collapsible items;
+same-folder LIST collapse and true Message-ID threads wait on EM#76's
+header stamping. EM#38/39 live in a read-bar "More ⋯" overflow (print
+window + .eml download, multipart when body_html exists). EM#40 opens
+the Contacts rail create-form prefilled (name + address). EM#41 chips:
+Applicant (via applicant_id, name fetched) → opens the applicant email
+thread modal; Repair case (via the 0490 timeline payload) →
+RRRepair.openCase. D1 notes: the HTML view (EM#34) is
 opt-in per the review — plain text stays the default; body_html renders
 ONLY inside a fully-sandboxed iframe (no allow-scripts / no
 allow-same-origin) whose srcdoc carries its own `default-src 'none'`
