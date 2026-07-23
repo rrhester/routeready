@@ -160,6 +160,16 @@ jobs:
           set -euo pipefail
           psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/cert_gate_test.sql
 
+      - name: Publish-gate test (0538 · driver schedule draft/publish)
+        # Proves the opt-in finalize gate: default off returns every assigned
+        # shift (backward-safe), on returns only finalized weeks, and
+        # publishing a draft week reveals it.
+        env:
+          SUPABASE_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: |
+          set -euo pipefail
+          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/publish_gate_test.sql
+
       - name: Cross-tenant isolation test (customer-#1 pre-flight)
         # The core product promise: one tenant cannot read or write another's
         # data. Stands up TWO tenants and, dropped to the real `authenticated`
