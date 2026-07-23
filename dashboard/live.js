@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=902f7f51bd8a";
-import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=902f7f51bd8a";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=902f7f51bd8a";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=902f7f51bd8a";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=902f7f51bd8a";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=902f7f51bd8a";
-import { isChecklistComplete } from "./checklist-core.mjs?v=902f7f51bd8a";
+import { planScheduleWeek } from "./scheduling-engine.js?v=890e08429a2e";
+import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=890e08429a2e";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=890e08429a2e";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=890e08429a2e";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=890e08429a2e";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=890e08429a2e";
+import { isChecklistComplete } from "./checklist-core.mjs?v=890e08429a2e";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=902f7f51bd8a";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=902f7f51bd8a";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=902f7f51bd8a";
+} from "./msg-core.mjs?v=890e08429a2e";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=890e08429a2e";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=890e08429a2e";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -79149,6 +79149,9 @@ document.addEventListener("click", (e) => {
     setTimeout(_rrPickupPaintForm, 0);
     setTimeout(_rrSwapPaintForm,   0);
   }
+  if (e.target.closest('[data-set="scheduling"]') || e.target.closest('[data-rr-rules-section="publish-gate"] > summary')) {
+    setTimeout(_rrPublishGatePaintForm, 0);
+  }
 });
 
 // Helper for inline links (e.g. the Smart Fill snapshot view) that jump
@@ -79183,6 +79186,7 @@ window.gotoSettingsScheduling = gotoSettingsScheduling;
       typeof _rrPayPaintForm === "function" ? _rrPayPaintForm : null,
       typeof _rrPickupPaintForm === "function" ? _rrPickupPaintForm : null,
       typeof _rrSwapPaintForm === "function" ? _rrSwapPaintForm : null,
+      typeof _rrPublishGatePaintForm === "function" ? _rrPublishGatePaintForm : null,
       typeof loadStationGeofences === "function" ? loadStationGeofences : null,
       typeof loadAttendanceWindows === "function" ? loadAttendanceWindows : null,
     ].filter(Boolean);
@@ -79564,6 +79568,37 @@ document.addEventListener("change", async (e) => {
   }
   _rrSwapCache = { driver_swap_enabled: !!data?.driver_swap_enabled };
   toast(next ? "Shift swaps enabled" : "Shift swaps disabled", "success");
+});
+
+// ─── Schedule publish gate toggle ─────────────────────────────────────
+// Per-DSP boolean stored on dsps.metadata.scheduling.require_finalized_for_drivers
+// (migration 0538). Defaults off so existing deployments keep showing every
+// assigned shift; when on, driver_my_schedule only returns finalized weeks.
+let _rrPublishGateCache = null;
+async function _rrPublishGateLoad() {
+  const { data, error } = await sb.rpc("get_publish_gate_settings");
+  if (error || !data) return null;
+  _rrPublishGateCache = { require_finalized_for_drivers: !!data.require_finalized_for_drivers };
+  return _rrPublishGateCache;
+}
+async function _rrPublishGatePaintForm() {
+  if (!_rrPublishGateCache) await _rrPublishGateLoad();
+  const tog = document.getElementById("rr-publish-gate-toggle");
+  if (tog) tog.checked = !!_rrPublishGateCache?.require_finalized_for_drivers;
+}
+document.addEventListener("change", async (e) => {
+  if (e.target.id !== "rr-publish-gate-toggle") return;
+  const next = !!e.target.checked;
+  e.target.disabled = true;
+  const { data, error } = await sb.rpc("set_publish_gate_settings", { p_enabled: next });
+  e.target.disabled = false;
+  if (error) {
+    e.target.checked = !next;   // rollback the UI
+    toast(error.message || "Couldn't save", "warn");
+    return;
+  }
+  _rrPublishGateCache = { require_finalized_for_drivers: !!data?.require_finalized_for_drivers };
+  toast(next ? "Drivers now see finalized weeks only" : "Drivers see all assigned shifts", "success");
 });
 
 // Reset every view to its first sub-tab when the operator navigates
