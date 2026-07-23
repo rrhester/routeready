@@ -160,6 +160,17 @@ jobs:
           set -euo pipefail
           psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/cert_gate_test.sql
 
+      - name: RPC role-gate test (0539 · privileged RPCs refuse driver-role)
+        # Proves a driver-role app_user is refused (42501) on a sample of the
+        # newly-gated SECURITY DEFINER functions (coaching/PTO/fleet/interview)
+        # while a dispatcher passes — guards against a re-issue dropping the
+        # role check.
+        env:
+          SUPABASE_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: |
+          set -euo pipefail
+          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/rpc_role_gate_test.sql
+
       - name: Publish-gate test (0538 · driver schedule draft/publish)
         # Proves the opt-in finalize gate: default off returns every assigned
         # shift (backward-safe), on returns only finalized weeks, and
