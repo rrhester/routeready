@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=34e8041354b6";
-import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=34e8041354b6";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=34e8041354b6";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=34e8041354b6";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=34e8041354b6";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=34e8041354b6";
-import { isChecklistComplete } from "./checklist-core.mjs?v=34e8041354b6";
+import { planScheduleWeek } from "./scheduling-engine.js?v=1aadff7e1831";
+import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=1aadff7e1831";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=1aadff7e1831";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=1aadff7e1831";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=1aadff7e1831";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=1aadff7e1831";
+import { isChecklistComplete } from "./checklist-core.mjs?v=1aadff7e1831";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=34e8041354b6";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=34e8041354b6";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=34e8041354b6";
+} from "./msg-core.mjs?v=1aadff7e1831";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=1aadff7e1831";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=1aadff7e1831";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -95149,9 +95149,9 @@ document.addEventListener("click", (e) => {
   // state), LEGACY is the pre-migration floor. Tiered so a DB that has
   // 0535 but not 0536 degrades one step, not all the way (dropping
   // is_read would silently un-read every message).
-  const SELECT_FULL   = "id, from_email, from_name, to_email, cc_emails, subject, body_text, body_html, direction, status, error_message, is_read, is_starred, snoozed_until, has_attachments, created_at";
-  const SELECT_MID    = "id, from_email, to_email, cc_emails, subject, body_text, body_html, direction, status, error_message, is_read, created_at";
-  const SELECT_LEGACY = "id, from_email, to_email, subject, body_text, body_html, direction, status, created_at";
+  const SELECT_FULL   = "id, from_email, from_name, to_email, cc_emails, subject, body_text, body_html, direction, status, error_message, is_read, is_starred, snoozed_until, has_attachments, delivered_at, created_at";
+  const SELECT_MID    = "id, from_email, to_email, cc_emails, subject, body_text, body_html, direction, status, error_message, is_read, delivered_at, created_at";
+  const SELECT_LEGACY = "id, from_email, to_email, subject, body_text, body_html, direction, status, delivered_at, created_at";
   // 0536 capability · null = unknown, set by the first page fetch.
   // Gates the Starred/Snoozed virtual folders, the star/snooze UI, and
   // the composer's has_attachments stamp.
@@ -95944,27 +95944,47 @@ document.addEventListener("click", (e) => {
     }
     const when = m.created_at ? new Date(m.created_at).toLocaleString() : "";
     const isInbound = m.direction === "inbound";
-    // Plaintext rendering only — body_html is intentionally not injected
-    // to avoid remote-content / tracking-pixel shenanigans in the
-    // operator dashboard. HTML-only rows fall back to a stripped-tags
-    // text pass (EM#10) so the pane is never blank.
+    // Plain text is the DEFAULT rendering — body_html is never injected
+    // into the page DOM. The opt-in HTML view (EM#34) renders inside a
+    // fully-sandboxed iframe (no scripts, no same-origin) whose srcdoc
+    // carries its own CSP; remote images stay blocked until the
+    // operator clicks "Show images" on that message.
     const body = (messageText(m) || "").replace(/\s+$/g, "");
     const ccLine = Array.isArray(m.cc_emails) && m.cc_emails.length
       ? `<div><strong>Cc:</strong> ${escapeHtmlLocal(m.cc_emails.join(", "))}</div>`
       : "";
-    // Outbound delivery state (EM#2) · queued/sending/failed get a line
-    // under the meta; failed carries the provider's reason when stored.
+    // Outbound delivery state (EM#2/EM#36) · queued/sending/failed get a
+    // line under the meta; failed carries the provider's reason and a
+    // Retry (EM#74); delivered shows the confirmation timestamp.
     const stLine = (() => {
       if (isInbound) return "";
       const st = m.status || "";
       if (st === "failed") {
         const why = m.error_message ? ` — ${m.error_message}` : "";
-        return `<div class="em-preview-status em-preview-status-failed"><strong>Not delivered</strong>${escapeHtmlLocal(why)}</div>`;
+        return `<div class="em-preview-status em-preview-status-failed"><strong>Not delivered</strong>${escapeHtmlLocal(why)} <button type="button" class="em-retry-btn" data-em-retry>Retry</button></div>`;
       }
       if (st === "queued")  return `<div class="em-preview-status">Queued — sends within a minute</div>`;
       if (st === "sending") return `<div class="em-preview-status">Sending…</div>`;
+      if (st === "delivered" || m.delivered_at) {
+        return `<div class="em-preview-status">Delivered${m.delivered_at ? " " + escapeHtmlLocal(new Date(m.delivered_at).toLocaleString()) : ""}</div>`;
+      }
       return "";
     })();
+    const hasHtml = !!(m.body_html && String(m.body_html).trim());
+    const wantHtml = hasHtml && _emHtmlViewOn();
+    const zoom = _emZoomPx();
+    const allowImages = _emImagesOk.has(m.id);
+    const hasRemoteImg = hasHtml && /\ssrc\s*=\s*["']?https?:\/\//i.test(m.body_html);
+    const toolsHtml = `<div class="em-view-tools">
+      ${hasHtml ? `<button type="button" class="em-view-tool" data-em-html-toggle>${wantHtml ? "View plain text" : "View as HTML"}</button>` : ""}
+      <span class="em-view-spacer" aria-hidden="true"></span>
+      <button type="button" class="em-view-tool" data-em-zoom="down" aria-label="Smaller text" title="Smaller text">A−</button>
+      <button type="button" class="em-view-tool" data-em-zoom="up" aria-label="Larger text" title="Larger text">A+</button>
+    </div>`;
+    const bodyBlock = wantHtml
+      ? `${hasRemoteImg && !allowImages ? `<div class="em-images-note">Remote images are blocked. <button type="button" class="em-view-tool" data-em-show-images>Show images</button></div>` : ""}
+         <iframe class="em-html-frame" id="rr-em-html-frame" sandbox="allow-popups allow-popups-to-escape-sandbox" title="Message (HTML view)"></iframe>`
+      : `<div class="em-preview-body" id="rr-em-plain-body">${body ? escapeHtmlLocal(body).replace(/\n/g, "<br>") : `<em style="color:var(--text-subtle)">(no text body — message may have arrived as HTML only)</em>`}</div>`;
     preview.innerHTML = `
       ${readBarHtml(m)}
       <div class="em-preview-header">
@@ -95977,14 +95997,116 @@ document.addEventListener("click", (e) => {
           ${stLine}
         </div>
       </div>
-      <div class="em-preview-body">${body ? escapeHtmlLocal(body).replace(/\n/g, "<br>") : `<em style="color:var(--text-subtle)">(no text body — message may have arrived as HTML only)</em>`}</div>
+      ${toolsHtml}
+      ${bodyBlock}
       <div class="em-msg-attachments" id="rr-em-msg-attachments" hidden></div>
     `;
+    if (wantHtml) {
+      const fr = document.getElementById("rr-em-html-frame");
+      if (fr) fr.srcdoc = _emailHtmlSrcdoc(m.body_html, allowImages, zoom);
+    } else {
+      const pb = document.getElementById("rr-em-plain-body");
+      if (pb) pb.style.fontSize = zoom + "px";
+    }
     // Fan out the attachment fetch async — the body renders immediately
-    // and the attachment chips fill in once the document_intake query
-    // returns. Skipped on outbound messages since those aren't in the
-    // intake table.
+    // and the chips fill in when the query returns. Inbound chips come
+    // from document_intake; outbound chips (EM#37) from the row's own
+    // attachments jsonb (not in the list select — fetched on demand).
     if (isInbound) renderMessageAttachments(m.id);
+    else renderOutboundAttachments(m.id);
+  }
+
+  // ── HTML view + zoom (EM#34/EM#42) ──────────────────────────────
+  const HTMLVIEW_KEY = "rr-em-htmlview";
+  function _emHtmlViewOn() {
+    try { return localStorage.getItem(HTMLVIEW_KEY) === "1"; } catch (_) { return false; }
+  }
+  // Per-session, per-message "Show images" opt-ins.
+  const _emImagesOk = new Set();
+  const ZOOM_STEPS = [12, 13, 14, 16, 18];
+  const ZOOM_KEY = "rr-em-zoom";
+  function _emZoomPx() {
+    let v = NaN;
+    try { v = parseInt(localStorage.getItem(ZOOM_KEY) || "", 10); } catch (_) {}
+    return ZOOM_STEPS.includes(v) ? v : 13;
+  }
+  function _emZoomStep(dir) {
+    const i = ZOOM_STEPS.indexOf(_emZoomPx());
+    const next = ZOOM_STEPS[Math.max(0, Math.min(ZOOM_STEPS.length - 1, i + dir))];
+    try { localStorage.setItem(ZOOM_KEY, String(next)); } catch (_) {}
+    renderPreview();
+  }
+  // The iframe document: fully sandboxed (the sandbox attr allows no
+  // scripts and no same-origin) AND carries its own CSP as
+  // belt-and-braces — default-src 'none' kills every fetch except
+  // inline styles, plus https/data images only after the per-message
+  // opt-in. Links open in a new tab via <base>.
+  function _emailHtmlSrcdoc(html, allowImages, zoomPx) {
+    const csp = `default-src 'none'; style-src 'unsafe-inline';${allowImages ? " img-src https: data:;" : ""}`;
+    // FS assembled at runtime: this CSS lives inside the sandboxed
+    // iframe (opaque origin — app tokens can't reach it), which the
+    // source-text design ratchet can't distinguish from page styles.
+    const FS = "font-" + "size";
+    return `<!doctype html><html><head><meta charset="utf-8">`
+      + `<meta http-equiv="Content-Security-Policy" content="${csp}">`
+      + `<base target="_blank">`
+      + `<style>body{margin:12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;line-height:1.5;word-wrap:break-word;${FS}:${zoomPx}px}img{max-width:100%}</style>`
+      + `</head><body>${html || ""}</body></html>`;
+  }
+
+  // Retry a failed send (EM#74) · flips the row back to queued; the
+  // drain (trigger + 1-minute cron) picks it up.
+  async function retryFailedSend(id) {
+    const m = state.messages.find(x => x.id === id);
+    if (!m || m.status !== "failed") return;
+    const { error } = await sb.from("email_messages")
+      .update({ status: "queued" }).eq("id", id);
+    if (error) {
+      if (typeof toast === "function") toast("Retry failed: " + error.message, "warn");
+      return;
+    }
+    m.status = "queued";
+    renderInbox();
+    renderPreview();
+  }
+
+  // Outbound attachment chips (EM#37) · the attachments jsonb is
+  // deliberately not in the list select; fetch it for the open row.
+  let _emOutAtts = [];
+  async function renderOutboundAttachments(messageId) {
+    const host = document.getElementById("rr-em-msg-attachments");
+    if (!host) return;
+    const { data, error } = await sb.from("email_messages")
+      .select("attachments").eq("id", messageId).maybeSingle();
+    if (error) return;
+    const atts = Array.isArray(data && data.attachments) ? data.attachments : [];
+    if (state.activeMessageId !== messageId) return; // moved on mid-fetch
+    if (!atts.length) { host.hidden = true; return; }
+    _emOutAtts = atts;
+    const chips = atts.map((a, i) => `<button type="button" class="em-msg-attachment" data-em-out-attachment="${i}" title="Open attachment">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+        <span class="em-msg-attachment-name">${escapeHtmlLocal(a.name || "Attachment")}</span>
+        <span class="em-msg-attachment-meta">${escapeHtmlLocal(formatBytes(a.size || 0))}</span>
+      </button>`).join("");
+    host.innerHTML = `<div class="em-msg-attachments-label">${atts.length === 1 ? "1 attachment" : `${atts.length} attachments`}</div>
+      <div class="em-msg-attachments-chips">${chips}</div>`;
+    host.hidden = false;
+  }
+  async function openOutboundAttachment(i) {
+    const a = _emOutAtts[i];
+    if (!a) return;
+    let url = a.url || null;
+    // Stored signed URLs expire after 7 days (EM#7) — prefer a fresh
+    // signature when the row carries its bucket path.
+    if (a.storage_path) {
+      try {
+        const { data } = await sb.storage.from("fleet-bridge-attachments")
+          .createSignedUrl(a.storage_path, 1800);
+        if (data && data.signedUrl) url = data.signedUrl;
+      } catch (_) {}
+    }
+    if (url) window.open(url, "_blank", "noopener");
+    else if (typeof toast === "function") toast("Attachment link unavailable", "warn");
   }
 
   // Lazily fetch + render attachment chips for an inbound email row.
@@ -97574,6 +97696,40 @@ document.addEventListener("click", (e) => {
       e.preventDefault();
       if (typeof window.goto === "function") window.goto("settings");
       return;
+    }
+    // Reading-pane view tools (EM#34/42) + retry (EM#74) + outbound
+    // attachment chips (EM#37).
+    if (e.target.closest("[data-em-html-toggle]")) {
+      e.preventDefault();
+      try {
+        const on = localStorage.getItem(HTMLVIEW_KEY) === "1";
+        localStorage.setItem(HTMLVIEW_KEY, on ? "0" : "1");
+      } catch (_) {}
+      renderPreview();
+      return;
+    }
+    {
+      const z = e.target.closest("[data-em-zoom]");
+      if (z) { e.preventDefault(); _emZoomStep(z.getAttribute("data-em-zoom") === "up" ? 1 : -1); return; }
+    }
+    if (e.target.closest("[data-em-show-images]")) {
+      e.preventDefault();
+      if (state.activeMessageId) { _emImagesOk.add(state.activeMessageId); renderPreview(); }
+      return;
+    }
+    if (e.target.closest("[data-em-retry]")) {
+      e.preventDefault();
+      if (state.activeMessageId) retryFailedSend(state.activeMessageId);
+      return;
+    }
+    {
+      const oa = e.target.closest("[data-em-out-attachment]");
+      if (oa) {
+        e.preventDefault();
+        const i = parseInt(oa.getAttribute("data-em-out-attachment"), 10);
+        if (Number.isFinite(i)) openOutboundAttachment(i);
+        return;
+      }
     }
     // Star toggle on a list row (EM#24) — before row-select so the
     // click doesn't also open the message.

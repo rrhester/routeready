@@ -25431,6 +25431,37 @@ body.rr-cmdk-open{ overflow:hidden }
             background:var(--rr-blue-600);border-color:var(--rr-blue-600);
           }
           #view-email .em-msg-row.selected{background:var(--rr-blue-50, rgba(37,99,235,.07))}
+          /* Reading-pane view tools (EM#34/42) · plain/HTML toggle +
+             text zoom, one quiet row between header and body. */
+          #view-email .em-view-tools{
+            display:flex;align-items:center;gap:6px;
+            padding:4px 16px;border-bottom:1px solid var(--border-subtle, var(--border));
+          }
+          #view-email .em-view-spacer{flex:1}
+          #view-email .em-view-tool{
+            border:1px solid var(--border);background:var(--surface);
+            border-radius:6px;padding:2px 9px;cursor:pointer;font:inherit;
+            font-size:var(--fs-xs);font-weight:600;color:var(--text-muted, var(--text));
+          }
+          #view-email .em-view-tool:hover{border-color:var(--rr-blue-600);color:var(--rr-blue-700)}
+          /* Sandboxed HTML view (EM#34). */
+          #view-email .em-html-frame{
+            flex:1;width:100%;min-height:280px;border:0;background:var(--rr-white);
+          }
+          #view-email .em-images-note{
+            display:flex;align-items:center;gap:8px;
+            padding:6px 16px;font-size:var(--fs-xs);color:var(--text-subtle);
+            border-bottom:1px solid var(--border-subtle, var(--border));
+            background:var(--rr-amber-100);color:var(--rr-amber-800);
+          }
+          /* Retry on a failed send (EM#74). */
+          #view-email .em-retry-btn{
+            border:1px solid var(--rr-red-700);background:transparent;
+            color:var(--rr-red-700);border-radius:6px;padding:1px 9px;
+            cursor:pointer;font:inherit;font-size:var(--fs-10);font-weight:700;
+            text-transform:uppercase;letter-spacing:.03em;margin-left:6px;
+          }
+          #view-email .em-retry-btn:hover{background:var(--rr-red-50)}
           /* Star toggle on rows (EM#24) · hover-revealed like the
              checkbox; starred rows keep it lit. */
           #view-email .em-msg-star{
