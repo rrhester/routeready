@@ -165,3 +165,15 @@ grant execute on function public.get_publish_gate_settings()        to authentic
 grant execute on function public.set_publish_gate_settings(boolean) to authenticated;
 
 notify pgrst, 'reload schema';
+
+-- Self-record in the migration ledger (private.rr_migrations, 0504) so
+-- rr_schema_version() and the dashboard schema banner track by-hand pastes.
+-- No-op on a DB that predates 0504.
+do $$
+begin
+  if to_regclass('private.rr_migrations') is not null then
+    insert into private.rr_migrations (filename)
+    values ('0563_driver_schedule_publish_gate.sql')
+    on conflict (filename) do nothing;
+  end if;
+end $$;

@@ -63,3 +63,15 @@ join public.drivers  d  on d.id  = s.driver_id
 join public.stations st on st.id = s.station_id
 where s.date >= current_date - 90
 on conflict (driver_id, station_id) do nothing;
+
+-- Self-record in the migration ledger (private.rr_migrations, 0504) so
+-- rr_schema_version() and the dashboard schema banner track by-hand pastes.
+-- No-op on a DB that predates 0504.
+do $$
+begin
+  if to_regclass('private.rr_migrations') is not null then
+    insert into private.rr_migrations (filename)
+    values ('0533_shift_station_membership.sql')
+    on conflict (filename) do nothing;
+  end if;
+end $$;

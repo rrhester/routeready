@@ -37,3 +37,15 @@ end $$;
 create index if not exists email_messages_unread_idx
   on public.email_messages(dsp_id, folder_id)
   where is_read = false and direction = 'inbound';
+
+-- Self-record in the migration ledger (private.rr_migrations, 0504) so
+-- rr_schema_version() and the dashboard schema banner track by-hand pastes.
+-- No-op on a DB that predates 0504.
+do $$
+begin
+  if to_regclass('private.rr_migrations') is not null then
+    insert into private.rr_migrations (filename)
+    values ('0535_email_read_state.sql')
+    on conflict (filename) do nothing;
+  end if;
+end $$;

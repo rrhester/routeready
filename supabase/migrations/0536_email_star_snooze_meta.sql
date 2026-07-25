@@ -64,3 +64,15 @@ create index if not exists email_messages_starred_idx
 create index if not exists email_messages_snoozed_idx
   on public.email_messages(dsp_id, snoozed_until)
   where snoozed_until is not null;
+
+-- Self-record in the migration ledger (private.rr_migrations, 0504) so
+-- rr_schema_version() and the dashboard schema banner track by-hand pastes.
+-- No-op on a DB that predates 0504.
+do $$
+begin
+  if to_regclass('private.rr_migrations') is not null then
+    insert into private.rr_migrations (filename)
+    values ('0536_email_star_snooze_meta.sql')
+    on conflict (filename) do nothing;
+  end if;
+end $$;
