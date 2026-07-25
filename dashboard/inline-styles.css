@@ -25679,6 +25679,13 @@ body.rr-cmdk-open{ overflow:hidden }
             font-size:var(--fs-sm);color:var(--text);cursor:pointer;
           }
           .em-rule-line{cursor:default}
+          /* Station-lens exemption chip (EM#97). */
+          .em-lens-note{
+            display:inline-flex;align-items:center;
+            margin-left:8px;padding:2px 8px;border-radius:999px;
+            border:1px solid var(--border);color:var(--text-subtle);
+            font-size:var(--fs-xs);font-weight:600;white-space:nowrap;
+          }
           /* A11y (EM#87–92) · folder + message rows are focusable divs
              now — give the new tab stops a visible ring. */
           #view-email .em-folder:focus-visible,

@@ -8,13 +8,14 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=a8a295000eb4";
-import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=a8a295000eb4";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=a8a295000eb4";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=a8a295000eb4";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=a8a295000eb4";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=a8a295000eb4";
-import { isChecklistComplete } from "./checklist-core.mjs?v=a8a295000eb4";
+import { planScheduleWeek } from "./scheduling-engine.js?v=5af00e53bb02";
+import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=5af00e53bb02";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=5af00e53bb02";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=5af00e53bb02";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=5af00e53bb02";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=5af00e53bb02";
+import { isChecklistComplete } from "./checklist-core.mjs?v=5af00e53bb02";
+import { textFromHtml as _ecTextFromHtml, dateBucket as _ecDateBucket, formatRelative as _ecFormatRelative, prefixSubject as _ecPrefixSubject, parseQuery as _ecParseQuery, addrOk as _ecAddrOk, threadKey as _ecThreadKey, counterpart as _ecCounterpart, quoteText as _ecQuoteText } from "./email-core.mjs?v=5af00e53bb02";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +26,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=a8a295000eb4";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=a8a295000eb4";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=a8a295000eb4";
+} from "./msg-core.mjs?v=5af00e53bb02";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=5af00e53bb02";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=5af00e53bb02";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -18425,6 +18426,10 @@ function _prefillWeatherInputs() {
   if (nameEl) nameEl.value = window.RR?.dsp?.name        || "";
   if (codeEl) codeEl.value = window.RR?.dsp?.short_code  || "";
   if (replyEl) replyEl.value = window.RR?.dsp?.metadata?.reply_to_email || "";
+  // Custom sending domain (EM#99 groundwork) · stored intent only — the
+  // send path keeps the shared domain until DNS verification exists.
+  const domEl = document.getElementById("rr-set-em-domain");
+  if (domEl) domEl.value = window.RR?.dsp?.metadata?.email_custom_domain || "";
   // Fleet Bridge · team email derived from the DSP's short_code.
   const fbEmailEl = document.getElementById("rr-set-fb-email");
   if (fbEmailEl) fbEmailEl.value = _fbEmailFromCode(window.RR?.dsp?.short_code);
@@ -18566,6 +18571,38 @@ document.addEventListener("click", async (e) => {
     toast(next ? "Reply email saved" : "Reply email cleared", "success");
   } catch (err) {
     console.error("reply email save:", err);
+    toast("Save failed: " + (err.message || String(err)), "warn");
+  }
+});
+
+// Save custom sending domain → dsps.metadata.email_custom_domain (EM#99
+// groundwork). Stored intent ONLY: send-email keeps the shared domain
+// until a DNS-verification flow exists — routing unverified domains
+// through Resend would bounce every send.
+document.addEventListener("click", async (e) => {
+  if (!e.target.closest("#rr-set-em-domain-save")) return;
+  e.preventDefault();
+  const dspId = window.RR?.dsp?.id;
+  const input = document.getElementById("rr-set-em-domain");
+  if (!dspId || !input) return;
+  const next = (input.value || "").trim().toLowerCase();
+  if (next && !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(next)) {
+    toast("Enter a domain like mail.your-dsp.com, or leave blank", "warn");
+    return;
+  }
+  try {
+    // Read-modify-write so we don't trample sibling metadata keys.
+    const { data: row, error: rErr } = await sb.from("dsps").select("metadata").eq("id", dspId).single();
+    if (rErr) throw rErr;
+    const md = row?.metadata || {};
+    if (next) md.email_custom_domain = next;
+    else delete md.email_custom_domain;
+    const { error } = await sb.from("dsps").update({ metadata: md }).eq("id", dspId);
+    if (error) throw error;
+    if (window.RR?.dsp) window.RR.dsp.metadata = md;
+    toast(next ? "Domain saved — support will reach out to verify DNS" : "Custom domain cleared", "success");
+  } catch (err) {
+    console.error("custom domain save:", err);
     toast("Save failed: " + (err.message || String(err)), "warn");
   }
 });
@@ -27555,7 +27592,7 @@ let _ivcalSchemaProbed = false;
 // LATEST migration ordinal (check-migration-ordinals.mjs fails on drift —
 // the old "bump when the dashboard depends on it" judgment call froze it
 // at 0534 for 35 files); the legacy probe stays as fallback until 0504.
-const _RR_SCHEMA_EXPECTED = 569;
+const _RR_SCHEMA_EXPECTED = 570;
 async function _ivcalSchemaProbe() {
   if (_ivcalSchemaProbed) return;
   _ivcalSchemaProbed = true;
@@ -96047,18 +96084,7 @@ document.addEventListener("click", (e) => {
   // that arrived or were composed as HTML only. Style/script blocks go
   // first so CSS soup never leaks into snippets; input is capped so a
   // multi-MB marketing email can't stall a 200-row render.
-  function textFromHtmlLocal(html) {
-    if (!html) return "";
-    return String(html).slice(0, 8000)
-      .replace(/<(style|script)[^>]*>[\s\S]*?<\/\1\s*>/gi, " ")
-      .replace(/<\s*br\s*\/?\s*>/gi, "\n")
-      .replace(/<\/\s*(p|div|tr|li|h[1-6])\s*>/gi, "\n")
-      .replace(/<[^>]+>/g, "")
-      .replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&")
-      .replace(/&lt;/gi, "<").replace(/&gt;/gi, ">").replace(/&quot;/gi, '"').replace(/&#39;/gi, "'")
-      .replace(/\n{3,}/g, "\n\n")
-      .trim();
-  }
+  function textFromHtmlLocal(html) { return _ecTextFromHtml(html); } // → email-core.mjs (EM-100 extraction)
   function messageText(m) { return m.body_text || textFromHtmlLocal(m.body_html); }
   function iconFor(kind) { return ICONS[kind] || ICONS.folder; }
 
@@ -96664,6 +96690,29 @@ document.addEventListener("click", (e) => {
     const count = document.getElementById("rr-em-main-count");
     const f = state.folders.find(x => x.id === state.activeFolderId);
     if (title) title.textContent = f ? f.name : "Inbox";
+    // Station-lens exemption made EXPLICIT (EM#97) · every operational
+    // page obeys the master station switcher; Email is DSP-level (one
+    // team address), which read as a bug under the "every page = a new
+    // DSP" directive. Shown only when the switcher is visible (2+
+    // stations). Per-station address aliases stay an operator decision
+    // — see the review doc.
+    if (title) {
+      let lens = document.getElementById("rr-em-lens-note");
+      // The switcher is always in the shell markup; boot removes its
+      // `hidden` attribute only when 2+ active stations exist.
+      const sw = document.getElementById("rr-station-switch");
+      const multi = !!(sw && !sw.hidden);
+      if (multi && !lens) {
+        lens = document.createElement("span");
+        lens.id = "rr-em-lens-note";
+        lens.className = "em-lens-note";
+        lens.title = "Mail isn't filtered by the station switcher — one shared team address serves the whole DSP.";
+        lens.textContent = "All stations · shared inbox";
+        title.insertAdjacentElement("afterend", lens);
+      } else if (!multi && lens) {
+        lens.remove();
+      }
+    }
     if (count) {
       if (state.activeFolderId === DOCS_FOLDER_ID) {
         const n = state.documents.length;
@@ -96679,19 +96728,7 @@ document.addEventListener("click", (e) => {
   }
 
   // Group a message into a date bucket for the inbox ribbons.
-  function dateBucket(d) {
-    const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    const msg = new Date(d);
-    const startOfMsg = new Date(msg.getFullYear(), msg.getMonth(), msg.getDate()).getTime();
-    const days = Math.floor((startOfToday - startOfMsg) / 86400000);
-    if (days === 0) return { key: "today",       label: "Today" };
-    if (days === 1) return { key: "yesterday",   label: "Yesterday" };
-    if (days <  7)  return { key: "this-week",   label: "Earlier this week" };
-    if (days < 30)  return { key: "this-month",  label: "Earlier this month" };
-    if (days < 365) return { key: "this-year",   label: "Earlier this year" };
-    return                  { key: "older",      label: "Older" };
-  }
+  function dateBucket(d) { return _ecDateBucket(d, new Date()); } // → email-core.mjs (EM-100 extraction)
 
   // Centered pane empty/status state · small outlined icon + heading +
   // supporting line (mockup pattern). `icon` picks a glyph from the
@@ -96712,30 +96749,8 @@ document.addEventListener("click", (e) => {
     </div>`;
   }
 
-  // Search operators (EM#68) · from:/to:/has:attachment/before:/after:
-  // parsed out of the query; whatever's left is the free-text term.
-  // Unrecognized values fall back into the free text so a half-typed
-  // operator never makes mail vanish.
-  function _emParseQuery(raw) {
-    const out = { text: "", from: null, to: null, hasAttachment: false, before: null, after: null };
-    const free = [];
-    for (const tok of String(raw || "").trim().split(/\s+/)) {
-      if (!tok) continue;
-      const m = tok.match(/^(from|to|has|before|after):(.+)$/i);
-      if (!m) { free.push(tok); continue; }
-      const k = m[1].toLowerCase(), v = m[2];
-      if (k === "from") out.from = v;
-      else if (k === "to") out.to = v;
-      else if (k === "has") { if (/^attach/i.test(v)) out.hasAttachment = true; else free.push(tok); }
-      else {
-        const d = new Date(v + "T00:00:00");
-        if (isNaN(d.getTime())) { free.push(tok); continue; }
-        if (k === "before") out.before = d; else out.after = d;
-      }
-    }
-    out.text = free.join(" ");
-    return out;
-  }
+  // Search operators (EM#68) · parsed in email-core.mjs (EM-100 extraction).
+  function _emParseQuery(raw) { return _ecParseQuery(raw); }
 
   // Known-sender set for the "Unknown senders" scope (EM#69) — the
   // Contacts directory, cached 5 minutes. Applicant matches are already
@@ -97063,17 +97078,7 @@ document.addEventListener("click", (e) => {
     </div>`;
   }
 
-  function formatRelative(d) {
-    const diff = Date.now() - d.getTime();
-    const min = Math.floor(diff / 60000);
-    if (min < 1) return "just now";
-    if (min < 60) return `${min}m`;
-    const hr = Math.floor(min / 60);
-    if (hr < 24) return `${hr}h`;
-    const day = Math.floor(hr / 24);
-    if (day < 7) return `${day}d`;
-    return d.toLocaleDateString();
-  }
+  function formatRelative(d) { return _ecFormatRelative(d, new Date()); } // → email-core.mjs (EM-100 extraction)
 
   // Contextual message actions · rendered ABOVE the open message
   // (mockup: the page header carries no message-level actions). The
@@ -97251,12 +97256,8 @@ document.addEventListener("click", (e) => {
   // address, fetched across folders so the Sent half of a conversation
   // shows alongside the inbound half.
   const SELECT_THREAD = "id, from_email, to_email, subject, body_text, body_html, direction, created_at";
-  function _emThreadKey(subject) {
-    return String(subject || "").replace(/^\s*((re|fwd?|aw)\s*:\s*)+/i, "").trim().toLowerCase();
-  }
-  function _emCounterpart(m) {
-    return ((m.direction === "inbound" ? m.from_email : m.to_email) || "").trim().toLowerCase();
-  }
+  function _emThreadKey(subject) { return _ecThreadKey(subject); }   // → email-core.mjs (EM-100 extraction)
+  function _emCounterpart(m) { return _ecCounterpart(m); }            // → email-core.mjs (EM-100 extraction)
   async function renderThread(m) {
     const host = document.getElementById("rr-em-thread");
     if (!host) return;
@@ -98267,17 +98268,13 @@ document.addEventListener("click", (e) => {
     // Outbound rows' from_email is our own team address (stamped at send
     // time) or null pre-send — attribute those to "you" (EM#3).
     const from = m.direction === "outbound" ? "you" : (m.from_email || "(unknown)");
-    const text = (messageText(m) || "").replace(/\s+$/g, "");
-    const quoted = text.split("\n").map(l => "> " + l).join("\n");
+    const quoted = _ecQuoteText(messageText(m) || ""); // → email-core.mjs (EM-100 extraction)
     return `\n\nOn ${when}, ${from} wrote:\n${quoted}`;
   }
 
   // Subject prefix hygiene (EM#77) · "Re: Re: Fwd: quote" chains
   // collapse to one prefix on compose instead of growing unbounded.
-  function _emPrefixSubject(prefix, s) {
-    const bare = String(s || "").replace(/^(\s*(re|fwd?|fw)\s*:\s*)+/i, "").trim();
-    return bare ? prefix + " " + bare : "";
-  }
+  function _emPrefixSubject(prefix, s) { return _ecPrefixSubject(prefix, s); } // → email-core.mjs (EM-100 extraction)
 
   function openComposer({ mode = "new", original = null, to: toPrefill = "", subject: subjectPrefill = "", html: htmlPrefill = "", onCancel = null, applicantId = null, templateId = null, onSent = null, draft = null } = {}) {
     closeComposer();
@@ -98677,35 +98674,8 @@ document.addEventListener("click", (e) => {
         _emOpenSigEditor();
         return;
       }
-      if (e.target.closest && e.target.closest("[data-em-sig-close]")) {
-        e.preventDefault();
-        const w = document.getElementById("rr-em-sigedit");
-        if (w) w.remove();
-        return;
-      }
-      if (e.target.closest && e.target.closest("[data-em-sig-save]")) {
-        e.preventDefault();
-        const ed = document.getElementById("rr-em-sig-editor");
-        try { localStorage.setItem(_emSigKey(), ed ? ed.innerHTML : ""); } catch (_) {}
-        const w = document.getElementById("rr-em-sigedit");
-        if (w) w.remove();
-        return;
-      }
-      if (e.target.closest && e.target.closest("[data-em-sig-clear]")) {
-        e.preventDefault();
-        const ed = document.getElementById("rr-em-sig-editor");
-        if (ed) ed.innerHTML = "";
-        return;
-      }
-      if (e.target.closest && e.target.closest("[data-em-sig-insert]")) {
-        e.preventDefault();
-        const ed = document.getElementById("rr-em-sig-editor");
-        const body = document.getElementById("rr-em-composer-body");
-        if (ed && body) body.innerHTML += `<div><br></div><div class="rr-sig">${ed.innerHTML}</div>`;
-        const w = document.getElementById("rr-em-sigedit");
-        if (w) w.remove();
-        return;
-      }
+      // Sig-editor buttons handle themselves (wired in _emOpenSigEditor
+      // — Settings opens it too, where this listener doesn't exist).
     });
     m.addEventListener("input", (e) => {
       if (e.target && e.target.id === "rr-em-docpick-q") _emDocPickRender(e.target.value);
@@ -98968,7 +98938,7 @@ document.addEventListener("click", (e) => {
 
   // ── Recipient chips (EM#43/44) ──────────────────────────────────
   let _emRecips = { to: [], cc: [], bcc: [] };
-  function _emAddrOk(a) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(a); }
+  function _emAddrOk(a) { return _ecAddrOk(a); } // → email-core.mjs (EM-100 extraction)
   function _emCfCommit(kind, raw) {
     const have = new Set(_emRecips[kind].map(a => a.toLowerCase()));
     String(raw || "").split(/[,;]/).map(s => s.trim()).filter(Boolean).forEach(a => {
@@ -99174,8 +99144,10 @@ document.addEventListener("click", (e) => {
   function _emOpenSigEditor() {
     const old = document.getElementById("rr-em-sigedit");
     if (old) old.remove();
-    const host = document.getElementById("rr-em-composer");
-    if (!host) return;
+    // Settings opens this too (EM#98) — the overlay is position:fixed,
+    // so body hosts it fine when no composer is open ("Insert into
+    // message" just no-ops there).
+    const host = document.getElementById("rr-em-composer") || document.body;
     const wrap = document.createElement("div");
     wrap.id = "rr-em-sigedit";
     wrap.className = "em-docpick";
@@ -99190,7 +99162,30 @@ document.addEventListener("click", (e) => {
         <button type="button" class="em-bulk-btn em-sig-save" data-em-sig-save>Save</button>
       </div>
     </div>`;
-    wrap.addEventListener("click", (e) => { if (e.target === wrap) wrap.remove(); });
+    // Self-contained controls (EM#98) — Settings opens this without a
+    // composer, so the buttons can't ride the composer's delegated
+    // listener.
+    wrap.addEventListener("click", (e) => {
+      if (e.target === wrap || e.target.closest("[data-em-sig-close]")) { wrap.remove(); return; }
+      if (e.target.closest("[data-em-sig-save]")) {
+        const ed2 = document.getElementById("rr-em-sig-editor");
+        try { localStorage.setItem(_emSigKey(), ed2 ? ed2.innerHTML : ""); } catch (_) {}
+        wrap.remove();
+        return;
+      }
+      if (e.target.closest("[data-em-sig-clear]")) {
+        const ed2 = document.getElementById("rr-em-sig-editor");
+        if (ed2) ed2.innerHTML = "";
+        return;
+      }
+      if (e.target.closest("[data-em-sig-insert]")) {
+        const ed2 = document.getElementById("rr-em-sig-editor");
+        const body = document.getElementById("rr-em-composer-body");
+        if (ed2 && body) body.innerHTML += `<div><br></div><div class="rr-sig">${ed2.innerHTML}</div>`;
+        wrap.remove();
+        return;
+      }
+    });
     host.appendChild(wrap);
     const ed = document.getElementById("rr-em-sig-editor");
     if (ed) ed.innerHTML = _emGetSignature();
@@ -101496,6 +101491,14 @@ document.addEventListener("click", (e) => {
     obs.observe(v, { attributes: true, attributeFilter: ["class"] });
     _emPreboot();
   }
+  // Settings → Email tools (EM#98) · the gear page opens the same
+  // modals the Email page uses. Rules/delivery read state.folders,
+  // which the lazy preboot loads at page start.
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("#rr-set-em-sig")) { e.preventDefault(); _emOpenSigEditor(); return; }
+    if (e.target.closest("#rr-set-em-rules")) { e.preventDefault(); _emOpenRulesList(); return; }
+    if (e.target.closest("#rr-set-em-delivery")) { e.preventDefault(); _emOpenDeliveryHealth(); return; }
+  });
   // Expose the rich composer so other views (e.g. the interview calendar)
   // can open a prefilled "New email" without duplicating the editor.
   window.rrOpenEmailComposer = openComposer;

@@ -14,9 +14,32 @@ Email-redesign merge #4113). Impact tags: **[high]** = operators lose
 mail, reply to the wrong person, or read wrong state; **[med]** = worth
 scheduling; **[low]** = polish.
 
-**STATUS (2026-07-25): Sections A–K (EM#1–96) SHIPPED. Migration chain
-0535–0544 APPLIED by the operator 2026-07-25 (confirmed in chat) — all
-capability-gated email features are fully live.**
+**STATUS (2026-07-25): ALL 100 ITEMS SHIPPED (Sections A–L complete).
+Migration chain 0535–0544 APPLIED by the operator 2026-07-25 (confirmed
+in chat) — all capability-gated email features are fully live.**
+Section L notes (no migration): EM#100 pure logic lives in
+`dashboard/email-core.mjs` (textFromHtml/dateBucket/formatRelative/
+prefixSubject/parseQuery/addrOk/splitAddrs/threadKey/counterpart/
+quoteText — `now` injected, deterministic) with
+`scripts/test-email-core.mjs` in `npm test`; live.js DELEGATES to it —
+change behavior in the core, not the wrappers. The Playwright coverage
+is promoted to `tests/email-e2e/` (4 specs: lazy boot + nav dot,
+in-place read patch, search operators + scopes, and the composer
+chip-snap regression); its workflow ships as a separate tiny PR (this
+tooling's workflow-file PRs get no Actions runs). EM#98 Settings gains
+an "Email tools" row — Signature/Rules/Delivery-status open the SAME
+modals the Email page uses (the signature editor is self-contained now
+and hosts on body when no composer is open; its buttons no longer ride
+the composer's listener). EM#97: the station-lens exemption is
+EXPLICIT — an "All stations · shared inbox" chip appears beside the
+folder title whenever the station switcher is revealed (detection =
+`!#rr-station-switch.hidden`, the boot reveal mechanism); per-station
+address aliases remain an OPERATOR DECISION deliberately not built.
+EM#99 is groundwork only: Settings stores
+dsps.metadata.email_custom_domain (validated, owner-only) and support
+verifies DNS out-of-band — send-email DELIBERATELY keeps the shared
+domain until a verification flow exists (routing unverified domains
+through Resend would bounce every send).
 Section K notes (no migration): EM#96 the email module LAZY-BOOTS — a
 light preboot at page load (folders + one counts RPC + the realtime
 channel) keeps the sidebar unread dot honest, and the full boot fires
