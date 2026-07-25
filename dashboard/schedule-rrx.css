@@ -3281,14 +3281,19 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff * {
   border-radius: var(--r-sm);
   letter-spacing: .04em;
 }
-/* Helper-seat tag · the "Helper" / "XL-Helper" tag on a route's helper seat
-   (the ride-along body, no cert) so the operator can tell the certified
-   driver seat from the helper seat at a glance. Rides IN the secondary
-   wave/van line — pushed to the line's right edge, wrapping under it when
-   the chip is narrow — NOT the absolute .shift-chip-badges corner, whose
-   fixed clearance is sized for the 2-char SP/XL tags and let this wide tag
-   paint over the van text (operator report 2026-07-25). Sized to match the
-   SP/RE/NU class badge. */
+/* Helper-seat tag · the "Helper" tag on a route's helper seat (the
+   ride-along body, no cert) so the operator can tell the certified driver
+   seat from the helper seat at a glance. Rides IN the secondary wave/van
+   line, pushed to the line's right edge — NOT the absolute
+   .shift-chip-badges corner, whose fixed clearance is sized for the 2-char
+   SP/XL tags and let the tag paint over the van text (operator report
+   2026-07-25). The line must NEVER wrap: the chip has to stay exactly as
+   tall as every other chip (operator, same day: "the card size needs to
+   stay the same") — that's also why the visible text is the short bare
+   "Helper" (no service-type prefix; the type lives in the hover title). As
+   a last resort on a pathologically narrow chip the tag ellipsizes rather
+   than overlapping or growing the chip. Sized to match the SP/RE/NU class
+   badge. */
 #view-schedule.rrx-schedule .shift-chip-helper-badge {
   font-size: var(--fs-9);
   font-weight: 700;
@@ -3302,12 +3307,10 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff * {
 }
 #view-schedule.rrx-schedule .shift-chip .shift-chip-secondary > .shift-chip-helper-badge {
   margin-left: auto;
-  flex-shrink: 0;
-}
-/* Only helper chips may wrap the secondary line (the tag drops under the
-   wave/van text instead of overlapping it); other chips keep one line. */
-#view-schedule.rrx-schedule .shift-chip.shift-chip-helper .shift-chip-secondary {
-  flex-wrap: wrap;
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 /* The helper chip carries a dashed left accent so it reads as support
    capacity rather than a primary route seat. */

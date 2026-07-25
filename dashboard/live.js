@@ -71154,21 +71154,22 @@ function _schedShiftChip(sh, extras) {
   // Helper seat tag — the second body riding along a route (no cert
   // required). Spelled out as "Helper" (not the old cryptic "HP") so the chip
   // reads plainly; its route color + dashed border already say which route it
-  // rides, so this is the only tag the helper seat carries. When the route
-  // carries a distinguishing service type (XL, …) the tag names it — an XL
-  // route's helper reads "XL-Helper", not a bare "Helper" — since the seat's
-  // own service-type corner is suppressed above. The HELPER service type is
-  // itself the helper route, so it isn't prefixed (no "HELPER-Helper").
-  // The tag rides IN the secondary "W11:20 • V5" line (flex end, wrapping
-  // under it when the chip is narrow), NOT the absolute .shift-chip-badges
-  // corner: that cluster's fixed right-padding clearance is sized for the
-  // 2-char SP/XL tags, and this wide tag painted over the wave/van text
-  // (operator report 2026-07-25).
-  const _helperTypePrefix = (stCode && stCode !== "SP" && stCode !== "HELPER")
-    ? stCode + "-"
+  // rides, so this is the only tag the helper seat carries. The visible text
+  // is ALWAYS the bare "Helper" — the old "XL-Helper" prefix made the tag too
+  // wide to share the wave/van line at real chip widths (it either painted
+  // over the van or wrapped the chip taller; operator 2026-07-25: "the card
+  // size needs to stay the same"). The route's service type still names
+  // itself in the hover title below.
+  // The tag rides IN the secondary "W11:20 • V5" line (flex end, single line
+  // — the chip must stay exactly as tall as every other chip), NOT the
+  // absolute .shift-chip-badges corner: that cluster's fixed right-padding
+  // clearance is sized for the 2-char SP/XL tags and let the tag paint over
+  // the wave/van text.
+  const _helperTypeName = (stCode && stCode !== "SP" && stCode !== "HELPER")
+    ? stCode + " "
     : "";
   const helperTag = isHelperSeat
-    ? `<span class="shift-chip-helper-badge" title="${escapeHtml(_helperTypePrefix ? _helperTypePrefix.slice(0, -1) + " helper seat — rides along the route (no certification required)" : "Helper seat — rides along the route (no certification required)")}">${escapeHtml(_helperTypePrefix)}Helper</span>`
+    ? `<span class="shift-chip-helper-badge" title="${escapeHtml(_helperTypeName ? _helperTypeName + "helper seat — rides along the route (no certification required)" : "Helper seat — rides along the route (no certification required)")}">Helper</span>`
     : "";
   // Corner tags share one flex wrapper pinned bottom-right so an XL standard
   // route reads "SP XL" without the two badges overlapping; the service-type
