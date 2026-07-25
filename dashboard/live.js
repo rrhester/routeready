@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=2f7cc9188aaa";
-import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=2f7cc9188aaa";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=2f7cc9188aaa";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=2f7cc9188aaa";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=2f7cc9188aaa";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=2f7cc9188aaa";
-import { isChecklistComplete } from "./checklist-core.mjs?v=2f7cc9188aaa";
+import { planScheduleWeek } from "./scheduling-engine.js?v=b376f14324e4";
+import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=b376f14324e4";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=b376f14324e4";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=b376f14324e4";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=b376f14324e4";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=b376f14324e4";
+import { isChecklistComplete } from "./checklist-core.mjs?v=b376f14324e4";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=2f7cc9188aaa";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=2f7cc9188aaa";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=2f7cc9188aaa";
+} from "./msg-core.mjs?v=b376f14324e4";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=b376f14324e4";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=b376f14324e4";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -95149,7 +95149,7 @@ document.addEventListener("click", (e) => {
   // state), LEGACY is the pre-migration floor. Tiered so a DB that has
   // 0535 but not 0536 degrades one step, not all the way (dropping
   // is_read would silently un-read every message).
-  const SELECT_FULL   = "id, applicant_id, from_email, from_name, to_email, cc_emails, bcc_emails, subject, body_text, body_html, direction, status, error_message, is_read, is_starred, snoozed_until, has_attachments, delivered_at, created_at";
+  const SELECT_FULL   = "id, applicant_id, from_email, from_name, to_email, cc_emails, bcc_emails, subject, body_text, body_html, direction, status, error_message, is_read, is_starred, snoozed_until, has_attachments, send_after, delivered_at, created_at";
   const SELECT_MID    = "id, applicant_id, from_email, to_email, cc_emails, subject, body_text, body_html, direction, status, error_message, is_read, delivered_at, created_at";
   const SELECT_LEGACY = "id, applicant_id, from_email, to_email, subject, body_text, body_html, direction, status, delivered_at, created_at";
   // 0536 capability · null = unknown, set by the first page fetch.
@@ -95179,7 +95179,7 @@ document.addEventListener("click", (e) => {
     let { data, error } = await _msgPageQuery(SELECT_FULL, folderId).range(from, from + 199);
     if (!error) {
       if (_srvMetaState !== true) { _srvMetaState = true; _syncVirtualFolders(); }
-    } else if (/is_starred|snoozed_until|from_name|has_attachments|bcc_emails/.test(error.message || "")) {
+    } else if (/is_starred|snoozed_until|from_name|has_attachments|bcc_emails|send_after/.test(error.message || "")) {
       if (_srvMetaState !== false) { _srvMetaState = false; _syncVirtualFolders(); }
       ({ data, error } = await _msgPageQuery(SELECT_MID, folderId).range(from, from + 199));
     }
@@ -95822,7 +95822,10 @@ document.addEventListener("click", (e) => {
     // Outbound delivery state (EM#2) · a failed/still-queued send must
     // not sit in Sent looking identical to delivered mail.
     const st = isInbound ? "" : (m.status || "");
-    const stPill = (st === "queued" || st === "sending")
+    const isSched = st === "queued" && m.send_after && new Date(m.send_after).getTime() > Date.now();
+    const stPill = isSched
+      ? `<span class="em-msg-status em-msg-status-pending">Scheduled</span>`
+      : (st === "queued" || st === "sending")
       ? `<span class="em-msg-status em-msg-status-pending">${st === "queued" ? "Queued" : "Sending…"}</span>`
       : (st === "failed")
         ? `<span class="em-msg-status em-msg-status-failed">Failed</span>`
@@ -95974,6 +95977,9 @@ document.addEventListener("click", (e) => {
       if (st === "failed") {
         const why = m.error_message ? ` — ${m.error_message}` : "";
         return `<div class="em-preview-status em-preview-status-failed"><strong>Not delivered</strong>${escapeHtmlLocal(why)} <button type="button" class="em-retry-btn" data-em-retry>Retry</button></div>`;
+      }
+      if (st === "queued" && m.send_after && new Date(m.send_after).getTime() > Date.now()) {
+        return `<div class="em-preview-status">Scheduled for ${escapeHtmlLocal(new Date(m.send_after).toLocaleString())} <button type="button" class="em-retry-btn" data-em-cancel-send>Cancel</button></div>`;
       }
       if (st === "queued")  return `<div class="em-preview-status">Queued — sends within a minute</div>`;
       if (st === "sending") return `<div class="em-preview-status">Sending…</div>`;
@@ -96981,6 +96987,9 @@ document.addEventListener("click", (e) => {
             <button type="button" class="emct-btn emct-paperclip" id="rr-em-composer-attach" title="Attach files" aria-label="Attach files">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
             </button>
+            <button type="button" class="emct-btn" id="rr-em-composer-attach-doc" title="Attach from Documents" aria-label="Attach from Documents">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
+            </button>
             <input type="file" id="rr-em-composer-file" multiple style="display:none" aria-hidden="true">
           </div>
         </div>
@@ -96995,7 +97004,17 @@ document.addEventListener("click", (e) => {
             <div class="em-chipfield" data-em-cf="to" id="rr-em-cf-to">
               <input id="rr-em-composer-to" class="em-cf-input" type="text" placeholder="vendor@example.com" autocomplete="off" aria-labelledby="rr-em-lbl-to">
             </div>
-            <button id="rr-em-composer-send" type="button" class="rr-msft-blue em-send-btn">Send</button>
+            <div class="em-popout-move-wrap em-send-wrap">
+              <button id="rr-em-composer-send" type="button" class="rr-msft-blue em-send-btn" title="Send (Ctrl/Cmd+Enter)">Send</button><button type="button" class="em-send-later-btn" id="rr-em-send-later" aria-haspopup="menu" aria-expanded="false" title="Schedule send">▾</button>
+              <div class="em-popout-move-menu em-send-later-menu" hidden role="menu" aria-label="Send later">
+                <button type="button" class="em-popout-move-item" role="menuitem" data-em-sendlater="tomorrow">Tomorrow 8:00 AM</button>
+                <button type="button" class="em-popout-move-item" role="menuitem" data-em-sendlater="monday">Monday 8:00 AM</button>
+                <div class="em-send-later-pick">
+                  <input type="datetime-local" id="rr-em-send-at" class="em-subject-input" aria-label="Send at">
+                  <button type="button" class="em-bulk-btn" data-em-sendlater="pick">Set</button>
+                </div>
+              </div>
+            </div>
           </div>
           <div class="em-compose-row">
             <span class="em-compose-lbl" id="rr-em-lbl-cc">Cc</span>
@@ -97014,6 +97033,7 @@ document.addEventListener("click", (e) => {
             <label class="em-compose-lbl" for="rr-em-composer-subject">Subject</label>
             <input id="rr-em-composer-subject" class="em-subject-input" type="text" required value="${escapeHtmlLocal(subject)}" placeholder="">
           </div>
+          <div class="em-sched-note" id="rr-em-sched-note" hidden></div>
         </div>
         <div style="flex:1;min-height:0;display:flex;padding:var(--s-3) var(--s-5) var(--s-4) var(--s-5)">
           <div id="rr-em-composer-body" contenteditable="true" data-placeholder="Type your message… (Cmd/Ctrl+Enter to send)" style="flex:1;width:100%;padding:14px;border:1px solid var(--border);border-radius:6px;font-family:Calibri,Arial,sans-serif;font-size:14px;line-height:1.55;overflow-y:auto;outline:none;background:#fff;color:var(--text);box-sizing:border-box">${body || ""}</div>
@@ -97022,6 +97042,36 @@ document.addEventListener("click", (e) => {
     document.body.appendChild(m);
     // Reset per-modal attachment state.
     composerAttachments = [];
+    // Resuming a draft restores its attachments as chips and its
+    // importance flag — otherwise a resumed send would carry the row's
+    // stale attachments invisibly (QA caught this on the Undo path).
+    if (mode === "draft" && draft) {
+      _emImportant = draft.importance === "high";
+      if (_emImportant) {
+        const tile = m.querySelector('[data-mailact="important"]');
+        if (tile) tile.classList.add("active");
+      }
+      const seedAtts = (atts) => {
+        if (!Array.isArray(atts) || !atts.length) return;
+        composerAttachments = atts.map(a => ({ ...a, own: false }));
+        renderComposerChips();
+      };
+      if (Array.isArray(draft.attachments)) {
+        seedAtts(draft.attachments);
+      } else {
+        const gen = _emComposerGen;
+        sb.from("email_messages").select("attachments, importance").eq("id", draft.id).maybeSingle()
+          .then(({ data }) => {
+            if (gen !== _emComposerGen || !data) return;
+            seedAtts(data.attachments);
+            if (data.importance === "high" && !_emImportant) {
+              _emImportant = true;
+              const tile = document.querySelector('#rr-em-composer [data-mailact="important"]');
+              if (tile) tile.classList.add("active");
+            }
+          }, () => {});
+      }
+    }
     // Recipient chips (EM#43/44) · seed from the mode/draft prefills.
     _emRecips = { to: [], cc: [], bcc: [] };
     _emCfCommit("to", to);
@@ -97085,7 +97135,74 @@ document.addEventListener("click", (e) => {
         return;
       }
       const cf = e.target.closest && e.target.closest(".em-chipfield");
-      if (cf && !e.target.closest(".em-addr-chip")) cf.querySelector(".em-cf-input")?.focus();
+      if (cf && !e.target.closest(".em-addr-chip")) { cf.querySelector(".em-cf-input")?.focus(); return; }
+      // Schedule-send menu (EM#58).
+      const slBtn = e.target.closest && e.target.closest("#rr-em-send-later");
+      if (slBtn) {
+        e.preventDefault();
+        const menu = m.querySelector(".em-send-later-menu");
+        if (menu) {
+          const open = menu.hidden;
+          menu.hidden = !open;
+          slBtn.setAttribute("aria-expanded", String(open));
+        }
+        return;
+      }
+      const slOpt = e.target.closest && e.target.closest("[data-em-sendlater]");
+      if (slOpt) {
+        e.preventDefault();
+        const kind = slOpt.getAttribute("data-em-sendlater");
+        let when = null;
+        if (kind === "tomorrow") {
+          when = new Date();
+          when.setDate(when.getDate() + 1);
+          when.setHours(8, 0, 0, 0);
+        } else if (kind === "monday") {
+          when = new Date();
+          when.setDate(when.getDate() + ((8 - when.getDay()) % 7 || 7));
+          when.setHours(8, 0, 0, 0);
+        } else if (kind === "pick") {
+          const inp = document.getElementById("rr-em-send-at");
+          if (inp && inp.value) when = new Date(inp.value);
+        }
+        if (when && when.getTime() > Date.now()) {
+          _emSendAfter = when.toISOString();
+          _emPaintSchedNote();
+        } else if (kind === "pick") {
+          if (typeof toast === "function") toast("Pick a time in the future", "warn");
+          return;
+        }
+        const menu = m.querySelector(".em-send-later-menu");
+        if (menu) menu.hidden = true;
+        return;
+      }
+      if (e.target.closest && e.target.closest("[data-em-sched-clear]")) {
+        e.preventDefault();
+        _emSendAfter = null;
+        _emPaintSchedNote();
+        return;
+      }
+      // Attach from Documents (EM#49).
+      if (e.target.closest && e.target.closest("#rr-em-composer-attach-doc")) {
+        e.preventDefault();
+        _emOpenDocPicker();
+        return;
+      }
+      if (e.target.closest && e.target.closest("[data-em-docpick-close]")) {
+        e.preventDefault();
+        const w = document.getElementById("rr-em-docpick");
+        if (w) w.remove();
+        return;
+      }
+      const dp = e.target.closest && e.target.closest("[data-em-docpick]");
+      if (dp) {
+        e.preventDefault();
+        _emDocPickAttach(dp.getAttribute("data-em-docpick"));
+        return;
+      }
+    });
+    m.addEventListener("input", (e) => {
+      if (e.target && e.target.id === "rr-em-docpick-q") _emDocPickRender(e.target.value);
     });
     _emAcEnsurePool(); // warm the suggestion pool in the background
     // Autosave (EM#47) · a dirty composer persists itself every few
@@ -97095,6 +97212,8 @@ document.addEventListener("click", (e) => {
     _emDraftTimer = setInterval(() => { _emSaveDraftRow(true); }, 4000);
     _emLastDraftJson = "";
     _emDiscardDraft = false;
+    // (_emImportant/_emSendAfter reset in closeComposer — a draft
+    // resume may have just restored the importance flag above.)
     // Click outside the inner card closes the modal.
     m.addEventListener("click", (e) => { if (e.target === m) closeComposer(); });
     // Escape closes; Cmd/Ctrl+Enter sends. When the autocomplete
@@ -97147,14 +97266,11 @@ document.addEventListener("click", (e) => {
       },
       recur: () => toast("Recurrence applies to scheduled meetings — use Schedule Meeting.", "info"),
       important: (b) => {
-        const subjEl = document.getElementById("rr-em-composer-subject");
-        const on = !b.classList.contains("active");
-        b.classList.toggle("active", on);
-        if (subjEl) {
-          if (on && !/^❗\s/.test(subjEl.value)) subjEl.value = "❗ " + subjEl.value;
-          else if (!on) subjEl.value = subjEl.value.replace(/^❗\s*/, "");
-        }
-        toast(on ? "Marked High importance" : "Importance cleared", "info");
+        // Real priority headers (EM#55, 0538) — the ❗-in-subject hack
+        // survives only as the pre-migration fallback at send time.
+        _emImportant = !b.classList.contains("active");
+        b.classList.toggle("active", _emImportant);
+        if (typeof toast === "function") toast(_emImportant ? "Marked High importance" : "Importance cleared", "info");
       },
       attach: () => document.getElementById("rr-em-composer-file")?.click(),
       dictate: (b) => _rrToggleDictate(document.getElementById("rr-em-composer-body"), b),
@@ -97241,11 +97357,33 @@ document.addEventListener("click", (e) => {
         const dsp_id = currentDspId();
         if (!dsp_id) { if (typeof toast === "function") toast("No DSP context", "warn"); return; }
         for (const file of files) {
+          // Guardrails (EM#50) · Resend rejects ~40MB at send time as a
+          // silent failed row — refuse early with a reason instead.
+          if (file.size > 25 * 1024 * 1024) {
+            if (typeof toast === "function") toast(`"${file.name}" is over the 25 MB attachment limit`, "warn");
+            continue;
+          }
+          if (composerAttachments.length >= 15) {
+            if (typeof toast === "function") toast("Attachment limit reached (15 files)", "warn");
+            break;
+          }
           const safe = file.name.replace(/[^a-zA-Z0-9._-]+/g, "_");
           const path = `${dsp_id}/${Date.now()}-${safe}`;
+          // Pending chip renders immediately; send blocks until every
+          // upload settles (EM#50). own:true marks files WE uploaded —
+          // the only ones close/chip-remove may delete (EM#49 attaches
+          // shared Documents that must never be cleaned up).
+          const att = { name: file.name, content_type: file.type || null, size: file.size, storage_path: path, own: true, pending: true };
+          composerAttachments.push(att);
+          renderComposerChips();
           const { error: upErr } = await sb.storage.from("fleet-bridge-attachments")
             .upload(path, file, { contentType: file.type || "application/octet-stream" });
-          if (upErr) { if (typeof toast === "function") toast("Upload failed: " + upErr.message, "warn"); continue; }
+          if (upErr) {
+            if (typeof toast === "function") toast("Upload failed: " + upErr.message, "warn");
+            composerAttachments.splice(composerAttachments.indexOf(att), 1);
+            renderComposerChips();
+            continue;
+          }
           // 7-day signed URL; Resend fetches the file at send time so
           // we don't need a permanent public URL.
           const { data: signed, error: signErr } = await sb.storage
@@ -97253,17 +97391,14 @@ document.addEventListener("click", (e) => {
             .createSignedUrl(path, 7 * 24 * 60 * 60);
           if (signErr || !signed?.signedUrl) {
             if (typeof toast === "function") toast("Couldn't sign attachment URL", "warn");
+            composerAttachments.splice(composerAttachments.indexOf(att), 1);
+            renderComposerChips();
             continue;
           }
-          composerAttachments.push({
-            name: file.name,
-            url: signed.signedUrl,
-            content_type: file.type || null,
-            size: file.size,
-            storage_path: path,
-          });
+          att.url = signed.signedUrl;
+          att.pending = false;
+          renderComposerChips();
         }
-        renderComposerChips();
       });
     }
 
@@ -97447,6 +97582,142 @@ document.addEventListener("click", (e) => {
   // in flight when the composer closed can't leak its new row id into
   // the NEXT composer session (which would cross-contaminate drafts).
   let _emComposerGen = 0;
+  // High-importance flag (EM#55) + scheduled-send time (EM#58).
+  let _emImportant = false;
+  let _emSendAfter = null;
+  function _emPaintSchedNote() {
+    const n = document.getElementById("rr-em-sched-note");
+    const sendBtn = document.getElementById("rr-em-composer-send");
+    if (!n) return;
+    if (_emSendAfter) {
+      n.hidden = false;
+      n.innerHTML = `Scheduled for <b>${escapeHtmlLocal(new Date(_emSendAfter).toLocaleString())}</b> <button type="button" class="em-addr-x" data-em-sched-clear aria-label="Cancel schedule">×</button>`;
+      if (sendBtn) sendBtn.textContent = "Schedule";
+    } else {
+      n.hidden = true;
+      n.innerHTML = "";
+      if (sendBtn) sendBtn.textContent = "Send";
+    }
+  }
+
+  // ── Attach from Documents (EM#49) ───────────────────────────────
+  let _emDocPickRows = [];
+  async function _emOpenDocPicker() {
+    const old = document.getElementById("rr-em-docpick");
+    if (old) old.remove();
+    const host = document.getElementById("rr-em-composer");
+    if (!host) return;
+    const wrap = document.createElement("div");
+    wrap.id = "rr-em-docpick";
+    wrap.className = "em-docpick";
+    wrap.innerHTML = `<div class="em-docpick-card">
+      <div class="em-docpick-head"><span>Attach from Documents</span>
+        <button type="button" class="em-addr-x" data-em-docpick-close aria-label="Close">×</button></div>
+      <input type="search" class="em-subject-input em-docpick-search" id="rr-em-docpick-q" placeholder="Search documents" autocomplete="off">
+      <div class="em-docpick-list" id="rr-em-docpick-list">Loading…</div>
+    </div>`;
+    wrap.addEventListener("click", (e) => { if (e.target === wrap) wrap.remove(); });
+    host.appendChild(wrap);
+    const { data } = await sb.from("document_intake")
+      .select("id, file_name, file_size_bytes, mime_type, storage_path, created_at")
+      .neq("status", "dismissed")
+      .order("created_at", { ascending: false })
+      .limit(50);
+    _emDocPickRows = data || [];
+    _emDocPickRender("");
+  }
+  function _emDocPickRender(q) {
+    const list = document.getElementById("rr-em-docpick-list");
+    if (!list) return;
+    const ql = String(q || "").trim().toLowerCase();
+    const rows = _emDocPickRows.filter(d => !ql || (d.file_name || "").toLowerCase().includes(ql)).slice(0, 30);
+    list.innerHTML = rows.length
+      ? rows.map(d => `<button type="button" class="em-docpick-row" data-em-docpick="${escapeHtmlLocal(d.id)}">
+          <span class="em-docpick-name">${escapeHtmlLocal(d.file_name || "Untitled")}</span>
+          <span class="em-docpick-meta">${escapeHtmlLocal(formatBytes(d.file_size_bytes || 0))} · ${escapeHtmlLocal(d.created_at ? new Date(d.created_at).toLocaleDateString() : "")}</span>
+        </button>`).join("")
+      : `<div class="em-docpick-empty">No documents${ql ? " match" : " yet"}.</div>`;
+  }
+  async function _emDocPickAttach(id) {
+    const d = _emDocPickRows.find(x => x.id === id);
+    if (!d) return;
+    if (composerAttachments.length >= 15) {
+      if (typeof toast === "function") toast("Attachment limit reached (15 files)", "warn");
+      return;
+    }
+    const { data: signed } = await sb.storage.from("document-intake")
+      .createSignedUrl(d.storage_path, 7 * 24 * 60 * 60);
+    if (!signed || !signed.signedUrl) {
+      if (typeof toast === "function") toast("Couldn't sign the document URL", "warn");
+      return;
+    }
+    // own:false — a shared Documents original; never cleaned up by the
+    // composer's abandon/chip-remove paths.
+    composerAttachments.push({
+      name: d.file_name || "document", url: signed.signedUrl,
+      content_type: d.mime_type || null, size: d.file_size_bytes || null,
+      storage_path: d.storage_path, bucket: "document-intake", own: false,
+    });
+    renderComposerChips();
+    const w = document.getElementById("rr-em-docpick");
+    if (w) w.remove();
+  }
+
+  // ── Undo send (EM#57) · draft-hold model ────────────────────────
+  // Send writes the row as a DRAFT first and promotes it to queued
+  // after a 10s window. Undo reopens the composer on that draft. If
+  // the tab dies mid-window the mail sits visibly in Drafts instead of
+  // vanishing — and a hide/pagehide flush promotes it immediately.
+  let _emPendingSend = null;
+  function _emStartUndoSend(rowId, promote, draftRow) {
+    _emFlushPendingSend();
+    const host = document.getElementById("rr-em-inbox");
+    const pill = document.createElement("div");
+    pill.id = "rr-em-sendundo";
+    pill.className = "em-undo-bar";
+    const label = document.createElement("span");
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "em-undo-btn";
+    btn.textContent = "Undo";
+    pill.append(label, btn);
+    if (host) host.prepend(pill);
+    let secs = 10;
+    const paint = () => { label.textContent = `Sending in ${secs}s`; };
+    paint();
+    const iv = setInterval(() => { secs--; if (secs > 0) paint(); }, 1000);
+    const fire = () => {
+      clearInterval(iv);
+      clearTimeout(t);
+      pill.remove();
+      if (_emPendingSend && _emPendingSend.rowId === rowId) _emPendingSend = null;
+      try { sb.from("email_messages").update(promote).eq("id", rowId).then(() => {
+        scheduleCountsRefresh();
+        if (state.activeFolderId && state.activeFolderId !== DOCS_FOLDER_ID) {
+          loadMessages().then(() => { renderInbox(); renderPreview(); });
+        }
+      }, () => {}); } catch (_) {}
+    };
+    const t = setTimeout(fire, 10000);
+    btn.addEventListener("click", () => {
+      clearInterval(iv);
+      clearTimeout(t);
+      pill.remove();
+      _emPendingSend = null;
+      openComposer({ mode: "draft", draft: draftRow });
+    });
+    _emPendingSend = { rowId, fire };
+  }
+  function _emFlushPendingSend() {
+    if (!_emPendingSend) return;
+    const p = _emPendingSend;
+    _emPendingSend = null;
+    try { p.fire(); } catch (_) {}
+  }
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") _emFlushPendingSend();
+  });
+  window.addEventListener("pagehide", _emFlushPendingSend);
   let _srvDraftState = null; // null unknown · false = 'draft' enum missing (pre-0537)
   let _srvBccState = null;   // false = bcc_emails column missing (pre-0537)
   function _emComposerSnapshot() {
@@ -97526,8 +97797,9 @@ document.addEventListener("click", (e) => {
     host.hidden = false;
     host.innerHTML = composerAttachments.map((a, i) => {
       const kb = a.size != null ? Math.max(1, Math.round(a.size / 1024)) + " KB" : "";
-      return `<span class="em-composer-chip">
-        ${escapeHtmlLocal(a.name)}${kb ? ` · <span style="color:var(--text-subtle)">${kb}</span>` : ""}
+      const meta = a.pending ? "uploading…" : kb;
+      return `<span class="em-composer-chip${a.pending ? " is-pending" : ""}">
+        ${escapeHtmlLocal(a.name)}${meta ? ` · <span style="color:var(--text-subtle)">${meta}</span>` : ""}
         <button type="button" class="em-composer-chip-x" data-rr-chip-remove="${i}" aria-label="Remove">×</button>
       </span>`;
     }).join("");
@@ -97551,7 +97823,7 @@ document.addEventListener("click", (e) => {
     }
     _emAcClose();
     if (!_composerAttachmentsSent) {
-      const paths = composerAttachments.map(a => a.storage_path).filter(Boolean);
+      const paths = composerAttachments.filter(a => a.own).map(a => a.storage_path).filter(Boolean);
       if (paths.length) {
         try { sb.storage.from("fleet-bridge-attachments").remove(paths).then(() => {}, () => {}); } catch (_) {}
       }
@@ -97562,6 +97834,8 @@ document.addEventListener("click", (e) => {
     _emDraftRowId = null;
     _emDiscardDraft = false;
     _emLastDraftJson = "";
+    _emImportant = false;
+    _emSendAfter = null;
     _emComposerGen++;
     composerOnCancel = null;
     composerApplicantId = null;
@@ -97599,6 +97873,10 @@ document.addEventListener("click", (e) => {
     if (bad) { if (typeof toast === "function") toast(`"${bad}" doesn't look like an email address`, "warn"); return; }
     if (!subject) { if (typeof toast === "function") toast("Subject is required", "warn"); subjectInp.focus(); return; }
     if (!bodyText && !confirm("Send with empty body?")) return;
+    if (composerAttachments.some(a => a.pending)) {
+      if (typeof toast === "function") toast("Attachments are still uploading — one moment", "warn");
+      return;
+    }
     const dsp_id = currentDspId();
     if (!dsp_id) { if (typeof toast === "function") toast("Couldn't determine DSP — please reload", "warn"); return; }
     const sent = (state.folders || []).find(f => f.kind === "sent");
@@ -97616,6 +97894,8 @@ document.addEventListener("click", (e) => {
     // Bcc (EM#44, migration 0537) · never silently dropped — a missing
     // column fails the send with an explanation instead.
     if (bcc.length > 0) insertRow.bcc_emails = bcc;
+    if (_emImportant) insertRow.importance = "high";
+    if (_emSendAfter) insertRow.send_after = _emSendAfter;
     // Applicant-facing emails (screening / booking invites composed from the
     // funnel) carry the applicant + template so they thread correctly.
     if (composerApplicantId) insertRow.applicant_id = composerApplicantId;
@@ -97630,19 +97910,70 @@ document.addEventListener("click", (e) => {
       // stale on rows that retry later than that.
       insertRow.attachments = composerAttachments.map(a => ({
         name: a.name, url: a.url, content_type: a.content_type, size: a.size,
-        storage_path: a.storage_path,
+        storage_path: a.storage_path, bucket: a.bucket || undefined,
       }));
       // Paperclip flag (EM#26) · capability-gated so a pre-0536 DB
       // never fails the send over an unknown column.
       if (_srvMetaState === true) insertRow.has_attachments = true;
     }
-    let error;
-    if (_emDraftRowId) {
-      // Promote the draft row itself to queued (EM#46) — one row from
-      // draft to Sent, no duplicates.
-      ({ error } = await sb.from("email_messages").update(insertRow).eq("id", _emDraftRowId));
-    } else {
-      ({ error } = await sb.from("email_messages").insert(insertRow));
+    // Shared writer with the importance fallback: pre-0538 the column
+    // errors → retry once with the legacy ❗ subject prefix so the
+    // intent still ships.
+    const writeRow = async (fields, rowId) => {
+      let res = rowId
+        ? await sb.from("email_messages").update(fields).eq("id", rowId)
+        : await sb.from("email_messages").insert(fields).select("id").maybeSingle();
+      if (res.error && fields.importance && /importance/.test(res.error.message || "")) {
+        const f2 = { ...fields, subject: /^❗/.test(fields.subject) ? fields.subject : "❗ " + fields.subject };
+        delete f2.importance;
+        res = rowId
+          ? await sb.from("email_messages").update(f2).eq("id", rowId)
+          : await sb.from("email_messages").insert(f2).select("id").maybeSingle();
+      }
+      return res;
+    };
+    // Undo window (EM#57) · write the row as a DRAFT and promote after
+    // 10s. Skipped for scheduled sends and hook-driven composers
+    // (funnel/calendar flows expect the row queued when they resume).
+    const draftsF = (state.folders || []).find(f => f.kind === "drafts");
+    // Unknown capability counts as "try" — the draft write below IS the
+    // probe, and an enum error flags it off and falls through to the
+    // immediate path.
+    const wantUndoWindow = _srvDraftState !== false && !_emSendAfter
+      && !composerApplicantId && !composerOnSent && !composerOnCancel;
+    if (wantUndoWindow) {
+      const draftFields = { ...insertRow, status: "draft", folder_id: draftsF ? draftsF.id : null };
+      const dres = await writeRow(draftFields, _emDraftRowId);
+      if (dres.error && /message_status|invalid input value/.test(dres.error.message || "")) {
+        _srvDraftState = false; // pre-0537 — no draft status to hold the window on
+      }
+      const rowId = _emDraftRowId || (dres.data && dres.data.id);
+      if (!dres.error && rowId) {
+        _srvDraftState = true;
+        const draftRow = {
+          id: rowId, status: "draft", direction: "outbound",
+          to_email: insertRow.to_email, cc_emails: insertRow.cc_emails || null,
+          bcc_emails: insertRow.bcc_emails || null, subject,
+          body_text: bodyText, body_html: bodyHtml,
+          attachments: insertRow.attachments || null,
+          importance: insertRow.importance || null,
+        };
+        try { localStorage.removeItem(_emDraftKey); } catch (_) {}
+        if (typeof composerOnSent === "function") { try { await composerOnSent(); } catch (_) {} }
+        _composerAttachmentsSent = true;
+        _emDiscardDraft = true; // close must not re-save over the pending row
+        closeComposer();
+        _emStartUndoSend(rowId, { status: "queued", folder_id: insertRow.folder_id }, draftRow);
+        return;
+      }
+      // any hiccup → fall through to the immediate path
+    }
+    const wres = await writeRow(insertRow, _emDraftRowId);
+    const error = wres.error;
+    if (error && _emSendAfter && /send_after/.test(error.message || "")) {
+      if (typeof toast === "function") toast("Scheduling needs migration 0538 — the email was NOT sent. Clear the schedule or apply the migration.", "warn");
+      if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = "Schedule"; }
+      return;
     }
     if (error && bcc.length && /bcc_emails/.test(error.message || "")) {
       if (typeof toast === "function") toast("Bcc needs migration 0537 — remove the Bcc recipients or apply the migration first", "warn");
@@ -98348,6 +98679,23 @@ document.addEventListener("click", (e) => {
       if (state.activeMessageId) retryFailedSend(state.activeMessageId);
       return;
     }
+    // Cancel a scheduled send (EM#58) · back to Drafts, schedule cleared.
+    if (e.target.closest("[data-em-cancel-send]")) {
+      e.preventDefault();
+      const id = state.activeMessageId;
+      const draftsF = state.folders.find(f => f.kind === "drafts");
+      if (!id) return;
+      sb.from("email_messages")
+        .update({ status: "draft", folder_id: draftsF ? draftsF.id : null, send_after: null })
+        .eq("id", id).eq("status", "queued")
+        .then(async () => {
+          await loadMessages();
+          renderInbox();
+          renderPreview();
+          scheduleCountsRefresh();
+        }, () => {});
+      return;
+    }
     {
       const oa = e.target.closest("[data-em-out-attachment]");
       if (oa) {
@@ -98472,8 +98820,9 @@ document.addEventListener("click", (e) => {
       if (Number.isFinite(i)) {
         const removed = composerAttachments.splice(i, 1)[0];
         // The file uploaded at pick time — removing the chip must also
-        // remove the object or it's orphaned forever (EM#8).
-        if (removed?.storage_path) {
+        // remove the object or it's orphaned forever (EM#8). Only files
+        // WE uploaded (own) — never attach-from-Documents originals.
+        if (removed?.storage_path && removed.own) {
           try { sb.storage.from("fleet-bridge-attachments").remove([removed.storage_path]).then(() => {}, () => {}); } catch (_) {}
         }
         renderComposerChips();

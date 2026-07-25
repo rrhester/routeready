@@ -25431,6 +25431,51 @@ body.rr-cmdk-open{ overflow:hidden }
             background:var(--rr-blue-600);border-color:var(--rr-blue-600);
           }
           #view-email .em-msg-row.selected{background:var(--rr-blue-50, rgba(37,99,235,.07))}
+          /* Schedule-send split button + note (EM#58). */
+          .em-send-wrap{display:inline-flex;align-items:stretch;flex:0 0 auto}
+          .em-send-later-btn{
+            background:var(--rr-blue-700);color:var(--rr-white);border:0;
+            border-radius:0 6px 6px 0;padding:8px 10px;font:inherit;cursor:pointer;
+            margin-left:1px;
+          }
+          .em-send-wrap .em-send-btn{border-radius:6px 0 0 6px}
+          .em-send-later-menu{left:auto;right:0;top:calc(100% + 4px)}
+          .em-send-later-pick{
+            display:flex;gap:6px;align-items:center;
+            padding:6px;border-top:1px solid var(--border-subtle, var(--border));
+          }
+          .em-sched-note{
+            font-size:var(--fs-xs);color:var(--rr-amber-800);
+            background:var(--rr-amber-100);border-radius:6px;padding:4px 10px;
+            display:flex;align-items:center;gap:6px;width:fit-content;
+          }
+          /* Attach-from-Documents picker (EM#49). */
+          .em-docpick{
+            position:fixed;inset:0;z-index:10001;background:var(--overlay);
+            display:flex;align-items:center;justify-content:center;
+          }
+          .em-docpick-card{
+            background:var(--surface);border:1px solid var(--border);
+            border-radius:var(--r-lg, 10px);width:min(520px, 92vw);
+            max-height:70vh;display:flex;flex-direction:column;gap:8px;
+            padding:14px;box-shadow:var(--shadow-lg, var(--shadow-md, none));
+          }
+          .em-docpick-head{
+            display:flex;align-items:center;justify-content:space-between;
+            font-weight:700;font-size:var(--fs-md);color:var(--text);
+          }
+          .em-docpick-list{overflow-y:auto;display:flex;flex-direction:column;gap:2px}
+          .em-docpick-row{
+            display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+            border:0;background:transparent;cursor:pointer;font:inherit;
+            padding:7px 10px;border-radius:6px;text-align:left;
+          }
+          .em-docpick-row:hover{background:var(--rr-blue-50, rgba(37,99,235,.07))}
+          .em-docpick-name{font-weight:600;font-size:var(--fs-sm);color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+          .em-docpick-meta{flex:0 0 auto;font-size:var(--fs-xs);color:var(--text-subtle)}
+          .em-docpick-empty{padding:14px;color:var(--text-subtle);font-size:var(--fs-sm)}
+          /* Pending upload chip (EM#50). */
+          .em-composer-chip.is-pending{opacity:.6;font-style:italic}
           /* Composer recipient rows (EM#43/44) · chip fields replace the
              single-address inputs; Bcc row reveals on demand. */
           .em-compose-fields{

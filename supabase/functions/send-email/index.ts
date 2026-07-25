@@ -10,13 +10,15 @@ import { fetchWithTimeout, safeJson } from "../_shared/http.ts";
 import { buildIcsRequest } from "../_shared/ics.ts";
 import { encodeBase64 } from "https://deno.land/std@0.208.0/encoding/base64.ts";
 
-interface Attachment { name?: string; url?: string; path?: string; content_type?: string; size?: number; storage_path?: string }
+interface Attachment { name?: string; url?: string; path?: string; content_type?: string; size?: number; storage_path?: string; bucket?: string }
 interface QueuedRow {
   id: string; dsp_id: string; applicant_id: string | null; folder_id: string | null;
   to_email: string; cc_emails: string[] | null; bcc_emails?: string[] | null;
   subject: string; body_text: string | null; body_html: string | null;
   attachments: Attachment[] | null; cal_event_id: string | null;
   calendar_method?: string | null;   // 'request' | 'cancel' (0429)
+  send_after?: string | null;        // 0538 · scheduled send (EM#58)
+  importance?: string | null;        // 0538 · 'high' → priority headers (EM#55)
 }
 interface InviteEvent {
   id: string; kind: string | null; starts_at: string; ends_at: string | null;
@@ -106,14 +108,25 @@ Deno.serve(async (req) => {
   // select("*") on purpose: calendar_method (0429) may not exist yet when
   // this function deploys ahead of the manually-applied migration, and an
   // explicit column list would fail the whole drain.
-  let q = supa.from("email_messages")
-    .select("*")
-    .eq("status", "queued")
-    .order("created_at", { ascending: true })
-    .limit(limit);
-  if (payload?.applicant_id) q = q.eq("applicant_id", payload.applicant_id);
-
-  const { data: rows, error } = await q;
+  const buildQ = (withSendAfter: boolean) => {
+    let q = supa.from("email_messages")
+      .select("*")
+      .eq("status", "queued")
+      .order("created_at", { ascending: true })
+      .limit(limit);
+    if (payload?.applicant_id) q = q.eq("applicant_id", payload.applicant_id);
+    // Scheduled send (EM#58, 0538): skip rows whose send_after is still
+    // in the future — the 1-minute cron re-scans and picks them up when
+    // due. Retried without the filter on pre-0538 projects.
+    if (withSendAfter) {
+      q = q.or(`send_after.is.null,send_after.lte.${new Date().toISOString()}`);
+    }
+    return q;
+  };
+  let { data: rows, error } = await buildQ(true);
+  if (error && /send_after/.test(error.message ?? "")) {
+    ({ data: rows, error } = await buildQ(false));
+  }
   if (error) return badRequest(error.message, 500);
   if (!rows || rows.length === 0) return jsonResponse({ sent: 0 });
 
@@ -227,6 +240,10 @@ Deno.serve(async (req) => {
     if (Array.isArray(row.bcc_emails) && row.bcc_emails.length > 0) {
       body.bcc = row.bcc_emails; // 0537 column; select("*") tolerates its absence
     }
+    if (row.importance === "high") {
+      // Real priority headers (EM#55) — replaces the ❗-in-subject hack.
+      body.headers = { "X-Priority": "1", "Importance": "high" };
+    }
     if (row.body_html) body.html = row.body_html;
     else body.text = row.body_text ?? "";
     if (effectiveReplyTo) body.reply_to = effectiveReplyTo;
@@ -244,12 +261,13 @@ Deno.serve(async (req) => {
       if (isMsgAtt) {
         url = await signMessageAttachment(supa, a);
       } else if (a.storage_path) {
-        // Fleet Bridge composer files carry their bucket path so we can
-        // sign a FRESH url here — the composer's stored 7-day URL goes
-        // stale on rows that fail and retry later than that. Fall back
-        // to the stored URL if signing hiccups.
+        // Composer files carry their bucket path so we can sign a FRESH
+        // url here — the stored 7-day URL goes stale on rows that fail
+        // and retry later than that. a.bucket covers attach-from-
+        // Documents (EM#49, document-intake). Falls back to the stored
+        // URL if signing hiccups.
         const { data: signed } = await supa.storage
-          .from("fleet-bridge-attachments")
+          .from(a.bucket || "fleet-bridge-attachments")
           .createSignedUrl(a.storage_path, 60 * 60);
         url = signed?.signedUrl || a.url || null;
       } else {
