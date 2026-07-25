@@ -25695,10 +25695,10 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-email .em-folder:focus-within .em-folder-down,
           #view-email .em-folder:focus-within .em-folder-delete{display:inline-flex}
           /* EM#92 (reduced motion) needs no email-specific rules: the
-             app-wide kill at the top of this file (*{animation/
-             transition-duration:.01ms !important} under the media
-             query) already covers the refresh spin, sparkle one-shots,
-             and the reading-pane slide-over — verified in QA. */
+             app-wide prefers-reduced-motion kill at the top of this
+             file (the universal .01ms duration override) already
+             covers the refresh spin, sparkle one-shots, and the
+             reading-pane slide-over — verified in QA. */
           .em-tpl-save{border-top:1px solid var(--border-subtle, var(--border));color:var(--rr-blue-700);font-weight:600}
           .em-sig-editor{
             min-height:120px;max-height:40vh;overflow-y:auto;

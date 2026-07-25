@@ -14,9 +14,28 @@ Email-redesign merge #4113). Impact tags: **[high]** = operators lose
 mail, reply to the wrong person, or read wrong state; **[med]** = worth
 scheduling; **[low]** = polish.
 
-**STATUS (2026-07-25): Sections A–J (EM#1–92) SHIPPED. Migration chain
+**STATUS (2026-07-25): Sections A–K (EM#1–96) SHIPPED. Migration chain
 0535–0544 APPLIED by the operator 2026-07-25 (confirmed in chat) — all
 capability-gated email features are fully live.**
+Section K notes (no migration): EM#96 the email module LAZY-BOOTS — a
+light preboot at page load (folders + one counts RPC + the realtime
+channel) keeps the sidebar unread dot honest, and the full boot fires
+on first navigation to view-email (MutationObserver on its class;
+onMailEvent runs a counts-only path pre-boot). init() itself now runs
+counts in parallel with the first message page. EM#95 body_html is OUT
+of the three list SELECT tiers (body_text stays — snippet + client
+search; the webhook always derives it, so html-only rows are rare
+legacy). `_emEnsureBody(m)` fetches the full body once per row on
+demand — wired into select (preview repaint), draft-open, popout
+(body pane patched in place), reply/forward (quote fidelity), and
+print/export. NOTE: a null-body_html row probes once to learn there's
+no html — that's correct, not a cache miss. EM#94 selecting a message
+PATCHES the row + unread tab count in place (`_emPatchSelection` —
+active/aria-selected swap, unread bold + SR span removal); the one
+full re-render left is reading a row while scoped to Unread (the row
+must leave the list). EM#93 verified done (B/F work): 300ms mail
+coalesce + 350ms counts debounce — a 6-event burst = one reload,
+locked in QA.
 Section J notes (no migration): EM#87/88 folder + message rows are
 DIVs now (role=treeitem / role=option, tabindex 0) with REAL buttons
 inside — never re-nest interactive content in a <button>; the CSS

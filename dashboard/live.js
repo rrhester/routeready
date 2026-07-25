@@ -96078,9 +96078,26 @@ document.addEventListener("click", (e) => {
   // state), LEGACY is the pre-migration floor. Tiered so a DB that has
   // 0535 but not 0536 degrades one step, not all the way (dropping
   // is_read would silently un-read every message).
-  const SELECT_FULL   = "id, applicant_id, from_email, from_name, to_email, cc_emails, bcc_emails, subject, body_text, body_html, direction, status, error_message, is_read, is_starred, snoozed_until, has_attachments, send_after, delivered_at, created_at";
-  const SELECT_MID    = "id, applicant_id, from_email, to_email, cc_emails, subject, body_text, body_html, direction, status, error_message, is_read, delivered_at, created_at";
-  const SELECT_LEGACY = "id, applicant_id, from_email, to_email, subject, body_text, body_html, direction, status, delivered_at, created_at";
+  // body_html is deliberately NOT in the list selects (EM#95) — a
+  // 200-row folder switch was pulling megabytes of marketing HTML to
+  // render 110-char snippets. body_text stays (snippet + client
+  // search; the inbound webhook always derives it, so html-only rows
+  // are rare legacy data). Surfaces that need the full body call
+  // _emEnsureBody(m) — one id-keyed fetch per row, cached on the row.
+  const SELECT_FULL   = "id, applicant_id, from_email, from_name, to_email, cc_emails, bcc_emails, subject, body_text, direction, status, error_message, is_read, is_starred, snoozed_until, has_attachments, send_after, delivered_at, created_at";
+  const SELECT_MID    = "id, applicant_id, from_email, to_email, cc_emails, subject, body_text, direction, status, error_message, is_read, delivered_at, created_at";
+  const SELECT_LEGACY = "id, applicant_id, from_email, to_email, subject, body_text, direction, status, delivered_at, created_at";
+  async function _emEnsureBody(m) {
+    if (!m || m._bodyFull || typeof m.body_html === "string") return m;
+    m._bodyFull = true; // concurrent callers share the in-flight outcome
+    try {
+      const { data, error } = await sb.from("email_messages")
+        .select("body_html").eq("id", m.id).maybeSingle();
+      if (error) { m._bodyFull = false; return m; }
+      if (data) m.body_html = data.body_html;
+    } catch (_) { m._bodyFull = false; }
+    return m;
+  }
   // 0536 capability · null = unknown, set by the first page fetch.
   // Gates the Starred/Snoozed virtual folders, the star/snooze UI, and
   // the composer's has_attachments stamp.
@@ -96440,6 +96457,9 @@ document.addEventListener("click", (e) => {
     const row = (payload && payload.new && payload.new.id) ? payload.new
       : (payload && payload.old) || {};
     if (payload?.eventType === "INSERT" && row.direction === "inbound") maybeNotify(row);
+    // Pre-boot (EM#96): only the nav dot needs freshness — skip the
+    // message reload machinery until the view has actually opened.
+    if (!state.booted) { scheduleCountsRefresh(); return; }
     const active = state.activeFolderId;
     if (active && active !== DOCS_FOLDER_ID) {
       // DELETE payloads may carry only the PK — unknown folder refreshes
@@ -97896,24 +97916,64 @@ document.addEventListener("click", (e) => {
   function selectMessage(id) {
     const m0 = state.messages.find(x => x.id === id);
     // A draft opens back into the composer (EM#46), not the preview.
+    // Its body_html loads on demand first (EM#95) so the editor
+    // restores the formatted draft, not the plaintext shadow.
     if (m0 && m0.status === "draft" && m0.direction === "outbound") {
-      openComposer({ mode: "draft", draft: m0 });
+      _emEnsureBody(m0).then(() => openComposer({ mode: "draft", draft: m0 }));
       return;
     }
     const wasUnread = m0 ? !isRead(m0) : false;
     state.activeMessageId = id;
     markRead(id);
-    if (wasUnread) {
-      // Unread → read transition: re-render so the row's bold + blue
-      // rail clear, and the All/Unread tab counter ticks down.
+    if (wasUnread && state.inboxFilter === "unread") {
+      // Reading a row while scoped to Unread removes it from view —
+      // the one selection case that still needs the full list render.
       renderInbox();
       scheduleCountsRefresh();
     } else {
-      document.querySelectorAll("#rr-em-inbox .em-msg-row").forEach(row => {
-        row.classList.toggle("active", row.getAttribute("data-em-msg") === id);
-      });
+      // Patch in place (EM#94) · selecting a message used to rebuild
+      // all ~200 rows' innerHTML just to un-bold one row and tick the
+      // tab counter.
+      _emPatchSelection(id, wasUnread);
+      if (wasUnread) scheduleCountsRefresh();
     }
     renderPreview();
+    // The full body loads on demand (EM#95) — repaint the preview once
+    // it lands so the HTML view has its markup.
+    if (m0) {
+      _emEnsureBody(m0).then(() => {
+        if (state.activeMessageId === id) renderPreview();
+      });
+    }
+  }
+  function _emPatchSelection(id, wasUnread) {
+    document.querySelectorAll("#rr-em-inbox .em-msg-row").forEach(row => {
+      const is = row.getAttribute("data-em-msg") === id;
+      row.classList.toggle("active", is);
+      row.setAttribute("aria-selected", String(is));
+      if (is && wasUnread) {
+        row.classList.remove("unread");
+        const sr = row.querySelector(".rr-visually-hidden");
+        if (sr) sr.remove();
+      }
+    });
+    if (wasUnread) {
+      const unreadCount = state.messages.filter(m => !isRead(m)).length;
+      const tab = document.querySelector('#rr-em-inbox .em-inbox-tab[data-em-inbox-filter="unread"]');
+      if (tab) {
+        let cnt = tab.querySelector(".em-tab-count");
+        if (unreadCount > 0) {
+          if (!cnt) {
+            cnt = document.createElement("span");
+            cnt.className = "em-tab-count";
+            tab.appendChild(cnt);
+          }
+          cnt.textContent = unreadCount > 99 ? "99+" : String(unreadCount);
+        } else if (cnt) {
+          cnt.remove();
+        }
+      }
+    }
   }
 
   // Double-click a message row → open it in its own pop-out window
@@ -97972,6 +98032,15 @@ document.addEventListener("click", (e) => {
     el.addEventListener("click", (e) => { if (e.target === el) closeMessagePopout(); });
     el.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.preventDefault(); closeMessagePopout(); } });
     el.focus();
+    // Full body on demand (EM#95) · an html-only row has no text until
+    // the fetch lands — patch the body pane in place when it does.
+    _emEnsureBody(m).then(() => {
+      const pop = document.getElementById("rr-em-popout");
+      if (!pop || pop.dataset.msgId !== m.id) return;
+      const host = pop.querySelector(".em-popout-body");
+      const b2 = (messageText(m) || "").replace(/\s+$/g, "");
+      if (host && b2) host.innerHTML = escapeHtmlLocal(b2).replace(/\n/g, "<br>");
+    });
   }
 
   function closeMessagePopout() {
@@ -100854,7 +100923,8 @@ document.addEventListener("click", (e) => {
         const mode = popoutAction.hasAttribute("data-rr-popout-reply")     ? "reply"
                    : popoutAction.hasAttribute("data-rr-popout-replyall") ? "reply-all"
                    :                                                        "forward";
-        openComposer({ mode, original });
+        if (original) { _emEnsureBody(original).then(() => openComposer({ mode, original })); }
+        else openComposer({ mode, original });
         return;
       }
     }
@@ -100870,7 +100940,8 @@ document.addEventListener("click", (e) => {
       if (action === "reply" || action === "reply-all" || action === "forward") {
         e.preventDefault();
         const original = state.messages.find(x => x.id === state.activeMessageId);
-        openComposer({ mode: action, original });
+        if (original) { _emEnsureBody(original).then(() => openComposer({ mode: action, original })); }
+        else openComposer({ mode: action, original });
         return;
       }
       if (action === "delete")  { e.preventDefault(); moveSelectedToKind("trash");   return; }
@@ -100881,8 +100952,8 @@ document.addEventListener("click", (e) => {
         if (rm) rm.hidden = true;
         const m = state.messages.find(x => x.id === state.activeMessageId);
         if (!m) return;
-        if (action === "print") printMessage(m);
-        else if (action === "export") exportEml(m);
+        if (action === "print") _emEnsureBody(m).then(() => printMessage(m));
+        else if (action === "export") _emEnsureBody(m).then(() => exportEml(m));
         else if (action === "rule") _emOpenRuleModal(m);
         else addSenderToContacts(m);
         return;
@@ -101390,13 +101461,40 @@ document.addEventListener("click", (e) => {
     // immediately show its full count as "new"; other folders still
     // show their accumulated badge.
     if (state.activeFolderId) setFolderLastViewed(state.activeFolderId);
-    await loadFolderCounts();
     renderFolders();
+    // Counts ride in parallel with the first message page (EM#96) —
+    // messages paint without waiting on the badge query.
+    const countsP = loadFolderCounts().then(() => renderFolders()).catch(() => {});
     await loadMessages();
     renderInbox();
     renderPreview();
     subscribeRealtime();
+    await countsP;
     return true;
+  }
+  // Lazy boot (EM#96) · the full boot used to run for EVERY operator at
+  // page load — folders → counts → messages, serially — whether or not
+  // they ever opened Email. Now: a light preboot (folders + one counts
+  // RPC) keeps the sidebar unread dot honest and the realtime channel
+  // keeps it live, while the full boot fires on first navigation to
+  // the Email view (onMailEvent runs a counts-only path pre-boot).
+  async function _emPreboot() {
+    if (state.booted) return;
+    try {
+      await loadFolders();
+      await loadFolderCounts(); // paints the nav dot via refreshNavUnread
+      subscribeRealtime();
+    } catch (_) {}
+  }
+  function _emBootWhenVisible() {
+    const v = document.getElementById("view-email");
+    if (!v) { init(); return; } // unexpected layout — keep eager boot
+    if (v.classList.contains("active")) { init(); return; }
+    const obs = new MutationObserver(() => {
+      if (v.classList.contains("active")) { obs.disconnect(); init(); }
+    });
+    obs.observe(v, { attributes: true, attributeFilter: ["class"] });
+    _emPreboot();
   }
   // Expose the rich composer so other views (e.g. the interview calendar)
   // can open a prefilled "New email" without duplicating the editor.
@@ -101406,9 +101504,9 @@ document.addEventListener("click", (e) => {
   // sandbox). Not for app code — call nothing through this in features.
   window._rrEmSimulateMailEvent = onMailEvent;
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
+    document.addEventListener("DOMContentLoaded", _emBootWhenVisible);
   } else {
-    init();
+    _emBootWhenVisible();
   }
 })();
 
