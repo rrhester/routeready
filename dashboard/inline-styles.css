@@ -25476,6 +25476,23 @@ body.rr-cmdk-open{ overflow:hidden }
           .em-docpick-empty{padding:14px;color:var(--text-subtle);font-size:var(--fs-sm)}
           /* Pending upload chip (EM#50). */
           .em-composer-chip.is-pending{opacity:.6;font-style:italic}
+          /* Templates menu (EM#52) + signature editor (EM#51). */
+          .em-tpl-btn{display:inline-flex;align-items:center;gap:4px}
+          .em-tpl-lbl{font-size:var(--fs-xs);font-weight:600}
+          .em-tpl-menu{min-width:240px}
+          .em-tpl-row{display:flex;align-items:center;gap:2px}
+          .em-tpl-row .em-popout-move-item{flex:1;min-width:0}
+          .em-tpl-save{border-top:1px solid var(--border-subtle, var(--border));color:var(--rr-blue-700);font-weight:600}
+          .em-sig-editor{
+            min-height:120px;max-height:40vh;overflow-y:auto;
+            border:1px solid var(--border);border-radius:6px;padding:10px 12px;
+            background:var(--surface);color:var(--text);outline:none;
+            font-family:Calibri,Arial,sans-serif;line-height:1.5;
+          }
+          .em-sig-editor:focus{border-color:var(--rr-blue-600)}
+          .em-sig-actions{display:flex;align-items:center;gap:6px}
+          .em-sig-save{background:var(--rr-blue-600);color:var(--rr-white);border-color:var(--rr-blue-600)}
+          .em-sig-save:hover{background:var(--rr-blue-700);color:var(--rr-white)}
           /* Composer recipient rows (EM#43/44) · chip fields replace the
              single-address inputs; Bcc row reveals on demand. */
           .em-compose-fields{

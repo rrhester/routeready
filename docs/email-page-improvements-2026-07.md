@@ -14,8 +14,18 @@ Email-redesign merge #4113). Impact tags: **[high]** = operators lose
 mail, reply to the wrong person, or read wrong state; **[med]** = worth
 scheduling; **[low]** = polish.
 
-**STATUS (2026-07-25): Batches A–D (EM#1–42) + E1 (EM#43–48) + E2a
-(EM#49/50/55/56/57/58) + EM#74 SHIPPED.** E2a notes (**migration
+**STATUS (2026-07-25): Batches A–E (EM#1–58) + EM#74 SHIPPED — the
+first 58 items are done.** E2b notes: EM#51 signatures and EM#52
+composer templates ship as per-user/per-DSP localStorage v1s (auto-
+append on new mail; save-current-as-template with insert/delete) — the
+Settings-managed, DSP-wide versions belong to EM#98. EM#53 adds
+lists/link/undo/redo riding the existing data-fmt wiring (createLink
+forces https/mailto + target=_blank rel=noopener; the execCommand exit
+remains future work as the item allows). EM#54 sanitizes pasted rich
+content to an allowlist (scripts/images/handlers/mso-styles stripped,
+javascript: hrefs dropped, safe inline styles kept) — QA proves a
+pasted <script> cannot run and a tracking pixel never enters
+body_html. E2a notes (**migration
 0538**: send_after + importance): EM#57 undo-send uses a DRAFT-HOLD
 model — Send writes the row as a draft and promotes it to queued after
 a 10s countdown pill; Undo reopens the composer (attachments +
