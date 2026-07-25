@@ -14,8 +14,23 @@ Email-redesign merge #4113). Impact tags: **[high]** = operators lose
 mail, reply to the wrong person, or read wrong state; **[med]** = worth
 scheduling; **[low]** = polish.
 
-**STATUS (2026-07-23): Batches A–D (EM#1–42) + E1 (EM#43–48) + EM#74
-SHIPPED.** E1 notes: recipient chips replace the single-address inputs
+**STATUS (2026-07-25): Batches A–D (EM#1–42) + E1 (EM#43–48) + E2a
+(EM#49/50/55/56/57/58) + EM#74 SHIPPED.** E2a notes (**migration
+0538**: send_after + importance): EM#57 undo-send uses a DRAFT-HOLD
+model — Send writes the row as a draft and promotes it to queued after
+a 10s countdown pill; Undo reopens the composer (attachments +
+importance restored — QA caught that gap live); a hidden/pagehide
+flush promotes immediately, so a dying tab leaves the mail visibly in
+Drafts, never silently unsent. Skipped for scheduled sends and
+hook-driven composers (funnel/calendar). EM#58 scheduled rows show a
+Scheduled pill + "Scheduled for … Cancel" in the preview (Cancel →
+back to Drafts); the drain skips future send_after (pre-0538-tolerant
+retry). EM#55 pre-0538 falls back to the ❗ prefix. EM#49 attaches
+document-intake originals (own:false — never cleaned up by the
+composer; send-email re-signs per-bucket). EM#50: 25MB/15-file caps,
+pending chips, send blocks mid-upload. Remaining in E: EM#51
+signatures, EM#52 templates, EM#53 toolbar, EM#54 paste sanitation
+(E2b). E1 notes: recipient chips replace the single-address inputs
 (multi-To joins into `to_email`; `send-email` splits it for Resend);
 Bcc is **migration 0537** (`bcc_emails` + the `'draft'` enum value) and
 is never silently dropped pre-migration — the send fails with a clear
