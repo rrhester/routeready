@@ -1,4 +1,4 @@
--- ── 0545 · Role-gate SECURITY DEFINER RPCs that were tenant-only ───────────────
+-- ── 0564 · Role-gate SECURITY DEFINER RPCs that were tenant-only ───────────────
 --
 -- Closes launch-audit finding H-2. An authoritative sweep of the final schema
 -- (688 SECURITY DEFINER functions in public) found 108 that scope to the

@@ -319,6 +319,29 @@ Deno.serve(async (req) => {
     folderId = (inbox?.id as string | null) ?? null;
   }
 
+  // 4a. Auto-filing rules (EM#72, migration 0541) · sender / domain /
+  // subject-contains → folder, oldest rule wins. Only fresh inserts are
+  // filed — the dedup path never re-files an already-triaged message.
+  // Best-effort: pre-0541 the table doesn't exist and the select just
+  // errors into the default Inbox routing.
+  try {
+    const { data: rules } = await supa.from("email_rules")
+      .select("match_kind, pattern, folder_id")
+      .eq("dsp_id", dsp.id)
+      .order("created_at", { ascending: true });
+    const subjLc = String(data.subject ?? "").toLowerCase();
+    const domain = fromEmail.slice(fromEmail.indexOf("@") + 1);
+    for (const r of rules ?? []) {
+      const pat = String(r.pattern ?? "").trim().toLowerCase();
+      if (!pat || !r.folder_id) continue;
+      const hit = r.match_kind === "sender" ? fromEmail === pat
+        : r.match_kind === "domain" ? domain === pat.replace(/^@/, "")
+        : r.match_kind === "subject" ? subjLc.includes(pat)
+        : false;
+      if (hit) { folderId = r.folder_id as string; break; }
+    }
+  } catch { /* pre-0541 — keep the Inbox default */ }
+
   // Merge inline + fetched attachments BEFORE the dedup branch so both
   // the fresh-insert and the dedup-backfill paths can use them. Dedup
   // matters here because the first delivery of an email — before this

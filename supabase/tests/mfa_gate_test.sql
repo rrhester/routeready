@@ -1,6 +1,6 @@
 -- supabase/tests/mfa_gate_test.sql
 --
--- Regression test for migration 0546 (server-side MFA primitive + opt-in
+-- Regression test for migration 0565 (server-side MFA primitive + opt-in
 -- enforcement on the DSP settings mutators). Runs against a fully-migrated DB.
 --
 -- The safety-critical properties this locks in:

@@ -1,4 +1,4 @@
--- 0548_drop_receipts_anon_read.sql
+-- 0567_drop_receipts_anon_read.sql
 --
 -- Closes the same class of cross-tenant PII leak as Blocker B-1, on the
 -- `receipts` bucket.
@@ -14,7 +14,7 @@
 -- EVERY tenant's uploaded receipts — expense images that routinely carry names,
 -- card tails, addresses. That is a cross-tenant data exposure.
 --
--- Unlike the three driver buckets in B-1 (0542/0543), the `receipts` bucket has
+-- Unlike the three driver buckets in B-1 (0561/0562), the `receipts` bucket has
 -- NO legitimate anon reader to preserve, so no ownership RPC / signing edge
 -- function is needed — the policy is simply dropped:
 --   • the driver app only UPLOADS receipts (anon INSERT via `receipts_anon_write`,
