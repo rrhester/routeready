@@ -1261,12 +1261,16 @@ its OWN filename into `private.rr_migrations` (copy the block from any
 0506+ file; check-migration-ordinals.mjs fails the PR without it). WHY:
 0506–0567 shipped without it, so `rr_schema_version()` sat frozen at 0505
 and the dashboard's "database is behind this app" banner couldn't clear or
-say what was truly missing. **Migration 0568** repaired the ledger by
+say what was truly missing. **Migration 0569** repaired the ledger by
 CATALOG DETECTION — it probes for positive evidence per migration (tables/
 indexes/triggers/enum values/function args/body tokens) and records only
 what it finds, then reports per-file status in the SQL Editor. 0562/0567
 are drop-only (storage policies, no positive evidence) — never "detected";
 the operator re-runs those two files to record them (all migrations are
-idempotent, re-running anything is safe). Signature notes live in 0568's
+idempotent, re-running anything is safe). Signature notes live in 0569's
 header; if a listed function is ever re-issued, keep its distinctive body
-token or update 0568's probe.
+token or update 0569's probe. ORDINAL RACE NOTE: the backfill first merged
+as 0568 the same day the fleet session's 0568_dvic_odometer_capture landed
+on main first — renumbered to 0569 in a follow-up PR; 0569 deletes any
+ledger row recorded under the old 0568_… name, probes the DVIC 0568 too,
+and the DVIC file gained the standard self-record block.
