@@ -1,4 +1,9 @@
--- 0568_rr_migrations_ledger_backfill.sql
+-- 0569_rr_migrations_ledger_backfill.sql
+--
+-- (First shipped as 0568_… and renumbered same-day: a concurrently merged
+-- fleet PR took ordinal 0568 for 0568_dvic_odometer_capture.sql. This file
+-- retires any ledger row recorded under the old name and probes the DVIC
+-- migration alongside the historical range.)
 --
 -- The private.rr_migrations ledger (0504) only advances when a migration
 -- records itself — and every migration from 0506 through 0567 shipped
@@ -8,7 +13,7 @@
 -- app" banner can neither clear nor tell you what is genuinely missing.
 --
 -- This migration makes the ledger honest again:
---   * For each migration 0506–0567 it probes the catalogs for positive
+--   * For each migration 0506–0568 it probes the catalogs for positive
 --     evidence that the migration's objects are actually present (a table,
 --     index, trigger, enum value, function signature, or a distinctive
 --     token in a function body for create-or-replace re-issues), and
@@ -88,6 +93,11 @@ returns boolean language sql stable as $$
 $$;
 
 -- ── Detect, record, and report ──────────────────────────────────────────
+
+-- Renumber healing: if the earlier paste of this file (as 0568_…) was run,
+-- retire its ledger row so ordinal 0568 unambiguously means the DVIC file.
+delete from private.rr_migrations
+ where filename = '0568_rr_migrations_ledger_backfill.sql';
 
 with candidate(filename, applied, evidence) as (values
   ('0506_chat_templates.sql',
@@ -231,7 +241,10 @@ with candidate(filename, applied, evidence) as (values
   ('0567_drop_receipts_anon_read.sql',
      false,
      'undetectable: drop-only (storage policy) — re-run the file to record it'),
-  ('0568_rr_migrations_ledger_backfill.sql',
+  ('0568_dvic_odometer_capture.sql',
+     pg_temp.rr_has_trigger('vehicle_inspections_log_mileage'),
+     'trigger vehicle_inspections_log_mileage'),
+  ('0569_rr_migrations_ledger_backfill.sql',
      true,
      'this migration')
 ),

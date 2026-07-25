@@ -98,7 +98,7 @@ if (failed) {
 // the dashboard's "database is behind this app" banner read. It only
 // advances when a migration inserts its own filename — 0506–0567 shipped
 // without that insert, so the ledger sat frozen at 0505 while the operator
-// pasted weeks of SQL (fixed by the 0568 backfill + retrofit). Every
+// pasted weeks of SQL (fixed by the 0569 backfill + retrofit). Every
 // migration from 0506 on must reference the ledger AND its own filename;
 // append this to new migrations (adjust the filename):
 //
