@@ -51,8 +51,11 @@ begin
   raise notice 'mfa: no-factor user NOT blocked with require_mfa ON (correct)';
 
   -- ── Enrolled (verified factor) ────────────────────────────────────────
-  insert into auth.mfa_factors (user_id, status) values
-    ('facef00d-0000-4000-8000-00000000000e', 'verified');
+  -- auth.mfa_factors requires id/factor_type/status/created_at/updated_at
+  -- (all NOT NULL, no defaults on the real Supabase auth schema).
+  insert into auth.mfa_factors (id, user_id, friendly_name, factor_type, status, created_at, updated_at) values
+    (gen_random_uuid(), 'facef00d-0000-4000-8000-00000000000e', 'Test Authenticator',
+     'totp', 'verified', now(), now());
 
   -- aal1 + require_mfa ON → mfa_ok false, settings refused
   perform pg_temp.act('facef00d-0000-4000-8000-00000000000e', 'aal1');
