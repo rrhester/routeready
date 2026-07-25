@@ -19,6 +19,7 @@ interface QueuedRow {
   calendar_method?: string | null;   // 'request' | 'cancel' (0429)
   send_after?: string | null;        // 0538 · scheduled send (EM#58)
   importance?: string | null;        // 0538 · 'high' → priority headers (EM#55)
+  in_reply_to_id?: string | null;    // 0543 · reply target row (EM#76)
 }
 interface InviteEvent {
   id: string; kind: string | null; starts_at: string; ends_at: string | null;
@@ -243,6 +244,27 @@ Deno.serve(async (req) => {
     if (row.importance === "high") {
       // Real priority headers (EM#55) — replaces the ❗-in-subject hack.
       body.headers = { "X-Priority": "1", "Importance": "high" };
+    }
+    // Thread headers (EM#76, 0543) · a reply carries the original row's
+    // RFC Message-ID (captured by webhook-email-inbound) as
+    // In-Reply-To/References so the vendor's mail client threads our
+    // reply instead of starting a new conversation. Best-effort: pre-
+    // 0543 the select errors on the missing column and the mail sends
+    // headerless, exactly as before.
+    if (row.in_reply_to_id) {
+      try {
+        const { data: orig } = await supa.from("email_messages")
+          .select("smtp_message_id").eq("id", row.in_reply_to_id).maybeSingle();
+        const mid = orig && typeof orig.smtp_message_id === "string" ? orig.smtp_message_id.trim() : "";
+        if (mid) {
+          const angled = mid.startsWith("<") ? mid : `<${mid}>`;
+          body.headers = {
+            ...((body.headers as Record<string, string> | undefined) ?? {}),
+            "In-Reply-To": angled,
+            "References": angled,
+          };
+        }
+      } catch { /* threading is enrichment — never block the send */ }
     }
     if (row.body_html) body.html = row.body_html;
     else body.text = row.body_text ?? "";
