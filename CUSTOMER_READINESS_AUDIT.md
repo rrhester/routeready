@@ -1,472 +1,365 @@
-# RouteReady — Customer-Readiness Audit
+# RouteReady — Customer-Readiness Launch-Gate Audit
 
-**Verdict: NOT READY FOR A CUSTOMER.** RouteReady has a genuinely strong
-operational core — the scheduling engine, Smart Fill explanations, forecast math,
-and table-level tenant isolation are real and well-tested — but it currently ships
-with a cross-tenant exposure of driver government-ID images, no proven backup, and a
-hand-applied database process that has already skipped migrations in production. Any
-one of those is an automatic no-go; together they mean a paying customer must not be
-given access yet.
+**Final verdict: CONDITIONAL GO for a founder-assisted paid pilot — after three operator gates are closed and verified in production.**
 
-*Audit date: 2026-07-21 · Repo HEAD: `9562b84` · Branch: `claude/routeready-launch-audit-px2s8a`*
+The engineering core of RouteReady is genuinely strong and, in several places, better than most seed-stage products: table-level tenant isolation is CI-proven on every migration, the scheduling solver and Smart Fill fail safe, the forecast math is correct and tested, document sealing is real cryptography, and the new email system is a real single-provider product with a sound XSS model. The blockers are **operational, not architectural** — and the product's own launch documentation already says "NOT READY" until they close. This audit independently verified that the code-level remediations from the prior audit shipped, found that **three of them are only partially effective**, and confirmed the three operator gates (storage close-out, backups, monitoring) remain open.
+
+The honest answer for the target readiness level — a **founder-assisted paid pilot** — is: you can get to GO in roughly a few days of operator work plus a short remediation pass, but you are **NOT ready today**, and one automatic no-go condition (cross-tenant storage) is still open in production.
+
+*Audit date: 2026-07-25 · Repo HEAD: `635f2d0` · Branch: `claude/routeready-launch-gate-audit-ofzpbv`*
 
 ---
 
-## 1. How this audit was performed (and its limits)
+## 1. Executive launch verdict
 
-I audited the actual source, database migrations (570 of them), edge functions, CI
-pipeline, and production configuration; ran the full automated test suite and linters
-myself; booted the operator dashboard locally in a browser to confirm it renders and
-navigates; and verified the most serious findings by reading the exact policy/code at
-the cited file and line.
+**Do not give a paying customer access yet.** The single automatic no-go is the cross-tenant driver-PII storage exposure (P0-1): the *code* fix is shipped and correct, but the migration that actually closes it (`0562`) is a hand-applied, device-QA-gated migration that the launch checklist shows **unchecked**, and this audit environment cannot reach the live database to prove it was applied. Until `0562` + `0567` are applied and verified in production, any holder of the public anon key can enumerate and sign every tenant's driver-license images.
 
-**One important constraint, stated plainly:** this audit environment's network policy
-**blocks all outbound connections to the live Supabase project** (the egress proxy
-returns a hard "403 policy denial" for `doiwrhkirgblcvuskhno.supabase.co`). That means
-I could **not** send live API requests to prove server behavior against the running
-production database. Where a finding depends on the *live* database state, I say
-"Unverified" and explain what an operator must run to confirm it. The database
-**migrations are the authoritative source of what the schema should be**, so
-policy-level findings (like the storage exposure) are proven from the migration SQL —
-but whether the live project matches the repo is exactly the risk described in Blocker
-B-3 below.
+Beyond that, two operator gates the repo itself blocks on — a tested backup/restore (P1-1) and live alerting (P1-2) — are open, and this audit found that the publish gate, the EDV/license enforcement, and MFA server-enforcement all shipped with **real gaps** (P2-1…P2-4) that the in-repo audit recorded as "fixed."
 
-**What I could and did prove firsthand:**
-- `npm test` → **25/25 suites pass**; `npx eslint .` → **clean, exit 0**.
-- Repo-wide secret scan → **no committed private keys**; `config.js` ships the
-  *publishable* anon key (safe by design), not a service key.
-- `npm audit --omit=dev` → **0 production vulnerabilities** (the 1 critical + 1 high
-  are in `@capacitor/cli`, dev-only build tooling).
-- Forecast math verified by hand against the documented examples.
-- The dashboard **boots and renders** in a real browser (Chromium) with a stubbed
-  backend; the sidebar navigation enumerates and no fatal JavaScript errors occur.
-- The three storage-bucket `anon` SELECT policies were read directly in the migration
-  files.
-- CI on `main` is **green** across all workflows (verified via GitHub).
+There are **no findings of cross-tenant data *read* through the database layer** (RLS is proven), no committed secrets, no production dependency vulnerabilities, and every automated test suite passes. This is a product that is close — the gap is finishing the operator safety net and closing three partial security fixes, not rebuilding anything.
 
 ---
 
-## 2. Scores
+## 2. Verdict for each of the four readiness levels
 
-**Overall readiness score: 47% (47.0 / 99 applicable points).**
-Pass = 1, Partial = 0.5, Fail/Unverified = 0. One item (billing) is N/A and excluded.
-
-The percentage is deliberately **not** the headline. Per the audit's own rule, a high
-completion number cannot override a serious security, privacy, data-loss, or
-core-workflow failure — and there are several.
-
-| Category | Score | Read |
+| Readiness level | Verdict | Why |
 |---|---|---|
-| Product completeness | **60%** | Core is built; edges (support, legal text, dead surfaces) unfinished |
-| Core workforce workflows | **63%** | Strongest area; gaps at the server-enforcement seams |
-| Data correctness | **70%** | Forecast + exports sound; validation and dedup thin |
-| User experience | **40%** | Design system real but responsive/a11y/large-data unproven |
-| Security & tenant isolation | **48%** | Tables isolated; **storage is not**; MFA not server-enforced |
-| Performance & reliability | **25%** | No backups verified, no alerting, no pagination, no load test |
-| Onboarding & support | **44%** | Real first-run wizard; **support channel is fake** |
-| Final validation | **15%** | No clean-room rehearsal, no UAT, blockers open |
+| **1 · Internal demonstration** | **GO** | Boots cleanly, all major views render with proper empty states, zero page errors in a stubbed run, `seed_demo.sql` exists. Safe to demo today. |
+| **2 · Founder-assisted paid pilot** (immediate target) | **CONDITIONAL GO** | Ready *after*: (a) apply + verify `0562`/`0567` and prove no cross-tenant file access with the anon key; (b) enable PITR + run one restore drill; (c) wire one uptime/alerting path. Plus a short pass on the partial fixes (publish gate, cover-offer cert, 0539 re-gate, H-5 wire-up). All are days, not weeks. |
+| **3 · Unsupervised production use** | **NO-GO** | Requires everything in level 2 **plus**: complete the publish gate across all driver surfaces, close the H-1/H-2 residuals, add pagination, add a rollback/staging story, an IR/breach runbook, and outbound send caps. The absence of alerting alone disqualifies unsupervised use. |
+| **4 · General availability (multi-DSP)** | **NO-GO** | Requires level 3 **plus**: server-enforced entitlements (today CSS-only), a staging environment, load-tested scale (30–200 drivers × 50+ tenants), server-side send quotas on the shared email/SMS domains, and a repeatable clean-room onboarding + independent UAT. |
 
 ---
 
-## 3. The ten most serious risks
+## 3. Overall confidence level and audit limitations
 
-1. **Cross-tenant leak of driver government-ID images (BLOCKER).** Three storage
-   buckets holding driver's-license scans, face photos, and chat attachments grant the
-   public `anon` role bucket-wide read with no tenant boundary. The anon key ships in
-   the browser and driver app, so in principle anyone can enumerate and download other
-   DSPs' driver PII. *(0079, 0446, 0072)*
-2. **No proven backup/restore (BLOCKER).** Point-in-Time Recovery is documented as the
-   "last hard gate" and there is no evidence it is enabled or that a restore has ever
-   been tested. You would be custodian of another business's I-9s with no recovery
-   proof. *(CUSTOMER-1-READINESS.md §2.3)*
-3. **Hand-applied migrations that have already been missed in production (BLOCKER).**
-   Migrations are pasted into the SQL editor by hand; two (`0432`, `0484`) were
-   demonstrably never applied and had to be re-shipped, and ~15 recent ones are flagged
-   "MANUAL — not yet confirmed applied." The client's drift detector expects version
-   504 while the repo is at 534, and it only shows on the calendar page. A drifted
-   tenant runs code against a schema it doesn't have.
-4. **MFA is enabled in the UI but not enforced on the API (HIGH).** Two-factor exists
-   client-side, but no database policy requires it. A stolen password logs straight
-   into the data API without ever being challenged for a code, so the security control
-   the login screen advertises does not protect the data.
-5. **Nothing alerts a human when something breaks (HIGH).** Error logs, cron health,
-   and push failures are all passive tables no one is paged on; there is no
-   error-monitoring service, and the uptime monitor is an unchecked manual to-do. You'd
-   learn of an outage from the customer.
-6. **The in-app help and support center is fake (HIGH).** Every item in the Help menu —
-   including "Contact support" — only pops a placeholder message. A customer who hits
-   trouble finds no working way to reach you from inside the product.
-7. **Schedules are live to drivers the instant they're written — no draft/publish gate
-   (HIGH).** The driver schedule feed returns every assigned shift with no "published"
-   filter; a half-built or mistaken Smart Fill result is immediately visible and
-   push-notified to drivers.
-8. **A whole certification rule is enforced everywhere except the server (HIGH).** EDV
-   route certification is checked by the solver and preview engine but by none of the
-   database compliance gates, so a manual assignment, self-pickup, or swap can put an
-   uncertified driver on an EDV route. The server compliance gates also have **zero
-   automated tests**, which is how this drift shipped silently.
-9. **The privacy policy and terms name the wrong data processors (HIGH).** They list
-   Airtable and Cal.com (no longer used) and never name Supabase — where 100% of
-   customer HR/PII actually lives. For an HR-data product this is a legal-accuracy and
-   trust exposure.
-10. **No pagination, no load test, and fetch-everything queries (MEDIUM→HIGH at scale).**
-    Big lists pull up to 10,000–20,000 rows client-side with no paging or
-    virtualization; the roster falls back to a 20k-row fetch every 30 seconds on an
-    unmigrated tenant. It works in a demo and degrades badly as a real DSP's history
-    grows.
+**Confidence: High on code/config/tests; Medium on live production state.**
+
+**What I proved firsthand this session (commands + results recorded in §15):**
+- `npm test` → **27/27 suites pass**; `eslint .` → clean (exit 0); `npm run smoke` → parity + parse gates pass; design/a11y ratchet held; migration-ordinal + banner-sync gate passes (`_RR_SCHEMA_EXPECTED = 570` in sync with the latest migration).
+- **Solver** `pytest` → **97 passed**; **engine** `node:test` → **90 pass / 0 fail**.
+- Playwright e2e: **login (3), email (4), booking (2), driver-app (9)** — all pass against stubbed Supabase.
+- `npm audit --omit=dev` → **0 vulnerabilities**; repo secret scan clean; `config.js` ships the *publishable* anon key by design.
+- **Booted the dashboard in a real browser (Chromium)** with a stubbed backend and walked dashboard, schedule, drivers, fleet, repair, workbooks, notebooks, messages, email, onboarding, settings: every view renders, correct empty states, **zero page errors**; no horizontal overflow at 1440px or at 390px mobile width.
+- CI on `main` is **green** across all workflows (verified via GitHub API — last 30 runs all `success`).
+- Read the actual SQL for every blocker/high remediation (`0560`–`0567`) and independently confirmed the gaps below at file:line.
+
+**Hard limitation (unchanged from the prior audit and stated plainly):** the environment's network policy **blocks all outbound connections to the live Supabase project**. I could not send live API requests to prove server behavior against the running production database. **Migrations are the authoritative source of what the schema *should* be**, so policy-level findings are proven from migration SQL — but *whether the live project matches the repo, and whether the manual migrations `0560`–`0567` are actually applied, cannot be verified from here.* That is itself the core of Blocker B-3. Every finding that depends on live state is marked **Not Verified** with the exact operator check that would resolve it.
+
+**Also not verified (needs a device/live env):** real-device driver file loading through `driver-file-sign`, live email send/receipt, transactional-email rendering, cross-device responsive regression, load behavior at 100+ drivers.
 
 ---
 
-## 4. Every Blocker and High finding
+## 4. System and architecture map
 
-### Blockers (a customer must not receive access while any is open)
+**Clients**
+- **Operator dashboard** — static site, no build step (`dashboard/`): `index.html` + `live.js` (**5.86 MB**), `workbook.js` (1.38 MB), `mock-wiring.js` (278 KB, dead-code weight still in the boot path), view fragments in `dashboard/views/*.frag`. Hard auth gate at boot (Supabase session required).
+- **Driver PWA** — `app/` : `app.js` (721 KB), `sw.js` service worker, `comms-native.js`, Capacitor wrappers for iOS/Android. Anon + opaque token auth (activation link/PIN or phone+PIN), five IndexedDB offline queues, web push.
+- **Desktop app** — Electron (`desktop/`): drives the Amazon DSP portal under the operator's own SSO in a bundled Chromium, encrypts the session via OS keychain (with a silent plaintext fallback), uploads parsed reports to Supabase. Tagged releases via `desktop-build.yml`.
+- **Public pages** — marketing `index.html`, `download.html`, `booking.html`, `rsvp.html`, `screening.html`, `verify.html`, `privacy.html`, `terms.html`, `marketing.css`.
 
-| ID | Finding | Evidence | Fix effort |
-|---|---|---|---|
-| **B-1** | **Cross-tenant driver-PII disclosure via Storage.** `driver-documents`, `driver-photos`, and `driver-chat-attachments` each have a storage policy `for select to anon using (bucket_id = '<bucket>')` — no tenant/path predicate. Two also allow `to anon ... insert`. The buckets are private, but a bucket-wide anon SELECT authorizes the Storage *list* and *signed-URL* APIs, so any client with the public anon key can enumerate `<dsp_id>/<driver_id>/…` paths and download license images across all tenants. | `supabase/migrations/0079_driver_self_serve.sql:33-45`; `0446_private_driver_photos.sql:55-67`; `0072_driver_chat_attachments.sql:110-121`; anon key public in `dashboard/config.js:12` | 1 day |
-| **B-2** | **No verified backup / restore.** PITR is documented as a hard blocker "only you can do"; no config or restore-test evidence exists anywhere in the repo. | `docs/CUSTOMER-1-READINESS.md:61-66,140` | 2–3 days (incl. real restore drill) |
-| **B-3** | **Manual migrations with a proven miss history + stale drift detection.** Auto-apply is disabled (`SUPABASE_DB_URL` unset); `0432` never applied and `0484` skipped in prod; ~15 recent migrations flagged MANUAL/unconfirmed; client expects `_RR_SCHEMA_EXPECTED = 504` while HEAD is `0534`, and the banner renders only inside the calendar view. | `scripts/apply-migrations.sh:22-26`; `dashboard/live.js:27497,27515`; `CLAUDE.md` MANUAL flags | 1 day (reconcile + global banner); ongoing process |
-| **B-4 (gate)** | **Blockers/Highs unresolved and no documented go/no-go.** Items 98 and 100 cannot pass while B-1…B-3 and the Highs are open. | this report | n/a |
+**Backend (single Supabase/Postgres project `doiwrhkirgblcvuskhno`)**
+- **591 SQL migrations** (`supabase/migrations/`), hand-applied via the SQL Editor (the deploy workflow's DB step is a confirmed no-op — `SUPABASE_DB_URL` unset). Isolation primitives `private.current_dsp_id()` / `private.is_staff()` are SECURITY DEFINER with empty search_path.
+- **~57 edge functions** (`supabase/functions/`) — auto-deployed on merge via `deploy-migrations.yml` (drift-gated function lists, pinned CLI, ×3 retry). Notable: `send-email`/`send-sms`/`send-*-push` (Resend + Twilio), `webhook-email-inbound`/`-events`/`webhook-twilio`/`webhook-apply`/`webhook-cal` (all signature/bearer-authenticated), `driver-file-sign` (B-1 signing path), `ai-proxy`/`*-ai`/`dvic-ai-review` (Anthropic), `admin-delete-dsp`, `export-tenant-files`, `invite-team-member`, `admin_create_dsp`, calendar (Google/Microsoft), `livekit-token`/`interview-room`/`meet-*` (LiveKit), `finch-*` (payroll).
+- **16 pg_cron jobs**: message flush/retention, scheduled-message drain, booking nudges, event/interview/license/checklist reminders, gcal pull/reconcile, dvic sweep, recognition autofire, requeue-stuck-sends, purge client-errors/email-trash, referral invites, unconfirmed escalation. (The 1-minute email-send drain cron + its GUCs are set up via manual SQL in `SECRETS.md`, **not** a migration — an operational dependency outbound mail silently relies on.)
+- **CP-SAT scheduling solver** — Python/OR-Tools on **Fly.io** (`solver-service/`, `rr-solve-ready`), pytest-gated deploy.
+- **Document-sealing Worker** — **Cloudflare** (`services/document-sealing/`): ECDSA P-256 over SHA-256 + RFC 3161 trusted timestamp + append-only audit; verified in-browser via `verify.html` → `document-verify`.
+- **Preview engine** — `engine/` (TypeScript, mirrors the solver's eligibility rules for client-side preview).
 
-### High findings (must be resolved before a normal customer launch)
+**Hosting/integrations:** Netlify **and** Cloudflare Pages (dual static hosting, headers maintained in both `_headers` and `netlify.toml`, parity CI-checked); Supabase (DB/auth/storage/realtime); Fly.io (solver); Cloudflare (sealing Worker + Pages); Resend (email); Twilio (SMS); Anthropic (AI); LiveKit (video); Google/Microsoft (calendar); Finch (payroll); Indeed (applicant intake). No Stripe/billing.
 
-| ID | Finding | Evidence | Fix effort |
-|---|---|---|---|
-| **H-1** | **MFA not enforced server-side.** aal2 flow is client-only; **0** `aal2` references in any migration/RLS policy. Password compromise → direct API access at aal1. | `dashboard/config.js:24`; `dashboard/live.js:457-554`; grep of `supabase/migrations` | 1 day |
-| **H-2** | **~500 pre-0504 `SECURITY DEFINER` RPCs remain anon/authenticated-executable**, gated only by in-body checks; the 0504 revoke is prospective ("future functions"). Any RPC that gates on tenant (`current_dsp_id`) but not role (`is_staff`) is callable by a low-privilege `driver`-role user. | `0504_reliability_and_hardening.sql:380-388`; class documented in `0445:5-20` | 2–3 days (audit sweep) |
-| **H-3** | **No draft/publish gate on driver visibility.** `driver_my_schedule` filters only by driver_id + date, no `finalized` flag; "Publish" only sends a notification; `autoFillScheduleWeek` writes straight to the DB. | `0288_driver_my_schedule_station_coords.sql:54-71`; `0421_publish_notifies_drivers.sql`; `dashboard/live.js:67740+` | 1 day |
-| **H-4** | **EDV certification enforced in solver + engine but in none of the SQL gates**, and the SQL compliance gates have no automated tests. | `eligibility.py:154-158`; `engine/src/rules/r004_certification.ts:34`; missing in `0500`/`0201`/`0423`/`0520`; no SQL/pgTAP tests exist | 1 day (gate) + 2–3 days (gate test harness) |
-| **H-5** | **License-expiry protection window is client/engine-only.** Server gates block only once a license is already expired on the shift date. | `engine/src/rules/r003_license.ts`; `0500:110-113`, `0520:72`, `0201:196` | 1 day |
-| **H-6** | **Nothing alerts a human.** `client_errors`, `rr_cron_health()`, `push_delivery_failures` are passive tables never read by the app; no APM; `/health` monitor is an unverified manual step; `rr_cron_health` is itself already stale. | `0504:234-262`; grep (no APM/Sentry); `CUSTOMER-1-READINESS.md:68` | 1 day (wire alerts) |
-| **H-7** | **In-app Help/Support is entirely non-functional.** All five Help-menu items, including "Contact support," only fire placeholder toasts; no customer-facing docs exist. | `dashboard/index.html:4501-4517` (verified); `docs/` are dev-facing | 1 day |
-| **H-8** | **Privacy policy & terms name wrong sub-processors and omit Supabase.** | `privacy.html:155-156,187`; `terms.html:166` (verified) | 1–4 hours |
+**Roles & tenancy:** roles `owner` / `ops` / `dispatcher` / `viewer` / `driver` in `app_users`, plus `platform_admin`. Tenant = `dsp_id`, server-derived from `auth.uid()`; drivers authenticate on anon + validated token (not `app_users`). One production project; **no staging** (the repo says so: "one bad migration hits every customer at once").
+
+**Feature implementation status (verified):** Recruiting/ATS, interview calendar/booking, onboarding+I-9 sealing, roster/HR, scheduling+Smart Fill, availability/PTO/attendance, van assignment, fleet/PM/parts/repair, coaching/recognition, compliance/cert gates, documents/e-sign, **email (real, new)**, SMS/push, forecasting/targets, workbooks/notebooks — **all substantively implemented**. Mocked/placebo: the email reading-pane "AI" sparkle (decorative). Client-only/cosmetic: entitlement gating (CSS `display:none`). Orphaned but bundled: legacy Staffing-outlook control; `mock-wiring.js`.
 
 ---
 
-## 5. The 100-point audit table
+## 5. Product-claim vs implementation matrix
 
-Severity applies to non-passing items. Effort: `<1h`, `1–4h`, `1d`, `2–3d`, `longer`.
-
-### Product definition and completeness
-
-| # | Requirement | Result | Sev | Evidence / How tested | Customer impact | Fix | Effort |
-|---|---|---|---|---|---|---|---|
-| 1 | Define first customer type/model/problem | PASS | — | `docs/CUSTOMER-1-READINESS.md`, `LAUNCH-AUDIT §A` define Amazon DSP ICP + JTBD | Clear target | Keep | — |
-| 2 | Identify 5–10 must-complete workflows | PASS | — | `LAUNCH-AUDIT §M` 12-step path; `§N` scope | Scope known | Keep | — |
-| 3 | Written launch scope (required vs post-launch) | PASS | — | `LAUNCH-AUDIT §N` | Expectations set | Keep | — |
-| 4 | Hide/disable unfinished features | PARTIAL | MED | Intel tiles disabled, reports "Soon" disabled, BUT orphaned Recognition/Compliance/`view-build` still bundled; ADP Sync labeled "Mock UI only" (`index.html:527`) | Customer may hit a mock/dead surface | Remove orphaned views; gate ADP behind entitlement | 1d |
-| 5 | Remove broken links/dead buttons/routes | PARTIAL | MED | Help-menu items + `view-build.frag:288` are toast-only stubs | Buttons that do nothing erode trust | Wire or remove dead controls | 1d |
-| 6 | Remove mock/placeholder/dev notes/test records | PARTIAL | MED | Static fake data purged to skeletons (good); `mock-wiring.js` (277 KB) still in boot path; "migration NNNN" toasts | No fake *data* reaches customers, but dead code + jargon linger | Retire mock-wiring; scrub jargon toasts | 2–3d |
-| 7 | Name/logo/domain/contact/version consistent | PARTIAL | LOW | RouteReady + `gorouteready.com` consistent; OKAMI + migration jargon in UI | Minor terminology confusion | Rename OKAMI in UI; hide ops jargon | 1–4h |
-| 8 | Proofread customer-facing text | PARTIAL | MED | Clean overall; "check the console", "apply migration 0527", OKAMI leak into user text (`live.js:25795`,`27520`) | Reads unfinished/internal | Copy pass on toasts/banners | 1d |
-| 9 | Document supported browsers/OS/devices | FAIL | MED | No browser/device matrix anywhere; `download.html` covers only the desktop sync app | Customer can't know what's supported | Publish a support matrix | 1–4h |
-| 10 | Clean production-like demo tenant (synthetic) | PARTIAL | LOW | `supabase/seeds/seed_demo.sql` exists but is a manual seed, no maintained demo tenant | Demos ad-hoc | Stand up + document a demo tenant | 1d |
-
-### Identity, access, and tenant separation
-
-| # | Requirement | Result | Sev | Evidence / How tested | Customer impact | Fix | Effort |
-|---|---|---|---|---|---|---|---|
-| 11 | Sign-in valid/reject invalid | PARTIAL | MED | `login.html` password+magic+reset; `tests/login-e2e` (stubbed); live rejection = Supabase built-in, not live-tested here | Likely works; unproven live | Live smoke of good/bad creds | 1–4h |
-| 12 | Admin invite + activation | PARTIAL | MED | `invite-team-member` + `admin_create_dsp` + pending_owner bind; unthrottled; not live-tested | Onboarding path unproven end-to-end | Live rehearse invite→activate | 1d |
-| 13 | Email confirm + reset (expired/reused links) | UNVERIFIED | MED | `resetPasswordForEmail` present; expiry/reuse = Supabase default, not tested | Recovery unproven | Test expired + reused reset link | 1–4h |
-| 14 | Logout/expiry/remember-me/revoked session | PARTIAL | MED | Idle-timeout 30 min (`config.js:17`); localStorage session; revoked-session not tested | Session hygiene mostly present | Test forced revocation | 1–4h |
-| 15 | Permission matrix per role tested | PARTIAL | HIGH | `role_gate_compliance_test.sql`, `role_gate_planning_test.sql` exist; not a full role×action matrix | Some roles/actions unproven | Complete role matrix tests | 2–3d |
-| 16 | Every protected API enforces authz independent of UI | PARTIAL | HIGH | RLS solid at tables; ~500 RPCs anon-executable via in-body gates (H-2); MFA not server-enforced (H-1) | Possible role bypass | See H-1, H-2 | 2–3d |
-| 17 | One company can't see another's records via normal nav | PASS | — | `cross_tenant_isolation_test.sql` proves R/W isolation, wired into CI; `current_dsp_id()` server-derived | Table data isolated | Keep + keep test in CI | — |
-| 18 | Cross-tenant via URL/ID/param/API tampering | PARTIAL | MED | Tables resist (RLS); `intake_applicant` anon cross-tenant *write* by short_code; `driver_signin_with_phone` global lookup; live probes blocked by network policy | Applicant-spam into any DSP; not a data read | Throttle+captcha intake; scope phone lookup | 1d |
-| 19 | RLS + storage policies for every tenant table AND bucket | FAIL | **BLOCKER** | Tables ✔; **storage buckets grant anon bucket-wide SELECT** (B-1) | Cross-tenant PII read | See B-1 | 1d |
-| 20 | Suspension/role change/separation/full revocation | PARTIAL | MED | `active` flag gates; separation packets; driver tokens plaintext, no revoke-all test | Revocation likely works, unproven | Test full offboarding revocation | 1d |
-
-### Roster, scheduling, and workforce rules
-
-| # | Requirement | Result | Sev | Evidence / How tested | Customer impact | Fix | Effort |
-|---|---|---|---|---|---|---|---|
-| 21 | Driver create/edit/import/deactivate/reactivate/archive | PARTIAL | LOW | Full CRUD + `bulk_create_drivers` per-row partial-failure handling; "archive" = status flip | Works; not live-tested | Live CRUD smoke | 1–4h |
-| 22 | Required fields, duplicate drivers/IDs, incomplete records | PARTIAL | MED | Dedup **email-only**; required **name-only** (`live.js:7623`) | Duplicate/incomplete drivers inflate counts | Add phone/name dedup + field validation | 1d |
-| 23 | Licenses/certs/DOT/XL/EDV compat/expiration | PARTIAL | HIGH | Enforced solver+engine; **EDV missing from server gates (H-4)**; license buffer client-only (H-5) | Uncertified driver on route via server path | See H-4, H-5 | 1d |
-| 24 | Schedule create/edit/copy/move/publish/unpublish/delete | PARTIAL | HIGH | Present, but publish/unpublish = boolean flip with no visibility gate (H-3) | Draft state leaks to drivers | See H-3 | 1d |
-| 25 | Published schedule = same info to managers and drivers | PARTIAL | HIGH | Both read live data, but there is no "published" concept controlling it | Drivers act on unpublished/draft shifts | Add publish gate (H-3) | 1d |
-| 26 | Smart Fill: insufficient/excess/absent/conflicting quals | PASS | — | `_rrShowSfRunReport` + diagnostics report uncovered/skipped/unscheduled; solver-down fails safe (`live.js:69324`) | Honest, safe failure | Keep | — |
-| 27 | Rest/consecutive/WOC/history/license buffers enforced | PARTIAL | HIGH | Server-enforced except license buffer (H-5) and WOC-off solver/server desync (silent unfilled seats) | Some gaps at the seam | See H-4/H-5; sync WOC flags | 1d |
-| 28 | Approved-PTO can't be scheduled without warning/block | PASS | — | Server block `staff_assign_violations` (0500) + `assign_shift` raises `assign_blocked` + client confirm-override | Strong defense-in-depth | Keep | — |
-| 29 | Availability/overlapping/open/uncovered/conflicts | PARTIAL | MED | Same-day double-book DB trigger blocks (good), but engine can emit them → 2nd write silently dropped | Seat quietly uncovered | Surface dropped-write in UI | 1d |
-| 30 | Onboarding pairings/trainer eligibility/new-hire assignment | PARTIAL | MED | Trainee-inherits-trainer-van machinery exists; trainer-eligibility rules not deeply verified | Partially proven | Verify + test trainer eligibility | 1d |
-
-### Other RouteReady workflows
-
-| # | Requirement | Result | Sev | Evidence / How tested | Customer impact | Fix | Effort |
-|---|---|---|---|---|---|---|---|
-| 31 | Attendance entry/corrections/approvals/exceptions/reporting | PARTIAL | LOW | Derived-then-corrected; `attendance_decide`/`approve` RPCs; report from same RPC as screen | Functional; not live-tested | Live smoke | 1–4h |
-| 32 | 13-week forecast vs independent calc | PASS | — | Verified by hand: `ceil(max(38,260/4)·1.10)=72`, `196/3.5·1.10=62`; `test-labor-forecast.mjs` asserts correctly (I ran it) | Math is trustworthy | Keep | — |
-| 33 | ATS stages/movement/duplicate/rejection/hire/convert | PARTIAL | MED | Stages+movement+decline+convert exist; dedup source_ref→email, `force_new` bypass | Duplicate applicants possible | Add phone dedup; guard force_new | 1d |
-| 34 | Indeed + Document AI failures/low-confidence/dup/corrections | PARTIAL | MED | webhook-apply dedupe/caps; Document AI stores confidence but **no hard low-confidence → manual-review gate** | Bad parse silently accepted | Add confidence threshold to review | 1d |
-| 35 | Calendar one-time/recurring/timezone/DST | PASS | — | `cal-tz.mjs` DST-tested (spring/fall/Phoenix/southern); native booking server-side overlap + advisory lock | Robust | Keep | — |
-| 36 | Message create/target/deliver/fail/retry/bounce/notify | PARTIAL | MED | Opt-out durable, dedupe, delivery status; hard-fail no proactive alert; retry only transient | Undelivered publish text unnoticed | Alert on hard-failed sends | 1d |
-| 37 | Vehicle create/VIN/assign/status/maintenance/duplicate | PARTIAL | MED | VIN format validated; day-assignment unique; **no VIN uniqueness** → duplicate vans | Fleet counts corrupt | Add unique VIN constraint | 1–4h |
-| 38 | Driver app: real driver role sees only their info | PASS | — | Token-scoped `driver_*` RPCs; a token cannot reach other drivers (`driver_validate_token`); no manager surface exposed | Correctly scoped (except B-1 storage) | Keep; fix B-1 | — |
-| 39 | Report calcs/ranges/filters/sort/downloads vs source | PARTIAL | LOW | Exports build from same RPCs/rendered set; values not cross-checked live | Consistent by construction | Live value spot-check | 1–4h |
-| 40 | Vault/Checklists/App Launcher perms/access/completion/audit | PARTIAL | LOW | Checklist completion tested; documents via service-role fetch (good); audit append-only | Mostly solid | Live perm smoke | 1–4h |
-
-### Data quality and failure handling
-
-| # | Requirement | Result | Sev | Evidence / How tested | Customer impact | Fix | Effort |
-|---|---|---|---|---|---|---|---|
-| 41 | Forms validate required/format/range/invalid | PARTIAL | MED | driver-forms parity tests exist; roster validation thin (see #22) | Uneven validation | Strengthen form validation | 1d |
-| 42 | Slow requests: loading states + no double-submit | PASS | — | ~186 disabled/aria-busy sites; skeletons throughout (inspection) | Good | Keep | — |
-| 43 | Empty states for every list/table/report/search | PASS | — | ~150 empty renderers, purpose-built per stage | Good | Keep | — |
-| 44 | Actionable error messages | PARTIAL | MED | Toasts + recovery, but raw `error.message` + "check the console" + migration NNNN | Confusing on failure | Copy pass on errors | 1d |
-| 45 | Slow/disconnect/timeout/refresh/retry | PARTIAL | MED | SW cache + queue self-heal; solver/gcal/AI use bare fetch, no timeout | Some paths hang on outage | Add fetchWithTimeout everywhere | 1d |
-| 46 | Protect unsaved work (autosave/draft/warning) | PARTIAL | MED | Composer drafts + some discard confirms; **no global beforeunload guard** | Mid-edit tab close loses input | Add unsaved-changes guard | 1d |
-| 47 | Confirm successful actions | PASS | — | Toasts throughout | Good | Keep | — |
-| 48 | Confirm/recovery for destructive actions | PASS | — | ~130 specific `confirm()` dialogs + snapshot-revert | Good | Keep | — |
-| 49 | Imports: dup/bad columns/invalid/partial/large | PARTIAL | MED | Per-row inserted/skipped/errored; dedup email-only; large-file behavior unverified | Partial coverage | Test large + malformed imports | 1d |
-| 50 | Dashboard/screens/reports/DB/exports consistent | PARTIAL | MED | Exports from same RPCs; cushion rounding bug history (0534); can't cross-check live | Mostly consistent | Live cross-check after migrate | 1d |
-
-### Visual quality, responsiveness, accessibility
-
-| # | Requirement | Result | Sev | Evidence / How tested | Customer impact | Fix | Effort |
-|---|---|---|---|---|---|---|---|
-| 51 | Styling consistent with Schedule design system | PARTIAL | LOW | design-lint ratchet enforces tokens; 910 raw hex / 3.6k !important remain (ratcheting) | Minor drift | Continue ratchet | longer |
-| 52 | Consistent spacing/typography/alignment/cards/hierarchy | PARTIAL | LOW | Design system + KPI contract codified; ongoing drift | Mostly consistent | Continue | longer |
-| 53 | Standardize buttons/menus/tabs/filters/labels/tables/forms | PARTIAL | LOW | Mostly standardized; residual inline styles | Minor | Continue | longer |
-| 54 | Test pages at desktop/Chromebook/tablet/phone | UNVERIFIED | MED | No responsive regression pass; visual baselines desktop-only | Unknown on small screens | Responsive pass | 2–3d |
-| 55 | Zoom 80–200% clipping/overlap | UNVERIFIED | LOW | No evidence | Unknown | Zoom pass | 1d |
-| 56 | Keyboard-only workflows + focus indicators | PARTIAL | MED | Modal focus move+restore + skip-link shipped; no full tab-trap cycle | Partial keyboard support | Complete focus trap | 1d |
-| 57 | Color contrast + not color-alone | PARTIAL | MED | a11y lint axes added; contrast not fully audited | Possible contrast fails | Contrast audit | 1d |
-| 58 | Accessible names/labels/validation/heading structure | PARTIAL | MED | booking/rsvp aria added; role=main/skip-link; not comprehensive | Partial a11y | a11y sweep | 2–3d |
-| 59 | Tables: 0/1/hundreds rows/long names/sort/filter/paginate | PARTIAL | MED | No pagination/virtualization; 500-row roster cap; client filter | Degrades at scale | Add paging/virtualization | 2–3d |
-| 60 | Modals/dropdowns/tooltips/sticky/scroll/layering | PARTIAL | LOW | Many present; history of z-index/popover fixes; not systematically QA'd | Occasional visual defects | Layering QA pass | 1d |
-
-### Performance, reliability, and operations
-
-| # | Requirement | Result | Sev | Evidence / How tested | Customer impact | Fix | Effort |
-|---|---|---|---|---|---|---|---|
-| 61 | Measure load/transition/search/save/SmartFill/report/export | UNVERIFIED | MED | No perf metrics; 5.6 MB `live.js`, ~8 MB shell | First load heavy; unmeasured | Instrument + measure | 1d |
-| 62 | Test with 100+ drivers, 13 weeks of data | UNVERIFIED | MED | `solver-service/stress_test.py` (110 drivers) exists; **no dashboard/DB load test** | Unknown UI behavior at scale | Load test the dashboard | 2–3d |
-| 63 | Slow queries/missing indexes/excessive retrieval | PARTIAL | MED | FK indexes added (0504); `.limit(10000/20000)` fetch-all patterns | Heavy pulls at scale | Add server aggregation/paging | 2–3d |
-| 64 | Pagination/virtualization/lazy loading | FAIL | MED | `.range(` = 0 uses; virtualization ~absent | Big lists overwhelm UI | Introduce paging | 2–3d |
-| 65 | Repeated requests/N+1/leaks/dup listeners/runaway | PARTIAL | MED | Realtime tenant-filtered; some N+1 fixed; not profiled | Possible waste | Profile hot paths | 1d |
-| 66 | Simultaneous edits/stale/race/conflicts | PARTIAL | MED | Per-shift optimistic lock (opt-in); no week-level lock | Two dispatchers interleave | Week-version lock | 1d |
-| 67 | Timeouts/retries/idempotency/graceful degradation | PARTIAL | MED | SMS/email queues hardened; solver/gcal/AI/DocAI bare fetch no timeout | Hung upstream stalls isolate | Timeouts on all integrations | 1d |
-| 68 | Structured logging/perf monitoring/uptime/alerts | FAIL | HIGH | Passive tables only; no APM; uptime manual/unverified (H-6) | Outages unseen | See H-6 | 1d |
-| 69 | Real backup restoration test | FAIL | **BLOCKER** | No backup config / restore evidence (B-2) | Unrecoverable data loss | See B-2 | 2–3d |
-| 70 | Health checks/deploy/migrations/feature+release rollback | PARTIAL | HIGH | `/health` exists (uncalled); forward-only migrations, no down-migrations, no staging, edge fns no version pin | Bad deploy hits sole customer instantly | Add rollback runbook + staging | 2–3d |
-
-### Application security
-
-| # | Requirement | Result | Sev | Evidence / How tested | Customer impact | Fix | Effort |
-|---|---|---|---|---|---|---|---|
-| 71 | Scan repo/config for exposed secrets | PASS | LOW | Repo scan clean (I ran it); `config.js:12` = publishable anon key. Minor: `stress_test.py:35` hardcodes a real-looking solver-token default | No committed secrets | Move token default to env-only | 1–4h |
-| 72 | Dependency/vuln/outdated scans | PARTIAL | LOW | `npm audit --omit=dev` = 0; 1 crit + 1 high in dev-only `@capacitor/cli`; no Deno dep scan | Low risk | Bump capacitor CLI; scan Deno deps | 1–4h |
-| 73 | SQLi/XSS/CSRF/unsafe upload/redirect/SSRF | PARTIAL | HIGH | No SQLi (RLS/params); XSS discipline good but 1122 innerHTML + CSP `unsafe-inline`; `next=` sanitized; **SSRF link-preview bypassable**; **anon storage INSERT = unsafe upload (B-1)** | Multiple latent vectors | Fix SSRF; tighten CSP; B-1 | 2–3d |
-| 74 | Rate limits on login/invite/reset/messaging/upload/expensive | PARTIAL | MED | PIN lockout, AI daily cap, booking captcha; **no SMS/email volume cap**, unthrottled invites, intake unthrottled | Abuse/cost risk | Add per-DSP send caps + throttles | 1d |
-| 75 | Auth errors don't reveal account existence | PARTIAL | LOW | Login message generic (good); reset/magic/phone lookup can enumerate | Minor enumeration | Neutral responses everywhere | 1–4h |
-| 76 | HTTPS/secure cookies/headers/encryption at rest | PARTIAL | MED | HSTS+CSP+headers enforcing & parity-checked; tokens in localStorage (not cookies); at-rest = Supabase default (unverified) | Solid transport; XSS-reachable token | Confirm at-rest; consider cookie store | 1d |
-| 77 | No secrets/PII/messages in logs or errors | PARTIAL | MED | `client_errors` size-clamped + retention; "check the console" + raw error text patterns | Possible leakage in errors | Scrub error/log surfaces | 1d |
-| 78 | Privacy/retention/export/deletion/account-closure | PARTIAL | MED | `export_my_dsp_data` + file export; partial retention; **no deletion/closure flow**; wrong sub-processors (H-8) | Incomplete data-lifecycle | Add deletion/closure; fix docs | 1d |
-| 79 | Email/notification consent/preference/unsubscribe | PARTIAL | MED | SMS STOP/START durable; operator prefs; email unsubscribe unverified | Partial compliance | Verify email unsubscribe | 1–4h |
-| 80 | Security reporting/incident response/breach notify/rotation | FAIL | MED | No incident-response or breach-notification doc found | No plan when it breaks | Write IR + rotation runbook | 1d |
-
-### Onboarding, support, commercial
-
-| # | Requirement | Result | Sev | Evidence / How tested | Customer impact | Fix | Effort |
-|---|---|---|---|---|---|---|---|
-| 81 | First-run onboarding for a new admin | PASS | — | `view-dashboard.frag:8+` `#rr-firstrun` 4-step wizard tracking real data progress; wired `live.js:662` (verified) | Good self-serve setup | Keep | — |
-| 82 | Contextual help for terms/config/complex rules | PARTIAL | MED | Some ⓘ popovers (forecast); Help center fake; OKAMI unexplained | Uneven help | Real help content | 1d |
-| 83 | Document core first-week workflows | PARTIAL | MED | `LAUNCH-AUDIT §M` internal only; no customer guide | Admin lacks a guide | Write customer quickstart | 1d |
-| 84 | Visible support method + hours/response expectations | FAIL | HIGH | Help "Contact support" is a fake toast; only a plan-upgrade mailto (H-7) | No working support path | See H-7 | 1d |
-| 85 | Easy problem reporting w/ page/account/browser/error | PARTIAL | MED | `client_errors` captures some context; no user-facing "report a problem"; feature-request = fake toast | Hard for customer to report | Add report-a-problem widget | 1d |
-| 86 | Admin setup guide + validated import templates | PARTIAL | MED | Import exists; templates partial; guide internal | Setup unclear | Publish guide + templates | 1d |
-| 87 | Plans/trial/entitlements/pricing/invoicing/cancellation | N/A | — | No billing code by design — customer #1 billed manually (`CUSTOMER-1-READINESS §2.6`); entitlements UI-only | N/A for one manual customer | Server-enforce entitlements before multi-tier | — |
-| 88 | Transactional emails: branding/links/sender/reply-to/copy | UNVERIFIED | MED | `send-email` exists; templates not verified live | Unknown email quality | Send + inspect each template | 1d |
-| 89 | Notification defaults reviewed | PARTIAL | LOW | Operator prefs + SMS fallback + auto-reply (0511); defaults not noise-audited | Possible over/under-notify | Review defaults | 1–4h |
-| 90 | Known limitations/workarounds/escalation/support docs | PARTIAL | MED | `CUSTOMER-1-READINESS §4–5` internal; no customer-facing | Internal only | Customer-facing limitations doc | 1d |
-
-### Final customer rehearsal and release gates
-
-| # | Requirement | Result | Sev | Evidence / How tested | Customer impact | Fix | Effort |
-|---|---|---|---|---|---|---|---|
-| 91 | Clean-room setup from brand-new org | UNVERIFIED | HIGH | `admin_create_dsp` + first-run support it; not rehearsed/documented | Setup unproven end-to-end | Do + document clean-room run | 1d |
-| 92 | Rehearse full demo w/ script + scenario | UNVERIFIED | MED | No demo script; `seed_demo` only | Demo risk | Write + rehearse script | 1d |
-| 93 | Measure time-to-first-result, no dev help | UNVERIFIED | MED | First-run claims "~20 min"; not measured | Unknown | Time a real new admin | 1d |
-| 94 | Documented browser/Chromebook/tablet/mobile regression | FAIL | MED | Not done; visual regression desktop-only | Cross-device unknown | Run + document regression | 2–3d |
-| 95 | Run all unit/integration/e2e/security/DB tests + record | PASS | — | I ran `npm test` → 25/25; CI green on `main`; migration-check + isolation + role-gate SQL + login/booking e2e in CI | Test discipline real | Keep; add SQL-gate tests (H-4) | — |
-| 96 | Manual regression of critical workflows after deploy | UNVERIFIED | HIGH | No post-deploy manual regression evidence | Regressions could ship | Run + record regression | 1d |
-| 97 | UAT by someone other than the builder | UNVERIFIED | HIGH | No evidence; single-builder project | Blind spots unfound | Independent UAT | 2–3d |
-| 98 | Resolve every Blocker/High + retest in deployed env | FAIL | **BLOCKER** | B-1…B-3 + H-1…H-8 open | Gate not met | Fix + retest | longer |
-| 99 | Tagged release + prod smoke w/ synthetic only | PARTIAL | MED | Only desktop app is tagged; dashboard/edge/DB "latest on main"; smoke-check is a parse gate | No release provenance | Tag releases + real prod smoke | 1d |
-| 100 | Documented go/no-go; no access while blocker/high/unverified-critical remains | FAIL | **BLOCKER** | Not satisfied — this report is the input to that decision | Must gate access | Make the go/no-go call | <1h |
+| Public claim (source) | Implementation reality | Verdict |
+|---|---|---|
+| I-9 & signatures "sealed with cryptographic signatures and a trusted timestamp"; public verify (`index.html`) | Real ECDSA P-256 + RFC 3161 + append-only audit + `verify.html` browser check (`services/document-sealing/src/index.ts`) | **Accurate** |
+| "tamper-evident hash chain" audit trail | Hash-chained compliance audit (`0227`) | **Accurate** |
+| Grounded vans can't be scheduled; assignments auto-removed | Grounding machinery + `vehicle_set_operational_status` (see P2-3 caveat) | **Accurate (function has an authz regression)** |
+| Amazon 2/14-day repair countdowns | Repair Center implemented | **Accurate** |
+| AI damage detection "each morning… compares photos" | `dvic-ai-review` exists; the "each morning" cadence not verified from repo | **Partly verified** |
+| Desktop app "saves an encrypted session" | Electron safeStorage **with a silent plaintext fallback** when OS crypto is unavailable (`desktop/agent.js`) | **Overstated (caveat)** |
+| "14-day free trial · No credit card · Onboard in a week" | No trial mechanism; plan is a label; billing is manual | **Unverifiable / manual promise** |
+| Terms: acceptance "by clicking 'I AGREE' during onboarding" (`terms.html`) | No such click-through exists in onboarding | **False** |
+| Terms: "published rates at gorouteready.com (currently starting at $350/month)" | No pricing page exists on the site | **False** |
+| Privacy: hiring SMS "commence only upon the applicant's affirmative reply" (double opt-in) | `webhook-apply` auto-sends screening SMS on intake by default; opt-**out** only (P2-7) | **False (TCPA exposure)** |
+| Privacy sub-processors list | Names Supabase/Twilio/Resend/Google/Indeed; **omits Anthropic, Fly.io, Cloudflare, LiveKit, Microsoft, Finch** (P2-8) | **Incomplete** |
+| Landing page restraint: "Product screens shown with demo data", "Not affiliated with Amazon" | Present and honest; no SOC2/uptime/customer-count claims | **Accurate & commendable** |
+| Settings → Billing shows a live subscription + invoices + card | **Fabricated**: hardcoded "RouteReady Pro $249/mo", three fake "Paid $249.00" invoices, "VISA •••• 4242", dead buttons (`views/view-settings.frag:766-793`) | **False (fake data shown to a paying customer)** (P2-14) |
+| In-app "Contact support" (Help menu) | Real mailto handler, but its only opener is inside a **duplicate** `#popover-account` that never resolves → unreachable; a working support thread does exist in Messages (P2-15) | **Partially broken** |
 
 ---
 
-## 6. Evidence for every Pass (what was actually proven)
+## 6. Critical-journey scorecard
 
-- **#1–3 (scope):** `docs/CUSTOMER-1-READINESS.md` and `docs/LAUNCH-AUDIT-2026-07-08.md`
-  define the Amazon-DSP customer, the minimum onboarding path (§M), and the launch
-  scope split (§N).
-- **#17 (tenant isolation, tables):** `supabase/tests/cross_tenant_isolation_test.sql`
-  stands up two tenants and proves read/insert/update/delete isolation as the real
-  `authenticated` role; it runs in `migration-check.yml` CI on every migration PR.
-  Isolation helpers `private.current_dsp_id()` / `is_staff()` are SECURITY DEFINER with
-  empty search_path (`0001_foundation.sql:113,136`).
-- **#26 (Smart Fill):** run report `_rrShowSfRunReport` (`live.js:66502`), diagnostics
-  report uncovered/skipped/unscheduled seats, and the full run **fails safe** when the
-  solver is down without touching the board (`live.js:69324`).
-- **#28 (PTO block):** approved-PTO assignment is blocked server-side in
-  `staff_assign_violations` (`0500`) and `assign_shift` raises `assign_blocked` unless
-  an explicit recorded override is passed, with a client confirm-override on top.
-- **#32 (forecast):** I hand-checked the formula against the documented examples
-  (`ceil(max(peak, week/days) × (1+pad))`): `72` and `62` both reproduce; the test
-  suite asserts the same and passes.
-- **#35 (calendar/DST):** `cal-tz.mjs` + `test-cal-tz.mjs` cover spring-forward gaps,
-  fall-back ambiguity, no-DST (Phoenix), and southern-hemisphere DST; native booking
-  uses an advisory lock + overlap check server-side (`0370`, `0403`).
-- **#38 (driver app scope):** every driver surface goes through `driver_*` RPCs
-  validated by `driver_validate_token`, scoping to one driver's id/dsp; no manager
-  surface is exposed. (The storage exception is B-1, tracked separately.)
-- **#42, #43, #47, #48 (UX safety):** ~186 loading/disabled sites, ~150 purpose-built
-  empty states, success toasts throughout, and ~130 specific destructive-action
-  confirms — all present in source.
-- **#71 (secrets):** full-repo scan found no committed private keys; `config.js` ships
-  the publishable anon key. `npm audit --omit=dev` = 0 production vulnerabilities.
-- **#81 (first-run):** `#rr-firstrun` welcome wizard with a 4-step get-started checklist
-  keyed to actual data progress, dismissal persisted to `metadata.first_run_dismissed_at`
-  (`view-dashboard.frag:8+`, `live.js:662`).
-- **#95 (tests run + recorded):** `npm test` → 25/25 suites pass (run in this audit);
-  `eslint .` clean; CI green across all workflows on `main`.
+Pass = proven; Partial = works with a real gap; Fail = broken/unsafe; Not Verified = couldn't test (usually live-state-blocked).
+
+| Journey | Result | Note |
+|---|---|---|
+| Org creation / provisioning (`admin_create_dsp`) | **Partial** | Clean, platform-admin-gated; not rehearsed clean-room end-to-end |
+| Login / logout / session / reset | **Partial** | Login e2e green (stubbed); idle timeout 30 min; live reset/expiry not tested |
+| Team invite + activation | **Partial** | `invite-team-member` gated; unthrottled; not live-rehearsed |
+| Roles / permissions / access removal | **Partial** | RLS + role gates real and CI-tested; MFA/authz residuals (P2-4, P2-6) |
+| Data import + error correction | **Partial** | Per-row inserted/skipped/errored; dedup email-only; large-file unverified |
+| Applicant → interview → hire → convert | **Partial** | Full ATS + booking e2e green; dedup thin; auto-SMS TCPA gap (P2-7) |
+| Onboarding docs / signatures / audit | **Pass** | Real cryptographic sealing + append-only audit + public verify |
+| Driver create/edit/status/terminate/rehire + history | **Partial** | CRUD + token auto-revoke on termination; history preserved; live smoke pending |
+| Availability / PTO / attendance / corrections | **Partial** | Approved-PTO server block is strong; attendance report scoped; live smoke pending |
+| Schedule create / Smart Fill / edit / publish / notify | **Partial** | Solver fails safe; **publish gate incomplete + opt-in (P2-1)** |
+| Cert / availability / rest / hours / rule enforcement | **Partial** | Gates real & tested, but **cover-offer + license-buffer ungated (P2-2)** |
+| Simultaneous edits / overwrite protection | **Pass** | Optimistic `assign_shift` + double-book trigger, CI-tested (`schedule_concurrency_test`) |
+| Van assign / substitution / repair / return-to-service | **Partial** | Real; `vehicle_set_operational_status` authz regression (P2-3) |
+| Driver check-in / offline / reconnect / duplicate | **Partial** | Strong offline queues + publish-gate empty state; dedupe gap on chat/scan/receipt (P2-13) |
+| Messaging / delivery / retry / opt-out / duplicate | **Partial** | Opt-out durable, dup-send atomic; provider-error stranding (P2-12); no send cap |
+| Email (send / receive / search / threads) | **Partial** | Real Resend send+inbound, good XSS model, RLS; ops gaps (P2-12) + placebo AI button |
+| Performance / coaching / corrective action | **Partial** | Implemented + role-scoped; live smoke pending |
+| Compliance expirations / reminders / resolution | **Partial** | Cron reminders + gates; H-5 buffer server-inert (P2-2) |
+| Reporting / filters / exports / reconciliation | **Partial** | Exports build from same RPCs; forecast hand-verified; live cross-check pending |
+| Settings / integrations / data export / deletion | **Partial** | Export + gated deletion work; but Settings → Billing is a fabricated page (P2-14) and the Help "Contact support" opener is dead (P2-15) |
+| Empty / first-run / error / offline states | **Pass** | First-run wizard, ~150 empty states, ~130 destructive confirms, honest schema banner |
+| Backup / restore / rollback | **Fail** | No proven backup, no restore drill, no rollback path (P1-1) |
+| Monitoring / alerting | **Fail** | Nothing pages a human (P1-2) |
+| Cross-tenant storage (driver PII) | **Not Verified (P0)** | Code fix shipped; closure migration unapplied/unverifiable (P0-1) |
 
 ---
 
-## 7. Prioritized remediation plan
+## 7. Security and tenant-isolation assessment
 
-**Phase 0 — Close the automatic no-go conditions (do first; ~1 week of focused work).**
-1. **B-1 storage:** Replace the three `anon` bucket-wide policies. Use the existing
-   correct pattern in the repo (`driver-document-fetch`: service-role fetch behind a
-   token ownership check), or scope the policy to the object path's `dsp_id`/`driver_id`
-   segment matching the calling driver token. At minimum, immediately drop the anon
-   `list`/`INSERT` grants. Then **re-run the isolation test extended to Storage**.
-2. **B-2 backups:** Enable Supabase PITR and **perform one real restore** to a scratch
-   project. Document the restore steps and time. Do not load customer data until done.
-   Step-by-step runbook: **`docs/B2-BACKUP-RESTORE-DRILL.md`**.
-3. **B-3 migrations:** Reconcile the live schema against the repo (apply all pending
-   MANUAL migrations, confirm via `rr_schema_version()`), bump `_RR_SCHEMA_EXPECTED` to
-   the true head, and make the drift banner **global** (not calendar-only). Adopt a
-   checklist so no migration ships without a confirmed apply.
+**The database isolation story is genuinely good and independently re-verified.** `cross_tenant_isolation_test.sql` stands up two tenants and, dropped to the real `authenticated` role, proves A cannot read/insert/update/delete B's drivers, I-9s, applicants, coachings, or SMS — and it runs in `migration-check.yml` on every migration PR (which also replays all 591 migrations from zero, doubling as a disaster-recovery rehearsal). CI on `main` is green. Edge webhooks (`webhook-email-inbound`/`-events`) are Svix-HMAC or bearer authenticated with timing-safe compares and fail closed if the secret is unset; `admin-delete-dsp` is platform-admin-gated and refuses self/co-admin deletion. The `0504` `revoke execute … from anon` holds and every post-`0504` anon grant is a token-validated driver RPC.
 
-**Phase 1 — Clear the Highs (before a normal launch; ~1–2 weeks).**
-4. **H-1 MFA:** Add an aal2 requirement to sensitive write policies/RPCs for users who
-   have a verified factor.
-5. **H-2 RPC authz sweep:** Audit the ~500 SECURITY DEFINER RPCs for an explicit
-   `is_staff(current_dsp_id(), <min_role>)` gate; add the missing ones.
-6. **H-3 publish gate:** Add a `finalized`/`published` filter to `driver_my_schedule`
-   and make Smart-Fill writes land in a draft state until published.
-7. **H-4 EDV + gate tests:** Add EDV to the SQL compliance gates and build the first
-   **automated tests over the SQL gates** (this is the root-cause fix that stops the
-   next rule from drifting).
-8. **H-5 license buffer:** Enforce the license-protection window server-side.
-9. **H-6 alerting:** Point an uptime monitor at `/health`; wire `client_errors`,
-   `rr_cron_health()`, and `push_delivery_failures` to a real alert (email/Slack/PagerDuty).
-   Uptime-monitor runbook (the endpoint already ships): **`docs/H6-UPTIME-MONITORING.md`**.
-10. **H-7 support:** Make "Contact support" actually reach you; publish a one-page
-    customer quickstart.
-11. **H-8 legal:** Correct the sub-processor list (add Supabase, remove Airtable/Cal.com).
+**But the storage layer and several server gates are where the risk lives:**
 
-**Phase 2 — Mediums that matter for a real (not demo) dataset.**
-Pagination/virtualization (#59/#64), integration timeouts (#67), duplicate detection
-(#22/#33/#37), low-confidence AI review gate (#34), unsaved-work guard (#46), send-rate
-caps (#74), SSRF fix + CSP tightening (#73), rollback/staging (#70).
+- **P0-1 — cross-tenant driver-PII via Storage (Not Verified closed in prod).** Four buckets (`driver-documents`, `driver-photos`, `driver-chat-attachments`, `receipts`) shipped with bucket-wide `anon SELECT` policies (`0079`/`0446`/`0072`/`0435`). The anon key ships in the browser + driver app, so any holder can sign/enumerate every tenant's license images, face photos, chat files, and receipts. The remediation is real and correct — `0561` + `driver-file-sign` (ownership-checked, tenant-scoped, service-role signing) + the app switchover — and `0562`/`0567` drop the anon reads. **But `0562` is a manual, device-QA-gated migration that the launch checklist shows unchecked, and I cannot reach the live DB to confirm it.** Until applied and proven, this is a live P0.
+- **P2-5 — residual anon storage INSERT.** After `0562`/`0567`, anon INSERT remains **bucket-wide** on `driver-documents`, `driver-chat-attachments`, `receipts` (no path/tenant predicate). An anon-key holder can plant arbitrary objects into any tenant's path prefix — content-planting into staff-rendered document lists and unauthenticated storage-quota abuse. No read, no overwrite (INSERT only).
+- **P2-4 — MFA server-enforcement is narrow and bypassable.** `mfa_ok()` gates only 3 settings RPCs and is opt-in; and an owner at aal1 can PATCH `dsps.metadata` directly (`dsps_owner_update` RLS, `0001`) to flip `security.require_mfa` off. The exact stolen-owner-password attack MFA targets is circumventable in one request. The dashboard already PATCHes `dsps.metadata` from the client, so the path is live.
+- **P2-6 — driver-role read exposure (H-2 residual).** Write-gating shipped (23 RPCs in `0564`, CI-tested), but a `role='driver'` `app_user` can still SELECT the full roster, all shifts, `compliance_workspace_bundle`, and the **entire team email inbox** (`email_messages_tenant_select`). `email_rules` writes aren't staff-gated (a driver-role user could reroute team mail). Likelihood hinges on whether driver-role dashboard logins are provisioned.
+- **P2-3 — `0539` authz regression.** `vehicle_set_operational_status` is re-created in `0539` **without** the `is_staff` gate and granted to `authenticated`; `0564` adds the gate, but re-running `0539` (idempotent hand-paste) or applying it after `0564` silently un-gates it → a driver-role user can ground/unground vans. Self-inflicting on re-run; violates the repo's "re-running any migration is safe" doctrine.
 
-**Phase 3 — Validation gates.**
-Clean-room rehearsal (#91), scripted demo (#92), time-to-first-result (#93),
-cross-device regression (#94), independent UAT (#97), tagged release + prod smoke (#99),
-then the documented go/no-go (#100).
+Transport/headers are solid: enforced CSP (with `unsafe-inline` — the one soft spot), HSTS, `object-src 'none'`, `frame-ancestors 'self'`, parity-checked across both hosts. Tokens live in localStorage (XSS-reachable) rather than cookies — accepted given the CSP + vendored supabase-js compensating controls.
+
+**No cross-tenant *database* read path was found.** The exposure surface is Storage (P0-1/P2-5) and intra-tenant role escalation (P2-3/P2-4/P2-6).
 
 ---
 
-## 8. Recommended order for fixing problems
+## 8. Reliability and data-integrity assessment
 
-1. **B-1** (stop the PII leak) — highest blast radius, ~1 day.
-2. **B-3** (reconcile schema + fix drift banner) — everything else assumes the DB
-   matches the code.
-3. **B-2** (PITR + tested restore) — before any real data lands.
-4. **H-1, H-2** (server-side authz/MFA) — the other half of "isolation."
-5. **H-3, H-4, H-5** (schedule/cert correctness at the server) — protects operations.
-6. **H-6** (alerting) — so you find the next problem before the customer does.
-7. **H-7, H-8** (support + legal) — customer-facing trust.
-8. Phase-2 Mediums, then Phase-3 validation, then the go/no-go.
+**Strong:** migrations replay cleanly from zero in CI (proven this run indirectly via the green gate + all suites); concurrent schedule edits are protected by an optimistic `assign_shift` + a same-day double-book trigger (CI-tested); Smart Fill **fails safe** when the solver is down (board untouched, honest run report); approved-PTO assignment is blocked server-side with a recorded-override requirement; the solver has 97 passing tests including stress (110 drivers); forecast math is hand-verified and tested; calendar/DST is tested (spring/fall/Phoenix/southern); email dup-send is atomic (conditional claim + unique index) with a stuck-send requeue cron; the driver app has five concurrency-guarded offline queues with server-idempotent form/checkin replay.
 
----
-
-## 9. Retest checklist
-
-- [ ] **Storage:** With only the public anon key, attempt to `list` and
-  `createSignedUrl` on `driver-documents`/`driver-photos`/`driver-chat-attachments`
-  across two tenants → must return **zero** cross-tenant objects. Extend
-  `cross_tenant_isolation_test.sql` to cover Storage and keep it in CI.
-- [ ] **Backups:** Restore the live project to a scratch instance from PITR; confirm a
-  known synthetic row is present; record the elapsed time.
-- [ ] **Migrations:** `select rr_schema_version();` on prod equals repo head; the
-  drift banner shows on every page when behind; a deliberately-behind test tenant
-  triggers it.
-- [ ] **MFA:** A user with a verified factor cannot read tenant data via a raw aal1
-  API token.
-- [ ] **RPC authz:** A `driver`-role app_user cannot call a staff RPC (spot-check 10
-  representative SECURITY DEFINER functions).
-- [ ] **Publish gate:** A driver's schedule feed returns nothing for an unpublished
-  week; publishing reveals it.
-- [ ] **EDV/license:** A manual assign, self-pickup, and swap of an uncertified driver
-  onto an EDV route is refused server-side; a driver whose license lapses mid-week is
-  refused within the buffer window. SQL-gate tests pass in CI.
-- [ ] **Alerting:** Kill a cron / force an error → an alert reaches a human.
-- [ ] **Support:** "Contact support" opens a working channel; quickstart is reachable.
-- [ ] **Legal:** privacy.html/terms.html name Supabase and omit Airtable/Cal.com.
-- [ ] **Scale:** With 100+ drivers and 13 weeks of data, roster/attendance/messages
-  render without fetching >2k rows per view and stay responsive.
-- [ ] **Clean room + UAT:** A brand-new org reaches first meaningful result, driven by
-  someone other than the builder, without coaching.
+**Gaps:**
+- **P1-1 — no proven backup/restore.** PITR + a restore drill are unchecked; the repo's own runbook says "treat the data as unrecoverable and do not onboard a paying customer." For a custodian of another business's I-9s, this is the single biggest risk.
+- **P1-3 / B-3 — hand-applied migrations, no staging.** One prod project; `0560`–`0567` unconfirmed-applied; the drift banner is now global and synced to 570 (code fixed), but the *process* still allows a tenant to run code against a schema it lacks — and the `0539` regression shows how paste order creates silent security drift.
+- **P2-12 — email provider-error handling.** Any non-OK Resend response (incl. transient 429/5xx) marks the row `failed` permanently; recovery is a manual per-message Retry (no backoff/auto-retry). Immediate-send also depends on manual GUC/cron setup outside migrations — if unconfigured, mail queues forever while the UI says "sends within a minute."
+- **P2-13 — offline replay dedupe.** The chat/scan/receipt queues delete on response, not via an idempotency key, so a commit whose response is lost to a network drop can duplicate.
+- Integration timeouts are inconsistent (send-* hardened; solver/gcal/AI paths use bare fetch).
 
 ---
 
-## 10. What must happen before Ryan gives a customer access
+## 9. Usability and customer-trust assessment
 
-> **The code-closeable fixes from this audit are now merged and deployed
-> (PR #4123).** What remains is operator execution — tracked as a single
-> ordered, checkable list in **`docs/LAUNCH-READINESS-CHECKLIST.md`** (which
-> carries the correct on-`main` migration numbers, `0560–0567`). The
-> non-negotiables below are unchanged.
+**Boots clean, renders clean.** In a stubbed browser run every major view (dashboard, schedule, drivers, fleet, repair, workbooks, notebooks, messages, email, onboarding, settings) rendered with purpose-built empty states and **zero page errors**; no horizontal overflow at desktop (1440px) or mobile (390px). The only console error was the (harmless, expected) realtime WebSocket failing behind the proxy. The design system is real and ratchet-enforced; ~150 empty states, ~130 destructive-action confirms, loading/disabled states throughout; a genuine 4-step first-run wizard keyed to real data progress.
 
-Non-negotiable, in order:
+**Trust wins since the prior audit:** the schema-drift banner is now **global** (every page) and **honest** (`_RR_SCHEMA_EXPECTED = 570`, tells the operator exactly which SQL to run); a real `rrContactSupport` mailto handler exists (`live.js:5364`,`5386`); and a working in-product "RouteReady Support" conversation thread renders in Messages.
 
-1. **Fix the storage exposure (B-1)** and prove — with the public key, against two
-   tenants — that no driver document, photo, or chat file crosses tenants.
-2. **Enable PITR and complete one real restore (B-2).** A backup you've never restored
-   is not a backup.
-3. **Reconcile the live database to the repo and make schema-drift visible everywhere
-   (B-3).** Confirm every pending MANUAL migration is applied.
-4. **Enforce authorization on the server, not just the UI (H-1, H-2):** MFA gates the
-   API for enrolled users, and staff RPCs check role, not just tenant.
-5. **Add a draft/publish gate so drivers never see an unfinished schedule (H-3);
-   close the EDV and license-buffer server gaps and put the SQL compliance gates under
-   test (H-4, H-5).**
-6. **Wire real alerting (H-6)** so an outage pages you, not your customer.
-7. **Make support real (H-7)** and **correct the legal documents (H-8).**
-8. **Run the validation gates:** clean-room setup, independent UAT, cross-device
-   regression, a tagged release with production smoke — then make and **write down** the
-   go/no-go decision (#91–#100).
+**Two trust regressions this audit found that the in-repo audit recorded as fixed:**
+- **P2-15 — the Help-menu "Contact support" is unreachable.** The real mailto handler's only opener lives inside a **duplicate** `<div id="popover-account">` (`index.html:4475`, the real one is `:1625`); `getElementById` always resolves to the first, so the second popover — and the only opener of `modal-help` — can never open. The obvious in-app support entry point is dead; support survives only via the Messages thread and footer emails.
+- **P2-14 — Settings → Billing is a fabricated page.** A reachable Settings tab shows a hardcoded "RouteReady Pro $249/mo · next charge May 30", three fake "Paid $249.00" invoices, a "VISA •••• 4242" card, and "Manage subscription"/"Download"/"Update" buttons with **no handlers** (`views/view-settings.frag:766-793`). This directly contradicts "no fake data reaches customers" and is the single weakest customer-trust surface in the product — a paying customer would see invoices and a card that are not theirs.
 
-Until at least items 1–7 are done and retested in the deployed environment, the product
-meets multiple automatic no-go conditions (cross-tenant data exposure, no proven
-backup, a realistic path to schema drift, and core-workflow gaps).
+**Residual polish (P3):** `mock-wiring.js` (278 KB dead-code) still loads in boot; the fully-orphaned pure-mock `view-build.frag` (fake driver names, toast-only "Auto-dispute filed with payroll") is still bundled (unreachable, so it can't show a customer fake data — but should be deleted); the launcher's "Indeed Import" opens a file picker then toasts "upload wiring coming soon"; one "OKAMI" codename in a launcher label; the email "AI" sparkle is a decorative placebo; ~50+ user-visible toasts reference internal migration ordinals ("apply migration 0539") — deliberate house style for a self-hosted operator but jargon nonetheless. **Observability gap:** best-effort error swallowing is pervasive — ~483 `catch (_) {}` + ~106 bare `catch {}` blocks in `live.js` vs only 11 `_rrSwallow`/2 `rpcOrToast` adoptions, so most silent failures never reach `client_errors` (global `window.onerror` still catches uncaught ones). Not verified: accessibility depth, zoom, screen-reader, and cross-device responsive regression (visual baselines are desktop-only).
 
 ---
 
-**Ryan should not give a customer access yet because:** driver government-ID images are
-exposed across tenants through the storage layer (B-1); there is no proven backup or
-tested restore (B-2); the hand-applied migration process has already skipped migrations
-in production and the drift detector is 30 versions stale (B-3); MFA and much of the
-API authorization are enforced only in the interface, not the server (H-1, H-2);
-schedules go live to drivers with no publish gate and a certification rule is missing
-from the server (H-3, H-4); nothing alerts a human when any of this breaks (H-6); and
-the in-app support channel is non-functional (H-7). The operational core is genuinely
-strong and much of this is fixable in roughly two to three focused weeks — but as it
-stands today, the answer is no.
+## 10. Performance and scaling assessment
+
+- **Bundle weight:** `live.js` 5.86 MB, `workbook.js` 1.38 MB, `mock-wiring.js` 278 KB — heavy first load, tokened+immutable-cached, but unmeasured for real first-paint/TTI.
+- **Fetch-everything queries (P2-9):** 12 `.limit(2000–20000)` sites and only **3** `.range()` uses across `live.js`; roster falls back to a 20k-row fetch every 30 s on an unmigrated tenant. Works in a demo; degrades as a real DSP's history grows.
+- **No pagination/virtualization** on the big lists; realtime is correctly tenant-filtered on all 16 subscribed tables (good — no cross-tenant repaint storms).
+- **Solver** stress-tested to 110 drivers (Python side); **no dashboard/DB load test** exists at 30–200 drivers or 50+ tenants.
+
+Separate pilot concern (bundle weight, unmeasured perf) from GA concern (pagination, load test, send quotas).
+
+---
+
+## 11. Operational and commercial-readiness assessment
+
+**Deploy automation is strong; the human safety net is not.**
+- **Deploy:** static hosts + edge functions + solver + sealing Worker + desktop all auto-deploy on merge with gated workflows; DB migrations are manual (confirmed no-op DB step). **No staging, no documented rollback.**
+- **Monitoring (P1-2):** nothing pages a human. No APM/Sentry/uptime SDK; `/health` is a real endpoint with no consumer; `client_errors` is pull-only (admin modal); `rr_cron_health()` and `push_delivery_failures` are never read. `docs/H6-UPTIME-MONITORING.md` is a runbook, unchecked.
+- **Backups (P1-1):** runbook only, unexecuted.
+- **Billing:** none by design (manual invoicing for customer #1 — acceptable at this stage); entitlements are CSS-only (fine for one tenant, trivially bypassable at GA).
+- **Offboarding:** data export + account deletion both work and are properly gated.
+- **Support:** in-app mailto + support thread + footer emails. No ticketing/status page/published hours.
+- **IR/breach (P2-11):** no incident-response or breach-notification runbook behind the privacy policy's 72h/48h promises.
+- **Legal (P2-7/P2-8):** wrong/incomplete sub-processor list; a policy-stated double-opt-in the code doesn't implement; terms cite a nonexistent click-through and nonexistent pricing page.
+- **Tenant support without touching private data:** partial — platform-admin tooling + the client-errors modal exist, but no per-tenant diagnostic surface.
+
+---
+
+## 12. All findings, ordered by severity
+
+### P0 — Critical (automatic no-go)
+
+**P0-1 · Cross-tenant driver-PII disclosure via Storage — not verified closed in production.**
+- **Module/persona:** Storage / all tenants' drivers (license images, face photos, chat attachments, receipts).
+- **Workflow:** any client with the public anon key calls Storage `list`/`createSignedUrl` on the driver buckets.
+- **Expected:** a client can only access its own tenant's files. **Actual (per migration SQL):** `0079`/`0446`/`0072`/`0435` grant bucket-wide `anon SELECT`; the anon key is public (`dashboard/config.js:12`). The fix (`0561` + `driver-file-sign` + app switchover + `0562`/`0567` policy drops) is shipped in the repo, but `0562` is a **manual, device-QA-gated migration shown unchecked** in `docs/LAUNCH-READINESS-CHECKLIST.md:33`, and this environment cannot reach the live DB to confirm application.
+- **Evidence:** `0079_driver_self_serve.sql:41`, `0446_private_driver_photos.sql:62`, `0072_driver_chat_attachments.sql:117`, `0435_receipt_intake.sql:178`; drops in `0562_drop_anon_storage_reads.sql:26-28` + `0567_drop_receipts_anon_read.sql:34`; `driver-file-sign/index.ts` + `0561_driver_file_ownership.sql` (verified correct).
+- **Impact:** enumeration/download of every DSP's driver government-ID images. **Likelihood:** high if `0562` is not yet applied.
+- **Min fix:** apply `0562` + `0567` in prod after the device-QA in `docs/B1-STORAGE-SIGNING-RUNBOOK.md`; then, with only the anon key across two tenants, confirm `list`/`createSignedUrl` returns **zero** cross-tenant objects. **Effort:** Small (apply + verify). **Validation:** the two-tenant anon probe returns nothing cross-tenant; ideally extend `cross_tenant_isolation_test.sql` to Storage.
+
+### P1 — Launch blockers
+
+**P1-1 · No proven backup / tested restore.** No PITR/restore evidence; repo runbook (`docs/B2-BACKUP-RESTORE-DRILL.md:99-108`) is entirely unchecked and says "do not onboard a paying customer" until done. *Impact:* unrecoverable loss of a customer's HR/I-9 data. *Fix:* enable PITR + run one non-destructive restore drill, record RTO/retention. *Effort:* Medium. *Validation:* restore a known synthetic row into a scratch target; time it.
+
+**P1-2 · Nothing alerts a human.** No APM/uptime; `/health` unconsumed; `client_errors` pull-only; `rr_cron_health()`/`push_delivery_failures` never read (`docs/H6-UPTIME-MONITORING.md` unchecked). *Impact:* the founder learns of an outage from the customer. *Fix:* point an uptime monitor at `/health` and wire one alert channel to the error/cron tables. *Effort:* Small. *Validation:* kill a cron / force an error → an alert reaches a phone.
+
+**P1-3 · Hand-applied migrations, unconfirmed applied, no staging (B-3 process half).** `0560`–`0567` unchecked; one prod project; the `0539` regression shows paste-order security drift. The drift banner is now global+synced (code half fixed). *Impact:* a tenant runs code against a schema it lacks. *Fix:* apply all pending migrations, confirm `rr_schema_version()` = head, adopt a confirmed-apply checklist. *Effort:* Small (reconcile) + ongoing process. *Validation:* `select rr_schema_version()` on prod equals repo head; banner clears.
+
+### P2 — Important (workable short-term, fix before unsupervised use)
+
+**P2-1 · Publish gate incomplete and opt-in.** Only `driver_my_schedule` respects `require_finalized_for_drivers`; `driver_open_shifts_list`/pickup, swap pool, and pending-confirmation RPCs ignore it — with the gate ON a driver can still see and pick up unpublished-week shifts. Default off → schedules are live to drivers the instant written. *Evidence:* `0563_driver_schedule_publish_gate.sql:92-100`; `0201` pickup, `0203` swap, `0322` confirmations lack the check. *Fix:* thread the finalize check through all driver-facing schedule RPCs; consider default-on. *Effort:* Medium. *Validation:* gate ON → pickup/swap/confirmation return nothing for an unpublished week.
+
+**P2-2 · EDV/license enforcement has ungated paths.** (a) `driver_offer_respond` (cover-offer accept) assigns `shifts.driver_id` with **no** cert/license/PTO gate (`0198_cover_shifts.sql:523`, never re-issued); (b) the H-5 license-buffer is **server-inert** — `dl_protection_days` is written only to localStorage (`live.js:60386`), never to `dsps.metadata.scheduling.dl_protection_days` that `0560` reads, so the server always sees buffer=0; (c) `apply_optimization_run` + direct `shifts` PATCH bypass the gates (staff-trust). *Fix:* add the `driver_can_take_shift`-class check to `driver_offer_respond`; persist `dl_protection_days` to `dsps.metadata`. *Effort:* Medium. *Validation:* an uncertified driver cannot accept an EDV cover offer; a lapsing license is refused within the configured window on assign/pickup/swap.
+
+**P2-3 · `0539` re-gates a privileged RPC out.** `vehicle_set_operational_status` created without `is_staff` and granted to `authenticated` (`0539_fleet_inventory_foundation.sql:181-245`); un-gated on re-run or if applied after `0564`. *Fix:* add the gate to `0539`'s body or ship a re-assert migration. *Effort:* Small. *Validation:* a driver-role user gets `42501` on ground/unground; `rpc_role_gate_test.sql` extended to cover it.
+
+**P2-4 · MFA narrow + bypassable.** Gates 3 settings RPCs; owner at aal1 can PATCH `dsps.metadata` to disable `require_mfa` (`0001:164-167`). *Fix:* exclude `metadata.security` from ungated aal1 owner updates; broaden `mfa_ok()` to sensitive mutators. *Effort:* Medium. *Validation:* an aal1 owner cannot flip `require_mfa` or perform a gated mutation.
+
+**P2-5 · Residual bucket-wide anon INSERT** on `driver-documents`/`driver-chat-attachments`/`receipts`. *Fix:* path/tenant-scope the INSERT `with check`, or route uploads through an edge function. *Effort:* Medium. *Validation:* anon cannot INSERT into another tenant's path prefix.
+
+**P2-6 · Driver-role read exposure.** A `role='driver'` `app_user` can read roster/shifts/team email inbox; `email_rules` writes not staff-gated. *Fix:* add role predicates to sensitive SELECT policies; staff-gate `email_rules` writes. *Effort:* Medium. *Validation:* a driver-role session cannot SELECT the roster or team inbox.
+
+**P2-7 · TCPA / privacy-policy mismatch.** `webhook-apply` auto-sends screening SMS on intake by default (opt-out only) while the policy claims double opt-in. *Fix:* either implement the YES-gate or correct the policy to describe prior-express-consent-on-application + opt-out. *Effort:* Small. *Validation:* policy text matches implemented consent flow.
+
+**P2-8 · Legal sub-processors/claims incomplete.** Add Anthropic, Fly.io, Cloudflare, LiveKit, Microsoft, Finch; remove the nonexistent "I agree" click-through and the "$350/month published rates" reference (or publish pricing). *Effort:* Small. *Validation:* docs name every processor actually in the stack; no reference to nonexistent flows.
+
+**P2-9 · No pagination/virtualization; fetch-everything queries.** *Fix:* server-side paging/aggregation for roster/attendance/messages. *Effort:* Large. *Validation:* views render at 100+ drivers × 13 weeks without pulling >2k rows.
+
+**P2-10 · No rollback/staging; single prod project.** *Fix:* document a rollback runbook; stand up a staging project. *Effort:* Medium. *Validation:* a rehearsed rollback of a bad deploy.
+
+**P2-11 · No IR/breach runbook** behind the policy's 72h/48h promises. *Fix:* write an IR + rotation playbook. *Effort:* Small.
+
+**P2-12 · Email provider-error stranding + no send cap.** Transient Resend errors → permanent `failed`; no outbound quota on the shared domain; immediate-send depends on manual GUC/cron. *Fix:* backoff/auto-retry on transient errors; per-DSP send cap; move the drain cron/GUCs into a migration. *Effort:* Medium.
+
+**P2-13 · Offline replay dedupe gap** on chat/scan/receipt queues. *Fix:* client idempotency key + server dedupe. *Effort:* Small.
+
+**P2-14 · Settings → Billing is a fabricated page.**
+- **Module/persona:** Settings / DSP owner. **Workflow:** owner opens Settings → Billing.
+- **Expected:** real subscription/invoices or an honest "billed manually" notice. **Actual:** hardcoded "RouteReady Pro $249/mo · next charge May 30", three fake "Paid $249.00" invoices (Apr/Mar/Feb 2026), "VISA •••• 4242", and "Manage subscription"/"Download"/"Update" buttons with no handlers.
+- **Evidence:** `dashboard/views/view-settings.frag:766-793`; grep for the button handlers returns nothing.
+- **Impact:** a paying customer sees fabricated financial records and a card that isn't theirs — a direct credibility hit for a paid product; contradicts the "no fake data reaches customers" posture. **Likelihood:** high (reachable tab). *Fix:* hide the Billing tab, or replace with the honest signup-wizard copy ("billed manually / we'll connect real billing"). *Effort:* Small. *Validation:* Settings → Billing shows no fabricated invoices/card.
+
+**P2-15 · Help-menu "Contact support" is unreachable.**
+- **Module/persona:** Help / any user. **Workflow:** open the account/help menu → "Contact support".
+- **Expected:** the support mailto opens. **Actual:** the only opener of `modal-help` sits inside a **duplicate** `<div id="popover-account">` (`index.html:4475`); `getElementById` resolves to the first (`:1625`), so that popover never opens. The real `rrContactSupport` handler (`live.js:5364`) is never reached from the Help menu.
+- **Impact:** the obvious in-app support path is dead (support survives via the Messages "RouteReady Support" thread + footer emails, so this is degraded, not absent). **Likelihood:** high. *Fix:* remove the duplicate popover / attach the Help item to the real account popover. *Effort:* Small. *Validation:* clicking "Contact support" opens the mailto.
+
+### P3 — Polish (do not delay the pilot)
+
+- `mock-wiring.js` (278 KB) still in the boot path — remove or lazy-gate.
+- `view-build.frag` (33 KB) fully orphaned pure-mock ("Time Theft Analyzer", fake driver names, toast-only "Auto-dispute filed") — unreachable, so no customer fake data, but delete it.
+- Launcher "Indeed Import" opens a file picker then toasts "upload wiring coming soon" (a real CSV bulk-ingest exists elsewhere) — wire or remove it.
+- Swallowed errors: adopt `_rrSwallow`/`rpcOrToast` in the ~589 bare `catch` blocks so best-effort failures reach `client_errors`.
+- One "OKAMI" codename in a user-visible launcher label (`index.html:1914`); rename to "13-week planner."
+- Email reading-pane "AI" sparkle is a decorative placebo — hide until wired.
+- Desktop agent silent plaintext session fallback — warn the user when OS crypto is unavailable.
+- "No front image yet" mislabel when file signing fails.
+- Custom sending domain stored but not routed (label it "pending DNS verification").
+- Inbound email lacks hard DMARC enforcement (spoofed senders can land in applicant threads).
+- CSP `unsafe-inline` — tighten toward nonces over time.
+- Schema-drift banner copy exposes migration mechanics — soften for unsupervised tenants.
+
+---
+
+## 13. The ten highest-priority fixes
+
+1. **Apply + verify `0562`/`0567`** and prove no cross-tenant file access with the anon key (**P0-1**).
+2. **Enable PITR + run one restore drill**, record RTO (**P1-1**).
+3. **Wire one uptime monitor + one alert channel** to `/health` and the error/cron tables (**P1-2**).
+4. **Reconcile the live schema** to head and confirm every `0560`–`0567` is applied (**P1-3**).
+5. **Gate `driver_offer_respond`** with cert/license checks and **persist `dl_protection_days`** to `dsps.metadata` (**P2-2**).
+6. **Re-assert the `is_staff` gate on `vehicle_set_operational_status`** in `0539` (**P2-3**).
+7. **Complete the publish gate** across pickup/swap/confirmation RPCs (**P2-1**).
+8. **Close the MFA bypass** — exclude `metadata.security` from ungated aal1 owner updates (**P2-4**).
+9. **Correct the legal docs** — sub-processors, TCPA consent language, nonexistent click-through/pricing (**P2-7/P2-8**).
+10. **Path-scope the residual anon storage INSERT** policies (**P2-5**).
+
+---
+
+## 14. Items that are already genuinely customer-ready
+
+- **Table-level tenant isolation** — CI-proven read/write isolation across two tenants on every migration PR; migrations replay from zero.
+- **Scheduling solver + Smart Fill** — 97 pytest + 90 engine tests; fails safe when the solver is down; honest run report.
+- **Concurrent-edit protection** — optimistic `assign_shift` + double-book trigger, CI-tested.
+- **Approved-PTO block** — server-enforced with recorded-override + client confirm.
+- **Forecast math** — hand-verified against documented examples; 43+ forecast tests.
+- **Calendar/DST** — tested across spring/fall/Phoenix/southern hemisphere; native booking uses advisory lock + overlap check.
+- **Document sealing / e-signature** — real ECDSA P-256 + RFC 3161 timestamp + append-only audit + public in-browser verification. The headline claim is accurate.
+- **Email system core** — real Resend send/inbound/events, sandboxed-iframe + CSP XSS model, tenant RLS, authenticated webhooks, atomic dup-send protection, idempotent inbound.
+- **Driver PWA** — five offline queues, publish-gate empty state, push-subscription resilience, token auto-revoke on termination, no PII in logs/URLs (token only in `#fragment`).
+- **First-run wizard, empty states (~150), destructive confirms (~130), honest global schema banner, working Messages support thread.**
+- **Data export + gated account deletion** (`export_my_dsp_data` / `export-tenant-files` / `admin-delete-dsp`).
+- **Test/CI discipline** — 27 node suites, 97 pytest, 90 engine, 4 Playwright e2e suites, 13 SQL gate tests in `migration-check`, all green.
+
+---
+
+## 15. Test coverage gaps and unverified assumptions
+
+**Commands run this session (all local):**
+- `npm install` → ok · `npm test` → **27/27 pass** · `eslint .` → clean · `npm run smoke` → pass · `node scripts/design-lint.mjs` → held · `node scripts/check-migration-ordinals.mjs` → pass (banner synced 570) · `npm audit --omit=dev` → **0 vulns**.
+- `pytest solver-service/tests` → **97 passed** · `engine` `npm test` → **90 pass/0 fail**.
+- Playwright: login **3/3**, email **4/4**, booking **2/2**, driver-app **9/9**.
+- Stubbed browser journey (11 views) → all render, **0 page errors**, no overflow at 1440px/390px.
+- GitHub API → `main` CI last 30 runs all `success`.
+
+**Not verified (needs live env / device / operator):**
+- Whether `0560`–`0567` (esp. `0562`/`0567`) are applied in the live DB — **the crux of P0-1/P1-3**.
+- Live cross-tenant storage probe with the real anon key.
+- Real backup existence and restore time.
+- Live email send/receipt, transactional-email rendering, bounce handling end-to-end.
+- Whether driver-role `app_user` dashboard logins are provisioned (governs P2-3/P2-4/P2-6 likelihood).
+- Cross-device responsive/zoom/screen-reader accessibility.
+- Dashboard/DB behavior at 100–200 drivers and 50+ tenants.
+- Clean-room org creation end-to-end and independent UAT.
+
+**Coverage gaps in the codebase:** the SQL compliance gates now have tests (`cert_gate`/`rpc_role_gate`/`mfa_gate`/`publish_gate`), but the send pipeline, both email webhooks, and the XSS render path have no automated tests; there is no dashboard load test.
+
+---
+
+## 16. Phased plan
+
+**Before the first paying customer (days):**
+1. Apply + verify `0562`/`0567`; two-tenant anon storage probe returns nothing cross-tenant (**P0-1**).
+2. Enable PITR + one restore drill with recorded RTO (**P1-1**).
+3. Uptime monitor on `/health` + one alert channel wired to error/cron tables (**P1-2**).
+4. Reconcile schema to head; confirm `rr_schema_version()` = 570 (**P1-3**).
+5. Re-gate `vehicle_set_operational_status` (**P2-3**); gate `driver_offer_respond` + persist `dl_protection_days` (**P2-2**); close the MFA bypass (**P2-4**).
+6. Correct legal docs (sub-processors, TCPA, phantom click-through/pricing) (**P2-7/P2-8**).
+7. Remove the fabricated Settings → Billing page (**P2-14**) and fix the dead Help "Contact support" opener (**P2-15**) — both Small, both direct trust hits a paying customer will see.
+
+**During the first 30 days of a paid pilot:**
+- Complete the publish gate across pickup/swap/confirmation (**P2-1**); path-scope anon storage INSERT (**P2-5**); close driver-role read exposure (**P2-6**).
+- Email provider-error backoff + per-DSP send cap + move drain cron/GUCs into a migration (**P2-12**); offline replay idempotency (**P2-13**).
+- IR/breach runbook (**P2-11**); document a rollback path (**P2-10**).
+- Time a real clean-room onboarding; scrub the P3 polish (mock-wiring, OKAMI label, placebo AI button).
+
+**Before unsupervised production use:**
+- Pagination/virtualization + server aggregation (**P2-9**); dashboard load test at 100–200 drivers.
+- Stand up a staging Supabase project; automate migration apply with confirmation.
+- Cross-device responsive + accessibility regression; independent UAT.
+
+**Before general availability (multi-DSP):**
+- Server-enforced entitlements (replace CSS-only gating); server-side send quotas on shared email/SMS domains.
+- Repeatable tenant provisioning + demo tenant; tagged releases with production smoke; SOC2-track controls if claimed.
+
+---
+
+## 17. Final answer
+
+**CONDITIONAL GO for a founder-assisted paid pilot** — conditional on closing, and *verifying in production*, three gates the code cannot close for you: (1) apply `0562`/`0567` and prove no cross-tenant file access with the anon key (**P0-1**); (2) enable PITR and run one restore drill (**P1-1**); (3) wire live alerting (**P1-2**) — plus the short remediation pass on the partial fixes (P2-1…P2-4). Until P0-1 is verified closed in production, the strict reading is **NO-GO**, because an unclosed cross-tenant PII exposure is an automatic no-go regardless of how strong everything else is. Everything required is days of work, not a rebuild.
+
+**RouteReady is not ready for a paying DSP customer because the cross-tenant driver-PII storage exposure has a shipped-but-unapplied fix that cannot be confirmed live, there is no proven backup or tested restore, nothing alerts a human when something breaks, and three of the security fixes the product records as "done" (the schedule publish gate, the EDV/license enforcement, and MFA server-enforcement) shipped with real gaps — but its operational core is genuinely strong, none of these are architectural, and closing the three operator gates plus a short remediation pass would make it ready.**
