@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=1aadff7e1831";
-import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=1aadff7e1831";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=1aadff7e1831";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=1aadff7e1831";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=1aadff7e1831";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=1aadff7e1831";
-import { isChecklistComplete } from "./checklist-core.mjs?v=1aadff7e1831";
+import { planScheduleWeek } from "./scheduling-engine.js?v=e09c2d6d3108";
+import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=e09c2d6d3108";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=e09c2d6d3108";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=e09c2d6d3108";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=e09c2d6d3108";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=e09c2d6d3108";
+import { isChecklistComplete } from "./checklist-core.mjs?v=e09c2d6d3108";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=1aadff7e1831";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=1aadff7e1831";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=1aadff7e1831";
+} from "./msg-core.mjs?v=e09c2d6d3108";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=e09c2d6d3108";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=e09c2d6d3108";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -95149,9 +95149,9 @@ document.addEventListener("click", (e) => {
   // state), LEGACY is the pre-migration floor. Tiered so a DB that has
   // 0535 but not 0536 degrades one step, not all the way (dropping
   // is_read would silently un-read every message).
-  const SELECT_FULL   = "id, from_email, from_name, to_email, cc_emails, subject, body_text, body_html, direction, status, error_message, is_read, is_starred, snoozed_until, has_attachments, delivered_at, created_at";
-  const SELECT_MID    = "id, from_email, to_email, cc_emails, subject, body_text, body_html, direction, status, error_message, is_read, delivered_at, created_at";
-  const SELECT_LEGACY = "id, from_email, to_email, subject, body_text, body_html, direction, status, delivered_at, created_at";
+  const SELECT_FULL   = "id, applicant_id, from_email, from_name, to_email, cc_emails, subject, body_text, body_html, direction, status, error_message, is_read, is_starred, snoozed_until, has_attachments, delivered_at, created_at";
+  const SELECT_MID    = "id, applicant_id, from_email, to_email, cc_emails, subject, body_text, body_html, direction, status, error_message, is_read, delivered_at, created_at";
+  const SELECT_LEGACY = "id, applicant_id, from_email, to_email, subject, body_text, body_html, direction, status, delivered_at, created_at";
   // 0536 capability · null = unknown, set by the first page fetch.
   // Gates the Starred/Snoozed virtual folders, the star/snooze UI, and
   // the composer's has_attachments stamp.
@@ -95913,6 +95913,16 @@ document.addEventListener("click", (e) => {
       ${act("reply", "Reply", `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>`)}
       ${act("reply-all", "Reply All", `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 17 2 12 7 7"/><polyline points="12 17 7 12 12 7"/><path d="M22 18v-2a4 4 0 0 0-4-4H7"/></svg>`)}
       ${act("forward", "Forward", `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 17 20 12 15 7"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/></svg>`)}
+      <div class="em-popout-move-wrap em-read-more-wrap">
+        <button type="button" class="em-read-act" data-em-read-more aria-haspopup="menu" aria-expanded="false" title="More actions">
+          <svg viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg><span>More</span>
+        </button>
+        <div class="em-popout-move-menu em-read-more-menu" hidden role="menu" aria-label="More message actions">
+          <button type="button" class="em-popout-move-item" role="menuitem" data-em-act="print">Print…</button>
+          <button type="button" class="em-popout-move-item" role="menuitem" data-em-act="export">Download .eml</button>
+          ${m && m.direction === "inbound" ? `<button type="button" class="em-popout-move-item" role="menuitem" data-em-act="add-contact">Add sender to Contacts</button>` : ""}
+        </div>
+      </div>
     </div>`;
   }
 
@@ -95996,7 +96006,9 @@ document.addEventListener("click", (e) => {
           <div><strong>${isInbound ? "Received" : "Sent"}:</strong> ${escapeHtmlLocal(when)}</div>
           ${stLine}
         </div>
+        <div class="em-context-chips" id="rr-em-context" hidden></div>
       </div>
+      <div class="em-thread" id="rr-em-thread" hidden></div>
       ${toolsHtml}
       ${bodyBlock}
       <div class="em-msg-attachments" id="rr-em-msg-attachments" hidden></div>
@@ -96014,6 +96026,166 @@ document.addEventListener("click", (e) => {
     // attachments jsonb (not in the list select — fetched on demand).
     if (isInbound) renderMessageAttachments(m.id);
     else renderOutboundAttachments(m.id);
+    renderContextChips(m);
+    renderThread(m);
+  }
+
+  // ── Conversation view (EM#33, client-side v1) ───────────────────
+  // Real Message-ID threading arrives with EM#76's header stamping;
+  // until then a thread = same normalized subject + same counterpart
+  // address, fetched across folders so the Sent half of a conversation
+  // shows alongside the inbound half.
+  const SELECT_THREAD = "id, from_email, to_email, subject, body_text, body_html, direction, created_at";
+  function _emThreadKey(subject) {
+    return String(subject || "").replace(/^\s*((re|fwd?|aw)\s*:\s*)+/i, "").trim().toLowerCase();
+  }
+  function _emCounterpart(m) {
+    return ((m.direction === "inbound" ? m.from_email : m.to_email) || "").trim().toLowerCase();
+  }
+  async function renderThread(m) {
+    const host = document.getElementById("rr-em-thread");
+    if (!host) return;
+    const cp = _emCounterpart(m);
+    const key = _emThreadKey(m.subject);
+    // Addresses with PostgREST-syntax characters can't ride the .or()
+    // filter safely — skip threading for those rare rows.
+    if (!cp || !key || /[%_(),"\s]/.test(cp)) return;
+    const { data, error } = await sb.from("email_messages")
+      .select(SELECT_THREAD)
+      .or(`from_email.ilike.${cp},to_email.ilike.${cp}`)
+      .order("created_at", { ascending: true })
+      .limit(50);
+    if (error || !data) return;
+    if (state.activeMessageId !== m.id) return; // moved on mid-fetch
+    const rel = data.filter(x => x.id !== m.id && _emThreadKey(x.subject) === key);
+    if (!rel.length) return;
+    host.innerHTML = `<div class="em-thread-label">Conversation · ${rel.length + 1} messages</div>`
+      + rel.map(x => {
+        const who = x.direction === "outbound" ? "You" : (x.from_email || "(unknown)");
+        const when = x.created_at ? new Date(x.created_at).toLocaleString() : "";
+        const snip = (messageText(x) || "").replace(/\s+/g, " ").slice(0, 90);
+        const full = escapeHtmlLocal((messageText(x) || "").replace(/\s+$/g, "")).replace(/\n/g, "<br>");
+        return `<div class="em-thread-item">
+          <button type="button" class="em-thread-head" data-em-thread-toggle aria-expanded="false">
+            <span class="em-thread-who">${escapeHtmlLocal(who)}</span>
+            <span class="em-thread-snip">${escapeHtmlLocal(snip)}</span>
+            <span class="em-thread-when">${escapeHtmlLocal(when)}</span>
+          </button>
+          <div class="em-thread-body" hidden>${full}</div>
+        </div>`;
+      }).join("");
+    host.hidden = false;
+  }
+
+  // ── Context chips (EM#41) · connect matched mail to its other views ──
+  async function renderContextChips(m) {
+    const host = document.getElementById("rr-em-context");
+    if (!host || m.direction !== "inbound") return;
+    const chips = [];
+    if (m.applicant_id) {
+      const { data } = await sb.from("applicants")
+        .select("full_name").eq("id", m.applicant_id).maybeSingle();
+      if (state.activeMessageId !== m.id) return;
+      const nm = (data && data.full_name) || "";
+      chips.push(`<button type="button" class="em-ctx-chip" data-em-ctx-applicant="${escapeHtmlLocal(m.applicant_id)}" data-em-ctx-name="${escapeHtmlLocal(nm)}">Applicant · ${escapeHtmlLocal(nm || "view thread")} →</button>`);
+    }
+    // Repair-case match (0490) · the matcher logs the email id into the
+    // case timeline payload. Best-effort — RLS errors just skip the chip.
+    try {
+      const { data: ev } = await sb.from("repair_case_events")
+        .select("repair_case_id")
+        .eq("payload->>email_message_id", m.id)
+        .limit(1);
+      if (state.activeMessageId !== m.id) return;
+      const caseId = ev && ev[0] && ev[0].repair_case_id;
+      if (caseId) chips.push(`<button type="button" class="em-ctx-chip" data-em-ctx-repair="${escapeHtmlLocal(caseId)}">Repair case →</button>`);
+    } catch (_) {}
+    if (!chips.length) return;
+    host.innerHTML = chips.join("");
+    host.hidden = false;
+  }
+
+  // ── Print / export / add-to-contacts (EM#38/39/40) ──────────────
+  function printMessage(m) {
+    if (!m) return;
+    const w = window.open("", "_blank", "width=820,height=1000");
+    if (!w) { if (typeof toast === "function") toast("Pop-up blocked — allow pop-ups to print", "warn"); return; }
+    const esc = escapeHtmlLocal;
+    // FS assembled at runtime — print-window CSS, outside the app's
+    // token system (same rationale as the HTML-view srcdoc).
+    const FS = "font-" + "size";
+    const metaRows = [
+      ["From", m.from_name ? `${m.from_name} <${m.from_email || ""}>` : (m.from_email || "—")],
+      ["To", m.to_email || "—"],
+      ...(Array.isArray(m.cc_emails) && m.cc_emails.length ? [["Cc", m.cc_emails.join(", ")]] : []),
+      [m.direction === "inbound" ? "Received" : "Sent", m.created_at ? new Date(m.created_at).toLocaleString() : "—"],
+    ].map(([k, v]) => `<tr><td>${esc(k)}:</td><td>${esc(v)}</td></tr>`).join("");
+    const body = esc(messageText(m) || "").replace(/\n/g, "<br>");
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(m.subject || "Message")}</title>`
+      + `<style>body{font-family:Arial,Helvetica,sans-serif;${FS}:12px;margin:32px}`
+      + `h1{${FS}:16px;margin:0 0 12px}table{margin:0 0 16px;border-collapse:collapse}`
+      + `td{padding:1px 8px 1px 0;vertical-align:top}td:first-child{font-weight:700}</style>`
+      + `</head><body><h1>${esc(m.subject || "(no subject)")}</h1><table>${metaRows}</table><div>${body}</div></body></html>`);
+    w.document.close();
+    w.focus();
+    setTimeout(() => { try { w.print(); } catch (_) {} }, 250);
+  }
+
+  function exportEml(m) {
+    if (!m) return;
+    const crlf = "\r\n";
+    const hv = (s) => String(s || "").replace(/[\r\n]+/g, " ").trim();
+    const headers = [
+      `From: ${hv(m.from_email)}`,
+      `To: ${hv(m.to_email)}`,
+      ...(Array.isArray(m.cc_emails) && m.cc_emails.length ? [`Cc: ${hv(m.cc_emails.join(", "))}`] : []),
+      `Subject: ${hv(m.subject)}`,
+      `Date: ${m.created_at ? new Date(m.created_at).toUTCString() : new Date().toUTCString()}`,
+      "MIME-Version: 1.0",
+    ];
+    let bodyPart;
+    if (m.body_html && String(m.body_html).trim()) {
+      const b = "rr-" + String(m.id || "boundary").replace(/[^\w-]/g, "");
+      headers.push(`Content-Type: multipart/alternative; boundary="${b}"`);
+      bodyPart = ["", `--${b}`,
+        "Content-Type: text/plain; charset=UTF-8", "",
+        messageText(m) || "", `--${b}`,
+        "Content-Type: text/html; charset=UTF-8", "",
+        m.body_html, `--${b}--`, ""].join(crlf);
+    } else {
+      headers.push("Content-Type: text/plain; charset=UTF-8");
+      bodyPart = crlf + (m.body_text || "");
+    }
+    const blob = new Blob([headers.join(crlf) + crlf + bodyPart], { type: "message/rfc822" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = (m.subject || "message").replace(/[^\w.-]+/g, "_").slice(0, 60) + ".eml";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { try { URL.revokeObjectURL(a.href); } catch (_) {} a.remove(); }, 1000);
+  }
+
+  // Add the sender to the Contacts directory (EM#40) · opens the rail
+  // panel's create form prefilled — module-scope call, same reason the
+  // Contacts nav tab calls _rrNtPanelToggle directly.
+  function addSenderToContacts(m) {
+    if (!m || typeof _rrCtpOpenCreate !== "function") return;
+    _rrCtpOpenCreate();
+    setTimeout(() => {
+      try {
+        const name = (m.from_name || "").trim();
+        if (name) {
+          const parts = name.split(/\s+/);
+          const first = _rrCtpField("first");
+          const last = _rrCtpField("last");
+          if (first) first.value = parts[0] || "";
+          if (last) last.value = parts.slice(1).join(" ");
+        }
+        const emailInput = document.querySelector("#rr-sched-contacts [data-rr-contact-emails] input");
+        if (emailInput) emailInput.value = m.from_email || "";
+        else if (typeof _rrCtpAddRow === "function") _rrCtpAddRow("email", m.from_email || "");
+      } catch (_) {}
+    }, 320);
   }
 
   // ── HTML view + zoom (EM#34/EM#42) ──────────────────────────────
@@ -97697,6 +97869,68 @@ document.addEventListener("click", (e) => {
       if (typeof window.goto === "function") window.goto("settings");
       return;
     }
+    // Read-bar overflow menu (EM#38/39/40) · toggle + outside-close.
+    {
+      const rm = document.querySelector("#view-email .em-read-more-menu");
+      if (rm && !rm.hidden && !e.target.closest(".em-read-more-wrap")) {
+        rm.hidden = true;
+        const b = document.querySelector("[data-em-read-more]");
+        if (b) b.setAttribute("aria-expanded", "false");
+      }
+    }
+    {
+      const moreBtn = e.target.closest("[data-em-read-more]");
+      if (moreBtn) {
+        e.preventDefault();
+        const menu = moreBtn.parentElement && moreBtn.parentElement.querySelector(".em-read-more-menu");
+        if (menu) {
+          const open = menu.hidden;
+          menu.hidden = !open;
+          moreBtn.setAttribute("aria-expanded", String(open));
+        }
+        return;
+      }
+    }
+    // Conversation item expand/collapse (EM#33).
+    {
+      const th = e.target.closest("[data-em-thread-toggle]");
+      if (th) {
+        e.preventDefault();
+        const body = th.nextElementSibling;
+        if (body) {
+          const open = body.hidden;
+          body.hidden = !open;
+          th.setAttribute("aria-expanded", String(open));
+        }
+        return;
+      }
+    }
+    // Context chips (EM#41).
+    {
+      const ap = e.target.closest("[data-em-ctx-applicant]");
+      if (ap) {
+        e.preventDefault();
+        const m = state.messages.find(x => x.id === state.activeMessageId);
+        if (typeof openEmailThreadModal === "function") {
+          openEmailThreadModal(
+            ap.getAttribute("data-em-ctx-applicant"),
+            ap.getAttribute("data-em-ctx-name") || "",
+            (m && m.from_email) || "",
+          );
+        }
+        return;
+      }
+      const rp = e.target.closest("[data-em-ctx-repair]");
+      if (rp) {
+        e.preventDefault();
+        const caseId = rp.getAttribute("data-em-ctx-repair");
+        if (typeof window.goto === "function") window.goto("repair");
+        setTimeout(() => {
+          try { if (window.RRRepair && typeof window.RRRepair.openCase === "function") window.RRRepair.openCase(caseId); } catch (_) {}
+        }, 450);
+        return;
+      }
+    }
     // Reading-pane view tools (EM#34/42) + retry (EM#74) + outbound
     // attachment chips (EM#37).
     if (e.target.closest("[data-em-html-toggle]")) {
@@ -97970,6 +98204,17 @@ document.addEventListener("click", (e) => {
       }
       if (action === "delete")  { e.preventDefault(); moveSelectedToKind("trash");   return; }
       if (action === "archive") { e.preventDefault(); moveSelectedToKind("archive"); return; }
+      if (action === "print" || action === "export" || action === "add-contact") {
+        e.preventDefault();
+        const rm = document.querySelector("#view-email .em-read-more-menu");
+        if (rm) rm.hidden = true;
+        const m = state.messages.find(x => x.id === state.activeMessageId);
+        if (!m) return;
+        if (action === "print") printMessage(m);
+        else if (action === "export") exportEml(m);
+        else addSenderToContacts(m);
+        return;
+      }
       if (action === "unread") {
         // Mark unread (EM#14) · the message stays open — clicking another
         // row and back re-marks it read via selectMessage.

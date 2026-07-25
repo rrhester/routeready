@@ -25431,6 +25431,46 @@ body.rr-cmdk-open{ overflow:hidden }
             background:var(--rr-blue-600);border-color:var(--rr-blue-600);
           }
           #view-email .em-msg-row.selected{background:var(--rr-blue-50, rgba(37,99,235,.07))}
+          /* Conversation view (EM#33) · earlier messages in the thread,
+             collapsed to one-line headers between the meta and the body. */
+          #view-email .em-thread{
+            border-bottom:1px solid var(--border-subtle, var(--border));
+            padding:4px 10px 8px;
+          }
+          #view-email .em-thread-label{
+            font-size:var(--fs-10);font-weight:700;letter-spacing:.04em;
+            text-transform:uppercase;color:var(--text-subtle);
+            padding:4px 6px 6px;
+          }
+          #view-email .em-thread-item{border:1px solid var(--border-subtle, var(--border));border-radius:8px;margin-bottom:4px;overflow:hidden}
+          #view-email .em-thread-head{
+            display:flex;align-items:center;gap:8px;width:100%;
+            padding:6px 10px;border:0;background:var(--surface);cursor:pointer;
+            font:inherit;font-size:var(--fs-sm);text-align:left;
+          }
+          #view-email .em-thread-head:hover{background:var(--rr-blue-50, rgba(37,99,235,.05))}
+          #view-email .em-thread-who{font-weight:600;flex:0 0 auto}
+          #view-email .em-thread-snip{
+            flex:1;min-width:0;color:var(--text-subtle);
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+          }
+          #view-email .em-thread-when{flex:0 0 auto;font-size:var(--fs-xs);color:var(--text-subtle)}
+          #view-email .em-thread-body{
+            padding:8px 12px;font-size:var(--fs-sm);line-height:1.55;
+            color:var(--text);border-top:1px solid var(--border-subtle, var(--border));
+            white-space:normal;word-wrap:break-word;
+          }
+          /* Context chips (EM#41) · matched applicant / repair case. */
+          #view-email .em-context-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+          #view-email .em-ctx-chip{
+            border:1px solid var(--border);background:var(--surface);
+            border-radius:999px;padding:2px 11px;cursor:pointer;font:inherit;
+            font-size:var(--fs-xs);font-weight:600;color:var(--rr-blue-700);
+          }
+          #view-email .em-ctx-chip:hover{border-color:var(--rr-blue-600)}
+          /* Read-bar overflow (EM#38/39/40) · right-aligned menu. */
+          #view-email .em-read-more-wrap{margin-left:auto}
+          #view-email .em-read-more-menu{left:auto;right:0;min-width:210px}
           /* Reading-pane view tools (EM#34/42) · plain/HTML toggle +
              text zoom, one quiet row between header and body. */
           #view-email .em-view-tools{
