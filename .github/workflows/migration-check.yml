@@ -160,6 +160,16 @@ jobs:
           set -euo pipefail
           psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/cert_gate_test.sql
 
+      - name: MFA gate test (0540 · server-side assurance enforcement)
+        # Proves the fail-safe (no-factor user never blocked, even with
+        # require_mfa on), the fix (enrolled aal1 refused when opted in), and
+        # backward-safety (require_mfa off => no change).
+        env:
+          SUPABASE_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: |
+          set -euo pipefail
+          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/mfa_gate_test.sql
+
       - name: RPC role-gate test (0539 · privileged RPCs refuse driver-role)
         # Proves a driver-role app_user is refused (42501) on a sample of the
         # newly-gated SECURITY DEFINER functions (coaching/PTO/fleet/interview)
