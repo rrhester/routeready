@@ -14,8 +14,21 @@ Email-redesign merge #4113). Impact tags: **[high]** = operators lose
 mail, reply to the wrong person, or read wrong state; **[med]** = worth
 scheduling; **[low]** = polish.
 
-**STATUS (2026-07-22): Batches A–D (EM#1–42) + EM#74 SHIPPED — sections
-A–D complete.** D2 notes: EM#33 shipped as the client-side v1 the item
+**STATUS (2026-07-23): Batches A–D (EM#1–42) + E1 (EM#43–48) + EM#74
+SHIPPED.** E1 notes: recipient chips replace the single-address inputs
+(multi-To joins into `to_email`; `send-email` splits it for Resend);
+Bcc is **migration 0537** (`bcc_emails` + the `'draft'` enum value) and
+is never silently dropped pre-migration — the send fails with a clear
+message instead. Real drafts: autosave every 4s into the Drafts system
+folder, close-keeps-draft (Escape can no longer destroy typed mail —
+the ribbon Delete tile is the discard path), clicking a draft resumes
+the composer, Send PROMOTES the same row to queued (no duplicates).
+Autocomplete pool = contacts + applicants + drivers + loaded-folder
+addresses, 5-min cache. QA also caught and fixed a live regression:
+Escape with the dropdown open used to close the whole composer.
+NOTE: apply 0536 and **0537** together — the select's FULL tier now
+includes bcc_emails, so a 0536-only DB demotes to the MID tier
+(correct data, but star/snooze UI hidden) until 0537 lands. D2 notes: EM#33 shipped as the client-side v1 the item
 allows for — the reading pane shows the full conversation (same
 normalized subject + same counterpart address, fetched across folders so
 the Sent half appears beside the inbound half) as collapsible items;

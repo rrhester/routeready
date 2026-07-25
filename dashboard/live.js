@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=e09c2d6d3108";
-import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=e09c2d6d3108";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=e09c2d6d3108";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=e09c2d6d3108";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=e09c2d6d3108";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=e09c2d6d3108";
-import { isChecklistComplete } from "./checklist-core.mjs?v=e09c2d6d3108";
+import { planScheduleWeek } from "./scheduling-engine.js?v=2f7cc9188aaa";
+import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=2f7cc9188aaa";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=2f7cc9188aaa";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=2f7cc9188aaa";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=2f7cc9188aaa";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=2f7cc9188aaa";
+import { isChecklistComplete } from "./checklist-core.mjs?v=2f7cc9188aaa";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=e09c2d6d3108";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=e09c2d6d3108";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=e09c2d6d3108";
+} from "./msg-core.mjs?v=2f7cc9188aaa";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=2f7cc9188aaa";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=2f7cc9188aaa";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -95149,7 +95149,7 @@ document.addEventListener("click", (e) => {
   // state), LEGACY is the pre-migration floor. Tiered so a DB that has
   // 0535 but not 0536 degrades one step, not all the way (dropping
   // is_read would silently un-read every message).
-  const SELECT_FULL   = "id, applicant_id, from_email, from_name, to_email, cc_emails, subject, body_text, body_html, direction, status, error_message, is_read, is_starred, snoozed_until, has_attachments, delivered_at, created_at";
+  const SELECT_FULL   = "id, applicant_id, from_email, from_name, to_email, cc_emails, bcc_emails, subject, body_text, body_html, direction, status, error_message, is_read, is_starred, snoozed_until, has_attachments, delivered_at, created_at";
   const SELECT_MID    = "id, applicant_id, from_email, to_email, cc_emails, subject, body_text, body_html, direction, status, error_message, is_read, delivered_at, created_at";
   const SELECT_LEGACY = "id, applicant_id, from_email, to_email, subject, body_text, body_html, direction, status, delivered_at, created_at";
   // 0536 capability · null = unknown, set by the first page fetch.
@@ -95179,7 +95179,7 @@ document.addEventListener("click", (e) => {
     let { data, error } = await _msgPageQuery(SELECT_FULL, folderId).range(from, from + 199);
     if (!error) {
       if (_srvMetaState !== true) { _srvMetaState = true; _syncVirtualFolders(); }
-    } else if (/is_starred|snoozed_until|from_name|has_attachments/.test(error.message || "")) {
+    } else if (/is_starred|snoozed_until|from_name|has_attachments|bcc_emails/.test(error.message || "")) {
       if (_srvMetaState !== false) { _srvMetaState = false; _syncVirtualFolders(); }
       ({ data, error } = await _msgPageQuery(SELECT_MID, folderId).range(from, from + 199));
     }
@@ -95826,7 +95826,9 @@ document.addEventListener("click", (e) => {
       ? `<span class="em-msg-status em-msg-status-pending">${st === "queued" ? "Queued" : "Sending…"}</span>`
       : (st === "failed")
         ? `<span class="em-msg-status em-msg-status-failed">Failed</span>`
-        : "";
+        : (st === "draft")
+          ? `<span class="em-msg-status em-msg-status-pending">Draft</span>`
+          : "";
     // Star toggle (EM#24) + paperclip (EM#26) + snooze chip (EM#25) —
     // all 0536-gated; pre-migration rows lack the fields so nothing
     // renders.
@@ -96685,6 +96687,11 @@ document.addEventListener("click", (e) => {
 
   function selectMessage(id) {
     const m0 = state.messages.find(x => x.id === id);
+    // A draft opens back into the composer (EM#46), not the preview.
+    if (m0 && m0.status === "draft" && m0.direction === "outbound") {
+      openComposer({ mode: "draft", draft: m0 });
+      return;
+    }
     const wasUnread = m0 ? !isRead(m0) : false;
     state.activeMessageId = id;
     markRead(id);
@@ -96860,13 +96867,13 @@ document.addEventListener("click", (e) => {
     return `\n\nOn ${when}, ${from} wrote:\n${quoted}`;
   }
 
-  function openComposer({ mode = "new", original = null, to: toPrefill = "", subject: subjectPrefill = "", html: htmlPrefill = "", onCancel = null, applicantId = null, templateId = null, onSent = null } = {}) {
+  function openComposer({ mode = "new", original = null, to: toPrefill = "", subject: subjectPrefill = "", html: htmlPrefill = "", onCancel = null, applicantId = null, templateId = null, onSent = null, draft = null } = {}) {
     closeComposer();
     composerOnCancel = (typeof onCancel === "function") ? onCancel : null;
     composerApplicantId = applicantId || null;
     composerTemplateId  = templateId || null;
     composerOnSent      = (typeof onSent === "function") ? onSent : null;
-    let to = "", cc = "", subject = "", body = "";
+    let to = "", cc = "", bcc = "", subject = "", body = "";
     const needs = (mode === "reply" || mode === "reply-all" || mode === "forward");
     // Reply/forward normally quote an existing message. But a caller can also
     // open a forward with no original — just a prefilled recipient (e.g. the
@@ -96874,6 +96881,18 @@ document.addEventListener("click", (e) => {
     if (needs && !original && !toPrefill) {
       if (typeof toast === "function") toast("Pick a message first", "warn");
       return;
+    }
+    if (mode === "draft" && draft) {
+      // Resume a server draft (EM#46) · re-opens in place; Send flips
+      // the same row to queued.
+      _emDraftRowId = draft.id;
+      to = draft.to_email || "";
+      cc = Array.isArray(draft.cc_emails) ? draft.cc_emails.join(", ") : "";
+      bcc = Array.isArray(draft.bcc_emails) ? draft.bcc_emails.join(", ") : "";
+      subject = draft.subject || "";
+      body = (draft.body_html && String(draft.body_html).trim())
+        ? draft.body_html
+        : escapeHtmlLocal(draft.body_text || "").replace(/\n/g, "<br>");
     }
     if ((mode === "reply" || mode === "reply-all") && original) {
       // Direction-aware target (EM#3): replying to a message YOU sent
@@ -96885,10 +96904,26 @@ document.addEventListener("click", (e) => {
       const s = original.subject || "";
       subject = s ? (/^re:/i.test(s) ? s : "Re: " + s) : "";
       body = quoteOriginal(original);
-      // Reply All: carry over original Cc (and other To addresses if any)
-      // so the whole thread stays on the conversation.
-      if (mode === "reply-all" && Array.isArray(original.cc_emails) && original.cc_emails.length > 0) {
-        cc = original.cc_emails.join(", ");
+      // Reply All (EM#48): carry the original Cc AND any other To
+      // recipients into Cc, minus the reply target and our own team
+      // address, so the whole conversation stays on the thread.
+      if (mode === "reply-all") {
+        const team = (typeof _fbEmailFromCode === "function"
+          ? _fbEmailFromCode(window.RR && window.RR.dsp && window.RR.dsp.short_code) : "").toLowerCase();
+        const target = to.trim().toLowerCase();
+        const pool = [
+          ...(Array.isArray(original.cc_emails) ? original.cc_emails : []),
+          ...String(original.to_email || "").split(/[,;]/),
+        ].map(s2 => s2.trim()).filter(Boolean);
+        const seenAddr = new Set();
+        const ccList = [];
+        for (const a of pool) {
+          const k = a.toLowerCase();
+          if (k === team || k === target || seenAddr.has(k)) continue;
+          seenAddr.add(k);
+          ccList.push(a);
+        }
+        cc = ccList.join(", ");
       }
     } else if (mode === "forward" && original) {
       const s = original.subject || "";
@@ -96900,7 +96935,7 @@ document.addEventListener("click", (e) => {
     if (toPrefill) to = toPrefill;
     if (subjectPrefill) subject = subjectPrefill;
     if (htmlPrefill) body = htmlPrefill;
-    const titles = { "new": "New email", "reply": "Reply", "reply-all": "Reply all", "forward": "Forward" };
+    const titles = { "new": "New email", "reply": "Reply", "reply-all": "Reply all", "forward": "Forward", "draft": "Draft" };
     const draftKey = _emDraftKey;
     const m = document.createElement("div");
     m.id = "rr-em-composer";
@@ -96951,22 +96986,34 @@ document.addEventListener("click", (e) => {
         </div>
         <!-- Attachment chip list, populated when files are picked. -->
         <div id="rr-em-composer-attachments" class="em-composer-chips" hidden></div>
-        <div style="display:flex;flex-direction:column;padding:var(--s-3) var(--s-5);gap:var(--s-2);border-bottom:1px solid var(--border-subtle,rgba(15,23,42,.06))">
-          <div style="display:flex;align-items:center;gap:var(--s-3)">
-            <label style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
-              <span style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600;min-width:48px">To</span>
-              <input id="rr-em-composer-to" type="email" required value="${escapeHtmlLocal(to)}" placeholder="vendor@example.com" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font:inherit;box-sizing:border-box">
-            </label>
-            <button id="rr-em-composer-send" type="button" class="rr-msft-blue" style="background:#2563EB;color:#fff;border:0;border-radius:6px;padding:8px 22px;font:inherit;font-weight:600;font-size:14px;cursor:pointer;flex:0 0 auto">Send</button>
+        <!-- Recipient rows · chip fields (EM#43/44/45): type an address
+             and Enter/comma commits a chip; suggestions come from
+             contacts, applicants, drivers, and recent mail. -->
+        <div class="em-compose-fields">
+          <div class="em-compose-row">
+            <span class="em-compose-lbl" id="rr-em-lbl-to">To</span>
+            <div class="em-chipfield" data-em-cf="to" id="rr-em-cf-to">
+              <input id="rr-em-composer-to" class="em-cf-input" type="text" placeholder="vendor@example.com" autocomplete="off" aria-labelledby="rr-em-lbl-to">
+            </div>
+            <button id="rr-em-composer-send" type="button" class="rr-msft-blue em-send-btn">Send</button>
           </div>
-          <label style="display:flex;align-items:center;gap:8px">
-            <span style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600;min-width:48px">Cc</span>
-            <input id="rr-em-composer-cc" type="text" value="${escapeHtmlLocal(cc)}" placeholder="comma-separated, optional" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font:inherit;box-sizing:border-box">
-          </label>
-          <label style="display:flex;align-items:center;gap:8px">
-            <span style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600;min-width:48px">Subject</span>
-            <input id="rr-em-composer-subject" type="text" required value="${escapeHtmlLocal(subject)}" placeholder="" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font:inherit;box-sizing:border-box">
-          </label>
+          <div class="em-compose-row">
+            <span class="em-compose-lbl" id="rr-em-lbl-cc">Cc</span>
+            <div class="em-chipfield" data-em-cf="cc" id="rr-em-cf-cc">
+              <input id="rr-em-composer-cc" class="em-cf-input" type="text" autocomplete="off" aria-labelledby="rr-em-lbl-cc">
+            </div>
+            <button type="button" class="em-bcc-toggle" id="rr-em-bcc-toggle" aria-controls="rr-em-bcc-row">Bcc</button>
+          </div>
+          <div class="em-compose-row" id="rr-em-bcc-row" hidden>
+            <span class="em-compose-lbl" id="rr-em-lbl-bcc">Bcc</span>
+            <div class="em-chipfield" data-em-cf="bcc" id="rr-em-cf-bcc">
+              <input id="rr-em-composer-bcc" class="em-cf-input" type="text" autocomplete="off" aria-labelledby="rr-em-lbl-bcc">
+            </div>
+          </div>
+          <div class="em-compose-row">
+            <label class="em-compose-lbl" for="rr-em-composer-subject">Subject</label>
+            <input id="rr-em-composer-subject" class="em-subject-input" type="text" required value="${escapeHtmlLocal(subject)}" placeholder="">
+          </div>
         </div>
         <div style="flex:1;min-height:0;display:flex;padding:var(--s-3) var(--s-5) var(--s-4) var(--s-5)">
           <div id="rr-em-composer-body" contenteditable="true" data-placeholder="Type your message… (Cmd/Ctrl+Enter to send)" style="flex:1;width:100%;padding:14px;border:1px solid var(--border);border-radius:6px;font-family:Calibri,Arial,sans-serif;font-size:14px;line-height:1.55;overflow-y:auto;outline:none;background:#fff;color:var(--text);box-sizing:border-box">${body || ""}</div>
@@ -96975,12 +97022,90 @@ document.addEventListener("click", (e) => {
     document.body.appendChild(m);
     // Reset per-modal attachment state.
     composerAttachments = [];
+    // Recipient chips (EM#43/44) · seed from the mode/draft prefills.
+    _emRecips = { to: [], cc: [], bcc: [] };
+    _emCfCommit("to", to);
+    _emCfCommit("cc", cc);
+    _emCfCommit("bcc", bcc);
+    if (_emRecips.bcc.length) { const r = document.getElementById("rr-em-bcc-row"); if (r) r.hidden = false; }
+    // Chip-field wiring · commit on Enter/comma/semicolon/Tab/blur,
+    // Backspace on an empty input pops the last chip, and the
+    // autocomplete dropdown (EM#45) rides the same keys.
+    m.addEventListener("keydown", (e) => {
+      const inp = e.target.closest && e.target.closest(".em-cf-input");
+      if (!inp) return;
+      const kind = inp.closest("[data-em-cf]").getAttribute("data-em-cf");
+      if (_emAcHandleKey(e, kind, inp)) return;
+      if (e.key === "Enter" || e.key === "," || e.key === ";") {
+        e.preventDefault();
+        _emCfCommit(kind, inp.value);
+        inp.value = "";
+        _emAcClose();
+      } else if (e.key === "Tab" && inp.value.trim()) {
+        _emCfCommit(kind, inp.value);
+        inp.value = "";
+        _emAcClose();
+      } else if (e.key === "Backspace" && !inp.value) {
+        _emRecips[kind].pop();
+        _emCfRender(kind);
+      }
+    });
+    m.addEventListener("focusout", (e) => {
+      const inp = e.target.closest && e.target.closest(".em-cf-input");
+      if (!inp) return;
+      // Let a click on an autocomplete row land before committing.
+      setTimeout(() => {
+        if (!document.getElementById("rr-em-composer")) return;
+        if (inp.value.trim() && !document.querySelector("#rr-em-ac:hover")) {
+          _emCfCommit(inp.closest("[data-em-cf]").getAttribute("data-em-cf"), inp.value);
+          inp.value = "";
+        }
+        _emAcClose();
+      }, 150);
+    });
+    m.addEventListener("input", (e) => {
+      const inp = e.target.closest && e.target.closest(".em-cf-input");
+      if (!inp) return;
+      _emAcQuery(inp.closest("[data-em-cf]").getAttribute("data-em-cf"), inp);
+    });
+    m.addEventListener("click", (e) => {
+      const x = e.target.closest && e.target.closest("[data-em-cf-x]");
+      if (x) {
+        e.preventDefault();
+        const [kind, i] = x.getAttribute("data-em-cf-x").split(":");
+        _emRecips[kind].splice(parseInt(i, 10), 1);
+        _emCfRender(kind);
+        return;
+      }
+      const bt = e.target.closest && e.target.closest("#rr-em-bcc-toggle");
+      if (bt) {
+        e.preventDefault();
+        const r = document.getElementById("rr-em-bcc-row");
+        if (r) { r.hidden = !r.hidden; if (!r.hidden) document.getElementById("rr-em-composer-bcc")?.focus(); }
+        return;
+      }
+      const cf = e.target.closest && e.target.closest(".em-chipfield");
+      if (cf && !e.target.closest(".em-addr-chip")) cf.querySelector(".em-cf-input")?.focus();
+    });
+    _emAcEnsurePool(); // warm the suggestion pool in the background
+    // Autosave (EM#47) · a dirty composer persists itself every few
+    // seconds; closing without sending keeps the draft (EM#46), so
+    // Escape can no longer destroy typed mail.
+    clearInterval(_emDraftTimer);
+    _emDraftTimer = setInterval(() => { _emSaveDraftRow(true); }, 4000);
+    _emLastDraftJson = "";
+    _emDiscardDraft = false;
     // Click outside the inner card closes the modal.
     m.addEventListener("click", (e) => { if (e.target === m) closeComposer(); });
-    // Escape closes; Cmd/Ctrl+Enter sends.
+    // Escape closes; Cmd/Ctrl+Enter sends. When the autocomplete
+    // dropdown consumed the Escape (defaultPrevented), only the
+    // dropdown closes — not the whole composer.
     m.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") { e.preventDefault(); closeComposer(); }
-      else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); sendComposerDraft(); }
+      if (e.key === "Escape") {
+        if (e.defaultPrevented) return;
+        e.preventDefault();
+        closeComposer();
+      } else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); sendComposerDraft(); }
     });
     // Direct send handlers. The shared delegated click handler can miss in
     // some mount contexts (e.g. composer opened from the calendar), so wire
@@ -96991,17 +97116,16 @@ document.addEventListener("click", (e) => {
       if (b) b.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); sendComposerDraft(); });
     });
 
-    // Restore a saved draft into a blank new email.
-    if (mode === "new" && !toPrefill && !subjectPrefill && !htmlPrefill) {
+    // Restore a legacy localStorage draft into a blank new email (the
+    // pre-0537 fallback slot — server drafts live in the Drafts folder).
+    if (mode === "new" && !toPrefill && !subjectPrefill && !htmlPrefill && !draft) {
       try {
         const d = JSON.parse(localStorage.getItem(draftKey) || "null");
         if (d) {
-          const toEl = document.getElementById("rr-em-composer-to");
-          const ccEl = document.getElementById("rr-em-composer-cc");
           const subjEl = document.getElementById("rr-em-composer-subject");
           const bodyEl = document.getElementById("rr-em-composer-body");
-          if (toEl && d.to) toEl.value = d.to;
-          if (ccEl && d.cc) ccEl.value = d.cc;
+          if (d.to) _emCfCommit("to", d.to);
+          if (d.cc) _emCfCommit("cc", d.cc);
           if (subjEl && d.subject) subjEl.value = d.subject;
           if (bodyEl && d.html) bodyEl.innerHTML = d.html;
         }
@@ -97011,19 +97135,16 @@ document.addEventListener("click", (e) => {
     // ── The shared 9-tool ribbon (matches the calendar event editor). ──
     _rrMailRibbonWire(m, {
       send: () => sendComposerDraft(),
-      save: () => {
-        try {
-          localStorage.setItem(draftKey, JSON.stringify({
-            to: (document.getElementById("rr-em-composer-to")?.value || ""),
-            cc: (document.getElementById("rr-em-composer-cc")?.value || ""),
-            subject: (document.getElementById("rr-em-composer-subject")?.value || ""),
-            html: (document.getElementById("rr-em-composer-body")?.innerHTML || ""),
-          }));
-          toast("Draft saved", "success");
-        } catch (_) { toast("Couldn't save draft", "warn"); }
-      },
+      // Save → a real row in the Drafts folder (EM#46); falls back to
+      // the legacy localStorage slot pre-0537.
+      save: () => _emSaveDraftRow(false),
       invite: () => { const t = document.getElementById("rr-em-composer-to"); if (t) { t.focus(); t.scrollIntoView({ block: "nearest" }); } },
-      meeting: () => { const to = document.getElementById("rr-em-composer-to")?.value || ""; closeComposer(); _rrScheduleMeetingFor(to); },
+      meeting: () => {
+        _emCfCommitPending();
+        const to = _emRecips.to[0] || "";
+        closeComposer();
+        _rrScheduleMeetingFor(to);
+      },
       recur: () => toast("Recurrence applies to scheduled meetings — use Schedule Meeting.", "info"),
       important: (b) => {
         const subjEl = document.getElementById("rr-em-composer-subject");
@@ -97037,7 +97158,16 @@ document.addEventListener("click", (e) => {
       },
       attach: () => document.getElementById("rr-em-composer-file")?.click(),
       dictate: (b) => _rrToggleDictate(document.getElementById("rr-em-composer-body"), b),
-      delete: () => closeComposer(),
+      // Delete = DISCARD (the only destructive path now that close
+      // keeps the draft): removes the server draft row too.
+      delete: () => {
+        _emDiscardDraft = true;
+        if (_emDraftRowId) {
+          try { sb.from("email_messages").delete().eq("id", _emDraftRowId).then(() => {}, () => {}); } catch (_) {}
+        }
+        try { localStorage.removeItem(_emDraftKey); } catch (_) {}
+        closeComposer();
+      },
     });
 
     // ── Toolbar wiring ─────────────────────────────────────────────
@@ -97159,6 +97289,236 @@ document.addEventListener("click", (e) => {
   let composerTemplateId  = null;
   let composerOnSent      = null;
 
+  // ── Recipient chips (EM#43/44) ──────────────────────────────────
+  let _emRecips = { to: [], cc: [], bcc: [] };
+  function _emAddrOk(a) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(a); }
+  function _emCfCommit(kind, raw) {
+    const have = new Set(_emRecips[kind].map(a => a.toLowerCase()));
+    String(raw || "").split(/[,;]/).map(s => s.trim()).filter(Boolean).forEach(a => {
+      if (!have.has(a.toLowerCase())) { have.add(a.toLowerCase()); _emRecips[kind].push(a); }
+    });
+    _emCfRender(kind);
+  }
+  function _emCfRender(kind) {
+    const host = document.querySelector(`#rr-em-composer [data-em-cf="${kind}"]`);
+    if (!host) return;
+    host.querySelectorAll(".em-addr-chip").forEach(el => el.remove());
+    const input = host.querySelector(".em-cf-input");
+    _emRecips[kind].forEach((addr, i) => {
+      const chip = document.createElement("span");
+      chip.className = "em-addr-chip" + (_emAddrOk(addr) ? "" : " invalid");
+      chip.innerHTML = `${escapeHtmlLocal(addr)}<button type="button" class="em-addr-x" data-em-cf-x="${kind}:${i}" aria-label="Remove ${escapeHtmlLocal(addr)}">×</button>`;
+      host.insertBefore(chip, input);
+    });
+  }
+  // Commit any half-typed text in every chip input (send/save paths).
+  function _emCfCommitPending() {
+    ["to", "cc", "bcc"].forEach(kind => {
+      const inp = document.querySelector(`#rr-em-composer [data-em-cf="${kind}"] .em-cf-input`);
+      if (inp && inp.value.trim()) { _emCfCommit(kind, inp.value); inp.value = ""; }
+    });
+  }
+
+  // ── Recipient autocomplete (EM#45) ──────────────────────────────
+  // Pool = contacts directory + applicants + drivers + addresses seen
+  // in the loaded folder; cached five minutes.
+  let _emAcPool = null;
+  let _emAcAt = 0;
+  let _emAcItems = [];
+  let _emAcActive = -1;
+  let _emAcKind = null;
+  async function _emAcEnsurePool() {
+    if (_emAcPool && Date.now() - _emAcAt < 300000) return _emAcPool;
+    const pool = [];
+    const seenA = new Set();
+    const add = (addr, name) => {
+      const a = String(addr || "").trim();
+      if (!a || !_emAddrOk(a) || seenA.has(a.toLowerCase())) return;
+      seenA.add(a.toLowerCase());
+      pool.push({ a, n: String(name || "").trim() });
+    };
+    try {
+      if (typeof _rrLoadContacts === "function") {
+        for (const c of _rrLoadContacts()) {
+          const emails = Array.isArray(c.emails) ? c.emails : (c.email ? [c.email] : []);
+          emails.forEach(e2 => add(e2, c.name));
+        }
+      }
+    } catch (_) {}
+    try {
+      const { data } = await sb.from("applicants")
+        .select("full_name, email").not("email", "is", null)
+        .order("created_at", { ascending: false }).limit(200);
+      (data || []).forEach(r => add(r.email, r.full_name));
+    } catch (_) {}
+    try {
+      const { data } = await sb.from("drivers")
+        .select("full_name, email").not("email", "is", null).limit(300);
+      (data || []).forEach(r => add(r.email, r.full_name));
+    } catch (_) {}
+    for (const m2 of state.messages) {
+      add(m2.direction === "inbound" ? m2.from_email : m2.to_email, m2.from_name);
+    }
+    _emAcPool = pool;
+    _emAcAt = Date.now();
+    return pool;
+  }
+  function _emAcClose() {
+    const el = document.getElementById("rr-em-ac");
+    if (el) el.remove();
+    _emAcItems = [];
+    _emAcActive = -1;
+    _emAcKind = null;
+  }
+  async function _emAcQuery(kind, input) {
+    const q = (input.value || "").trim().toLowerCase();
+    if (!q) { _emAcClose(); return; }
+    const pool = await _emAcEnsurePool();
+    if (!document.getElementById("rr-em-composer")) return;
+    const have = new Set(_emRecips[kind].map(a => a.toLowerCase()));
+    const starts = [], contains = [];
+    for (const p of pool) {
+      if (have.has(p.a.toLowerCase())) continue;
+      const al = p.a.toLowerCase(), nl = p.n.toLowerCase();
+      if (al.startsWith(q) || nl.startsWith(q)) starts.push(p);
+      else if (al.includes(q) || nl.includes(q)) contains.push(p);
+      if (starts.length >= 6) break;
+    }
+    _emAcItems = starts.concat(contains).slice(0, 6);
+    if (!_emAcItems.length) { _emAcClose(); return; }
+    _emAcKind = kind;
+    _emAcActive = 0;
+    let el = document.getElementById("rr-em-ac");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "rr-em-ac";
+      el.className = "em-ac";
+      el.setAttribute("role", "listbox");
+      document.getElementById("rr-em-composer")?.appendChild(el);
+    }
+    const r = input.getBoundingClientRect();
+    el.style.left = r.left + "px";
+    el.style.top = (r.bottom + 4) + "px";
+    el.style.minWidth = Math.max(240, r.width) + "px";
+    el.innerHTML = _emAcItems.map((p, i) =>
+      `<button type="button" class="em-ac-item${i === _emAcActive ? " active" : ""}" role="option" aria-selected="${i === _emAcActive}" data-em-ac-i="${i}">
+        ${p.n ? `<span class="em-ac-name">${escapeHtmlLocal(p.n)}</span>` : ""}
+        <span class="em-ac-addr">${escapeHtmlLocal(p.a)}</span>
+      </button>`).join("");
+  }
+  function _emAcPick(i) {
+    const p = _emAcItems[i];
+    if (!p || !_emAcKind) return;
+    _emRecips[_emAcKind].push(p.a);
+    _emCfRender(_emAcKind);
+    const inp = document.querySelector(`#rr-em-composer [data-em-cf="${_emAcKind}"] .em-cf-input`);
+    if (inp) { inp.value = ""; inp.focus(); }
+    _emAcClose();
+  }
+  // Returns true when the key was consumed by the open dropdown.
+  function _emAcHandleKey(e, kind, input) {
+    const el = document.getElementById("rr-em-ac");
+    if (!el || !_emAcItems.length) return false;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      const d = e.key === "ArrowDown" ? 1 : -1;
+      _emAcActive = (_emAcActive + d + _emAcItems.length) % _emAcItems.length;
+      el.querySelectorAll(".em-ac-item").forEach((b, i) => {
+        b.classList.toggle("active", i === _emAcActive);
+        b.setAttribute("aria-selected", String(i === _emAcActive));
+      });
+      return true;
+    }
+    if ((e.key === "Enter" || e.key === "Tab") && _emAcActive >= 0) {
+      e.preventDefault();
+      _emAcPick(_emAcActive);
+      return true;
+    }
+    if (e.key === "Escape") { e.preventDefault(); _emAcClose(); return true; }
+    return false;
+  }
+
+  // ── Server drafts + autosave (EM#46/47, migration 0537) ─────────
+  let _emDraftRowId = null;
+  let _emDraftTimer = 0;
+  let _emLastDraftJson = "";
+  let _emDiscardDraft = false;
+  // Composer generation · closeComposer bumps it, so a save that was
+  // in flight when the composer closed can't leak its new row id into
+  // the NEXT composer session (which would cross-contaminate drafts).
+  let _emComposerGen = 0;
+  let _srvDraftState = null; // null unknown · false = 'draft' enum missing (pre-0537)
+  let _srvBccState = null;   // false = bcc_emails column missing (pre-0537)
+  function _emComposerSnapshot() {
+    const bodyEl = document.getElementById("rr-em-composer-body");
+    return {
+      to: _emRecips.to.slice(),
+      cc: _emRecips.cc.slice(),
+      bcc: _emRecips.bcc.slice(),
+      subject: (document.getElementById("rr-em-composer-subject")?.value || "").trim(),
+      html: bodyEl ? bodyEl.innerHTML : "",
+      text: bodyEl ? (bodyEl.innerText || bodyEl.textContent || "").trim() : "",
+    };
+  }
+  async function _emSaveDraftRow(silent) {
+    if (!document.getElementById("rr-em-composer")) return;
+    if (_emDiscardDraft || _emSendInFlight) return;
+    _emCfCommitPending();
+    const s = _emComposerSnapshot();
+    if (!s.to.length && !s.cc.length && !s.subject && !s.text && !composerAttachments.length) return;
+    const j = JSON.stringify(s);
+    if (silent && j === _emLastDraftJson) return; // not dirty
+    const legacySave = () => {
+      try {
+        localStorage.setItem(_emDraftKey, JSON.stringify({ to: s.to.join(", "), cc: s.cc.join(", "), subject: s.subject, html: s.html }));
+        _emLastDraftJson = j;
+      } catch (_) {}
+    };
+    if (_srvDraftState === false) { legacySave(); return; }
+    const gen = _emComposerGen;
+    const row = {
+      to_email: s.to.join(", "),
+      cc_emails: s.cc.length ? s.cc : null,
+      subject: s.subject,
+      body_text: s.text,
+      body_html: s.html,
+    };
+    if (s.bcc.length && _srvBccState !== false) row.bcc_emails = s.bcc;
+    let error = null;
+    if (_emDraftRowId) {
+      ({ error } = await sb.from("email_messages").update(row).eq("id", _emDraftRowId));
+    } else {
+      const dsp_id = currentDspId();
+      const drafts = state.folders.find(f => f.kind === "drafts");
+      if (!dsp_id) { legacySave(); return; }
+      const { data, error: insErr } = await sb.from("email_messages").insert({
+        dsp_id,
+        folder_id: drafts ? drafts.id : null,
+        direction: "outbound",
+        status: "draft",
+        ...row,
+      }).select("id").single();
+      error = insErr;
+      if (!error && data && data.id && gen === _emComposerGen) _emDraftRowId = data.id;
+    }
+    if (error && /bcc_emails/.test(error.message || "")) {
+      _srvBccState = false;
+      delete row.bcc_emails;
+      return _emSaveDraftRow(silent); // retry once without bcc
+    }
+    if (error && /message_status|invalid input value/.test(error.message || "")) {
+      // Pre-0537 — no 'draft' enum value. Fall back to the local slot.
+      _srvDraftState = false;
+      legacySave();
+      if (!silent && typeof toast === "function") toast("Saved locally — server drafts need migration 0537", "info");
+      return;
+    }
+    if (error) { if (!silent && typeof toast === "function") toast("Couldn't save draft: " + error.message, "warn"); return; }
+    _srvDraftState = true;
+    if (gen === _emComposerGen) _emLastDraftJson = j;
+    if (!silent && typeof toast === "function") toast("Draft saved", "success");
+  }
+
   function renderComposerChips() {
     const host = document.getElementById("rr-em-composer-attachments");
     if (!host) return;
@@ -97180,7 +97540,16 @@ document.addEventListener("click", (e) => {
   let _composerAttachmentsSent = false;
   function closeComposer() {
     const m = document.getElementById("rr-em-composer");
-    if (m) m.remove();
+    if (m) {
+      // Close = keep the draft (EM#46/47) — Escape can no longer destroy
+      // typed mail. The Delete ribbon tile is the discard path.
+      clearInterval(_emDraftTimer);
+      if (!_emDiscardDraft && !_composerAttachmentsSent) {
+        try { _emSaveDraftRow(true); } catch (_) {}
+      }
+      m.remove();
+    }
+    _emAcClose();
     if (!_composerAttachmentsSent) {
       const paths = composerAttachments.map(a => a.storage_path).filter(Boolean);
       if (paths.length) {
@@ -97189,6 +97558,11 @@ document.addEventListener("click", (e) => {
     }
     composerAttachments = [];
     _composerAttachmentsSent = false;
+    _emRecips = { to: [], cc: [], bcc: [] };
+    _emDraftRowId = null;
+    _emDiscardDraft = false;
+    _emLastDraftJson = "";
+    _emComposerGen++;
     composerOnCancel = null;
     composerApplicantId = null;
     composerTemplateId  = null;
@@ -97204,22 +97578,25 @@ document.addEventListener("click", (e) => {
    _emSendInFlight = true;
    try {
     const toInp      = document.getElementById("rr-em-composer-to");
-    const ccInp      = document.getElementById("rr-em-composer-cc");
     const subjectInp = document.getElementById("rr-em-composer-subject");
     const bodyInp    = document.getElementById("rr-em-composer-body");
     const sendBtn    = document.getElementById("rr-em-composer-send");
     if (!toInp || !subjectInp || !bodyInp) return;
-    const to      = toInp.value.trim();
+    // Recipients live in the chip arrays (EM#43/44) — sweep any
+    // half-typed text into chips first so nothing silently drops.
+    _emCfCommitPending();
+    const to  = _emRecips.to.slice();
+    const cc  = _emRecips.cc.slice();
+    const bcc = _emRecips.bcc.slice();
     const subject = subjectInp.value.trim();
-    // The body is now a contenteditable div — read both the rendered
+    // The body is a contenteditable div — read both the rendered
     // HTML (for Resend) and the plaintext fallback (so the inbox list
     // and snippet can show something sensible without injecting HTML).
     const bodyHtml = bodyInp.innerHTML || "";
     const bodyText = (bodyInp.innerText || bodyInp.textContent || "").trim();
-    // CC is comma- or semicolon-separated; trim each entry, drop blanks.
-    const cc      = (ccInp?.value || "")
-      .split(/[,;]/).map(s => s.trim()).filter(Boolean);
-    if (!to)      { if (typeof toast === "function") toast("To is required", "warn"); toInp.focus(); return; }
+    if (!to.length) { if (typeof toast === "function") toast("To is required", "warn"); toInp.focus(); return; }
+    const bad = [...to, ...cc, ...bcc].find(a => !_emAddrOk(a));
+    if (bad) { if (typeof toast === "function") toast(`"${bad}" doesn't look like an email address`, "warn"); return; }
     if (!subject) { if (typeof toast === "function") toast("Subject is required", "warn"); subjectInp.focus(); return; }
     if (!bodyText && !confirm("Send with empty body?")) return;
     const dsp_id = currentDspId();
@@ -97231,11 +97608,14 @@ document.addEventListener("click", (e) => {
       folder_id:  sent?.id || null,
       direction:  "outbound",
       status:     "queued",
-      to_email:   to,
+      to_email:   to.join(", "),
       subject:    subject,
       body_text:  bodyText,
       body_html:  bodyHtml,
     };
+    // Bcc (EM#44, migration 0537) · never silently dropped — a missing
+    // column fails the send with an explanation instead.
+    if (bcc.length > 0) insertRow.bcc_emails = bcc;
     // Applicant-facing emails (screening / booking invites composed from the
     // funnel) carry the applicant + template so they thread correctly.
     if (composerApplicantId) insertRow.applicant_id = composerApplicantId;
@@ -97256,7 +97636,19 @@ document.addEventListener("click", (e) => {
       // never fails the send over an unknown column.
       if (_srvMetaState === true) insertRow.has_attachments = true;
     }
-    const { error } = await sb.from("email_messages").insert(insertRow);
+    let error;
+    if (_emDraftRowId) {
+      // Promote the draft row itself to queued (EM#46) — one row from
+      // draft to Sent, no duplicates.
+      ({ error } = await sb.from("email_messages").update(insertRow).eq("id", _emDraftRowId));
+    } else {
+      ({ error } = await sb.from("email_messages").insert(insertRow));
+    }
+    if (error && bcc.length && /bcc_emails/.test(error.message || "")) {
+      if (typeof toast === "function") toast("Bcc needs migration 0537 — remove the Bcc recipients or apply the migration first", "warn");
+      if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = "Send"; }
+      return;
+    }
     if (error) {
       if (typeof toast === "function") toast("Send failed: " + error.message, "warn");
       if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = "Send"; }
