@@ -18,10 +18,10 @@
 -- can only write, not read others' files). Staff/dispatcher authenticated
 -- read policies are untouched. Idempotent.
 --
--- NOTE (not covered here): the `receipts` bucket has the same bucket-wide
--- `receipts_anon_read` policy (migration 0435). Closing it the same way needs
--- driver-file-sign extended to `receipts` + the app's receipt reads switched
--- over first — tracked as a follow-up in the runbook, not dropped blindly.
+-- NOTE: the `receipts` bucket had the same bucket-wide `receipts_anon_read`
+-- leak (migration 0435). It is closed in migration 0544 — a simple DROP, since
+-- nothing legitimate reads receipts as anon (driver app only uploads; dashboard
+-- reads authenticated). That one is safe to apply any time, unlike this file.
 
 drop policy if exists "driver_docs_anon_select"    on storage.objects;  -- 0079 · driver-documents
 drop policy if exists "driver_photos_anon_read"    on storage.objects;  -- 0446 · driver-photos

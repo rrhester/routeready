@@ -149,14 +149,17 @@ If any read fails, do **not** apply 0539 — the app path has a bug; fix and re-
 
 ---
 
-## Follow-up (not in this change)
+## Follow-up
 
-- **`receipts` bucket** has the same bucket-wide `receipts_anon_read` policy
-  (migration 0435). Close it the same way: add `receipts` to
-  `driver-file-sign`'s allow-list + `driver_can_read_file` (path carries the
-  driver id, like `driver-documents`), switch the app's receipt reads, then
-  drop `receipts_anon_read`. Left out here to keep this change to buckets whose
-  read paths are covered.
-- The **anon INSERT** policies remain by design. Tightening uploads to an
-  edge-function-mediated path is a separate, lower-priority hardening step.
+- **`receipts` bucket** — DONE in `supabase/migrations/0544_drop_receipts_anon_read.sql`.
+  It had the same bucket-wide `receipts_anon_read` leak (migration 0435), but —
+  unlike the three driver buckets — **nothing legitimate reads receipts as
+  anon**: the driver app only *uploads* them (anon INSERT, path verified by
+  `driver_receipt_submit`), and the dashboard reads them as the *authenticated*
+  operator (`receipts_tenant_read`). So 0544 just **drops** the anon read policy —
+  no signing edge function / ownership RPC / app change / deploy-ordering gate
+  needed. Safe to apply any time.
+- The **anon INSERT** policies (driver buckets + `receipts_anon_write`) remain by
+  design. Tightening uploads to an edge-function-mediated path is a separate,
+  lower-priority hardening step.
 ```
