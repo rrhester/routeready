@@ -89,6 +89,7 @@
             </button>
             <div class="rr-ab-menu" id="rr-fl-proof-menu" role="menu" aria-label="Fleet reports" hidden>
               <button type="button" role="menuitem" data-fl-menu="proof">Proof of Use report</button>
+              <button type="button" role="menuitem" data-fl-menu="costs">Fleet cost report</button>
               <button type="button" role="menuitem" data-fl-menu="rotation">Van rotation &amp; readiness</button>
               <button type="button" role="menuitem" data-fl-menu="issues">Open issues</button>
             </div>
@@ -114,6 +115,10 @@
              Add van split menu fires this inert button so the handler
              resolves without exposing the module-local _flExportCsv. -->
         <button type="button" id="rr-fleet-export" hidden aria-hidden="true" tabindex="-1"></button>
+        <!-- Hidden cost-report trigger · same recipe as #rr-fleet-export:
+             the menu item fires this inert button so the delegated live.js
+             handler resolves without exposing the module-local fn. -->
+        <button type="button" id="rr-fleet-costs" hidden aria-hidden="true" tabindex="-1"></button>
         <script>
           // Fleet action-bar SPLIT buttons · same idea as the Schedule
           // action bar (view-schedule.frag inline script): the pill body
@@ -148,6 +153,7 @@
               switch (key) {
                 case "add":      fire("rr-fleet-add"); break;
                 case "export":   fire("rr-fleet-export"); break;
+                case "costs":    fire("rr-fleet-costs"); break;
                 case "proof":    if (typeof _flOpenProofModal === "function") _flOpenProofModal(); break;
                 case "rotation": if (typeof fleetSub === "function") fleetSub("rotation"); break;
                 case "issues":   if (typeof fleetSub === "function") fleetSub("issues"); break;

@@ -519,7 +519,28 @@ inventory… world class fleet system." Full audit + build record in
   vehicle_set_operational_status FROM the 0539 body ✓, 0566 is
   trigger-only ✓). NOTE main raced to 0567 (launch-readiness sessions) —
   fleet migrations renumbered mid-flight LAST PR (0537/0538→0539/0540);
-  0568 took the next free ordinal.
+  0568 took the next free ordinal. MERGED PR #4136 (squash 5c942ec, full
+  CI green — Actions recovered). Codex review fixes shipped on it:
+  odometer answers must be plain positive integers (strip only
+  thousands separators — deleting non-digits would inflate '12345.5' and
+  the only-up ratchet locks it in), Use-a-part follows the station lens
+  w/ station codes on options, stock item modal keeps a synthetic option
+  for an inactive home station.
+
+**SHIPPED — fleet cost report (third PR, branch reset again):**
+- **Migration 0570** `fleet_cost_report(p_months, p_station_id)` — per-van
+  windowed spend (same bucket definitions as vehicle_cost_summary — keep
+  in sync), miles, cost/mile + fleet totals; per-source exception guards;
+  NEW ledger self-record convention (0569 session) included. **MANUAL —
+  paste in chat.**
+- Client: Proof-of-Use caret menu → "Fleet cost report" (hidden
+  `#rr-fleet-costs` trigger, the export-button recipe) → `_flOpenCostReport`
+  modal: period picker, sortable cols (numeric sort = (a-b)*dir — the
+  ternary form was inverted, harness caught it), All-vans toggle
+  (zero-spend hidden by default), totals row, CSV. `.fl-cr-*` token-only.
+- qa-fleet.mjs grew to 59 checks (cost-report modal drive). NOTE main's
+  0568/0569 session added the rr_migrations SELF-RECORD convention — new
+  migrations must append the insert block (ordinal gate now checks).
 
 ## Active task: Staffing model — XL-route demand (branch claude/staffing-driver-requirements-1tw30l)
 

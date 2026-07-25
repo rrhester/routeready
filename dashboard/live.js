@@ -89021,7 +89021,166 @@ document.addEventListener("click", async (e) => {
     _flExportCsv();
     return;
   }
+  if (e.target.closest("#rr-fleet-costs")) {
+    e.preventDefault();
+    _flOpenCostReport();
+    return;
+  }
 });
+
+// ─── Fleet cost report (fleet_cost_report, migration 0570) ───────────
+// Per-van windowed spend (repairs / service / parts), miles, and
+// cost-per-mile, fleet totals on top — the set-based sibling of the
+// drawer's vehicle_cost_summary card. Follows the master station lens.
+let _flCrState = { months: 12, sortKey: "total_cents", sortDir: -1, showAll: false, data: null };
+
+async function _flOpenCostReport() {
+  document.getElementById("rr-fl-cr-modal")?.remove();
+  const m = document.createElement("div");
+  m.id = "rr-fl-cr-modal";
+  m.className = "fd-fm-overlay";
+  m.innerHTML = `
+    <div class="fd-fm-card fl-cr-card" role="dialog" aria-modal="true" aria-label="Fleet cost report">
+      <div class="fd-fm-head">
+        <div><h3 class="fd-fm-title">Fleet cost report</h3><div class="fd-fm-sub" id="rr-fl-cr-sub">Loading…</div></div>
+        <div class="fl-cr-tools">
+          <select id="rr-fl-cr-months" class="fl-filter" aria-label="Report window">
+            <option value="3">Last 3 months</option>
+            <option value="6">Last 6 months</option>
+            <option value="12" selected>Last 12 months</option>
+            <option value="24">Last 24 months</option>
+          </select>
+          <label class="fl-cr-showall"><input type="checkbox" id="rr-fl-cr-all">All vans</label>
+          <button type="button" class="btn btn-sm" id="rr-fl-cr-csv">CSV</button>
+          <button type="button" class="fd-fm-x" data-fm-close aria-label="Close">×</button>
+        </div>
+      </div>
+      <div class="fl-cr-body" id="rr-fl-cr-body"><div class="fl-pm-empty-sm">Loading cost report…</div></div>
+    </div>`;
+  document.body.appendChild(m);
+  const close = () => { m.remove(); document.removeEventListener("keydown", onKey); };
+  const onKey = (e) => { if (e.key === "Escape") close(); };
+  document.addEventListener("keydown", onKey);
+  m.addEventListener("click", (e) => {
+    if (e.target === m || e.target.closest("[data-fm-close]")) { close(); return; }
+    const th = e.target.closest("[data-fl-cr-sort]");
+    if (th) {
+      const key = th.getAttribute("data-fl-cr-sort");
+      if (_flCrState.sortKey === key) _flCrState.sortDir *= -1;
+      else { _flCrState.sortKey = key; _flCrState.sortDir = key === "name" ? 1 : -1; }
+      _flCrRender();
+      return;
+    }
+    if (e.target.closest("#rr-fl-cr-csv")) { _flCrExportCsv(); return; }
+  });
+  m.addEventListener("change", (e) => {
+    if (e.target && e.target.id === "rr-fl-cr-months") {
+      _flCrState.months = parseInt(e.target.value, 10) || 12;
+      _flCrLoad();
+      return;
+    }
+    if (e.target && e.target.id === "rr-fl-cr-all") {
+      _flCrState.showAll = !!e.target.checked;
+      _flCrRender();
+    }
+  });
+  m.querySelector("#rr-fl-cr-months").value = String(_flCrState.months);
+  m.querySelector("#rr-fl-cr-all").checked = _flCrState.showAll;
+  await _flCrLoad();
+}
+
+async function _flCrLoad() {
+  const body = document.getElementById("rr-fl-cr-body");
+  if (!body) return;
+  body.innerHTML = `<div class="fl-pm-empty-sm">Loading cost report…</div>`;
+  const _stnId = (typeof rrStationScopeId === "function") ? rrStationScopeId() : null;
+  const args = { p_months: _flCrState.months };
+  if (_stnId) args.p_station_id = _stnId;
+  const { data, error } = await sb.rpc("fleet_cost_report", args);
+  if (error) {
+    body.innerHTML = (error.code === "PGRST202" || /could not find the function/i.test(error.message || ""))
+      ? `<div class="fl-pm-empty"><h3>Cost report isn't set up yet</h3><p>Apply migration <strong>0570</strong> in Supabase → SQL editor, then reopen this report.</p></div>`
+      : `<div class="fl-pm-empty"><h3>Couldn't load the report</h3><p>${escapeHtml(error.message || "Try again")}</p></div>`;
+    return;
+  }
+  _flCrState.data = data || null;
+  _flCrRender();
+}
+
+function _flCrRender() {
+  const body = document.getElementById("rr-fl-cr-body");
+  const sub  = document.getElementById("rr-fl-cr-sub");
+  const d = _flCrState.data;
+  if (!body || !d) return;
+  const s = d.summary || {};
+  const usd = (c) => "$" + (Number(c || 0) / 100).toLocaleString(undefined, { maximumFractionDigits: 0 });
+  const cpm = (c) => c == null ? "—" : "$" + (Number(c) / 100).toFixed(2);
+  if (sub) {
+    sub.textContent = `${usd(s.total_cents)} across ${s.vans_with_spend || 0} of ${s.vans || 0} vans · last ${d.window_months} months`
+      + (s.cost_per_mile_cents != null ? ` · fleet ${cpm(s.cost_per_mile_cents)}/mi` : "");
+  }
+  let vans = Array.isArray(d.vans) ? d.vans.slice() : [];
+  if (!_flCrState.showAll) vans = vans.filter((v) => Number(v.total_cents) > 0);
+  const { sortKey, sortDir } = _flCrState;
+  vans.sort((a, b) => {
+    if (sortKey === "name") return String(a.name || "").localeCompare(String(b.name || "")) * sortDir;
+    return ((Number(a[sortKey]) || 0) - (Number(b[sortKey]) || 0)) * sortDir;
+  });
+  if (!vans.length) {
+    body.innerHTML = `<div class="fl-pm-empty"><h3>No spend in this window</h3><p>Repairs, service, PM completions, and parts all roll up here as they're logged. Tick “All vans” to see the zero-spend fleet.</p></div>`;
+    return;
+  }
+  const caret = (key) => _flCrState.sortKey === key ? (_flCrState.sortDir < 0 ? " ▾" : " ▴") : "";
+  const th = (key, label, num) => `<th class="${num ? "fl-cr-num" : ""}"><button type="button" class="fl-cr-th" data-fl-cr-sort="${key}">${label}${caret(key)}</button></th>`;
+  const rows = vans.map((v) => `<tr>
+    <td><span class="fl-cr-van">${escapeHtml(v.nickname || v.name || "Van")}</span><span class="fl-cr-van-sub">${escapeHtml([_flVanTypeLabel(v.van_type), v.station_code, v.operational_status === "grounded" ? "grounded" : ""].filter(Boolean).join(" · "))}</span></td>
+    <td class="fl-cr-num">${usd(v.repair_cents)}</td>
+    <td class="fl-cr-num">${usd(v.service_cents)}</td>
+    <td class="fl-cr-num">${usd(v.parts_cents)}</td>
+    <td class="fl-cr-num fl-cr-total">${usd(v.total_cents)}</td>
+    <td class="fl-cr-num">${Number(v.miles) > 0 ? Number(v.miles).toLocaleString() : "—"}</td>
+    <td class="fl-cr-num">${cpm(v.cost_per_mile_cents)}</td>
+  </tr>`).join("");
+  body.innerHTML = `<table class="table fl-cr-table">
+    <thead><tr>
+      ${th("name", "Van")}
+      ${th("repair_cents", "Repairs", true)}
+      ${th("service_cents", "Service", true)}
+      ${th("parts_cents", "Parts", true)}
+      ${th("total_cents", "Total", true)}
+      ${th("miles", "Miles", true)}
+      ${th("cost_per_mile_cents", "$/mi", true)}
+    </tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot><tr>
+      <td>Fleet</td>
+      <td class="fl-cr-num">${usd(s.repair_cents)}</td>
+      <td class="fl-cr-num">${usd(s.service_cents)}</td>
+      <td class="fl-cr-num">${usd(s.parts_cents)}</td>
+      <td class="fl-cr-num fl-cr-total">${usd(s.total_cents)}</td>
+      <td class="fl-cr-num">${Number(s.miles) > 0 ? Number(s.miles).toLocaleString() : "—"}</td>
+      <td class="fl-cr-num">${cpm(s.cost_per_mile_cents)}</td>
+    </tr></tfoot>
+  </table>`;
+}
+
+function _flCrExportCsv() {
+  const d = _flCrState.data;
+  if (!d || !Array.isArray(d.vans) || !d.vans.length) { toast("Nothing to export yet.", "warn"); return; }
+  const usd2 = (c) => (Number(c || 0) / 100).toFixed(2);
+  const headers = ["van","nickname","van_type","station","status","repairs_usd","service_usd","parts_usd","total_usd","miles","cost_per_mile_usd","lease_monthly_usd"];
+  const csv = [headers.join(",")].concat(d.vans.map((v) => [
+    v.name || "", v.nickname || "", v.van_type || "", v.station_code || "", v.operational_status || "",
+    usd2(v.repair_cents), usd2(v.service_cents), usd2(v.parts_cents), usd2(v.total_cents),
+    v.miles ?? "", v.cost_per_mile_cents != null ? (Number(v.cost_per_mile_cents) / 100).toFixed(2) : "",
+    v.lease_monthly_cents != null ? usd2(v.lease_monthly_cents) : "",
+  ].map((x) => `"${String(x).replace(/"/g, '""')}"`).join(","))).join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+  a.download = `fleet-cost-report-${_flCrState.months}mo.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
 
 function _flExportCsv() {
   const rows = _flApplyRosterFilters(_fleetRows);

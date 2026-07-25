@@ -151,8 +151,23 @@ The fleet domain was already deep in four places:
   repair-case drawer consumes stock with `repair_case_id` + the case's
   van linked, logs a timeline note, and refreshes the drawer.
 
-## 5b · Still deferred
+## 5b · Fleet cost report (third PR)
+
+- **Migration 0570 `fleet_cost_report(p_months, p_station_id)`** — the
+  set-based sibling of `vehicle_cost_summary` (0539): one row per
+  non-archived van with windowed spend by bucket (repair / service /
+  parts — same source definitions, keep the two in sync), miles from
+  the mileage ledger, cost-per-mile, and fleet totals. Per-source
+  exception guards fail soft on unapplied optional tables; station
+  lens via `vehicles.station_id`.
+- **Client:** "Fleet cost report" in the Proof-of-Use caret menu
+  (hidden `#rr-fleet-costs` trigger — the `#rr-fleet-export` recipe) →
+  modal `_flOpenCostReport` (live.js): period picker (3/6/12/24 mo),
+  sortable columns (total-desc default), zero-spend vans hidden behind
+  an "All vans" toggle, fleet totals row, CSV export. CSS `.fl-cr-*`
+  token-only. Pre-0570 → setup notice.
+
+## 5c · Still deferred
 
 - Telematics (GeoTab) mileage sync — `vehicle_mileage_log.source`
-  already supports `geotab`; needs an integration.
-- Cost summary in a fleet-wide report (per-van table, sortable).
+  already supports `geotab`; needs an integration (credentials).

@@ -23482,6 +23482,30 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-fleet2 .fl-pm-chip.warn .fl-pm-chip-state{color:var(--amber-dark)}
           #view-fleet2 .fl-pm-chip.ok .fl-pm-chip-state{color:var(--green)}
           #view-fleet2 .fl-pm-chip.dim .fl-pm-chip-state{color:var(--text-muted)}
+          /* Fleet cost report modal (fleet_cost_report, 0570). */
+          .fl-cr-card{width:860px;max-width:96vw}
+          .fl-cr-tools{display:flex;align-items:center;gap:var(--s-2);flex-wrap:wrap}
+          .fl-cr-showall{
+            display:flex;align-items:center;gap:5px;
+            font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);cursor:pointer;
+          }
+          .fl-cr-showall input{accent-color:var(--accent)}
+          .fl-cr-body{padding:0 var(--s-5) var(--s-4);overflow:auto;max-height:70vh}
+          .fl-cr-table th{position:sticky;top:0;background:var(--surface);z-index:1}
+          .fl-cr-th{
+            background:none;border:0;padding:0;font:inherit;
+            font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+            color:var(--text-subtle);cursor:pointer;white-space:nowrap;
+          }
+          .fl-cr-th:hover{color:var(--text)}
+          .fl-cr-num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+          .fl-cr-num .fl-cr-th{display:inline}
+          .fl-cr-total{font-weight:700}
+          .fl-cr-van{display:block;font-weight:600;color:var(--text)}
+          .fl-cr-van-sub{display:block;font-size:var(--fs-xs);color:var(--text-subtle);margin-top:1px}
+          .fl-cr-table tfoot td{
+            border-top:2px solid var(--border);font-weight:600;color:var(--text);
+          }
           .fl-pm-rule-row{
             display:flex;flex-direction:column;align-items:flex-start;gap:2px;
             width:100%;background:none;border:0;border-top:1px solid var(--border-subtle);
