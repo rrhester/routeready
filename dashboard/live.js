@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=b376f14324e4";
-import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=b376f14324e4";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=b376f14324e4";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=b376f14324e4";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=b376f14324e4";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=b376f14324e4";
-import { isChecklistComplete } from "./checklist-core.mjs?v=b376f14324e4";
+import { planScheduleWeek } from "./scheduling-engine.js?v=6d34f8551941";
+import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=6d34f8551941";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=6d34f8551941";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=6d34f8551941";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=6d34f8551941";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=6d34f8551941";
+import { isChecklistComplete } from "./checklist-core.mjs?v=6d34f8551941";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=b376f14324e4";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=b376f14324e4";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=b376f14324e4";
+} from "./msg-core.mjs?v=6d34f8551941";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=6d34f8551941";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=6d34f8551941";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -96984,6 +96984,22 @@ document.addEventListener("click", (e) => {
           </div>
           <div class="emct-divider" aria-hidden="true"></div>
           <div class="emct-group">
+            <button type="button" class="emct-btn" data-fmt="insertUnorderedList" title="Bulleted list" aria-label="Bulleted list"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="5" cy="6" r="1"/><circle cx="5" cy="12" r="1"/><circle cx="5" cy="18" r="1"/></svg></button>
+            <button type="button" class="emct-btn" data-fmt="insertOrderedList" title="Numbered list" aria-label="Numbered list"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="10" y1="6" x2="21" y2="6"/><line x1="10" y1="12" x2="21" y2="12"/><line x1="10" y1="18" x2="21" y2="18"/><path d="M4 6h1v4"/><path d="M4 10h2"/><path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/></svg></button>
+            <button type="button" class="emct-btn" id="rr-em-composer-link" title="Insert link" aria-label="Insert link"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></button>
+            <button type="button" class="emct-btn" data-fmt="undo" title="Undo" aria-label="Undo"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg></button>
+            <button type="button" class="emct-btn" data-fmt="redo" title="Redo" aria-label="Redo"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg></button>
+          </div>
+          <div class="emct-divider" aria-hidden="true"></div>
+          <div class="emct-group">
+            <div class="em-popout-move-wrap">
+              <button type="button" class="emct-btn em-tpl-btn" id="rr-em-composer-tpl" title="Templates" aria-haspopup="menu" aria-expanded="false"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span class="em-tpl-lbl">Templates ▾</span></button>
+              <div class="em-popout-move-menu em-tpl-menu" hidden role="menu" aria-label="Templates"></div>
+            </div>
+            <button type="button" class="emct-btn" id="rr-em-composer-sig" title="Signature" aria-label="Signature"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="M2 22h20" stroke-width="1.2"/></svg></button>
+          </div>
+          <div class="emct-divider" aria-hidden="true"></div>
+          <div class="emct-group">
             <button type="button" class="emct-btn emct-paperclip" id="rr-em-composer-attach" title="Attach files" aria-label="Attach files">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
             </button>
@@ -97200,6 +97216,86 @@ document.addEventListener("click", (e) => {
         _emDocPickAttach(dp.getAttribute("data-em-docpick"));
         return;
       }
+      // Templates menu (EM#52).
+      const tplBtn = e.target.closest && e.target.closest("#rr-em-composer-tpl");
+      if (tplBtn) {
+        e.preventDefault();
+        const menu = m.querySelector(".em-tpl-menu");
+        if (menu) {
+          const open = menu.hidden;
+          if (open) _emRenderTplMenu();
+          menu.hidden = !open;
+          tplBtn.setAttribute("aria-expanded", String(open));
+        }
+        return;
+      }
+      const tplUse = e.target.closest && e.target.closest("[data-em-tpl-use]");
+      if (tplUse) {
+        e.preventDefault();
+        const t = _emLoadTpls()[parseInt(tplUse.getAttribute("data-em-tpl-use"), 10)];
+        const ed = document.getElementById("rr-em-composer-body");
+        if (t && ed) ed.innerHTML += t.html || "";
+        const menu = m.querySelector(".em-tpl-menu");
+        if (menu) menu.hidden = true;
+        return;
+      }
+      const tplDel = e.target.closest && e.target.closest("[data-em-tpl-del]");
+      if (tplDel) {
+        e.preventDefault();
+        const tpls = _emLoadTpls();
+        tpls.splice(parseInt(tplDel.getAttribute("data-em-tpl-del"), 10), 1);
+        _emSaveTpls(tpls);
+        _emRenderTplMenu();
+        return;
+      }
+      if (e.target.closest && e.target.closest("[data-em-tpl-saveas]")) {
+        e.preventDefault();
+        const name = prompt("Template name:");
+        const ed = document.getElementById("rr-em-composer-body");
+        if (name && name.trim() && ed) {
+          const tpls = _emLoadTpls();
+          tpls.push({ name: name.trim().slice(0, 60), html: ed.innerHTML });
+          _emSaveTpls(tpls);
+        }
+        const menu = m.querySelector(".em-tpl-menu");
+        if (menu) menu.hidden = true;
+        return;
+      }
+      // Signature editor (EM#51).
+      if (e.target.closest && e.target.closest("#rr-em-composer-sig")) {
+        e.preventDefault();
+        _emOpenSigEditor();
+        return;
+      }
+      if (e.target.closest && e.target.closest("[data-em-sig-close]")) {
+        e.preventDefault();
+        const w = document.getElementById("rr-em-sigedit");
+        if (w) w.remove();
+        return;
+      }
+      if (e.target.closest && e.target.closest("[data-em-sig-save]")) {
+        e.preventDefault();
+        const ed = document.getElementById("rr-em-sig-editor");
+        try { localStorage.setItem(_emSigKey(), ed ? ed.innerHTML : ""); } catch (_) {}
+        const w = document.getElementById("rr-em-sigedit");
+        if (w) w.remove();
+        return;
+      }
+      if (e.target.closest && e.target.closest("[data-em-sig-clear]")) {
+        e.preventDefault();
+        const ed = document.getElementById("rr-em-sig-editor");
+        if (ed) ed.innerHTML = "";
+        return;
+      }
+      if (e.target.closest && e.target.closest("[data-em-sig-insert]")) {
+        e.preventDefault();
+        const ed = document.getElementById("rr-em-sig-editor");
+        const body = document.getElementById("rr-em-composer-body");
+        if (ed && body) body.innerHTML += `<div><br></div><div class="rr-sig">${ed.innerHTML}</div>`;
+        const w = document.getElementById("rr-em-sigedit");
+        if (w) w.remove();
+        return;
+      }
     });
     m.addEventListener("input", (e) => {
       if (e.target && e.target.id === "rr-em-docpick-q") _emDocPickRender(e.target.value);
@@ -97296,6 +97392,39 @@ document.addEventListener("click", (e) => {
     const colSw   = document.getElementById("rr-em-composer-color-sw");
     const fileInp = document.getElementById("rr-em-composer-file");
     const attachBtn = document.getElementById("rr-em-composer-attach");
+
+    // Paste sanitation (EM#54) · rich clipboard content is cleaned to
+    // the toolbar's vocabulary before it can enter body_html.
+    if (editor) {
+      editor.addEventListener("paste", (e) => {
+        const html = e.clipboardData && e.clipboardData.getData("text/html");
+        if (!html) return; // plain-text default handling is fine
+        e.preventDefault();
+        const clean = _emSanitizePastedHtml(String(html).slice(0, 500000));
+        document.execCommand("insertHTML", false, clean);
+      });
+    }
+    // Insert link (EM#53) · createLink on the current selection.
+    {
+      const linkBtn = document.getElementById("rr-em-composer-link");
+      if (linkBtn) {
+        linkBtn.addEventListener("mousedown", (e) => e.preventDefault()); // keep selection
+        linkBtn.addEventListener("click", (e) => {
+          e.preventDefault();
+          const url = prompt("Link URL:");
+          if (!url) return;
+          const safe = /^(https?:|mailto:)/i.test(url.trim()) ? url.trim() : "https://" + url.trim();
+          editor.focus();
+          document.execCommand("createLink", false, safe);
+          editor.querySelectorAll('a:not([target])').forEach(a => {
+            a.setAttribute("target", "_blank");
+            a.setAttribute("rel", "noopener");
+          });
+        });
+      }
+    }
+    // Signature auto-append on fresh mail (EM#51).
+    if (mode === "new" && !htmlPrefill && editor) _emAppendSignature(editor);
 
     // B / I / U buttons → execCommand. Keep focus on the editor so the
     // selection doesn't collapse when the toolbar button is clicked.
@@ -97598,6 +97727,106 @@ document.addEventListener("click", (e) => {
       n.innerHTML = "";
       if (sendBtn) sendBtn.textContent = "Send";
     }
+  }
+
+  // ── Signature (EM#51, per-user v1) + templates (EM#52) ──────────
+  // Both live in localStorage for now — the DSP-wide, Settings-managed
+  // versions belong to EM#98's Email settings section.
+  function _emSigKey() { return `rr-em-signature:${currentDspId() || "x"}:${(window.RR && window.RR.user && window.RR.user.id) || "u"}`; }
+  function _emGetSignature() { try { return localStorage.getItem(_emSigKey()) || ""; } catch (_) { return ""; } }
+  function _emTplKey() { return `rr-em-snippets:${currentDspId() || "x"}`; }
+  function _emLoadTpls() { try { const a = JSON.parse(localStorage.getItem(_emTplKey()) || "[]"); return Array.isArray(a) ? a : []; } catch (_) { return []; } }
+  function _emSaveTpls(a) { try { localStorage.setItem(_emTplKey(), JSON.stringify(a.slice(0, 50))); } catch (_) {} }
+  function _emRenderTplMenu() {
+    const menu = document.querySelector("#rr-em-composer .em-tpl-menu");
+    if (!menu) return;
+    const tpls = _emLoadTpls();
+    menu.innerHTML = tpls.map((t, i) =>
+      `<div class="em-tpl-row"><button type="button" class="em-popout-move-item" role="menuitem" data-em-tpl-use="${i}">${escapeHtmlLocal(t.name || "Template")}</button><button type="button" class="em-addr-x" data-em-tpl-del="${i}" aria-label="Delete template">×</button></div>`).join("")
+      + `<button type="button" class="em-popout-move-item em-tpl-save" role="menuitem" data-em-tpl-saveas>+ Save current as template…</button>`;
+  }
+  function _emOpenSigEditor() {
+    const old = document.getElementById("rr-em-sigedit");
+    if (old) old.remove();
+    const host = document.getElementById("rr-em-composer");
+    if (!host) return;
+    const wrap = document.createElement("div");
+    wrap.id = "rr-em-sigedit";
+    wrap.className = "em-docpick";
+    wrap.innerHTML = `<div class="em-docpick-card">
+      <div class="em-docpick-head"><span>Signature</span>
+        <button type="button" class="em-addr-x" data-em-sig-close aria-label="Close">×</button></div>
+      <div id="rr-em-sig-editor" class="em-sig-editor" contenteditable="true"></div>
+      <div class="em-sig-actions">
+        <button type="button" class="em-bulk-btn" data-em-sig-insert>Insert into message</button>
+        <span class="em-view-spacer" aria-hidden="true"></span>
+        <button type="button" class="em-bulk-btn" data-em-sig-clear>Clear</button>
+        <button type="button" class="em-bulk-btn em-sig-save" data-em-sig-save>Save</button>
+      </div>
+    </div>`;
+    wrap.addEventListener("click", (e) => { if (e.target === wrap) wrap.remove(); });
+    host.appendChild(wrap);
+    const ed = document.getElementById("rr-em-sig-editor");
+    if (ed) ed.innerHTML = _emGetSignature();
+  }
+  function _emAppendSignature(editorEl) {
+    const sig = _emGetSignature();
+    if (!sig || !editorEl || editorEl.querySelector(".rr-sig")) return;
+    editorEl.innerHTML += `<div><br></div><div class="rr-sig">${sig}</div>`;
+  }
+
+  // ── Paste sanitation (EM#54) ────────────────────────────────────
+  // Word/Outlook paste carries mso styles, tracking pixels, and
+  // scripts that would be RE-SENT to vendors. Allowlist tags, strip
+  // scripts/styles/images/handlers, keep only safe inline styles, and
+  // force safe link schemes.
+  function _emSanitizePastedHtml(html) {
+    const ALLOWED = new Set(["P", "DIV", "BR", "B", "STRONG", "I", "EM", "U", "S", "A", "UL", "OL", "LI", "SPAN", "FONT", "TABLE", "TBODY", "THEAD", "TR", "TD", "TH", "H1", "H2", "H3", "H4", "H5", "H6", "BLOCKQUOTE", "PRE", "CODE", "HR"]);
+    const DROP = new Set(["SCRIPT", "STYLE", "IMG", "IFRAME", "OBJECT", "EMBED", "LINK", "META", "FORM", "INPUT", "BUTTON", "VIDEO", "AUDIO", "SVG"]);
+    const STYLE_OK = ["color", "background-color", "font-weight", "font-style", "text-decoration", "font-family", "text-align"];
+    let doc;
+    try { doc = new DOMParser().parseFromString(String(html), "text/html"); } catch (_) { return ""; }
+    const clean = (node) => {
+      let el = node.firstElementChild;
+      while (el) {
+        const next = el.nextElementSibling;
+        if (DROP.has(el.tagName)) { el.remove(); el = next; continue; }
+        if (!ALLOWED.has(el.tagName)) {
+          // Unwrap unknown elements, keep their flow content.
+          clean(el);
+          const frag = doc.createDocumentFragment();
+          while (el.firstChild) frag.appendChild(el.firstChild);
+          el.replaceWith(frag);
+          el = next;
+          continue;
+        }
+        for (const attr of [...el.attributes]) {
+          const n = attr.name.toLowerCase();
+          if (n === "href" && el.tagName === "A") {
+            if (!/^(https?:|mailto:)/i.test(attr.value.trim())) el.removeAttribute(attr.name);
+            continue;
+          }
+          if (n !== "style") el.removeAttribute(attr.name);
+        }
+        if (el.getAttribute("style") != null) {
+          const kept = [];
+          for (const prop of STYLE_OK) {
+            const v = el.style.getPropertyValue(prop);
+            if (v) kept.push(prop + ":" + v);
+          }
+          if (kept.length) el.setAttribute("style", kept.join(";"));
+          else el.removeAttribute("style");
+        }
+        if (el.tagName === "A") {
+          el.setAttribute("target", "_blank");
+          el.setAttribute("rel", "noopener");
+        }
+        clean(el);
+        el = next;
+      }
+    };
+    clean(doc.body);
+    return doc.body.innerHTML;
   }
 
   // ── Attach from Documents (EM#49) ───────────────────────────────
