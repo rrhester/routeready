@@ -569,15 +569,20 @@ builder (live.js ~70135) now renders a `Helper` badge + a
 (CSS in schedule-rrx.css, token-only so the design-lint ratchet holds). So
 an XL route's two chips read "XL" (driver seat) and "XL · Helper" (helper
 seat). shift_kind already flows via the schedule_grid RPC (0269).
-PLACEMENT (2026-07-25, operator: "the XL-Helper badge blocks the text"):
-the tag rides IN `.shift-chip-secondary` (flex end via margin-left:auto,
-wraps under the wave/van line on narrow chips) — NOT the absolute
-`.shift-chip-badges` corner cluster, whose fixed 26px clearance fits only
-the 2-char SP/XL tags and let the wide tag paint over the van text. Helper
-chips carry no corner cluster at all; the van decorator inserts the
-mirrored van BEFORE the tag (insertBefore, null ref = append elsewhere).
-Don't move the tag back to the corner. Browser-QA'd 14/14 (scratchpad
-qa-helper-badge.mjs pattern).
+PLACEMENT (2026-07-25, operator: "the XL-Helper badge blocks the text",
+then "the card size needs to stay the same"): the tag rides IN
+`.shift-chip-secondary` (flex end via margin-left:auto) on ONE line — the
+chip must stay exactly as tall as every other chip, so the line never
+wraps and the visible text is the bare "Helper" (the "XL-" prefix made it
+too wide to share the line at real chip widths; the service type lives in
+the hover title instead). Last resort on a pathologically narrow chip the
+tag ellipsizes. NOT the absolute `.shift-chip-badges` corner cluster,
+whose fixed 26px clearance fits only the 2-char SP/XL tags and let the tag
+paint over the van text. Helper chips carry no corner cluster at all; the
+van decorator inserts the mirrored van BEFORE the tag (insertBefore, null
+ref = append elsewhere). Don't move the tag back to the corner, don't
+re-add the type prefix, don't reintroduce a wrap. Browser-QA'd 16/16
+(scratchpad qa-helper-badge.mjs pattern).
 
 **SHIPPED — driver-app helper label:** app/app.js `shiftCardHtml` (schedule
 row) + `_shiftMetaCells` (today spotlight) now show a `Helper` chip/cell when
