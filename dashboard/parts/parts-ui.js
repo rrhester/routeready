@@ -38,6 +38,8 @@ import { makeNhtsaProvider } from "./adapters/nhtsa.js";
     search: null,          // current part_searches row
     offers: [],            // ranked offers for the current search
     weights: null,
+    stock: null,           // parts_stock_list payload (0540) · null = not loaded · {missing:true} = pre-migration
+    stockLoading: false,
   };
 
   const sb = () => window.sb;
@@ -130,6 +132,27 @@ import { makeNhtsaProvider } from "./adapters/nhtsa.js";
     .rrp-src{display:grid;grid-template-columns:1.4fr .8fr 1fr 1fr auto;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--border-subtle);font-size:var(--fs-md)}
     .rrp-src.h{border-top:0;font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--text-subtle)}
     .rrp-dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:5px}
+    /* On-hand inventory (0540) */
+    #fl-sub-parts .rrp-stk{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px}
+    #fl-sub-parts .rrp-stk-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+    #fl-sub-parts .rrp-stk-title{font-weight:700;font-size:var(--fs-lg)}
+    #fl-sub-parts .rrp-stk-sub{color:var(--text-subtle);font-size:var(--fs-sm);margin-top:2px;max-width:560px}
+    #fl-sub-parts .rrp-stk-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    #fl-sub-parts .rrp-stk-sum{font-size:var(--fs-sm);color:var(--text-muted)}
+    #fl-sub-parts .rrp-stk-sum .rrp-stk-low-b{color:var(--amber-dark,#B45309)}
+    #fl-sub-parts .rrp-stk-empty{padding:18px;text-align:center;color:var(--text-subtle);font-size:var(--fs-sm);border:1px dashed var(--border);border-radius:var(--r-md)}
+    #fl-sub-parts .rrp-stk-table{width:100%;border-collapse:collapse;font-size:var(--fs-md)}
+    #fl-sub-parts .rrp-stk-table th{font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-subtle);text-align:left;padding:6px 8px;border-bottom:1px solid var(--border)}
+    #fl-sub-parts .rrp-stk-table td{padding:8px;border-bottom:1px solid var(--border-subtle);vertical-align:top}
+    #fl-sub-parts .rrp-stk-name{background:none;border:0;padding:0;font:inherit;font-weight:600;color:var(--text);cursor:pointer;text-align:left}
+    #fl-sub-parts .rrp-stk-name:hover{color:var(--accent-text,#1E40AF);text-decoration:underline}
+    #fl-sub-parts .rrp-stk-meta{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
+    #fl-sub-parts .rrp-stk-qty{font-variant-numeric:tabular-nums;font-weight:600}
+    #fl-sub-parts .rrp-stk-low{font-size:10px;font-weight:800;letter-spacing:.05em;color:var(--amber-dark,#B45309);background:var(--amber-soft,#FEF3C7);border-radius:var(--r-pill,999px);padding:1px 6px;margin-left:4px}
+    #fl-sub-parts .rrp-stk-lowrow td{background:var(--amber-soft,#FFFBEB)}
+    #fl-sub-parts .rrp-stk-inactive td{opacity:.55}
+    #fl-sub-parts .rrp-stk-act{white-space:nowrap;text-align:right}
+    #fl-sub-parts .rrp-stk-act .btn{padding:3px 8px;font-size:var(--fs-xs)}
     `;
     document.head.appendChild(s);
   }
@@ -267,6 +290,8 @@ import { makeNhtsaProvider } from "./adapters/nhtsa.js";
       </div>
 
       <div id="rrp-results"></div>
+
+      <div id="rrp-stock"></div>
     </div>`;
 
     // Restore filter selections
@@ -276,6 +301,8 @@ import { makeNhtsaProvider } from "./adapters/nhtsa.js";
 
     wireHeader();
     renderResults();
+    renderStock();
+    if (S.stock === null) loadStock();
   }
 
   function wireHeader() {
@@ -919,6 +946,246 @@ import { makeNhtsaProvider } from "./adapters/nhtsa.js";
   }
 
   // ── Overlay + toast helpers ───────────────────────────────────────────
+  // ── On-hand inventory (the parts room · migration 0540) ─────────────
+  // Stock items with bins + min-quantity reorder points; quantity moves
+  // ONLY through parts_stock_move (receive / use / return / adjust), so
+  // the movement ledger always explains the shelf count. Consumption can
+  // tag a van, which feeds that van's cost history (vehicle_cost_summary).
+  const usd = (c) => (c == null ? "—" : "$" + (Number(c) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+
+  async function loadStock() {
+    if (S.stockLoading) return;
+    S.stockLoading = true;
+    try {
+      const stn = (typeof window.rrStationScopeId === "function") ? window.rrStationScopeId() : null;
+      const { data, error } = await sb().rpc("parts_stock_list", stn ? { p_station_id: stn } : {});
+      if (error) {
+        S.stock = (error.code === "PGRST202" || /could not find the function/i.test(error.message || ""))
+          ? { missing: true }
+          : { error: error.message || "Couldn't load inventory" };
+      } else {
+        S.stock = data || { items: [], summary: {} };
+      }
+    } catch (e) {
+      S.stock = { error: String(e && e.message || e) };
+    } finally {
+      S.stockLoading = false;
+      renderStock();
+    }
+  }
+
+  function renderStock() {
+    const h = el("rrp-stock");
+    if (!h) return;
+    const st = S.stock;
+    const header = (right) => `<div class="rrp-stk-head">
+      <div>
+        <div class="rrp-stk-title">On-hand inventory</div>
+        <div class="rrp-stk-sub">The parts room — shelf stock, bins, and reorder points. Using a part on a van adds it to that van's cost history.</div>
+      </div>
+      <div class="rrp-stk-actions">${right || ""}</div>
+    </div>`;
+    if (st === null || S.stockLoading) {
+      h.innerHTML = `<div class="rrp-stk">${header("")}<div class="rrp-stk-empty">Loading inventory…</div></div>`;
+      return;
+    }
+    if (st.missing) {
+      h.innerHTML = `<div class="rrp-stk">${header("")}
+        <div class="rrp-stk-empty"><b>Inventory isn't set up yet.</b> Apply migration <b>0540</b> in Supabase → SQL editor, then reload — you'll get stock items, bins, receive/use tracking, and low-stock flags.</div>
+      </div>`;
+      return;
+    }
+    if (st.error) {
+      h.innerHTML = `<div class="rrp-stk">${header("")}<div class="rrp-stk-empty">Couldn't load inventory · ${esc(st.error)}</div></div>`;
+      return;
+    }
+    const items = Array.isArray(st.items) ? st.items : [];
+    const sum = st.summary || {};
+    const summaryTxt = items.length
+      ? `${sum.items ?? items.length} item${(sum.items ?? items.length) === 1 ? "" : "s"}${sum.low_stock_count ? ` · <b class="rrp-stk-low-b">${sum.low_stock_count} low</b>` : ""} · ${usd(sum.total_value_cents ?? 0)} on hand`
+      : "";
+    const addBtn = `<button class="btn btn-sm btn-primary" id="rrp-stk-add">${svg(ICON.plus, 13)} Add stock item</button>`;
+    if (!items.length) {
+      h.innerHTML = `<div class="rrp-stk">${header(addBtn)}
+        <div class="rrp-stk-empty">No stock tracked yet. Add the parts you keep on the shelf — filters, brake pads, mirrors, bulbs — with a bin and a minimum quantity, and the low-stock flag tells you when to reorder.</div>
+      </div>`;
+      wireStock();
+      return;
+    }
+    const rows = items.map((it) => {
+      const low = !!it.low_stock;
+      return `<tr class="${low ? "rrp-stk-lowrow" : ""}${it.active === false ? " rrp-stk-inactive" : ""}">
+        <td>
+          <button type="button" class="rrp-stk-name" data-stk-hist="${esc(it.id)}" title="View movement history">${esc(it.name)}</button>
+          <div class="rrp-stk-meta">${[it.part_number ? esc(it.part_number) : "", it.category ? esc(it.category) : ""].filter(Boolean).join(" · ") || ""}</div>
+        </td>
+        <td>${it.bin_location ? esc(it.bin_location) : "—"}</td>
+        <td class="rrp-stk-qty">${Number(it.qty_on_hand).toLocaleString()}${low ? ` <span class="rrp-stk-low">LOW</span>` : ""}</td>
+        <td>${it.min_qty != null ? Number(it.min_qty).toLocaleString() : "—"}</td>
+        <td>${usd(it.unit_cost_cents)}</td>
+        <td>${usd(it.value_cents)}</td>
+        <td class="rrp-stk-act">
+          <button class="btn btn-sm" data-stk-move="receive" data-stk-id="${esc(it.id)}" title="Receive stock in">＋</button>
+          <button class="btn btn-sm" data-stk-move="consume" data-stk-id="${esc(it.id)}" title="Use on a van">Use</button>
+          <button class="btn btn-sm" data-stk-move="adjust" data-stk-id="${esc(it.id)}" title="Cycle count / correct">Adj</button>
+          <button class="btn btn-sm" data-stk-edit="${esc(it.id)}" title="Edit item">Edit</button>
+        </td>
+      </tr>`;
+    }).join("");
+    h.innerHTML = `<div class="rrp-stk">
+      ${header(`<span class="rrp-stk-sum">${summaryTxt}</span>${addBtn}`)}
+      <table class="rrp-stk-table">
+        <thead><tr><th>Part</th><th>Bin</th><th>On hand</th><th>Min</th><th>Unit cost</th><th>Value</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+    wireStock();
+  }
+
+  function wireStock() {
+    const h = el("rrp-stock");
+    if (!h) return;
+    if (h.dataset.wired) return;
+    h.dataset.wired = "1";
+    h.addEventListener("click", (e) => {
+      if (e.target.closest("#rrp-stk-add")) { openStockItemModal(null); return; }
+      const edit = e.target.closest("[data-stk-edit]");
+      if (edit) { openStockItemModal(stockItem(edit.getAttribute("data-stk-edit"))); return; }
+      const mv = e.target.closest("[data-stk-move]");
+      if (mv) { openStockMoveModal(stockItem(mv.getAttribute("data-stk-id")), mv.getAttribute("data-stk-move")); return; }
+      const hist = e.target.closest("[data-stk-hist]");
+      if (hist) { openStockHistory(stockItem(hist.getAttribute("data-stk-hist"))); return; }
+    });
+  }
+  const stockItem = (id) => ((S.stock && Array.isArray(S.stock.items)) ? S.stock.items : []).find((x) => x.id === id) || null;
+
+  function openStockItemModal(item) {
+    const it = item || {};
+    const modal = overlay(`<div class="rrp-modal" style="max-width:520px">
+      <div class="rrp-mh"><h3>${it.id ? "Edit stock item" : "Add stock item"}</h3><button class="x" data-close>×</button></div>
+      <div class="rrp-mb">
+        <div class="rrp-grid">
+          <div class="rrp-fg" style="grid-column:1/-1"><label>Name *</label><input id="stk-name" maxlength="120" value="${esc(it.name || "")}" placeholder="e.g. Oil filter — Ford Transit 3.5L"></div>
+          <div class="rrp-fg"><label>Part number</label><input id="stk-pn" maxlength="60" value="${esc(it.part_number || "")}" placeholder="OEM or aftermarket #"></div>
+          <div class="rrp-fg"><label>Category</label><input id="stk-cat" maxlength="40" value="${esc(it.category || "")}" placeholder="filters, brakes, mirrors…"></div>
+          <div class="rrp-fg"><label>Bin / location</label><input id="stk-bin" maxlength="40" value="${esc(it.bin_location || "")}" placeholder="e.g. A3, back shelf"></div>
+          <div class="rrp-fg"><label>Min quantity (reorder at)</label><input id="stk-min" type="number" min="0" step="1" value="${it.min_qty ?? ""}"></div>
+          ${it.id ? "" : `<div class="rrp-fg"><label>Opening quantity</label><input id="stk-qty0" type="number" min="0" step="1" placeholder="0"></div>
+          <div class="rrp-fg"><label>Unit cost ($)</label><input id="stk-cost0" type="number" min="0" step="0.01" placeholder="0.00"></div>`}
+          ${it.id ? `<div class="rrp-fg"><label>Status</label><select id="stk-active"><option value="1"${it.active !== false ? " selected" : ""}>Active</option><option value="0"${it.active === false ? " selected" : ""}>Retired</option></select></div>` : ""}
+          <div class="rrp-fg" style="grid-column:1/-1"><label>Notes</label><input id="stk-notes" maxlength="200" value="${esc(it.notes || "")}" placeholder="optional"></div>
+        </div>
+        ${it.id ? `<div class="rrp-sub">On hand: <b>${Number(it.qty_on_hand).toLocaleString()}</b> — quantity changes go through Receive / Use / Adjust so the ledger stays honest.</div>` : ""}
+      </div>
+      <div class="rrp-mf"><button class="btn" data-close>Cancel</button><button class="btn btn-primary" id="stk-save">${it.id ? "Save item" : "Add item"}</button></div>
+    </div>`);
+    el("stk-name")?.focus();
+    el("stk-save").onclick = async () => {
+      const name = (el("stk-name")?.value || "").trim();
+      if (!name) { toast("Name is required."); return; }
+      const btn = el("stk-save"); btn.disabled = true;
+      const args = {
+        p_id: it.id || null,
+        p_name: name,
+        p_part_number: (el("stk-pn")?.value || "").trim() || null,
+        p_category: (el("stk-cat")?.value || "").trim() || null,
+        p_bin_location: (el("stk-bin")?.value || "").trim() || null,
+        p_min_qty: el("stk-min")?.value ? parseInt(el("stk-min").value, 10) : null,
+        p_active: it.id ? el("stk-active")?.value !== "0" : true,
+        p_notes: (el("stk-notes")?.value || "").trim() || null,
+        p_canonical_part_id: it.canonical_part_id || null,
+        p_station_id: it.station_id || null,
+      };
+      if (!it.id) {
+        args.p_initial_qty = el("stk-qty0")?.value ? Math.max(0, parseInt(el("stk-qty0").value, 10) || 0) : null;
+        args.p_unit_cost_cents = cents(el("stk-cost0")?.value);
+      } else {
+        args.p_unit_cost_cents = null; // keep the moving average
+      }
+      const { error } = await sb().rpc("parts_stock_item_save", args);
+      btn.disabled = false;
+      if (error) { toast("Couldn't save item: " + error.message); return; }
+      modal.remove();
+      toast(it.id ? "Item updated." : "Item added.");
+      S.stock = null;
+      loadStock();
+    };
+  }
+
+  function openStockMoveModal(item, kind) {
+    if (!item) return;
+    const K = {
+      receive: { title: "Receive stock", verb: "Receive", qtyLbl: "Quantity received", showCost: true, showVeh: false },
+      consume: { title: "Use on a van", verb: "Use", qtyLbl: "Quantity used", showCost: false, showVeh: true },
+      adjust:  { title: "Adjust count", verb: "Adjust", qtyLbl: "New counted quantity", showCost: false, showVeh: false },
+    }[kind] || { title: "Move stock", verb: "Save", qtyLbl: "Quantity" };
+    const vehOpts = S.vehicles.map((x) => `<option value="${esc(x.id)}">${esc(x.name || "Van")}${x.plate ? " · " + esc(x.plate) : ""}</option>`).join("");
+    const modal = overlay(`<div class="rrp-modal" style="max-width:460px">
+      <div class="rrp-mh"><h3>${esc(K.title)} · ${esc(item.name)}</h3><button class="x" data-close>×</button></div>
+      <div class="rrp-mb">
+        <div class="rrp-grid">
+          <div class="rrp-fg"><label>${esc(K.qtyLbl)} *</label><input id="mv-qty" type="number" min="0" step="1" value="${kind === "adjust" ? Number(item.qty_on_hand) : ""}"></div>
+          ${K.showCost ? `<div class="rrp-fg"><label>Unit cost ($)</label><input id="mv-cost" type="number" min="0" step="0.01" placeholder="updates the moving average"></div>` : ""}
+          ${K.showVeh ? `<div class="rrp-fg" style="grid-column:1/-1"><label>Used on van</label><select id="mv-veh"><option value="">— Not van-specific</option>${vehOpts}</select></div>` : ""}
+          <div class="rrp-fg" style="grid-column:1/-1"><label>Note</label><input id="mv-note" maxlength="200" placeholder="optional"></div>
+        </div>
+        <div class="rrp-sub">On hand now: <b>${Number(item.qty_on_hand).toLocaleString()}</b>${kind === "adjust" ? " — enter the count you see on the shelf." : ""}</div>
+      </div>
+      <div class="rrp-mf"><button class="btn" data-close>Cancel</button><button class="btn btn-primary" id="mv-save">${esc(K.verb)}</button></div>
+    </div>`);
+    el("mv-qty")?.focus();
+    el("mv-save").onclick = async () => {
+      const qty = parseInt(el("mv-qty")?.value || "", 10);
+      if (!Number.isFinite(qty) || qty < 0 || (kind !== "adjust" && qty <= 0)) { toast("Enter a quantity."); return; }
+      const btn = el("mv-save"); btn.disabled = true;
+      const { error } = await sb().rpc("parts_stock_move", {
+        p_item_id: item.id,
+        p_kind: kind,
+        p_qty: qty,
+        p_unit_cost_cents: K.showCost ? cents(el("mv-cost")?.value) : null,
+        p_vehicle_id: K.showVeh ? (el("mv-veh")?.value || null) : null,
+        p_repair_case_id: null,
+        p_note: (el("mv-note")?.value || "").trim() || null,
+      });
+      btn.disabled = false;
+      if (error) {
+        toast(error.message === "insufficient_stock" || /insufficient_stock/.test(error.message || "")
+          ? "Not enough on hand for that." : "Couldn't record the movement: " + error.message);
+        return;
+      }
+      modal.remove();
+      toast(kind === "receive" ? "Stock received." : kind === "consume" ? "Usage recorded." : "Count adjusted.");
+      S.stock = null;
+      loadStock();
+    };
+  }
+
+  async function openStockHistory(item) {
+    if (!item) return;
+    const modal = overlay(`<div class="rrp-modal" style="max-width:560px">
+      <div class="rrp-mh"><h3>${esc(item.name)} · movements</h3><button class="x" data-close>×</button></div>
+      <div class="rrp-mb" id="stk-hist-body"><div class="rrp-stk-empty">Loading…</div></div>
+      <div class="rrp-mf"><button class="btn" data-close>Close</button></div>
+    </div>`);
+    const body = el("stk-hist-body");
+    const { data, error } = await sb().rpc("parts_stock_movements_list", { p_item_id: item.id, p_limit: 50 });
+    if (!body) return;
+    if (error) { body.innerHTML = `<div class="rrp-stk-empty">Couldn't load history · ${esc(error.message)}</div>`; return; }
+    const rows = Array.isArray(data) ? data : [];
+    if (!rows.length) { body.innerHTML = `<div class="rrp-stk-empty">No movements yet.</div>`; return; }
+    const kindLbl = { receive: "Received", consume: "Used", return: "Returned", adjust: "Adjusted" };
+    body.innerHTML = rows.map((m) => `<div class="rrp-ev ${m.qty_delta > 0 ? "pos" : "neg"}">
+      <span class="i">${svg(m.qty_delta > 0 ? ICON.plus : ICON.x, 14)}</span>
+      <div>
+        <b>${esc(kindLbl[m.kind] || m.kind)} ${m.qty_delta > 0 ? "+" : ""}${m.qty_delta}</b>
+        ${m.unit_cost_cents != null ? ` @ ${usd(m.unit_cost_cents)}` : ""}
+        ${m.vehicle_name ? ` · ${esc(m.vehicle_name)}` : ""}
+        ${m.note ? `<div class="rrp-stk-meta">${esc(m.note)}</div>` : ""}
+        <div class="rrp-stk-meta">${esc(new Date(m.created_at).toLocaleString())}</div>
+      </div>
+    </div>`).join("");
+  }
+
   function overlay(inner, extraCls) {
     const o = document.createElement("div");
     o.className = "rrp-overlay" + (extraCls ? " " + extraCls : "");

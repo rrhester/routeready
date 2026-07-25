@@ -23349,6 +23349,149 @@ body.rr-cmdk-open{ overflow:hidden }
           .rr-fl-ground-cat-text{display:flex;flex-direction:column;gap:1px;min-width:0}
           .rr-fl-ground-cat-label{font-size:var(--fs-sm);font-weight:600;color:var(--text)}
           .rr-fl-ground-cat-hint{font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4}
+          /* Grounding modal · expected-return + repair-case handoff
+             (fleet-inventory push 2026-07-25). */
+          .rr-fl-ground-return{display:flex;flex-direction:column;gap:4px}
+          .rr-fl-ground-return-lbl{font-size:var(--fs-sm);font-weight:600;color:var(--text)}
+          .rr-fl-ground-opt{color:var(--text-subtle);font-weight:500}
+          .rr-fl-ground-hint{font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4}
+          .rr-fl-ground-case{
+            display:flex;align-items:center;gap:var(--s-2);
+            font-size:var(--fs-sm);font-weight:600;color:var(--text);cursor:pointer;
+          }
+          .rr-fl-ground-case input{accent-color:var(--accent)}
+
+          /* Roster identity-cell PM chips (fleet_pm_board worst status). */
+          .rr-cert.fl-tag-pm-crit{background:var(--red-soft);color:var(--red)}
+          .rr-cert.fl-tag-pm-warn{background:var(--amber-soft);color:var(--amber-dark)}
+
+          /* ── Fleet drawer · generic form modal (.fd-fm-*) ──────────
+             Replaces the old prompt() chains (service / mileage /
+             inspection) and hosts the PM completion + rule editors. */
+          .fd-fm-overlay{
+            position:fixed;inset:0;background:var(--overlay);z-index:10001;
+            display:flex;align-items:center;justify-content:center;padding:var(--s-5);
+          }
+          .fd-fm-card{
+            background:var(--surface);border:1px solid var(--border);
+            border-radius:var(--r-xl);width:520px;max-width:100%;
+            max-height:92vh;overflow-y:auto;box-shadow:var(--shadow-xl);
+            display:flex;flex-direction:column;
+          }
+          .fd-fm-head{
+            display:flex;align-items:flex-start;justify-content:space-between;
+            gap:var(--s-3);padding:var(--s-4) var(--s-5);
+            border-bottom:1px solid var(--border);
+          }
+          .fd-fm-title{margin:0;font-size:var(--fs-lg);font-weight:700;color:var(--text);letter-spacing:-.005em}
+          .fd-fm-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px;line-height:1.4}
+          .fd-fm-x{
+            background:none;border:0;font-size:var(--fs-xl);line-height:1;cursor:pointer;
+            color:var(--text-muted);padding:0 4px;
+          }
+          .fd-fm-body{
+            padding:var(--s-4) var(--s-5);
+            display:grid;grid-template-columns:1fr 1fr;gap:var(--s-3);
+          }
+          .fd-fm-body-list{display:flex;flex-direction:column;gap:2px}
+          .fd-fm-field{display:flex;flex-direction:column;gap:4px;min-width:0}
+          .fd-fm-wide{grid-column:1/-1}
+          .fd-fm-lbl{
+            font-size:var(--fs-xs);font-weight:700;letter-spacing:.05em;
+            text-transform:uppercase;color:var(--text-subtle);
+          }
+          .fd-fm-req{color:var(--red);font-style:normal}
+          .fd-fm-hint{font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4}
+          .fd-fm-input{
+            width:100%;background:var(--canvas);border:1px solid var(--border);
+            border-radius:var(--r-md);padding:var(--s-2) var(--s-2-5);
+            font:inherit;font-size:var(--fs-md);color:var(--text);
+            transition:border-color var(--t-fast), box-shadow var(--t-fast);
+          }
+          .fd-fm-input:focus{outline:none;border-color:var(--accent);box-shadow:var(--ring-focus)}
+          .fd-fm-err{
+            padding:0 var(--s-5) var(--s-2);font-size:var(--fs-xs);color:var(--red);
+          }
+          .fd-fm-foot{
+            padding:var(--s-3-5) var(--s-5);border-top:1px solid var(--border);
+            display:flex;justify-content:flex-end;gap:var(--s-2);background:var(--canvas);
+          }
+          @media (max-width:560px){ .fd-fm-body{grid-template-columns:1fr} }
+
+          /* Fleet drawer · per-van cost rollup card (Vehicle history tab). */
+          .fd-cost-card{
+            display:flex;align-items:center;justify-content:space-between;gap:var(--s-3);
+            flex-wrap:wrap;background:var(--canvas);border:1px solid var(--border);
+            border-radius:var(--r-lg);padding:var(--s-3) var(--s-4);margin-bottom:var(--s-4);
+          }
+          .fd-cost-main{display:flex;align-items:baseline;gap:var(--s-2)}
+          .fd-cost-total{font-size:var(--fs-2xl);font-weight:800;letter-spacing:-.01em;color:var(--text);font-variant-numeric:tabular-nums}
+          .fd-cost-cap{font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600}
+          .fd-cost-side{display:flex;align-items:center;gap:var(--s-2);flex-wrap:wrap}
+          .fd-cost-chip{
+            font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);
+            background:var(--surface);border:1px solid var(--border);
+            border-radius:var(--r-pill);padding:3px var(--s-2-5);
+            font-variant-numeric:tabular-nums;white-space:nowrap;
+          }
+          .fd-cost-cpm{font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600;white-space:nowrap}
+
+          /* ── Fleet → Maintenance · PM board (.fl-pm-*) ─────────────── */
+          #view-fleet2 .fl-pm-pills{display:flex;align-items:center;gap:var(--s-2);flex-wrap:wrap}
+          #view-fleet2 .fl-pm-pill{
+            font-size:var(--fs-xs);font-weight:700;letter-spacing:.02em;
+            border-radius:var(--r-pill);padding:3px var(--s-2-5);white-space:nowrap;
+          }
+          #view-fleet2 .fl-pm-pill.crit{background:var(--red-soft);color:var(--red)}
+          #view-fleet2 .fl-pm-pill.warn{background:var(--amber-soft);color:var(--amber-dark)}
+          #view-fleet2 .fl-pm-pill.dim{background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)}
+          #view-fleet2 .fl-pm-pill.ok{background:var(--green-soft);color:var(--green)}
+          #view-fleet2 .fl-pm-empty{
+            padding:var(--s-8) var(--s-6);text-align:center;color:var(--text-subtle);
+            max-width:560px;margin:0 auto;
+          }
+          #view-fleet2 .fl-pm-empty h3{margin:0 0 var(--s-2);font-size:var(--fs-lg);font-weight:700;color:var(--text)}
+          #view-fleet2 .fl-pm-empty p{margin:0;font-size:var(--fs-sm);line-height:1.6}
+          #view-fleet2 .fl-pm-empty-actions{display:flex;justify-content:center;gap:var(--s-2);margin-top:var(--s-4)}
+          #view-fleet2 .fl-pm-table th.fl-pm-th,
+          #view-fleet2 .fl-pm-table th.fl-pm-th-veh{vertical-align:bottom}
+          #view-fleet2 .fl-pm-th-name{display:block;font-weight:700}
+          #view-fleet2 .fl-pm-th-iv{display:block;font-weight:500;color:var(--text-subtle);text-transform:none;letter-spacing:0;margin-top:1px}
+          #view-fleet2 .fl-pm-td-veh{min-width:150px}
+          #view-fleet2 .fl-pm-veh{background:none;border:0;padding:0;font:inherit;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:2px}
+          #view-fleet2 .fl-pm-veh-name{font-weight:700;color:var(--text)}
+          #view-fleet2 .fl-pm-veh:hover .fl-pm-veh-name{color:var(--accent-text);text-decoration:underline}
+          #view-fleet2 .fl-pm-veh-sub{font-size:var(--fs-xs);color:var(--text-subtle)}
+          #view-fleet2 .fl-pm-veh-sub.is-stale{color:var(--amber-dark)}
+          #view-fleet2 .fl-pm-cell{vertical-align:middle}
+          #view-fleet2 .fl-pm-na{color:var(--text-subtle)}
+          #view-fleet2 .fl-pm-chip{
+            display:inline-flex;flex-direction:column;align-items:flex-start;gap:0;
+            background:var(--canvas);border:1px solid var(--border);
+            border-radius:var(--r-md);padding:4px var(--s-2-5);
+            font:inherit;cursor:pointer;min-width:86px;
+            transition:border-color var(--t-fast), box-shadow var(--t-fast);
+          }
+          #view-fleet2 .fl-pm-chip:hover{border-color:var(--accent);box-shadow:var(--shadow-xs)}
+          #view-fleet2 .fl-pm-chip-state{font-size:var(--fs-xs);font-weight:700;letter-spacing:.02em}
+          #view-fleet2 .fl-pm-chip-due{font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums}
+          #view-fleet2 .fl-pm-chip.crit{background:var(--red-soft);border-color:transparent}
+          #view-fleet2 .fl-pm-chip.crit .fl-pm-chip-state{color:var(--red)}
+          #view-fleet2 .fl-pm-chip.crit .fl-pm-chip-due{color:var(--red)}
+          #view-fleet2 .fl-pm-chip.warn{background:var(--amber-soft);border-color:transparent}
+          #view-fleet2 .fl-pm-chip.warn .fl-pm-chip-state{color:var(--amber-dark)}
+          #view-fleet2 .fl-pm-chip.ok .fl-pm-chip-state{color:var(--green)}
+          #view-fleet2 .fl-pm-chip.dim .fl-pm-chip-state{color:var(--text-muted)}
+          .fl-pm-rule-row{
+            display:flex;flex-direction:column;align-items:flex-start;gap:2px;
+            width:100%;background:none;border:0;border-top:1px solid var(--border-subtle);
+            padding:var(--s-2-5) 0;font:inherit;text-align:left;cursor:pointer;
+          }
+          .fl-pm-rule-row:first-child{border-top:0}
+          .fl-pm-rule-row:hover .fl-pm-rule-name{color:var(--accent-text);text-decoration:underline}
+          .fl-pm-rule-name{font-weight:700;color:var(--text)}
+          .fl-pm-rule-meta{font-size:var(--fs-xs);color:var(--text-subtle)}
+          .fl-pm-empty-sm{padding:var(--s-4);text-align:center;color:var(--text-subtle);font-size:var(--fs-sm)}
           #view-fleet2 .fl-rs-row{display:grid;grid-template-columns:120px 1fr;gap:var(--s-2);align-items:center}
           #view-fleet2 .fl-rs-label{
             font-size:var(--fs-xs);font-weight:600;letter-spacing:.04em;text-transform:uppercase;
@@ -25795,6 +25938,54 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-email .em-folder:hover .em-folder-add{display:inline-flex}
           #view-email .em-folder-add:hover{background:rgba(15,23,42,.08);color:var(--accent)}
+          /* Rename / reorder hover controls (EM#59/60) · same reveal
+             pattern as add/delete. */
+          #view-email .em-folder-ren,
+          #view-email .em-folder-up,
+          #view-email .em-folder-down{
+            display:none;background:transparent;border:0;cursor:pointer;
+            color:var(--text-subtle);padding:0;width:18px;height:18px;
+            border-radius:3px;align-items:center;justify-content:center;
+          }
+          #view-email .em-folder:hover .em-folder-ren,
+          #view-email .em-folder:hover .em-folder-up,
+          #view-email .em-folder:hover .em-folder-down{display:inline-flex}
+          #view-email .em-folder-ren:hover,
+          #view-email .em-folder-up:hover,
+          #view-email .em-folder-down:hover{background:rgba(15,23,42,.08);color:var(--accent)}
+          /* Inline rename row (EM#59). */
+          #view-email .em-folder.is-renaming,
+          #view-email .em-folder.is-confirm{display:flex;align-items:center;gap:8px;padding:6px 10px}
+          #view-email .em-folder-rename-form{flex:1;min-width:0}
+          #view-email .em-folder-rename-input{
+            width:100%;border:1px solid var(--rr-blue-600);border-radius:5px;
+            padding:3px 8px;font:inherit;font-size:var(--fs-sm);
+            background:var(--surface);color:var(--text);outline:none;
+          }
+          /* Inline delete-confirm row (EM#61). */
+          #view-email .em-folder-confirm-txt{
+            flex:1;min-width:0;font-size:var(--fs-xs);color:var(--rr-red-700);
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+          }
+          #view-email .em-folder-confirm-yes{
+            border:1px solid var(--rr-red-700);background:var(--rr-red-50);
+            color:var(--rr-red-700);border-radius:5px;padding:1px 8px;
+            cursor:pointer;font:inherit;font-size:var(--fs-10);font-weight:700;
+          }
+          #view-email .em-folder-confirm-no{
+            border:1px solid var(--border);background:var(--surface);
+            color:var(--text);border-radius:5px;padding:1px 8px;
+            cursor:pointer;font:inherit;font-size:var(--fs-10);font-weight:600;
+          }
+          /* Armed doc-dismiss × (EM#61). */
+          #view-email .em-msg-delete.is-armed{color:var(--rr-red-700);opacity:1}
+          /* Read-bar Move-to section label (EM#64). */
+          #view-email .em-read-move-label{
+            font-size:var(--fs-10);font-weight:700;letter-spacing:.04em;
+            text-transform:uppercase;color:var(--text-subtle);
+            padding:6px 10px 2px;border-top:1px solid var(--border-subtle, var(--border));
+            margin-top:4px;
+          }
           /* Pop-out email icon-strip. */
           .em-popout-card{
             background:var(--canvas);border:1px solid var(--border);

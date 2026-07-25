@@ -40,7 +40,7 @@ where src ~* 'current_dsp_id'
 | Reference `current_dsp_id` (tenant) | 512 |
 | Tenant-referencing but **no** role gate | 108 |
 | …of those: privileged **writes**, callable by `authenticated`, no resource/token gate | **31** |
-| **Fixed in migration 0543** (role gate added) | **23** |
+| **Fixed in migration 0545** (role gate added) | **23** |
 | Intentionally any-member / needs product review (deferred) | 8 |
 
 The role hierarchy is `driver < dispatcher < ops < owner < platform_admin`, and
@@ -55,7 +55,7 @@ end if;
 
 — excludes exactly the driver role and no legitimate staff.
 
-## Fixed in 0543 (23)
+## Fixed in 0545 (23)
 
 Disciplinary / approval: `coaching_resolve`, `coaching_archive`,
 `dispatch_time_off_decide`. Fleet: `vehicle_set_operational_status`,

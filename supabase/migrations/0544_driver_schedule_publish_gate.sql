@@ -1,4 +1,4 @@
--- ── 0542 · Draft/publish gate for the driver schedule feed ────────────────────
+-- ── 0544 · Draft/publish gate for the driver schedule feed ────────────────────
 --
 -- Closes launch-audit finding H-3. Today driver_my_schedule returns EVERY
 -- shift assigned to a driver the instant it is written — a half-built Smart

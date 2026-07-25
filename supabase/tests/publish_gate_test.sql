@@ -1,11 +1,11 @@
 -- supabase/tests/publish_gate_test.sql
 --
--- Server-side regression test for migration 0542 (draft/publish gate on the
+-- Server-side regression test for migration 0544 (draft/publish gate on the
 -- driver schedule feed). Runs against a fully-migrated DB (migration-check.yml).
 --
 -- What it proves:
 --   • default (flag off): driver_my_schedule returns every assigned shift —
---     byte-identical to before 0542 (no existing driver's schedule vanishes);
+--     byte-identical to before 0544 (no existing driver's schedule vanishes);
 --   • flag on (require_finalized_for_drivers): a shift is returned only when
 --     its week is finalized; draft weeks stay hidden;
 --   • finalizing a previously-draft week makes its shift appear.

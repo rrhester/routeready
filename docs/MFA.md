@@ -63,11 +63,11 @@ staff — blocking users who haven't enrolled until they do — is a deliberate 
 not part of this rollout. Get comfortable with steps 1–4 across a few real accounts
 first.
 
-## Server-side enforcement (closing the API bypass) — migration 0544
+## Server-side enforcement (closing the API bypass) — migration 0546
 
 Steps 1–5 secure the **login screen**. But the login gate is client-side: a stolen
 password + the public anon key can reach the PostgREST data API directly at **aal1**
-and never see the challenge (launch-audit finding H-1). Migration `0544` adds the
+and never see the challenge (launch-audit finding H-1). Migration `0546` adds the
 server primitive to close that, safely and opt-in.
 
 **The primitive — `private.mfa_ok()`** returns true when the session is aal2 **OR the
@@ -103,8 +103,8 @@ update public.dsps
 
 ### Extending enforcement (the real H-1 close — deliberate follow-up)
 
-`0544` protects the settings mutators as the pattern. Broadly closing the API — reads of
-driver PII, the privileged writes gated in `0543`, etc. — means adding
+`0546` protects the settings mutators as the pattern. Broadly closing the API — reads of
+driver PII, the privileged writes gated in `0545`, etc. — means adding
 `private.mfa_ok()` to those functions/RLS the same way, or an RLS predicate on the
 tenant tables:
 
@@ -122,7 +122,7 @@ why this ships as a validated primitive + one reference surface, not a blanket r
 
 `MFA_ENABLED: false` → redeploy. The login gate goes dormant immediately. No data
 change; enrolled factors simply stop being challenged (and can be removed via the SQL
-above if you want them gone). Server enforcement (0544) is separately reversible by
+above if you want them gone). Server enforcement (0546) is separately reversible by
 setting `require_mfa=false` per the break-glass above.
 
 ## What each piece is

@@ -4,10 +4,10 @@
 // Part of the fix for launch-audit finding B-1. The driver PWA authenticates
 // with the identity-less `anon` role, so it cannot be scoped per-tenant by
 // storage RLS. This service-role function validates the driver's session
-// token and confirms — via public.driver_can_read_file (migration 0540) —
+// token and confirms — via public.driver_can_read_file (migration 0542) —
 // that the requested path belongs to that driver (own/teammate photo, own
 // document, or an attachment in their own chat thread) before signing. That
-// replaces the bucket-wide `anon SELECT` policies (dropped in migration 0541),
+// replaces the bucket-wide `anon SELECT` policies (dropped in migration 0543),
 // which let any anon-key holder sign any tenant's files.
 //
 // Same auth model as driver-document-fetch / driver_chat_list: the driver's

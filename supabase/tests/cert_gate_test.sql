@@ -1,6 +1,6 @@
 -- supabase/tests/cert_gate_test.sql
 --
--- Server-side compliance-gate regression tests for migration 0539 (EDV
+-- Server-side compliance-gate regression tests for migration 0541 (EDV
 -- certification + license protection window in the three assignment gates).
 -- These are the FIRST automated tests over private.staff_assign_violations /
 -- driver_can_take_shift / driver_can_take_shift_after_swap — the audit's
@@ -15,7 +15,7 @@
 --   • the license PROTECTION WINDOW blocks a shift within N days of expiry
 --     when dsps.metadata.scheduling.dl_protection_days > 0;
 --   • with no window set (default 0), a not-yet-expired license does NOT
---     block — i.e. 0539 is byte-identical to prior behaviour by default.
+--     block — i.e. 0541 is byte-identical to prior behaviour by default.
 --
 -- Run locally from the repo root against any migrated DB:
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/cert_gate_test.sql

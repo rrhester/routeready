@@ -1,4 +1,4 @@
--- ── 0545 · Prevent duplicate vehicles (VIN) within a DSP ──────────────────────
+-- ── 0547 · Prevent duplicate vehicles (VIN) within a DSP ──────────────────────
 --
 -- Closes launch-audit finding #37 (data quality): vehicle_record_save and the
 -- CSV/import paths never checked for a duplicate VIN, so the same van could be

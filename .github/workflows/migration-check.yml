@@ -147,7 +147,7 @@ jobs:
           set -euo pipefail
           psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/audit_coverage_test.sql
 
-      - name: Compliance-gate tests (0539 · EDV cert + license protection window)
+      - name: Compliance-gate tests (0541 · EDV cert + license protection window)
         # The audit's root-cause fix for "a cert rule drifted out of the SQL
         # gates because nothing tested them." Asserts the three assignment
         # gates (staff_assign_violations / driver_can_take_shift /
@@ -160,7 +160,7 @@ jobs:
           set -euo pipefail
           psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/cert_gate_test.sql
 
-      - name: VIN dedup test (0545 · no duplicate vehicles within a DSP)
+      - name: VIN dedup test (0547 · no duplicate vehicles within a DSP)
         # Proves the BEFORE INSERT trigger blocks exact + case/whitespace
         # variant duplicate VINs within a DSP, while allowing cross-DSP, null,
         # and unique VINs.
@@ -170,7 +170,7 @@ jobs:
           set -euo pipefail
           psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/vin_dedup_test.sql
 
-      - name: MFA gate test (0544 · server-side assurance enforcement)
+      - name: MFA gate test (0546 · server-side assurance enforcement)
         # Proves the fail-safe (no-factor user never blocked, even with
         # require_mfa on), the fix (enrolled aal1 refused when opted in), and
         # backward-safety (require_mfa off => no change).
@@ -180,7 +180,7 @@ jobs:
           set -euo pipefail
           psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/mfa_gate_test.sql
 
-      - name: RPC role-gate test (0543 · privileged RPCs refuse driver-role)
+      - name: RPC role-gate test (0545 · privileged RPCs refuse driver-role)
         # Proves a driver-role app_user is refused (42501) on a sample of the
         # newly-gated SECURITY DEFINER functions (coaching/PTO/fleet/interview)
         # while a dispatcher passes — guards against a re-issue dropping the
@@ -191,7 +191,7 @@ jobs:
           set -euo pipefail
           psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/rpc_role_gate_test.sql
 
-      - name: Publish-gate test (0542 · driver schedule draft/publish)
+      - name: Publish-gate test (0544 · driver schedule draft/publish)
         # Proves the opt-in finalize gate: default off returns every assigned
         # shift (backward-safe), on returns only finalized weeks, and
         # publishing a draft week reveals it.
