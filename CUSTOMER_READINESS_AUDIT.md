@@ -429,6 +429,12 @@ then the documented go/no-go (#100).
 
 ## 10. What must happen before Ryan gives a customer access
 
+> **The code-closeable fixes from this audit are now merged and deployed
+> (PR #4123).** What remains is operator execution — tracked as a single
+> ordered, checkable list in **`docs/LAUNCH-READINESS-CHECKLIST.md`** (which
+> carries the correct on-`main` migration numbers, `0560–0567`). The
+> non-negotiables below are unchanged.
+
 Non-negotiable, in order:
 
 1. **Fix the storage exposure (B-1)** and prove — with the public key, against two
