@@ -953,6 +953,11 @@ try {
   window.rrStationScopeId    = rrStationScopeId;
   window.rrStationScopeIsAll = rrStationScopeIsAll;
   window.rrApplyStationFilter = rrApplyStationFilter;
+  // Read-only snapshot of the boot-loaded active-station list for module
+  // scripts (parts-ui etc.) — live.js is an ES module, so its module-scope
+  // lets don't reach window on their own.
+  window.rrStationList = () =>
+    (typeof _rrStationList !== "undefined" && Array.isArray(_rrStationList)) ? _rrStationList.slice() : [];
 } catch (_) { /* window always present in the browser */ }
 
 // Driver ids that belong to a station — the UNION of three sources:

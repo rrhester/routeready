@@ -1017,7 +1017,7 @@ import { makeNhtsaProvider } from "./adapters/nhtsa.js";
       return `<tr class="${low ? "rrp-stk-lowrow" : ""}${it.active === false ? " rrp-stk-inactive" : ""}">
         <td>
           <button type="button" class="rrp-stk-name" data-stk-hist="${esc(it.id)}" title="View movement history">${esc(it.name)}</button>
-          <div class="rrp-stk-meta">${[it.part_number ? esc(it.part_number) : "", it.category ? esc(it.category) : ""].filter(Boolean).join(" · ") || ""}</div>
+          <div class="rrp-stk-meta">${[it.part_number ? esc(it.part_number) : "", it.category ? esc(it.category) : "", it.station_code ? esc(it.station_code) : ""].filter(Boolean).join(" · ") || ""}</div>
         </td>
         <td>${it.bin_location ? esc(it.bin_location) : "—"}</td>
         <td class="rrp-stk-qty">${Number(it.qty_on_hand).toLocaleString()}${low ? ` <span class="rrp-stk-low">LOW</span>` : ""}</td>
@@ -1061,6 +1061,15 @@ import { makeNhtsaProvider } from "./adapters/nhtsa.js";
 
   function openStockItemModal(item) {
     const it = item || {};
+    // Station scoping (optional): the sidebar lens shows a station-tied
+    // item only under its station; a no-station item is the shared parts
+    // room, visible in every scope. List comes from live.js's exported
+    // snapshot; single-station DSPs skip the field entirely.
+    const stations = (typeof window.rrStationList === "function") ? window.rrStationList() : [];
+    const stnField = stations.length > 1 ? `<div class="rrp-fg"><label>Station</label><select id="stk-stn">
+            <option value="">Shared — all stations</option>
+            ${stations.map((s) => `<option value="${esc(s.id)}"${it.station_id === s.id ? " selected" : ""}>${esc([s.code, s.name].filter(Boolean).join(" — ") || "Station")}</option>`).join("")}
+          </select></div>` : "";
     const modal = overlay(`<div class="rrp-modal" style="max-width:520px">
       <div class="rrp-mh"><h3>${it.id ? "Edit stock item" : "Add stock item"}</h3><button class="x" data-close>×</button></div>
       <div class="rrp-mb">
@@ -1069,6 +1078,7 @@ import { makeNhtsaProvider } from "./adapters/nhtsa.js";
           <div class="rrp-fg"><label>Part number</label><input id="stk-pn" maxlength="60" value="${esc(it.part_number || "")}" placeholder="OEM or aftermarket #"></div>
           <div class="rrp-fg"><label>Category</label><input id="stk-cat" maxlength="40" value="${esc(it.category || "")}" placeholder="filters, brakes, mirrors…"></div>
           <div class="rrp-fg"><label>Bin / location</label><input id="stk-bin" maxlength="40" value="${esc(it.bin_location || "")}" placeholder="e.g. A3, back shelf"></div>
+          ${stnField}
           <div class="rrp-fg"><label>Min quantity (reorder at)</label><input id="stk-min" type="number" min="0" step="1" value="${it.min_qty ?? ""}"></div>
           ${it.id ? "" : `<div class="rrp-fg"><label>Opening quantity</label><input id="stk-qty0" type="number" min="0" step="1" placeholder="0"></div>
           <div class="rrp-fg"><label>Unit cost ($)</label><input id="stk-cost0" type="number" min="0" step="0.01" placeholder="0.00"></div>`}
@@ -1094,7 +1104,7 @@ import { makeNhtsaProvider } from "./adapters/nhtsa.js";
         p_active: it.id ? el("stk-active")?.value !== "0" : true,
         p_notes: (el("stk-notes")?.value || "").trim() || null,
         p_canonical_part_id: it.canonical_part_id || null,
-        p_station_id: it.station_id || null,
+        p_station_id: el("stk-stn") ? (el("stk-stn").value || null) : (it.station_id || null),
       };
       if (!it.id) {
         args.p_initial_qty = el("stk-qty0")?.value ? Math.max(0, parseInt(el("stk-qty0").value, 10) || 0) : null;

@@ -495,6 +495,32 @@ inventory… world class fleet system." Full audit + build record in
   sync, stock station picker, case-drawer parts consumption, fleet-wide
   cost report.
 
+**SHIPPED — follow-up wave (second PR, same branch reset from main):**
+- **Migration 0568 — DVIC odometer capture** WITHOUT touching
+  driver_submit_form (0223 body + 0436/0439/0445 hardening — re-issuing it
+  is the 0345 hazard class): BEFORE INSERT trigger on vehicle_inspections
+  extracts a numeric odometer/mileage answer (field id/label match) from
+  the linked DVIC submission; AFTER INSERT trigger writes
+  vehicle_mileage_log (source 'inspection') directly (NOT via
+  vehicle_mileage_log_save — current_dsp_id() is null in driver-token
+  context) + only-up ratchet on vehicles.mileage. Both best-effort
+  (exception → row stands). Operator adds a number question named
+  "Odometer" to the DVIC form (toggle hint in index.html says so).
+  **0568 MANUAL — paste in chat.**
+- **Stock station picker** (multi-station DSPs): live.js exports
+  `window.rrStationList()` (snapshot accessor — module-scope let, same
+  ES-module lesson as _rrNtPanelToggle); parts-ui item modal gains the
+  select, table meta shows station_code.
+- **Repair drawer "Use a part…"**: consumes parts_stock via
+  parts_stock_move w/ p_repair_case_id + the case's van, logs a timeline
+  note, refreshes the drawer; pre-0540 → setup pointer toast.
+- Gates green (26/26 suites, eslint, ratchet, smoke, ordinals); 51/51
+  fleet harness re-run on latest main (0539-conventions held — 0564 gated
+  vehicle_set_operational_status FROM the 0539 body ✓, 0566 is
+  trigger-only ✓). NOTE main raced to 0567 (launch-readiness sessions) —
+  fleet migrations renumbered mid-flight LAST PR (0537/0538→0539/0540);
+  0568 took the next free ordinal.
+
 ## Active task: Staffing model — XL-route demand (branch claude/staffing-driver-requirements-1tw30l)
 
 Operator's staffing model (2026-07-18): standard route = 2 drivers ×
