@@ -691,12 +691,19 @@ $function$
 ;
 
 
-CREATE OR REPLACE FUNCTION public.vehicle_set_operational_status(p_id uuid, p_status text, p_reason text DEFAULT NULL::text, p_category text DEFAULT NULL::text)
- RETURNS vehicles
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
+-- vehicle_set_operational_status: gate main's CURRENT 5-param body (0539 fleet
+-- grounding upgrade added p_expected_return_on). Drop the pre-fleet 4-param
+-- overload so no ungated/stale signature survives.
+drop function if exists public.vehicle_set_operational_status(uuid, text, text, text);
+create or replace function public.vehicle_set_operational_status(
+  p_id                 uuid,
+  p_status             text,
+  p_reason             text default null,
+  p_category           text default null,
+  p_expected_return_on date default null
+) returns public.vehicles
+language plpgsql security definer set search_path = public
+as $$
 declare
   v_dsp uuid := private.current_dsp_id();
   v_row public.vehicles;
@@ -720,14 +727,26 @@ begin
     raise exception 'vehicle_not_found' using errcode = '42704';
   end if;
 
-  -- Stamp the reason + category onto the open grounding event (the
-  -- 0228 trigger created/closed the row from the status change above).
   if p_status = 'grounded' then
+    -- Stamp reason/category/expected-return onto the open grounding
+    -- event (the 0228 trigger created/kept the row from the status
+    -- change above).
     update public.vehicle_grounding_events
-       set reason   = coalesce(nullif(btrim(p_reason), ''), reason),
-           category = coalesce(v_cat, category)
+       set reason             = coalesce(nullif(btrim(p_reason), ''), reason),
+           category           = coalesce(v_cat, category),
+           expected_return_on = coalesce(p_expected_return_on, expected_return_on)
      where vehicle_id = p_id
        and ungrounded_at is null;
+  elsif nullif(btrim(p_reason), '') is not null then
+    -- Un-grounding with a note: stamp it on the event the trigger just
+    -- closed (the latest closed event for this van).
+    update public.vehicle_grounding_events
+       set unground_note = nullif(btrim(p_reason), '')
+     where id = (
+       select id from public.vehicle_grounding_events
+        where vehicle_id = p_id and ungrounded_at is not null
+        order by ungrounded_at desc limit 1
+     );
   end if;
 
   insert into public.compliance_audit_events
@@ -741,8 +760,8 @@ begin
   );
 
   return v_row;
-end $function$
-;
+end $$;
+grant execute on function public.vehicle_set_operational_status(uuid, text, text, text, date) to authenticated;
 
 
 CREATE OR REPLACE FUNCTION public.vendor_save(p_id uuid DEFAULT NULL::uuid, p_name text DEFAULT NULL::text, p_kind text DEFAULT 'repair'::text, p_contact_phone text DEFAULT NULL::text, p_contact_email text DEFAULT NULL::text)
