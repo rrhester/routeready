@@ -44,6 +44,9 @@
           <select id="rr-em-scope" class="form-input em-scope" aria-label="Mail filter">
             <option value="all">All mail</option>
             <option value="unread">Unread</option>
+            <option value="attach">Has attachments</option>
+            <option value="failed">Failed</option>
+            <option value="unknown">Unknown senders</option>
           </select>
           <div class="em-toolbar-spacer" aria-hidden="true"></div>
           <button type="button" class="em-account" id="rr-em-account" title="Your team's email address — outbound mail sends from it; inbound to it lands in Inbox. Click to copy.">
@@ -63,6 +66,7 @@
               <button type="button" class="em-more-item" role="menuitem" data-em-menu="toggle-folders" id="rr-em-menu-folders">Hide folder pane</button>
               <button type="button" class="em-more-item" role="menuitem" data-em-menu="toggle-density" id="rr-em-menu-density">Compact rows: Off</button>
               <button type="button" class="em-more-item" role="menuitem" data-em-menu="toggle-notify" id="rr-em-menu-notify">Desktop notifications: Off</button>
+              <button type="button" class="em-more-item" role="menuitem" data-em-menu="rules">Mail rules…</button>
               <button type="button" class="em-more-item" role="menuitem" data-em-menu="empty-trash">Empty trash…</button>
               <button type="button" class="em-more-item" role="menuitem" data-em-menu="copy-address">Copy team address</button>
             </div>

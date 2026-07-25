@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=1daabea73a18";
-import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=1daabea73a18";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=1daabea73a18";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=1daabea73a18";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=1daabea73a18";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=1daabea73a18";
-import { isChecklistComplete } from "./checklist-core.mjs?v=1daabea73a18";
+import { planScheduleWeek } from "./scheduling-engine.js?v=f92fbfa89e55";
+import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=f92fbfa89e55";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=f92fbfa89e55";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=f92fbfa89e55";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=f92fbfa89e55";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=f92fbfa89e55";
+import { isChecklistComplete } from "./checklist-core.mjs?v=f92fbfa89e55";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=1daabea73a18";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=1daabea73a18";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=1daabea73a18";
+} from "./msg-core.mjs?v=f92fbfa89e55";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=f92fbfa89e55";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=f92fbfa89e55";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -95637,9 +95637,10 @@ document.addEventListener("click", (e) => {
     messages:        [],   // [{ id, from_email, to_email, subject, body_text, body_html, direction, status, created_at }]
     activeMessageId: null,
     folderCounts:    {},   // { folderId: count of NEW messages since last visit }
-    inboxFilter:     "all",   // "all" | "unread"
+    inboxFilter:     "all",   // "all" | "unread" | "attach" | "failed" | "unknown"
     inboxSort:       "desc",  // "desc" | "asc"
     searchQuery:     "",      // toolbar "Search mail" · client-side filter
+    serverSearch:    null,    // { q } when all-mail results are showing (EM#67)
     messagesTotal:   0,       // exact folder total (differs from messages.length at the 200 cap)
     pendingNew:      0,       // realtime arrivals not yet pulled into the list (EM#20 pill)
     selectedIds:     new Set(), // multi-select for bulk actions (EM#22)
@@ -95675,7 +95676,7 @@ document.addEventListener("click", (e) => {
     } catch (_) {}
     try {
       const f = localStorage.getItem(FILTER_KEY);
-      if (f === "all" || f === "unread") state.inboxFilter = f;
+      if (["all", "unread", "attach", "failed", "unknown"].includes(f)) state.inboxFilter = f;
     } catch (_) {}
     try {
       const c = JSON.parse(localStorage.getItem(COLLAPSED_KEY) || "[]");
@@ -95887,9 +95888,69 @@ document.addEventListener("click", (e) => {
     }
   }
 
+  // ── All-mail search (EM#67, migration 0541) ─────────────────────
+  // The toolbar search stays an instant client-side filter of the
+  // loaded folder; Enter (or the "Search all mail" button) runs the
+  // email_search RPC and swaps the list to DSP-wide results. Exiting
+  // (banner button, folder click, clearing/editing the query) reloads
+  // the folder. Capability: null = unknown, false = pre-0541.
+  let _srvSearchRpc = null;
+  async function runServerSearch() {
+    const raw = state.searchQuery.trim();
+    if (!raw || _srvSearchRpc === false) { renderInbox(); return; }
+    if (state.activeFolderId === DOCS_FOLDER_ID) return;
+    const pq = _emParseQuery(raw);
+    const gen = ++_loadGen;
+    const { data, error } = await sb.rpc("email_search", {
+      p_query: pq.text || null,
+      p_from:  pq.from,
+      p_to:    pq.to,
+      p_has_attachment: pq.hasAttachment ? true : null,
+      p_before: pq.before ? pq.before.toISOString() : null,
+      p_after:  pq.after ? pq.after.toISOString() : null,
+      p_limit: 200,
+    });
+    if (gen !== _loadGen) return;
+    if (error) {
+      if (/email_search|schema cache/i.test(error.message || "")) {
+        _srvSearchRpc = false;
+        if (typeof toast === "function") toast("All-mail search needs migration 0541 — searching loaded mail only", "info");
+        renderInbox();
+      } else if (typeof toast === "function") {
+        toast("Search failed: " + error.message, "warn");
+      }
+      return;
+    }
+    _srvSearchRpc = true;
+    state.serverSearch = { q: raw };
+    state.messages = data || [];
+    state.messagesTotal = state.messages.length;
+    state.messagesError = null;
+    state.activeMessageId = null;
+    state.selectedIds.clear();
+    state.selectAnchor = null;
+    state.pendingNew = 0;
+    renderInbox();
+    renderPreview();
+  }
+  function exitServerSearch(clearQuery) {
+    if (!state.serverSearch && !clearQuery) return;
+    state.serverSearch = null;
+    if (clearQuery) {
+      state.searchQuery = "";
+      const inp = document.getElementById("rr-em-search");
+      if (inp) inp.value = "";
+    }
+    if (state.activeFolderId) selectFolder(state.activeFolderId);
+  }
+
   async function loadMessages() {
     if (state.activeFolderId === DOCS_FOLDER_ID) { await loadDocuments(); return; }
     if (!state.activeFolderId) { state.messages = []; return; }
+    // All-mail results are showing — a background refresh (realtime,
+    // refresh button) must not clobber them with the folder's rows.
+    // Folder clicks exit search mode in selectFolder before landing here.
+    if (state.serverSearch) return;
     const gen = ++_loadGen;
     const folderId = state.activeFolderId;
     const { data, error } = await _fetchMessagePage(folderId, 0);
@@ -95934,7 +95995,9 @@ document.addEventListener("click", (e) => {
   // list can show an unread-style badge. One HEAD-mode query per folder
   // (Supabase doesn't expose group-by counts through the JS client).
   // Cheap because there are at most ~10 folders per DSP.
-  // 0539 capability · one-RPC folder counts; false = fall back to the
+  // 0542 capability (renumbered from 0539 — a concurrent fleet
+// migration took that ordinal) · one-RPC folder counts; false = fall
+// back to the
   // per-folder HEAD loop below.
   let _srvCountsRpc = null;
   async function loadFolderCounts() {
@@ -96324,21 +96387,94 @@ document.addEventListener("click", (e) => {
     </div>`;
   }
 
+  // Search operators (EM#68) · from:/to:/has:attachment/before:/after:
+  // parsed out of the query; whatever's left is the free-text term.
+  // Unrecognized values fall back into the free text so a half-typed
+  // operator never makes mail vanish.
+  function _emParseQuery(raw) {
+    const out = { text: "", from: null, to: null, hasAttachment: false, before: null, after: null };
+    const free = [];
+    for (const tok of String(raw || "").trim().split(/\s+/)) {
+      if (!tok) continue;
+      const m = tok.match(/^(from|to|has|before|after):(.+)$/i);
+      if (!m) { free.push(tok); continue; }
+      const k = m[1].toLowerCase(), v = m[2];
+      if (k === "from") out.from = v;
+      else if (k === "to") out.to = v;
+      else if (k === "has") { if (/^attach/i.test(v)) out.hasAttachment = true; else free.push(tok); }
+      else {
+        const d = new Date(v + "T00:00:00");
+        if (isNaN(d.getTime())) { free.push(tok); continue; }
+        if (k === "before") out.before = d; else out.after = d;
+      }
+    }
+    out.text = free.join(" ");
+    return out;
+  }
+
+  // Known-sender set for the "Unknown senders" scope (EM#69) — the
+  // Contacts directory, cached 5 minutes. Applicant matches are already
+  // on the row (applicant_id, stamped by the inbound webhook).
+  let _emKnownCache = null;
+  let _emKnownAt = 0;
+  function _emKnownSenders() {
+    if (_emKnownCache && Date.now() - _emKnownAt < 300000) return _emKnownCache;
+    const s = new Set();
+    try {
+      if (typeof _rrLoadContacts === "function") {
+        for (const c of _rrLoadContacts()) {
+          const emails = Array.isArray(c.emails) ? c.emails : (c.email ? [c.email] : []);
+          emails.forEach(e2 => { if (e2) s.add(String(e2).trim().toLowerCase()); });
+        }
+      }
+    } catch (_) {}
+    _emKnownCache = s;
+    _emKnownAt = Date.now();
+    return s;
+  }
+
   // The filtered+sorted list the pane shows — extracted (EM#23) so the
   // keyboard navigator walks exactly what the operator sees.
   function visibleMessages() {
     let messages = state.messages.slice();
-    // Filter by All / Unread tab (pills + the toolbar "All mail"
-    // dropdown drive the same state).
+    // Filter scope (EM#69) · pills cover All/Unread; the toolbar select
+    // adds Has-attachments, Failed, and Unknown-senders.
     if (state.inboxFilter === "unread") {
       messages = messages.filter(m => !isRead(m));
+    } else if (state.inboxFilter === "attach") {
+      messages = messages.filter(m => m.has_attachments === true);
+    } else if (state.inboxFilter === "failed") {
+      messages = messages.filter(m => m.status === "failed" || !!m.error_message);
+    } else if (state.inboxFilter === "unknown") {
+      const known = _emKnownSenders();
+      messages = messages.filter(m => m.direction === "inbound" && !m.applicant_id
+        && !known.has((m.from_email || "").trim().toLowerCase()));
     }
-    // Toolbar search · client-side filter over the loaded folder.
-    const q = state.searchQuery.trim().toLowerCase();
-    if (q) {
-      messages = messages.filter(m =>
-        [m.subject, m.from_email, m.to_email, messageText(m)]
-          .some(v => (v || "").toLowerCase().includes(q)));
+    // Toolbar search · operators (EM#68) + free text over the loaded
+    // rows. While all-mail results are showing (EM#67) the rows already
+    // matched server-side, so the re-filter is skipped — the server
+    // searches full body_text; re-filtering could drop honest matches.
+    const serverActive = !!(state.serverSearch && state.serverSearch.q === state.searchQuery.trim());
+    const pq = _emParseQuery(state.searchQuery);
+    if (!serverActive) {
+      if (pq.from) {
+        const f = pq.from.toLowerCase();
+        messages = messages.filter(m => ((m.from_email || "") + " " + (m.from_name || "")).toLowerCase().includes(f));
+      }
+      if (pq.to) {
+        const t = pq.to.toLowerCase();
+        messages = messages.filter(m =>
+          ((m.to_email || "") + " " + (Array.isArray(m.cc_emails) ? m.cc_emails.join(" ") : "")).toLowerCase().includes(t));
+      }
+      if (pq.hasAttachment) messages = messages.filter(m => m.has_attachments === true);
+      if (pq.before) messages = messages.filter(m => new Date(m.created_at) < pq.before);
+      if (pq.after) messages = messages.filter(m => new Date(m.created_at) >= pq.after);
+      const q = pq.text.toLowerCase();
+      if (q) {
+        messages = messages.filter(m =>
+          [m.subject, m.from_email, m.from_name, m.to_email, messageText(m)]
+            .some(v => (v || "").toLowerCase().includes(q)));
+      }
     }
     // Sort by date.
     messages.sort((a, b) => {
@@ -96357,6 +96493,23 @@ document.addEventListener("click", (e) => {
 
     const messages = visibleMessages();
     const q = state.searchQuery.trim().toLowerCase();
+    // Highlight term (EM#70) · the free-text part of the query, bolded
+    // inside subject/snippet by messageRowHtml.
+    _emHiTerm = q ? _emParseQuery(state.searchQuery).text : "";
+    // All-mail search affordances (EM#67): while searching, offer the
+    // server-side sweep; while its results are showing, a banner with
+    // the way back. Hidden pre-0541 (the capability probe flips false).
+    const rawQ = state.searchQuery.trim();
+    const serverActive = !!(state.serverSearch && state.serverSearch.q === rawQ && rawQ);
+    let searchAllHtml = "";
+    if (serverActive) {
+      searchAllHtml = `<div class="em-search-banner" role="status">
+        <span>${messages.length} result${messages.length === 1 ? "" : "s"} across all mail</span>
+        <button type="button" class="em-search-exit" data-em-search-exit>Back to folder</button>
+      </div>`;
+    } else if (rawQ && _srvSearchRpc !== false) {
+      searchAllHtml = `<button type="button" class="em-search-all" data-em-search-all>Search all mail for “${escapeHtmlLocal(rawQ)}”</button>`;
+    }
     // Selection can outlive the rows that carried it (moves, reloads) —
     // prune so the bulk bar's count never lies.
     for (const id of [...state.selectedIds]) {
@@ -96416,6 +96569,15 @@ document.addEventListener("click", (e) => {
       } else if (state.inboxFilter === "unread") {
         label = "Nothing unread";
         sub = "All caught up — no unread messages.";
+      } else if (state.inboxFilter === "attach") {
+        label = "No attachments here";
+        sub = "No loaded messages carry attachments.";
+      } else if (state.inboxFilter === "failed") {
+        label = "Nothing failed";
+        sub = "No failed or bounced sends in this folder.";
+      } else if (state.inboxFilter === "unknown") {
+        label = "No unknown senders";
+        sub = "Every loaded message is from an applicant or a saved contact.";
       } else if (f && f.kind === "inbox") {
         // First-run teaching moment (EM#32): the empty inbox is where a
         // new operator learns the team address exists at all.
@@ -96441,7 +96603,7 @@ document.addEventListener("click", (e) => {
         label = "No messages";
         sub = "No messages to display.";
       }
-      inbox.innerHTML = toolbarHtml + emptyStateHtml(icon, label, sub, extra);
+      inbox.innerHTML = toolbarHtml + searchAllHtml + emptyStateHtml(icon, label, sub, extra);
       renderNewMailPill();
       renderUndoBar();
       return;
@@ -96481,9 +96643,25 @@ document.addEventListener("click", (e) => {
       ? `<button type="button" class="em-loadmore" data-em-loadmore>Load ${Math.min(200, remaining)} more <span class="em-loadmore-sub">(${remaining} older)</span></button>`
       : "";
 
-    inbox.innerHTML = toolbarHtml + bulkHtml + groupsHtml + tailHtml;
+    inbox.innerHTML = toolbarHtml + searchAllHtml + bulkHtml + groupsHtml + tailHtml;
     renderNewMailPill();
     renderUndoBar();
+  }
+
+  // Match highlighting (EM#70) · set by renderInbox to the free-text
+  // search term; messageRowHtml bolds the first occurrence in the
+  // subject/snippet so the eye lands on why a row matched. Escape-safe:
+  // the raw string is sliced first, each slice escaped separately.
+  let _emHiTerm = "";
+  function _emHi(rawText) {
+    const t = String(rawText || "");
+    const q = _emHiTerm;
+    if (!q) return escapeHtmlLocal(t);
+    const i = t.toLowerCase().indexOf(q.toLowerCase());
+    if (i < 0) return escapeHtmlLocal(t);
+    return escapeHtmlLocal(t.slice(0, i))
+      + `<mark class="em-hi">${escapeHtmlLocal(t.slice(i, i + q.length))}</mark>`
+      + escapeHtmlLocal(t.slice(i + q.length));
   }
 
   function messageRowHtml(m) {
@@ -96540,8 +96718,8 @@ document.addEventListener("click", (e) => {
         ${stPill}
         <span class="em-msg-when" title="${escapeHtmlLocal(whenTitle)}">${escapeHtmlLocal(when)}</span>
       </div>
-      <div class="em-msg-subject">${escapeHtmlLocal(subject)}</div>
-      ${snippet ? `<div class="em-msg-snippet">${escapeHtmlLocal(snippet)}</div>` : ""}
+      <div class="em-msg-subject">${_emHi(subject)}</div>
+      ${snippet ? `<div class="em-msg-snippet">${_emHi(snippet)}</div>` : ""}
       <span class="em-msg-delete" role="button" tabindex="-1" data-em-msg-delete="${escapeHtmlLocal(m.id)}" aria-label="Move to trash" title="Move to trash" draggable="false"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg></span>
     </button>`;
   }
@@ -96611,6 +96789,7 @@ document.addEventListener("click", (e) => {
           <button type="button" class="em-popout-move-item" role="menuitem" data-em-act="print">Print…</button>
           <button type="button" class="em-popout-move-item" role="menuitem" data-em-act="export">Download .eml</button>
           ${m && m.direction === "inbound" ? `<button type="button" class="em-popout-move-item" role="menuitem" data-em-act="add-contact">Add sender to Contacts</button>` : ""}
+          ${m && m.direction === "inbound" ? `<button type="button" class="em-popout-move-item" role="menuitem" data-em-act="rule">Create rule…</button>` : ""}
           <div class="em-read-move-label">Move to</div>
           ${state.folders.filter(f => f.id !== state.activeFolderId && !isVirtualFolderId(f.id))
             .map(f => `<button type="button" class="em-popout-move-item" role="menuitem" data-em-move-to="${escapeHtmlLocal(f.id)}">${iconFor(f.kind)}<span>${escapeHtmlLocal(f.name)}</span></button>`)
@@ -97369,6 +97548,7 @@ document.addEventListener("click", (e) => {
   // ── State mutators ──────────────────────────────────────────────
   async function selectFolder(id) {
     if (!state.folders.some(f => f.id === id)) return;
+    state.serverSearch = null; // a folder click exits all-mail results (EM#67)
     state.activeFolderId = id;
     state.activeMessageId = null;
     state.activeDocId = null;
@@ -98367,12 +98547,25 @@ document.addEventListener("click", (e) => {
       host.insertBefore(chip, input);
     });
   }
-  // Commit any half-typed text in every chip input (send/save paths).
+  // Commit any half-typed text in every chip input. EXPLICIT-INTENT
+  // paths only (Send / Schedule-Meeting) — the draft autosave must
+  // NEVER call this: it fires on a 4s interval, so it snapped partial
+  // addresses into chips mid-keystroke (operator report 2026-07-25,
+  // "rhester" chipped while typing rhester75@gmail.com). Autosave reads
+  // pending text via _emCfPendingVals instead.
   function _emCfCommitPending() {
     ["to", "cc", "bcc"].forEach(kind => {
       const inp = document.querySelector(`#rr-em-composer [data-em-cf="${kind}"] .em-cf-input`);
       if (inp && inp.value.trim()) { _emCfCommit(kind, inp.value); inp.value = ""; }
     });
+  }
+  // Read (never mutate) the half-typed text in one chip input, parsed
+  // like a commit would — lets the draft snapshot capture in-progress
+  // typing without disturbing the field.
+  function _emCfPendingVals(kind) {
+    const inp = document.querySelector(`#rr-em-composer [data-em-cf="${kind}"] .em-cf-input`);
+    if (!inp || !inp.value.trim()) return [];
+    return inp.value.split(/[,;]/).map(s => s.trim()).filter(Boolean);
   }
 
   // ── Recipient autocomplete (EM#45) ──────────────────────────────
@@ -98567,6 +98760,135 @@ document.addEventListener("click", (e) => {
     editorEl.innerHTML += `<div><br></div><div class="rr-sig">${sig}</div>`;
   }
 
+  // ── Mail rules (EM#72, migration 0541) ──────────────────────────
+  // "Mail from @fleetparts.com always goes to Vendors." Rules live in
+  // email_rules; webhook-email-inbound applies them at insert time
+  // (first match wins), so filing happens before the operator ever
+  // sees the message. Pre-0541 both surfaces degrade to a toast.
+  function _emRuleFolderOptions(selectedId) {
+    return state.folders
+      .filter(f => !isVirtualFolderId(f.id) && f.id !== DOCS_FOLDER_ID
+        && f.kind !== "drafts" && f.kind !== "sent")
+      .map(f => `<option value="${escapeHtmlLocal(f.id)}"${f.id === selectedId ? " selected" : ""}>${escapeHtmlLocal(f.name)}</option>`)
+      .join("");
+  }
+  function _emOpenRuleModal(m) {
+    const old = document.getElementById("rr-em-rule");
+    if (old) old.remove();
+    const sender = (m.from_email || "").trim().toLowerCase();
+    const domain = sender.includes("@") ? sender.slice(sender.indexOf("@") + 1) : "";
+    const subj = (m.subject || "").trim().slice(0, 200);
+    if (!sender) { if (typeof toast === "function") toast("This message has no sender address", "warn"); return; }
+    const wrap = document.createElement("div");
+    wrap.id = "rr-em-rule";
+    wrap.className = "em-docpick";
+    wrap.innerHTML = `<div class="em-docpick-card" role="dialog" aria-modal="true" aria-label="Create mail rule">
+      <div class="em-docpick-head"><span>Create rule</span>
+        <button type="button" class="em-addr-x" data-em-rule-close aria-label="Close">×</button></div>
+      <label class="em-rule-row"><span>When inbound mail matches</span>
+        <select id="rr-em-rule-kind" class="form-input">
+          <option value="sender">From ${escapeHtmlLocal(sender)}</option>
+          ${domain ? `<option value="domain">From anyone @${escapeHtmlLocal(domain)}</option>` : ""}
+          ${subj ? `<option value="subject">Subject contains “${escapeHtmlLocal(subj.slice(0, 40))}${subj.length > 40 ? "…" : ""}”</option>` : ""}
+        </select>
+      </label>
+      <label class="em-rule-row"><span>Move it to</span>
+        <select id="rr-em-rule-folder" class="form-input">${_emRuleFolderOptions(null)}</select>
+      </label>
+      <label class="em-rule-apply"><input type="checkbox" id="rr-em-rule-now" checked> Also move this message now</label>
+      <div class="em-sig-actions">
+        <span class="em-view-spacer" aria-hidden="true"></span>
+        <button type="button" class="em-bulk-btn em-sig-save" data-em-rule-save>Save rule</button>
+      </div>
+    </div>`;
+    wrap.addEventListener("click", async (e) => {
+      if (e.target === wrap || e.target.closest("[data-em-rule-close]")) { wrap.remove(); return; }
+      const saveBtn = e.target.closest("[data-em-rule-save]");
+      if (!saveBtn) return;
+      const kind = wrap.querySelector("#rr-em-rule-kind")?.value || "sender";
+      const folderId = wrap.querySelector("#rr-em-rule-folder")?.value || null;
+      const moveNow = !!wrap.querySelector("#rr-em-rule-now")?.checked;
+      const pattern = kind === "sender" ? sender : kind === "domain" ? domain : subj;
+      if (!pattern || !folderId) return;
+      saveBtn.disabled = true;
+      const { error } = await sb.from("email_rules").insert({
+        dsp_id: currentDspId(),
+        match_kind: kind,
+        pattern,
+        folder_id: folderId,
+        created_by: (window.RR && window.RR.user && window.RR.user.id) || null,
+      });
+      if (error) {
+        saveBtn.disabled = false;
+        if (/email_rules|schema cache/i.test(error.message || "")) {
+          if (typeof toast === "function") toast("Mail rules need migration 0541", "info");
+        } else if (/duplicate key|23505/i.test(error.message || "")) {
+          if (typeof toast === "function") toast("That rule already exists", "info");
+        } else if (typeof toast === "function") {
+          toast("Couldn't save rule: " + error.message, "warn");
+        }
+        return;
+      }
+      wrap.remove();
+      // The move gives visible feedback (row leaves + undo bar);
+      // success toasts stay suppressed per the house rule.
+      if (moveNow && folderId !== state.activeFolderId) moveMessageToFolderId(m.id, folderId);
+    });
+    document.body.appendChild(wrap);
+  }
+  async function _emOpenRulesList() {
+    const old = document.getElementById("rr-em-rules");
+    if (old) old.remove();
+    const wrap = document.createElement("div");
+    wrap.id = "rr-em-rules";
+    wrap.className = "em-docpick";
+    wrap.innerHTML = `<div class="em-docpick-card" role="dialog" aria-modal="true" aria-label="Mail rules">
+      <div class="em-docpick-head"><span>Mail rules</span>
+        <button type="button" class="em-addr-x" data-em-rules-close aria-label="Close">×</button></div>
+      <div class="em-docpick-list" id="rr-em-rules-list"><div class="em-docpick-empty">Loading…</div></div>
+    </div>`;
+    wrap.addEventListener("click", async (e) => {
+      if (e.target === wrap || e.target.closest("[data-em-rules-close]")) { wrap.remove(); return; }
+      const del = e.target.closest("[data-em-rule-del]");
+      if (del) {
+        del.disabled = true;
+        const { error } = await sb.from("email_rules").delete().eq("id", del.getAttribute("data-em-rule-del"));
+        if (error) {
+          del.disabled = false;
+          if (typeof toast === "function") toast("Couldn't delete rule: " + error.message, "warn");
+          return;
+        }
+        del.closest(".em-docpick-row")?.remove();
+        const list = wrap.querySelector("#rr-em-rules-list");
+        if (list && !list.querySelector(".em-docpick-row")) {
+          list.innerHTML = `<div class="em-docpick-empty">No rules yet — open a message and pick “Create rule…” from its More menu.</div>`;
+        }
+      }
+    });
+    document.body.appendChild(wrap);
+    const list = wrap.querySelector("#rr-em-rules-list");
+    const { data, error } = await sb.from("email_rules")
+      .select("id, match_kind, pattern, folder_id")
+      .order("created_at", { ascending: true });
+    if (!list || !document.getElementById("rr-em-rules")) return;
+    if (error) {
+      list.innerHTML = `<div class="em-docpick-empty">${/email_rules|schema cache/i.test(error.message || "")
+        ? "Mail rules need migration 0541."
+        : "Couldn't load rules: " + escapeHtmlLocal(error.message || "")}</div>`;
+      return;
+    }
+    if (!data || !data.length) {
+      list.innerHTML = `<div class="em-docpick-empty">No rules yet — open a message and pick “Create rule…” from its More menu.</div>`;
+      return;
+    }
+    const folderName = (id) => escapeHtmlLocal((state.folders.find(f => f.id === id) || {}).name || "(deleted folder)");
+    const kindLabel = { sender: "From", domain: "From anyone @", subject: "Subject contains" };
+    list.innerHTML = data.map(r => `<div class="em-docpick-row em-rule-line">
+      <span class="em-docpick-name">${escapeHtmlLocal(kindLabel[r.match_kind] || r.match_kind)} ${escapeHtmlLocal(r.pattern)} → ${folderName(r.folder_id)}</span>
+      <button type="button" class="em-addr-x" data-em-rule-del="${escapeHtmlLocal(r.id)}" aria-label="Delete rule">×</button>
+    </div>`).join("");
+  }
+
   // ── Paste sanitation (EM#54) ────────────────────────────────────
   // Word/Outlook paste carries mso styles, tracking pixels, and
   // scripts that would be RE-SENT to vendors. Allowlist tags, strip
@@ -98743,10 +99065,21 @@ document.addEventListener("click", (e) => {
   let _srvBccState = null;   // false = bcc_emails column missing (pre-0537)
   function _emComposerSnapshot() {
     const bodyEl = document.getElementById("rr-em-composer-body");
+    // Committed chips + whatever is half-typed in each input, deduped —
+    // so autosave/close capture in-progress recipients WITHOUT snapping
+    // them into chips (the input keeps its text and focus).
+    const withPending = (kind) => {
+      const out = _emRecips[kind].slice();
+      const have = new Set(out.map(a => a.toLowerCase()));
+      _emCfPendingVals(kind).forEach(a => {
+        if (!have.has(a.toLowerCase())) { have.add(a.toLowerCase()); out.push(a); }
+      });
+      return out;
+    };
     return {
-      to: _emRecips.to.slice(),
-      cc: _emRecips.cc.slice(),
-      bcc: _emRecips.bcc.slice(),
+      to: withPending("to"),
+      cc: withPending("cc"),
+      bcc: withPending("bcc"),
       subject: (document.getElementById("rr-em-composer-subject")?.value || "").trim(),
       html: bodyEl ? bodyEl.innerHTML : "",
       text: bodyEl ? (bodyEl.innerText || bodyEl.textContent || "").trim() : "",
@@ -98755,7 +99088,10 @@ document.addEventListener("click", (e) => {
   async function _emSaveDraftRow(silent) {
     if (!document.getElementById("rr-em-composer")) return;
     if (_emDiscardDraft || _emSendInFlight) return;
-    _emCfCommitPending();
+    // NO _emCfCommitPending() here — the snapshot reads half-typed
+    // recipients non-destructively (see _emComposerSnapshot). The 4s
+    // autosave interval routes through this function, and committing
+    // chips from a timer yanked text out from under the operator.
     const s = _emComposerSnapshot();
     if (!s.to.length && !s.cc.length && !s.subject && !s.text && !composerAttachments.length) return;
     const j = JSON.stringify(s);
@@ -99396,6 +99732,7 @@ document.addEventListener("click", (e) => {
     if (cmd === "copy-address") { copyTeamAddress(); return; }
     if (cmd === "mark-all-read") { markAllRead(); return; }
     if (cmd === "empty-trash") { _emShowEmptyTrashBar(); return; }
+    if (cmd === "rules") { _emOpenRulesList(); return; }
     if (cmd === "toggle-density") {
       try {
         const on = localStorage.getItem(DENSITY_KEY) === "compact";
@@ -99690,6 +100027,9 @@ document.addEventListener("click", (e) => {
       loadMoreMessages();
       return;
     }
+    // All-mail search (EM#67): run the server sweep / back to folder.
+    if (e.target.closest("[data-em-search-all]")) { e.preventDefault(); runServerSearch(); return; }
+    if (e.target.closest("[data-em-search-exit]")) { e.preventDefault(); exitServerSearch(false); return; }
     // Undo the last move (EM#31).
     if (e.target.closest("[data-em-undo]")) {
       e.preventDefault();
@@ -100052,7 +100392,7 @@ document.addEventListener("click", (e) => {
       }
       if (action === "delete")  { e.preventDefault(); moveSelectedToKind("trash");   return; }
       if (action === "archive") { e.preventDefault(); moveSelectedToKind("archive"); return; }
-      if (action === "print" || action === "export" || action === "add-contact") {
+      if (action === "print" || action === "export" || action === "add-contact" || action === "rule") {
         e.preventDefault();
         const rm = document.querySelector("#view-email .em-read-more-menu");
         if (rm) rm.hidden = true;
@@ -100060,6 +100400,7 @@ document.addEventListener("click", (e) => {
         if (!m) return;
         if (action === "print") printMessage(m);
         else if (action === "export") exportEml(m);
+        else if (action === "rule") _emOpenRuleModal(m);
         else addSenderToContacts(m);
         return;
       }
@@ -100113,10 +100454,12 @@ document.addEventListener("click", (e) => {
     uploadDocs(files);
   });
 
-  // Toolbar "All mail / Unread" dropdown → same state as the pills.
+  // Toolbar filter dropdown → same state as the pills, plus the
+  // extended scopes (EM#69).
   document.addEventListener("change", (e) => {
     if (!e.target || e.target.id !== "rr-em-scope") return;
-    state.inboxFilter = e.target.value === "unread" ? "unread" : "all";
+    const v = e.target.value;
+    state.inboxFilter = ["unread", "attach", "failed", "unknown"].includes(v) ? v : "all";
     saveFilter();
     renderInbox();
   });
@@ -100129,8 +100472,33 @@ document.addEventListener("click", (e) => {
     clearTimeout(_searchDebounce);
     _searchDebounce = setTimeout(() => {
       state.searchQuery = v;
+      // Editing the query invalidates showing all-mail results — drop
+      // back to the folder (the new text keeps filtering client-side).
+      if (state.serverSearch && state.serverSearch.q !== v.trim()) {
+        state.serverSearch = null;
+        if (state.activeFolderId) { selectFolder(state.activeFolderId); return; }
+      }
       renderInbox();
     }, 150);
+  });
+
+  // Search ergonomics (EM#71) · Enter = run the all-mail search,
+  // Escape = clear (and exit all-mail results if showing).
+  document.addEventListener("keydown", (e) => {
+    if (!e.target || e.target.id !== "rr-em-search") return;
+    if (e.key === "Enter") {
+      e.preventDefault();
+      clearTimeout(_searchDebounce);
+      state.searchQuery = e.target.value || "";
+      runServerSearch();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      clearTimeout(_searchDebounce);
+      e.target.value = "";
+      state.searchQuery = "";
+      if (state.serverSearch) exitServerSearch(true);
+      else renderInbox();
+    }
   });
 
   // Rename input · Escape cancels; blur cancels if no submit landed.
@@ -100173,6 +100541,12 @@ document.addEventListener("click", (e) => {
     const ae = document.activeElement;
     if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.tagName === "SELECT" || ae.isContentEditable)) return;
     if (state.activeFolderId === DOCS_FOLDER_ID) return;
+    if (e.key === "/") {
+      // `/` focuses search (EM#71) — Gmail muscle memory.
+      const s = document.getElementById("rr-em-search");
+      if (s) { e.preventDefault(); s.focus(); s.select(); }
+      return;
+    }
     if (e.key === "Escape") {
       if (state.selectedIds.size) {
         state.selectedIds.clear();
