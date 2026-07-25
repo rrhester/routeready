@@ -3281,10 +3281,13 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff * {
   border-radius: var(--r-sm);
   letter-spacing: .04em;
 }
-/* Helper-seat corner badge · the "HP" tag on an XL route's helper seat (the
-   ride-along body, no XL cert). Sits in the .shift-chip-badges corner cluster
-   next to the XL service-type tag ("XL HP") so the operator can tell the
-   certified driver seat from the helper seat at a glance. Sized to match the
+/* Helper-seat tag · the "Helper" / "XL-Helper" tag on a route's helper seat
+   (the ride-along body, no cert) so the operator can tell the certified
+   driver seat from the helper seat at a glance. Rides IN the secondary
+   wave/van line — pushed to the line's right edge, wrapping under it when
+   the chip is narrow — NOT the absolute .shift-chip-badges corner, whose
+   fixed clearance is sized for the 2-char SP/XL tags and let this wide tag
+   paint over the van text (operator report 2026-07-25). Sized to match the
    SP/RE/NU class badge. */
 #view-schedule.rrx-schedule .shift-chip-helper-badge {
   font-size: var(--fs-9);
@@ -3295,6 +3298,16 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff * {
   letter-spacing: .04em;
   background: var(--accent-soft);
   color: var(--accent-text);
+  white-space: nowrap;
+}
+#view-schedule.rrx-schedule .shift-chip .shift-chip-secondary > .shift-chip-helper-badge {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+/* Only helper chips may wrap the secondary line (the tag drops under the
+   wave/van text instead of overlapping it); other chips keep one line. */
+#view-schedule.rrx-schedule .shift-chip.shift-chip-helper .shift-chip-secondary {
+  flex-wrap: wrap;
 }
 /* The helper chip carries a dashed left accent so it reads as support
    capacity rather than a primary route seat. */

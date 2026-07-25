@@ -64933,14 +64933,16 @@ async function _decorateScheduleChipsWithVans() {
       chip.setAttribute("title", "Van unavailable this day — in service or grounded");
     }
     // The van rides the secondary "W11:20 • V5" line (density format);
-    // create the line if the chip rendered without a wave.
+    // create the line if the chip rendered without a wave. On a helper seat
+    // the Helper tag sits at the END of that line — keep the van before it
+    // so the line reads "W11:20 • V5 • Helper" (a null ref = plain append).
     let sec = chip.querySelector(".shift-chip-secondary");
     if (!sec) {
       sec = document.createElement("div");
       sec.className = "shift-chip-secondary";
       chip.insertBefore(sec, chip.querySelector(".shift-chip-badges"));
     }
-    sec.appendChild(el);
+    sec.insertBefore(el, sec.querySelector(".shift-chip-helper-badge"));
   });
 }
 window._rrDecorateScheduleChipsWithVans = _decorateScheduleChipsWithVans;
@@ -71149,25 +71151,31 @@ function _schedShiftChip(sh, extras) {
   const classCorner = _rcDef
     ? `<span class="shift-chip-class-badge" style="background:${_rcDef.c}20;color:${_rcDef.c}" title="${escapeHtml(_rcDef.label)} route">${_rcDef.t}</span>`
     : "";
-  // Helper seat corner badge — the second body riding along a route (no cert
+  // Helper seat tag — the second body riding along a route (no cert
   // required). Spelled out as "Helper" (not the old cryptic "HP") so the chip
   // reads plainly; its route color + dashed border already say which route it
-  // rides, so this is the only badge the helper seat carries. When the route
+  // rides, so this is the only tag the helper seat carries. When the route
   // carries a distinguishing service type (XL, …) the tag names it — an XL
   // route's helper reads "XL-Helper", not a bare "Helper" — since the seat's
   // own service-type corner is suppressed above. The HELPER service type is
   // itself the helper route, so it isn't prefixed (no "HELPER-Helper").
+  // The tag rides IN the secondary "W11:20 • V5" line (flex end, wrapping
+  // under it when the chip is narrow), NOT the absolute .shift-chip-badges
+  // corner: that cluster's fixed right-padding clearance is sized for the
+  // 2-char SP/XL tags, and this wide tag painted over the wave/van text
+  // (operator report 2026-07-25).
   const _helperTypePrefix = (stCode && stCode !== "SP" && stCode !== "HELPER")
     ? stCode + "-"
     : "";
-  const helperCorner = isHelperSeat
+  const helperTag = isHelperSeat
     ? `<span class="shift-chip-helper-badge" title="${escapeHtml(_helperTypePrefix ? _helperTypePrefix.slice(0, -1) + " helper seat — rides along the route (no certification required)" : "Helper seat — rides along the route (no certification required)")}">${escapeHtml(_helperTypePrefix)}Helper</span>`
     : "";
-  // Corner tags share one flex wrapper pinned top-right so an XL standard
+  // Corner tags share one flex wrapper pinned bottom-right so an XL standard
   // route reads "SP XL" without the two badges overlapping; the service-type
-  // badge stays rightmost (where XL has always sat), the helper tag after it.
-  const cornerBadges = (classCorner || stCorner || helperCorner)
-    ? `<div class="shift-chip-badges">${classCorner}${stCorner}${helperCorner}</div>`
+  // badge stays rightmost (where XL has always sat). Helper seats suppress
+  // both, so a helper chip has no corner cluster (and no clearance padding).
+  const cornerBadges = (classCorner || stCorner)
+    ? `<div class="shift-chip-badges">${classCorner}${stCorner}</div>`
     : "";
   // Trainee badge — when a ride-along shift exists on the same date with
   // trainer_driver_id pointing at this driver, surface it so the trainer
@@ -71184,7 +71192,7 @@ function _schedShiftChip(sh, extras) {
   //                                 assign-vans decorator)
   // When a route code is set, it sits as a small eyebrow above the
   // Wave line so the route is still discoverable at a glance. (The helper
-  // seat is marked by the "HP" corner badge, not here.)
+  // seat is marked by the Helper tag on the wave/van line, not here.)
   const eyebrowExtras = `${stBadge}${traineeBadge}`;
   const eyebrowRoute = hasRoute
     ? `<div class="shift-chip-route-code">${escapeHtml(sh.route_code)}${eyebrowExtras}</div>`
@@ -71218,8 +71226,8 @@ function _schedShiftChip(sh, extras) {
   const vanSpan = (extras && extras.van)
     ? `<span class="shift-chip-van">V${escapeHtml(String(extras.van))}</span>`
     : "";
-  const secondLine = (waveSpan || vanSpan)
-    ? `<div class="shift-chip-secondary">${waveSpan}${vanSpan}</div>`
+  const secondLine = (waveSpan || vanSpan || helperTag)
+    ? `<div class="shift-chip-secondary">${waveSpan}${vanSpan}${helperTag}</div>`
     : "";
   const baseStyle = sh.is_cushion ? 'border-color:rgba(245,158,11,.22);' : '';
   // Left accent-bar color · the service type's own color when the shift
