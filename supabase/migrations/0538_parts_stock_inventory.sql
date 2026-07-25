@@ -59,25 +59,24 @@ drop policy if exists parts_stock_items_tenant_select on public.parts_stock_item
 create policy parts_stock_items_tenant_select
   on public.parts_stock_items for select
   using (dsp_id = private.current_dsp_id());
+-- Writes go through the security-definer RPCs ONLY (they run as the
+-- table owner and bypass RLS). No client-facing write policy and no
+-- write grants — a dispatcher hitting PostgREST directly could
+-- otherwise set qty_on_hand without a movement or delete an item and
+-- cascade its ledger, defeating the append-only invariant
+-- (Codex review, PR #4124).
 drop policy if exists parts_stock_items_staff_write on public.parts_stock_items;
-create policy parts_stock_items_staff_write
-  on public.parts_stock_items for all
-  using      (dsp_id = private.current_dsp_id() and private.is_staff(dsp_id, 'dispatcher'))
-  with check (dsp_id = private.current_dsp_id() and private.is_staff(dsp_id, 'dispatcher'));
+drop policy if exists parts_stock_movements_staff_insert on public.parts_stock_movements;
 
 drop policy if exists parts_stock_movements_tenant_select on public.parts_stock_movements;
 create policy parts_stock_movements_tenant_select
   on public.parts_stock_movements for select
   using (dsp_id = private.current_dsp_id());
--- Movements are append-only from the client: INSERT via the RPC only,
--- no update/delete policy on purpose (fix a mistake with an 'adjust').
-drop policy if exists parts_stock_movements_staff_insert on public.parts_stock_movements;
-create policy parts_stock_movements_staff_insert
-  on public.parts_stock_movements for insert
-  with check (dsp_id = private.current_dsp_id() and private.is_staff(dsp_id, 'dispatcher'));
 
-grant select, insert, update, delete on public.parts_stock_items to authenticated;
-grant select, insert on public.parts_stock_movements to authenticated;
+revoke insert, update, delete on public.parts_stock_items     from authenticated;
+revoke insert, update, delete on public.parts_stock_movements from authenticated;
+grant select on public.parts_stock_items     to authenticated;
+grant select on public.parts_stock_movements to authenticated;
 
 
 -- ── parts_stock_item_save — create/edit the descriptive fields ──────
@@ -202,6 +201,17 @@ begin
      and not exists (select 1 from public.vehicles v where v.id = p_vehicle_id and v.dsp_id = v_dsp) then
     raise exception 'vehicle_not_found' using errcode = 'P0002';
   end if;
+  -- Repair-case link must be this tenant's case, and when both a van
+  -- and a case are given the case must be for that van (or have no van
+  -- on file) — cross-attribution corrupts both ledgers.
+  if p_repair_case_id is not null
+     and not exists (
+       select 1 from public.repair_cases rc
+       where rc.id = p_repair_case_id and rc.dsp_id = v_dsp
+         and (p_vehicle_id is null or rc.vehicle_id is null or rc.vehicle_id = p_vehicle_id)
+     ) then
+    raise exception 'case_not_found' using errcode = 'P0002';
+  end if;
 
   v_delta := case p_kind
     when 'receive' then p_qty
@@ -236,11 +246,16 @@ begin
          updated_at      = now()
    where id = v_item.id;
 
+  -- Consume/return movements snapshot the item's moving-average unit
+  -- cost when no explicit cost is given, so vehicle_cost_summary can
+  -- price the parts pulled for a van (Codex review, PR #4124).
   insert into public.parts_stock_movements
     (dsp_id, item_id, kind, qty_delta, unit_cost_cents,
      vehicle_id, repair_case_id, note, created_by)
   values
-    (v_dsp, v_item.id, p_kind, v_delta, p_unit_cost_cents,
+    (v_dsp, v_item.id, p_kind, v_delta,
+     coalesce(p_unit_cost_cents,
+              case when p_kind in ('consume','return') then v_item.unit_cost_cents end),
      p_vehicle_id, p_repair_case_id, nullif(trim(coalesce(p_note,'')), ''), auth.uid())
   returning * into v_mv;
 
@@ -275,11 +290,11 @@ begin
   if not private.is_staff(v_dsp, 'dispatcher') then raise exception 'forbidden' using errcode = '42501'; end if;
 
   select
-    coalesce(jsonb_agg(row order by row->>'name'), '[]'::jsonb),
+    coalesce(jsonb_agg(srow order by srow->>'name'), '[]'::jsonb),
     jsonb_build_object(
       'items',            count(*),
-      'low_stock_count',  count(*) filter (where (row->>'low_stock')::boolean),
-      'total_value_cents', coalesce(sum((row->>'value_cents')::bigint), 0)
+      'low_stock_count',  count(*) filter (where (srow->>'low_stock')::boolean),
+      'total_value_cents', coalesce(sum((srow->>'value_cents')::bigint), 0)
     )
   into v_items, v_summary
   from (
@@ -301,7 +316,7 @@ begin
       'notes', i.notes,
       'last_movement_at', lm.created_at,
       'updated_at', i.updated_at
-    ) as row
+    ) as srow
     from public.parts_stock_items i
     left join public.stations st on st.id = i.station_id
     left join lateral (
@@ -334,7 +349,7 @@ create or replace function public.parts_stock_movements_list(
 ) returns jsonb
 language sql stable security definer set search_path = ''
 as $$
-  select coalesce(jsonb_agg(row), '[]'::jsonb)
+  select coalesce(jsonb_agg(mrow), '[]'::jsonb)
   from (
     select jsonb_build_object(
       'id', m.id,
@@ -346,7 +361,7 @@ as $$
       'repair_case_id', m.repair_case_id,
       'note', m.note,
       'created_at', m.created_at
-    ) as row
+    ) as mrow
     from public.parts_stock_movements m
     join public.parts_stock_items i on i.id = m.item_id
     left join public.vehicles v on v.id = m.vehicle_id

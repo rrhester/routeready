@@ -89966,7 +89966,8 @@ async function _fdLoadCosts(vehicleId) {
   const parts = [
     { label: "Repairs",  cents: (Number(s.repair_cents) || 0) + (Number(s.legacy_ro_cents) || 0) },
     { label: "Service",  cents: (Number(s.service_cents) || 0) + (Number(s.pm_cents) || 0) },
-    { label: "Parts",    cents: Number(s.parts_cents) || 0 },
+    // Parts = purchased parts + shelf stock consumed on this van (0538).
+    { label: "Parts",    cents: (Number(s.parts_cents) || 0) + (Number(s.stock_cents) || 0) },
   ].filter((p) => p.cents > 0);
   const cpm = s.cost_per_mile_cents != null
     ? `$${(Number(s.cost_per_mile_cents) / 100).toFixed(2)}/mi over ${Number(s.miles_driven).toLocaleString()} mi`

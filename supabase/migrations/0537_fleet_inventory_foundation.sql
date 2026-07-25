@@ -429,6 +429,9 @@ grant execute on function public.vehicle_record_save(
 -- ── 5 · vehicles_roster: consolidated re-issue (regression fix) ─────
 -- FULL 0308 body + van_type (0345's addition) + expected_return_on.
 -- ⚠ Future edits must start from THIS body — never rebuild from 0213.
+-- NB the row is built as TWO concatenated jsonb_build_object calls:
+-- 0308's single call sat at exactly Postgres's 100-argument ceiling, so
+-- ANY added field must go in the second object (CI caught the overflow).
 create or replace function public.vehicles_roster()
 returns jsonb
 language sql stable security definer set search_path = ''
@@ -525,8 +528,8 @@ as $$
             'Registration Expires in ' || (dr.reg->>'days_until') || (case when (dr.reg->>'days_until') = '1' then ' Day' else ' Days' end)
           else null
         end
-      ),
-
+      )
+    ) || jsonb_build_object(
       -- ── FEM / VORR decoration ──────────────────────────────────────
       'last_deployed_at',   dep.last_deployed,
       'days_since_deployed',
@@ -1198,6 +1201,7 @@ declare
   v_service bigint := 0;  v_service_n int := 0;
   v_pm bigint := 0;       v_pm_n int := 0;
   v_parts bigint := 0;    v_parts_n int := 0;
+  v_stock bigint := 0;    v_stock_n int := 0;
   v_first_mi int; v_last_mi int; v_miles int;
   v_total bigint;
 begin
@@ -1248,6 +1252,20 @@ begin
        and pp.created_at::date >= v_from;
   exception when undefined_table then null; end;
 
+  -- Shelf stock consumed on this van (0538): consume rows are negative
+  -- deltas priced at the item's moving-average cost captured on the
+  -- movement; returns net back out. Table may not exist yet — soft 0.
+  begin
+    select coalesce(sum((-m.qty_delta)::bigint * coalesce(m.unit_cost_cents, 0)), 0),
+           count(*) filter (where m.kind = 'consume')::int
+      into v_stock, v_stock_n
+      from public.parts_stock_movements m
+     where m.dsp_id = v_dsp and m.vehicle_id = p_vehicle_id
+       and m.kind in ('consume','return')
+       and m.created_at::date >= v_from;
+  exception when undefined_table then null; end;
+  v_stock := greatest(v_stock, 0);
+
   select min(m.mileage), max(m.mileage)
     into v_first_mi, v_last_mi
     from public.vehicle_mileage_log m
@@ -1255,7 +1273,7 @@ begin
      and m.reading_at::date >= v_from;
   v_miles := case when v_first_mi is null then null else greatest(v_last_mi - v_first_mi, 0) end;
 
-  v_total := v_repair + v_ro + v_service + v_pm + v_parts;
+  v_total := v_repair + v_ro + v_service + v_pm + v_parts + v_stock;
 
   return jsonb_build_object(
     'window_months',       greatest(coalesce(p_months, 12), 1),
@@ -1264,6 +1282,7 @@ begin
     'service_cents',       v_service,     'service_count', v_service_n,
     'pm_cents',            v_pm,          'pm_count',      v_pm_n,
     'parts_cents',         v_parts,       'parts_count',   v_parts_n,
+    'stock_cents',         v_stock,       'stock_count',   v_stock_n,
     'total_cents',         v_total,
     'miles_driven',        v_miles,
     'cost_per_mile_cents', case when v_miles is not null and v_miles > 0
