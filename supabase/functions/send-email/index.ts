@@ -13,7 +13,7 @@ import { encodeBase64 } from "https://deno.land/std@0.208.0/encoding/base64.ts";
 interface Attachment { name?: string; url?: string; path?: string; content_type?: string; size?: number; storage_path?: string }
 interface QueuedRow {
   id: string; dsp_id: string; applicant_id: string | null; folder_id: string | null;
-  to_email: string; cc_emails: string[] | null;
+  to_email: string; cc_emails: string[] | null; bcc_emails?: string[] | null;
   subject: string; body_text: string | null; body_html: string | null;
   attachments: Attachment[] | null; cal_event_id: string | null;
   calendar_method?: string | null;   // 'request' | 'cancel' (0429)
