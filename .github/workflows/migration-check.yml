@@ -160,6 +160,16 @@ jobs:
           set -euo pipefail
           psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/cert_gate_test.sql
 
+      - name: VIN dedup test (0541 · no duplicate vehicles within a DSP)
+        # Proves the BEFORE INSERT trigger blocks exact + case/whitespace
+        # variant duplicate VINs within a DSP, while allowing cross-DSP, null,
+        # and unique VINs.
+        env:
+          SUPABASE_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: |
+          set -euo pipefail
+          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/vin_dedup_test.sql
+
       - name: MFA gate test (0540 · server-side assurance enforcement)
         # Proves the fail-safe (no-factor user never blocked, even with
         # require_mfa on), the fix (enrolled aal1 refused when opted in), and
