@@ -14,8 +14,25 @@ Email-redesign merge #4113). Impact tags: **[high]** = operators lose
 mail, reply to the wrong person, or read wrong state; **[med]** = worth
 scheduling; **[low]** = polish.
 
-**STATUS (2026-07-25): Batches A–E (EM#1–58) + EM#74 SHIPPED — the
-first 58 items are done.** E2b notes: EM#51 signatures and EM#52
+**STATUS (2026-07-25): Sections A–F (EM#1–66) + EM#74 SHIPPED.**
+Section F notes (**migration 0539**): EM#66's
+`email_folder_unread_counts()` RPC replaces the N-sequential-HEAD
+counts loop (per-folder fallback kept pre-0539) and EM#63's
+purge-email-trash cron deletes 30-day-old trash nightly (updated_at is
+a safe entered-trash proxy — the 0003 touch trigger bumps it on the
+move PATCH; Empty-trash is an inline confirm bar since the ⋮ menu
+closes on click). EM#59 inline rename, EM#60 hover ↑/↓ reorder
+(first move renumbers the all-100 sibling run), EM#61 retired the
+folder prompts/confirms (inline subfolder form with parent context,
+inline delete-confirm row, two-step armed doc dismiss — composer
+link/template prompts from E2b remain as noted debt), EM#62 friendly
+duplicate-name refusal client-side + 23505 catch, EM#64 Move-to in the
+read-bar More menu, EM#65 drag temporarily reveals a hidden folder
+pane. QA also revived a DEAD path: the add-subfolder + was being
+swallowed by the folder row-select handler (closest() matched the
+parent button first) — moved above it; and renderFolders now paints
+children in (position, name) order so reorders show without a
+reload. E2b notes: EM#51 signatures and EM#52
 composer templates ship as per-user/per-DSP localStorage v1s (auto-
 append on new mail; save-current-as-template with insert/delete) — the
 Settings-managed, DSP-wide versions belong to EM#98. EM#53 adds

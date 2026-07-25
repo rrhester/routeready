@@ -63,6 +63,7 @@
               <button type="button" class="em-more-item" role="menuitem" data-em-menu="toggle-folders" id="rr-em-menu-folders">Hide folder pane</button>
               <button type="button" class="em-more-item" role="menuitem" data-em-menu="toggle-density" id="rr-em-menu-density">Compact rows: Off</button>
               <button type="button" class="em-more-item" role="menuitem" data-em-menu="toggle-notify" id="rr-em-menu-notify">Desktop notifications: Off</button>
+              <button type="button" class="em-more-item" role="menuitem" data-em-menu="empty-trash">Empty trash…</button>
               <button type="button" class="em-more-item" role="menuitem" data-em-menu="copy-address">Copy team address</button>
             </div>
           </div>

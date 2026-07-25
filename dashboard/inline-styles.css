@@ -25795,6 +25795,54 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-email .em-folder:hover .em-folder-add{display:inline-flex}
           #view-email .em-folder-add:hover{background:rgba(15,23,42,.08);color:var(--accent)}
+          /* Rename / reorder hover controls (EM#59/60) · same reveal
+             pattern as add/delete. */
+          #view-email .em-folder-ren,
+          #view-email .em-folder-up,
+          #view-email .em-folder-down{
+            display:none;background:transparent;border:0;cursor:pointer;
+            color:var(--text-subtle);padding:0;width:18px;height:18px;
+            border-radius:3px;align-items:center;justify-content:center;
+          }
+          #view-email .em-folder:hover .em-folder-ren,
+          #view-email .em-folder:hover .em-folder-up,
+          #view-email .em-folder:hover .em-folder-down{display:inline-flex}
+          #view-email .em-folder-ren:hover,
+          #view-email .em-folder-up:hover,
+          #view-email .em-folder-down:hover{background:rgba(15,23,42,.08);color:var(--accent)}
+          /* Inline rename row (EM#59). */
+          #view-email .em-folder.is-renaming,
+          #view-email .em-folder.is-confirm{display:flex;align-items:center;gap:8px;padding:6px 10px}
+          #view-email .em-folder-rename-form{flex:1;min-width:0}
+          #view-email .em-folder-rename-input{
+            width:100%;border:1px solid var(--rr-blue-600);border-radius:5px;
+            padding:3px 8px;font:inherit;font-size:var(--fs-sm);
+            background:var(--surface);color:var(--text);outline:none;
+          }
+          /* Inline delete-confirm row (EM#61). */
+          #view-email .em-folder-confirm-txt{
+            flex:1;min-width:0;font-size:var(--fs-xs);color:var(--rr-red-700);
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+          }
+          #view-email .em-folder-confirm-yes{
+            border:1px solid var(--rr-red-700);background:var(--rr-red-50);
+            color:var(--rr-red-700);border-radius:5px;padding:1px 8px;
+            cursor:pointer;font:inherit;font-size:var(--fs-10);font-weight:700;
+          }
+          #view-email .em-folder-confirm-no{
+            border:1px solid var(--border);background:var(--surface);
+            color:var(--text);border-radius:5px;padding:1px 8px;
+            cursor:pointer;font:inherit;font-size:var(--fs-10);font-weight:600;
+          }
+          /* Armed doc-dismiss × (EM#61). */
+          #view-email .em-msg-delete.is-armed{color:var(--rr-red-700);opacity:1}
+          /* Read-bar Move-to section label (EM#64). */
+          #view-email .em-read-move-label{
+            font-size:var(--fs-10);font-weight:700;letter-spacing:.04em;
+            text-transform:uppercase;color:var(--text-subtle);
+            padding:6px 10px 2px;border-top:1px solid var(--border-subtle, var(--border));
+            margin-top:4px;
+          }
           /* Pop-out email icon-strip. */
           .em-popout-card{
             background:var(--canvas);border:1px solid var(--border);
