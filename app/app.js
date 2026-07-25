@@ -924,6 +924,15 @@ function writeSession(s) {
 async function _signDriverFile(bucket, path, ttl = 3600) {
   const s = readSession();
   if (!path || !s?.token) return { data: null, error: { message: "no_token_or_path" } };
+  // Primary: the ownership-checked signing edge function (B-1). If it fails for
+  // any reason — function not deployed, migration 0561 (driver_can_read_file)
+  // not applied, a transient 5xx, or a false-negative ownership check — fall
+  // back to a direct signed URL so a driver is never left staring at a blank
+  // image mid-transition. The fallback resolves ONLY while the bucket-wide anon
+  // read policies still exist (i.e. before migration 0562 drops them); once
+  // they drop, the fallback returns nothing and the edge path MUST be healthy —
+  // which is exactly why 0562 stays gated on device-QA. The console.warn keeps
+  // a silent edge-path regression visible during that QA.
   try {
     const resp = await fetch(`${cfg.SUPABASE_URL}/functions/v1/driver-file-sign`, {
       method: "POST",
@@ -934,13 +943,24 @@ async function _signDriverFile(bucket, path, ttl = 3600) {
       },
       body: JSON.stringify({ token: s.token, bucket, path, expires_in: ttl }),
     });
-    if (!resp.ok) return { data: null, error: { message: "HTTP " + resp.status } };
-    const body = await resp.json().catch(() => null);
-    return body?.signed_url
-      ? { data: { signedUrl: body.signed_url }, error: null }
-      : { data: null, error: { message: (body && body.error) || "no_url" } };
+    if (resp.ok) {
+      const body = await resp.json().catch(() => null);
+      if (body?.signed_url) return { data: { signedUrl: body.signed_url }, error: null };
+      console.warn("[driver-file-sign] no URL in response; using direct signed-URL fallback", body && body.error);
+    } else {
+      console.warn("[driver-file-sign] HTTP " + resp.status + "; using direct signed-URL fallback");
+    }
   } catch (e) {
-    return { data: null, error: { message: (e && e.message) || "network" } };
+    console.warn("[driver-file-sign] request failed; using direct signed-URL fallback:", (e && e.message) || e);
+  }
+  // Fallback: direct anon signed URL. Works only while the anon read policies
+  // remain (pre-0562). Same return shape as the primary path.
+  try {
+    const { data, error } = await sb.storage.from(bucket).createSignedUrl(path, ttl);
+    if (data?.signedUrl) return { data: { signedUrl: data.signedUrl }, error: null };
+    return { data: null, error: error || { message: "no_url" } };
+  } catch (e2) {
+    return { data: null, error: { message: (e2 && e2.message) || "fallback_failed" } };
   }
 }
 // Drop-in for createSignedUrls: returns { data: [{ path, signedUrl, error }], error }.
