@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=1daabea73a18";
-import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=1daabea73a18";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=1daabea73a18";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=1daabea73a18";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=1daabea73a18";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=1daabea73a18";
-import { isChecklistComplete } from "./checklist-core.mjs?v=1daabea73a18";
+import { planScheduleWeek } from "./scheduling-engine.js?v=66cc7c150ece";
+import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=66cc7c150ece";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=66cc7c150ece";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=66cc7c150ece";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=66cc7c150ece";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=66cc7c150ece";
+import { isChecklistComplete } from "./checklist-core.mjs?v=66cc7c150ece";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=1daabea73a18";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=1daabea73a18";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=1daabea73a18";
+} from "./msg-core.mjs?v=66cc7c150ece";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=66cc7c150ece";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=66cc7c150ece";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -97738,12 +97738,25 @@ document.addEventListener("click", (e) => {
       host.insertBefore(chip, input);
     });
   }
-  // Commit any half-typed text in every chip input (send/save paths).
+  // Commit any half-typed text in every chip input. EXPLICIT-INTENT
+  // paths only (Send / Schedule-Meeting) — the draft autosave must
+  // NEVER call this: it fires on a 4s interval, so it snapped partial
+  // addresses into chips mid-keystroke (operator report 2026-07-25,
+  // "rhester" chipped while typing rhester75@gmail.com). Autosave reads
+  // pending text via _emCfPendingVals instead.
   function _emCfCommitPending() {
     ["to", "cc", "bcc"].forEach(kind => {
       const inp = document.querySelector(`#rr-em-composer [data-em-cf="${kind}"] .em-cf-input`);
       if (inp && inp.value.trim()) { _emCfCommit(kind, inp.value); inp.value = ""; }
     });
+  }
+  // Read (never mutate) the half-typed text in one chip input, parsed
+  // like a commit would — lets the draft snapshot capture in-progress
+  // typing without disturbing the field.
+  function _emCfPendingVals(kind) {
+    const inp = document.querySelector(`#rr-em-composer [data-em-cf="${kind}"] .em-cf-input`);
+    if (!inp || !inp.value.trim()) return [];
+    return inp.value.split(/[,;]/).map(s => s.trim()).filter(Boolean);
   }
 
   // ── Recipient autocomplete (EM#45) ──────────────────────────────
@@ -98114,10 +98127,21 @@ document.addEventListener("click", (e) => {
   let _srvBccState = null;   // false = bcc_emails column missing (pre-0537)
   function _emComposerSnapshot() {
     const bodyEl = document.getElementById("rr-em-composer-body");
+    // Committed chips + whatever is half-typed in each input, deduped —
+    // so autosave/close capture in-progress recipients WITHOUT snapping
+    // them into chips (the input keeps its text and focus).
+    const withPending = (kind) => {
+      const out = _emRecips[kind].slice();
+      const have = new Set(out.map(a => a.toLowerCase()));
+      _emCfPendingVals(kind).forEach(a => {
+        if (!have.has(a.toLowerCase())) { have.add(a.toLowerCase()); out.push(a); }
+      });
+      return out;
+    };
     return {
-      to: _emRecips.to.slice(),
-      cc: _emRecips.cc.slice(),
-      bcc: _emRecips.bcc.slice(),
+      to: withPending("to"),
+      cc: withPending("cc"),
+      bcc: withPending("bcc"),
       subject: (document.getElementById("rr-em-composer-subject")?.value || "").trim(),
       html: bodyEl ? bodyEl.innerHTML : "",
       text: bodyEl ? (bodyEl.innerText || bodyEl.textContent || "").trim() : "",
@@ -98126,7 +98150,10 @@ document.addEventListener("click", (e) => {
   async function _emSaveDraftRow(silent) {
     if (!document.getElementById("rr-em-composer")) return;
     if (_emDiscardDraft || _emSendInFlight) return;
-    _emCfCommitPending();
+    // NO _emCfCommitPending() here — the snapshot reads half-typed
+    // recipients non-destructively (see _emComposerSnapshot). The 4s
+    // autosave interval routes through this function, and committing
+    // chips from a timer yanked text out from under the operator.
     const s = _emComposerSnapshot();
     if (!s.to.length && !s.cc.length && !s.subject && !s.text && !composerAttachments.length) return;
     const j = JSON.stringify(s);
