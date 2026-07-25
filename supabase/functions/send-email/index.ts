@@ -214,11 +214,18 @@ Deno.serve(async (req) => {
       effectiveReplyTo = dsp?.replyTo || replyTo || null;
     }
 
+    // to_email may carry several comma/semicolon-separated addresses
+    // (multi-recipient composer, EM#43) — Resend wants an array.
+    const toList = String(row.to_email || "")
+      .split(/[,;]/).map((s) => s.trim()).filter(Boolean);
     const body: Record<string, unknown> = {
-      from: fromHeader, to: [row.to_email], subject: row.subject,
+      from: fromHeader, to: toList.length ? toList : [row.to_email], subject: row.subject,
     };
     if (Array.isArray(row.cc_emails) && row.cc_emails.length > 0) {
       body.cc = row.cc_emails;
+    }
+    if (Array.isArray(row.bcc_emails) && row.bcc_emails.length > 0) {
+      body.bcc = row.bcc_emails; // 0537 column; select("*") tolerates its absence
     }
     if (row.body_html) body.html = row.body_html;
     else body.text = row.body_text ?? "";
