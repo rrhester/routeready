@@ -23,8 +23,9 @@ insert into public.dsps (id, name, short_code, slug) values
   ('facef00d-0000-4000-8000-000000000001', 'MFA DSP', 'MFAG', 'mfag');
 insert into public.app_users (id, dsp_id, email, full_name, role, active) values
   ('facef00d-0000-4000-8000-00000000000e', 'facef00d-0000-4000-8000-000000000001', 'owner@mfag.test', 'Owner', 'owner', true);
-insert into auth.users (id, email) values
-  ('facef00d-0000-4000-8000-00000000000e', 'owner@mfag.test');
+-- No auth.users row needed: session_replication_role=replica skips the
+-- auth.mfa_factors FK, and nothing here reads auth.users (auth.uid() comes
+-- from the jwt claim we set below).
 
 -- helper to set the session identity + assurance level
 create or replace function pg_temp.act(p_uid text, p_aal text) returns void language sql as $$

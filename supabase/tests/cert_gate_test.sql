@@ -30,10 +30,10 @@ set local session_replication_role = replica;  -- skip FK-to-auth + triggers
 
 -- ── Fixtures ──────────────────────────────────────────────────────────────
 -- dsp1 carries a 14-day license protection window; dsp2 has none (default 0).
-insert into public.dsps (id, name, short_code, metadata) values
-  ('ed000000-0000-4000-8000-000000000001', 'EDV Gate DSP', 'EDVG',
+insert into public.dsps (id, name, short_code, slug, metadata) values
+  ('ed000000-0000-4000-8000-000000000001', 'EDV Gate DSP', 'EDVG', 'edv-gate',
      '{"scheduling":{"dl_protection_days":14}}'::jsonb),
-  ('ed000000-0000-4000-8000-0000000000a2', 'No-Window DSP', 'NOWIN', '{}'::jsonb);
+  ('ed000000-0000-4000-8000-0000000000a2', 'No-Window DSP', 'NOWIN', 'no-window', '{}'::jsonb);
 
 insert into public.stations (id, dsp_id, code, name, active) values
   ('ed000000-0000-4000-8000-000000000003',

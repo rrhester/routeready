@@ -21,8 +21,8 @@ begin;
 
 set local session_replication_role = replica;  -- skip FK-to-auth + triggers
 
-insert into public.dsps (id, name, short_code) values
-  ('f0000000-0000-4000-8000-000000000001', 'Publish Gate DSP', 'PGATE');
+insert into public.dsps (id, name, short_code, slug) values
+  ('f0000000-0000-4000-8000-000000000001', 'Publish Gate DSP', 'PGATE', 'publish-gate');
 insert into public.stations (id, dsp_id, code, name, active) values
   ('f0000000-0000-4000-8000-000000000002', 'f0000000-0000-4000-8000-000000000001', 'PG1', 'PG Station', true);
 insert into public.drivers (id, dsp_id, full_name, status) values
