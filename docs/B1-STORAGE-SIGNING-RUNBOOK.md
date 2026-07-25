@@ -21,9 +21,9 @@ shipping them changes nothing on their own:
 
 | Piece | File | What it does |
 |---|---|---|
-| Ownership RPC | `supabase/migrations/0536_driver_file_ownership.sql` | `public.driver_can_read_file(token, bucket, path)` — validates the token → driver, then checks ownership per bucket. Service-role only. **Validated against PostgreSQL 16: 13/13 assertions pass, incl. cross-tenant denial.** |
+| Ownership RPC | `supabase/migrations/0538_driver_file_ownership.sql` | `public.driver_can_read_file(token, bucket, path)` — validates the token → driver, then checks ownership per bucket. Service-role only. **Validated against PostgreSQL 16: 13/13 assertions pass, incl. cross-tenant denial.** |
 | Signing edge fn | `supabase/functions/driver-file-sign/index.ts` | Token + bucket + path → ownership check → signed URL, or 403. Registered `--no-verify-jwt` in `config.toml` + the deploy workflow. |
-| Driver-app switch | `app/app.js` (`_signDriverFile` / `_signDriverFiles` + 6 read sites) | **Now implemented** — all six file reads go through `driver-file-sign` instead of the direct anon `createSignedUrl`. Syntax + eslint clean; `SHELL_CACHE` bumped. Still needs on-device QA (below) before 0537. |
+| Driver-app switch | `app/app.js` (`_signDriverFile` / `_signDriverFiles` + 6 read sites) | **Now implemented** — all six file reads go through `driver-file-sign` instead of the direct anon `createSignedUrl`. Syntax + eslint clean; `SHELL_CACHE` bumped. Still needs on-device QA (below) before 0539. |
 
 **Ownership rules** (mirroring how the app stores files):
 - `driver-photos` (`<driver_id>/…`) — any driver **in the caller's own DSP**
@@ -38,7 +38,7 @@ shipping them changes nothing on their own:
 
 | Piece | File | Gate |
 |---|---|---|
-| Drop anon reads | `supabase/migrations/0537_drop_anon_storage_reads.sql` | **Apply only after** the driver app is switched over and QA'd (below). It removes the anon read policies — the actual leak — but until the app uses `driver-file-sign`, dropping them makes drivers unable to open their own files. |
+| Drop anon reads | `supabase/migrations/0539_drop_anon_storage_reads.sql` | **Apply only after** the driver app is switched over and QA'd (below). It removes the anon read policies — the actual leak — but until the app uses `driver-file-sign`, dropping them makes drivers unable to open their own files. |
 
 ---
 
@@ -47,12 +47,12 @@ shipping them changes nothing on their own:
 1. **Ship + merge this branch.** Merging deploys the `driver-file-sign` edge
    function automatically (it's in the `Deploy Supabase` workflow's
    no-verify-jwt list) **and the driver-app change** (the PWA now reads through
-   `driver-file-sign`). Apply **migration 0536** by hand in the SQL Editor.
+   `driver-file-sign`). Apply **migration 0538** by hand in the SQL Editor.
    → The app now uses the new signing path, while the anon policies *still
    exist* as an inert backstop — so nothing is broken even if a read regresses.
 2. **QA on a real device** (checklist below). The new path is the only one the
    app uses now, so anything broken shows here — before any policy is dropped.
-3. **Only once QA is green:** apply **migration 0537** in the SQL Editor. The
+3. **Only once QA is green:** apply **migration 0539** in the SQL Editor. The
    cross-tenant hole is now closed. Re-run the driver QA once more to confirm
    files still load with the anon policies gone.
 
@@ -137,7 +137,7 @@ On a real phone, logged in as a driver, confirm each still loads:
 - [ ] Uploads still work (post a chat attachment, take a DVIC photo) — the anon INSERT path is unchanged.
 - [ ] **Negative check (optional, strong):** with the driver's token, calling `driver-file-sign` for a path under *another* driver's id in a *different* DSP returns **403** (not a URL).
 
-If any read fails, do **not** apply 0537 — the app path has a bug; fix and re-deploy first.
+If any read fails, do **not** apply 0539 — the app path has a bug; fix and re-deploy first.
 
 ---
 

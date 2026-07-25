@@ -311,11 +311,11 @@
     try {
       var _rrAV = target ? target.id : ('view-' + view);
       document.body.dataset.rrActiveView = _rrAV;
-      // Leaving the rail host views (Schedule / Onboarding-Ops / Fleet):
-      // close any open panel so it can't linger over a view that doesn't
-      // host the rail.
+      // Leaving the rail host views (Schedule / Onboarding-Ops / Fleet /
+      // Email): close any open panel so it can't linger over a view that
+      // doesn't host the rail.
       if (_rrAV !== 'view-schedule' && _rrAV !== 'view-onboarding-ops' &&
-          _rrAV !== 'view-fleet2' &&
+          _rrAV !== 'view-fleet2' && _rrAV !== 'view-email' &&
           typeof window._rrNtPanelCloseAll === 'function') {
         window._rrNtPanelCloseAll();
       }
@@ -497,10 +497,20 @@
     if (el) cdSetPill(el, 'cat');
   }
 
-  // Keyboard: 'C' opens drawer, Esc closes
+  // Keyboard: 'C' opens drawer, Esc closes. Guards: never while typing
+  // (inputs, textareas, AND contenteditable — the email composer body /
+  // notebooks are contenteditable, and the bare check used to steal
+  // focus mid-sentence on every 'c'), never over the email overlays,
+  // and not on the Email view at all — 'c' composes there (EM#23).
   document.addEventListener('keydown', function(e){
     if (e.key === 'Escape') closeCoachDrawer();
-    if (e.key === 'c' && !e.metaKey && !e.ctrlKey && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+    if (e.key === 'c' && !e.metaKey && !e.ctrlKey
+        && document.activeElement.tagName !== 'INPUT'
+        && document.activeElement.tagName !== 'TEXTAREA'
+        && !(document.activeElement && document.activeElement.isContentEditable)
+        && !document.getElementById('rr-em-composer')
+        && !document.getElementById('rr-em-popout')
+        && !document.querySelector('#view-email.view.active')) {
       openCoachDrawer();
     }
   });

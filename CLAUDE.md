@@ -1,5 +1,49 @@
 # RouteReady — Claude operating notes
 
+## DONE: Email page redesign (2026-07-22, operator mockup)
+
+The Email (Fleet Bridge) page was rebuilt to the operator's mockup: the
+old 115px TCP strip + icon-over-label action ribbon is GONE, replaced by
+a two-level header — nav tabs (Email active w/ brand underline ·
+Templates · Contacts · Settings) + a 32px command toolbar (blue-OUTLINED
+New email, refresh, "Search mail", All-mail▾ filter select, account chip
+`#rr-fb-team-email` = the team address, gear, ⋮ menu) — and ONE unified
+workspace card (folders 270px | list pane 430px `--em-inbox-w` | reading
+pane), hairline-divided, no shadow. Facts that stay true:
+- Message actions (Archive/Delete/Reply/Reply All/Forward) render
+  CONTEXTUALLY in the reading pane (`readBarHtml` in the email IIFE),
+  reusing the delegated `[data-em-act]` handler — never in the header.
+- Nav tabs route to REAL surfaces: Templates → goto('onboarding-ops') +
+  `_rrOpenHiringMessages()` (drawer can't render inside a hidden view);
+  Contacts → `_rrNtPanelToggle("contacts")` called DIRECTLY (live.js is
+  an ES module — window.* does NOT carry module-scope fns); Settings →
+  goto('settings'). Utility-rail mount gate now includes view-email
+  (schedule-rrx.css + mock-wiring close-all exemption) so the Contacts
+  panel works there; `#view-email > .page` gets +44px right padding to
+  clear the rail.
+- Search + All-mail select are client-side over the loaded folder
+  (state.searchQuery / state.inboxFilter, pills ↔ select synced).
+  Folder new-mail badges are NEUTRAL gray now (operator: orange =
+  warnings only). Success toasts are suppressed app-wide — the account
+  chip confirms copy INLINE (`.is-copied` flash), don't add a toast.
+- Responsive: folder pane collapses (⋮ menu toggle, auto <1080px via
+  `.rr-folders-hidden`/`.rr-folders-shown` on #rr-em-grid); reading pane
+  becomes a slide-over <960px (`.em-preview-open` on #rr-em-split, back
+  button `[data-em-preview-back]`). Docs split modes now target
+  `.em-list-pane` (flex layout replaced the absolute-positioned split).
+- The old `em-cmd-tabs` (Email/Print-Download) were dead (no handler,
+  display:none'd app-wide) and were REMOVED from the frag.
+- DESKTOP-APP GOTCHA (operator report, fixed same day): `#view-email >
+  .page` is id-scoped + !important, so it OUT-SPECIFIES the WCO
+  media block's `.view > .page` title-bar reservation — the nav tabs
+  slid under the OS title-bar band in the installed app. The WCO block
+  (`@media (display-mode: window-controls-overlay)`, inline-styles
+  ~26140) now re-asserts `#view-email > .page{padding-top:…}` at
+  matching specificity, same pattern as Schedule/Onboarding. ANY future
+  id-scoped page padding rule needs the same mirror there.
+- QA harness pattern: scratchpad qa-email.mjs (66 checks, stateful
+  fb_folders/email_messages/document_intake stub).
+
 ## Active task: Multi-station toggle (branch claude/multi-station-toggle-2pljie)
 
 Many DSPs run >1 Amazon delivery station (DCA1, DBO5, …). Goal: a MASTER

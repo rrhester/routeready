@@ -1,4 +1,4 @@
--- ── 0537 · Close B-1 — drop the bucket-wide anon READ policies ────────────────
+-- ── 0539 · Close B-1 — drop the bucket-wide anon READ policies ────────────────
 --
 -- ⚠️  DO NOT APPLY THIS UNTIL the driver PWA has been switched to
 --     driver-file-sign AND you've QA'd file access on a real device.
@@ -6,7 +6,7 @@
 --     checklist. Applying it early makes drivers unable to open their own
 --     license photos, avatars, and chat attachments.
 --
--- This is the second half of the B-1 fix. Migration 0536 + the
+-- This is the second half of the B-1 fix. Migration 0538 + the
 -- driver-file-sign edge function give the driver app a token-validated,
 -- ownership-checked path to a signed URL. Once the app uses that path, these
 -- three bucket-WIDE `anon SELECT` policies — the actual cross-tenant hole,

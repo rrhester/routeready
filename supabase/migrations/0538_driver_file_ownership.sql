@@ -1,4 +1,4 @@
--- ── 0536 · Token-validated file-ownership check for the driver PWA ────────────
+-- ── 0538 · Token-validated file-ownership check for the driver PWA ────────────
 --
 -- First half of the fix for launch-audit finding B-1 (cross-tenant driver-PII
 -- disclosure via Storage). The driver app authenticates as the identity-less
@@ -11,7 +11,7 @@
 -- `documents` bucket) is: a service-role edge function validates the driver's
 -- session token, confirms OWNERSHIP server-side, then mints a short-lived
 -- signed URL. This migration adds the ownership check the new signing edge
--- function (`driver-file-sign`) calls; a SEPARATE migration (0537) then drops
+-- function (`driver-file-sign`) calls; a SEPARATE migration (0539) then drops
 -- the anon read policies once the driver app has been switched over and QA'd.
 --
 -- Ownership rules (per bucket, mirroring how the app actually stores files):
