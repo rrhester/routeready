@@ -1,4 +1,4 @@
--- ── 0542 · Server-side MFA enforcement primitive + opt-in on settings ─────────
+-- ── 0544 · Server-side MFA enforcement primitive + opt-in on settings ─────────
 --
 -- Partial fix for launch-audit finding H-1. MFA is enforced only on the
 -- client (the _rrMfaGateOnBoot login gate); the data API has NO server-side
@@ -56,7 +56,7 @@ as $$
 $$;
 
 -- ── Opt-in MFA enforcement on the DSP settings mutators ───────────────────
--- Each re-issued from its live definition (0201 / 0203 / 0540) with one added
+-- Each re-issued from its live definition (0201 / 0203 / 0542) with one added
 -- check after the existing staff gate. NULL/absent flag = unchanged behaviour.
 
 create or replace function public.set_pickup_settings(p_enabled boolean)

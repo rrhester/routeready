@@ -14,8 +14,46 @@ Email-redesign merge #4113). Impact tags: **[high]** = operators lose
 mail, reply to the wrong person, or read wrong state; **[med]** = worth
 scheduling; **[low]** = polish.
 
-**STATUS (2026-07-22): Batches A–D (EM#1–42) + EM#74 SHIPPED — sections
-A–D complete.** D2 notes: EM#33 shipped as the client-side v1 the item
+**STATUS (2026-07-25): Batches A–E (EM#1–58) + EM#74 SHIPPED — the
+first 58 items are done.** E2b notes: EM#51 signatures and EM#52
+composer templates ship as per-user/per-DSP localStorage v1s (auto-
+append on new mail; save-current-as-template with insert/delete) — the
+Settings-managed, DSP-wide versions belong to EM#98. EM#53 adds
+lists/link/undo/redo riding the existing data-fmt wiring (createLink
+forces https/mailto + target=_blank rel=noopener; the execCommand exit
+remains future work as the item allows). EM#54 sanitizes pasted rich
+content to an allowlist (scripts/images/handlers/mso-styles stripped,
+javascript: hrefs dropped, safe inline styles kept) — QA proves a
+pasted <script> cannot run and a tracking pixel never enters
+body_html. E2a notes (**migration
+0538**: send_after + importance): EM#57 undo-send uses a DRAFT-HOLD
+model — Send writes the row as a draft and promotes it to queued after
+a 10s countdown pill; Undo reopens the composer (attachments +
+importance restored — QA caught that gap live); a hidden/pagehide
+flush promotes immediately, so a dying tab leaves the mail visibly in
+Drafts, never silently unsent. Skipped for scheduled sends and
+hook-driven composers (funnel/calendar). EM#58 scheduled rows show a
+Scheduled pill + "Scheduled for … Cancel" in the preview (Cancel →
+back to Drafts); the drain skips future send_after (pre-0538-tolerant
+retry). EM#55 pre-0538 falls back to the ❗ prefix. EM#49 attaches
+document-intake originals (own:false — never cleaned up by the
+composer; send-email re-signs per-bucket). EM#50: 25MB/15-file caps,
+pending chips, send blocks mid-upload. Remaining in E: EM#51
+signatures, EM#52 templates, EM#53 toolbar, EM#54 paste sanitation
+(E2b). E1 notes: recipient chips replace the single-address inputs
+(multi-To joins into `to_email`; `send-email` splits it for Resend);
+Bcc is **migration 0537** (`bcc_emails` + the `'draft'` enum value) and
+is never silently dropped pre-migration — the send fails with a clear
+message instead. Real drafts: autosave every 4s into the Drafts system
+folder, close-keeps-draft (Escape can no longer destroy typed mail —
+the ribbon Delete tile is the discard path), clicking a draft resumes
+the composer, Send PROMOTES the same row to queued (no duplicates).
+Autocomplete pool = contacts + applicants + drivers + loaded-folder
+addresses, 5-min cache. QA also caught and fixed a live regression:
+Escape with the dropdown open used to close the whole composer.
+NOTE: apply 0536 and **0537** together — the select's FULL tier now
+includes bcc_emails, so a 0536-only DB demotes to the MID tier
+(correct data, but star/snooze UI hidden) until 0537 lands. D2 notes: EM#33 shipped as the client-side v1 the item
 allows for — the reading pane shows the full conversation (same
 normalized subject + same counterpart address, fetched across folders so
 the Sent half appears beside the inbound half) as collapsible items;

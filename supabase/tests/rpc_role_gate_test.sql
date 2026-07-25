@@ -1,6 +1,6 @@
 -- supabase/tests/rpc_role_gate_test.sql
 --
--- Regression test for migration 0541 (role-gate SECURITY DEFINER RPCs that
+-- Regression test for migration 0543 (role-gate SECURITY DEFINER RPCs that
 -- were tenant-only). Runs against a fully-migrated DB (migration-check.yml).
 --
 -- Proves that a driver-role app_user is refused (errcode 42501) on a

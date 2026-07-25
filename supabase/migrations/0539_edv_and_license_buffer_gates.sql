@@ -1,4 +1,4 @@
--- ── 0537 · EDV certification + license protection window in the server gates ──
+-- ── 0539 · EDV certification + license protection window in the server gates ──
 --
 -- Closes launch-audit findings H-4 and H-5. The CP-SAT solver and the TS
 -- preview engine both enforce (a) EDV certification on requires_edv routes

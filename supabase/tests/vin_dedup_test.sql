@@ -1,6 +1,6 @@
 -- supabase/tests/vin_dedup_test.sql
 --
--- Regression test for migration 0543 (BEFORE INSERT trigger preventing
+-- Regression test for migration 0545 (BEFORE INSERT trigger preventing
 -- duplicate vehicle VINs within a DSP). Runs against a fully-migrated DB.
 --
 -- Proves: exact and case/whitespace-variant duplicate VINs are blocked within

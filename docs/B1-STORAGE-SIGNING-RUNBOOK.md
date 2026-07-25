@@ -21,9 +21,9 @@ shipping them changes nothing on their own:
 
 | Piece | File | What it does |
 |---|---|---|
-| Ownership RPC | `supabase/migrations/0538_driver_file_ownership.sql` | `public.driver_can_read_file(token, bucket, path)` — validates the token → driver, then checks ownership per bucket. Service-role only. **Validated against PostgreSQL 16: 13/13 assertions pass, incl. cross-tenant denial.** |
+| Ownership RPC | `supabase/migrations/0540_driver_file_ownership.sql` | `public.driver_can_read_file(token, bucket, path)` — validates the token → driver, then checks ownership per bucket. Service-role only. **Validated against PostgreSQL 16: 13/13 assertions pass, incl. cross-tenant denial.** |
 | Signing edge fn | `supabase/functions/driver-file-sign/index.ts` | Token + bucket + path → ownership check → signed URL, or 403. Registered `--no-verify-jwt` in `config.toml` + the deploy workflow. |
-| Driver-app switch | `app/app.js` (`_signDriverFile` / `_signDriverFiles` + 6 read sites) | **Now implemented** — all six file reads go through `driver-file-sign` instead of the direct anon `createSignedUrl`. Syntax + eslint clean; `SHELL_CACHE` bumped. Still needs on-device QA (below) before 0539. |
+| Driver-app switch | `app/app.js` (`_signDriverFile` / `_signDriverFiles` + 6 read sites) | **Now implemented** — all six file reads go through `driver-file-sign` instead of the direct anon `createSignedUrl`. Syntax + eslint clean; `SHELL_CACHE` bumped. Still needs on-device QA (below) before 0541. |
 
 **Ownership rules** (mirroring how the app stores files):
 - `driver-photos` (`<driver_id>/…`) — any driver **in the caller's own DSP**
@@ -38,29 +38,29 @@ shipping them changes nothing on their own:
 
 | Piece | File | Gate |
 |---|---|---|
-| Drop anon reads | `supabase/migrations/0539_drop_anon_storage_reads.sql` | **Apply only after** the driver app is switched over and QA'd (below). It removes the anon read policies — the actual leak — but until the app uses `driver-file-sign`, dropping them makes drivers unable to open their own files. |
+| Drop anon reads | `supabase/migrations/0541_drop_anon_storage_reads.sql` | **Apply only after** the driver app is switched over and QA'd (below). It removes the anon read policies — the actual leak — but until the app uses `driver-file-sign`, dropping them makes drivers unable to open their own files. |
 
 ---
 
 ## Deploy order (do these in sequence)
 
-> ⚠️ **Apply migration `0538` BEFORE merging.** Merging deploys the driver app
+> ⚠️ **Apply migration `0540` BEFORE merging.** Merging deploys the driver app
 > (which now reads through `driver-file-sign`) and the edge function together.
-> If `0538` (the ownership RPC the edge function calls) isn't applied yet,
-> `driver-file-sign` 500s and drivers can't load their files. `0538` only
+> If `0540` (the ownership RPC the edge function calls) isn't applied yet,
+> `driver-file-sign` 500s and drivers can't load their files. `0540` only
 > *creates* a function — it changes nothing until called — so it is safe to
 > apply to the live database ahead of the merge.
 
-1. **Apply migration `0538`** (ownership RPC) in the SQL Editor. Inert until
+1. **Apply migration `0540`** (ownership RPC) in the SQL Editor. Inert until
    the edge function calls it, so applying it early is harmless.
 2. **Merge this branch.** This deploys the `driver-file-sign` edge function
    (it's in the `Deploy Supabase` workflow's no-verify-jwt list) **and the
-   driver-app change**. With `0538` already live, the new signing path works
+   driver-app change**. With `0540` already live, the new signing path works
    the moment the app deploys — no gap. The anon read policies *still exist* as
    an inert backstop, so nothing breaks even if a read regresses.
 3. **QA on a real device** (checklist below). The new path is the only one the
    app uses now, so anything broken shows here — before any policy is dropped.
-4. **Only once QA is green:** apply **migration 0539** in the SQL Editor. The
+4. **Only once QA is green:** apply **migration 0541** in the SQL Editor. The
    cross-tenant hole is now closed. Re-run the driver QA once more to confirm
    files still load with the anon policies gone.
 
@@ -69,7 +69,7 @@ changed, for review + QA). Because the helpers preserve the supabase-js return
 shape, the change is a callee swap at six sites plus two helpers.
 
 At no point is there a window where the leak is closed but drivers are broken:
-`0538` is live before the app switches, the app switches while the old policy
+`0540` is live before the app switches, the app switches while the old policy
 still works, and the policy drops only after the new path is proven.
 
 ---
@@ -145,18 +145,18 @@ On a real phone, logged in as a driver, confirm each still loads:
 - [ ] Uploads still work (post a chat attachment, take a DVIC photo) — the anon INSERT path is unchanged.
 - [ ] **Negative check (optional, strong):** with the driver's token, calling `driver-file-sign` for a path under *another* driver's id in a *different* DSP returns **403** (not a URL).
 
-If any read fails, do **not** apply 0539 — the app path has a bug; fix and re-deploy first.
+If any read fails, do **not** apply 0541 — the app path has a bug; fix and re-deploy first.
 
 ---
 
 ## Follow-up
 
-- **`receipts` bucket** — DONE in `supabase/migrations/0544_drop_receipts_anon_read.sql`.
+- **`receipts` bucket** — DONE in `supabase/migrations/0546_drop_receipts_anon_read.sql`.
   It had the same bucket-wide `receipts_anon_read` leak (migration 0435), but —
   unlike the three driver buckets — **nothing legitimate reads receipts as
   anon**: the driver app only *uploads* them (anon INSERT, path verified by
   `driver_receipt_submit`), and the dashboard reads them as the *authenticated*
-  operator (`receipts_tenant_read`). So 0544 just **drops** the anon read policy —
+  operator (`receipts_tenant_read`). So 0546 just **drops** the anon read policy —
   no signing edge function / ownership RPC / app change / deploy-ordering gate
   needed. Safe to apply any time.
 - The **anon INSERT** policies (driver buckets + `receipts_anon_write`) remain by
