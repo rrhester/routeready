@@ -25625,6 +25625,36 @@ body.rr-cmdk-open{ overflow:hidden }
           .em-tpl-menu{min-width:240px}
           .em-tpl-row{display:flex;align-items:center;gap:2px}
           .em-tpl-row .em-popout-move-item{flex:1;min-width:0}
+          /* Search & filters (EM#67/70/72). */
+          .em-hi{background:transparent;color:inherit;font-weight:700}
+          .em-search-all{
+            display:block;width:calc(100% - 16px);margin:6px 8px 0;
+            border:1px dashed var(--border);background:transparent;cursor:pointer;
+            font:inherit;font-size:var(--fs-sm);color:var(--rr-blue-600, var(--accent));
+            padding:7px 10px;border-radius:6px;text-align:left;
+          }
+          .em-search-all:hover{background:var(--rr-blue-50, rgba(37,99,235,.07))}
+          .em-search-banner{
+            display:flex;align-items:center;justify-content:space-between;gap:8px;
+            margin:6px 8px 0;padding:6px 10px;border-radius:6px;
+            background:var(--rr-blue-50, rgba(37,99,235,.07));
+            font-size:var(--fs-sm);color:var(--text);
+          }
+          .em-search-exit{
+            border:0;background:transparent;cursor:pointer;font:inherit;
+            font-size:var(--fs-sm);font-weight:600;color:var(--rr-blue-600, var(--accent));
+            padding:2px 6px;border-radius:4px;
+          }
+          .em-search-exit:hover{text-decoration:underline}
+          .em-rule-row{
+            display:flex;flex-direction:column;gap:4px;
+            font-size:var(--fs-sm);font-weight:600;color:var(--text);
+          }
+          .em-rule-apply{
+            display:flex;align-items:center;gap:7px;
+            font-size:var(--fs-sm);color:var(--text);cursor:pointer;
+          }
+          .em-rule-line{cursor:default}
           .em-tpl-save{border-top:1px solid var(--border-subtle, var(--border));color:var(--rr-blue-700);font-weight:600}
           .em-sig-editor{
             min-height:120px;max-height:40vh;overflow-y:auto;

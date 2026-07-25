@@ -14,10 +14,34 @@ Email-redesign merge #4113). Impact tags: **[high]** = operators lose
 mail, reply to the wrong person, or read wrong state; **[med]** = worth
 scheduling; **[low]** = polish.
 
-**STATUS (2026-07-25): Sections A–F (EM#1–66) + EM#74 SHIPPED.**
-Section F notes (**migration 0539**): EM#66's
+**STATUS (2026-07-25): Sections A–G (EM#1–72) + EM#74 SHIPPED.**
+Section G notes (**migration 0541**): EM#67 all-mail search is the
+`email_search` RPC (subject/body_text/addresses/from_name ILIKE,
+drafts excluded, capped 200) — the toolbar search stays the instant
+client-side folder filter; Enter or the "Search all mail" row runs the
+server sweep, a banner shows the way back, and folder clicks / query
+edits / Esc exit it (loadMessages guards against background refreshes
+clobbering results). Capability probes once; pre-0541 the button
+retires with a toast. EM#68 operators (`from:`/`to:`/`has:attachment`/
+`before:`/`after:`) parse client-side (`_emParseQuery`), filter loaded
+rows, and map to RPC params; unrecognized values fall back into free
+text. EM#69 scope select gains Has-attachments / Failed / Unknown-
+senders (non-applicant + not in Contacts; pills stay All/Unread).
+EM#70 bolds the first free-text match in subject/snippet (`_emHi`,
+escape-safe slicing). EM#71: `/` focuses search, Esc clears, and the
+query survives folder switches (state already persisted — verified +
+locked in QA). EM#72 auto-filing rules: `email_rules` (sender/domain/
+subject-contains → folder, unique per DSP+kind+pattern) applied in
+webhook-email-inbound at insert (oldest rule wins, dedup path never
+re-files); "Create rule…" in the read-bar More menu (prefilled from
+the open message, optional move-now) + "Mail rules…" manager in the ⋮
+menu. Also same-day: the composer draft-autosave chip-snap fix
+(operator report — `_emCfPendingVals` reads half-typed recipients
+non-destructively; chips commit only on explicit intent).
+Section F notes (**migration 0542**, renumbered from 0539 after a
+concurrent fleet migration took that ordinal): EM#66's
 `email_folder_unread_counts()` RPC replaces the N-sequential-HEAD
-counts loop (per-folder fallback kept pre-0539) and EM#63's
+counts loop (per-folder fallback kept pre-0542) and EM#63's
 purge-email-trash cron deletes 30-day-old trash nightly (updated_at is
 a safe entered-trash proxy — the 0003 touch trigger bumps it on the
 move PATCH; Empty-trash is an inline confirm bar since the ⋮ menu

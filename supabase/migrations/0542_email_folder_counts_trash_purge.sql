@@ -1,4 +1,4 @@
--- 0539_email_folder_counts_trash_purge.sql
+-- 0542_email_folder_counts_trash_purge.sql
 -- ════════════════════════════════════════════════════════════════════
 -- Fleet Bridge · folders batch F (Email review EM#63/66)
 --
