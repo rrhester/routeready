@@ -28,6 +28,10 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
             <span class="rr-viewseg-label">Issues</span>
           </button>
+          <button type="button" class="rr-viewseg-btn" role="tab" aria-selected="false" data-sub="maint" onclick="fleetSub('maint')" aria-label="Maintenance" title="Maintenance — preventive service schedules">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+            <span class="rr-viewseg-label">Maintenance</span>
+          </button>
           <button type="button" class="rr-viewseg-btn" role="tab" aria-selected="false" data-sub="rotation" onclick="fleetSub('rotation')" aria-label="Van rotation" title="Van rotation — utilization &amp; readiness">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 0 1 13.7-5.6L21 9"/><polyline points="21 4 21 9 16 9"/><path d="M20 12a8 8 0 0 1-13.7 5.6L3 15"/><polyline points="3 20 3 15 8 15"/></svg>
             <span class="rr-viewseg-label">Van Rotation</span>
@@ -332,6 +336,27 @@
               </thead>
               <tbody id="fleet-issues-tbody"></tbody>
             </table>
+          </div>
+        </div>
+
+        <!-- MAINTENANCE sub-tab — preventive-maintenance board. Rules ×
+             vans due/overdue matrix rendered by _flRenderPmBoard()
+             (live.js) from the fleet_pm_board RPC (migration 0537). -->
+        <div class="fl-sub" id="fl-sub-maint">
+          <div class="table-wrap">
+            <div class="fl-roster-bar">
+              <div class="fl-pm-pills" id="rr-pm-summary" aria-live="polite"></div>
+              <div class="fl-bar-spacer"></div>
+              <select id="rr-pm-filter" class="fl-filter" aria-label="Filter vans">
+                <option value="">All vans</option>
+                <option value="attention">Needs attention</option>
+              </select>
+              <button type="button" class="btn btn-sm" id="rr-pm-log-btn">Log service</button>
+              <button type="button" class="btn btn-sm" id="rr-pm-rules-btn">Manage program</button>
+            </div>
+            <div class="fl-table-scroll" id="rr-pm-body">
+              <div class="fl-pm-empty">Loading maintenance board…</div>
+            </div>
           </div>
         </div>
 

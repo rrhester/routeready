@@ -86705,6 +86705,11 @@ function _flVehTagChips(v) {
   const type = _flVanTypeLabel(v.van_type);
   if (type) chips.push(`<span class="rr-cert ${v.van_type === "edv" ? "rr-cert-edv" : "fl-tag-type"}">${escapeHtml(type)}</span>`);
   if (v.kind && v.kind !== "van") chips.push(`<span class="rr-cert fl-tag-kind">${escapeHtml(v.kind)}</span>`);
+  // Preventive-maintenance flag (fleet_pm_board via _flEnsurePmStatus) —
+  // only the attention states get a chip; "ok" stays quiet.
+  const pm = _flPmWorst.get(v.id);
+  if (pm === "overdue")  chips.push(`<span class="rr-cert fl-tag-pm-crit" title="Preventive maintenance overdue — see the Maintenance tab">PM overdue</span>`);
+  else if (pm === "due_soon") chips.push(`<span class="rr-cert fl-tag-pm-warn" title="Preventive maintenance due soon — see the Maintenance tab">PM due</span>`);
   return chips.length ? `<div class="rr-cert-row">${chips.join("")}</div>` : "";
 }
 
@@ -86761,6 +86766,12 @@ function _flDaysGroundedBadge(v) {
       days = Math.floor(diffMs / 86400000);
       title = `Grounded ${days} day${days === 1 ? "" : "s"} (since ${new Date(v.grounded_since).toLocaleDateString()})${v.grounded_reason ? " · " + v.grounded_reason : ""}`;
     }
+  }
+  if (v.expected_return_on) {
+    try {
+      const back = new Date(v.expected_return_on + "T00:00:00");
+      if (!isNaN(back)) title += ` · expected back ${back.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+    } catch (_) { /* tooltip only */ }
   }
   const cls = days >= 14 ? "crit" : days >= 7 ? "warn" : "";
   return `<span class="fl-down-badge ${cls}" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}">${days}d</span>`;
@@ -86922,15 +86933,28 @@ function _flOpenOpStatMenu(triggerBtn) {
       _flOpenGroundingModal(id, name, { alreadyGrounded: true, currentCategory: cat });
       return;
     }
-    const { error } = await sb.rpc("vehicle_set_operational_status", {
-      p_id: id,
-      p_status: next,
-      p_reason: null,
+    // Returning to service: capture an optional note (stamped onto the
+    // closing grounding event by 0537's unground_note; harmless before).
+    _fdFormModal({
+      title: "Return to service",
+      sub: name ? `${name} goes back on the road.` : undefined,
+      saveLabel: "Return to service",
+      fields: [
+        { key: "note", label: "Note", type: "textarea", wide: true, placeholder: "What was fixed / why it's back (optional)" },
+      ],
+      onSave: async (vals, h) => {
+        const { error } = await sb.rpc("vehicle_set_operational_status", {
+          p_id: id,
+          p_status: next,
+          p_reason: vals.note?.trim() || null,
+        });
+        if (error) { h.setError("Couldn't update status: " + error.message); return; }
+        h.close();
+        toast("Vehicle returned to service");
+        if (typeof loadFleetView === "function") loadFleetView();
+        else if (typeof _flLoadRoster === "function") _flLoadRoster();
+      },
     });
-    if (error) { toast("Couldn't update status: " + error.message, "danger"); return; }
-    toast("Vehicle returned to service");
-    if (typeof loadFleetView === "function") loadFleetView();
-    else if (typeof _flLoadRoster === "function") _flLoadRoster();
   });
 }
 
@@ -86977,6 +87001,15 @@ function _flOpenGroundingModal(vehicleId, vehicleName, opts) {
           <span style="font-size:var(--fs-sm);font-weight:600">Note <span style="color:var(--text-subtle);font-weight:500">(optional)</span></span>
           <textarea id="rr-fl-ground-note" class="form-input" rows="2" maxlength="300" placeholder="Add any detail for the team"></textarea>
         </label>
+        <label class="rr-fl-ground-return">
+          <span class="rr-fl-ground-return-lbl">Expected back <span class="rr-fl-ground-opt">(optional)</span></span>
+          <input type="date" id="rr-fl-ground-return" class="form-input">
+          <span class="rr-fl-ground-hint">Shows on the roster + VORR drill-down so the team knows the plan.</span>
+        </label>
+        ${editMode ? "" : `<label class="rr-fl-ground-case">
+          <input type="checkbox" id="rr-fl-ground-case">
+          <span>Also open a repair case for this van</span>
+        </label>`}
         <div id="rr-fl-ground-status" style="font-size:var(--fs-xs);color:var(--red);min-height:14px"></div>
       </div>
       <div style="padding:var(--s-3-5) var(--s-5);border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:var(--s-3)">
@@ -87002,17 +87035,30 @@ function _flOpenGroundingModal(vehicleId, vehicleName, opts) {
 
   m.querySelector("#rr-fl-ground-confirm").addEventListener("click", async () => {
     const note = m.querySelector("#rr-fl-ground-note").value.trim() || null;
+    const expectedBack = m.querySelector("#rr-fl-ground-return")?.value || null;
+    const openCase = !!m.querySelector("#rr-fl-ground-case")?.checked;
     const btn  = m.querySelector("#rr-fl-ground-confirm");
     btn.disabled = true;
     try {
-      const { error } = await sb.rpc("vehicle_set_operational_status", {
-        p_id: vehicleId, p_status: "grounded", p_reason: note, p_category: picked,
-      });
+      const args = { p_id: vehicleId, p_status: "grounded", p_reason: note, p_category: picked };
+      // Expected-return rides the 0537 signature; pre-migration the extra
+      // param 404s (PGRST202) → retry without it.
+      let { error } = await sb.rpc("vehicle_set_operational_status",
+        expectedBack ? { ...args, p_expected_return_on: expectedBack } : args);
+      if (error && expectedBack && (error.code === "PGRST202" || /could not find the function/i.test(error.message || ""))) {
+        ({ error } = await sb.rpc("vehicle_set_operational_status", args));
+      }
       if (error) throw error;
       close();
       toast((editMode ? "Grounding category · " : "Vehicle grounded · ") + (_FL_GROUND_CAT_LABEL[picked] || "grounded"));
       if (typeof loadFleetView === "function") loadFleetView();
       else if (typeof _flLoadRoster === "function") _flLoadRoster();
+      // Grounding → repair-case handoff: the Repair Center's new-case
+      // modal, pre-targeted at this van (it owns its own ground state —
+      // the van is already down, so the case just documents the work).
+      if (openCase && window.RRRepair && typeof window.RRRepair.createForVehicle === "function") {
+        window.RRRepair.createForVehicle(vehicleId);
+      }
     } catch (err) {
       console.warn("vehicle_set_operational_status:", err);
       m.querySelector("#rr-fl-ground-status").textContent = "Couldn't ground the van · " + (err?.message || "try again");
@@ -87082,6 +87128,343 @@ function _flVanTypeLabel(t) {
   return { edv: "EDV", step_van: "Step Van", cargo_van: "Cargo Van", box_truck: "Box Truck" }[t] || "";
 }
 
+// ═════════════════════════════════════════════════════════════════════
+// FLEET → MAINTENANCE — the preventive-maintenance board.
+// fleet_pm_board (migration 0537) computes due/overdue per van × rule
+// (mileage and/or calendar intervals); this renders it, logs
+// completions, and manages the rule program. Pre-0537 every RPC 404s
+// and the tab shows a setup notice instead of breaking.
+// ═════════════════════════════════════════════════════════════════════
+
+let _flPmBoard = null;        // last fleet_pm_board payload
+let _flPmLoading = false;
+let _flPmFilter = "";         // "" = all · "attention" = overdue/due_soon/no_baseline
+let _flPmWorst = new Map();   // vehicle_id → worst status (roster chips)
+let _flPmFetchedAt = 0;
+
+function _flPmStatusMeta(s) {
+  return {
+    overdue:     { cls: "crit", label: "Overdue" },
+    due_soon:    { cls: "warn", label: "Due soon" },
+    no_baseline: { cls: "dim",  label: "No baseline" },
+    ok:          { cls: "ok",   label: "OK" },
+  }[s] || { cls: "dim", label: s || "—" };
+}
+
+async function _flLoadPmBoard() {
+  const host = document.getElementById("rr-pm-body");
+  if (!host) return;
+  if (_flPmLoading) return;
+  _flPmLoading = true;
+  try {
+    const _stnId = (typeof rrStationScopeId === "function") ? rrStationScopeId() : null;
+    const { data, error } = await sb.rpc("fleet_pm_board", _stnId ? { p_station_id: _stnId } : {});
+    if (error) {
+      if (error.code === "PGRST202" || /could not find the function/i.test(error.message || "")) {
+        host.innerHTML = `<div class="fl-pm-empty"><h3>Preventive maintenance isn't set up yet</h3><p>Apply migration <strong>0537</strong> in Supabase → SQL editor, then reload. The board tracks every van against your service program — oil, tires, brakes, DOT — by miles and calendar time.</p></div>`;
+      } else {
+        host.innerHTML = `<div class="fl-pm-empty"><h3>Couldn't load the maintenance board</h3><p>${escapeHtml(error.message || "Try again")}</p></div>`;
+      }
+      const pills = document.getElementById("rr-pm-summary");
+      if (pills) pills.innerHTML = "";
+      return;
+    }
+    _flPmBoard = data || null;
+    _flPmFetchedAt = Date.now();
+    _flPmIndexWorst();
+    _flRenderPmBoard();
+  } finally {
+    _flPmLoading = false;
+  }
+}
+
+function _flPmIndexWorst() {
+  _flPmWorst = new Map();
+  const vans = (_flPmBoard && Array.isArray(_flPmBoard.vehicles)) ? _flPmBoard.vehicles : [];
+  for (const v of vans) if (v.worst) _flPmWorst.set(v.id, v.worst);
+}
+
+// Best-effort PM status for the roster identity chips: reuse a recent
+// board payload or fetch one quietly. Never blocks the roster; a 404
+// (pre-0537) just means no chips.
+async function _flEnsurePmStatus() {
+  if (_flPmFetchedAt && Date.now() - _flPmFetchedAt < 5 * 60 * 1000) return;
+  try {
+    const { data, error } = await sb.rpc("fleet_pm_board");
+    if (error || !data) return;
+    _flPmBoard = data;
+    _flPmFetchedAt = Date.now();
+    _flPmIndexWorst();
+    if (_fleetSub === "vehicles") _flRenderRoster();
+  } catch (_) { /* chips only */ }
+}
+
+function _flRenderPmBoard() {
+  const host  = document.getElementById("rr-pm-body");
+  const pills = document.getElementById("rr-pm-summary");
+  if (!host) return;
+  const b = _flPmBoard;
+  const rules = (b && Array.isArray(b.rules)) ? b.rules : [];
+  let vans = (b && Array.isArray(b.vehicles)) ? b.vehicles : [];
+
+  if (pills) {
+    const s = (b && b.summary) || {};
+    const bits = [];
+    if (s.overdue > 0)     bits.push(`<span class="fl-pm-pill crit">${s.overdue} overdue</span>`);
+    if (s.due_soon > 0)    bits.push(`<span class="fl-pm-pill warn">${s.due_soon} due soon</span>`);
+    if (s.no_baseline > 0) bits.push(`<span class="fl-pm-pill dim">${s.no_baseline} no baseline</span>`);
+    if (!bits.length && vans.length) bits.push(`<span class="fl-pm-pill ok">All caught up</span>`);
+    pills.innerHTML = bits.join("");
+  }
+
+  if (!rules.length) {
+    host.innerHTML = `<div class="fl-pm-empty">
+      <h3>No maintenance program yet</h3>
+      <p>Install the standard DSP program — oil &amp; filter, tire rotation, brake inspection, fluids, DOT annual — then tune intervals to your fleet. Each van tracks against every rule by miles and calendar time.</p>
+      <div class="fl-pm-empty-actions">
+        <button type="button" class="btn btn-sm btn-primary" data-rr-pm-install>Install standard program</button>
+        <button type="button" class="btn btn-sm" data-rr-pm-addrule>Add a custom rule</button>
+      </div>
+    </div>`;
+    return;
+  }
+
+  if (_flPmFilter === "attention") {
+    vans = vans.filter((v) => v.worst && v.worst !== "ok");
+  }
+  if (!vans.length) {
+    host.innerHTML = `<div class="fl-pm-empty"><h3>${_flPmFilter === "attention" ? "Nothing needs attention" : "No active vans"}</h3><p>${_flPmFilter === "attention" ? "Every van is inside its service intervals." : "Add vans on the Vehicles tab to start tracking maintenance."}</p></div>`;
+    return;
+  }
+
+  // Worst-first so the vans that need work lead the board.
+  const rank = { overdue: 1, due_soon: 2, no_baseline: 3, ok: 4 };
+  vans = vans.slice().sort((a, b2) => (rank[a.worst] || 9) - (rank[b2.worst] || 9) || String(a.name || "").localeCompare(String(b2.name || "")));
+
+  const fmtDate = (iso) => {
+    if (!iso) return "";
+    const d = new Date(iso + "T00:00:00");
+    return isNaN(d) ? "" : d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  };
+  const cellFor = (v, it) => {
+    if (!it) return `<td class="fl-pm-cell"><span class="fl-pm-na">—</span></td>`;
+    const meta = _flPmStatusMeta(it.status);
+    let dueTxt = "";
+    if (it.status === "no_baseline") dueTxt = "Log first";
+    else {
+      const parts = [];
+      if (it.days_remaining != null)  parts.push(it.days_remaining < 0 ? `${-it.days_remaining}d over` : `${it.days_remaining}d`);
+      if (it.miles_remaining != null) parts.push(it.miles_remaining < 0 ? `${Math.abs(it.miles_remaining).toLocaleString()} mi over` : `${Number(it.miles_remaining).toLocaleString()} mi`);
+      dueTxt = parts.join(" · ") || "OK";
+    }
+    const tipBits = [];
+    if (it.last_done_on) tipBits.push(`Last done ${fmtDate(it.last_done_on)}${it.last_done_miles != null ? ` @ ${Number(it.last_done_miles).toLocaleString()} mi` : ""}`);
+    if (it.due_on)       tipBits.push(`Due ${fmtDate(it.due_on)}`);
+    if (it.due_miles != null) tipBits.push(`Due @ ${Number(it.due_miles).toLocaleString()} mi`);
+    if (it.status === "no_baseline") tipBits.push("No completion logged yet — log one to start the clock");
+    const tip = `${it.rule_name}: ${meta.label}${tipBits.length ? " · " + tipBits.join(" · ") : ""} · click to log completion`;
+    return `<td class="fl-pm-cell"><button type="button" class="fl-pm-chip ${meta.cls}" data-rr-pm-log-cell data-veh="${escapeHtml(v.id)}" data-rule="${escapeHtml(it.rule_id)}" title="${escapeHtml(tip)}"><span class="fl-pm-chip-state">${meta.label}</span><span class="fl-pm-chip-due">${escapeHtml(dueTxt)}</span></button></td>`;
+  };
+
+  const head = `<tr><th class="fl-pm-th-veh">Vehicle</th>${rules.map((r) => {
+    const iv = [r.interval_miles ? `${Number(r.interval_miles).toLocaleString()} mi` : "", r.interval_months ? `${r.interval_months} mo` : ""].filter(Boolean).join(" / ");
+    return `<th class="fl-pm-th"><span class="fl-pm-th-name">${escapeHtml(r.name)}</span><span class="fl-pm-th-iv">${escapeHtml(iv)}</span></th>`;
+  }).join("")}</tr>`;
+
+  const rows = vans.map((v) => {
+    const byRule = new Map((Array.isArray(v.items) ? v.items : []).map((it) => [it.rule_id, it]));
+    const mi = v.mileage != null ? `${Number(v.mileage).toLocaleString()} mi` : "No odometer";
+    const staleMi = v.mileage_updated_at && (Date.now() - new Date(v.mileage_updated_at).getTime() > 30 * 86400000);
+    return `<tr>
+      <td class="fl-pm-td-veh">
+        <button type="button" class="fl-pm-veh" data-rr-pm-veh="${escapeHtml(v.id)}">
+          <span class="fl-pm-veh-name">${escapeHtml(v.nickname || v.name || "Van")}</span>
+          <span class="fl-pm-veh-sub${staleMi ? " is-stale" : ""}">${escapeHtml(mi)}${staleMi ? " · stale" : ""}${v.station_code ? ` · ${escapeHtml(v.station_code)}` : ""}</span>
+        </button>
+      </td>
+      ${rules.map((r) => cellFor(v, byRule.get(r.id))).join("")}
+    </tr>`;
+  }).join("");
+
+  host.innerHTML = `<table class="table fl-pm-table"><thead>${head}</thead><tbody>${rows}</tbody></table>`;
+}
+
+// ── Log a PM completion ──────────────────────────────────────────────
+function _flPmOpenCompletion(vehicleId, ruleId) {
+  const b = _flPmBoard || {};
+  const rules = Array.isArray(b.rules) ? b.rules : [];
+  const vans  = Array.isArray(b.vehicles) ? b.vehicles : [];
+  const van   = vans.find((v) => v.id === vehicleId) || null;
+  const fields = [];
+  if (!van) {
+    fields.push({ key: "vehicle", label: "Vehicle", type: "select", required: true,
+      options: vans.map((v) => ({ value: v.id, label: v.nickname || v.name || "Van" })) });
+  }
+  fields.push(
+    { key: "rule", label: "Service", type: "select", required: true, value: ruleId || "",
+      options: rules.map((r) => ({ value: r.id, label: r.name })) },
+    { key: "date", label: "Completed on", type: "date", required: true, value: new Date().toISOString().slice(0, 10) },
+    { key: "mileage", label: "Odometer (mi)", type: "number",
+      value: van && van.mileage != null ? String(van.mileage) : "",
+      hint: "Feeds the mileage ledger — mileage-based intervals need it." },
+    { key: "cost", label: "Cost ($)", type: "number", placeholder: "0.00" },
+    { key: "vendor", label: "Vendor", type: "text", placeholder: "Shop / provider (optional)" },
+    { key: "notes", label: "Notes", type: "textarea", wide: true, placeholder: "optional" },
+  );
+  _fdFormModal({
+    title: "Log maintenance completion",
+    sub: van ? `${van.nickname || van.name}` : undefined,
+    saveLabel: "Log completion",
+    fields,
+    onSave: async (vals, h) => {
+      const vid = van ? van.id : vals.vehicle;
+      if (!vid) { h.setError("Pick a vehicle."); return; }
+      const mileage = vals.mileage ? parseInt(String(vals.mileage).replace(/[^\d]/g, ""), 10) : null;
+      const cost = vals.cost ? Math.round(parseFloat(vals.cost) * 100) : null;
+      const { error } = await sb.rpc("fleet_pm_log_completion", {
+        p_vehicle_id: vid,
+        p_rule_id: vals.rule,
+        p_completed_on: vals.date || null,
+        p_mileage: Number.isFinite(mileage) ? mileage : null,
+        p_cost_cents: Number.isFinite(cost) ? cost : null,
+        p_vendor: vals.vendor?.trim() || null,
+        p_notes: vals.notes?.trim() || null,
+      });
+      if (error) { h.setError("Couldn't log completion: " + error.message); return; }
+      h.close();
+      toast("Maintenance logged.", "ok");
+      _flPmFetchedAt = 0;
+      await _flLoadPmBoard();
+    },
+  });
+}
+
+// ── Manage the rule program ──────────────────────────────────────────
+function _flPmOpenRuleEditor(rule) {
+  const r = rule || {};
+  _fdFormModal({
+    title: r.id ? "Edit maintenance rule" : "Add maintenance rule",
+    sub: "Set a mileage interval, a time interval, or both — the van is due when either lapses.",
+    saveLabel: r.id ? "Save rule" : "Add rule",
+    fields: [
+      { key: "name", label: "Name", type: "text", required: true, wide: true, value: r.name || "", placeholder: "e.g. Oil & filter change" },
+      { key: "interval_miles", label: "Every N miles", type: "number", value: r.interval_miles ?? "", placeholder: "e.g. 6000" },
+      { key: "interval_months", label: "Every N months", type: "number", value: r.interval_months ?? "", placeholder: "e.g. 6" },
+      { key: "warn_miles", label: "Warn (mi before)", type: "number", value: r.warn_miles ?? 500 },
+      { key: "warn_days", label: "Warn (days before)", type: "number", value: r.warn_days ?? 14 },
+      { key: "van_type", label: "Applies to", type: "select", value: r.van_type || "", options: [
+        { value: "", label: "All van types" },
+        { value: "edv", label: "EDV only" },
+        { value: "step_van", label: "Step Van only" },
+        { value: "cargo_van", label: "Cargo Van only" },
+        { value: "box_truck", label: "Box Truck only" },
+      ]},
+      ...(r.id ? [{ key: "active", label: "Status", type: "select", value: r.active === false ? "off" : "on", options: [
+        { value: "on", label: "Active" }, { value: "off", label: "Retired (keeps history)" },
+      ]}] : []),
+    ],
+    onSave: async (vals, h) => {
+      const miles = vals.interval_miles ? parseInt(vals.interval_miles, 10) : null;
+      const months = vals.interval_months ? parseInt(vals.interval_months, 10) : null;
+      if (!miles && !months) { h.setError("Set a mileage interval, a time interval, or both."); return; }
+      const { error } = await sb.rpc("fleet_pm_rule_save", {
+        p_id: r.id || null,
+        p_name: vals.name.trim(),
+        p_interval_miles: Number.isFinite(miles) && miles > 0 ? miles : null,
+        p_interval_months: Number.isFinite(months) && months > 0 ? months : null,
+        p_warn_miles: vals.warn_miles ? Math.max(0, parseInt(vals.warn_miles, 10) || 0) : null,
+        p_warn_days: vals.warn_days ? Math.max(0, parseInt(vals.warn_days, 10) || 0) : null,
+        p_van_type: vals.van_type || null,
+        p_active: r.id ? vals.active !== "off" : true,
+      });
+      if (error) { h.setError("Couldn't save rule: " + error.message); return; }
+      h.close();
+      toast(r.id ? "Rule updated." : "Rule added.", "ok");
+      _flPmFetchedAt = 0;
+      await _flLoadPmBoard();
+    },
+  });
+}
+
+async function _flPmInstallDefaults(btn) {
+  if (btn) btn.disabled = true;
+  try {
+    const { data, error } = await sb.rpc("fleet_pm_install_defaults");
+    if (error) { toast("Couldn't install the program: " + error.message, "warn"); return; }
+    toast(`Standard program installed (${data ?? 0} rule${data === 1 ? "" : "s"}).`, "ok");
+    _flPmFetchedAt = 0;
+    await _flLoadPmBoard();
+  } finally { if (btn) btn.disabled = false; }
+}
+
+// Delegated wiring for the Maintenance tab (bar buttons + board cells).
+document.addEventListener("click", (e) => {
+  const install = e.target.closest("[data-rr-pm-install]");
+  if (install) { e.preventDefault(); _flPmInstallDefaults(install); return; }
+  const addRule = e.target.closest("[data-rr-pm-addrule]");
+  if (addRule) { e.preventDefault(); _flPmOpenRuleEditor(null); return; }
+  if (e.target.closest("#rr-pm-log-btn")) { e.preventDefault(); _flPmOpenCompletion(null, null); return; }
+  if (e.target.closest("#rr-pm-rules-btn")) { e.preventDefault(); _flPmOpenRulesModal(); return; }
+  const cell = e.target.closest("[data-rr-pm-log-cell]");
+  if (cell) { e.preventDefault(); _flPmOpenCompletion(cell.getAttribute("data-veh"), cell.getAttribute("data-rule")); return; }
+  const veh = e.target.closest("[data-rr-pm-veh]");
+  if (veh) { e.preventDefault(); openFleetDrawer(veh.getAttribute("data-rr-pm-veh")); return; }
+});
+document.addEventListener("change", (e) => {
+  if (e.target && e.target.id === "rr-pm-filter") {
+    _flPmFilter = e.target.value || "";
+    _flRenderPmBoard();
+  }
+});
+
+function _flPmOpenRulesModal() {
+  const rules = (_flPmBoard && Array.isArray(_flPmBoard.rules)) ? _flPmBoard.rules : [];
+  document.getElementById("rr-pm-rules-modal")?.remove();
+  const wrap = document.createElement("div");
+  wrap.id = "rr-pm-rules-modal";
+  wrap.className = "fd-fm-overlay";
+  const rows = rules.map((r) => {
+    const iv = [r.interval_miles ? `${Number(r.interval_miles).toLocaleString()} mi` : "", r.interval_months ? `${r.interval_months} mo` : ""].filter(Boolean).join(" / ");
+    const scope = r.van_type ? _flVanTypeLabel(r.van_type) : "All vans";
+    return `<button type="button" class="fl-pm-rule-row" data-rr-pm-editrule="${escapeHtml(r.id)}">
+      <span class="fl-pm-rule-name">${escapeHtml(r.name)}</span>
+      <span class="fl-pm-rule-meta">${escapeHtml(iv)} · ${escapeHtml(scope)} · warn ${Number(r.warn_miles || 0).toLocaleString()} mi / ${r.warn_days || 0}d</span>
+    </button>`;
+  }).join("");
+  wrap.innerHTML = `
+    <div class="fd-fm-card" role="dialog" aria-modal="true" aria-label="Maintenance program">
+      <div class="fd-fm-head">
+        <div><h3 class="fd-fm-title">Maintenance program</h3><div class="fd-fm-sub">Click a rule to edit. Retiring a rule keeps its history.</div></div>
+        <button type="button" class="fd-fm-x" data-fm-close aria-label="Close">×</button>
+      </div>
+      <div class="fd-fm-body fd-fm-body-list">
+        ${rows || `<div class="fl-pm-empty-sm">No rules yet.</div>`}
+      </div>
+      <div class="fd-fm-foot">
+        <button type="button" class="btn btn-sm" data-rr-pm-install>Install standard program</button>
+        <button type="button" class="btn btn-sm btn-primary" data-rr-pm-addrule-in>Add rule</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  const close = () => { wrap.remove(); document.removeEventListener("keydown", onKey); };
+  const onKey = (e) => { if (e.key === "Escape") close(); };
+  document.addEventListener("keydown", onKey);
+  wrap.addEventListener("click", (e) => {
+    if (e.target === wrap || e.target.closest("[data-fm-close]")) { close(); return; }
+    const edit = e.target.closest("[data-rr-pm-editrule]");
+    if (edit) {
+      const r = rules.find((x) => x.id === edit.getAttribute("data-rr-pm-editrule"));
+      close();
+      if (r) _flPmOpenRuleEditor(r);
+      return;
+    }
+    if (e.target.closest("[data-rr-pm-addrule-in]")) { close(); _flPmOpenRuleEditor(null); return; }
+    // The Install button inside this modal rides the global
+    // [data-rr-pm-install] handler; close so the reload is visible.
+    if (e.target.closest("[data-rr-pm-install]")) { setTimeout(close, 0); }
+  });
+}
+
 // ─── Sub-tab routing ─────────────────────────────────────────────────
 window.fleetSub = function (sub) {
   _fleetSub = sub;
@@ -87099,6 +87482,7 @@ window.fleetSub = function (sub) {
   document.getElementById("fl-sub-" + sub)?.classList.add("active");
   if (sub === "vehicles")    _flLoadRoster();
   else if (sub === "issues") _flLoadIssues();
+  else if (sub === "maint")  _flLoadPmBoard();
   else if (sub === "calendar") {
     // Pull the one shared calendar node into the Fleet view, then
     // render — same calendar the Schedule page's tab shows.
@@ -87142,6 +87526,7 @@ async function loadFleetView() {
     if (typeof renderSchedVanAssignmentsBoard === "function") renderSchedVanAssignmentsBoard();
   }
   if (_fleetSub === "rotation") _flRenderVanRotation();
+  if (_fleetSub === "maint") _flLoadPmBoard();
   if (_fleetSub === "parts" && window.RRParts && typeof window.RRParts.mount === "function") window.RRParts.mount("fl-sub-parts");
   _flPaintTabCounts();
 }
@@ -87222,6 +87607,9 @@ async function _flLoadRoster() {
   _flRenderRoster();
   _flPaintTabCounts();
   _flRenderUngroundAlerts();
+  // PM chips paint on the identity cell when the board lands (cached 5
+  // min; silent no-op pre-0537). Deliberately not awaited.
+  _flEnsurePmStatus();
 }
 
 // Service-grounding un-ground alerts. A van grounded for a scheduled service
@@ -87258,7 +87646,12 @@ async function _flLoadExecSummary() {
   if (_fleetExecLoading) return;
   _fleetExecLoading = true;
   try {
-    const { data, error } = await sb.rpc("fleet_execution_summary");
+    // Master station lens: 0537's fleet_execution_summary(p_station_id)
+    // scopes FEM/VORR to one station's vans. Pre-0537 the arg'd call
+    // 404s → retry no-arg so the strip still paints (DSP-wide).
+    const _stnId = (typeof rrStationScopeId === "function") ? rrStationScopeId() : null;
+    let { data, error } = await sb.rpc("fleet_execution_summary", _stnId ? { p_station_id: _stnId } : {});
+    if (error && _stnId) ({ data, error } = await sb.rpc("fleet_execution_summary"));
     if (error) {
       console.warn("fleet_execution_summary failed", error);
       return;
@@ -87462,6 +87855,17 @@ function _flVorrActionFor(v) {
     try {
       const d = new Date(v.active_ro_eta);
       if (!isNaN(d)) return { text: `ETA ${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`, cls: "" };
+    } catch (_) { /* fall through */ }
+  }
+  // No RO clock, but the operator set an expected-return date when
+  // grounding (0537) — surface the plan instead of a generic nag.
+  if (v.expected_return_on) {
+    try {
+      const d = new Date(v.expected_return_on + "T00:00:00");
+      if (!isNaN(d)) {
+        const past = d < new Date();
+        return { text: `${past ? "Was due back" : "Expected back"} ${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`, cls: past ? "crit" : "" };
+      }
     } catch (_) { /* fall through */ }
   }
   if (!v.active_ro_code) return { text: "Open repair order", cls: "warn" };
@@ -88839,6 +89243,7 @@ async function openFleetDrawer(vehicleId, opts) {
           <button type="button" class="fd-tab active" data-rr-fd-tab="profile">Profile</button>
           <button type="button" class="fd-tab" data-rr-fd-tab="documents">Documents</button>
           <button type="button" class="fd-tab" data-rr-fd-tab="inspections">Inspections</button>
+          <button type="button" class="fd-tab" data-rr-fd-tab="service">Service</button>
           <button type="button" class="fd-tab" data-rr-fd-tab="mileage">Mileage history</button>
           <button type="button" class="fd-tab" data-rr-fd-tab="history">Vehicle history</button>
         </div>
@@ -88865,9 +89270,12 @@ async function openFleetDrawer(vehicleId, opts) {
     if (e.target === drawer || e.target.id === "rr-fd-close" || e.target.id === "rr-fd-cancel") { drawer.remove(); return; }
   });
 
-  // Normalize legacy tab ids (overview / drivers / service) to "profile"
-  // so the tab bar highlights a tab that actually exists.
-  const validTabs = new Set(["profile", "documents", "inspections", "mileage", "history"]);
+  // Normalize legacy tab ids (overview / drivers) to "profile" so the
+  // tab bar highlights a tab that actually exists. "service" is a real
+  // tab again — it was dispatched nowhere for months (dead-code find,
+  // fleet-inventory push 2026-07-25) which made vehicle_service_log_save
+  // unreachable from the UI.
+  const validTabs = new Set(["profile", "documents", "inspections", "service", "mileage", "history"]);
   _fdTab = validTabs.has(initialTab) ? initialTab : "profile";
   _fdHistory = null;
   _fdPending = {};
@@ -88986,7 +89394,10 @@ document.addEventListener("input", (e) => {
 
 function _fdField(field, label, type, opts) {
   const v = _fdVehicle?.vehicle || {};
-  const val = field in _fdPending ? _fdPending[field] : (v[field] ?? "");
+  // opts.value overrides the record read — used for derived inputs like
+  // the dollars view of an integer-cents column.
+  const val = field in _fdPending ? _fdPending[field]
+    : (opts && "value" in opts ? opts.value : (v[field] ?? ""));
   const attrs = (opts && opts.attrs) || "";
   if (type === "textarea") return `<div class="fd-row"><label>${escapeHtml(label)}</label><textarea data-rr-fd-field="${escapeHtml(field)}" ${attrs}>${escapeHtml(val ?? "")}</textarea></div>`;
   if (type === "select")   return `<div class="fd-row"><label>${escapeHtml(label)}</label><select data-rr-fd-field="${escapeHtml(field)}" ${attrs}>${opts.options.map((o) => `<option value="${escapeHtml(o.value)}" ${String(val) === String(o.value) ? "selected" : ""}>${escapeHtml(o.label)}</option>`).join("")}</select></div>`;
@@ -89000,10 +89411,12 @@ function _fdRenderTab() {
   const v = _fdVehicle.vehicle || {};
   const hasId = !!v.id;
 
-  // Tabs: Profile · Documents · Inspections · Mileage history · Vehicle history.
-  // Any legacy tab id (overview / drivers / service) falls back to Profile.
+  // Tabs: Profile · Documents · Inspections · Service · Mileage history ·
+  // Vehicle history. Any legacy tab id (overview / drivers) falls back to
+  // Profile.
   if (_fdTab === "documents")       body.innerHTML = _fdDocumentsHtml();
   else if (_fdTab === "inspections") body.innerHTML = _fdInspectionsHtml();
+  else if (_fdTab === "service")    body.innerHTML = _fdServiceHtml(_fdVehicle.logs);
   else if (_fdTab === "mileage")    body.innerHTML = _fdMileageHtml();
   else if (_fdTab === "history")    body.innerHTML = _fdHistoryHtml();
   else                              body.innerHTML = _fdProfileHtml(v);
@@ -89023,6 +89436,10 @@ function _fdRenderTab() {
   // Lazy load history when its tab opens.
   if (_fdTab === "history" && _fdHistory === null && v.id) {
     _fdLoadHistory(v.id);
+  }
+  // Cost rollup rides the history tab (re-paints on every open — cheap).
+  if (_fdTab === "history" && v.id) {
+    _fdLoadCosts(v.id);
   }
   // Lazy load documents when its tab opens.
   if (_fdTab === "documents" && v.id) {
@@ -89107,6 +89524,15 @@ function _fdProfileHtml(v) {
         { value: "cargo_van", label: "Cargo Van" },
         { value: "box_truck", label: "Box Truck" },
       ]})}
+      ${_fdField("fuel_type", "Fuel / power", "select", { options: [
+        { value: "", label: "—" },
+        { value: "gas", label: "Gas" },
+        { value: "diesel", label: "Diesel" },
+        { value: "ev", label: "Electric (EV)" },
+        { value: "hybrid", label: "Hybrid" },
+        { value: "propane", label: "Propane" },
+        { value: "other", label: "Other" },
+      ]})}
       ${_fdStationField(v)}
       <!-- Operational status is governed by the Fleet roster, not the
            drawer.  Show it read-only with a hint to the operator. -->
@@ -89144,6 +89570,23 @@ function _fdProfileHtml(v) {
     <div class="fd-section">
       <div class="fd-section-h"><div class="fd-section-title">Mileage</div></div>
       ${_fdField("mileage", "Current mileage", "number", { attrs: 'min="0" placeholder="0"' })}
+    </div>
+    <div class="fd-section">
+      <div class="fd-section-h"><div><div class="fd-section-title">Specs &amp; equipment</div><div class="fd-section-sub">Operational identifiers — telematics, fuel card, toll tag, tires.</div></div></div>
+      ${_fdField("tire_size", "Tire size", "text", { attrs: 'maxlength="40" placeholder="e.g. LT245/75R16"' })}
+      ${_fdField("telematics_id", "Telematics ID", "text", { attrs: 'maxlength="60" placeholder="GeoTab / Netradyne unit ID"' })}
+      ${_fdField("fuel_card", "Fuel card", "text", { attrs: 'maxlength="40" placeholder="Card # or last 4"' })}
+      ${_fdField("toll_tag", "Toll tag", "text", { attrs: 'maxlength="40" placeholder="EZ-Pass / transponder #"' })}
+    </div>
+    <div class="fd-section">
+      <div class="fd-section-h"><div><div class="fd-section-title">Acquisition, warranty &amp; lease</div><div class="fd-section-sub">Asset record — when it joined the fleet, warranty coverage, and lease/rental terms for non-owned vans.</div></div></div>
+      ${_fdField("acquired_on", "Acquired on", "date")}
+      ${_fdField("acquired_cost_usd", "Purchase price ($)", "number", { value: v.acquired_cost_cents != null ? (v.acquired_cost_cents / 100) : "", attrs: 'min="0" step="0.01" placeholder="0.00"' })}
+      ${_fdField("warranty_expires_on", "Warranty expires", "date")}
+      ${_fdField("warranty_miles", "Warranty miles", "number", { attrs: 'min="0" placeholder="e.g. 100000"' })}
+      ${_fdField("lease_provider", "Lease / rental provider", "text", { attrs: 'maxlength="80" placeholder="e.g. Merchants, Element…"' })}
+      ${_fdField("lease_expires_on", "Lease ends / return by", "date")}
+      ${_fdField("lease_monthly_usd", "Monthly cost ($)", "number", { value: v.lease_monthly_cents != null ? (v.lease_monthly_cents / 100) : "", attrs: 'min="0" step="0.01" placeholder="0.00"' })}
     </div>
     <div class="fd-section">
       <div class="fd-section-h"><div class="fd-section-title">Notes</div></div>
@@ -89477,9 +89920,12 @@ function _fdMileageHtml() {
 }
 
 function _fdHistoryHtml() {
-  if (_fdHistory === null) return `<div class="fd-empty" style="margin-top:14px">Loading vehicle history…</div>`;
-  if (!Array.isArray(_fdHistory) || !_fdHistory.length) return `<div class="fd-empty" style="margin-top:14px">No activity recorded for this van yet.</div>`;
-  return `<div class="fd-section">
+  // Cost rollup card renders above the timeline — filled async by
+  // _fdLoadCosts (vehicle_cost_summary, 0537; hidden pre-migration).
+  const costHost = `<div id="rr-fd-costcard" hidden></div>`;
+  if (_fdHistory === null) return costHost + `<div class="fd-empty" style="margin-top:14px">Loading vehicle history…</div>`;
+  if (!Array.isArray(_fdHistory) || !_fdHistory.length) return costHost + `<div class="fd-empty" style="margin-top:14px">No activity recorded for this van yet.</div>`;
+  return costHost + `<div class="fd-section">
     <div class="fd-section-h"><div><div class="fd-section-title">Vehicle history</div><div class="fd-section-sub">Combined timeline of issues, inspections, service entries, and mileage readings.</div></div></div>
     ${_fdHistory.map((h) => {
       const when = h.at ? new Date(h.at).toLocaleString() : "—";
@@ -89500,6 +89946,43 @@ async function _fdLoadHistory(vehicleId) {
   if (error) { _fdHistory = []; toast("Couldn't load history: " + error.message, "warn"); }
   else _fdHistory = Array.isArray(data) ? data : [];
   if (_fdTab === "history") _fdRenderTab();
+}
+
+// ── Per-van cost rollup (vehicle_cost_summary, migration 0537) ───────
+// Settled repair invoices + legacy ROs + service logs + PM completions
+// + part purchases over the last 12 months, with cost-per-mile from the
+// mileage ledger. Pre-0537 the RPC 404s and the card just stays hidden.
+async function _fdLoadCosts(vehicleId) {
+  const host = document.getElementById("rr-fd-costcard");
+  if (!host) return;
+  let s = null;
+  try {
+    const { data, error } = await sb.rpc("vehicle_cost_summary", { p_vehicle_id: vehicleId });
+    if (error) throw error;
+    s = data;
+  } catch (_) { host.hidden = true; return; }
+  if (!s || _fdTab !== "history") return;
+  const usd = (c) => "$" + (Number(c || 0) / 100).toLocaleString(undefined, { maximumFractionDigits: 0 });
+  const parts = [
+    { label: "Repairs",  cents: (Number(s.repair_cents) || 0) + (Number(s.legacy_ro_cents) || 0) },
+    { label: "Service",  cents: (Number(s.service_cents) || 0) + (Number(s.pm_cents) || 0) },
+    { label: "Parts",    cents: Number(s.parts_cents) || 0 },
+  ].filter((p) => p.cents > 0);
+  const cpm = s.cost_per_mile_cents != null
+    ? `$${(Number(s.cost_per_mile_cents) / 100).toFixed(2)}/mi over ${Number(s.miles_driven).toLocaleString()} mi`
+    : (s.miles_driven != null && Number(s.miles_driven) > 0 ? "" : "Add mileage readings to see cost per mile");
+  host.innerHTML = `
+    <div class="fd-cost-card">
+      <div class="fd-cost-main">
+        <span class="fd-cost-total">${usd(s.total_cents)}</span>
+        <span class="fd-cost-cap">spend · last ${Number(s.window_months) || 12} months</span>
+      </div>
+      <div class="fd-cost-side">
+        ${parts.map((p) => `<span class="fd-cost-chip">${escapeHtml(p.label)} ${usd(p.cents)}</span>`).join("")}
+        ${cpm ? `<span class="fd-cost-cpm">${escapeHtml(cpm)}</span>` : ""}
+      </div>
+    </div>`;
+  host.hidden = false;
 }
 
 // ─── Drawer save (profile tab) + footer buttons ──────────────────────
@@ -89590,11 +90073,43 @@ async function _fdSaveProfile() {
     p_notes:                  m.notes || null,
   };
   if (!args.p_name) { toast("Van name is required.", "warn"); return; }
-  const { data, error } = await sb.rpc("vehicle_record_save", args);
+  // Dollars → integer cents for the two money inputs. The usd keys only
+  // exist in the merge when edited this session; otherwise fall back to
+  // the record's stored cents so a save never erases them.
+  const usdToCents = (x) => {
+    if (x === "" || x == null) return null;
+    const n = parseFloat(String(x).replace(/[^\d.\-]/g, ""));
+    return Number.isFinite(n) ? Math.round(n * 100) : null;
+  };
+  // Extended asset-record params (migration 0537). Pre-0537 the wider
+  // signature 404s (PGRST202) → retry with the legacy arg set + the old
+  // raw van_type table write, so saving degrades instead of breaking.
+  const extArgs = {
+    ...args,
+    p_van_type:            m.van_type || null,
+    p_fuel_type:           m.fuel_type || null,
+    p_tire_size:           m.tire_size || null,
+    p_telematics_id:       m.telematics_id || null,
+    p_fuel_card:           m.fuel_card || null,
+    p_toll_tag:            m.toll_tag || null,
+    p_acquired_on:         dateOrNull(m.acquired_on),
+    p_acquired_cost_cents: "acquired_cost_usd" in m ? usdToCents(m.acquired_cost_usd) : (cur.acquired_cost_cents ?? null),
+    p_warranty_expires_on: dateOrNull(m.warranty_expires_on),
+    p_warranty_miles:      intOrNull(m.warranty_miles),
+    p_lease_provider:      m.lease_provider || null,
+    p_lease_expires_on:    dateOrNull(m.lease_expires_on),
+    p_lease_monthly_cents: "lease_monthly_usd" in m ? usdToCents(m.lease_monthly_usd) : (cur.lease_monthly_cents ?? null),
+  };
+  let { data, error } = await sb.rpc("vehicle_record_save", extArgs);
+  let legacyPath = false;
+  if (error && (error.code === "PGRST202" || /could not find the function/i.test(error.message || ""))) {
+    legacyPath = true;
+    ({ data, error } = await sb.rpc("vehicle_record_save", args));
+  }
   if (error) { toast("Save failed: " + error.message, "warn"); return; }
-  // Van type isn't a param on vehicle_record_save — persist it with a
-  // direct update (vehicles RLS allows dispatcher writes).
-  if (data && data.id) {
+  if (legacyPath && data && data.id) {
+    // Pre-0537 fallback: van_type isn't a param on the legacy signature —
+    // persist it with the old direct update (dispatcher RLS).
     try { await sb.from("vehicles").update({ van_type: m.van_type || null }).eq("id", data.id); } catch (_) {}
   }
   toast(cur.id ? "Van updated." : "Van created.", "ok");
@@ -89603,75 +90118,179 @@ async function _fdSaveProfile() {
   _flLoadRoster();
 }
 
+// ── Small form modal (replaces the old prompt() chains) ─────────────
+// fields: [{key, label, type: text|number|date|select|textarea, options,
+// placeholder, value, required, hint}]. onSave(values, helpers) does the
+// write; helpers.close()/setError(msg) drive the modal. Class-only
+// markup (.fd-fm-*) so the inline-style ratchet stays flat.
+function _fdFormModal({ title, sub, fields, saveLabel, onSave }) {
+  document.getElementById("rr-fd-formmodal")?.remove();
+  const wrap = document.createElement("div");
+  wrap.id = "rr-fd-formmodal";
+  wrap.className = "fd-fm-overlay";
+  const fieldHtml = (f) => {
+    const req = f.required ? ` <em class="fd-fm-req">*</em>` : "";
+    let input;
+    if (f.type === "select") {
+      input = `<select class="fd-fm-input" data-fm-key="${escapeHtml(f.key)}">${(f.options || [])
+        .map((o) => `<option value="${escapeHtml(o.value)}"${String(f.value ?? "") === String(o.value) ? " selected" : ""}>${escapeHtml(o.label)}</option>`).join("")}</select>`;
+    } else if (f.type === "textarea") {
+      input = `<textarea class="fd-fm-input" data-fm-key="${escapeHtml(f.key)}" rows="3" placeholder="${escapeHtml(f.placeholder || "")}">${escapeHtml(f.value ?? "")}</textarea>`;
+    } else {
+      input = `<input class="fd-fm-input" type="${escapeHtml(f.type || "text")}" data-fm-key="${escapeHtml(f.key)}" value="${escapeHtml(f.value ?? "")}" placeholder="${escapeHtml(f.placeholder || "")}">`;
+    }
+    return `<label class="fd-fm-field${f.wide ? " fd-fm-wide" : ""}"><span class="fd-fm-lbl">${escapeHtml(f.label)}${req}</span>${input}${f.hint ? `<span class="fd-fm-hint">${escapeHtml(f.hint)}</span>` : ""}</label>`;
+  };
+  wrap.innerHTML = `
+    <div class="fd-fm-card" role="dialog" aria-modal="true" aria-label="${escapeHtml(title)}">
+      <div class="fd-fm-head">
+        <div><h3 class="fd-fm-title">${escapeHtml(title)}</h3>${sub ? `<div class="fd-fm-sub">${escapeHtml(sub)}</div>` : ""}</div>
+        <button type="button" class="fd-fm-x" data-fm-close aria-label="Close">×</button>
+      </div>
+      <div class="fd-fm-body">${(fields || []).map(fieldHtml).join("")}</div>
+      <div class="fd-fm-err" data-fm-err hidden></div>
+      <div class="fd-fm-foot">
+        <button type="button" class="btn btn-sm" data-fm-close>Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary" data-fm-save>${escapeHtml(saveLabel || "Save")}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  const close = () => { wrap.remove(); document.removeEventListener("keydown", onKey); };
+  const onKey = (e) => { if (e.key === "Escape") close(); };
+  document.addEventListener("keydown", onKey);
+  wrap.addEventListener("click", (e) => {
+    if (e.target === wrap || e.target.closest("[data-fm-close]")) { close(); return; }
+  });
+  const saveBtn = wrap.querySelector("[data-fm-save]");
+  saveBtn.addEventListener("click", async () => {
+    const values = {};
+    wrap.querySelectorAll("[data-fm-key]").forEach((el2) => { values[el2.getAttribute("data-fm-key")] = el2.value; });
+    const missing = (fields || []).find((f) => f.required && !String(values[f.key] || "").trim());
+    const errEl = wrap.querySelector("[data-fm-err]");
+    if (missing) { errEl.textContent = `${missing.label} is required.`; errEl.hidden = false; return; }
+    errEl.hidden = true;
+    saveBtn.disabled = true;
+    try {
+      await onSave(values, { close, setError: (msg) => { errEl.textContent = msg; errEl.hidden = false; } });
+    } finally { saveBtn.disabled = false; }
+  });
+  wrap.querySelector(".fd-fm-input")?.focus();
+}
+
 async function _fdPromptServiceLog() {
   const veh = _fdVehicle?.vehicle;
   if (!veh?.id) return;
-  const summary = (prompt("Service summary (e.g. Oil change, Brake service)") || "").trim();
-  if (!summary) return;
-  const dateStr = prompt("Date (YYYY-MM-DD)", new Date().toISOString().slice(0, 10)) || null;
-  const kind = (prompt("Kind: service | inspection | accident | repair | note", "service") || "service").trim();
-  const costStr = prompt("Cost in dollars (blank to skip)") || "";
-  const cost_cents = costStr ? Math.round(parseFloat(costStr) * 100) : null;
-  const vendor = (prompt("Vendor (optional)") || "").trim() || null;
-  const { error } = await sb.rpc("vehicle_service_log_save", {
-    p_vehicle_id: veh.id,
-    p_occurred_at: dateStr,
-    p_kind: kind,
-    p_summary: summary,
-    p_cost_cents: cost_cents,
-    p_vendor: vendor,
+  _fdFormModal({
+    title: "Log service entry",
+    sub: veh.name ? `Service record for ${veh.name}` : undefined,
+    saveLabel: "Log service",
+    fields: [
+      { key: "summary", label: "Summary", type: "text", required: true, wide: true, placeholder: "Oil change, brake service, tire rotation…" },
+      { key: "date", label: "Date", type: "date", value: new Date().toISOString().slice(0, 10), required: true },
+      { key: "kind", label: "Kind", type: "select", value: "service", options: [
+        { value: "service", label: "Service" }, { value: "inspection", label: "Inspection" },
+        { value: "repair", label: "Repair" }, { value: "accident", label: "Accident" },
+        { value: "note", label: "Note" },
+      ]},
+      { key: "cost", label: "Cost ($)", type: "number", placeholder: "0.00" },
+      { key: "vendor", label: "Vendor", type: "text", placeholder: "Shop / provider (optional)" },
+      { key: "mileage", label: "Odometer (mi)", type: "number", placeholder: "optional" },
+      { key: "notes", label: "Notes", type: "textarea", wide: true, placeholder: "Details, parts used… (optional)" },
+    ],
+    onSave: async (vals, h) => {
+      const cost = vals.cost ? Math.round(parseFloat(vals.cost) * 100) : null;
+      const mileage = vals.mileage ? parseInt(String(vals.mileage).replace(/[^\d]/g, ""), 10) : null;
+      const { error } = await sb.rpc("vehicle_service_log_save", {
+        p_vehicle_id: veh.id,
+        p_occurred_at: vals.date || null,
+        p_kind: vals.kind || "service",
+        p_summary: vals.summary.trim(),
+        p_notes: vals.notes?.trim() || null,
+        p_cost_cents: Number.isFinite(cost) ? cost : null,
+        p_vendor: vals.vendor?.trim() || null,
+        p_mileage: Number.isFinite(mileage) ? mileage : null,
+      });
+      if (error) { h.setError("Couldn't log service: " + error.message); return; }
+      h.close();
+      toast("Service logged.", "ok");
+      await loadFleetDrawer(veh.id);
+    },
   });
-  if (error) { toast("Couldn't log service: " + error.message, "warn"); return; }
-  toast("Service logged.", "ok");
-  await loadFleetDrawer(veh.id);
 }
 
 async function _fdPromptMileage() {
   const veh = _fdVehicle?.vehicle;
   if (!veh?.id) return;
-  const raw = prompt("New mileage reading", veh.mileage != null ? String(veh.mileage) : "");
-  if (!raw) return;
-  const mileage = parseInt(String(raw).replace(/[^\d]/g, ""), 10);
-  if (!Number.isFinite(mileage)) { toast("Invalid mileage.", "warn"); return; }
-  const { error } = await sb.rpc("vehicle_mileage_log_save", { p_vehicle_id: veh.id, p_mileage: mileage });
-  if (error) { toast("Couldn't save reading: " + error.message, "warn"); return; }
-  toast("Mileage logged.", "ok");
-  await loadFleetDrawer(veh.id);
-  // Refresh the mileage tab list inline
-  await _fdRefreshMileageList(veh.id);
+  _fdFormModal({
+    title: "Add mileage reading",
+    sub: "Readings only ratchet the van's current mileage upward.",
+    saveLabel: "Save reading",
+    fields: [
+      { key: "mileage", label: "Odometer (mi)", type: "number", required: true, wide: true,
+        value: veh.mileage != null ? String(veh.mileage) : "", placeholder: "e.g. 48210" },
+    ],
+    onSave: async (vals, h) => {
+      const mileage = parseInt(String(vals.mileage).replace(/[^\d]/g, ""), 10);
+      if (!Number.isFinite(mileage)) { h.setError("Enter a whole number of miles."); return; }
+      const { error } = await sb.rpc("vehicle_mileage_log_save", { p_vehicle_id: veh.id, p_mileage: mileage });
+      if (error) { h.setError("Couldn't save reading: " + error.message); return; }
+      h.close();
+      toast("Mileage logged.", "ok");
+      await loadFleetDrawer(veh.id);
+      await _fdRefreshMileageList(veh.id);
+    },
+  });
 }
 
 async function _fdPromptInspection() {
   const veh = _fdVehicle?.vehicle;
   if (!veh?.id) return;
-  const kind = (prompt("Kind: pre_trip | post_trip | dot_annual | other", "pre_trip") || "pre_trip").trim();
-  const result = (prompt("Result: passed | needs_repair | failed", "passed") || "passed").trim();
-  const inspector = (prompt("Inspector name (optional)") || "").trim() || null;
-  const notes = (prompt("Notes / defects (optional)") || "").trim() || null;
-  const { error } = await sb.rpc("vehicle_inspection_save", {
-    p_vehicle_id: veh.id,
-    p_kind: kind,
-    p_result: result,
-    p_inspector_name: inspector,
-    p_notes: notes,
+  _fdFormModal({
+    title: "Log inspection",
+    sub: "A needs-repair or failed result also opens an Issue.",
+    saveLabel: "Log inspection",
+    fields: [
+      { key: "kind", label: "Kind", type: "select", value: "pre_trip", options: [
+        { value: "pre_trip", label: "Pre-trip" }, { value: "post_trip", label: "Post-trip" },
+        { value: "dot_annual", label: "DOT annual" }, { value: "other", label: "Other" },
+      ]},
+      { key: "result", label: "Result", type: "select", value: "passed", options: [
+        { value: "passed", label: "Passed" }, { value: "needs_repair", label: "Needs repair" },
+        { value: "failed", label: "Failed" },
+      ]},
+      { key: "inspector", label: "Inspector", type: "text", placeholder: "Name (optional)" },
+      { key: "mileage", label: "Odometer (mi)", type: "number", placeholder: "optional" },
+      { key: "notes", label: "Notes / defects", type: "textarea", wide: true, placeholder: "optional" },
+    ],
+    onSave: async (vals, h) => {
+      const mileage = vals.mileage ? parseInt(String(vals.mileage).replace(/[^\d]/g, ""), 10) : null;
+      const { error } = await sb.rpc("vehicle_inspection_save", {
+        p_vehicle_id: veh.id,
+        p_kind: vals.kind || "pre_trip",
+        p_result: vals.result || "passed",
+        p_inspector_name: vals.inspector?.trim() || null,
+        p_notes: vals.notes?.trim() || null,
+        ...(Number.isFinite(mileage) ? { p_mileage: mileage } : {}),
+      });
+      if (error) { h.setError("Couldn't save inspection: " + error.message); return; }
+      if (vals.result !== "passed") {
+        await sb.rpc("vehicle_issue_save", {
+          p_vehicle_id: veh.id,
+          p_title: `${(vals.kind || "").replace(/_/g, " ")} inspection — ${(vals.result || "").replace(/_/g, " ")}`,
+          p_description: vals.notes?.trim() || null,
+          p_severity: vals.result === "failed" ? "high" : "medium",
+          p_category: "safety",
+          p_status: "needs_repair",
+          p_source: "inspection",
+        });
+      }
+      h.close();
+      toast("Inspection logged.", "ok");
+      await loadFleetDrawer(veh.id);
+      _flLoadRoster();
+      await _fdRefreshInspectionsList(veh.id);
+    },
   });
-  if (error) { toast("Couldn't save inspection: " + error.message, "warn"); return; }
-  // If result wasn't passed, also open an issue so it appears on the dashboard.
-  if (result !== "passed") {
-    await sb.rpc("vehicle_issue_save", {
-      p_vehicle_id: veh.id,
-      p_title: `${kind.replace(/_/g, " ")} inspection — ${result.replace(/_/g, " ")}`,
-      p_description: notes,
-      p_severity: result === "failed" ? "high" : "medium",
-      p_category: "safety",
-      p_status: "needs_repair",
-      p_source: "inspection",
-    });
-  }
-  toast("Inspection logged.", "ok");
-  await loadFleetDrawer(veh.id);
-  _flLoadRoster();
-  await _fdRefreshInspectionsList(veh.id);
 }
 
 async function _fdRefreshMileageList(vehicleId) {

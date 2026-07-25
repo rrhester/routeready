@@ -434,6 +434,67 @@ reports "targets don't save after I key them" / "routes box = highest day"):**
   21 checks (stateful 2-station stub): scoped single-write + persistence
   across re-render/reload, live peak tracking, focus retention, All parity.
 
+## Active task: Fleet inventory system (branch claude/fleet-inventory-tracking-i5vkm8)
+
+Operator (2026-07-25): "top of the line tool that tracks fleet inventory —
+ground a van, store information, preventative maintenance schedules,
+inventory… world class fleet system." Full audit + build record in
+**docs/FLEET-SYSTEM.md** — read it before touching Fleet.
+
+**SHIPPED (this branch, one PR):**
+- **CRITICAL FIX — vehicles_roster 0345 regression:** 0345 rebuilt the RPC
+  from 0213's body and silently dropped EVERY decoration from
+  0239/0297/0301/0308 (is_branded, fem_status, grounded_*, doc badges,
+  active_ro_*, driver_reported_open_count, backup driver) — which also
+  starved fleet_execution_summary's is_branded filter (FEM/VORR strip
+  hidden/blank on any DB that applied 0345). **Migration 0537** re-issues
+  the FULL 0308 body + van_type + expected_return_on. RULE: any future
+  vehicles_roster edit starts from 0537's body — never rebuild from an
+  older revision (that's exactly how 0345 broke it).
+- **Migration 0537** also: 13 new vehicles columns (fuel_type, tire_size,
+  telematics_id, fuel_card, toll_tag, acquired_on/cost, warranty date+miles,
+  lease provider/end/monthly, metadata jsonb); vehicle_documents kinds +
+  title/lease/warranty/other; vehicle_record_save re-issued w/ new params
+  INCL. van_type (raw client table-update removed; PGRST202 → legacy-args
+  fallback in _fdSaveProfile); vehicle_set_operational_status 5-arg
+  (p_expected_return_on; old 4-arg dropped first) + grounding_events
+  expected_return_on/unground_note; fleet_execution_summary(p_station_id)
+  (lens reaches FEM/VORR, no-arg unchanged); **PM engine** fleet_pm_rules/
+  fleet_pm_completions + install_defaults/rule_save/log_completion/
+  fleet_pm_board(p_station_id) (overdue|due_soon|ok|no_baseline, both
+  axes); vehicle_cost_summary (per-van 12-mo spend + cost/mile, soft on
+  missing tables).
+- **Migration 0538**: parts room — parts_stock_items (bins, min-qty,
+  moving-avg unit cost) + append-only parts_stock_movements
+  (receive/consume/return/adjust, optional vehicle/repair-case links);
+  parts_stock_move is the ONLY qty writer (row-locked, no negative stock,
+  adjust = absolute count); parts_stock_list (low-stock, value, station
+  lens: null-station items show in every scope) + movements_list.
+- **Client:** new Fleet → Maintenance tab (fl-sub-maint; worst-first van ×
+  rule chip board, attention filter, chip-click → log completion, Manage
+  program modal, Install-defaults empty state, roster "PM overdue/due"
+  chips via 5-min-cached fleet_pm_board); grounding modal + expected-back
+  date + "open a repair case" handoff (RRRepair.createForVehicle);
+  un-ground = small note modal; VORR drill-down shows "Expected back …" /
+  red "Was due back …"; drawer Service tab WIRED BACK (was dead code —
+  vehicle_service_log_save had no UI), new Profile sections (specs/
+  acquisition/warranty/lease; dollars in, cents stored), prompt() chains →
+  shared _fdFormModal, cost card on Vehicle-history tab; Parts tab gains
+  On-hand inventory section (parts-ui.js — NOT design-lint-scanned;
+  live.js additions are CLASS-ONLY, the inline-style ratchet held at
+  3809). fleet-pm-core.mjs mirrors the SQL due math (21 node tests,
+  test-fleet-pm.mjs) — change BOTH or the suite/board drift.
+- QA: 51/51 Playwright checks (scratchpad qa-fleet.mjs pattern: 3-van
+  stub w/ grounded+RO+expired-doc+PM states); npm test 26/26; ESLint,
+  smoke, ordinal gate, ratchet all green. SW_DEPLOY_NONCE bumped.
+- **Migrations 0537 + 0538 MANUAL — pasted in chat 2026-07-25.** Client
+  degrades gracefully until applied (PGRST202 fallbacks / setup notices).
+  Independent of the 0525–0534 lens chain; apply 0537 → 0538.
+- Deferred (see docs/FLEET-SYSTEM.md §5): driver-app odometer capture via
+  DVIC (needs a driver_submit_form re-issue — own PR), GeoTab mileage
+  sync, stock station picker, case-drawer parts consumption, fleet-wide
+  cost report.
+
 ## Active task: Staffing model — XL-route demand (branch claude/staffing-driver-requirements-1tw30l)
 
 Operator's staffing model (2026-07-18): standard route = 2 drivers ×
