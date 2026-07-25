@@ -1066,9 +1066,15 @@ import { makeNhtsaProvider } from "./adapters/nhtsa.js";
     // room, visible in every scope. List comes from live.js's exported
     // snapshot; single-station DSPs skip the field entirely.
     const stations = (typeof window.rrStationList === "function") ? window.rrStationList() : [];
-    const stnField = stations.length > 1 ? `<div class="rrp-fg"><label>Station</label><select id="stk-stn">
+    // An item homed at a since-deactivated station keeps a labelled
+    // synthetic option (the vehicle station picker's recipe) — otherwise
+    // the select would default to "Shared" and an unrelated edit would
+    // silently null the assignment (Codex review).
+    const stnOrphan = it.station_id && !stations.some((s) => s.id === it.station_id);
+    const stnField = (stations.length > 1 || stnOrphan) ? `<div class="rrp-fg"><label>Station</label><select id="stk-stn">
             <option value="">Shared — all stations</option>
             ${stations.map((s) => `<option value="${esc(s.id)}"${it.station_id === s.id ? " selected" : ""}>${esc([s.code, s.name].filter(Boolean).join(" — ") || "Station")}</option>`).join("")}
+            ${stnOrphan ? `<option value="${esc(it.station_id)}" selected>${esc(it.station_code || "Current station")} (inactive)</option>` : ""}
           </select></div>` : "";
     const modal = overlay(`<div class="rrp-modal" style="max-width:520px">
       <div class="rrp-mh"><h3>${it.id ? "Edit stock item" : "Add stock item"}</h3><button class="x" data-close>×</button></div>

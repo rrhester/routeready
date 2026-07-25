@@ -77,10 +77,12 @@ begin
              when 'string' then v_ans ->> v_key
              else null
            end;
-  v_raw := regexp_replace(coalesce(v_raw, ''), '[^0-9]', '', 'g');
-  -- 7 digits caps at 9,999,999 — anything longer is a typo'd phone
-  -- number, not an odometer.
-  if v_raw = '' or length(v_raw) > 7 then return new; end if;
+  -- Strip ONLY thousands separators/whitespace, then require a plain
+  -- positive integer. Deleting every non-digit would corrupt instead of
+  -- reject: "12345.5" → 123455 (inflated, and the only-up ratchet locks
+  -- it in) and "-123" → 123. Fractional/negative/exponent → no capture.
+  v_raw := regexp_replace(btrim(coalesce(v_raw, '')), '[, ]', '', 'g');
+  if v_raw !~ '^[0-9]{1,7}$' then return new; end if;
   v_mi := v_raw::bigint;
   if v_mi >= 1 and v_mi <= 2000000 then
     new.mileage := v_mi::int;

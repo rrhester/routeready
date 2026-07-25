@@ -2149,7 +2149,13 @@ import {
   // Pre-0540 (RPC missing) this degrades to a setup pointer.
   async function openUsePartModal(c) {
     injectCss();
-    const { data, error } = await sb().rpc("parts_stock_list", {});
+    // Station lens (Codex review): a scoped dispatcher sees that
+    // station's shelf + shared items — the RPC's contract — so a
+    // same-named item at another station can't be decremented by
+    // mistake. All-stations mode shows everything, with the station
+    // code on each option so items stay distinguishable.
+    const _stnId = (typeof window.rrStationScopeId === "function") ? window.rrStationScopeId() : null;
+    const { data, error } = await sb().rpc("parts_stock_list", _stnId ? { p_station_id: _stnId } : {});
     if (error) {
       if (error.code === "PGRST202" || /could not find the function/i.test(error.message || "")) {
         say("Parts inventory needs migration 0540 — apply it, then stock the shelf in Fleet → Parts", "warn");
@@ -2167,7 +2173,7 @@ import {
     const wrap = document.createElement("div");
     wrap.id = "rr-rp-modal";
     const opts = items.map((i) => {
-      const bits = [i.part_number, i.bin_location ? `bin ${i.bin_location}` : "", `${i.qty_on_hand} on hand`].filter(Boolean).join(" · ");
+      const bits = [i.part_number, i.station_code || "", i.bin_location ? `bin ${i.bin_location}` : "", `${i.qty_on_hand} on hand`].filter(Boolean).join(" · ");
       return `<option value="${esc(i.id)}"${i.qty_on_hand <= 0 ? " disabled" : ""}>${esc(i.name)}${bits ? ` — ${esc(bits)}` : ""}</option>`;
     }).join("");
     wrap.innerHTML = `
