@@ -347,6 +347,7 @@ Severity applies to non-passing items. Effort: `<1h`, `1–4h`, `1d`, `2–3d`, 
    `list`/`INSERT` grants. Then **re-run the isolation test extended to Storage**.
 2. **B-2 backups:** Enable Supabase PITR and **perform one real restore** to a scratch
    project. Document the restore steps and time. Do not load customer data until done.
+   Step-by-step runbook: **`docs/B2-BACKUP-RESTORE-DRILL.md`**.
 3. **B-3 migrations:** Reconcile the live schema against the repo (apply all pending
    MANUAL migrations, confirm via `rr_schema_version()`), bump `_RR_SCHEMA_EXPECTED` to
    the true head, and make the drift banner **global** (not calendar-only). Adopt a
@@ -365,6 +366,7 @@ Severity applies to non-passing items. Effort: `<1h`, `1–4h`, `1d`, `2–3d`, 
 8. **H-5 license buffer:** Enforce the license-protection window server-side.
 9. **H-6 alerting:** Point an uptime monitor at `/health`; wire `client_errors`,
    `rr_cron_health()`, and `push_delivery_failures` to a real alert (email/Slack/PagerDuty).
+   Uptime-monitor runbook (the endpoint already ships): **`docs/H6-UPTIME-MONITORING.md`**.
 10. **H-7 support:** Make "Contact support" actually reach you; publish a one-page
     customer quickstart.
 11. **H-8 legal:** Correct the sub-processor list (add Supabase, remove Airtable/Cal.com).
