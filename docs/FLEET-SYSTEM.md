@@ -131,17 +131,28 @@ The fleet domain was already deep in four places:
 - Money is integer cents everywhere; dollars only at the input edge.
 - New live.js markup is class-only (design-lint inline-style ratchet).
 
-## 5 · Deferred / follow-ups
+## 5a · Follow-up wave (2026-07-25, second PR)
 
-- **Driver-app odometer capture** (product-audit #90): map a numeric
-  `odometer` answer in the DVIC form into `vehicle_inspections.mileage`
-  + `vehicle_mileage_log` server-side (`driver_submit_form` re-issue —
-  risky function, own PR). Until then mileage arrives via manual
-  readings, PM completions, and repair return-to-service.
+- **DVIC odometer capture — DONE (migration 0568):** two triggers on
+  `vehicle_inspections` (no `driver_submit_form` re-issue — its 0223
+  body has been hardened by 0436/0439/0445 and rebuilding it is the
+  0345 hazard class). BEFORE INSERT extracts a numeric answer whose
+  field id/label matches odometer/mileage from the linked DVIC
+  submission; AFTER INSERT writes `vehicle_mileage_log` (source
+  'inspection') and ratchets `vehicles.mileage` upward. Both
+  best-effort — a weird answers shape never blocks the inspection.
+  Operator setup: add a number question named "Odometer" to the DVIC
+  form (the form editor's DVIC toggle hint says so).
+- **Stock station picker — DONE:** the item modal offers a station
+  select on multi-station DSPs (live.js exports
+  `window.rrStationList()` for module scripts); station code shows in
+  the stock table meta line.
+- **Case-drawer parts consumption — DONE:** "Use a part…" in the
+  repair-case drawer consumes stock with `repair_case_id` + the case's
+  van linked, logs a timeline note, and refreshes the drawer.
+
+## 5b · Still deferred
+
 - Telematics (GeoTab) mileage sync — `vehicle_mileage_log.source`
   already supports `geotab`; needs an integration.
-- Stock station picker in the item editor (schema supports
-  `station_id`; UI defaults to the shared room).
-- Repair-case parts consumption from the case drawer (movements
-  already accept `repair_case_id`).
 - Cost summary in a fleet-wide report (per-van table, sortable).

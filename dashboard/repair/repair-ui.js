@@ -763,6 +763,7 @@ import {
           <div class="rp-facts">${drawerFacts(c)}</div>
           <div class="rp-drawer-actions">${stageActions(c)}
             <button type="button" class="rp-btn" data-rp-log>Log update…</button>
+            <button type="button" class="rp-btn" data-rp-use-part title="Pull a part from on-hand stock for this job — feeds the van's cost history">Use a part…</button>
             ${!c.ro ? `<button type="button" class="rp-btn" data-rp-link-ro>Open RO</button>` : ""}
             ${typeof window.openFleetDrawer === "function" ? `<button type="button" class="rp-btn" data-rp-fleet>Fleet record</button>` : ""}
           </div>
@@ -798,6 +799,7 @@ import {
       if (stageBtn) { await doSetStage(c.id, stageBtn.getAttribute("data-rp-stage")); return; }
       if (e.target.closest("[data-rp-return]")) { await doReturnToService(c); return; }
       if (e.target.closest("[data-rp-log]")) { openLogModal(c.id); return; }
+      if (e.target.closest("[data-rp-use-part]")) { await openUsePartModal(c); return; }
       if (e.target.closest("[data-rp-link-ro]")) { await doLinkRo(c.id); return; }
       if (e.target.closest("[data-rp-fleet]")) { closeDrawer(); window.openFleetDrawer(c.vehicle?.id); return; }
       if (e.target.closest("[data-rp-request-quotes]")) { openRequestModal(c); return; }
@@ -2141,6 +2143,93 @@ import {
   }
 
   // ── log-update modal ─────────────────────────────────────────────────
+  // ── Use a part — consume on-hand stock against this case ────────────
+  // parts_stock_move (0540) links the movement to the case + its van, so
+  // the pull lands in the van's cost history AND the shelf count drops.
+  // Pre-0540 (RPC missing) this degrades to a setup pointer.
+  async function openUsePartModal(c) {
+    injectCss();
+    // Station lens (Codex review): a scoped dispatcher sees that
+    // station's shelf + shared items — the RPC's contract — so a
+    // same-named item at another station can't be decremented by
+    // mistake. All-stations mode shows everything, with the station
+    // code on each option so items stay distinguishable.
+    const _stnId = (typeof window.rrStationScopeId === "function") ? window.rrStationScopeId() : null;
+    const { data, error } = await sb().rpc("parts_stock_list", _stnId ? { p_station_id: _stnId } : {});
+    if (error) {
+      if (error.code === "PGRST202" || /could not find the function/i.test(error.message || "")) {
+        say("Parts inventory needs migration 0540 — apply it, then stock the shelf in Fleet → Parts", "warn");
+      } else {
+        fail("Couldn't load the parts inventory", error);
+      }
+      return;
+    }
+    const items = (data && Array.isArray(data.items)) ? data.items.filter((i) => i.active !== false) : [];
+    if (!items.length) {
+      say("No stock items yet — add them in Fleet → Parts → On-hand inventory", "warn");
+      return;
+    }
+    el("rr-rp-modal")?.remove();
+    const wrap = document.createElement("div");
+    wrap.id = "rr-rp-modal";
+    const opts = items.map((i) => {
+      const bits = [i.part_number, i.station_code || "", i.bin_location ? `bin ${i.bin_location}` : "", `${i.qty_on_hand} on hand`].filter(Boolean).join(" · ");
+      return `<option value="${esc(i.id)}"${i.qty_on_hand <= 0 ? " disabled" : ""}>${esc(i.name)}${bits ? ` — ${esc(bits)}` : ""}</option>`;
+    }).join("");
+    wrap.innerHTML = `
+      <div class="rp-modal-scrim" data-rp-mclose></div>
+      <div class="rp-modal-card" role="dialog" aria-modal="true" aria-label="Use a part">
+        <header class="rp-modal-head"><h3>Use a part · ${esc(c.case_number || "")}</h3><button type="button" class="rp-drawer-x" data-rp-mclose aria-label="Close">✕</button></header>
+        <div class="rp-modal-body">
+          <label class="rp-field"><span>Part</span>
+            <select id="rr-rp-part-item" class="rp-input">${opts}</select>
+          </label>
+          <label class="rp-field"><span>Quantity</span>
+            <input id="rr-rp-part-qty" class="rp-input" type="number" min="1" step="1" value="1">
+          </label>
+          <label class="rp-field"><span>Note</span>
+            <input id="rr-rp-part-note" class="rp-input" type="text" maxlength="200" placeholder="optional — e.g. replaced under diag">
+          </label>
+        </div>
+        <footer class="rp-modal-foot">
+          <button type="button" class="rp-btn" data-rp-mclose>Cancel</button>
+          <button type="button" class="rp-btn rp-btn-primary" data-rp-part-save>Record usage</button>
+        </footer>
+      </div>`;
+    document.body.appendChild(wrap);
+    wrap.addEventListener("click", async (e) => {
+      if (e.target.closest("[data-rp-mclose]")) { wrap.remove(); return; }
+      if (!e.target.closest("[data-rp-part-save]")) return;
+      const itemId = el("rr-rp-part-item").value;
+      const qty = parseInt(el("rr-rp-part-qty").value || "", 10);
+      if (!itemId || !Number.isFinite(qty) || qty <= 0) { say("Pick a part and a quantity", "warn"); return; }
+      const item = items.find((i) => i.id === itemId);
+      const { error: mvErr } = await sb().rpc("parts_stock_move", {
+        p_item_id: itemId,
+        p_kind: "consume",
+        p_qty: qty,
+        p_unit_cost_cents: null,
+        p_vehicle_id: c.vehicle?.id || null,
+        p_repair_case_id: c.id,
+        p_note: (el("rr-rp-part-note").value || "").trim() || null,
+      });
+      if (mvErr) {
+        if (/insufficient_stock/.test(mvErr.message || "")) { say("Not enough on hand for that quantity", "warn"); return; }
+        fail("Couldn't record the part usage", mvErr);
+        return;
+      }
+      // Surface it on the case timeline so the pull is part of the story.
+      await sb().rpc("repair_case_log_event", {
+        p_case_id: c.id, p_kind: "note",
+        p_message: `Used ${qty}× ${item ? item.name : "part"} from stock${item?.part_number ? ` (${item.part_number})` : ""}`,
+        p_source: "dsp", p_visible_to_shop: false,
+      }).catch(() => {});
+      wrap.remove();
+      say("Part usage recorded");
+      openCase(c.id);
+    });
+  }
+
   function openLogModal(caseId) {
     injectCss();
     el("rr-rp-modal")?.remove();
