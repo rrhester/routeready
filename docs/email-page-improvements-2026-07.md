@@ -14,7 +14,30 @@ Email-redesign merge #4113). Impact tags: **[high]** = operators lose
 mail, reply to the wrong person, or read wrong state; **[med]** = worth
 scheduling; **[low]** = polish.
 
-**STATUS (2026-07-25): Sections A–H (EM#1–78) SHIPPED.**
+**STATUS (2026-07-25): Sections A–I (EM#1–86) SHIPPED.**
+Section I notes (**migration 0544**): EM#79 unmatched inbound (typo'd
+team address) + EM#81 rate-limited overflow (>30/sender/DSP/hour;
+redeliveries of known ids still dedup) land in `email_dead_letters`
+(service-role writes, NO authenticated policies — platform admin reads
+via SQL; daily-count query in the migration header). EM#82 spam →
+Junk: `spamVerdict()` reads explicit spam flags/score and spf/dkim/
+dmarc FAIL verdicts (payload fields or Authentication-Results header;
+absent signals stay Inbox), routes to a per-DSP `kind='junk'` system
+folder created on first use (0544 widens the fb_folders kind check;
+client has the icon + empty state). EM#80 capture caps: 15 files/
+message, 25MB/file (content-length pre-check + post-buffer check),
+skips logged. EM#85 body cap: 512KB html / 100KB text with a visible
+"[Message truncated…]" marker. EM#83 station-code rename: Settings
+warns with old→new addresses and stores the old code in
+dsps.metadata.email_aliases; the webhook's fallback matcher accepts
+aliases. EM#84 tightening: UPDATE on email_messages is now a COLUMN
+ALLOWLIST (provider/provider_message_id/smtp_message_id/sent_at/
+delivered_at/error_* are server-only — **future client-written columns
+must be added to 0544's grant or updates 42501**), and the staff
+insert/update policies verify folder_id + in_reply_to_id belong to the
+row's DSP (private.email_row_dsp_ok avoids policy recursion). EM#86:
+fb_settings dropped (fb_messages/fb_attachments already fell in 0318;
+fb_folders + the fleet-bridge-attachments bucket stay — in active use).
 Section H notes (**migration 0543**): EM#76 replies now thread in the
 VENDOR's mail client — webhook-email-inbound captures the inbound RFC
 Message-ID (`smtp_message_id`; payload messageId/message_id when it

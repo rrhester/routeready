@@ -35,7 +35,7 @@ import {
   // (this file is in its FILES list). Without it the browser can pair a
   // fresh repair-ui.js with a stale cached repair-engine.js — a missing
   // export then kills the whole module graph and the page never boots.
-} from "./repair-engine.js?v=321dad7e904a";
+} from "./repair-engine.js?v=2208e229c57e";
 
 (() => {
   "use strict";
