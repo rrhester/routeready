@@ -111,11 +111,13 @@ async function fetchResendInboundBody(
   text: string | null;
   html: string | null;
   attachments: InboundAttachment[];
+  smtpMessageId: string | null;
 }> {
   const empty = {
     text: null as string | null,
     html: null as string | null,
     attachments: [] as InboundAttachment[],
+    smtpMessageId: null as string | null,
   };
   if (!emailId) return empty;
   const apiKey = Deno.env.get("RESEND_API_KEY");
@@ -136,10 +138,15 @@ async function fetchResendInboundBody(
     // content|url}] }` as well as the slightly older shapes some
     // Resend versions return.
     const attachments = _extractAttachments({ attachments: j.attachments } as InboundPayload, emailId);
+    // RFC 5322 Message-ID (EM#76) — Resend surfaces it as message_id
+    // (or inside headers); replies thread off it via In-Reply-To.
+    const headersObj = (j.headers && typeof j.headers === "object") ? j.headers as Record<string, unknown> : {};
+    const rawMid = j.message_id ?? headersObj["message-id"] ?? headersObj["Message-Id"] ?? headersObj["Message-ID"];
     return {
       text: typeof j.text === "string" && j.text ? j.text : null,
       html: typeof j.html === "string" && j.html ? j.html : null,
       attachments,
+      smtpMessageId: typeof rawMid === "string" && rawMid.includes("@") ? rawMid.trim() : null,
     };
   } catch (e) {
     console.log(`fetchResendInboundBody: ${(e as Error)?.message ?? e}`);
@@ -294,6 +301,13 @@ Deno.serve(async (req) => {
   let bodyText: string | null = typeof data.text === "string" && data.text ? data.text : null;
   let bodyHtml: string | null = typeof data.html === "string" && data.html ? data.html : null;
   let fetchedAttachments: InboundAttachment[] = [];
+  // RFC Message-ID for reply threading (EM#76, 0543) — forwarders often
+  // put the true <…@…> id in messageId/message_id (Resend's email_id is
+  // an API uuid, not an RFC id, so require an "@").
+  let smtpMessageId: string | null = null;
+  for (const v of [data.messageId, data.message_id]) {
+    if (typeof v === "string" && v.includes("@")) { smtpMessageId = v.trim(); break; }
+  }
   const resendEmailId = typeof data.email_id === "string" && data.email_id
     ? data.email_id
     : (typeof data.id === "string" ? data.id : null);
@@ -301,6 +315,7 @@ Deno.serve(async (req) => {
     const fetched = await fetchResendInboundBody(resendEmailId);
     if (!bodyText) bodyText = fetched.text;
     if (!bodyHtml) bodyHtml = fetched.html;
+    if (!smtpMessageId) smtpMessageId = fetched.smtpMessageId;
     fetchedAttachments = fetched.attachments;
   }
   if (!bodyText && bodyHtml) bodyText = htmlToText(bodyHtml);
@@ -445,16 +460,17 @@ Deno.serve(async (req) => {
     provider: "inbound",
     provider_message_id: messageId,
   };
-  // from_name + has_attachments are 0536 columns. The function deploys
-  // ahead of the manually-applied migration, so a failed insert here
-  // MUST retry with the legacy column set — anything else silently
-  // drops inbound mail.
+  // from_name + has_attachments are 0536 columns; smtp_message_id is
+  // 0543. The function deploys ahead of the manually-applied
+  // migrations, so a failed insert here MUST retry with the legacy
+  // column set — anything else silently drops inbound mail.
   let ins = await supa.from("email_messages").insert({
     ...baseRow,
     from_name: _extractSenderName(data.from),
     has_attachments: attachments.length > 0,
+    smtp_message_id: smtpMessageId,
   }).select("id").single();
-  if (ins.error && /from_name|has_attachments/.test(ins.error.message ?? "")) {
+  if (ins.error && /from_name|has_attachments|smtp_message_id/.test(ins.error.message ?? "")) {
     ins = await supa.from("email_messages").insert(baseRow).select("id").single();
   }
   const insertedEmail = ins.data;

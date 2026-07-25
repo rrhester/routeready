@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=d47a842c3bc7";
-import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=d47a842c3bc7";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=d47a842c3bc7";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=d47a842c3bc7";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=d47a842c3bc7";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=d47a842c3bc7";
-import { isChecklistComplete } from "./checklist-core.mjs?v=d47a842c3bc7";
+import { planScheduleWeek } from "./scheduling-engine.js?v=321dad7e904a";
+import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=321dad7e904a";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=321dad7e904a";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=321dad7e904a";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=321dad7e904a";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=321dad7e904a";
+import { isChecklistComplete } from "./checklist-core.mjs?v=321dad7e904a";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=d47a842c3bc7";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=d47a842c3bc7";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=d47a842c3bc7";
+} from "./msg-core.mjs?v=321dad7e904a";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=321dad7e904a";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=321dad7e904a";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -96799,7 +96799,7 @@ document.addEventListener("click", (e) => {
       : (st === "queued" || st === "sending")
       ? `<span class="em-msg-status em-msg-status-pending">${st === "queued" ? "Queued" : "Sending…"}</span>`
       : (st === "failed")
-        ? `<span class="em-msg-status em-msg-status-failed">Failed</span>`
+        ? `<span class="em-msg-status em-msg-status-failed"${m.error_message ? ` title="${escapeHtmlLocal(m.error_message)}"` : ""}>${/bounce/i.test(m.error_message || "") ? "Bounced" : "Failed"}</span>`
         : (st === "draft")
           ? `<span class="em-msg-status em-msg-status-pending">Draft</span>`
           : "";
@@ -97953,6 +97953,13 @@ document.addEventListener("click", (e) => {
     return `\n\nOn ${when}, ${from} wrote:\n${quoted}`;
   }
 
+  // Subject prefix hygiene (EM#77) · "Re: Re: Fwd: quote" chains
+  // collapse to one prefix on compose instead of growing unbounded.
+  function _emPrefixSubject(prefix, s) {
+    const bare = String(s || "").replace(/^(\s*(re|fwd?|fw)\s*:\s*)+/i, "").trim();
+    return bare ? prefix + " " + bare : "";
+  }
+
   function openComposer({ mode = "new", original = null, to: toPrefill = "", subject: subjectPrefill = "", html: htmlPrefill = "", onCancel = null, applicantId = null, templateId = null, onSent = null, draft = null } = {}) {
     closeComposer();
     composerOnCancel = (typeof onCancel === "function") ? onCancel : null;
@@ -97988,8 +97995,9 @@ document.addEventListener("click", (e) => {
         ? (original.to_email || "")
         : (original.from_email || "");
       const s = original.subject || "";
-      subject = s ? (/^re:/i.test(s) ? s : "Re: " + s) : "";
+      subject = _emPrefixSubject("Re:", s);
       body = quoteOriginal(original);
+      composerReplyToId = original.id || null;
       // Reply All (EM#48): carry the original Cc AND any other To
       // recipients into Cc, minus the reply target and our own team
       // address, so the whole conversation stays on the thread.
@@ -98012,8 +98020,7 @@ document.addEventListener("click", (e) => {
         cc = ccList.join(", ");
       }
     } else if (mode === "forward" && original) {
-      const s = original.subject || "";
-      subject = s ? (/^fwd?:/i.test(s) ? s : "Fwd: " + s) : "";
+      subject = _emPrefixSubject("Fwd:", original.subject || "");
       body = quoteOriginal(original);
     }
     // Caller-supplied prefill (e.g. opening from the calendar with the
@@ -98632,6 +98639,9 @@ document.addEventListener("click", (e) => {
   let composerApplicantId = null;
   let composerTemplateId  = null;
   let composerOnSent      = null;
+  // Reply-target row id (EM#76, 0543) · rides the queued row as
+  // in_reply_to_id so send-email can thread via In-Reply-To/References.
+  let composerReplyToId   = null;
 
   // ── Recipient chips (EM#43/44) ──────────────────────────────────
   let _emRecips = { to: [], cc: [], bcc: [] };
@@ -98944,6 +98954,71 @@ document.addEventListener("click", (e) => {
     });
     document.body.appendChild(wrap);
   }
+  // ── Delivery status (EM#78) ─────────────────────────────────────
+  // Quiet visibility into the send pipeline: how many outbound rows
+  // are waiting/failed, and which look stuck. The 0504 requeue cron
+  // re-drains stuck 'sending' rows; this shows the operator that state
+  // instead of leaving "why didn't the vendor answer?" a mystery.
+  async function _emOpenDeliveryHealth() {
+    const old = document.getElementById("rr-em-delivery");
+    if (old) old.remove();
+    const wrap = document.createElement("div");
+    wrap.id = "rr-em-delivery";
+    wrap.className = "em-docpick";
+    wrap.innerHTML = `<div class="em-docpick-card" role="dialog" aria-modal="true" aria-label="Delivery status">
+      <div class="em-docpick-head"><span>Delivery status</span>
+        <button type="button" class="em-addr-x" data-em-delivery-close aria-label="Close">×</button></div>
+      <div class="em-docpick-list" id="rr-em-delivery-body"><div class="em-docpick-empty">Loading…</div></div>
+    </div>`;
+    wrap.addEventListener("click", (e) => {
+      if (e.target === wrap || e.target.closest("[data-em-delivery-close]")) wrap.remove();
+    });
+    document.body.appendChild(wrap);
+    const bodyEl = wrap.querySelector("#rr-em-delivery-body");
+    const since = new Date(Date.now() - 7 * 86400000).toISOString();
+    const sel = "id, to_email, subject, status, error_message, send_after, created_at";
+    const [qRes, sRes, fRes] = await Promise.all([
+      sb.from("email_messages").select(sel).eq("direction", "outbound").eq("status", "queued").order("created_at", { ascending: true }).limit(50),
+      sb.from("email_messages").select(sel).eq("direction", "outbound").eq("status", "sending").order("created_at", { ascending: true }).limit(50),
+      sb.from("email_messages").select(sel).eq("direction", "outbound").eq("status", "failed").gte("created_at", since).order("created_at", { ascending: false }).limit(20),
+    ]);
+    if (!bodyEl || !document.getElementById("rr-em-delivery")) return;
+    const err = qRes.error || sRes.error || fRes.error;
+    if (err) {
+      bodyEl.innerHTML = `<div class="em-docpick-empty">Couldn't load: ${escapeHtmlLocal(err.message || "")}</div>`;
+      return;
+    }
+    const now = Date.now();
+    const scheduled = (qRes.data || []).filter(r => r.send_after && new Date(r.send_after).getTime() > now);
+    const waiting = (qRes.data || []).filter(r => !scheduled.includes(r));
+    // Queued rows older than 15 min (and not scheduled) or any aged
+    // 'sending' row = stuck; the requeue cron will re-drain them, but
+    // the operator deserves to see it happening.
+    const stuck = [
+      ...waiting.filter(r => now - new Date(r.created_at).getTime() > 15 * 60000),
+      ...(sRes.data || []).filter(r => now - new Date(r.created_at).getTime() > 15 * 60000),
+    ];
+    const failed = fRes.data || [];
+    const line = (r) => `<div class="em-docpick-row em-rule-line">
+      <span class="em-docpick-name">${escapeHtmlLocal(r.subject || "(no subject)")} · to ${escapeHtmlLocal(r.to_email || "?")}${r.error_message ? ` — ${escapeHtmlLocal(String(r.error_message).slice(0, 120))}` : ""}</span>
+      <span class="em-docpick-meta">${escapeHtmlLocal(new Date(r.created_at).toLocaleString())}</span>
+    </div>`;
+    const parts = [];
+    parts.push(`<div class="em-docpick-empty">Waiting to send: <strong>${waiting.length}</strong>${scheduled.length ? ` · scheduled for later: <strong>${scheduled.length}</strong>` : ""} · sending now: <strong>${(sRes.data || []).length}</strong> · failed (7 days): <strong>${failed.length}</strong></div>`);
+    if (stuck.length) {
+      parts.push(`<div class="em-read-move-label">Looks stuck (over 15 min) — delivery retries automatically</div>`);
+      parts.push(stuck.slice(0, 10).map(line).join(""));
+    }
+    if (failed.length) {
+      parts.push(`<div class="em-read-move-label">Failed — open the message and use Retry after fixing the address</div>`);
+      parts.push(failed.map(line).join(""));
+    }
+    if (!stuck.length && !failed.length) {
+      parts.push(`<div class="em-docpick-empty">All clear — nothing stuck, nothing failed this week.</div>`);
+    }
+    bodyEl.innerHTML = parts.join("");
+  }
+
   async function _emOpenRulesList() {
     const old = document.getElementById("rr-em-rules");
     if (old) old.remove();
@@ -99306,6 +99381,7 @@ document.addEventListener("click", (e) => {
     composerApplicantId = null;
     composerTemplateId  = null;
     composerOnSent      = null;
+    composerReplyToId   = null;
   }
 
   // In-flight guard (EM#5) · the bottom Send button disables itself but
@@ -99361,6 +99437,10 @@ document.addEventListener("click", (e) => {
     if (bcc.length > 0) insertRow.bcc_emails = bcc;
     if (_emImportant) insertRow.importance = "high";
     if (_emSendAfter) insertRow.send_after = _emSendAfter;
+    // Thread pointer (EM#76, 0543) · send-email resolves the original's
+    // RFC Message-ID into In-Reply-To/References; writeRow drops the
+    // column pre-migration.
+    if (composerReplyToId) insertRow.in_reply_to_id = composerReplyToId;
     // Applicant-facing emails (screening / booking invites composed from the
     // funnel) carry the applicant + template so they thread correctly.
     if (composerApplicantId) insertRow.applicant_id = composerApplicantId;
@@ -99381,19 +99461,29 @@ document.addEventListener("click", (e) => {
       // never fails the send over an unknown column.
       if (_srvMetaState === true) insertRow.has_attachments = true;
     }
-    // Shared writer with the importance fallback: pre-0538 the column
-    // errors → retry once with the legacy ❗ subject prefix so the
-    // intent still ships.
+    // Shared writer with migration-lag fallbacks, applied one at a
+    // time as the server reports each unknown column: pre-0543 drops
+    // the thread pointer (headerless reply — today's behavior), and
+    // pre-0538 swaps importance for the legacy ❗ subject prefix so
+    // the intent still ships.
     const writeRow = async (fields, rowId) => {
-      let res = rowId
-        ? await sb.from("email_messages").update(fields).eq("id", rowId)
-        : await sb.from("email_messages").insert(fields).select("id").maybeSingle();
-      if (res.error && fields.importance && /importance/.test(res.error.message || "")) {
-        const f2 = { ...fields, subject: /^❗/.test(fields.subject) ? fields.subject : "❗ " + fields.subject };
-        delete f2.importance;
-        res = rowId
-          ? await sb.from("email_messages").update(f2).eq("id", rowId)
-          : await sb.from("email_messages").insert(f2).select("id").maybeSingle();
+      const attempt = (f) => rowId
+        ? sb.from("email_messages").update(f).eq("id", rowId)
+        : sb.from("email_messages").insert(f).select("id").maybeSingle();
+      let f = fields;
+      let res = await attempt(f);
+      for (let guard = 0; guard < 2 && res.error; guard++) {
+        const msg = res.error.message || "";
+        if (f.in_reply_to_id && /in_reply_to_id/.test(msg)) {
+          f = { ...f };
+          delete f.in_reply_to_id;
+        } else if (f.importance && /importance/.test(msg)) {
+          f = { ...f, subject: /^❗/.test(f.subject) ? f.subject : "❗ " + f.subject };
+          delete f.importance;
+        } else {
+          break;
+        }
+        res = await attempt(f);
       }
       return res;
     };
@@ -99841,6 +99931,7 @@ document.addEventListener("click", (e) => {
     if (cmd === "mark-all-read") { markAllRead(); return; }
     if (cmd === "empty-trash") { _emShowEmptyTrashBar(); return; }
     if (cmd === "rules") { _emOpenRulesList(); return; }
+    if (cmd === "delivery") { _emOpenDeliveryHealth(); return; }
     if (cmd === "toggle-density") {
       try {
         const on = localStorage.getItem(DENSITY_KEY) === "compact";

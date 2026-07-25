@@ -14,7 +14,29 @@ Email-redesign merge #4113). Impact tags: **[high]** = operators lose
 mail, reply to the wrong person, or read wrong state; **[med]** = worth
 scheduling; **[low]** = polish.
 
-**STATUS (2026-07-25): Sections A–G (EM#1–72) + EM#74 SHIPPED.**
+**STATUS (2026-07-25): Sections A–H (EM#1–78) SHIPPED.**
+Section H notes (**migration 0543**): EM#76 replies now thread in the
+VENDOR's mail client — webhook-email-inbound captures the inbound RFC
+Message-ID (`smtp_message_id`; payload messageId/message_id when it
+contains "@", else Resend's API message_id/headers), the composer
+stamps `in_reply_to_id` on reply/reply-all sends, and send-email
+resolves it into In-Reply-To/References headers. Every layer degrades
+pre-0543 (writeRow strips the column on the reported error — a
+sequential fallback loop shared with the pre-0538 importance ❗ swap;
+send-email's lookup errors → headerless; webhook insert retries
+without the column). Replies to your own outbound mail carry the
+pointer but no headers (Resend doesn't return outbound RFC ids).
+EM#77 `_emPrefixSubject` collapses Re:/Fwd:/FW: chains to one prefix
+on compose. EM#73: failed pills read "Bounced" when the error mentions
+a bounce, with the stored reason as the tooltip (pairs with the EM#69
+Failed scope). EM#78 "Delivery status…" (⋮ menu) shows waiting/
+scheduled/sending/failed-7d counts, flags queued/sending rows older
+than 15 min as stuck (the 0504 requeue cron re-drains them), and lists
+failures with reasons. EM#75 verified, no change needed:
+repair_email_event_apply (0490) already stamps EVERY outbound row
+matched by provider_message_id (delivered → status+delivered_at;
+bounced/complained/failed → status failed + error_code/message) — the
+repair-table flips are additive.
 Section G notes (**migration 0541**): EM#67 all-mail search is the
 `email_search` RPC (subject/body_text/addresses/from_name ILIKE,
 drafts excluded, capped 200) — the toolbar search stays the instant
