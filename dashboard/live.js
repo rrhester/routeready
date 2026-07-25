@@ -96573,9 +96573,13 @@ document.addEventListener("click", (e) => {
     };
     const builtins = (childrenByParent.get(null) || []).filter(f => f.kind !== "custom");
     const customTops = (childrenByParent.get(null) || []).filter(f => f.kind === "custom");
+    // Tree semantics (EM#89) — the host is the tree; section captions
+    // are presentational.
+    host.setAttribute("role", "tree");
+    host.setAttribute("aria-label", "Mail folders");
     let html = "";
     if (builtins.length) {
-      html += `<div class="em-folder-section">System</div>`;
+      html += `<div class="em-folder-section" role="presentation">System</div>`;
       for (const f of builtins) {
         if (_seenFolders.has(f.id)) continue;
         _seenFolders.add(f.id); // mark tops so a child can't loop back to them
@@ -96584,7 +96588,7 @@ document.addEventListener("click", (e) => {
       }
     }
     if (customTops.length) {
-      html += `<div class="em-folder-section">My folders</div>`;
+      html += `<div class="em-folder-section" role="presentation">My folders</div>`;
       for (const f of customTops) {
         if (_seenFolders.has(f.id)) continue;
         _seenFolders.add(f.id);
@@ -96620,14 +96624,19 @@ document.addEventListener("click", (e) => {
     const newCount = state.folderCounts[f.id] || 0;
     const countDisplay = newCount > 0 ? (newCount > 99 ? "99+" : String(newCount)) : "";
     const indent = depth > 0 ? ` style="padding-left:${10 + depth * 14}px"` : "";
-    return `<button type="button" class="em-folder${isActive ? " active" : ""}${isDocs ? " em-folder-docs" : ""}" data-em-folder="${escapeHtmlLocal(f.id)}" aria-pressed="${isActive ? "true" : "false"}"${indent}>
+    // Row = a non-interactive-element container (EM#87) — buttons can't
+    // legally nest interactive content, and the hover controls are REAL
+    // buttons now (EM#88). role=treeitem + aria-level/-selected give
+    // the pane tree semantics (EM#89); Enter/Space activation rides the
+    // shared email keydown listener.
+    return `<div class="em-folder${isActive ? " active" : ""}${isDocs ? " em-folder-docs" : ""}" data-em-folder="${escapeHtmlLocal(f.id)}" role="treeitem" tabindex="0" aria-level="${depth + 1}" aria-selected="${isActive ? "true" : "false"}"${indent}>
       ${iconFor(f.kind)}
       <span class="em-folder-name">${escapeHtmlLocal(f.name)}</span>
       <span class="em-folder-count${newCount > 0 ? " has-new" : ""}" aria-hidden="true">${countDisplay}</span>
-      ${isVirtualFolderId(f.id) ? "" : `<span class="em-folder-add" role="button" tabindex="0" data-em-folder-add-child="${escapeHtmlLocal(f.id)}" aria-label="Add subfolder" title="Add subfolder"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>`}
-      ${isCustom ? `<span class="em-folder-up" role="button" tabindex="0" data-em-folder-move="${escapeHtmlLocal(f.id)}:-1" aria-label="Move up" title="Move up"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 14 12 8 18 14"/></svg></span><span class="em-folder-down" role="button" tabindex="0" data-em-folder-move="${escapeHtmlLocal(f.id)}:1" aria-label="Move down" title="Move down"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 10 12 16 18 10"/></svg></span><span class="em-folder-ren" role="button" tabindex="0" data-em-folder-rename="${escapeHtmlLocal(f.id)}" aria-label="Rename folder" title="Rename folder"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></span>` : ""}
-      ${isCustom ? `<span class="em-folder-delete" role="button" tabindex="0" data-em-folder-delete="${escapeHtmlLocal(f.id)}" aria-label="Delete folder" title="Delete folder"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>` : ""}
-    </button>`;
+      ${isVirtualFolderId(f.id) ? "" : `<button type="button" class="em-folder-add" data-em-folder-add-child="${escapeHtmlLocal(f.id)}" aria-label="Add subfolder" title="Add subfolder"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>`}
+      ${isCustom ? `<button type="button" class="em-folder-up" data-em-folder-move="${escapeHtmlLocal(f.id)}:-1" aria-label="Move up" title="Move up"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 14 12 8 18 14"/></svg></button><button type="button" class="em-folder-down" data-em-folder-move="${escapeHtmlLocal(f.id)}:1" aria-label="Move down" title="Move down"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 10 12 16 18 10"/></svg></button><button type="button" class="em-folder-ren" data-em-folder-rename="${escapeHtmlLocal(f.id)}" aria-label="Rename folder" title="Rename folder"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>` : ""}
+      ${isCustom ? `<button type="button" class="em-folder-delete" data-em-folder-delete="${escapeHtmlLocal(f.id)}" aria-label="Delete folder" title="Delete folder"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>` : ""}
+    </div>`;
   }
 
   function renderHeader() {
@@ -96921,10 +96930,13 @@ document.addEventListener("click", (e) => {
       seen.get(b.key).messages.push(m);
     }
 
-    const groupsHtml = groups.map(g => {
+    // List semantics (EM#89) · the rows form a listbox; each date
+    // bucket is a labelled group (option groups are valid listbox
+    // children) with the rows in its body.
+    const groupsHtml = `<div class="em-msg-list" role="listbox" aria-label="Messages">` + groups.map(g => {
       const collapsed = state.collapsedGroups.has(g.key);
       const body = collapsed ? "" : g.messages.map(messageRowHtml).join("");
-      return `<div class="em-msg-group${collapsed ? " collapsed" : ""}">
+      return `<div class="em-msg-group${collapsed ? " collapsed" : ""}" role="group" aria-label="${escapeHtmlLocal(g.label)}">
         <button type="button" class="em-msg-group-header" data-em-group-toggle="${escapeHtmlLocal(g.key)}" aria-expanded="${!collapsed}">
           <svg class="em-msg-group-chevron" viewBox="0 0 16 16" width="11" height="11" fill="currentColor" aria-hidden="true"><path d="M5 4l5 4-5 4z"/></svg>
           <span class="em-msg-group-label">${escapeHtmlLocal(g.label)}</span>
@@ -96932,7 +96944,7 @@ document.addEventListener("click", (e) => {
         </button>
         <div class="em-msg-group-body">${body}</div>
       </div>`;
-    }).join("");
+    }).join("") + `</div>`;
 
     // "Load 200 more" tail (EM#21) · shown when the folder holds more
     // than the loaded pages; hidden while searching (the search covers
@@ -96999,7 +97011,7 @@ document.addEventListener("click", (e) => {
     // renders.
     const isStarred = m.is_starred === true;
     const starHtml = _srvMetaState === true
-      ? `<span class="em-msg-star${isStarred ? " starred" : ""}" role="button" tabindex="-1" data-em-msg-star="${escapeHtmlLocal(m.id)}" aria-label="${isStarred ? "Unstar" : "Star"} message" title="${isStarred ? "Unstar" : "Star"}"><svg viewBox="0 0 24 24" width="13" height="13" fill="${isStarred ? "currentColor" : "none"}" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span>`
+      ? `<button type="button" class="em-msg-star${isStarred ? " starred" : ""}" tabindex="-1" aria-pressed="${isStarred}" data-em-msg-star="${escapeHtmlLocal(m.id)}" aria-label="${isStarred ? "Unstar" : "Star"} message" title="${isStarred ? "Unstar" : "Star"}"><svg viewBox="0 0 24 24" width="13" height="13" fill="${isStarred ? "currentColor" : "none"}" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button>`
       : "";
     const clipHtml = m.has_attachments === true
       ? `<span class="em-msg-clip" aria-label="Has attachments" title="Has attachments"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></span>`
@@ -97007,9 +97019,17 @@ document.addEventListener("click", (e) => {
     const snoozeChip = (m.snoozed_until && new Date(m.snoozed_until).getTime() > Date.now())
       ? `<span class="em-msg-snooze-chip" title="Snoozed until ${escapeHtmlLocal(new Date(m.snoozed_until).toLocaleString())}">until ${escapeHtmlLocal(new Date(m.snoozed_until).toLocaleDateString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" }))}</span>`
       : "";
-    return `<button type="button" class="em-msg-row${isActive ? " active" : ""}${isUnread ? " unread" : ""}${isChecked ? " selected" : ""}" data-em-msg="${escapeHtmlLocal(m.id)}" draggable="true">
+    // Row = a div option, not a <button> (EM#87) — nested interactive
+    // content is invalid HTML and read unpredictably. The inner
+    // check/star/trash controls are REAL buttons (EM#88), kept out of
+    // the tab order (tabindex -1): the row is the tab stop, the list
+    // keys (E/Delete/U/…) are the keyboard path, and ATs can still
+    // activate them directly. Unread gets spoken text, not just bold
+    // (EM#89).
+    return `<div class="em-msg-row${isActive ? " active" : ""}${isUnread ? " unread" : ""}${isChecked ? " selected" : ""}" data-em-msg="${escapeHtmlLocal(m.id)}" role="option" tabindex="0" aria-selected="${isActive ? "true" : "false"}" draggable="true">
       <div class="em-msg-row-line1">
-        <span class="em-msg-check${isChecked ? " checked" : ""}" role="checkbox" aria-checked="${isChecked}" tabindex="-1" data-em-msg-check="${escapeHtmlLocal(m.id)}" aria-label="Select message" title="Select (Shift-click for a range)">${isChecked ? `<svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 8.5 6.5 12 13 4"/></svg>` : ""}</span>
+        ${isUnread ? `<span class="rr-visually-hidden">Unread.</span>` : ""}
+        <button type="button" class="em-msg-check${isChecked ? " checked" : ""}" aria-pressed="${isChecked}" tabindex="-1" data-em-msg-check="${escapeHtmlLocal(m.id)}" aria-label="Select message" title="Select (Shift-click for a range)">${isChecked ? `<svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 8.5 6.5 12 13 4"/></svg>` : ""}</button>
         ${starHtml}
         <span class="em-msg-who"${whoTitle ? ` title="${escapeHtmlLocal(whoTitle)}"` : ""}>${escapeHtmlLocal(who)}</span>
         ${clipHtml}
@@ -97019,8 +97039,8 @@ document.addEventListener("click", (e) => {
       </div>
       <div class="em-msg-subject">${_emHi(subject)}</div>
       ${snippet ? `<div class="em-msg-snippet">${_emHi(snippet)}</div>` : ""}
-      <span class="em-msg-delete" role="button" tabindex="-1" data-em-msg-delete="${escapeHtmlLocal(m.id)}" aria-label="Move to trash" title="Move to trash" draggable="false"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg></span>
-    </button>`;
+      <button type="button" class="em-msg-delete" tabindex="-1" data-em-msg-delete="${escapeHtmlLocal(m.id)}" aria-label="Move to trash" title="Move to trash" draggable="false"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg></button>
+    </div>`;
   }
 
   function formatRelative(d) {
@@ -97927,10 +97947,14 @@ document.addEventListener("click", (e) => {
       </div>
       <button type="button" class="em-popout-ibtn em-popout-ibtn-close" data-rr-popout-close title="Close" aria-label="Close"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>`;
+    _emPopoutFocusReturn = document.activeElement; // restore on close (EM#90)
     const el = document.createElement("div");
     el.id = "rr-em-popout";
     el.dataset.msgId = m.id;
     el.tabIndex = -1;
+    el.setAttribute("role", "dialog");
+    el.setAttribute("aria-modal", "true");
+    el.setAttribute("aria-label", m.subject || "Message");
     el.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
     el.innerHTML = `
       <div class="em-popout-card">
@@ -97953,7 +97977,42 @@ document.addEventListener("click", (e) => {
   function closeMessagePopout() {
     const el = document.getElementById("rr-em-popout");
     if (el) el.remove();
+    if (_emPopoutFocusReturn) {
+      try { if (document.contains(_emPopoutFocusReturn)) _emPopoutFocusReturn.focus(); } catch (_) {}
+      _emPopoutFocusReturn = null;
+    }
   }
+
+  // ── Focus management for the email overlays (EM#90) ─────────────
+  // The composer/popout/docpick layers sit above the page visually but
+  // Tab used to walk straight into the content underneath. One
+  // document-level trap covers them all: Tab wraps inside the TOPMOST
+  // open overlay, and each overlay restores focus to its invoker on
+  // close. (The app's openModal already does this — these overlays
+  // bypass it.)
+  let _emFocusReturn = null;       // composer invoker
+  let _emPopoutFocusReturn = null; // popout invoker
+  function _emTopOverlay() {
+    // docpick modals (rules/delivery/signature/doc picker) render above
+    // the composer, so they win.
+    return document.querySelector(".em-docpick")
+      || document.getElementById("rr-em-composer")
+      || document.getElementById("rr-em-popout");
+  }
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Tab") return;
+    const ov = _emTopOverlay();
+    if (!ov) return;
+    const focusables = [...ov.querySelectorAll(
+      'button, [href], input, select, textarea, [contenteditable="true"], [tabindex]:not([tabindex="-1"])'
+    )].filter(el => !el.disabled && el.offsetParent !== null);
+    if (!focusables.length) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (!ov.contains(document.activeElement)) { e.preventDefault(); first.focus(); return; }
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
 
   // Friendly duplicate-name guard (EM#62) · the DB's dsp-wide unique
   // index stays as the backstop; this catches it before the raw
@@ -98221,8 +98280,12 @@ document.addEventListener("click", (e) => {
     if (htmlPrefill) body = htmlPrefill;
     const titles = { "new": "New email", "reply": "Reply", "reply-all": "Reply all", "forward": "Forward", "draft": "Draft" };
     const draftKey = _emDraftKey;
+    _emFocusReturn = document.activeElement; // restore on close (EM#90)
     const m = document.createElement("div");
     m.id = "rr-em-composer";
+    m.setAttribute("role", "dialog");
+    m.setAttribute("aria-modal", "true");
+    m.setAttribute("aria-label", titles[mode] || "New email");
     m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
     const FONTS = ["Calibri","Arial","Helvetica","Times New Roman","Georgia","Verdana","Tahoma","Trebuchet MS","Courier New","Cambria"];
     const fontOpts = FONTS.map(f => `<option value="${f}" style="font-family:'${f}'">${f}</option>`).join("");
@@ -99551,6 +99614,10 @@ document.addEventListener("click", (e) => {
         try { _emSaveDraftRow(true); } catch (_) {}
       }
       m.remove();
+      if (_emFocusReturn) {
+        try { if (document.contains(_emFocusReturn)) _emFocusReturn.focus(); } catch (_) {}
+        _emFocusReturn = null;
+      }
     }
     _emAcClose();
     if (!_composerAttachmentsSent) {
@@ -99766,6 +99833,24 @@ document.addEventListener("click", (e) => {
   // and the way back from a mis-click. One slot; a new move replaces
   // the previous undo.
   let _emUndo = null;
+  // Non-visual confirmation (EM#91) · toasts are suppressed and drag
+  // is mouse-only, so moves/archives/deletes speak through a polite
+  // live region. Clear-then-set so repeating the same action
+  // re-announces.
+  function _emAnnounce(msg) {
+    let el = document.getElementById("rr-em-sr-status");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "rr-em-sr-status";
+      el.className = "rr-visually-hidden";
+      el.setAttribute("role", "status");
+      el.setAttribute("aria-live", "polite");
+      document.body.appendChild(el);
+    }
+    el.textContent = "";
+    setTimeout(() => { el.textContent = msg; }, 30);
+  }
+
   function recordUndo(ids, label, undoPatch) {
     if (!ids || !ids.length || !undoPatch) return;
     if (_emUndo && _emUndo.timer) clearTimeout(_emUndo.timer);
@@ -99773,6 +99858,7 @@ document.addEventListener("click", (e) => {
       ids: ids.slice(), undoPatch, label,
       timer: setTimeout(() => { _emUndo = null; renderUndoBar(); }, 8000),
     };
+    _emAnnounce(label); // every move/snooze/bulk funnels through here
     renderUndoBar();
   }
   function renderUndoBar() {
@@ -99799,6 +99885,7 @@ document.addEventListener("click", (e) => {
       if (typeof toast === "function") toast("Undo failed: " + err.message, "warn");
       return;
     }
+    _emAnnounce("Move undone");
     await loadMessages();
     renderInbox();
     renderPreview();
@@ -99872,6 +99959,8 @@ document.addEventListener("click", (e) => {
     // real folders, so a single restore target doesn't exist.
     if (!isVirtualFolderId(from)) {
       recordUndo(ids, `Moved ${ids.length === 1 ? "1 message" : `${ids.length} messages`} to ${folderName}`, { folder_id: from });
+    } else {
+      _emAnnounce(`Moved ${ids.length === 1 ? "1 message" : `${ids.length} messages`} to ${folderName}`);
     }
     await loadMessages();
     renderInbox();
@@ -99915,6 +100004,8 @@ document.addEventListener("click", (e) => {
     }
     if (!isVirtualFolderId(fromFolderId)) {
       recordUndo([messageId], `Moved to ${target.name}`, { folder_id: fromFolderId });
+    } else {
+      _emAnnounce(`Moved to ${target.name}`);
     }
     // If the moved message was selected, clear the preview (it's no
     // longer in the current folder view).
@@ -99949,6 +100040,8 @@ document.addEventListener("click", (e) => {
     }
     if (!isVirtualFolderId(fromFolderId)) {
       recordUndo([movedId], `Moved to ${target.name}`, { folder_id: fromFolderId });
+    } else {
+      _emAnnounce(`Moved to ${target.name}`);
     }
     state.activeMessageId = null;
     await loadMessages();
@@ -100930,6 +101023,16 @@ document.addEventListener("click", (e) => {
     if (document.getElementById("rr-em-composer") || document.getElementById("rr-em-popout")) return;
     const ae = document.activeElement;
     if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.tagName === "SELECT" || ae.isContentEditable)) return;
+    // Enter/Space activates a FOCUSED row div (EM#88) — folder and
+    // message rows are containers now, not buttons, so activation is
+    // ours to provide. Runs before the Enter-opens-popout branch so
+    // the focused row wins over the last-selected message.
+    if ((e.key === "Enter" || e.key === " ") && ae && ae.matches
+        && ae.matches("[data-em-folder], [data-em-msg]")) {
+      e.preventDefault();
+      ae.click();
+      return;
+    }
     if (state.activeFolderId === DOCS_FOLDER_ID) return;
     if (e.key === "/") {
       // `/` focuses search (EM#71) — Gmail muscle memory.

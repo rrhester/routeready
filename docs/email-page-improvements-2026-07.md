@@ -14,7 +14,30 @@ Email-redesign merge #4113). Impact tags: **[high]** = operators lose
 mail, reply to the wrong person, or read wrong state; **[med]** = worth
 scheduling; **[low]** = polish.
 
-**STATUS (2026-07-25): Sections A–I (EM#1–86) SHIPPED.**
+**STATUS (2026-07-25): Sections A–J (EM#1–92) SHIPPED. Migration chain
+0535–0544 APPLIED by the operator 2026-07-25 (confirmed in chat) — all
+capability-gated email features are fully live.**
+Section J notes (no migration): EM#87/88 folder + message rows are
+DIVs now (role=treeitem / role=option, tabindex 0) with REAL buttons
+inside — never re-nest interactive content in a <button>; the CSS
+classes already carried button-reset styling so the swap is visually
+free. Folder hover controls also reveal on :focus-within (display:none
+is untabbable) and are naturally tabbable; message-row controls stay
+tabindex=-1 (the row is the tab stop, list keys are the keyboard
+path, ATs can still activate). Enter/Space activation for focused rows
+lives at the TOP of the shared email keydown listener (before the
+Enter-opens-popout branch, so the focused row wins). EM#89: list =
+role=listbox with per-date role=group wrappers, aria-selected tracks
+the open message, unread gets a .rr-visually-hidden "Unread." span;
+folder pane = role=tree + aria-level. EM#90: one document-level Tab
+trap covers the TOPMOST email overlay (.em-docpick → composer →
+popout); composer/popout carry role=dialog aria-modal and restore
+focus to their invoker on close. EM#91: _emAnnounce() polite live
+region; recordUndo announces every move/snooze/bulk label, plus
+explicit announces on the virtual-source no-undo branches and "Move
+undone". EM#92 needed NO new rules — the app-wide reduced-motion kill
+(inline-styles.css ~466, *{…!important}) already covers the email
+view; verified in QA and documented at the would-be rule site.
 Section I notes (**migration 0544**): EM#79 unmatched inbound (typo'd
 team address) + EM#81 rate-limited overflow (>30/sender/DSP/hour;
 redeliveries of known ids still dedup) land in `email_dead_letters`
