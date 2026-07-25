@@ -1,5 +1,5 @@
 // Tests for dashboard/fleet-pm-core.mjs — the PM due engine. The same
-// logic lives in SQL (fleet_pm_board, migration 0537); these cases pin
+// logic lives in SQL (fleet_pm_board, migration 0539); these cases pin
 // the JS half of that contract.
 import assert from "node:assert/strict";
 import { pmDueState, worstPmStatus, addMonthsIso, diffDaysIso } from "../dashboard/fleet-pm-core.mjs";

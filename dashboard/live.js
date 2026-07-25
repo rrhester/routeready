@@ -86934,7 +86934,7 @@ function _flOpenOpStatMenu(triggerBtn) {
       return;
     }
     // Returning to service: capture an optional note (stamped onto the
-    // closing grounding event by 0537's unground_note; harmless before).
+    // closing grounding event by 0539's unground_note; harmless before).
     _fdFormModal({
       title: "Return to service",
       sub: name ? `${name} goes back on the road.` : undefined,
@@ -87041,7 +87041,7 @@ function _flOpenGroundingModal(vehicleId, vehicleName, opts) {
     btn.disabled = true;
     try {
       const args = { p_id: vehicleId, p_status: "grounded", p_reason: note, p_category: picked };
-      // Expected-return rides the 0537 signature; pre-migration the extra
+      // Expected-return rides the 0539 signature; pre-migration the extra
       // param 404s (PGRST202) → retry without it.
       let { error } = await sb.rpc("vehicle_set_operational_status",
         expectedBack ? { ...args, p_expected_return_on: expectedBack } : args);
@@ -87130,9 +87130,9 @@ function _flVanTypeLabel(t) {
 
 // ═════════════════════════════════════════════════════════════════════
 // FLEET → MAINTENANCE — the preventive-maintenance board.
-// fleet_pm_board (migration 0537) computes due/overdue per van × rule
+// fleet_pm_board (migration 0539) computes due/overdue per van × rule
 // (mileage and/or calendar intervals); this renders it, logs
-// completions, and manages the rule program. Pre-0537 every RPC 404s
+// completions, and manages the rule program. Pre-0539 every RPC 404s
 // and the tab shows a setup notice instead of breaking.
 // ═════════════════════════════════════════════════════════════════════
 
@@ -87161,7 +87161,7 @@ async function _flLoadPmBoard() {
     const { data, error } = await sb.rpc("fleet_pm_board", _stnId ? { p_station_id: _stnId } : {});
     if (error) {
       if (error.code === "PGRST202" || /could not find the function/i.test(error.message || "")) {
-        host.innerHTML = `<div class="fl-pm-empty"><h3>Preventive maintenance isn't set up yet</h3><p>Apply migration <strong>0537</strong> in Supabase → SQL editor, then reload. The board tracks every van against your service program — oil, tires, brakes, DOT — by miles and calendar time.</p></div>`;
+        host.innerHTML = `<div class="fl-pm-empty"><h3>Preventive maintenance isn't set up yet</h3><p>Apply migration <strong>0539</strong> in Supabase → SQL editor, then reload. The board tracks every van against your service program — oil, tires, brakes, DOT — by miles and calendar time.</p></div>`;
       } else {
         host.innerHTML = `<div class="fl-pm-empty"><h3>Couldn't load the maintenance board</h3><p>${escapeHtml(error.message || "Try again")}</p></div>`;
       }
@@ -87186,7 +87186,7 @@ function _flPmIndexWorst() {
 
 // Best-effort PM status for the roster identity chips: reuse a recent
 // board payload or fetch one quietly. Never blocks the roster; a 404
-// (pre-0537) just means no chips.
+// (pre-0539) just means no chips.
 async function _flEnsurePmStatus() {
   if (_flPmFetchedAt && Date.now() - _flPmFetchedAt < 5 * 60 * 1000) return;
   try {
@@ -87608,7 +87608,7 @@ async function _flLoadRoster() {
   _flPaintTabCounts();
   _flRenderUngroundAlerts();
   // PM chips paint on the identity cell when the board lands (cached 5
-  // min; silent no-op pre-0537). Deliberately not awaited.
+  // min; silent no-op pre-0539). Deliberately not awaited.
   _flEnsurePmStatus();
 }
 
@@ -87646,8 +87646,8 @@ async function _flLoadExecSummary() {
   if (_fleetExecLoading) return;
   _fleetExecLoading = true;
   try {
-    // Master station lens: 0537's fleet_execution_summary(p_station_id)
-    // scopes FEM/VORR to one station's vans. Pre-0537 the arg'd call
+    // Master station lens: 0539's fleet_execution_summary(p_station_id)
+    // scopes FEM/VORR to one station's vans. Pre-0539 the arg'd call
     // 404s → retry no-arg so the strip still paints (DSP-wide).
     const _stnId = (typeof rrStationScopeId === "function") ? rrStationScopeId() : null;
     let { data, error } = await sb.rpc("fleet_execution_summary", _stnId ? { p_station_id: _stnId } : {});
@@ -87858,7 +87858,7 @@ function _flVorrActionFor(v) {
     } catch (_) { /* fall through */ }
   }
   // No RO clock, but the operator set an expected-return date when
-  // grounding (0537) — surface the plan instead of a generic nag.
+  // grounding (0539) — surface the plan instead of a generic nag.
   if (v.expected_return_on) {
     try {
       const d = new Date(v.expected_return_on + "T00:00:00");
@@ -89921,7 +89921,7 @@ function _fdMileageHtml() {
 
 function _fdHistoryHtml() {
   // Cost rollup card renders above the timeline — filled async by
-  // _fdLoadCosts (vehicle_cost_summary, 0537; hidden pre-migration).
+  // _fdLoadCosts (vehicle_cost_summary, 0539; hidden pre-migration).
   const costHost = `<div id="rr-fd-costcard" hidden></div>`;
   if (_fdHistory === null) return costHost + `<div class="fd-empty" style="margin-top:14px">Loading vehicle history…</div>`;
   if (!Array.isArray(_fdHistory) || !_fdHistory.length) return costHost + `<div class="fd-empty" style="margin-top:14px">No activity recorded for this van yet.</div>`;
@@ -89948,10 +89948,10 @@ async function _fdLoadHistory(vehicleId) {
   if (_fdTab === "history") _fdRenderTab();
 }
 
-// ── Per-van cost rollup (vehicle_cost_summary, migration 0537) ───────
+// ── Per-van cost rollup (vehicle_cost_summary, migration 0539) ───────
 // Settled repair invoices + legacy ROs + service logs + PM completions
 // + part purchases over the last 12 months, with cost-per-mile from the
-// mileage ledger. Pre-0537 the RPC 404s and the card just stays hidden.
+// mileage ledger. Pre-0539 the RPC 404s and the card just stays hidden.
 async function _fdLoadCosts(vehicleId) {
   const host = document.getElementById("rr-fd-costcard");
   if (!host) return;
@@ -89966,7 +89966,7 @@ async function _fdLoadCosts(vehicleId) {
   const parts = [
     { label: "Repairs",  cents: (Number(s.repair_cents) || 0) + (Number(s.legacy_ro_cents) || 0) },
     { label: "Service",  cents: (Number(s.service_cents) || 0) + (Number(s.pm_cents) || 0) },
-    // Parts = purchased parts + shelf stock consumed on this van (0538).
+    // Parts = purchased parts + shelf stock consumed on this van (0540).
     { label: "Parts",    cents: (Number(s.parts_cents) || 0) + (Number(s.stock_cents) || 0) },
   ].filter((p) => p.cents > 0);
   const cpm = s.cost_per_mile_cents != null
@@ -90082,7 +90082,7 @@ async function _fdSaveProfile() {
     const n = parseFloat(String(x).replace(/[^\d.\-]/g, ""));
     return Number.isFinite(n) ? Math.round(n * 100) : null;
   };
-  // Extended asset-record params (migration 0537). Pre-0537 the wider
+  // Extended asset-record params (migration 0539). Pre-0539 the wider
   // signature 404s (PGRST202) → retry with the legacy arg set + the old
   // raw van_type table write, so saving degrades instead of breaking.
   const extArgs = {
@@ -90109,7 +90109,7 @@ async function _fdSaveProfile() {
   }
   if (error) { toast("Save failed: " + error.message, "warn"); return; }
   if (legacyPath && data && data.id) {
-    // Pre-0537 fallback: van_type isn't a param on the legacy signature —
+    // Pre-0539 fallback: van_type isn't a param on the legacy signature —
     // persist it with the old direct update (dispatcher RLS).
     try { await sb.from("vehicles").update({ van_type: m.van_type || null }).eq("id", data.id); } catch (_) {}
   }

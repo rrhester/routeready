@@ -1,6 +1,6 @@
 // fleet-pm-core.mjs — preventive-maintenance due math (pure, tested).
 //
-// Mirrors the SQL in fleet_pm_board() (migration 0537) — keep the two in
+// Mirrors the SQL in fleet_pm_board() (migration 0539) — keep the two in
 // sync. A rule has an interval in miles and/or months plus warn windows;
 // a vehicle×rule pair's status derives from its latest completion:
 //

@@ -38,7 +38,7 @@ import { makeNhtsaProvider } from "./adapters/nhtsa.js";
     search: null,          // current part_searches row
     offers: [],            // ranked offers for the current search
     weights: null,
-    stock: null,           // parts_stock_list payload (0538) · null = not loaded · {missing:true} = pre-migration
+    stock: null,           // parts_stock_list payload (0540) · null = not loaded · {missing:true} = pre-migration
     stockLoading: false,
   };
 
@@ -132,7 +132,7 @@ import { makeNhtsaProvider } from "./adapters/nhtsa.js";
     .rrp-src{display:grid;grid-template-columns:1.4fr .8fr 1fr 1fr auto;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--border-subtle);font-size:var(--fs-md)}
     .rrp-src.h{border-top:0;font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--text-subtle)}
     .rrp-dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:5px}
-    /* On-hand inventory (0538) */
+    /* On-hand inventory (0540) */
     #fl-sub-parts .rrp-stk{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px}
     #fl-sub-parts .rrp-stk-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}
     #fl-sub-parts .rrp-stk-title{font-weight:700;font-size:var(--fs-lg)}
@@ -946,7 +946,7 @@ import { makeNhtsaProvider } from "./adapters/nhtsa.js";
   }
 
   // ── Overlay + toast helpers ───────────────────────────────────────────
-  // ── On-hand inventory (the parts room · migration 0538) ─────────────
+  // ── On-hand inventory (the parts room · migration 0540) ─────────────
   // Stock items with bins + min-quantity reorder points; quantity moves
   // ONLY through parts_stock_move (receive / use / return / adjust), so
   // the movement ledger always explains the shelf count. Consumption can
@@ -991,7 +991,7 @@ import { makeNhtsaProvider } from "./adapters/nhtsa.js";
     }
     if (st.missing) {
       h.innerHTML = `<div class="rrp-stk">${header("")}
-        <div class="rrp-stk-empty"><b>Inventory isn't set up yet.</b> Apply migration <b>0538</b> in Supabase → SQL editor, then reload — you'll get stock items, bins, receive/use tracking, and low-stock flags.</div>
+        <div class="rrp-stk-empty"><b>Inventory isn't set up yet.</b> Apply migration <b>0540</b> in Supabase → SQL editor, then reload — you'll get stock items, bins, receive/use tracking, and low-stock flags.</div>
       </div>`;
       return;
     }

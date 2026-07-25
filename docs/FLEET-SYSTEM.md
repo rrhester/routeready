@@ -31,9 +31,9 @@ The fleet domain was already deep in four places:
    fields, `driver_reported_open_count`, backup driver. Because
    `fleet_execution_summary()` filters on `is_branded`, the FEM/VORR
    strip was starved too. (This was the standing hazard note in
-   docs/REPAIR-CENTER.md §1.) **Fixed in 0537** — re-issued from the
+   docs/REPAIR-CENTER.md §1.) **Fixed in 0539** — re-issued from the
    full 0308 body + `van_type` + `expected_return_on`. Any future
-   redefinition must start from 0537's body.
+   redefinition must start from 0539's body.
 2. **PM was a manually-typed date** (`vehicles.next_service_due_at`)
    with nothing rendering off it. No service programs, no
    mileage/time intervals, no due engine, no alerts.
@@ -51,7 +51,7 @@ The fleet domain was already deep in four places:
 
 ## 3 · What shipped
 
-### Migration 0537 · `fleet_inventory_foundation`
+### Migration 0539 · `fleet_inventory_foundation`
 - `vehicles` columns: `fuel_type, tire_size, telematics_id, fuel_card,
   toll_tag, acquired_on, acquired_cost_cents, warranty_expires_on,
   warranty_miles, lease_provider, lease_expires_on,
@@ -84,7 +84,7 @@ The fleet domain was already deep in four places:
   part purchases, and cost-per-mile from `vehicle_mileage_log`.
   Optional tables fail soft (undefined_table → 0).
 
-### Migration 0538 · `parts_stock_inventory`
+### Migration 0540 · `parts_stock_inventory`
 - `parts_stock_items` (bins, min-qty reorder points, moving-average
   `unit_cost_cents`, optional station + canonical-part links) +
   `parts_stock_movements` (append-only; receive / consume / return /
@@ -103,7 +103,7 @@ The fleet domain was already deep in four places:
   attention filter, click-a-chip → log completion, Manage program
   modal (add/edit/retire rules), Install-standard-program empty state,
   stale-odometer flag. Roster identity cells get `PM overdue` /
-  `PM due` chips (board cached 5 min; silent pre-0537).
+  `PM due` chips (board cached 5 min; silent pre-0539).
 - **Grounding**: modal gains expected-back date + "also open a repair
   case" (hands off to `RRRepair.createForVehicle`); un-ground now goes
   through a small return-to-service modal that captures an optional
@@ -122,7 +122,7 @@ The fleet domain was already deep in four places:
 
 ## 4 · Conventions that must hold
 
-- `vehicles_roster()` edits start from **0537's body**. Never rebuild
+- `vehicles_roster()` edits start from **0539's body**. Never rebuild
   from an older migration (that's how the 0345 regression happened).
 - `vehicle_set_operational_status()` stays the ONLY op-status writer.
 - PM due math changes go to BOTH `fleet_pm_board` (SQL) and

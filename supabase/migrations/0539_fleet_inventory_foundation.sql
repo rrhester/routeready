@@ -1,4 +1,4 @@
--- Migration 0537 · Fleet inventory foundation
+-- Migration 0539 · Fleet inventory foundation
 --
 -- Operator directive (2026-07-25): "a top of the line tool that tracks
 -- fleet inventory — ground a van, store information, preventative
@@ -1252,7 +1252,7 @@ begin
        and pp.created_at::date >= v_from;
   exception when undefined_table then null; end;
 
-  -- Shelf stock consumed on this van (0538): consume rows are negative
+  -- Shelf stock consumed on this van (0540): consume rows are negative
   -- deltas priced at the item's moving-average cost captured on the
   -- movement; returns net back out. Table may not exist yet — soft 0.
   begin

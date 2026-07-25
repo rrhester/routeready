@@ -1,4 +1,4 @@
--- Migration 0538 · Parts stock inventory (the parts room)
+-- Migration 0540 · Parts stock inventory (the parts room)
 --
 -- Parts Intelligence (0485) is a SOURCING system — search, compare,
 -- purchase. Nothing tracks what's actually on the shelf. This adds the

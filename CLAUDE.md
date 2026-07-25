@@ -447,11 +447,11 @@ inventory… world class fleet system." Full audit + build record in
   0239/0297/0301/0308 (is_branded, fem_status, grounded_*, doc badges,
   active_ro_*, driver_reported_open_count, backup driver) — which also
   starved fleet_execution_summary's is_branded filter (FEM/VORR strip
-  hidden/blank on any DB that applied 0345). **Migration 0537** re-issues
+  hidden/blank on any DB that applied 0345). **Migration 0539** re-issues
   the FULL 0308 body + van_type + expected_return_on. RULE: any future
-  vehicles_roster edit starts from 0537's body — never rebuild from an
+  vehicles_roster edit starts from 0539's body — never rebuild from an
   older revision (that's exactly how 0345 broke it).
-- **Migration 0537** also: 13 new vehicles columns (fuel_type, tire_size,
+- **Migration 0539** also: 13 new vehicles columns (fuel_type, tire_size,
   telematics_id, fuel_card, toll_tag, acquired_on/cost, warranty date+miles,
   lease provider/end/monthly, metadata jsonb); vehicle_documents kinds +
   title/lease/warranty/other; vehicle_record_save re-issued w/ new params
@@ -464,7 +464,7 @@ inventory… world class fleet system." Full audit + build record in
   fleet_pm_board(p_station_id) (overdue|due_soon|ok|no_baseline, both
   axes); vehicle_cost_summary (per-van 12-mo spend + cost/mile, soft on
   missing tables).
-- **Migration 0538**: parts room — parts_stock_items (bins, min-qty,
+- **Migration 0540**: parts room — parts_stock_items (bins, min-qty,
   moving-avg unit cost) + append-only parts_stock_movements
   (receive/consume/return/adjust, optional vehicle/repair-case links);
   parts_stock_move is the ONLY qty writer (row-locked, no negative stock,
@@ -487,9 +487,9 @@ inventory… world class fleet system." Full audit + build record in
 - QA: 51/51 Playwright checks (scratchpad qa-fleet.mjs pattern: 3-van
   stub w/ grounded+RO+expired-doc+PM states); npm test 26/26; ESLint,
   smoke, ordinal gate, ratchet all green. SW_DEPLOY_NONCE bumped.
-- **Migrations 0537 + 0538 MANUAL — pasted in chat 2026-07-25.** Client
+- **Migrations 0539 + 0540 MANUAL — pasted in chat 2026-07-25 (RENUMBERED from 0537/0538 mid-PR: the Email session took those ordinals on main first; content identical to the corrected paste).** Client
   degrades gracefully until applied (PGRST202 fallbacks / setup notices).
-  Independent of the 0525–0534 lens chain; apply 0537 → 0538.
+  Independent of the 0525–0534 lens chain; apply 0539 → 0540.
 - Deferred (see docs/FLEET-SYSTEM.md §5): driver-app odometer capture via
   DVIC (needs a driver_submit_form re-issue — own PR), GeoTab mileage
   sync, stock station picker, case-drawer parts consumption, fleet-wide
