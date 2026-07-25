@@ -89,6 +89,30 @@
                   <button class="btn btn-sm btn-primary" id="rr-set-dsp-reply-email-save" type="button">Save</button>
                 </div>
               </div>
+              <!-- Email tools (EM#98) · one home for the email-specific
+                   knobs; the buttons open the same modals the Email page
+                   uses (handlers in the live.js email module). -->
+              <div class="form-row">
+                <div>
+                  <div class="form-label">Email tools</div>
+                  <div class="form-help">Your signature, auto-filing rules, and send-queue health. Trash auto-empties after 30 days; inbound attachments are kept 90 days unless filed.</div>
+                </div>
+                <div style="display:flex;gap:var(--s-2);align-items:center;flex-wrap:wrap">
+                  <button class="btn btn-sm" id="rr-set-em-sig" type="button">Signature…</button>
+                  <button class="btn btn-sm" id="rr-set-em-rules" type="button">Mail rules…</button>
+                  <button class="btn btn-sm" id="rr-set-em-delivery" type="button">Delivery status…</button>
+                </div>
+              </div>
+              <div class="form-row rr-owner-only">
+                <div>
+                  <div class="form-label">Custom sending domain</div>
+                  <div class="form-help">Store the domain you'd like team mail sent from (e.g. mail.your-dsp.com). Until it's DNS-verified with support, mail keeps sending from the shared team address above.</div>
+                </div>
+                <div style="display:flex;gap:var(--s-2);align-items:center">
+                  <input class="form-input" id="rr-set-em-domain" type="text" placeholder="mail.your-dsp.com" value="" style="flex:1"/>
+                  <button class="btn btn-sm btn-primary" id="rr-set-em-domain-save" type="button">Save</button>
+                </div>
+              </div>
               <div class="form-row">
                 <div>
                   <div class="form-label">Business address</div>

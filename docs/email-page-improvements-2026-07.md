@@ -14,7 +14,72 @@ Email-redesign merge #4113). Impact tags: **[high]** = operators lose
 mail, reply to the wrong person, or read wrong state; **[med]** = worth
 scheduling; **[low]** = polish.
 
-**STATUS (2026-07-25): Sections A–I (EM#1–86) SHIPPED.**
+**STATUS (2026-07-25): ALL 100 ITEMS SHIPPED (Sections A–L complete).
+Migration chain 0535–0544 APPLIED by the operator 2026-07-25 (confirmed
+in chat) — all capability-gated email features are fully live.**
+Section L notes (no migration): EM#100 pure logic lives in
+`dashboard/email-core.mjs` (textFromHtml/dateBucket/formatRelative/
+prefixSubject/parseQuery/addrOk/splitAddrs/threadKey/counterpart/
+quoteText — `now` injected, deterministic) with
+`scripts/test-email-core.mjs` in `npm test`; live.js DELEGATES to it —
+change behavior in the core, not the wrappers. The Playwright coverage
+is promoted to `tests/email-e2e/` (4 specs: lazy boot + nav dot,
+in-place read patch, search operators + scopes, and the composer
+chip-snap regression); its workflow ships as a separate tiny PR (this
+tooling's workflow-file PRs get no Actions runs). EM#98 Settings gains
+an "Email tools" row — Signature/Rules/Delivery-status open the SAME
+modals the Email page uses (the signature editor is self-contained now
+and hosts on body when no composer is open; its buttons no longer ride
+the composer's listener). EM#97: the station-lens exemption is
+EXPLICIT — an "All stations · shared inbox" chip appears beside the
+folder title whenever the station switcher is revealed (detection =
+`!#rr-station-switch.hidden`, the boot reveal mechanism); per-station
+address aliases remain an OPERATOR DECISION deliberately not built.
+EM#99 is groundwork only: Settings stores
+dsps.metadata.email_custom_domain (validated, owner-only) and support
+verifies DNS out-of-band — send-email DELIBERATELY keeps the shared
+domain until a verification flow exists (routing unverified domains
+through Resend would bounce every send).
+Section K notes (no migration): EM#96 the email module LAZY-BOOTS — a
+light preboot at page load (folders + one counts RPC + the realtime
+channel) keeps the sidebar unread dot honest, and the full boot fires
+on first navigation to view-email (MutationObserver on its class;
+onMailEvent runs a counts-only path pre-boot). init() itself now runs
+counts in parallel with the first message page. EM#95 body_html is OUT
+of the three list SELECT tiers (body_text stays — snippet + client
+search; the webhook always derives it, so html-only rows are rare
+legacy). `_emEnsureBody(m)` fetches the full body once per row on
+demand — wired into select (preview repaint), draft-open, popout
+(body pane patched in place), reply/forward (quote fidelity), and
+print/export. NOTE: a null-body_html row probes once to learn there's
+no html — that's correct, not a cache miss. EM#94 selecting a message
+PATCHES the row + unread tab count in place (`_emPatchSelection` —
+active/aria-selected swap, unread bold + SR span removal); the one
+full re-render left is reading a row while scoped to Unread (the row
+must leave the list). EM#93 verified done (B/F work): 300ms mail
+coalesce + 350ms counts debounce — a 6-event burst = one reload,
+locked in QA.
+Section J notes (no migration): EM#87/88 folder + message rows are
+DIVs now (role=treeitem / role=option, tabindex 0) with REAL buttons
+inside — never re-nest interactive content in a <button>; the CSS
+classes already carried button-reset styling so the swap is visually
+free. Folder hover controls also reveal on :focus-within (display:none
+is untabbable) and are naturally tabbable; message-row controls stay
+tabindex=-1 (the row is the tab stop, list keys are the keyboard
+path, ATs can still activate). Enter/Space activation for focused rows
+lives at the TOP of the shared email keydown listener (before the
+Enter-opens-popout branch, so the focused row wins). EM#89: list =
+role=listbox with per-date role=group wrappers, aria-selected tracks
+the open message, unread gets a .rr-visually-hidden "Unread." span;
+folder pane = role=tree + aria-level. EM#90: one document-level Tab
+trap covers the TOPMOST email overlay (.em-docpick → composer →
+popout); composer/popout carry role=dialog aria-modal and restore
+focus to their invoker on close. EM#91: _emAnnounce() polite live
+region; recordUndo announces every move/snooze/bulk label, plus
+explicit announces on the virtual-source no-undo branches and "Move
+undone". EM#92 needed NO new rules — the app-wide reduced-motion kill
+(inline-styles.css ~466, *{…!important}) already covers the email
+view; verified in QA and documented at the would-be rule site.
 Section I notes (**migration 0544**): EM#79 unmatched inbound (typo'd
 team address) + EM#81 rate-limited overflow (>30/sender/DSP/hour;
 redeliveries of known ids still dedup) land in `email_dead_letters`

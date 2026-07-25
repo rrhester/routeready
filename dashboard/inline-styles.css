@@ -25679,6 +25679,33 @@ body.rr-cmdk-open{ overflow:hidden }
             font-size:var(--fs-sm);color:var(--text);cursor:pointer;
           }
           .em-rule-line{cursor:default}
+          /* Station-lens exemption chip (EM#97). */
+          .em-lens-note{
+            display:inline-flex;align-items:center;
+            margin-left:8px;padding:2px 8px;border-radius:999px;
+            border:1px solid var(--border);color:var(--text-subtle);
+            font-size:var(--fs-xs);font-weight:600;white-space:nowrap;
+          }
+          /* A11y (EM#87–92) · folder + message rows are focusable divs
+             now — give the new tab stops a visible ring. */
+          #view-email .em-folder:focus-visible,
+          #view-email .em-msg-row:focus-visible{
+            outline:2px solid var(--rr-blue-600, var(--accent));
+            outline-offset:-2px;
+          }
+          /* Hover-revealed folder controls must ALSO reveal on keyboard
+             focus (EM#88) — display:none elements can never be tabbed
+             into. Focusing the row shows them; Tab then reaches them. */
+          #view-email .em-folder:focus-within .em-folder-add,
+          #view-email .em-folder:focus-within .em-folder-ren,
+          #view-email .em-folder:focus-within .em-folder-up,
+          #view-email .em-folder:focus-within .em-folder-down,
+          #view-email .em-folder:focus-within .em-folder-delete{display:inline-flex}
+          /* EM#92 (reduced motion) needs no email-specific rules: the
+             app-wide prefers-reduced-motion kill at the top of this
+             file (the universal .01ms duration override) already
+             covers the refresh spin, sparkle one-shots, and the
+             reading-pane slide-over — verified in QA. */
           .em-tpl-save{border-top:1px solid var(--border-subtle, var(--border));color:var(--rr-blue-700);font-weight:600}
           .em-sig-editor{
             min-height:120px;max-height:40vh;overflow-y:auto;

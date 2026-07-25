@@ -8,13 +8,14 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=a8a295000eb4";
-import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=a8a295000eb4";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=a8a295000eb4";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=a8a295000eb4";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=a8a295000eb4";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=a8a295000eb4";
-import { isChecklistComplete } from "./checklist-core.mjs?v=a8a295000eb4";
+import { planScheduleWeek } from "./scheduling-engine.js?v=5af00e53bb02";
+import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=5af00e53bb02";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=5af00e53bb02";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=5af00e53bb02";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=5af00e53bb02";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=5af00e53bb02";
+import { isChecklistComplete } from "./checklist-core.mjs?v=5af00e53bb02";
+import { textFromHtml as _ecTextFromHtml, dateBucket as _ecDateBucket, formatRelative as _ecFormatRelative, prefixSubject as _ecPrefixSubject, parseQuery as _ecParseQuery, addrOk as _ecAddrOk, threadKey as _ecThreadKey, counterpart as _ecCounterpart, quoteText as _ecQuoteText } from "./email-core.mjs?v=5af00e53bb02";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +26,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=a8a295000eb4";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=a8a295000eb4";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=a8a295000eb4";
+} from "./msg-core.mjs?v=5af00e53bb02";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=5af00e53bb02";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=5af00e53bb02";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -18425,6 +18426,10 @@ function _prefillWeatherInputs() {
   if (nameEl) nameEl.value = window.RR?.dsp?.name        || "";
   if (codeEl) codeEl.value = window.RR?.dsp?.short_code  || "";
   if (replyEl) replyEl.value = window.RR?.dsp?.metadata?.reply_to_email || "";
+  // Custom sending domain (EM#99 groundwork) · stored intent only — the
+  // send path keeps the shared domain until DNS verification exists.
+  const domEl = document.getElementById("rr-set-em-domain");
+  if (domEl) domEl.value = window.RR?.dsp?.metadata?.email_custom_domain || "";
   // Fleet Bridge · team email derived from the DSP's short_code.
   const fbEmailEl = document.getElementById("rr-set-fb-email");
   if (fbEmailEl) fbEmailEl.value = _fbEmailFromCode(window.RR?.dsp?.short_code);
@@ -18566,6 +18571,38 @@ document.addEventListener("click", async (e) => {
     toast(next ? "Reply email saved" : "Reply email cleared", "success");
   } catch (err) {
     console.error("reply email save:", err);
+    toast("Save failed: " + (err.message || String(err)), "warn");
+  }
+});
+
+// Save custom sending domain → dsps.metadata.email_custom_domain (EM#99
+// groundwork). Stored intent ONLY: send-email keeps the shared domain
+// until a DNS-verification flow exists — routing unverified domains
+// through Resend would bounce every send.
+document.addEventListener("click", async (e) => {
+  if (!e.target.closest("#rr-set-em-domain-save")) return;
+  e.preventDefault();
+  const dspId = window.RR?.dsp?.id;
+  const input = document.getElementById("rr-set-em-domain");
+  if (!dspId || !input) return;
+  const next = (input.value || "").trim().toLowerCase();
+  if (next && !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(next)) {
+    toast("Enter a domain like mail.your-dsp.com, or leave blank", "warn");
+    return;
+  }
+  try {
+    // Read-modify-write so we don't trample sibling metadata keys.
+    const { data: row, error: rErr } = await sb.from("dsps").select("metadata").eq("id", dspId).single();
+    if (rErr) throw rErr;
+    const md = row?.metadata || {};
+    if (next) md.email_custom_domain = next;
+    else delete md.email_custom_domain;
+    const { error } = await sb.from("dsps").update({ metadata: md }).eq("id", dspId);
+    if (error) throw error;
+    if (window.RR?.dsp) window.RR.dsp.metadata = md;
+    toast(next ? "Domain saved — support will reach out to verify DNS" : "Custom domain cleared", "success");
+  } catch (err) {
+    console.error("custom domain save:", err);
     toast("Save failed: " + (err.message || String(err)), "warn");
   }
 });
@@ -27555,7 +27592,7 @@ let _ivcalSchemaProbed = false;
 // LATEST migration ordinal (check-migration-ordinals.mjs fails on drift —
 // the old "bump when the dashboard depends on it" judgment call froze it
 // at 0534 for 35 files); the legacy probe stays as fallback until 0504.
-const _RR_SCHEMA_EXPECTED = 569;
+const _RR_SCHEMA_EXPECTED = 570;
 async function _ivcalSchemaProbe() {
   if (_ivcalSchemaProbed) return;
   _ivcalSchemaProbed = true;
@@ -96047,18 +96084,7 @@ document.addEventListener("click", (e) => {
   // that arrived or were composed as HTML only. Style/script blocks go
   // first so CSS soup never leaks into snippets; input is capped so a
   // multi-MB marketing email can't stall a 200-row render.
-  function textFromHtmlLocal(html) {
-    if (!html) return "";
-    return String(html).slice(0, 8000)
-      .replace(/<(style|script)[^>]*>[\s\S]*?<\/\1\s*>/gi, " ")
-      .replace(/<\s*br\s*\/?\s*>/gi, "\n")
-      .replace(/<\/\s*(p|div|tr|li|h[1-6])\s*>/gi, "\n")
-      .replace(/<[^>]+>/g, "")
-      .replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&")
-      .replace(/&lt;/gi, "<").replace(/&gt;/gi, ">").replace(/&quot;/gi, '"').replace(/&#39;/gi, "'")
-      .replace(/\n{3,}/g, "\n\n")
-      .trim();
-  }
+  function textFromHtmlLocal(html) { return _ecTextFromHtml(html); } // → email-core.mjs (EM-100 extraction)
   function messageText(m) { return m.body_text || textFromHtmlLocal(m.body_html); }
   function iconFor(kind) { return ICONS[kind] || ICONS.folder; }
 
@@ -96078,9 +96104,26 @@ document.addEventListener("click", (e) => {
   // state), LEGACY is the pre-migration floor. Tiered so a DB that has
   // 0535 but not 0536 degrades one step, not all the way (dropping
   // is_read would silently un-read every message).
-  const SELECT_FULL   = "id, applicant_id, from_email, from_name, to_email, cc_emails, bcc_emails, subject, body_text, body_html, direction, status, error_message, is_read, is_starred, snoozed_until, has_attachments, send_after, delivered_at, created_at";
-  const SELECT_MID    = "id, applicant_id, from_email, to_email, cc_emails, subject, body_text, body_html, direction, status, error_message, is_read, delivered_at, created_at";
-  const SELECT_LEGACY = "id, applicant_id, from_email, to_email, subject, body_text, body_html, direction, status, delivered_at, created_at";
+  // body_html is deliberately NOT in the list selects (EM#95) — a
+  // 200-row folder switch was pulling megabytes of marketing HTML to
+  // render 110-char snippets. body_text stays (snippet + client
+  // search; the inbound webhook always derives it, so html-only rows
+  // are rare legacy data). Surfaces that need the full body call
+  // _emEnsureBody(m) — one id-keyed fetch per row, cached on the row.
+  const SELECT_FULL   = "id, applicant_id, from_email, from_name, to_email, cc_emails, bcc_emails, subject, body_text, direction, status, error_message, is_read, is_starred, snoozed_until, has_attachments, send_after, delivered_at, created_at";
+  const SELECT_MID    = "id, applicant_id, from_email, to_email, cc_emails, subject, body_text, direction, status, error_message, is_read, delivered_at, created_at";
+  const SELECT_LEGACY = "id, applicant_id, from_email, to_email, subject, body_text, direction, status, delivered_at, created_at";
+  async function _emEnsureBody(m) {
+    if (!m || m._bodyFull || typeof m.body_html === "string") return m;
+    m._bodyFull = true; // concurrent callers share the in-flight outcome
+    try {
+      const { data, error } = await sb.from("email_messages")
+        .select("body_html").eq("id", m.id).maybeSingle();
+      if (error) { m._bodyFull = false; return m; }
+      if (data) m.body_html = data.body_html;
+    } catch (_) { m._bodyFull = false; }
+    return m;
+  }
   // 0536 capability · null = unknown, set by the first page fetch.
   // Gates the Starred/Snoozed virtual folders, the star/snooze UI, and
   // the composer's has_attachments stamp.
@@ -96440,6 +96483,9 @@ document.addEventListener("click", (e) => {
     const row = (payload && payload.new && payload.new.id) ? payload.new
       : (payload && payload.old) || {};
     if (payload?.eventType === "INSERT" && row.direction === "inbound") maybeNotify(row);
+    // Pre-boot (EM#96): only the nav dot needs freshness — skip the
+    // message reload machinery until the view has actually opened.
+    if (!state.booted) { scheduleCountsRefresh(); return; }
     const active = state.activeFolderId;
     if (active && active !== DOCS_FOLDER_ID) {
       // DELETE payloads may carry only the PK — unknown folder refreshes
@@ -96573,9 +96619,13 @@ document.addEventListener("click", (e) => {
     };
     const builtins = (childrenByParent.get(null) || []).filter(f => f.kind !== "custom");
     const customTops = (childrenByParent.get(null) || []).filter(f => f.kind === "custom");
+    // Tree semantics (EM#89) — the host is the tree; section captions
+    // are presentational.
+    host.setAttribute("role", "tree");
+    host.setAttribute("aria-label", "Mail folders");
     let html = "";
     if (builtins.length) {
-      html += `<div class="em-folder-section">System</div>`;
+      html += `<div class="em-folder-section" role="presentation">System</div>`;
       for (const f of builtins) {
         if (_seenFolders.has(f.id)) continue;
         _seenFolders.add(f.id); // mark tops so a child can't loop back to them
@@ -96584,7 +96634,7 @@ document.addEventListener("click", (e) => {
       }
     }
     if (customTops.length) {
-      html += `<div class="em-folder-section">My folders</div>`;
+      html += `<div class="em-folder-section" role="presentation">My folders</div>`;
       for (const f of customTops) {
         if (_seenFolders.has(f.id)) continue;
         _seenFolders.add(f.id);
@@ -96620,14 +96670,19 @@ document.addEventListener("click", (e) => {
     const newCount = state.folderCounts[f.id] || 0;
     const countDisplay = newCount > 0 ? (newCount > 99 ? "99+" : String(newCount)) : "";
     const indent = depth > 0 ? ` style="padding-left:${10 + depth * 14}px"` : "";
-    return `<button type="button" class="em-folder${isActive ? " active" : ""}${isDocs ? " em-folder-docs" : ""}" data-em-folder="${escapeHtmlLocal(f.id)}" aria-pressed="${isActive ? "true" : "false"}"${indent}>
+    // Row = a non-interactive-element container (EM#87) — buttons can't
+    // legally nest interactive content, and the hover controls are REAL
+    // buttons now (EM#88). role=treeitem + aria-level/-selected give
+    // the pane tree semantics (EM#89); Enter/Space activation rides the
+    // shared email keydown listener.
+    return `<div class="em-folder${isActive ? " active" : ""}${isDocs ? " em-folder-docs" : ""}" data-em-folder="${escapeHtmlLocal(f.id)}" role="treeitem" tabindex="0" aria-level="${depth + 1}" aria-selected="${isActive ? "true" : "false"}"${indent}>
       ${iconFor(f.kind)}
       <span class="em-folder-name">${escapeHtmlLocal(f.name)}</span>
       <span class="em-folder-count${newCount > 0 ? " has-new" : ""}" aria-hidden="true">${countDisplay}</span>
-      ${isVirtualFolderId(f.id) ? "" : `<span class="em-folder-add" role="button" tabindex="0" data-em-folder-add-child="${escapeHtmlLocal(f.id)}" aria-label="Add subfolder" title="Add subfolder"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>`}
-      ${isCustom ? `<span class="em-folder-up" role="button" tabindex="0" data-em-folder-move="${escapeHtmlLocal(f.id)}:-1" aria-label="Move up" title="Move up"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 14 12 8 18 14"/></svg></span><span class="em-folder-down" role="button" tabindex="0" data-em-folder-move="${escapeHtmlLocal(f.id)}:1" aria-label="Move down" title="Move down"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 10 12 16 18 10"/></svg></span><span class="em-folder-ren" role="button" tabindex="0" data-em-folder-rename="${escapeHtmlLocal(f.id)}" aria-label="Rename folder" title="Rename folder"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></span>` : ""}
-      ${isCustom ? `<span class="em-folder-delete" role="button" tabindex="0" data-em-folder-delete="${escapeHtmlLocal(f.id)}" aria-label="Delete folder" title="Delete folder"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>` : ""}
-    </button>`;
+      ${isVirtualFolderId(f.id) ? "" : `<button type="button" class="em-folder-add" data-em-folder-add-child="${escapeHtmlLocal(f.id)}" aria-label="Add subfolder" title="Add subfolder"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>`}
+      ${isCustom ? `<button type="button" class="em-folder-up" data-em-folder-move="${escapeHtmlLocal(f.id)}:-1" aria-label="Move up" title="Move up"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 14 12 8 18 14"/></svg></button><button type="button" class="em-folder-down" data-em-folder-move="${escapeHtmlLocal(f.id)}:1" aria-label="Move down" title="Move down"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 10 12 16 18 10"/></svg></button><button type="button" class="em-folder-ren" data-em-folder-rename="${escapeHtmlLocal(f.id)}" aria-label="Rename folder" title="Rename folder"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>` : ""}
+      ${isCustom ? `<button type="button" class="em-folder-delete" data-em-folder-delete="${escapeHtmlLocal(f.id)}" aria-label="Delete folder" title="Delete folder"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>` : ""}
+    </div>`;
   }
 
   function renderHeader() {
@@ -96635,6 +96690,29 @@ document.addEventListener("click", (e) => {
     const count = document.getElementById("rr-em-main-count");
     const f = state.folders.find(x => x.id === state.activeFolderId);
     if (title) title.textContent = f ? f.name : "Inbox";
+    // Station-lens exemption made EXPLICIT (EM#97) · every operational
+    // page obeys the master station switcher; Email is DSP-level (one
+    // team address), which read as a bug under the "every page = a new
+    // DSP" directive. Shown only when the switcher is visible (2+
+    // stations). Per-station address aliases stay an operator decision
+    // — see the review doc.
+    if (title) {
+      let lens = document.getElementById("rr-em-lens-note");
+      // The switcher is always in the shell markup; boot removes its
+      // `hidden` attribute only when 2+ active stations exist.
+      const sw = document.getElementById("rr-station-switch");
+      const multi = !!(sw && !sw.hidden);
+      if (multi && !lens) {
+        lens = document.createElement("span");
+        lens.id = "rr-em-lens-note";
+        lens.className = "em-lens-note";
+        lens.title = "Mail isn't filtered by the station switcher — one shared team address serves the whole DSP.";
+        lens.textContent = "All stations · shared inbox";
+        title.insertAdjacentElement("afterend", lens);
+      } else if (!multi && lens) {
+        lens.remove();
+      }
+    }
     if (count) {
       if (state.activeFolderId === DOCS_FOLDER_ID) {
         const n = state.documents.length;
@@ -96650,19 +96728,7 @@ document.addEventListener("click", (e) => {
   }
 
   // Group a message into a date bucket for the inbox ribbons.
-  function dateBucket(d) {
-    const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    const msg = new Date(d);
-    const startOfMsg = new Date(msg.getFullYear(), msg.getMonth(), msg.getDate()).getTime();
-    const days = Math.floor((startOfToday - startOfMsg) / 86400000);
-    if (days === 0) return { key: "today",       label: "Today" };
-    if (days === 1) return { key: "yesterday",   label: "Yesterday" };
-    if (days <  7)  return { key: "this-week",   label: "Earlier this week" };
-    if (days < 30)  return { key: "this-month",  label: "Earlier this month" };
-    if (days < 365) return { key: "this-year",   label: "Earlier this year" };
-    return                  { key: "older",      label: "Older" };
-  }
+  function dateBucket(d) { return _ecDateBucket(d, new Date()); } // → email-core.mjs (EM-100 extraction)
 
   // Centered pane empty/status state · small outlined icon + heading +
   // supporting line (mockup pattern). `icon` picks a glyph from the
@@ -96683,30 +96749,8 @@ document.addEventListener("click", (e) => {
     </div>`;
   }
 
-  // Search operators (EM#68) · from:/to:/has:attachment/before:/after:
-  // parsed out of the query; whatever's left is the free-text term.
-  // Unrecognized values fall back into the free text so a half-typed
-  // operator never makes mail vanish.
-  function _emParseQuery(raw) {
-    const out = { text: "", from: null, to: null, hasAttachment: false, before: null, after: null };
-    const free = [];
-    for (const tok of String(raw || "").trim().split(/\s+/)) {
-      if (!tok) continue;
-      const m = tok.match(/^(from|to|has|before|after):(.+)$/i);
-      if (!m) { free.push(tok); continue; }
-      const k = m[1].toLowerCase(), v = m[2];
-      if (k === "from") out.from = v;
-      else if (k === "to") out.to = v;
-      else if (k === "has") { if (/^attach/i.test(v)) out.hasAttachment = true; else free.push(tok); }
-      else {
-        const d = new Date(v + "T00:00:00");
-        if (isNaN(d.getTime())) { free.push(tok); continue; }
-        if (k === "before") out.before = d; else out.after = d;
-      }
-    }
-    out.text = free.join(" ");
-    return out;
-  }
+  // Search operators (EM#68) · parsed in email-core.mjs (EM-100 extraction).
+  function _emParseQuery(raw) { return _ecParseQuery(raw); }
 
   // Known-sender set for the "Unknown senders" scope (EM#69) — the
   // Contacts directory, cached 5 minutes. Applicant matches are already
@@ -96921,10 +96965,13 @@ document.addEventListener("click", (e) => {
       seen.get(b.key).messages.push(m);
     }
 
-    const groupsHtml = groups.map(g => {
+    // List semantics (EM#89) · the rows form a listbox; each date
+    // bucket is a labelled group (option groups are valid listbox
+    // children) with the rows in its body.
+    const groupsHtml = `<div class="em-msg-list" role="listbox" aria-label="Messages">` + groups.map(g => {
       const collapsed = state.collapsedGroups.has(g.key);
       const body = collapsed ? "" : g.messages.map(messageRowHtml).join("");
-      return `<div class="em-msg-group${collapsed ? " collapsed" : ""}">
+      return `<div class="em-msg-group${collapsed ? " collapsed" : ""}" role="group" aria-label="${escapeHtmlLocal(g.label)}">
         <button type="button" class="em-msg-group-header" data-em-group-toggle="${escapeHtmlLocal(g.key)}" aria-expanded="${!collapsed}">
           <svg class="em-msg-group-chevron" viewBox="0 0 16 16" width="11" height="11" fill="currentColor" aria-hidden="true"><path d="M5 4l5 4-5 4z"/></svg>
           <span class="em-msg-group-label">${escapeHtmlLocal(g.label)}</span>
@@ -96932,7 +96979,7 @@ document.addEventListener("click", (e) => {
         </button>
         <div class="em-msg-group-body">${body}</div>
       </div>`;
-    }).join("");
+    }).join("") + `</div>`;
 
     // "Load 200 more" tail (EM#21) · shown when the folder holds more
     // than the loaded pages; hidden while searching (the search covers
@@ -96999,7 +97046,7 @@ document.addEventListener("click", (e) => {
     // renders.
     const isStarred = m.is_starred === true;
     const starHtml = _srvMetaState === true
-      ? `<span class="em-msg-star${isStarred ? " starred" : ""}" role="button" tabindex="-1" data-em-msg-star="${escapeHtmlLocal(m.id)}" aria-label="${isStarred ? "Unstar" : "Star"} message" title="${isStarred ? "Unstar" : "Star"}"><svg viewBox="0 0 24 24" width="13" height="13" fill="${isStarred ? "currentColor" : "none"}" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span>`
+      ? `<button type="button" class="em-msg-star${isStarred ? " starred" : ""}" tabindex="-1" aria-pressed="${isStarred}" data-em-msg-star="${escapeHtmlLocal(m.id)}" aria-label="${isStarred ? "Unstar" : "Star"} message" title="${isStarred ? "Unstar" : "Star"}"><svg viewBox="0 0 24 24" width="13" height="13" fill="${isStarred ? "currentColor" : "none"}" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button>`
       : "";
     const clipHtml = m.has_attachments === true
       ? `<span class="em-msg-clip" aria-label="Has attachments" title="Has attachments"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></span>`
@@ -97007,9 +97054,17 @@ document.addEventListener("click", (e) => {
     const snoozeChip = (m.snoozed_until && new Date(m.snoozed_until).getTime() > Date.now())
       ? `<span class="em-msg-snooze-chip" title="Snoozed until ${escapeHtmlLocal(new Date(m.snoozed_until).toLocaleString())}">until ${escapeHtmlLocal(new Date(m.snoozed_until).toLocaleDateString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" }))}</span>`
       : "";
-    return `<button type="button" class="em-msg-row${isActive ? " active" : ""}${isUnread ? " unread" : ""}${isChecked ? " selected" : ""}" data-em-msg="${escapeHtmlLocal(m.id)}" draggable="true">
+    // Row = a div option, not a <button> (EM#87) — nested interactive
+    // content is invalid HTML and read unpredictably. The inner
+    // check/star/trash controls are REAL buttons (EM#88), kept out of
+    // the tab order (tabindex -1): the row is the tab stop, the list
+    // keys (E/Delete/U/…) are the keyboard path, and ATs can still
+    // activate them directly. Unread gets spoken text, not just bold
+    // (EM#89).
+    return `<div class="em-msg-row${isActive ? " active" : ""}${isUnread ? " unread" : ""}${isChecked ? " selected" : ""}" data-em-msg="${escapeHtmlLocal(m.id)}" role="option" tabindex="0" aria-selected="${isActive ? "true" : "false"}" draggable="true">
       <div class="em-msg-row-line1">
-        <span class="em-msg-check${isChecked ? " checked" : ""}" role="checkbox" aria-checked="${isChecked}" tabindex="-1" data-em-msg-check="${escapeHtmlLocal(m.id)}" aria-label="Select message" title="Select (Shift-click for a range)">${isChecked ? `<svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 8.5 6.5 12 13 4"/></svg>` : ""}</span>
+        ${isUnread ? `<span class="rr-visually-hidden">Unread.</span>` : ""}
+        <button type="button" class="em-msg-check${isChecked ? " checked" : ""}" aria-pressed="${isChecked}" tabindex="-1" data-em-msg-check="${escapeHtmlLocal(m.id)}" aria-label="Select message" title="Select (Shift-click for a range)">${isChecked ? `<svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 8.5 6.5 12 13 4"/></svg>` : ""}</button>
         ${starHtml}
         <span class="em-msg-who"${whoTitle ? ` title="${escapeHtmlLocal(whoTitle)}"` : ""}>${escapeHtmlLocal(who)}</span>
         ${clipHtml}
@@ -97019,21 +97074,11 @@ document.addEventListener("click", (e) => {
       </div>
       <div class="em-msg-subject">${_emHi(subject)}</div>
       ${snippet ? `<div class="em-msg-snippet">${_emHi(snippet)}</div>` : ""}
-      <span class="em-msg-delete" role="button" tabindex="-1" data-em-msg-delete="${escapeHtmlLocal(m.id)}" aria-label="Move to trash" title="Move to trash" draggable="false"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg></span>
-    </button>`;
+      <button type="button" class="em-msg-delete" tabindex="-1" data-em-msg-delete="${escapeHtmlLocal(m.id)}" aria-label="Move to trash" title="Move to trash" draggable="false"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg></button>
+    </div>`;
   }
 
-  function formatRelative(d) {
-    const diff = Date.now() - d.getTime();
-    const min = Math.floor(diff / 60000);
-    if (min < 1) return "just now";
-    if (min < 60) return `${min}m`;
-    const hr = Math.floor(min / 60);
-    if (hr < 24) return `${hr}h`;
-    const day = Math.floor(hr / 24);
-    if (day < 7) return `${day}d`;
-    return d.toLocaleDateString();
-  }
+  function formatRelative(d) { return _ecFormatRelative(d, new Date()); } // → email-core.mjs (EM-100 extraction)
 
   // Contextual message actions · rendered ABOVE the open message
   // (mockup: the page header carries no message-level actions). The
@@ -97211,12 +97256,8 @@ document.addEventListener("click", (e) => {
   // address, fetched across folders so the Sent half of a conversation
   // shows alongside the inbound half.
   const SELECT_THREAD = "id, from_email, to_email, subject, body_text, body_html, direction, created_at";
-  function _emThreadKey(subject) {
-    return String(subject || "").replace(/^\s*((re|fwd?|aw)\s*:\s*)+/i, "").trim().toLowerCase();
-  }
-  function _emCounterpart(m) {
-    return ((m.direction === "inbound" ? m.from_email : m.to_email) || "").trim().toLowerCase();
-  }
+  function _emThreadKey(subject) { return _ecThreadKey(subject); }   // → email-core.mjs (EM-100 extraction)
+  function _emCounterpart(m) { return _ecCounterpart(m); }            // → email-core.mjs (EM-100 extraction)
   async function renderThread(m) {
     const host = document.getElementById("rr-em-thread");
     if (!host) return;
@@ -97876,24 +97917,64 @@ document.addEventListener("click", (e) => {
   function selectMessage(id) {
     const m0 = state.messages.find(x => x.id === id);
     // A draft opens back into the composer (EM#46), not the preview.
+    // Its body_html loads on demand first (EM#95) so the editor
+    // restores the formatted draft, not the plaintext shadow.
     if (m0 && m0.status === "draft" && m0.direction === "outbound") {
-      openComposer({ mode: "draft", draft: m0 });
+      _emEnsureBody(m0).then(() => openComposer({ mode: "draft", draft: m0 }));
       return;
     }
     const wasUnread = m0 ? !isRead(m0) : false;
     state.activeMessageId = id;
     markRead(id);
-    if (wasUnread) {
-      // Unread → read transition: re-render so the row's bold + blue
-      // rail clear, and the All/Unread tab counter ticks down.
+    if (wasUnread && state.inboxFilter === "unread") {
+      // Reading a row while scoped to Unread removes it from view —
+      // the one selection case that still needs the full list render.
       renderInbox();
       scheduleCountsRefresh();
     } else {
-      document.querySelectorAll("#rr-em-inbox .em-msg-row").forEach(row => {
-        row.classList.toggle("active", row.getAttribute("data-em-msg") === id);
-      });
+      // Patch in place (EM#94) · selecting a message used to rebuild
+      // all ~200 rows' innerHTML just to un-bold one row and tick the
+      // tab counter.
+      _emPatchSelection(id, wasUnread);
+      if (wasUnread) scheduleCountsRefresh();
     }
     renderPreview();
+    // The full body loads on demand (EM#95) — repaint the preview once
+    // it lands so the HTML view has its markup.
+    if (m0) {
+      _emEnsureBody(m0).then(() => {
+        if (state.activeMessageId === id) renderPreview();
+      });
+    }
+  }
+  function _emPatchSelection(id, wasUnread) {
+    document.querySelectorAll("#rr-em-inbox .em-msg-row").forEach(row => {
+      const is = row.getAttribute("data-em-msg") === id;
+      row.classList.toggle("active", is);
+      row.setAttribute("aria-selected", String(is));
+      if (is && wasUnread) {
+        row.classList.remove("unread");
+        const sr = row.querySelector(".rr-visually-hidden");
+        if (sr) sr.remove();
+      }
+    });
+    if (wasUnread) {
+      const unreadCount = state.messages.filter(m => !isRead(m)).length;
+      const tab = document.querySelector('#rr-em-inbox .em-inbox-tab[data-em-inbox-filter="unread"]');
+      if (tab) {
+        let cnt = tab.querySelector(".em-tab-count");
+        if (unreadCount > 0) {
+          if (!cnt) {
+            cnt = document.createElement("span");
+            cnt.className = "em-tab-count";
+            tab.appendChild(cnt);
+          }
+          cnt.textContent = unreadCount > 99 ? "99+" : String(unreadCount);
+        } else if (cnt) {
+          cnt.remove();
+        }
+      }
+    }
   }
 
   // Double-click a message row → open it in its own pop-out window
@@ -97927,10 +98008,14 @@ document.addEventListener("click", (e) => {
       </div>
       <button type="button" class="em-popout-ibtn em-popout-ibtn-close" data-rr-popout-close title="Close" aria-label="Close"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>`;
+    _emPopoutFocusReturn = document.activeElement; // restore on close (EM#90)
     const el = document.createElement("div");
     el.id = "rr-em-popout";
     el.dataset.msgId = m.id;
     el.tabIndex = -1;
+    el.setAttribute("role", "dialog");
+    el.setAttribute("aria-modal", "true");
+    el.setAttribute("aria-label", m.subject || "Message");
     el.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
     el.innerHTML = `
       <div class="em-popout-card">
@@ -97948,12 +98033,56 @@ document.addEventListener("click", (e) => {
     el.addEventListener("click", (e) => { if (e.target === el) closeMessagePopout(); });
     el.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.preventDefault(); closeMessagePopout(); } });
     el.focus();
+    // Full body on demand (EM#95) · an html-only row has no text until
+    // the fetch lands — patch the body pane in place when it does.
+    _emEnsureBody(m).then(() => {
+      const pop = document.getElementById("rr-em-popout");
+      if (!pop || pop.dataset.msgId !== m.id) return;
+      const host = pop.querySelector(".em-popout-body");
+      const b2 = (messageText(m) || "").replace(/\s+$/g, "");
+      if (host && b2) host.innerHTML = escapeHtmlLocal(b2).replace(/\n/g, "<br>");
+    });
   }
 
   function closeMessagePopout() {
     const el = document.getElementById("rr-em-popout");
     if (el) el.remove();
+    if (_emPopoutFocusReturn) {
+      try { if (document.contains(_emPopoutFocusReturn)) _emPopoutFocusReturn.focus(); } catch (_) {}
+      _emPopoutFocusReturn = null;
+    }
   }
+
+  // ── Focus management for the email overlays (EM#90) ─────────────
+  // The composer/popout/docpick layers sit above the page visually but
+  // Tab used to walk straight into the content underneath. One
+  // document-level trap covers them all: Tab wraps inside the TOPMOST
+  // open overlay, and each overlay restores focus to its invoker on
+  // close. (The app's openModal already does this — these overlays
+  // bypass it.)
+  let _emFocusReturn = null;       // composer invoker
+  let _emPopoutFocusReturn = null; // popout invoker
+  function _emTopOverlay() {
+    // docpick modals (rules/delivery/signature/doc picker) render above
+    // the composer, so they win.
+    return document.querySelector(".em-docpick")
+      || document.getElementById("rr-em-composer")
+      || document.getElementById("rr-em-popout");
+  }
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Tab") return;
+    const ov = _emTopOverlay();
+    if (!ov) return;
+    const focusables = [...ov.querySelectorAll(
+      'button, [href], input, select, textarea, [contenteditable="true"], [tabindex]:not([tabindex="-1"])'
+    )].filter(el => !el.disabled && el.offsetParent !== null);
+    if (!focusables.length) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (!ov.contains(document.activeElement)) { e.preventDefault(); first.focus(); return; }
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
 
   // Friendly duplicate-name guard (EM#62) · the DB's dsp-wide unique
   // index stays as the backstop; this catches it before the raw
@@ -98139,17 +98268,13 @@ document.addEventListener("click", (e) => {
     // Outbound rows' from_email is our own team address (stamped at send
     // time) or null pre-send — attribute those to "you" (EM#3).
     const from = m.direction === "outbound" ? "you" : (m.from_email || "(unknown)");
-    const text = (messageText(m) || "").replace(/\s+$/g, "");
-    const quoted = text.split("\n").map(l => "> " + l).join("\n");
+    const quoted = _ecQuoteText(messageText(m) || ""); // → email-core.mjs (EM-100 extraction)
     return `\n\nOn ${when}, ${from} wrote:\n${quoted}`;
   }
 
   // Subject prefix hygiene (EM#77) · "Re: Re: Fwd: quote" chains
   // collapse to one prefix on compose instead of growing unbounded.
-  function _emPrefixSubject(prefix, s) {
-    const bare = String(s || "").replace(/^(\s*(re|fwd?|fw)\s*:\s*)+/i, "").trim();
-    return bare ? prefix + " " + bare : "";
-  }
+  function _emPrefixSubject(prefix, s) { return _ecPrefixSubject(prefix, s); } // → email-core.mjs (EM-100 extraction)
 
   function openComposer({ mode = "new", original = null, to: toPrefill = "", subject: subjectPrefill = "", html: htmlPrefill = "", onCancel = null, applicantId = null, templateId = null, onSent = null, draft = null } = {}) {
     closeComposer();
@@ -98221,8 +98346,12 @@ document.addEventListener("click", (e) => {
     if (htmlPrefill) body = htmlPrefill;
     const titles = { "new": "New email", "reply": "Reply", "reply-all": "Reply all", "forward": "Forward", "draft": "Draft" };
     const draftKey = _emDraftKey;
+    _emFocusReturn = document.activeElement; // restore on close (EM#90)
     const m = document.createElement("div");
     m.id = "rr-em-composer";
+    m.setAttribute("role", "dialog");
+    m.setAttribute("aria-modal", "true");
+    m.setAttribute("aria-label", titles[mode] || "New email");
     m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
     const FONTS = ["Calibri","Arial","Helvetica","Times New Roman","Georgia","Verdana","Tahoma","Trebuchet MS","Courier New","Cambria"];
     const fontOpts = FONTS.map(f => `<option value="${f}" style="font-family:'${f}'">${f}</option>`).join("");
@@ -98545,35 +98674,8 @@ document.addEventListener("click", (e) => {
         _emOpenSigEditor();
         return;
       }
-      if (e.target.closest && e.target.closest("[data-em-sig-close]")) {
-        e.preventDefault();
-        const w = document.getElementById("rr-em-sigedit");
-        if (w) w.remove();
-        return;
-      }
-      if (e.target.closest && e.target.closest("[data-em-sig-save]")) {
-        e.preventDefault();
-        const ed = document.getElementById("rr-em-sig-editor");
-        try { localStorage.setItem(_emSigKey(), ed ? ed.innerHTML : ""); } catch (_) {}
-        const w = document.getElementById("rr-em-sigedit");
-        if (w) w.remove();
-        return;
-      }
-      if (e.target.closest && e.target.closest("[data-em-sig-clear]")) {
-        e.preventDefault();
-        const ed = document.getElementById("rr-em-sig-editor");
-        if (ed) ed.innerHTML = "";
-        return;
-      }
-      if (e.target.closest && e.target.closest("[data-em-sig-insert]")) {
-        e.preventDefault();
-        const ed = document.getElementById("rr-em-sig-editor");
-        const body = document.getElementById("rr-em-composer-body");
-        if (ed && body) body.innerHTML += `<div><br></div><div class="rr-sig">${ed.innerHTML}</div>`;
-        const w = document.getElementById("rr-em-sigedit");
-        if (w) w.remove();
-        return;
-      }
+      // Sig-editor buttons handle themselves (wired in _emOpenSigEditor
+      // — Settings opens it too, where this listener doesn't exist).
     });
     m.addEventListener("input", (e) => {
       if (e.target && e.target.id === "rr-em-docpick-q") _emDocPickRender(e.target.value);
@@ -98836,7 +98938,7 @@ document.addEventListener("click", (e) => {
 
   // ── Recipient chips (EM#43/44) ──────────────────────────────────
   let _emRecips = { to: [], cc: [], bcc: [] };
-  function _emAddrOk(a) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(a); }
+  function _emAddrOk(a) { return _ecAddrOk(a); } // → email-core.mjs (EM-100 extraction)
   function _emCfCommit(kind, raw) {
     const have = new Set(_emRecips[kind].map(a => a.toLowerCase()));
     String(raw || "").split(/[,;]/).map(s => s.trim()).filter(Boolean).forEach(a => {
@@ -99042,8 +99144,10 @@ document.addEventListener("click", (e) => {
   function _emOpenSigEditor() {
     const old = document.getElementById("rr-em-sigedit");
     if (old) old.remove();
-    const host = document.getElementById("rr-em-composer");
-    if (!host) return;
+    // Settings opens this too (EM#98) — the overlay is position:fixed,
+    // so body hosts it fine when no composer is open ("Insert into
+    // message" just no-ops there).
+    const host = document.getElementById("rr-em-composer") || document.body;
     const wrap = document.createElement("div");
     wrap.id = "rr-em-sigedit";
     wrap.className = "em-docpick";
@@ -99058,7 +99162,30 @@ document.addEventListener("click", (e) => {
         <button type="button" class="em-bulk-btn em-sig-save" data-em-sig-save>Save</button>
       </div>
     </div>`;
-    wrap.addEventListener("click", (e) => { if (e.target === wrap) wrap.remove(); });
+    // Self-contained controls (EM#98) — Settings opens this without a
+    // composer, so the buttons can't ride the composer's delegated
+    // listener.
+    wrap.addEventListener("click", (e) => {
+      if (e.target === wrap || e.target.closest("[data-em-sig-close]")) { wrap.remove(); return; }
+      if (e.target.closest("[data-em-sig-save]")) {
+        const ed2 = document.getElementById("rr-em-sig-editor");
+        try { localStorage.setItem(_emSigKey(), ed2 ? ed2.innerHTML : ""); } catch (_) {}
+        wrap.remove();
+        return;
+      }
+      if (e.target.closest("[data-em-sig-clear]")) {
+        const ed2 = document.getElementById("rr-em-sig-editor");
+        if (ed2) ed2.innerHTML = "";
+        return;
+      }
+      if (e.target.closest("[data-em-sig-insert]")) {
+        const ed2 = document.getElementById("rr-em-sig-editor");
+        const body = document.getElementById("rr-em-composer-body");
+        if (ed2 && body) body.innerHTML += `<div><br></div><div class="rr-sig">${ed2.innerHTML}</div>`;
+        wrap.remove();
+        return;
+      }
+    });
     host.appendChild(wrap);
     const ed = document.getElementById("rr-em-sig-editor");
     if (ed) ed.innerHTML = _emGetSignature();
@@ -99551,6 +99678,10 @@ document.addEventListener("click", (e) => {
         try { _emSaveDraftRow(true); } catch (_) {}
       }
       m.remove();
+      if (_emFocusReturn) {
+        try { if (document.contains(_emFocusReturn)) _emFocusReturn.focus(); } catch (_) {}
+        _emFocusReturn = null;
+      }
     }
     _emAcClose();
     if (!_composerAttachmentsSent) {
@@ -99766,6 +99897,24 @@ document.addEventListener("click", (e) => {
   // and the way back from a mis-click. One slot; a new move replaces
   // the previous undo.
   let _emUndo = null;
+  // Non-visual confirmation (EM#91) · toasts are suppressed and drag
+  // is mouse-only, so moves/archives/deletes speak through a polite
+  // live region. Clear-then-set so repeating the same action
+  // re-announces.
+  function _emAnnounce(msg) {
+    let el = document.getElementById("rr-em-sr-status");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "rr-em-sr-status";
+      el.className = "rr-visually-hidden";
+      el.setAttribute("role", "status");
+      el.setAttribute("aria-live", "polite");
+      document.body.appendChild(el);
+    }
+    el.textContent = "";
+    setTimeout(() => { el.textContent = msg; }, 30);
+  }
+
   function recordUndo(ids, label, undoPatch) {
     if (!ids || !ids.length || !undoPatch) return;
     if (_emUndo && _emUndo.timer) clearTimeout(_emUndo.timer);
@@ -99773,6 +99922,7 @@ document.addEventListener("click", (e) => {
       ids: ids.slice(), undoPatch, label,
       timer: setTimeout(() => { _emUndo = null; renderUndoBar(); }, 8000),
     };
+    _emAnnounce(label); // every move/snooze/bulk funnels through here
     renderUndoBar();
   }
   function renderUndoBar() {
@@ -99799,6 +99949,7 @@ document.addEventListener("click", (e) => {
       if (typeof toast === "function") toast("Undo failed: " + err.message, "warn");
       return;
     }
+    _emAnnounce("Move undone");
     await loadMessages();
     renderInbox();
     renderPreview();
@@ -99872,6 +100023,8 @@ document.addEventListener("click", (e) => {
     // real folders, so a single restore target doesn't exist.
     if (!isVirtualFolderId(from)) {
       recordUndo(ids, `Moved ${ids.length === 1 ? "1 message" : `${ids.length} messages`} to ${folderName}`, { folder_id: from });
+    } else {
+      _emAnnounce(`Moved ${ids.length === 1 ? "1 message" : `${ids.length} messages`} to ${folderName}`);
     }
     await loadMessages();
     renderInbox();
@@ -99915,6 +100068,8 @@ document.addEventListener("click", (e) => {
     }
     if (!isVirtualFolderId(fromFolderId)) {
       recordUndo([messageId], `Moved to ${target.name}`, { folder_id: fromFolderId });
+    } else {
+      _emAnnounce(`Moved to ${target.name}`);
     }
     // If the moved message was selected, clear the preview (it's no
     // longer in the current folder view).
@@ -99949,6 +100104,8 @@ document.addEventListener("click", (e) => {
     }
     if (!isVirtualFolderId(fromFolderId)) {
       recordUndo([movedId], `Moved to ${target.name}`, { folder_id: fromFolderId });
+    } else {
+      _emAnnounce(`Moved to ${target.name}`);
     }
     state.activeMessageId = null;
     await loadMessages();
@@ -100761,7 +100918,8 @@ document.addEventListener("click", (e) => {
         const mode = popoutAction.hasAttribute("data-rr-popout-reply")     ? "reply"
                    : popoutAction.hasAttribute("data-rr-popout-replyall") ? "reply-all"
                    :                                                        "forward";
-        openComposer({ mode, original });
+        if (original) { _emEnsureBody(original).then(() => openComposer({ mode, original })); }
+        else openComposer({ mode, original });
         return;
       }
     }
@@ -100777,7 +100935,8 @@ document.addEventListener("click", (e) => {
       if (action === "reply" || action === "reply-all" || action === "forward") {
         e.preventDefault();
         const original = state.messages.find(x => x.id === state.activeMessageId);
-        openComposer({ mode: action, original });
+        if (original) { _emEnsureBody(original).then(() => openComposer({ mode: action, original })); }
+        else openComposer({ mode: action, original });
         return;
       }
       if (action === "delete")  { e.preventDefault(); moveSelectedToKind("trash");   return; }
@@ -100788,8 +100947,8 @@ document.addEventListener("click", (e) => {
         if (rm) rm.hidden = true;
         const m = state.messages.find(x => x.id === state.activeMessageId);
         if (!m) return;
-        if (action === "print") printMessage(m);
-        else if (action === "export") exportEml(m);
+        if (action === "print") _emEnsureBody(m).then(() => printMessage(m));
+        else if (action === "export") _emEnsureBody(m).then(() => exportEml(m));
         else if (action === "rule") _emOpenRuleModal(m);
         else addSenderToContacts(m);
         return;
@@ -100930,6 +101089,16 @@ document.addEventListener("click", (e) => {
     if (document.getElementById("rr-em-composer") || document.getElementById("rr-em-popout")) return;
     const ae = document.activeElement;
     if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.tagName === "SELECT" || ae.isContentEditable)) return;
+    // Enter/Space activates a FOCUSED row div (EM#88) — folder and
+    // message rows are containers now, not buttons, so activation is
+    // ours to provide. Runs before the Enter-opens-popout branch so
+    // the focused row wins over the last-selected message.
+    if ((e.key === "Enter" || e.key === " ") && ae && ae.matches
+        && ae.matches("[data-em-folder], [data-em-msg]")) {
+      e.preventDefault();
+      ae.click();
+      return;
+    }
     if (state.activeFolderId === DOCS_FOLDER_ID) return;
     if (e.key === "/") {
       // `/` focuses search (EM#71) — Gmail muscle memory.
@@ -101287,14 +101456,49 @@ document.addEventListener("click", (e) => {
     // immediately show its full count as "new"; other folders still
     // show their accumulated badge.
     if (state.activeFolderId) setFolderLastViewed(state.activeFolderId);
-    await loadFolderCounts();
     renderFolders();
+    // Counts ride in parallel with the first message page (EM#96) —
+    // messages paint without waiting on the badge query.
+    const countsP = loadFolderCounts().then(() => renderFolders()).catch(() => {});
     await loadMessages();
     renderInbox();
     renderPreview();
     subscribeRealtime();
+    await countsP;
     return true;
   }
+  // Lazy boot (EM#96) · the full boot used to run for EVERY operator at
+  // page load — folders → counts → messages, serially — whether or not
+  // they ever opened Email. Now: a light preboot (folders + one counts
+  // RPC) keeps the sidebar unread dot honest and the realtime channel
+  // keeps it live, while the full boot fires on first navigation to
+  // the Email view (onMailEvent runs a counts-only path pre-boot).
+  async function _emPreboot() {
+    if (state.booted) return;
+    try {
+      await loadFolders();
+      await loadFolderCounts(); // paints the nav dot via refreshNavUnread
+      subscribeRealtime();
+    } catch (_) {}
+  }
+  function _emBootWhenVisible() {
+    const v = document.getElementById("view-email");
+    if (!v) { init(); return; } // unexpected layout — keep eager boot
+    if (v.classList.contains("active")) { init(); return; }
+    const obs = new MutationObserver(() => {
+      if (v.classList.contains("active")) { obs.disconnect(); init(); }
+    });
+    obs.observe(v, { attributes: true, attributeFilter: ["class"] });
+    _emPreboot();
+  }
+  // Settings → Email tools (EM#98) · the gear page opens the same
+  // modals the Email page uses. Rules/delivery read state.folders,
+  // which the lazy preboot loads at page start.
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("#rr-set-em-sig")) { e.preventDefault(); _emOpenSigEditor(); return; }
+    if (e.target.closest("#rr-set-em-rules")) { e.preventDefault(); _emOpenRulesList(); return; }
+    if (e.target.closest("#rr-set-em-delivery")) { e.preventDefault(); _emOpenDeliveryHealth(); return; }
+  });
   // Expose the rich composer so other views (e.g. the interview calendar)
   // can open a prefilled "New email" without duplicating the editor.
   window.rrOpenEmailComposer = openComposer;
@@ -101303,9 +101507,9 @@ document.addEventListener("click", (e) => {
   // sandbox). Not for app code — call nothing through this in features.
   window._rrEmSimulateMailEvent = onMailEvent;
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
+    document.addEventListener("DOMContentLoaded", _emBootWhenVisible);
   } else {
-    init();
+    _emBootWhenVisible();
   }
 })();
 
