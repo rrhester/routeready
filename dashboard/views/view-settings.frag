@@ -383,6 +383,23 @@
                   </div>
                 </details>
 
+                <details class="rules-section" data-rr-rules-section="publish-gate" style="grid-column:1/-1">
+                  <summary class="rules-section-title">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="m9 16 2 2 4-4"/></svg>
+                    Schedule publishing
+                  </summary>
+                  <div style="font-size:var(--fs-sm);color:var(--text-subtle);margin:6px 0 12px;line-height:1.5">
+                    Controls when a week's schedule becomes visible in the driver app. Finalize a week from the schedule's finalize control to publish it.
+                  </div>
+                  <div class="rule-row">
+                    <div>
+                      <div class="rule-label">Only show finalized weeks to drivers</div>
+                      <div class="rule-help">When on, a driver sees a week only after you finalize it — draft and in-progress weeks stay hidden. When off, assigned shifts are visible to drivers as soon as they're saved.</div>
+                    </div>
+                    <label class="toggle"><input type="checkbox" id="rr-publish-gate-toggle" /><span class="toggle-slider"></span></label>
+                  </div>
+                </details>
+
                 <details class="rules-section" data-rr-rules-section="attendance-windows" style="grid-column:1/-1">
                   <summary class="rules-section-title">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>

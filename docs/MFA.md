@@ -63,11 +63,67 @@ staff — blocking users who haven't enrolled until they do — is a deliberate 
 not part of this rollout. Get comfortable with steps 1–4 across a few real accounts
 first.
 
+## Server-side enforcement (closing the API bypass) — migration 0565
+
+Steps 1–5 secure the **login screen**. But the login gate is client-side: a stolen
+password + the public anon key can reach the PostgREST data API directly at **aal1**
+and never see the challenge (launch-audit finding H-1). Migration `0565` adds the
+server primitive to close that, safely and opt-in.
+
+**The primitive — `private.mfa_ok()`** returns true when the session is aal2 **OR the
+caller has no verified factor**. So enforcing it can *never* block someone who hasn't
+enrolled, and an enrolled user is already aal2 after the login challenge — only an
+enrolled session that reached the API at aal1 (the attack) is refused. Same invariant
+as the client gate, on the server.
+
+**Opt-in per DSP** — `dsps.metadata.security.require_mfa` (default **false**). The
+settings mutators (`set_pickup_settings` / `set_swap_settings` /
+`set_publish_gate_settings`) enforce `mfa_ok` **only** when their DSP has opted in, as
+the reference pattern. Nothing changes until you turn it on.
+
+### Turn on server enforcement for a DSP (after steps 1–4 pass on real accounts)
+
+```sql
+update public.dsps
+   set metadata = jsonb_set(coalesce(metadata,'{}'::jsonb), '{security,require_mfa}', 'true'::jsonb, true)
+ where slug = 'your-dsp-slug';
+```
+
+Then, as an **enrolled** owner, confirm a settings toggle still works *after* the login
+challenge (you're aal2). The break-glass is the mirror:
+
+```sql
+-- Disable server enforcement instantly (back to no API-level MFA check):
+update public.dsps
+   set metadata = jsonb_set(metadata, '{security,require_mfa}', 'false'::jsonb, true)
+ where slug = 'your-dsp-slug';
+```
+
+…or drop the user's factor (§4), which returns them to aal1-allowed everywhere.
+
+### Extending enforcement (the real H-1 close — deliberate follow-up)
+
+`0565` protects the settings mutators as the pattern. Broadly closing the API — reads of
+driver PII, the privileged writes gated in `0564`, etc. — means adding
+`private.mfa_ok()` to those functions/RLS the same way, or an RLS predicate on the
+tenant tables:
+
+```sql
+-- allow only aal2 OR un-enrolled users to read/write a sensitive table
+using ( private.mfa_ok() )
+```
+
+Do this **incrementally, behind require_mfa, with the enroll→challenge→recovery test
+re-run each time** — never blanket-apply it blind. A server MFA check *fails closed*
+(unlike the client gate), so a mistake here can lock out everyone who enrolled. That is
+why this ships as a validated primitive + one reference surface, not a blanket rollout.
+
 ## Rollback
 
 `MFA_ENABLED: false` → redeploy. The login gate goes dormant immediately. No data
 change; enrolled factors simply stop being challenged (and can be removed via the SQL
-above if you want them gone).
+above if you want them gone). Server enforcement (0565) is separately reversible by
+setting `require_mfa=false` per the break-glass above.
 
 ## What each piece is
 

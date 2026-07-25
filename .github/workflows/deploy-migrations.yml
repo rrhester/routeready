@@ -58,6 +58,7 @@ jobs:
         export-tenant-files health cal-availability webhook-twilio
         webhook-cal webhook-apply webhook-email-inbound webhook-email-events
         upload-applicant-video upload-driver-photo driver-document-fetch
+        driver-file-sign
         document-verify document-classify dvic-ai-review desktop-pair
         ai-proxy box-ingest google-oauth-callback google-calendar-sync
         google-calendar-pull calendar-feed interview-room

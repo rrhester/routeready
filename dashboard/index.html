@@ -176,13 +176,13 @@
 <link rel="preconnect" href="https://doiwrhkirgblcvuskhno.supabase.co" crossorigin>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="modulepreload" href="/dashboard/vendor/supabase-js-2.45.4.mjs">
-<link rel="modulepreload" href="./scheduling-engine.js?v=f92fbfa89e55">
-<link rel="modulepreload" href="./forecast-core.js?v=f92fbfa89e55">
-<link rel="modulepreload" href="./workbook.js?v=f92fbfa89e55">
-<link rel="modulepreload" href="./reports.js?v=f92fbfa89e55">
-<link rel="modulepreload" href="./parts/parts-engine.js?v=f92fbfa89e55">
-<link rel="modulepreload" href="./repair/repair-engine.js?v=f92fbfa89e55">
-<link rel="stylesheet" href="../app/rr-system.css?v=f92fbfa89e55">
+<link rel="modulepreload" href="./scheduling-engine.js?v=d47a842c3bc7">
+<link rel="modulepreload" href="./forecast-core.js?v=d47a842c3bc7">
+<link rel="modulepreload" href="./workbook.js?v=d47a842c3bc7">
+<link rel="modulepreload" href="./reports.js?v=d47a842c3bc7">
+<link rel="modulepreload" href="./parts/parts-engine.js?v=d47a842c3bc7">
+<link rel="modulepreload" href="./repair/repair-engine.js?v=d47a842c3bc7">
+<link rel="stylesheet" href="../app/rr-system.css?v=d47a842c3bc7">
 <!-- Schedule page — Fluent 2 visual rebind (reference migration).
      Re-skins existing .sched-* chrome under #view-schedule.rrx-schedule
      using --rr-* tokens. Zero DOM/JS changes; opt-in via the
@@ -191,16 +191,16 @@
      structural classes). Single source of truth for chrome
      dimensions across the platform. Loaded BEFORE the per-page
      rrx files so they can reference the tokens. -->
-<link rel="stylesheet" href="tcp.css?v=f92fbfa89e55">
-<link rel="stylesheet" href="schedule-rrx.css?v=f92fbfa89e55">
+<link rel="stylesheet" href="tcp.css?v=d47a842c3bc7">
+<link rel="stylesheet" href="schedule-rrx.css?v=d47a842c3bc7">
 <!-- Onboarding page — Fluent 2 visual rebind.
      Re-skins existing chrome under #view-onboarding-ops.rrx-onboarding
      using --rr-* tokens. Same pattern as schedule-rrx.css. -->
-<link rel="stylesheet" href="onboarding-rrx.css?v=f92fbfa89e55">
+<link rel="stylesheet" href="onboarding-rrx.css?v=d47a842c3bc7">
 <!-- The dashboard's former inline styles · extracted so the no-cache
      HTML shell stops re-shipping ~1.2MB of CSS on every load; this
      file is cacheable and busts via the ?v= token like the rest. -->
-<link rel="stylesheet" href="inline-styles.css?v=f92fbfa89e55">
+<link rel="stylesheet" href="inline-styles.css?v=d47a842c3bc7">
 <!-- style block 0 extracted to inline-styles.css -->
 </head>
 <body>
@@ -1872,12 +1872,12 @@
     </div>
 
     <!-- ─── DASHBOARD VIEW ─── -->
-    <div class="view" id="view-dashboard" data-rr-view-src="views/view-dashboard.frag?v=f92fbfa89e55">
+    <div class="view" id="view-dashboard" data-rr-view-src="views/view-dashboard.frag?v=d47a842c3bc7">
       <!-- markup extracted to views/view-dashboard.frag (monolith split phase 2) -->
     </div>
 
     <!-- ─── HIRING PIPELINE VIEW ─── -->
-    <div class="view" id="view-pipeline" data-rr-view-src="views/view-pipeline.frag?v=f92fbfa89e55">
+    <div class="view" id="view-pipeline" data-rr-view-src="views/view-pipeline.frag?v=d47a842c3bc7">
       <!-- markup extracted to views/view-pipeline.frag (monolith split phase 2) -->
     </div>
 
@@ -1885,28 +1885,28 @@
          ONBOARDING (OPERATIONS) VIEW — readiness command center.
          Populated by loadOnboardingOps() in live.js.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view rrx-onboarding" id="view-onboarding-ops" data-rr-view-src="views/view-onboarding-ops.frag?v=f92fbfa89e55">
+    <div class="view rrx-onboarding" id="view-onboarding-ops" data-rr-view-src="views/view-onboarding-ops.frag?v=d47a842c3bc7">
       <!-- markup extracted to views/view-onboarding-ops.frag (monolith split phase 2) -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          DRIVERS VIEW
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-drivers" data-rr-view-src="views/view-drivers.frag?v=f92fbfa89e55">
+    <div class="view" id="view-drivers" data-rr-view-src="views/view-drivers.frag?v=d47a842c3bc7">
       <!-- markup extracted to views/view-drivers.frag (monolith split phase 2) -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          SETTINGS VIEW
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-settings" data-rr-view-src="views/view-settings.frag?v=f92fbfa89e55">
+    <div class="view" id="view-settings" data-rr-view-src="views/view-settings.frag?v=d47a842c3bc7">
       <!-- markup extracted to views/view-settings.frag (monolith split phase 2) -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          SCHEDULE VIEW — full DSP-grade schedule system
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view active rrx-schedule" id="view-schedule" data-rr-view-src="views/view-schedule.frag?v=f92fbfa89e55">
+    <div class="view active rrx-schedule" id="view-schedule" data-rr-view-src="views/view-schedule.frag?v=d47a842c3bc7">
       <!-- markup extracted to views/view-schedule.frag (monolith split phase 2) -->
     </div>
 
@@ -1915,14 +1915,14 @@
          (Amazon's term for DSP route plan horizon)
          ═══════════════════════════════════════════════════════════ -->
     <div id="rr-okami-backdrop" class="rr-okami-backdrop"></div>
-    <div class="view" id="view-okami" data-rr-view-src="views/view-okami.frag?v=f92fbfa89e55">
+    <div class="view" id="view-okami" data-rr-view-src="views/view-okami.frag?v=d47a842c3bc7">
       <!-- markup extracted to views/view-okami.frag (monolith split phase 2) -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          MESSAGES — real-time dispatch ↔ driver comms
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-messages" data-rr-view-src="views/view-messages.frag?v=f92fbfa89e55">
+    <div class="view" id="view-messages" data-rr-view-src="views/view-messages.frag?v=d47a842c3bc7">
       <!-- markup extracted to views/view-messages.frag (monolith split phase 2) -->
     </div>
 
@@ -1933,7 +1933,7 @@
          Loader functions live in live.js (loadRecognitionView /
          loadRecognitionUpcoming / loadRecognitionHistory / …).
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-recognition" data-rr-view-src="views/view-recognition.frag?v=f92fbfa89e55">
+    <div class="view" id="view-recognition" data-rr-view-src="views/view-recognition.frag?v=d47a842c3bc7">
       <!-- markup extracted to views/view-recognition.frag (monolith split phase 2) -->
     </div>
 
@@ -1948,7 +1948,7 @@
          scoped entirely to #view-fleet2 — it does not touch
          #view-schedule or schedule-rrx.css.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view rrx-schedule" id="view-fleet2" data-rr-view-src="views/view-fleet2.frag?v=f92fbfa89e55">
+    <div class="view rrx-schedule" id="view-fleet2" data-rr-view-src="views/view-fleet2.frag?v=d47a842c3bc7">
       <!-- markup extracted to views/view-fleet2.frag (monolith split phase 2) -->
     </div>
 
@@ -1959,7 +1959,7 @@
          dashboard/repair/repair-ui.js (window.RRRepair), backed by the
          repair_cases schema (migration 0486).
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view rrx-schedule" id="view-repair" data-rr-view-src="views/view-repair.frag?v=f92fbfa89e55">
+    <div class="view rrx-schedule" id="view-repair" data-rr-view-src="views/view-repair.frag?v=d47a842c3bc7">
       <!-- markup in views/view-repair.frag -->
     </div>
 
@@ -1995,7 +1995,7 @@
          into [data-co-render="exceptions-table"] and
          [data-co-render="rules-list"].
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-compliance" data-rr-view-src="views/view-compliance.frag?v=f92fbfa89e55">
+    <div class="view" id="view-compliance" data-rr-view-src="views/view-compliance.frag?v=d47a842c3bc7">
       <!-- markup extracted to views/view-compliance.frag (monolith split phase 2) -->
     </div>
 
@@ -2007,7 +2007,7 @@
          row to a driver links the driver profile, surfaces the task in
          the driver app, and logs the accountability trail.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-workspaces" data-rr-view-src="views/view-workspaces.frag?v=f92fbfa89e55">
+    <div class="view" id="view-workspaces" data-rr-view-src="views/view-workspaces.frag?v=d47a842c3bc7">
       <!-- markup extracted to views/view-workspaces.frag (monolith split phase 2) -->
     </div>
 
@@ -2015,7 +2015,7 @@
          OPERATIONS WORKBOOK — spreadsheets + notes + checklists in
          one durable workbook (workbook.js renders into #rr-wb-root)
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view rrx-schedule" id="view-workbooks" data-rr-view-src="views/view-workbooks.frag?v=f92fbfa89e55">
+    <div class="view rrx-schedule" id="view-workbooks" data-rr-view-src="views/view-workbooks.frag?v=d47a842c3bc7">
       <!-- markup lives in views/view-workbooks.frag -->
     </div>
 
@@ -2024,21 +2024,21 @@
          (Notebook ▸ Section ▸ Page ▸ Subpage), rich editor, search,
          per-object notebooks. Markup + engine in the fragment.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-notebooks" data-rr-view-src="views/view-notebooks.frag?v=f92fbfa89e55">
+    <div class="view" id="view-notebooks" data-rr-view-src="views/view-notebooks.frag?v=d47a842c3bc7">
       <!-- markup lives in views/view-notebooks.frag -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          FORMS — DSP-built custom forms drivers fill out
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-forms" data-rr-view-src="views/view-forms.frag?v=f92fbfa89e55">
+    <div class="view" id="view-forms" data-rr-view-src="views/view-forms.frag?v=d47a842c3bc7">
       <!-- markup extracted to views/view-forms.frag (monolith split phase 2) -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          CHECKLISTS — recurring task lists (Open / Close / shift)
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-checklists" data-rr-view-src="views/view-checklists.frag?v=f92fbfa89e55">
+    <div class="view" id="view-checklists" data-rr-view-src="views/view-checklists.frag?v=d47a842c3bc7">
       <!-- markup extracted to views/view-checklists.frag (monolith split phase 2) -->
     </div>
 
@@ -2048,7 +2048,7 @@
          audit flows. PDF signing service + driver-side viewer ship in
          later slices.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-documents" data-rr-view-src="views/view-documents.frag?v=f92fbfa89e55">
+    <div class="view" id="view-documents" data-rr-view-src="views/view-documents.frag?v=d47a842c3bc7">
       <!-- markup extracted to views/view-documents.frag (monolith split phase 2) -->
     </div>
 
@@ -2057,7 +2057,7 @@
          Three-column shell (section rail · content · details/preview),
          painted by loadDriveView() over the existing document stores.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-drive" data-rr-view-src="views/view-drive.frag?v=f92fbfa89e55">
+    <div class="view" id="view-drive" data-rr-view-src="views/view-drive.frag?v=d47a842c3bc7">
       <!-- markup in views/view-drive.frag -->
     </div>
 
@@ -2069,7 +2069,7 @@
          strip and flips the layout: the open-shifts-sized aside sits
          on the LEFT, the calendar-sized main panel on the RIGHT.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-email" data-rr-view-src="views/view-email.frag?v=f92fbfa89e55">
+    <div class="view" id="view-email" data-rr-view-src="views/view-email.frag?v=d47a842c3bc7">
       <!-- markup extracted to views/view-email.frag (monolith split phase 2) -->
     </div>
 
@@ -2082,14 +2082,14 @@
          Phase 2 ships header + stats; Phase 3 fills the table area;
          Phase 4 wires the modals.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-admin" data-rr-view-src="views/view-admin.frag?v=f92fbfa89e55">
+    <div class="view" id="view-admin" data-rr-view-src="views/view-admin.frag?v=d47a842c3bc7">
       <!-- markup extracted to views/view-admin.frag (monolith split phase 2) -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          BUILD YOUR OWN TOOL
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-build" data-rr-view-src="views/view-build.frag?v=f92fbfa89e55">
+    <div class="view" id="view-build" data-rr-view-src="views/view-build.frag?v=d47a842c3bc7">
       <!-- markup extracted to views/view-build.frag (monolith split phase 2) -->
     </div>
 
@@ -4498,23 +4498,16 @@ Evidence attached:
       <button class="modal-close" onclick="closeModal('modal-help')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="modal-body" style="padding:0">
-      <button class="popover-item" style="width:100%;justify-content:flex-start" onclick="toast('Search docs — would open help center')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        Search the help center
-      </button>
-      <button class="popover-item" style="width:100%;justify-content:flex-start" onclick="toast('Quickstart — would open guided tour')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15 8 22 9 17 14 18 21 12 18 6 21 7 14 2 9 9 8 12 2"/></svg>
-        Quickstart guide
-      </button>
-      <button class="popover-item" style="width:100%;justify-content:flex-start" onclick="toast('Keyboard shortcuts — opens reference')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h8M6 16h12"/></svg>
-        Keyboard shortcuts
-      </button>
-      <button class="popover-item" style="width:100%;justify-content:flex-start" onclick="toast('Contact support — opens chat with our team')">
+      <p class="modal-sub" style="padding:12px 16px 4px">Support is available by email. We aim to reply within one business day (Mon–Fri).</p>
+      <button class="popover-item" style="width:100%;justify-content:flex-start" onclick="rrContactSupport()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
         Contact support
       </button>
-      <button class="popover-item" style="width:100%;justify-content:flex-start" onclick="toast('Feature request — opens form')">
+      <button class="popover-item" style="width:100%;justify-content:flex-start" onclick="rrContactSupport('question')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        Ask a question
+      </button>
+      <button class="popover-item" style="width:100%;justify-content:flex-start" onclick="rrContactSupport('feature')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Request a feature
       </button>
@@ -5335,7 +5328,7 @@ John,Smith,555-0101,john@example.com</code>
     if (!window.__RR_VIEW_LOAD_FAILED) {
       await new Promise(function (resolve) {
         var s = document.createElement('script');
-        s.src = 'mock-wiring.js?v=f92fbfa89e55';
+        s.src = 'mock-wiring.js?v=d47a842c3bc7';
         s.onload = function () {
           // These register DOMContentLoaded callbacks with no
           // already-fired fallback (unlike the rest of the script);
@@ -5355,15 +5348,15 @@ John,Smith,555-0101,john@example.com</code>
   })();
 </script>
 <script src="./config.js"></script>
-<script src="./desktop-connect.js?v=f92fbfa89e55"></script>
-<script src="./admin-crawl-tasks.js?v=f92fbfa89e55"></script>
-<script type="module" src="./live.js?v=f92fbfa89e55"></script>
+<script src="./desktop-connect.js?v=d47a842c3bc7"></script>
+<script src="./admin-crawl-tasks.js?v=d47a842c3bc7"></script>
+<script type="module" src="./live.js?v=d47a842c3bc7"></script>
 <!-- Parts Intelligence · Fleet "Parts" sub-tab. Self-registers window.RRParts;
      live.js's fleetSub('parts') mounts it. Uses the shared window.sb. -->
-<script type="module" src="./parts/parts-ui.js?v=f92fbfa89e55"></script>
+<script type="module" src="./parts/parts-ui.js?v=d47a842c3bc7"></script>
 <!-- Repair Center · top-level page. Self-registers window.RRRepair;
      live.js's goto('repair') dispatches it. Uses the shared window.sb. -->
-<script type="module" src="./repair/repair-ui.js?v=f92fbfa89e55"></script>
+<script type="module" src="./repair/repair-ui.js?v=d47a842c3bc7"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
