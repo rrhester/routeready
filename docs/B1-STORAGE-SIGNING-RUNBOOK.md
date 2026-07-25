@@ -44,15 +44,23 @@ shipping them changes nothing on their own:
 
 ## Deploy order (do these in sequence)
 
-1. **Ship + merge this branch.** Merging deploys the `driver-file-sign` edge
-   function automatically (it's in the `Deploy Supabase` workflow's
-   no-verify-jwt list) **and the driver-app change** (the PWA now reads through
-   `driver-file-sign`). Apply **migration 0538** by hand in the SQL Editor.
-   → The app now uses the new signing path, while the anon policies *still
-   exist* as an inert backstop — so nothing is broken even if a read regresses.
-2. **QA on a real device** (checklist below). The new path is the only one the
+> ⚠️ **Apply migration `0538` BEFORE merging.** Merging deploys the driver app
+> (which now reads through `driver-file-sign`) and the edge function together.
+> If `0538` (the ownership RPC the edge function calls) isn't applied yet,
+> `driver-file-sign` 500s and drivers can't load their files. `0538` only
+> *creates* a function — it changes nothing until called — so it is safe to
+> apply to the live database ahead of the merge.
+
+1. **Apply migration `0538`** (ownership RPC) in the SQL Editor. Inert until
+   the edge function calls it, so applying it early is harmless.
+2. **Merge this branch.** This deploys the `driver-file-sign` edge function
+   (it's in the `Deploy Supabase` workflow's no-verify-jwt list) **and the
+   driver-app change**. With `0538` already live, the new signing path works
+   the moment the app deploys — no gap. The anon read policies *still exist* as
+   an inert backstop, so nothing breaks even if a read regresses.
+3. **QA on a real device** (checklist below). The new path is the only one the
    app uses now, so anything broken shows here — before any policy is dropped.
-3. **Only once QA is green:** apply **migration 0539** in the SQL Editor. The
+4. **Only once QA is green:** apply **migration 0539** in the SQL Editor. The
    cross-tenant hole is now closed. Re-run the driver QA once more to confirm
    files still load with the anon policies gone.
 
@@ -61,8 +69,8 @@ changed, for review + QA). Because the helpers preserve the supabase-js return
 shape, the change is a callee swap at six sites plus two helpers.
 
 At no point is there a window where the leak is closed but drivers are broken:
-the app switches while the old policy still works, and the policy drops only
-after the new path is proven.
+`0538` is live before the app switches, the app switches while the old policy
+still works, and the policy drops only after the new path is proven.
 
 ---
 
