@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=6d34f8551941";
-import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=6d34f8551941";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=6d34f8551941";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=6d34f8551941";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=6d34f8551941";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=6d34f8551941";
-import { isChecklistComplete } from "./checklist-core.mjs?v=6d34f8551941";
+import { planScheduleWeek } from "./scheduling-engine.js?v=1daabea73a18";
+import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=1daabea73a18";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=1daabea73a18";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=1daabea73a18";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=1daabea73a18";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=1daabea73a18";
+import { isChecklistComplete } from "./checklist-core.mjs?v=1daabea73a18";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=6d34f8551941";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=6d34f8551941";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=6d34f8551941";
+} from "./msg-core.mjs?v=1daabea73a18";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=1daabea73a18";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=1daabea73a18";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -95014,6 +95014,9 @@ document.addEventListener("click", (e) => {
     messagesTotal:   0,       // exact folder total (differs from messages.length at the 200 cap)
     pendingNew:      0,       // realtime arrivals not yet pulled into the list (EM#20 pill)
     selectedIds:     new Set(), // multi-select for bulk actions (EM#22)
+    renamingFolderId: null,      // inline rename target (EM#59)
+    confirmDeleteFolderId: null, // inline delete-confirm target (EM#61)
+    newFolderParentId: null,     // subfolder context for the inline form (EM#61)
     selectAnchor:    null,      // last-toggled id · shift-click ranges from here
     collapsedGroups: new Set(),
     readMessages:    new Set(),
@@ -95302,7 +95305,35 @@ document.addEventListener("click", (e) => {
   // list can show an unread-style badge. One HEAD-mode query per folder
   // (Supabase doesn't expose group-by counts through the JS client).
   // Cheap because there are at most ~10 folders per DSP.
+  // 0539 capability · one-RPC folder counts; false = fall back to the
+  // per-folder HEAD loop below.
+  let _srvCountsRpc = null;
   async function loadFolderCounts() {
+    if (_srvCountsRpc !== false && _srvReadState !== false) {
+      const { data, error } = await sb.rpc("email_folder_unread_counts");
+      if (!error && Array.isArray(data)) {
+        _srvCountsRpc = true;
+        _srvReadState = true;
+        const out = {};
+        for (const f of state.folders) out[f.id] = 0;
+        for (const r of data) if (r && r.folder_id) out[r.folder_id] = r.unread || 0;
+        // Docs pseudo-folder keeps its own "new since last visit" count.
+        const docsF = state.folders.find(f => f.id === DOCS_FOLDER_ID);
+        if (docsF) {
+          const lastViewed = getFolderLastViewed(DOCS_FOLDER_ID);
+          let q = sb.from("document_intake")
+            .select("*", { count: "exact", head: true })
+            .neq("status", "dismissed");
+          if (lastViewed) q = q.gt("created_at", lastViewed);
+          const { count, error: dErr } = await q;
+          out[DOCS_FOLDER_ID] = dErr ? 0 : (count ?? 0);
+        }
+        state.folderCounts = out;
+        refreshNavUnread();
+        return;
+      }
+      _srvCountsRpc = false;
+    }
     const out = {};
     for (const folder of state.folders) {
       // Virtual views carry no "new mail" badge — their ids aren't
@@ -95530,6 +95561,11 @@ document.addEventListener("click", (e) => {
       if (!childrenByParent.has(key)) childrenByParent.set(key, []);
       childrenByParent.get(key).push(f);
     }
+    // Paint in (position, name) order so client-side reorders (EM#60)
+    // show without a reload — matches the server's load order.
+    for (const list of childrenByParent.values()) {
+      list.sort((a, b) => (a.position - b.position) || (a.name || "").localeCompare(b.name || ""));
+    }
     // Cycle/depth guard · parent_id comes straight from fb_folders with
     // no DB-side validation, so a custom folder that's its own ancestor
     // (self-parent, or A↔B made subfolders of each other via "Add
@@ -95574,6 +95610,25 @@ document.addEventListener("click", (e) => {
     const isActive = f.id === state.activeFolderId;
     const isCustom = f.kind === "custom";
     const isDocs   = f.id === DOCS_FOLDER_ID;
+    const indent0 = depth > 0 ? ` style="padding-left:${10 + depth * 14}px"` : "";
+    // Inline rename (EM#59) · the row swaps to an input; Enter saves.
+    if (state.renamingFolderId === f.id) {
+      return `<div class="em-folder is-renaming"${indent0}>
+        ${iconFor(f.kind)}
+        <form class="em-folder-rename-form" data-em-rename-form="${escapeHtmlLocal(f.id)}">
+          <input class="em-folder-rename-input" id="rr-em-rename-input" type="text" maxlength="40" value="${escapeHtmlLocal(f.name)}" autocomplete="off" aria-label="Folder name">
+        </form>
+      </div>`;
+    }
+    // Inline delete confirm (EM#61) · replaces the native confirm().
+    if (state.confirmDeleteFolderId === f.id) {
+      return `<div class="em-folder is-confirm"${indent0}>
+        ${iconFor(f.kind)}
+        <span class="em-folder-confirm-txt">Delete? Mail moves to Inbox.</span>
+        <button type="button" class="em-folder-confirm-yes" data-em-folder-del-yes="${escapeHtmlLocal(f.id)}">Delete</button>
+        <button type="button" class="em-folder-confirm-no" data-em-folder-del-no>Keep</button>
+      </div>`;
+    }
     const newCount = state.folderCounts[f.id] || 0;
     const countDisplay = newCount > 0 ? (newCount > 99 ? "99+" : String(newCount)) : "";
     const indent = depth > 0 ? ` style="padding-left:${10 + depth * 14}px"` : "";
@@ -95582,6 +95637,7 @@ document.addEventListener("click", (e) => {
       <span class="em-folder-name">${escapeHtmlLocal(f.name)}</span>
       <span class="em-folder-count${newCount > 0 ? " has-new" : ""}" aria-hidden="true">${countDisplay}</span>
       ${isVirtualFolderId(f.id) ? "" : `<span class="em-folder-add" role="button" tabindex="0" data-em-folder-add-child="${escapeHtmlLocal(f.id)}" aria-label="Add subfolder" title="Add subfolder"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>`}
+      ${isCustom ? `<span class="em-folder-up" role="button" tabindex="0" data-em-folder-move="${escapeHtmlLocal(f.id)}:-1" aria-label="Move up" title="Move up"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 14 12 8 18 14"/></svg></span><span class="em-folder-down" role="button" tabindex="0" data-em-folder-move="${escapeHtmlLocal(f.id)}:1" aria-label="Move down" title="Move down"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 10 12 16 18 10"/></svg></span><span class="em-folder-ren" role="button" tabindex="0" data-em-folder-rename="${escapeHtmlLocal(f.id)}" aria-label="Rename folder" title="Rename folder"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></span>` : ""}
       ${isCustom ? `<span class="em-folder-delete" role="button" tabindex="0" data-em-folder-delete="${escapeHtmlLocal(f.id)}" aria-label="Delete folder" title="Delete folder"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>` : ""}
     </button>`;
   }
@@ -95926,6 +95982,10 @@ document.addEventListener("click", (e) => {
           <button type="button" class="em-popout-move-item" role="menuitem" data-em-act="print">Print…</button>
           <button type="button" class="em-popout-move-item" role="menuitem" data-em-act="export">Download .eml</button>
           ${m && m.direction === "inbound" ? `<button type="button" class="em-popout-move-item" role="menuitem" data-em-act="add-contact">Add sender to Contacts</button>` : ""}
+          <div class="em-read-move-label">Move to</div>
+          ${state.folders.filter(f => f.id !== state.activeFolderId && !isVirtualFolderId(f.id))
+            .map(f => `<button type="button" class="em-popout-move-item" role="menuitem" data-em-move-to="${escapeHtmlLocal(f.id)}">${iconFor(f.kind)}<span>${escapeHtmlLocal(f.name)}</span></button>`)
+            .join("")}
         </div>
       </div>
     </div>`;
@@ -96575,9 +96635,23 @@ document.addEventListener("click", (e) => {
     if (preview) preview.innerHTML = "";
   }
 
+  // Two-step dismiss (EM#61) · the first click arms the ×, the second
+  // within 3s commits — replaces the native confirm().
+  let _emDocDismissArmed = null;
   async function dismissDoc(id) {
     if (!id) return;
-    if (!confirm("Dismiss this document? It won't show up in the intake list anymore.")) return;
+    if (_emDocDismissArmed !== id) {
+      _emDocDismissArmed = id;
+      const btn = document.querySelector(`[data-em-doc-dismiss="${id}"]`);
+      if (btn) { btn.classList.add("is-armed"); btn.setAttribute("title", "Click again to dismiss"); }
+      setTimeout(() => {
+        if (_emDocDismissArmed === id) _emDocDismissArmed = null;
+        const b = document.querySelector(`[data-em-doc-dismiss="${id}"]`);
+        if (b) { b.classList.remove("is-armed"); b.setAttribute("title", "Dismiss"); }
+      }, 3000);
+      return;
+    }
+    _emDocDismissArmed = null;
     const { error } = await sb.rpc("dismiss_document_intake", { p_id: id, p_reason: null });
     if (error) { if (typeof toast === "function") toast("Dismiss failed: " + error.message, "warn"); return; }
     if (state.activeDocId === id) state.activeDocId = null;
@@ -96773,9 +96847,100 @@ document.addEventListener("click", (e) => {
     if (el) el.remove();
   }
 
+  // Friendly duplicate-name guard (EM#62) · the DB's dsp-wide unique
+  // index stays as the backstop; this catches it before the raw
+  // Postgres message reaches a toast.
+  function _emFolderNameTaken(name, exceptId) {
+    const n = String(name || "").trim().toLowerCase();
+    return state.folders.some(f => f.id !== exceptId && !isVirtualFolderId(f.id) && (f.name || "").toLowerCase() === n);
+  }
+
+  async function renameFolder(id, name) {
+    const f = state.folders.find(x => x.id === id);
+    const trimmed = String(name || "").trim();
+    state.renamingFolderId = null;
+    if (!f || !trimmed || trimmed === f.name) { renderFolders(); return; }
+    if (_emFolderNameTaken(trimmed, id)) {
+      if (typeof toast === "function") toast(`You already have a folder called "${trimmed}"`, "warn");
+      renderFolders();
+      return;
+    }
+    const { error } = await sb.from("fb_folders").update({ name: trimmed }).eq("id", id);
+    if (error) {
+      const friendly = /duplicate|unique/i.test(error.message || "")
+        ? `You already have a folder called "${trimmed}"`
+        : "Couldn't rename: " + error.message;
+      if (typeof toast === "function") toast(friendly, "warn");
+      renderFolders();
+      return;
+    }
+    f.name = trimmed;
+    renderFolders();
+    renderHeader();
+  }
+
+  // Reorder custom folders among their siblings (EM#60). Default
+  // positions are all 100, so the first move renumbers the sibling run
+  // sequentially before swapping.
+  async function reorderFolder(id, dir) {
+    const f = state.folders.find(x => x.id === id);
+    if (!f || f.kind !== "custom") return;
+    const sibs = state.folders
+      .filter(x => x.kind === "custom" && (x.parent_id || null) === (f.parent_id || null))
+      .sort((a, b) => (a.position - b.position) || (a.name || "").localeCompare(b.name || ""));
+    const i = sibs.indexOf(f);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= sibs.length) return;
+    sibs.forEach((x, k) => { x.position = (k + 1) * 10; });
+    const tmp = sibs[i].position;
+    sibs[i].position = sibs[j].position;
+    sibs[j].position = tmp;
+    renderFolders();
+    for (const x of sibs) {
+      await sb.from("fb_folders").update({ position: x.position }).eq("id", x.id).then(() => {}, () => {});
+    }
+  }
+
+  // Empty Trash (EM#63) · inline confirm bar in the list host — the ⋮
+  // menu closes on click, so a two-step menu item can't work there.
+  function _emShowEmptyTrashBar() {
+    const host = document.getElementById("rr-em-inbox");
+    if (!host) return;
+    let bar = document.getElementById("rr-em-emptytrash");
+    if (bar) bar.remove();
+    bar = document.createElement("div");
+    bar.id = "rr-em-emptytrash";
+    bar.className = "em-undo-bar";
+    bar.innerHTML = `<span>Permanently delete everything in Trash?</span>
+      <button type="button" class="em-undo-btn" data-em-trash-empty-yes>Empty</button>
+      <button type="button" class="em-undo-btn" data-em-trash-empty-no>Cancel</button>`;
+    host.prepend(bar);
+    setTimeout(() => { const b = document.getElementById("rr-em-emptytrash"); if (b) b.remove(); }, 12000);
+  }
+  async function _emEmptyTrash() {
+    const trash = state.folders.find(f => f.kind === "trash");
+    if (!trash) return;
+    const { error } = await sb.from("email_messages").delete().eq("folder_id", trash.id);
+    if (error) {
+      if (typeof toast === "function") toast("Couldn't empty trash: " + error.message, "warn");
+      return;
+    }
+    if (state.activeFolderId === trash.id) {
+      state.activeMessageId = null;
+      await loadMessages();
+      renderInbox();
+      renderPreview();
+    }
+    scheduleCountsRefresh();
+  }
+
   async function createFolder(name, parentId = null) {
     const trimmed = String(name || "").trim();
     if (!trimmed) return false;
+    if (_emFolderNameTaken(trimmed, null)) {
+      if (typeof toast === "function") toast(`You already have a folder called "${trimmed}"`, "warn");
+      return false;
+    }
     if (state.folders.filter(f => f.kind === "custom").length >= 60) {
       if (typeof toast === "function") toast("Too many folders (60 max)", "warn");
       return false;
@@ -96810,8 +96975,6 @@ document.addEventListener("click", (e) => {
     const f = state.folders.find(x => x.id === id);
     if (!f || f.kind !== "custom") return;
     const kids = state.folders.filter(x => x.parent_id === id);
-    const kidNote = kids.length ? " Its subfolders will move up a level." : "";
-    if (!confirm(`Delete folder "${f.name}"? Its messages will move to Inbox.${kidNote}`)) return;
     // Re-parent child folders FIRST (EM#6) — fb_folders.parent_id is ON
     // DELETE CASCADE (0321), so deleting a parent would silently wipe
     // the whole subtree and set-null-strand every message filed in it.
@@ -98603,6 +98766,7 @@ document.addEventListener("click", (e) => {
     closeMoreMenu();
     if (cmd === "copy-address") { copyTeamAddress(); return; }
     if (cmd === "mark-all-read") { markAllRead(); return; }
+    if (cmd === "empty-trash") { _emShowEmptyTrashBar(); return; }
     if (cmd === "toggle-density") {
       try {
         const on = localStorage.getItem(DENSITY_KEY) === "compact";
@@ -98734,12 +98898,101 @@ document.addEventListener("click", (e) => {
       refreshMail(true);
       return;
     }
-    // Delete (× on hover) takes precedence over the folder-button click.
+    // Delete (× on hover) arms an inline confirm row (EM#61) instead of
+    // a native confirm().
     const del = e.target.closest("[data-em-folder-delete]");
     if (del) {
       e.preventDefault(); e.stopPropagation();
-      deleteFolder(del.getAttribute("data-em-folder-delete"));
+      state.confirmDeleteFolderId = del.getAttribute("data-em-folder-delete");
+      state.renamingFolderId = null;
+      renderFolders();
       return;
+    }
+    {
+      const yes = e.target.closest("[data-em-folder-del-yes]");
+      if (yes) {
+        e.preventDefault();
+        const id = yes.getAttribute("data-em-folder-del-yes");
+        state.confirmDeleteFolderId = null;
+        deleteFolder(id);
+        return;
+      }
+      if (e.target.closest("[data-em-folder-del-no]")) {
+        e.preventDefault();
+        state.confirmDeleteFolderId = null;
+        renderFolders();
+        return;
+      }
+    }
+    // Inline rename (EM#59).
+    {
+      const ren = e.target.closest("[data-em-folder-rename]");
+      if (ren) {
+        e.preventDefault(); e.stopPropagation();
+        state.renamingFolderId = ren.getAttribute("data-em-folder-rename");
+        state.confirmDeleteFolderId = null;
+        renderFolders();
+        const inp = document.getElementById("rr-em-rename-input");
+        if (inp) { inp.focus(); inp.select(); }
+        return;
+      }
+    }
+    // Reorder custom folders (EM#60).
+    {
+      const mv = e.target.closest("[data-em-folder-move]");
+      if (mv) {
+        e.preventDefault(); e.stopPropagation();
+        const [fid, dir] = mv.getAttribute("data-em-folder-move").split(":");
+        reorderFolder(fid, parseInt(dir, 10) || 1);
+        return;
+      }
+    }
+    // Empty-trash confirm bar (EM#63).
+    if (e.target.closest("[data-em-trash-empty-yes]")) {
+      e.preventDefault();
+      const b = document.getElementById("rr-em-emptytrash");
+      if (b) b.remove();
+      _emEmptyTrash();
+      return;
+    }
+    if (e.target.closest("[data-em-trash-empty-no]")) {
+      e.preventDefault();
+      const b = document.getElementById("rr-em-emptytrash");
+      if (b) b.remove();
+      return;
+    }
+    // Read-bar Move targets (EM#64).
+    {
+      const mt = e.target.closest("[data-em-move-to]");
+      if (mt) {
+        e.preventDefault();
+        const rm = document.querySelector("#view-email .em-read-more-menu");
+        if (rm) rm.hidden = true;
+        if (state.activeMessageId) moveMessageToFolderId(state.activeMessageId, mt.getAttribute("data-em-move-to"));
+        return;
+      }
+    }
+    // Add-subfolder (+ on hover) — must run before the row-select
+    // handler or the row's closest() match swallows the click (EM#61;
+    // this also revived a long-dead path).
+    {
+      const addChild = e.target.closest("[data-em-folder-add-child]");
+      if (addChild) {
+        e.preventDefault(); e.stopPropagation();
+        const parentId = addChild.getAttribute("data-em-folder-add-child");
+        const parent = state.folders.find(f => f.id === parentId);
+        state.newFolderParentId = parentId;
+        setFolderPaneVisible(true);
+        const form = document.getElementById("rr-em-new-folder-form");
+        const inp  = document.getElementById("rr-em-new-folder-input");
+        if (form) form.hidden = false;
+        if (inp) {
+          inp.value = "";
+          inp.placeholder = parent ? `Sub-folder of ${parent.name}` : "Folder name";
+          inp.focus();
+        }
+        return;
+      }
     }
     const folder = e.target.closest("#rr-em-folders [data-em-folder]");
     if (folder) {
@@ -99008,7 +99261,9 @@ document.addEventListener("click", (e) => {
       if (!form) return;
       const isHidden = form.hidden;
       form.hidden = !isHidden;
-      if (isHidden) { inp.value = ""; inp.focus(); }
+      state.newFolderParentId = null;
+      if (inp) inp.placeholder = "Folder name";
+      if (isHidden && inp) { inp.value = ""; inp.focus(); }
       return;
     }
     if (e.target.closest("[data-rr-em-new-folder-cancel]")) {
@@ -99094,14 +99349,8 @@ document.addEventListener("click", (e) => {
     }
     // Add sub-folder button (per-folder + icon on hover).
     {
-      const addChild = e.target.closest("[data-em-folder-add-child]");
-      if (addChild) {
-        e.preventDefault(); e.stopPropagation();
-        const parentId = addChild.getAttribute("data-em-folder-add-child");
-        const name = prompt("Sub-folder name?");
-        if (name && name.trim()) createFolder(name, parentId);
-        return;
-      }
+      // (Add-subfolder handling moved ABOVE the folder row-select
+      // handler — the row's closest() match was swallowing the + click.)
     }
     // Message popout buttons.
     if (e.target.closest("[data-rr-popout-close]")) {
@@ -99253,6 +99502,22 @@ document.addEventListener("click", (e) => {
       state.searchQuery = v;
       renderInbox();
     }, 150);
+  });
+
+  // Rename input · Escape cancels; blur cancels if no submit landed.
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && state.renamingFolderId && e.target && e.target.id === "rr-em-rename-input") {
+      e.preventDefault();
+      state.renamingFolderId = null;
+      renderFolders();
+    }
+  });
+  document.addEventListener("focusout", (e) => {
+    if (e.target && e.target.id === "rr-em-rename-input") {
+      setTimeout(() => {
+        if (state.renamingFolderId) { state.renamingFolderId = null; renderFolders(); }
+      }, 150);
+    }
   });
 
   // Escape closes the overflow menu (and returns focus to its button).
@@ -99424,6 +99689,7 @@ document.addEventListener("click", (e) => {
   }
 
   // Drag-and-drop: drag a message row onto a folder button to move it.
+  let _emDragRevealedPane = false;
   document.addEventListener("dragstart", (e) => {
     const row = e.target.closest && e.target.closest("#rr-em-inbox [data-em-msg]");
     if (!row) return;
@@ -99432,11 +99698,28 @@ document.addEventListener("click", (e) => {
     e.dataTransfer.setData("text/plain", id); // fallback for some browsers
     e.dataTransfer.effectAllowed = "move";
     row.classList.add("is-dragging");
+    // Drag-filing needs drop targets (EM#65) — reveal a hidden folder
+    // pane for the duration of the drag, without persisting the pref.
+    const aside = document.querySelector("#view-email .em-aside");
+    if (aside && getComputedStyle(aside).display === "none") {
+      const grid = document.getElementById("rr-em-grid");
+      if (grid) {
+        grid.classList.add("rr-folders-shown");
+        grid.classList.remove("rr-folders-hidden");
+        _emDragRevealedPane = true;
+      }
+    }
   });
   document.addEventListener("dragend", (e) => {
     const row = e.target.closest && e.target.closest("#rr-em-inbox [data-em-msg]");
     if (row) row.classList.remove("is-dragging");
     document.querySelectorAll("#rr-em-folders .em-folder.drop-target").forEach(el => el.classList.remove("drop-target"));
+    if (_emDragRevealedPane) {
+      _emDragRevealedPane = false;
+      const grid = document.getElementById("rr-em-grid");
+      if (grid) grid.classList.remove("rr-folders-shown", "rr-folders-hidden");
+      restoreFolderPanePref();
+    }
   });
   document.addEventListener("dragover", (e) => {
     const folder = e.target.closest && e.target.closest("#rr-em-folders [data-em-folder]");
@@ -99460,12 +99743,25 @@ document.addEventListener("click", (e) => {
     if (msgId && folderId) moveMessageToFolderId(msgId, folderId);
   });
   document.addEventListener("submit", (e) => {
+    const renForm = e.target.closest && e.target.closest("[data-em-rename-form]");
+    if (renForm) {
+      e.preventDefault();
+      const inp = renForm.querySelector("input");
+      renameFolder(renForm.getAttribute("data-em-rename-form"), inp ? inp.value : "");
+      return;
+    }
     if (e.target && e.target.id === "rr-em-new-folder-form") {
       e.preventDefault();
       const inp = document.getElementById("rr-em-new-folder-input");
       if (inp) {
-        createFolder(inp.value).then(ok => {
-          if (ok) { inp.value = ""; e.target.hidden = true; }
+        const parentId = state.newFolderParentId;
+        createFolder(inp.value, parentId).then(ok => {
+          if (ok) {
+            inp.value = "";
+            inp.placeholder = "Folder name";
+            state.newFolderParentId = null;
+            e.target.hidden = true;
+          }
         });
       }
     }
