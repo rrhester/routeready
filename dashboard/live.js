@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=2b6639818cc9";
-import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=2b6639818cc9";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=2b6639818cc9";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=2b6639818cc9";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=2b6639818cc9";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=2b6639818cc9";
-import { isChecklistComplete } from "./checklist-core.mjs?v=2b6639818cc9";
+import { planScheduleWeek } from "./scheduling-engine.js?v=c879a3341fe5";
+import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=c879a3341fe5";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=c879a3341fe5";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=c879a3341fe5";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=c879a3341fe5";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=c879a3341fe5";
+import { isChecklistComplete } from "./checklist-core.mjs?v=c879a3341fe5";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=2b6639818cc9";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=2b6639818cc9";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=2b6639818cc9";
+} from "./msg-core.mjs?v=c879a3341fe5";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=c879a3341fe5";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=c879a3341fe5";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -65006,14 +65006,16 @@ async function _decorateScheduleChipsWithVans() {
       chip.setAttribute("title", "Van unavailable this day — in service or grounded");
     }
     // The van rides the secondary "W11:20 • V5" line (density format);
-    // create the line if the chip rendered without a wave.
+    // create the line if the chip rendered without a wave. On a helper seat
+    // the Helper tag sits at the END of that line — keep the van before it
+    // so the line reads "W11:20 • V5 • Helper" (a null ref = plain append).
     let sec = chip.querySelector(".shift-chip-secondary");
     if (!sec) {
       sec = document.createElement("div");
       sec.className = "shift-chip-secondary";
       chip.insertBefore(sec, chip.querySelector(".shift-chip-badges"));
     }
-    sec.appendChild(el);
+    sec.insertBefore(el, sec.querySelector(".shift-chip-helper-badge"));
   });
 }
 window._rrDecorateScheduleChipsWithVans = _decorateScheduleChipsWithVans;
@@ -71222,25 +71224,31 @@ function _schedShiftChip(sh, extras) {
   const classCorner = _rcDef
     ? `<span class="shift-chip-class-badge" style="background:${_rcDef.c}20;color:${_rcDef.c}" title="${escapeHtml(_rcDef.label)} route">${_rcDef.t}</span>`
     : "";
-  // Helper seat corner badge — the second body riding along a route (no cert
+  // Helper seat tag — the second body riding along a route (no cert
   // required). Spelled out as "Helper" (not the old cryptic "HP") so the chip
   // reads plainly; its route color + dashed border already say which route it
-  // rides, so this is the only badge the helper seat carries. When the route
+  // rides, so this is the only tag the helper seat carries. When the route
   // carries a distinguishing service type (XL, …) the tag names it — an XL
   // route's helper reads "XL-Helper", not a bare "Helper" — since the seat's
   // own service-type corner is suppressed above. The HELPER service type is
   // itself the helper route, so it isn't prefixed (no "HELPER-Helper").
+  // The tag rides IN the secondary "W11:20 • V5" line (flex end, wrapping
+  // under it when the chip is narrow), NOT the absolute .shift-chip-badges
+  // corner: that cluster's fixed right-padding clearance is sized for the
+  // 2-char SP/XL tags, and this wide tag painted over the wave/van text
+  // (operator report 2026-07-25).
   const _helperTypePrefix = (stCode && stCode !== "SP" && stCode !== "HELPER")
     ? stCode + "-"
     : "";
-  const helperCorner = isHelperSeat
+  const helperTag = isHelperSeat
     ? `<span class="shift-chip-helper-badge" title="${escapeHtml(_helperTypePrefix ? _helperTypePrefix.slice(0, -1) + " helper seat — rides along the route (no certification required)" : "Helper seat — rides along the route (no certification required)")}">${escapeHtml(_helperTypePrefix)}Helper</span>`
     : "";
-  // Corner tags share one flex wrapper pinned top-right so an XL standard
+  // Corner tags share one flex wrapper pinned bottom-right so an XL standard
   // route reads "SP XL" without the two badges overlapping; the service-type
-  // badge stays rightmost (where XL has always sat), the helper tag after it.
-  const cornerBadges = (classCorner || stCorner || helperCorner)
-    ? `<div class="shift-chip-badges">${classCorner}${stCorner}${helperCorner}</div>`
+  // badge stays rightmost (where XL has always sat). Helper seats suppress
+  // both, so a helper chip has no corner cluster (and no clearance padding).
+  const cornerBadges = (classCorner || stCorner)
+    ? `<div class="shift-chip-badges">${classCorner}${stCorner}</div>`
     : "";
   // Trainee badge — when a ride-along shift exists on the same date with
   // trainer_driver_id pointing at this driver, surface it so the trainer
@@ -71257,7 +71265,7 @@ function _schedShiftChip(sh, extras) {
   //                                 assign-vans decorator)
   // When a route code is set, it sits as a small eyebrow above the
   // Wave line so the route is still discoverable at a glance. (The helper
-  // seat is marked by the "HP" corner badge, not here.)
+  // seat is marked by the Helper tag on the wave/van line, not here.)
   const eyebrowExtras = `${stBadge}${traineeBadge}`;
   const eyebrowRoute = hasRoute
     ? `<div class="shift-chip-route-code">${escapeHtml(sh.route_code)}${eyebrowExtras}</div>`
@@ -71291,8 +71299,8 @@ function _schedShiftChip(sh, extras) {
   const vanSpan = (extras && extras.van)
     ? `<span class="shift-chip-van">V${escapeHtml(String(extras.van))}</span>`
     : "";
-  const secondLine = (waveSpan || vanSpan)
-    ? `<div class="shift-chip-secondary">${waveSpan}${vanSpan}</div>`
+  const secondLine = (waveSpan || vanSpan || helperTag)
+    ? `<div class="shift-chip-secondary">${waveSpan}${vanSpan}${helperTag}</div>`
     : "";
   const baseStyle = sh.is_cushion ? 'border-color:rgba(245,158,11,.22);' : '';
   // Left accent-bar color · the service type's own color when the shift
@@ -98466,12 +98474,25 @@ document.addEventListener("click", (e) => {
       host.insertBefore(chip, input);
     });
   }
-  // Commit any half-typed text in every chip input (send/save paths).
+  // Commit any half-typed text in every chip input. EXPLICIT-INTENT
+  // paths only (Send / Schedule-Meeting) — the draft autosave must
+  // NEVER call this: it fires on a 4s interval, so it snapped partial
+  // addresses into chips mid-keystroke (operator report 2026-07-25,
+  // "rhester" chipped while typing rhester75@gmail.com). Autosave reads
+  // pending text via _emCfPendingVals instead.
   function _emCfCommitPending() {
     ["to", "cc", "bcc"].forEach(kind => {
       const inp = document.querySelector(`#rr-em-composer [data-em-cf="${kind}"] .em-cf-input`);
       if (inp && inp.value.trim()) { _emCfCommit(kind, inp.value); inp.value = ""; }
     });
+  }
+  // Read (never mutate) the half-typed text in one chip input, parsed
+  // like a commit would — lets the draft snapshot capture in-progress
+  // typing without disturbing the field.
+  function _emCfPendingVals(kind) {
+    const inp = document.querySelector(`#rr-em-composer [data-em-cf="${kind}"] .em-cf-input`);
+    if (!inp || !inp.value.trim()) return [];
+    return inp.value.split(/[,;]/).map(s => s.trim()).filter(Boolean);
   }
 
   // ── Recipient autocomplete (EM#45) ──────────────────────────────
@@ -98842,10 +98863,21 @@ document.addEventListener("click", (e) => {
   let _srvBccState = null;   // false = bcc_emails column missing (pre-0537)
   function _emComposerSnapshot() {
     const bodyEl = document.getElementById("rr-em-composer-body");
+    // Committed chips + whatever is half-typed in each input, deduped —
+    // so autosave/close capture in-progress recipients WITHOUT snapping
+    // them into chips (the input keeps its text and focus).
+    const withPending = (kind) => {
+      const out = _emRecips[kind].slice();
+      const have = new Set(out.map(a => a.toLowerCase()));
+      _emCfPendingVals(kind).forEach(a => {
+        if (!have.has(a.toLowerCase())) { have.add(a.toLowerCase()); out.push(a); }
+      });
+      return out;
+    };
     return {
-      to: _emRecips.to.slice(),
-      cc: _emRecips.cc.slice(),
-      bcc: _emRecips.bcc.slice(),
+      to: withPending("to"),
+      cc: withPending("cc"),
+      bcc: withPending("bcc"),
       subject: (document.getElementById("rr-em-composer-subject")?.value || "").trim(),
       html: bodyEl ? bodyEl.innerHTML : "",
       text: bodyEl ? (bodyEl.innerText || bodyEl.textContent || "").trim() : "",
@@ -98854,7 +98886,10 @@ document.addEventListener("click", (e) => {
   async function _emSaveDraftRow(silent) {
     if (!document.getElementById("rr-em-composer")) return;
     if (_emDiscardDraft || _emSendInFlight) return;
-    _emCfCommitPending();
+    // NO _emCfCommitPending() here — the snapshot reads half-typed
+    // recipients non-destructively (see _emComposerSnapshot). The 4s
+    // autosave interval routes through this function, and committing
+    // chips from a timer yanked text out from under the operator.
     const s = _emComposerSnapshot();
     if (!s.to.length && !s.cc.length && !s.subject && !s.text && !composerAttachments.length) return;
     const j = JSON.stringify(s);
