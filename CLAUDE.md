@@ -564,11 +564,20 @@ The authoritative CP-SAT solver models `1 shift = 1 seat = 1 driver`, so
   popover formula text + `_availMath` carry the XL breakdown. Was a flat ×2.
 
 **SHIPPED — Helper badge on the schedule grid:** the dispatcher shift-chip
-builder (live.js ~70135) now renders a `Helper` badge in the route eyebrow
-+ a `shift-chip-helper` dashed-accent class when `shift_kind === 'helper'`
+builder (live.js ~70135) now renders a `Helper` badge + a
+`shift-chip-helper` dashed-accent class when `shift_kind === 'helper'`
 (CSS in schedule-rrx.css, token-only so the design-lint ratchet holds). So
 an XL route's two chips read "XL" (driver seat) and "XL · Helper" (helper
 seat). shift_kind already flows via the schedule_grid RPC (0269).
+PLACEMENT (2026-07-25, operator: "the XL-Helper badge blocks the text"):
+the tag rides IN `.shift-chip-secondary` (flex end via margin-left:auto,
+wraps under the wave/van line on narrow chips) — NOT the absolute
+`.shift-chip-badges` corner cluster, whose fixed 26px clearance fits only
+the 2-char SP/XL tags and let the wide tag paint over the van text. Helper
+chips carry no corner cluster at all; the van decorator inserts the
+mirrored van BEFORE the tag (insertBefore, null ref = append elsewhere).
+Don't move the tag back to the corner. Browser-QA'd 14/14 (scratchpad
+qa-helper-badge.mjs pattern).
 
 **SHIPPED — driver-app helper label:** app/app.js `shiftCardHtml` (schedule
 row) + `_shiftMetaCells` (today spotlight) now show a `Helper` chip/cell when
