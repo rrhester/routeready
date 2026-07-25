@@ -8,13 +8,13 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=321dad7e904a";
-import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=321dad7e904a";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=321dad7e904a";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=321dad7e904a";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=321dad7e904a";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=321dad7e904a";
-import { isChecklistComplete } from "./checklist-core.mjs?v=321dad7e904a";
+import { planScheduleWeek } from "./scheduling-engine.js?v=2208e229c57e";
+import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=2208e229c57e";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=2208e229c57e";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=2208e229c57e";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=2208e229c57e";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=2208e229c57e";
+import { isChecklistComplete } from "./checklist-core.mjs?v=2208e229c57e";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -25,9 +25,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=321dad7e904a";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=321dad7e904a";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=321dad7e904a";
+} from "./msg-core.mjs?v=2208e229c57e";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=2208e229c57e";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=2208e229c57e";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -18500,8 +18500,29 @@ document.addEventListener("click", async (e) => {
   if (!dspId || !input) return;
   const next = (input.value || "").trim().toUpperCase();
   if (!next) { toast("Station code can't be blank", "warn"); return; }
+  // Rename safety (EM#83): the code IS the team email's local-part —
+  // vendors have the old address. Warn, and keep the old code as an
+  // accepted inbound alias (metadata.email_aliases, read by
+  // webhook-email-inbound's fallback matcher) so their mail still lands.
+  const prev = (window.RR?.dsp?.short_code || "").trim().toUpperCase();
+  const isRename = !!prev && prev !== next;
+  if (isRename) {
+    const oldAddr = typeof _fbEmailFromCode === "function" ? _fbEmailFromCode(prev) : prev;
+    const newAddr = typeof _fbEmailFromCode === "function" ? _fbEmailFromCode(next) : next;
+    if (!confirm(`Changing the station code changes your team email address:\n\n  ${oldAddr}  →  ${newAddr}\n\nAnyone you've given the old address can still reach you — it's kept as an alias. Continue?`)) return;
+  }
   try {
-    const { error } = await sb.from("dsps").update({ short_code: next }).eq("id", dspId);
+    const patch = { short_code: next };
+    if (isRename) {
+      // Read-modify-write so sibling metadata keys survive.
+      const { data: row } = await sb.from("dsps").select("metadata").eq("id", dspId).single();
+      const md = (row && row.metadata) || {};
+      const aliases = Array.isArray(md.email_aliases) ? md.email_aliases.slice() : [];
+      const oldLc = prev.toLowerCase();
+      if (!aliases.includes(oldLc)) aliases.push(oldLc);
+      patch.metadata = { ...md, email_aliases: aliases.filter(a => a !== next.toLowerCase()).slice(-10) };
+    }
+    const { error } = await sb.from("dsps").update(patch).eq("id", dspId);
     if (error) throw error;
     window.RR.dsp.short_code = next;
     _paintWorkspaceChip();
@@ -95733,6 +95754,7 @@ document.addEventListener("click", (e) => {
     sent:    `<svg class="em-folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>`,
     archive: `<svg class="em-folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>`,
     trash:   `<svg class="em-folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>`,
+    junk:    `<svg class="em-folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/></svg>`,
     docs:    `<svg class="em-folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>`,
     folder:  `<svg class="em-folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`,
     starred: `<svg class="em-folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`,
@@ -96704,6 +96726,9 @@ document.addEventListener("click", (e) => {
       } else if (f && f.kind === "snoozed") {
         label = "Nothing snoozed";
         sub = "Snoozed messages hide from their folder until their wake time, then return.";
+      } else if (f && f.kind === "junk") {
+        label = "No junk";
+        sub = "Inbound mail that fails its sender's spam checks lands here instead of the Inbox.";
       } else if (f && f.kind === "custom") {
         label = "Nothing filed here yet";
         sub = "Drag messages here to organise them.";

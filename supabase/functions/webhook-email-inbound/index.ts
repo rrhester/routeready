@@ -85,6 +85,36 @@ function slugifyDspName(s: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+// EM#82 · spam verdict, best-effort across forwarder payload shapes.
+// Only a clear FAIL/REJECT (or an explicit spam flag/score) routes to
+// Junk — absent signals stay Inbox, so forwarders that strip auth
+// results change nothing.
+function spamVerdict(data: InboundPayload): boolean {
+  const d = data as unknown as Record<string, unknown>;
+  const failish = (v: unknown) => typeof v === "string" && /^(fail|reject)$/i.test(v.trim());
+  const res = (o: unknown) => (o && typeof o === "object")
+    ? ((o as Record<string, unknown>).result ?? (o as Record<string, unknown>).verdict ?? (o as Record<string, unknown>).status)
+    : o;
+  if (d.spam === true) return true;
+  const score = typeof d.spam_score === "number" ? d.spam_score
+    : (typeof d.spam_score === "string" ? parseFloat(d.spam_score) : NaN);
+  if (Number.isFinite(score) && score >= 5) return true;
+  if (failish(res(d.spf)) || failish(res(d.dkim)) || failish(res(d.dmarc))) return true;
+  // Authentication-Results header, when the forwarder passes headers
+  // through (array-of-{name,value} or a plain object).
+  const headers = d.headers;
+  let hval = "";
+  if (Array.isArray(headers)) {
+    const h = headers.find((x) => x && typeof x === "object"
+      && /^authentication-results$/i.test(String((x as Record<string, unknown>).name ?? "")));
+    hval = h ? String((h as Record<string, unknown>).value ?? "") : "";
+  } else if (headers && typeof headers === "object") {
+    const rec = headers as Record<string, unknown>;
+    hval = String(rec["authentication-results"] ?? rec["Authentication-Results"] ?? "");
+  }
+  return /(dmarc|spf|dkim)\s*=\s*fail/i.test(hval);
+}
+
 function htmlToText(html: string): string {
   return html
     .replace(/<\s*br\s*\/?\s*>/gi, "\n")
@@ -256,15 +286,65 @@ Deno.serve(async (req) => {
     if (data) dsp = data as typeof dsp;
   }
   if (!dsp) {
-    const { data: dsps } = await supa.from("dsps").select("id, name, short_code");
+    const { data: dsps } = await supa.from("dsps").select("id, name, short_code, metadata");
     dsp = (dsps ?? []).find((d) => {
       const nameSlug = d.name ? slugifyDspName(d.name as string) : "";
       const codeSlug = d.short_code ? (d.short_code as string).toLowerCase() : "";
-      return slug === nameSlug || slug === codeSlug;
+      // Prior station codes survive as aliases (EM#83) — Settings
+      // stores each renamed-away code in metadata.email_aliases so
+      // vendors holding the old address still reach the DSP.
+      const md = (d as Record<string, unknown>).metadata;
+      const aliases = (md && typeof md === "object" && Array.isArray((md as Record<string, unknown>).email_aliases))
+        ? ((md as Record<string, unknown>).email_aliases as unknown[]).map((a) => String(a).toLowerCase())
+        : [];
+      return slug === nameSlug || slug === codeSlug || aliases.includes(slug);
     }) as typeof dsp;
   }
   if (!dsp) {
+    // Dead-letter (EM#79, 0544) · a typo'd team address used to vanish
+    // without trace on either side. Keep an excerpt for the platform
+    // admin; best-effort (pre-0544 the table doesn't exist).
+    await supa.from("email_dead_letters").insert({
+      reason: "unknown_recipient",
+      to_email: toEmail,
+      from_email: fromEmail,
+      subject: String(data.subject ?? "").slice(0, 300),
+      body_excerpt: (typeof data.text === "string" ? data.text : "").slice(0, 2000) || null,
+      meta: { slug, message_id: messageId },
+    }).then(() => {}, () => {});
     return jsonResponse({ ok: true, ignored: "unknown_recipient_slug", slug });
+  }
+
+  // Inbound rate limit (EM#81) · a runaway auto-responder loop (or a
+  // deliberate flood) fills the inbox, document_intake, and storage.
+  // Cap per sender per DSP per hour; overflow goes to the dead-letter
+  // table instead of the tenant's mail. Redeliveries of an
+  // already-stored message id fall through to the dedup path below.
+  {
+    const { count: hourCount } = await supa.from("email_messages")
+      .select("id", { count: "exact", head: true })
+      .eq("dsp_id", dsp.id).eq("direction", "inbound")
+      .ilike("from_email", fromEmail)
+      .gte("created_at", new Date(Date.now() - 3600_000).toISOString());
+    if ((hourCount ?? 0) >= 30) {
+      let known = false;
+      if (messageId) {
+        const { data: existing } = await supa.from("email_messages")
+          .select("id").eq("provider", "inbound").eq("provider_message_id", messageId).limit(1);
+        known = !!(existing && existing.length);
+      }
+      if (!known) {
+        await supa.from("email_dead_letters").insert({
+          reason: "rate_limited",
+          dsp_id: dsp.id,
+          to_email: toEmail,
+          from_email: fromEmail,
+          subject: String(data.subject ?? "").slice(0, 300),
+          meta: { hour_count: hourCount, message_id: messageId },
+        }).then(() => {}, () => {});
+        return jsonResponse({ ok: true, ignored: "rate_limited", hour_count: hourCount });
+      }
+    }
   }
 
   // 2. Match sender email → applicant in that DSP. If several applicants
@@ -334,12 +414,31 @@ Deno.serve(async (req) => {
     folderId = (inbox?.id as string | null) ?? null;
   }
 
+  // 4a-pre. Spam → Junk (EM#82, 0544) · a failed sender-auth verdict
+  // outranks the rules: quarantine to the per-DSP Junk system folder,
+  // creating it on first use. Pre-0544 the 'junk' kind fails the
+  // fb_folders check constraint and the message stays in Inbox.
+  const isSpam = spamVerdict(data);
+  if (isSpam) {
+    const { data: junk } = await supa.from("fb_folders")
+      .select("id").eq("dsp_id", dsp.id).eq("kind", "junk").maybeSingle();
+    if (junk?.id) {
+      folderId = junk.id as string;
+    } else {
+      const ins = await supa.from("fb_folders")
+        .insert({ dsp_id: dsp.id, name: "Junk", kind: "junk", position: 6 })
+        .select("id").maybeSingle();
+      if (ins.data?.id) folderId = ins.data.id as string;
+    }
+  }
+
   // 4a. Auto-filing rules (EM#72, migration 0541) · sender / domain /
   // subject-contains → folder, oldest rule wins. Only fresh inserts are
   // filed — the dedup path never re-files an already-triaged message.
   // Best-effort: pre-0541 the table doesn't exist and the select just
-  // errors into the default Inbox routing.
-  try {
+  // errors into the default Inbox routing. Spam already routed to Junk
+  // skips the rules.
+  if (!isSpam) try {
     const { data: rules } = await supa.from("email_rules")
       .select("match_kind, pattern, folder_id")
       .eq("dsp_id", dsp.id)
@@ -443,6 +542,19 @@ Deno.serve(async (req) => {
       // captured above onto the case.
       await _repairMatch(supa, row.id as string);
       return jsonResponse({ ok: true, deduped: true, applicant_id: applicantId ?? row.applicant_id ?? null });
+    }
+  }
+
+  // Body size cap (EM#85) · multi-MB marketing HTML bloats rows and
+  // every 200-row list select. Truncate with a visible marker.
+  {
+    const MAX_HTML = 512 * 1024;
+    const MAX_TEXT = 100 * 1024;
+    let truncated = false;
+    if (bodyHtml && bodyHtml.length > MAX_HTML) { bodyHtml = bodyHtml.slice(0, MAX_HTML); truncated = true; }
+    if (bodyText && bodyText.length > MAX_TEXT) { bodyText = bodyText.slice(0, MAX_TEXT); truncated = true; }
+    if (truncated) {
+      bodyText = (bodyText ?? "") + "\n\n[Message truncated — it exceeded the stored size limit]";
     }
   }
 
@@ -653,7 +765,20 @@ async function _captureAttachments(
 
   const apiKey = Deno.env.get("RESEND_API_KEY") || "";
 
-  for (const att of ctx.attachments) {
+  // Caps (EM#80) · unbounded capture used to buffer whatever arrived —
+  // a 100MB file or a 50-attachment message hits function memory and
+  // storage with no ceiling. Mirrors the composer's send-side limits.
+  const MAX_ATT_BYTES = 25 * 1024 * 1024;
+  const MAX_ATT_COUNT = 15;
+  if (ctx.attachments.length > MAX_ATT_COUNT) {
+    console.warn("attachment count capped", {
+      emailMessageId: ctx.emailMessageId,
+      total: ctx.attachments.length,
+      kept: MAX_ATT_COUNT,
+    });
+  }
+
+  for (const att of ctx.attachments.slice(0, MAX_ATT_COUNT)) {
     try {
       let bytes: Uint8Array | null = null;
       let resolvedUrl: string | null = null;
@@ -689,6 +814,13 @@ async function _captureAttachments(
         if (url) {
           const resp = await fetch(url);
           if (resp.ok) {
+            // Size gate BEFORE buffering when the server declares it.
+            const declared = parseInt(resp.headers.get("content-length") || "", 10);
+            if (Number.isFinite(declared) && declared > MAX_ATT_BYTES) {
+              console.warn("attachment too large, skipped", { filename: att.filename, declared });
+              try { await resp.body?.cancel(); } catch { /* ignore */ }
+              continue;
+            }
             const buf = new Uint8Array(await resp.arrayBuffer());
             bytes = buf;
           } else {
@@ -698,6 +830,10 @@ async function _captureAttachments(
         }
       }
       if (!bytes || bytes.length === 0) continue;
+      if (bytes.length > MAX_ATT_BYTES) {
+        console.warn("attachment too large, skipped", { filename: att.filename, size: bytes.length });
+        continue;
+      }
 
       // Storage path: <dsp_id>/<yyyy-mm-dd>/<random>-<sanitized-name>
       const safeName = att.filename.replace(/[^A-Za-z0-9._-]+/g, "_").slice(0, 120);
