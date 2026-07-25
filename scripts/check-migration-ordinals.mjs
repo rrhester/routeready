@@ -1,5 +1,7 @@
 #!/usr/bin/env node
-// Blocks NEW duplicate migration ordinals (project-review PR#45).
+// Blocks NEW duplicate migration ordinals (project-review PR#45), and
+// requires every migration from 0506 on to SELF-RECORD in the
+// private.rr_migrations ledger (see below).
 //
 // supabase/migrations/ has 31 historically duplicated 4-digit prefixes
 // (two 0492s, two 0500s, three 0439s, …). Those are grandfathered — prod
@@ -57,6 +59,7 @@ const FROZEN = new Map([
 ]);
 
 const counts = new Map();
+const files = [];
 for (const f of fs.readdirSync(dir)) {
   if (!f.endsWith(".sql")) continue;
   const m = /^(\d{4})_/.exec(f);
@@ -65,6 +68,7 @@ for (const f of fs.readdirSync(dir)) {
     process.exit(1);
   }
   counts.set(m[1], (counts.get(m[1]) || 0) + 1);
+  files.push(f);
 }
 
 let failed = false;
@@ -88,4 +92,40 @@ if (failed) {
   );
   process.exit(1);
 }
-console.log(`✓ migration ordinals ok (${counts.size} distinct, ${FROZEN.size} grandfathered collisions unchanged)`);
+
+// ── Self-record gate ──────────────────────────────────────────────────────
+// The private.rr_migrations ledger (0504) is what rr_schema_version() and
+// the dashboard's "database is behind this app" banner read. It only
+// advances when a migration inserts its own filename — 0506–0567 shipped
+// without that insert, so the ledger sat frozen at 0505 while the operator
+// pasted weeks of SQL (fixed by the 0568 backfill + retrofit). Every
+// migration from 0506 on must reference the ledger AND its own filename;
+// append this to new migrations (adjust the filename):
+//
+//   do $$
+//   begin
+//     if to_regclass('private.rr_migrations') is not null then
+//       insert into private.rr_migrations (filename)
+//       values ('NNNN_your_migration.sql')
+//       on conflict (filename) do nothing;
+//     end if;
+//   end $$;
+const SELF_RECORD_FROM = 506;
+let selfRecordFailed = false;
+for (const f of files) {
+  if (parseInt(f.slice(0, 4), 10) < SELF_RECORD_FROM) continue;
+  const text = fs.readFileSync(path.join(dir, f), "utf8");
+  if (!text.includes("private.rr_migrations") || !text.includes(`'${f}'`)) {
+    selfRecordFailed = true;
+    console.error(
+      `✗ ${f} — must self-record in private.rr_migrations (an insert of its own ` +
+      `filename, guarded by to_regclass). See the block in this script's comments.`
+    );
+  }
+}
+if (selfRecordFailed) process.exit(1);
+
+console.log(
+  `✓ migration ordinals ok (${counts.size} distinct, ${FROZEN.size} grandfathered collisions unchanged); ` +
+  `self-record ledger inserts present from 0${SELF_RECORD_FROM} on`
+);

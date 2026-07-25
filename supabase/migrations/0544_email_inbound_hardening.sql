@@ -125,3 +125,15 @@ create policy "email_messages_staff_update"
 
 -- ─── 4 · Retire fb_settings ──────────────────────────────────────
 drop table if exists public.fb_settings cascade;
+
+-- Self-record in the migration ledger (private.rr_migrations, 0504) so
+-- rr_schema_version() and the dashboard schema banner track by-hand pastes.
+-- No-op on a DB that predates 0504.
+do $$
+begin
+  if to_regclass('private.rr_migrations') is not null then
+    insert into private.rr_migrations (filename)
+    values ('0544_email_inbound_hardening.sql')
+    on conflict (filename) do nothing;
+  end if;
+end $$;

@@ -1228,3 +1228,19 @@ null; end $$` for enums and publications) so re-running a partially
 applied migration doesn't fail.
 
 This is durable across sessions (set 2026-05-13).
+
+**Self-record rule (2026-07-25, CI-enforced):** every migration ≥0506 must
+END with the standard self-record block — a `to_regclass`-guarded insert of
+its OWN filename into `private.rr_migrations` (copy the block from any
+0506+ file; check-migration-ordinals.mjs fails the PR without it). WHY:
+0506–0567 shipped without it, so `rr_schema_version()` sat frozen at 0505
+and the dashboard's "database is behind this app" banner couldn't clear or
+say what was truly missing. **Migration 0568** repaired the ledger by
+CATALOG DETECTION — it probes for positive evidence per migration (tables/
+indexes/triggers/enum values/function args/body tokens) and records only
+what it finds, then reports per-file status in the SQL Editor. 0562/0567
+are drop-only (storage policies, no positive evidence) — never "detected";
+the operator re-runs those two files to record them (all migrations are
+idempotent, re-running anything is safe). Signature notes live in 0568's
+header; if a listed function is ever re-issued, keep its distinctive body
+token or update 0568's probe.

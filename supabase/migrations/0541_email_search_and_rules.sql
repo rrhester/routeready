@@ -104,3 +104,15 @@ create policy email_rules_insert on public.email_rules for insert
 drop policy if exists email_rules_delete on public.email_rules;
 create policy email_rules_delete on public.email_rules for delete
   using (dsp_id = private.current_dsp_id());
+
+-- Self-record in the migration ledger (private.rr_migrations, 0504) so
+-- rr_schema_version() and the dashboard schema banner track by-hand pastes.
+-- No-op on a DB that predates 0504.
+do $$
+begin
+  if to_regclass('private.rr_migrations') is not null then
+    insert into private.rr_migrations (filename)
+    values ('0541_email_search_and_rules.sql')
+    on conflict (filename) do nothing;
+  end if;
+end $$;
