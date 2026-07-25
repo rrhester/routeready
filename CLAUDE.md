@@ -1273,4 +1273,8 @@ token or update 0569's probe. ORDINAL RACE NOTE: the backfill first merged
 as 0568 the same day the fleet session's 0568_dvic_odometer_capture landed
 on main first — renumbered to 0569 in a follow-up PR; 0569 deletes any
 ledger row recorded under the old 0568_… name, probes the DVIC 0568 too,
-and the DVIC file gained the standard self-record block.
+and the DVIC file gained the standard self-record block. BANNER SYNC (also
+CI-enforced by the same script): live.js `_RR_SCHEMA_EXPECTED` must equal
+the LATEST migration ordinal — a PR that adds a migration bumps the
+constant in the same diff, or check-migration-ordinals fails. (The old
+"bump when the dashboard depends on it" judgment call froze it at 0534.)

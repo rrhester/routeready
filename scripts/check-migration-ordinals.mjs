@@ -125,7 +125,29 @@ for (const f of files) {
 }
 if (selfRecordFailed) process.exit(1);
 
+// ── Banner-sync gate ──────────────────────────────────────────────────────
+// dashboard/live.js shows a "database is behind this app" banner when
+// rr_schema_version() < _RR_SCHEMA_EXPECTED. The old convention ("bump when
+// a migration the dashboard depends on lands") silently froze the constant
+// at 0534 while 35 dashboard-relevant migrations shipped — the same failure
+// mode the self-record gate exists for. Rule: the constant tracks the
+// LATEST ordinal; a PR that adds a migration bumps it in the same diff.
+const liveSrc = fs.readFileSync(
+  path.join(import.meta.dirname, "..", "dashboard", "live.js"), "utf8"
+);
+const expMatch = /_RR_SCHEMA_EXPECTED\s*=\s*(\d+)/.exec(liveSrc);
+if (!expMatch || parseInt(expMatch[1], 10) !== parseInt(maxOrdinal, 10)) {
+  console.error(
+    `✗ dashboard/live.js _RR_SCHEMA_EXPECTED is ` +
+    `${expMatch ? "0" + expMatch[1] : "missing"} but the latest migration ` +
+    `ordinal is ${maxOrdinal} — set the constant to match so the schema ` +
+    `banner can tell the operator what to apply.`
+  );
+  process.exit(1);
+}
+
 console.log(
   `✓ migration ordinals ok (${counts.size} distinct, ${FROZEN.size} grandfathered collisions unchanged); ` +
-  `self-record ledger inserts present from 0${SELF_RECORD_FROM} on`
+  `self-record ledger inserts present from 0${SELF_RECORD_FROM} on; ` +
+  `banner _RR_SCHEMA_EXPECTED in sync at ${maxOrdinal}`
 );
