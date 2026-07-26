@@ -7675,16 +7675,20 @@ function _railHtml(stage, blocked) {
 // One requirement / task row with a state ring. `state` ∈ done | cur |
 // blocked | alert. Rows navigate via data-task-route (wired by caller).
 function _reqRowHtml({ state, title, meta, pillHtml = "", route = "" }) {
+  // Only states that MEAN something get a glyph (simplify 2026-07-26):
+  // done ✓, alert ⚠, blocked 🔒. A plain open task used to render a solid
+  // blue dot on every row — pure decoration that drowned out the one row
+  // actually needing attention. Neutral rows now start at the text.
   const glyph = state === "done"
     ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
-    : state === "cur"
-      ? '<svg width="18" height="18" width="18" height="18" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5" fill="currentColor"/></svg>'
-      : state === "alert"
-        ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
-        : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+    : state === "alert"
+      ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
+      : state === "blocked"
+        ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>'
+        : "";
   return `
     <button class="rr2-row${state === "done" ? " done" : ""}" type="button" ${route ? `data-task-route="${route}"` : ""}>
-      <span class="rr2-tstate ${state}">${glyph}</span>
+      ${glyph ? `<span class="rr2-tstate ${state}">${glyph}</span>` : ""}
       <span class="rbody">
         <span class="rtitle">${escapeHtml(title)}</span>
         ${meta ? `<span class="rmeta">${meta}</span>` : ""}
@@ -7876,8 +7880,11 @@ async function _renderToday(session, main) {
   const nextSectionHtml = (lockWave) => {
     if (!focus) return "";
     const locked = lockWave && focus.stage === "wave";
+    // The count rides the header; the Tasks tab (badged, always on
+    // screen) is the way to see the rest — a "See all" line here just
+    // duplicated it.
     return `
-    <div class="rr2-sec">Next</div>
+    <div class="rr2-sec">Next${openItems.length > 1 ? `<span class="n">${openItems.length}</span>` : ""}</div>
     <div class="rr2-panel">
       ${_reqRowHtml({
         state: locked ? "blocked" : focus.overdue ? "alert" : "cur",
@@ -7887,8 +7894,7 @@ async function _renderToday(session, main) {
                 : focus.required ? `<span class="rr2-pill amber">Required</span>` : "",
         route: locked ? "" : focus.route,
       })}
-    </div>
-    ${openItems.length > 1 ? `<div class="rr2-divnote">${openItems.length - 1} more on your list · <button type="button" data-task-route="/tasks">See all</button></div>` : ""}`;
+    </div>`;
   };
   const nextSection = nextSectionHtml(false);
 
@@ -7918,12 +7924,11 @@ async function _renderToday(session, main) {
       <div id="rr-pickup-slot"></div>
       ${upNextHtml}
       ${focus ? `
-        <div class="rr2-sec">Worth doing today</div>
+        <div class="rr2-sec">Worth doing today${openItems.length > 2 ? `<span class="n">${openItems.length}</span>` : ""}</div>
         <div class="rr2-panel">${openItems.slice(0, 2).map((it) => _reqRowHtml({
           state: it.overdue ? "alert" : "cur", title: it.title, meta: it.meta,
           pillHtml: it.overdue ? `<span class="rr2-pill red">Overdue</span>` : "", route: it.route,
-        })).join("")}</div>
-        ${openItems.length > 2 ? `<div class="rr2-divnote">${openItems.length - 2} more · <button type="button" data-task-route="/tasks">See all</button></div>` : ""}` : ""}`;
+        })).join("")}</div>` : ""}`;
     ctaHtml = "";
   } else if (chk?.missed_reported_at && !chk?.checked_in_at) {
     // ── Missed day reported ──
@@ -7988,11 +7993,6 @@ async function _renderToday(session, main) {
       ${nextSection}
       <div class="rr2-sec">During your shift</div>
       <div class="rr2-panel">
-        <button class="rr2-row" type="button" data-task-route="/chat">
-          <span class="ric"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
-          <span class="rbody"><span class="rtitle">Messages</span></span>
-          <span class="rend"><span class="rchev"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span></span>
-        </button>
         <button class="rr2-row" type="button" data-task-route="/chat/dispatch" data-rr2-issue>
           <span class="ric"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg></span>
           <span class="rbody"><span class="rtitle">Report an issue</span><span class="rmeta">Van defect, delay or incident — goes to dispatch</span></span>
