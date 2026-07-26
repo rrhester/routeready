@@ -279,7 +279,7 @@
 // v187 · Type scale moved to rem (project-review PR#41) so the driver's OS
 // text-size setting scales the app. (bust-cache rewrites this to the deploy
 // SHA at build; the literal just needs to differ so the CI gate is happy.)
-const SHELL_CACHE = "rr-app-shell-b4aaafb6a077";
+const SHELL_CACHE = "rr-app-shell-246d835a244f";
 const SHELL_FILES = [
   "./",
   "index.html",
@@ -358,9 +358,16 @@ self.addEventListener("fetch", (event) => {
   if (url.origin === location.origin && SHELL_PATHS.has(url.pathname)) {
     event.respondWith(
       fetchWithShellTimeout(req).then((res) => {
-        const copy = res.clone();
-        caches.open(SHELL_CACHE).then((c) => c.put(req, copy)).catch(() => {});
-        return res;
+        // Cache ONLY good responses — a deploy-window 404 or an edge
+        // error page cached here would poison the offline fallback for
+        // every later launch (served whenever the network is down/slow).
+        // A non-ok response falls back to the last good cached copy.
+        if (res.ok) {
+          const copy = res.clone();
+          caches.open(SHELL_CACHE).then((c) => c.put(req, copy)).catch(() => {});
+          return res;
+        }
+        return caches.match(req, { ignoreSearch: true }).then((cached) => cached || res);
       }).catch(() => caches.match(req, { ignoreSearch: true }))
     );
     return;

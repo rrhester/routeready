@@ -37,6 +37,31 @@ Decluttering pass over `app/app.js`/`app/styles.css`, no features removed:
   status bar paints from the baked-at-install theme-color (white), so a
   colored header band would seam on every installed PWA.
 
+## FIXED: "giant image" on app open (2026-07-26, operator report)
+
+Symptom: opening the driver app showed ONE enormous graphic filling the
+screen. Root cause is a **CSS-less render**, not an image: every inline
+`<svg>` in app.js was sized ONLY by CSS (`.tab svg{width:22px}` etc.), so
+when `styles.css` fails to load the SVGs fall back to the SVG default
+300×150 and the first icon (offline-pill / warning) fills the viewport.
+Two independent fixes, both shipped:
+- **app/sw.js — stop poisoning the shell cache.** The shell handler is
+  network-first and cached EVERY response, including a deploy-window 404
+  / edge error page. Once a bad `styles.css?v=…` response was cached, the
+  offline/slow-network fallback (`fetchWithShellTimeout` → 3.5s →
+  `caches.match`) served it forever = permanently unstyled app. Now only
+  `res.ok` responses are cached; a non-ok response falls back to the last
+  GOOD cached copy (`cached || res`). THIS is the actual bug — any future
+  shell-caching edit must keep the res.ok gate.
+- **app/app.js — intrinsic `width`/`height` on every inline SVG** (38
+  stamped; CSS still wins, presentation attrs are the lowest-priority
+  source). Defense in depth: a CSS-less render is now merely plain, never
+  a full-screen graphic. NOTE when adding new inline SVG markup, include
+  width/height attrs — a bare `<svg viewBox=…>` reintroduces the hazard.
+QA: reproduced the exact symptom by aborting styles.css in Playwright
+(giant warning triangle), verified the fix renders small-and-plain, and
+confirmed the styled app is byte-identical (CSS out-ranks the attrs).
+
 ## DONE: Email page redesign (2026-07-22, operator mockup)
 
 The Email (Fleet Bridge) page was rebuilt to the operator's mockup: the
