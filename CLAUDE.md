@@ -26,6 +26,16 @@ Decluttering pass over `app/app.js`/`app/styles.css`, no features removed:
 - Design ratchet IMPROVED (inline styles 3808→3785, baseline locked).
   QA: scratchpad qa-driver-simplify.mjs (19 click-through checks) +
   before/after shots; driver-app e2e 9/9; 27 test suites green.
+- **Color follow-up (same day, operator: "not enough color — feels like a
+  cloud … not a lot of color, maybe the RouteReady Blue"):** ONE brand
+  surface per screen — the Today shift card (`.rr2-sc`, ALL lifecycle
+  states incl. off-day/complete/skeleton) and the Schedule today-spotlight
+  (`.sched-spot`) wear a blue-600→800 gradient w/ white text, glass pills
+  (`.rr2-sc .rr2-pill` override), white lifecycle rail. Every other panel
+  stays white ON PURPOSE — don't spread more color without a fresh ask.
+  Token/rgba-only (hex ratchet flat). App header stays WHITE: the iOS
+  status bar paints from the baked-at-install theme-color (white), so a
+  colored header band would seam on every installed PWA.
 
 ## DONE: Email page redesign (2026-07-22, operator mockup)
 
