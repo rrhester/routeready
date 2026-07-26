@@ -3362,3 +3362,48 @@ main.has-rr2-cta{padding-bottom:104px}
 .rr2-ack-when{font-size:var(--fs-xs);color:var(--text-subtle)}
 .rr2-mava.ch{background:linear-gradient(135deg,var(--rr-blue-600),var(--rr-blue-800))}
 .rr2-mtop:has(> .rr2-mwhen:only-child){justify-content:flex-end}
+
+/* ── RouteReady-blue hero surfaces (operator 2026-07-26: "there isn't
+   enough color — maybe the RouteReady blue"). Deliberately ONE brand
+   surface per screen: the Today shift card and the Schedule today-
+   spotlight wear the brand gradient; every other panel stays clean
+   white so the color reads as identity, not noise. */
+.rr2-sc{
+  background:linear-gradient(160deg,var(--rr-blue-600) 0%,var(--rr-blue-800) 100%);
+  border-color:transparent;
+}
+.rr2-sc .sc-time{color:var(--rr-white)}
+.rr2-sc .sc-time small{color:rgba(255,255,255,.82)}
+.rr2-sc .sc-sub{color:rgba(255,255,255,.78)}
+.rr2-sc .sc-sub b{color:var(--rr-white)}
+.rr2-sc .sc-top .sc-date{color:rgba(255,255,255,.72)}
+/* Pills ride the blue card as translucent glass — the wording + dot
+   carry the state; the card itself is the brand moment. */
+.rr2-sc .rr2-pill{background:rgba(255,255,255,.16);color:var(--rr-white);border-color:rgba(255,255,255,.24)}
+/* Lifecycle rail on blue: done ≈ solid white, current mid, rest faint. */
+.rr2-sc .rr2-rail .seg{background:rgba(255,255,255,.22)}
+.rr2-sc .rr2-rail .seg.done{background:rgba(255,255,255,.95)}
+.rr2-sc .rr2-rail .seg.cur{background:rgba(255,255,255,.55)}
+.rr2-sc .rr2-rail .seg.blocked{background:var(--amber-bright)}
+.rr2-sc .skel{background:rgba(255,255,255,.25)}
+/* Shift-complete + off-day states inherit the blue card. */
+.rr2-sc .rr2-ok .ring{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.28);color:var(--rr-white)}
+.rr2-sc .rr2-ok .t{color:var(--rr-white)}
+.rr2-sc .rr2-ok .s{color:rgba(255,255,255,.78)}
+.rr2-sc .rr2-offcard-t{color:var(--rr-white)}
+.rr2-sc .rr2-offcard-s{color:rgba(255,255,255,.78)}
+
+/* Schedule "today" spotlight — the same brand surface as Today's card. */
+.sched-spot{
+  background:linear-gradient(160deg,var(--rr-blue-600) 0%,var(--rr-blue-800) 100%);
+  border-color:transparent;
+}
+.sched-spot::before{display:none}
+.sched-spot-eyebrow{color:rgba(255,255,255,.85)}
+.sched-spot-time{color:var(--rr-white)}
+.sched-spot-done{color:var(--rr-white);background:rgba(255,255,255,.18)}
+.sched-spot .sc-cell-l{color:rgba(255,255,255,.65)}
+.sched-spot .sc-cell-v{color:var(--rr-white)}
+.sched-spot .sc-cell-v--van{color:var(--rr-white)}
+.sched-spot .sc-cell-rotation{color:rgba(255,255,255,.8)}
+.sched-spot .shift-weather{color:rgba(255,255,255,.8)}
