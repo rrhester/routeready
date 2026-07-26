@@ -1085,8 +1085,10 @@ const routes = {
   "/settings/time-off":     { render: renderTimeOff,         tab: "/more", back: "/more", title: "Time off" },
   "/chat":              { render: renderMessagesInbox,   tab: "/chat" },
   "/chat/dispatch":     { render: renderChat,            tab: "/chat", back: "/chat" },
-  "/chat/channels":     { render: renderChatChannelsList, tab: "/chat", back: "/chat" },
-  "/chat/channel":      { render: renderChatChannelThread, tab: "/chat", back: "/chat/channels" },
+  // /chat/channels folded into the inbox (simplify 2026-07) — the route
+  // stays alive for old deep links but renders the same unified list.
+  "/chat/channels":     { render: renderMessagesInbox,    tab: "/chat" },
+  "/chat/channel":      { render: renderChatChannelThread, tab: "/chat", back: "/chat" },
   "/team":              { render: renderTeam,            tab: "/more", back: "/more", title: "Team" },
   "/profile":           { render: renderProfileHub,      tab: "/profile" },
   "/more":              { render: renderMore,            tab: "/more" },
@@ -2240,9 +2242,7 @@ function _rrLiveRefresh(payload) {
   }
   if (kind === "channel" || !kind) {
     try {
-      const route = currentRoute();
-      if (route === "/chat/channel") refreshChannelThread(false);
-      else if (route === "/chat/channels") refreshChannelList();
+      if (currentRoute() === "/chat/channel") refreshChannelThread(false);
     } catch {}
   }
 
@@ -2668,10 +2668,11 @@ function shiftCardHtml(s, isToday, vanInfo, opts) {
         ${line ? `<span class="srm">${line}</span>` : ""}
         ${chips.length ? `<div class="sc-chips">${chips.join("")}</div>` : ""}
         ${wxSlot}
-        ${opts?.swappable && s.status === "scheduled" && !isOnboardingShift ? `
-          <div class="sc-swap"><a href="#" class="rr-text-link" data-rr-swap-from="${escapeHtml(s.id)}">Offer swap</a></div>
-        ` : ""}
       </span>
+      ${opts?.swappable && s.status === "scheduled" && !isOnboardingShift ? `
+        <button class="sc-swap-ic" type="button" data-rr-swap-from="${escapeHtml(s.id)}" aria-label="Offer this shift for swap" title="Offer swap">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+        </button>` : ""}
     </div>`;
 }
 
@@ -2781,12 +2782,9 @@ function fmtIsoDate(d) {
   return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`;
 }
 function fmtTime(iso) {
-  const d = new Date(iso);
-  let h = d.getHours();
-  const m = d.getMinutes();
-  const ampm = h >= 12 ? "pm" : "am";
-  h = h % 12 || 12;
-  return `${h}:${String(m).padStart(2, "0")}${ampm}`;
+  // Same output as _t12 ("9:20 AM") so the whole app carries ONE time
+  // style — the schedule used to render a lowercase "9:20am" variant.
+  return new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
 
 // ── Countdown · "STARTS IN 45m" / "STARTS IN 2h 10m" ────────────────
@@ -5454,20 +5452,10 @@ async function renderMessagesInbox() {
   const session = readSession();
   if (!session?.token) { writeSession(null); render(); return; }
   const main = document.getElementById("main");
-  main.innerHTML = `
-    <div class="chat-tabs rr2-inbox-tabs">
-      <button class="chat-tab active" data-rr-chat-tab="inbox">Inbox</button>
-      <button class="chat-tab" data-rr-chat-tab="dispatch">Dispatch</button>
-      <button class="chat-tab" data-rr-chat-tab="channels">Channels</button>
-    </div>
-    <div id="rr2-inbox">${taskSkeletonHtml(2)}</div>`;
-  document.querySelectorAll("[data-rr-chat-tab]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const next = btn.getAttribute("data-rr-chat-tab");
-      if (next === "inbox") return;
-      navigate(next === "channels" ? "/chat/channels" : "/chat/dispatch");
-    });
-  });
+  // One list, no tab row (simplify 2026-07): Dispatch and every channel
+  // are rows here, and tapping a row opens the thread — the old
+  // Inbox/Dispatch/Channels tabs duplicated exactly this navigation.
+  main.innerHTML = `<div id="rr2-inbox">${taskSkeletonHtml(2)}</div>`;
 
   const quiet = (p) => p.then((r) => r, (e) => ({ data: null, error: e }));
   const [chatRes, chanRes] = await Promise.all([
@@ -5489,12 +5477,6 @@ async function renderMessagesInbox() {
   const channels = chanRes.data?.channels || [];
   const fromDispatch = messages.filter((m) => m.sender_kind !== "driver");
   const pendingAcks = fromDispatch.filter((m) => m.requires_ack && !m.acked_at);
-  // Announcements = ack-required notices (resolved ones show their state)
-  // plus anything dispatch marked urgent/high. Newest first, capped.
-  const announcements = fromDispatch
-    .filter((m) => (m.requires_ack && m.acked_at) || m.priority === "urgent" || m.priority === "high")
-    .filter((m) => !pendingAcks.includes(m))
-    .slice(-6).reverse();
   const lastMsg = messages[messages.length - 1] || null;
   const unreadDispatch = messages.some((m) => m.is_unread);
 
@@ -5540,7 +5522,7 @@ async function renderMessagesInbox() {
       ? `${c.last_sender ? escapeHtml(c.last_sender) + ": " : ""}${preview(c.last_message, 80)}`
       : `${c.member_count || 0} member${c.member_count === 1 ? "" : "s"}`;
     return `
-    <button class="rr2-row${c.unread > 0 ? " unread" : ""}" type="button" data-task-route="/chat/channel?id=${encodeURIComponent(c.id)}">
+    <button class="rr2-row${c.unread > 0 ? " unread" : ""}" type="button" data-rr-ch="${escapeHtml(c.id)}" data-task-route="/chat/channel?id=${encodeURIComponent(c.id)}">
       <span class="rr2-mava ch">${escapeHtml(initialsOf(c.name || "Ch"))}</span>
       <span class="rbody">
         <span class="rr2-mtop"><span class="rr2-mwho">#${escapeHtml(c.name || "channel")}</span><span class="rr2-mwhen">${rel(c.last_message_at)}</span></span>
@@ -5550,27 +5532,19 @@ async function renderMessagesInbox() {
     </button>`;
   }).join("");
 
-  const annRows = announcements.map((m) => `
-    <button class="rr2-row" type="button" data-task-route="/chat/dispatch">
-      <span class="ric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg></span>
-      <span class="rbody">
-        <span class="rr2-mtop"><span class="rr2-mwhen">${rel(m.created_at)}</span></span>
-        <span class="rr2-mprev ann">${preview(m.body, 110)}</span>
-      </span>
-      <span class="rend">${m.requires_ack && m.acked_at
-        ? '<span class="rr2-pill green">Ack’d</span>'
-        : m.priority === "urgent" ? '<span class="rr2-pill red">Urgent</span>' : '<span class="rr2-pill">Notice</span>'}</span>
-    </button>`).join("");
-
+  // Announcements live in the Dispatch thread itself; only a pending
+  // acknowledgement is urgent enough to break out above the list.
   host.innerHTML = `
     ${pendingAcks.length ? `<div class="rr2-sec is-red">Needs acknowledgement<span class="n">${pendingAcks.length}</span></div>${pendingAcks.slice().reverse().map(ackBlock).join("")}` : ""}
-    <div class="rr2-sec">Conversations</div>
-    <div class="rr2-panel">${dispatchRow}${channelRows}</div>
-    ${annRows ? `<div class="rr2-sec">Announcements</div><div class="rr2-panel">${annRows}</div>` : ""}
-    <div class="rr2-divnote">Call or video-call dispatch from the Dispatch tab</div>`;
+    <div class="rr2-panel">${dispatchRow}${channelRows}</div>`;
 
   host.querySelectorAll("[data-task-route]").forEach((el) => {
-    el.addEventListener("click", () => navigate(el.dataset.taskRoute));
+    el.addEventListener("click", () => {
+      // Channel rows stash the list's meta so the thread header paints
+      // its name instantly instead of waiting for the RPC round-trip.
+      if (el.dataset.rrCh) _chatChannelMeta = channels.find((c) => c.id === el.dataset.rrCh) || null;
+      navigate(el.dataset.taskRoute);
+    });
   });
   // Acknowledge straight from the Inbox — same RPC as in-thread; the
   // whole view repaints so the item moves into Announcements as Ack'd.
@@ -5605,9 +5579,7 @@ async function renderChat() {
     <div id="chat-shell">
       <div id="chat-conn-banner" class="chat-conn-banner" hidden></div>
       <div id="chat-tabs" class="chat-tabs">
-        <button class="chat-tab" data-rr-chat-tab="inbox">Inbox</button>
-        <button class="chat-tab active" data-rr-chat-tab="dispatch">Dispatch</button>
-        <button class="chat-tab" data-rr-chat-tab="channels">Channels</button>
+        <div class="chat-thread-t">Dispatch</div>
         <button class="chat-call chat-vcall" type="button" data-rr-drv-call="video" aria-label="Video call dispatch" title="Video call dispatch"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></button>
         ${RR_RADIO_ENABLED ? `<button class="chat-call chat-radio" type="button" data-rr-drv-radio aria-label="Open the dispatch radio" title="Radio"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg></button>` : ""}
         ${(() => {
@@ -6047,16 +6019,6 @@ async function renderChat() {
     // The smart-scroll logic in refreshChat will keep us pinned at
     // bottom (the optimistic stub already scrolled us there).
     await refreshChat(false);
-  });
-
-  // Tab toggle — Dispatch / Channels. Real routes, so Back behaves.
-  document.querySelectorAll("[data-rr-chat-tab]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const next = btn.getAttribute("data-rr-chat-tab");
-      if (next === _chatTab) return;
-      if (_chatPollTimer) { clearInterval(_chatPollTimer); _chatPollTimer = null; }
-      navigate(next === "channels" ? "/chat/channels" : next === "inbox" ? "/chat" : "/chat/dispatch");
-    });
   });
 
   // First time the driver lands on Chat is the right moment to offer
@@ -7126,128 +7088,18 @@ function _rrChatBindAnchorRelease(wrap) {
 
 let _chatChannelPollTimer = null;
 
-async function renderChatChannelsList() {
-  _chatTab = "channels";
-  _chatChannelId = null;
-  setHeader("Channels", "");
-  const main = document.getElementById("main");
-  main.innerHTML = `
-    <div id="chat-shell">
-      <div id="chat-tabs" class="chat-tabs">
-        <button class="chat-tab" data-rr-chat-tab="inbox">Inbox</button>
-        <button class="chat-tab" data-rr-chat-tab="dispatch">Dispatch</button>
-        <button class="chat-tab active" data-rr-chat-tab="channels">Channels</button>
-      </div>
-      <div id="chat-channel-list" class="chat-channel-list" style="flex:1;overflow-y:auto;background:var(--canvas);padding:8px 0">
-        <div class="loader" style="margin:60px auto"></div>
-      </div>
-    </div>`;
-
-  document.querySelectorAll("[data-rr-chat-tab]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const next = btn.getAttribute("data-rr-chat-tab");
-      if (next === _chatTab) return;
-      if (_chatChannelPollTimer) { clearInterval(_chatChannelPollTimer); _chatChannelPollTimer = null; }
-      navigate(next === "channels" ? "/chat/channels" : next === "inbox" ? "/chat" : "/chat/dispatch");
-    });
-  });
-
-  await refreshChannelList();
-  if (_chatChannelPollTimer) clearInterval(_chatChannelPollTimer);
-  _chatChannelPollTimer = setInterval(() => {
-    if (document.hidden) return;
-    if (currentRoute() !== "/chat/channels") {
-      clearInterval(_chatChannelPollTimer); _chatChannelPollTimer = null; return;
-    }
-    refreshChannelList();
-  }, 10000);
-}
-
-async function refreshChannelList() {
-  const session = readSession();
-  if (!session?.token) return;
-  const list = document.getElementById("chat-channel-list");
-  if (!list) return;
-  const { data, error } = await sb.rpc("driver_channels_list", { p_token: session.token });
-  if (error) {
-    if (/unauthorized|revoked|inactive/.test(error.message || "")) {
-      writeSession(null); render(); return;
-    }
-    list.innerHTML = errorStateHtml("Couldn't load channels", error);
-    return;
-  }
-  const channels = data?.channels || [];
-  if (channels.length === 0) {
-    list.innerHTML = `
-      <div class="rr-empty">
-        <div class="rr-empty-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-        </div>
-        <div class="rr-empty-title">No channels yet</div>
-        <div class="rr-empty-sub">Your dispatcher will add you to channels for your station or team.</div>
-      </div>`;
-    return;
-  }
-  const fmtRel = (iso) => {
-    if (!iso) return "—";
-    const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
-    if (m < 1) return "now";
-    if (m < 60) return `${m}m`;
-    const h = Math.floor(m / 60);
-    if (h < 24) return `${h}h`;
-    const d = Math.floor(h / 24);
-    if (d < 7) return `${d}d`;
-    return new Date(iso).toLocaleDateString();
-  };
-  list.innerHTML = channels.map(c => {
-    const lastBody = c.last_message
-      ? (c.last_sender ? `${c.last_sender}: ` : "") + c.last_message
-      : `${c.member_count || 0} member${c.member_count === 1 ? "" : "s"}`;
-    const lastBodyTrunc = lastBody.length > 60 ? lastBody.slice(0, 57) + "…" : lastBody;
-    const stationChip = c.station_code
-      ? `<span style="font-size:var(--fs-xs);color:var(--text-subtle);background:var(--canvas);padding:1px 6px;border-radius:8px;margin-left:6px">${escapeHtml(c.station_code)}</span>`
-      : "";
-    const unread = c.unread > 0
-      ? `<span style="background:var(--accent);color:var(--rr-white);font-size:var(--fs-xs);font-weight:700;padding:2px 7px;border-radius:10px;min-width:20px;text-align:center">${c.unread}</span>`
-      : "";
-    return `
-      <div class="chat-channel-row" data-rr-open-channel="${escapeHtml(c.id)}" style="display:flex;gap:12px;align-items:center;padding:14px 16px;background:var(--surface);margin:0 12px 8px;border:1px solid var(--border);border-radius:14px;cursor:pointer;min-height:64px;box-shadow:var(--shadow-xs)">
-        <div class="avatar-sm" style="background:var(--accent-soft);color:var(--accent-text);width:40px;height:40px;border-radius:20px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;flex-shrink:0">#</div>
-        <div style="flex:1;min-width:0">
-          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;line-height:1.25">
-            <span style="font-size:var(--fs-lg);font-weight:600;color:var(--text);letter-spacing:-.005em">${escapeHtml(c.name)}</span>
-            ${stationChip}
-          </div>
-          <div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.35">${escapeHtml(lastBodyTrunc)}</div>
-        </div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0">
-          <div style="font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums">${escapeHtml(fmtRel(c.last_message_at))}</div>
-          ${unread}
-        </div>
-      </div>`;
-  }).join("");
-
-  list.querySelectorAll("[data-rr-open-channel]").forEach(el => {
-    el.addEventListener("click", () => {
-      const id = el.getAttribute("data-rr-open-channel");
-      // Cache the header meta so the thread paints its name instantly;
-      // the thread itself resolves meta from the RPC on deep links.
-      _chatChannelMeta = channels.find(c => c.id === id) || null;
-      if (_chatChannelPollTimer) { clearInterval(_chatChannelPollTimer); _chatChannelPollTimer = null; }
-      navigate("/chat/channel?id=" + encodeURIComponent(id));
-    });
-  });
-}
+// The standalone channels-list screen is gone (simplify 2026-07): the
+// Messages inbox lists every channel, so /chat/channels folds into it.
 
 async function renderChatChannelThread() {
   // Route-driven: /chat/channel?id=… — the router supplies the back
-  // arrow (→ /chat/channels), history pops naturally, and dispatchers
+  // arrow (→ /chat), history pops naturally, and dispatchers
   // can deep-link a channel. Meta comes from the list tap when we have
   // it; on a cold deep link it's resolved from driver_channels_list.
   _chatTab = "channels";
   const qid = routeQuery().get("id");
   if (qid) _chatChannelId = qid;
-  if (!_chatChannelId) { navigate("/chat/channels"); return; }
+  if (!_chatChannelId) { navigate("/chat"); return; }
   if (_chatChannelMeta && _chatChannelMeta.id !== _chatChannelId) _chatChannelMeta = null;
   const meta = _chatChannelMeta || {};
   setHeader(`#${meta.name || "channel"}`, meta.station_code ? `station ${meta.station_code}` : `${meta.member_count || 0} member${meta.member_count === 1 ? "" : "s"}`);
@@ -7966,7 +7818,7 @@ async function _renderToday(session, main) {
     || ((Number.isFinite(a.dueMs) ? a.dueMs : Infinity) - (Number.isFinite(b.dueMs) ? b.dueMs : Infinity)));
 
   const upNextHtml = nextRow ? `
-    <div class="rr2-sec">Up next<a class="lnk" href="#/schedule">Schedule</a></div>
+    <div class="rr2-sec">Next shift</div>
     <div class="rr2-panel">
       <button class="rr2-shift-row" type="button" data-task-route="/schedule">
         <span class="srd">
@@ -8169,12 +8021,12 @@ async function _renderToday(session, main) {
     const pill = windowOpen
       ? `<span class="rr2-pill blue"><span class="pdot"></span>Ready to check in</span>`
       : `<span class="rr2-pill navy"><span class="pdot"></span>Scheduled</span>`;
+    // The check-in window already lives on the CTA below — repeating it
+    // in the card sub made the line wrap (simplify 2026-07).
     cardHtml = scCard({
       pill,
       time: timeRange,
-      sub: windowOpen
-        ? `Check-in closes <b>${_t12(shift.window_close_at)}</b>${metaBits ? ` · ${metaBits}` : ""}`
-        : `Check-in opens <b>${_t12(shift.window_open_at)}</b>${metaBits ? ` · ${metaBits}` : ""}`,
+      sub: metaBits,
       stage: 1,
       blocked: windowClosed || noStart,
     });
@@ -8200,7 +8052,7 @@ async function _renderToday(session, main) {
     } else if (windowOpen) {
       ctaHtml = `
         <button class="btn btn-primary" id="rr-checkin-btn">Check in · ${_t12(shift.starts_at)} shift</button>
-        <span class="cta-note">We'll confirm you're at the station and log your start time</span>`;
+        ${shift.window_close_at ? `<span class="cta-note">Check-in closes ${_t12(shift.window_close_at)}</span>` : ""}`;
     } else if (windowClosed) {
       ctaHtml = `
         <button class="btn" disabled>Check-in closed at ${_t12(shift.window_close_at)}</button>

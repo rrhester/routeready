@@ -1,5 +1,32 @@
 # RouteReady — Claude operating notes
 
+## DONE: Driver-app simplify pass (2026-07-26, operator: "too complex —
+## simple and clean")
+
+Decluttering pass over `app/app.js`/`app/styles.css`, no features removed:
+- **Messages is ONE list now.** The Inbox/Dispatch/Channels tab rows are
+  GONE everywhere — the inbox lists Dispatch + every channel as rows and
+  header-back covers return navigation (routes already had `back:`).
+  `renderChatChannelsList` + `refreshChannelList` are DELETED;
+  `/chat/channels` renders the inbox (deep-link compat), `/chat/channel`
+  back → `/chat`. Inbox also dropped the Announcements section (dupes of
+  the dispatch thread; pending-ack block stays) + the footnote. The
+  dispatch thread's top bar is now `.chat-thread-t` ("Dispatch") + the
+  call/video buttons — same 52px `.chat-tabs` container, so the
+  `.chat-tabs ~ .chat-msgs{top:52px}` offset still applies. Channel rows
+  in the inbox stash `_chatChannelMeta` on tap (instant thread header).
+- **Schedule rows**: per-row "Offer swap" text-link line → one quiet
+  trailing ⇄ icon (`.sc-swap-ic`, same `[data-rr-swap-from]` delegated
+  handler). ONE time format app-wide: `fmtTime` now emits _t12's
+  "9:20 AM" style (was lowercase "9:20am" only on schedule surfaces).
+- **Today**: the check-in window open/close phrasing left the shift-card
+  sub (CTA note carries "Check-in closes …" instead of the explainer
+  sentence); "Up next" section → "Next shift", its Schedule link dropped
+  (the row itself navigates).
+- Design ratchet IMPROVED (inline styles 3808→3785, baseline locked).
+  QA: scratchpad qa-driver-simplify.mjs (19 click-through checks) +
+  before/after shots; driver-app e2e 9/9; 27 test suites green.
+
 ## DONE: Email page redesign (2026-07-22, operator mockup)
 
 The Email (Fleet Bridge) page was rebuilt to the operator's mockup: the
