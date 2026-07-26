@@ -686,8 +686,16 @@ select.field{
 .sc-chip-cushion{background:var(--amber-soft);color:var(--amber-dark);border-color:transparent}
 .sc-chip-helper{background:var(--accent-soft);color:var(--accent-text);border-color:transparent}
 .sc-chip-done{background:var(--green-soft);color:var(--green-dark);border-color:transparent}
-.shift-card .sc-swap{margin-top:8px}
-.shift-card .sc-swap a{font-size:var(--fs-xs);color:var(--text-subtle);text-decoration:none;cursor:pointer}
+/* Compact swap affordance on schedule rows — one quiet icon at the row's
+   end instead of the old full-width "Offer swap" text-link line. */
+.sc-swap-ic{
+  flex:none;align-self:center;
+  display:inline-flex;align-items:center;justify-content:center;
+  width:34px;height:34px;border-radius:50%;
+  border:0;background:none;cursor:pointer;
+  color:var(--text-subtle);
+}
+.sc-swap-ic:active{background:var(--canvas);color:var(--text)}
 
 /* ── Task / hub cards (Tasks + Profile screens) ─────────────── */
 .task-card{
@@ -1194,11 +1202,10 @@ body.scan-camming{overflow:hidden}
   background:var(--bg);
   z-index:5;
 }
-/* Tab strip at the top of /chat — Dispatch / Channels.  When present
-   the chat-msgs region drops 44px so the bubbles don't sit under it. */
-/* Tabs — taller bar (52px) with explicit vertical padding so thumbs
-   reliably land on the right tab without hitting the underline.  3px
-   active stripe replaces 2px so it reads in bright outdoor light. */
+/* Thread bar at the top of the dispatch chat — the conversation's name
+   on the left, call actions on the right (the old Inbox/Dispatch/
+   Channels tabs are gone; the Messages inbox is the only list).  When
+   present the chat-msgs region drops 52px so bubbles don't sit under it. */
 .chat-tabs{
   position:absolute;
   top:0;left:0;right:0;height:52px;
@@ -1207,19 +1214,12 @@ body.scan-camming{overflow:hidden}
   border-bottom:1px solid var(--border);
   z-index:6;
 }
-.chat-tab{
-  flex:1;
-  background:transparent;border:0;
-  font:inherit;font-size:var(--fs-md);font-weight:600;color:var(--text-subtle);
-  cursor:pointer;
-  padding:var(--s-2) var(--s-3);
+.chat-thread-t{
+  flex:1;min-width:0;
+  display:flex;align-items:center;
+  padding:0 var(--s-4);
+  font-size:var(--fs-md);font-weight:600;color:var(--text);
   letter-spacing:.005em;
-  transition:color var(--t-fast), box-shadow var(--t-fast);
-}
-.chat-tab:active{ background:var(--canvas) }
-.chat-tab.active{
-  color:var(--accent);
-  box-shadow:inset 0 -3px 0 var(--accent);
 }
 /* Tap-to-call link tucked into the right edge of the chat-tabs row.
    Driver taps it to dial the DSP's office number (dsp_phone, set in
@@ -1280,8 +1280,7 @@ body.scan-camming{overflow:hidden}
   .rr-call-incoming .rr-call-ripple::before,
   .rr-call-incoming .rr-call-ripple::after{ animation:none }
 }
-.chat-tabs ~ .chat-msgs,
-.chat-tabs ~ .chat-channel-list{
+.chat-tabs ~ .chat-msgs{
   top:52px;
 }
 .chat-msgs{
@@ -1450,13 +1449,6 @@ body.scan-camming{overflow:hidden}
 .chat-qa-chip:hover{ background:var(--surface);color:var(--text); }
 .chat-qa-chip:active{ transform:scale(.96);background:var(--accent-soft,var(--canvas));color:var(--accent-text,var(--accent));border-color:transparent; }
 
-.chat-channel-list{
-  position:absolute;
-  top:0;left:0;right:0;bottom:0;
-  overflow-y:auto;-webkit-overflow-scrolling:touch;
-  scrollbar-width:none;
-}
-.chat-channel-list::-webkit-scrollbar{ display:none; width:0; height:0; }
 .chat-msgs::-webkit-scrollbar{ display:none; width:0; height:0; }
 /* Composer base — taller min (66 → 70) gives thumb a generous
    bottom-bar even single-line.  Padding token-aligned. */
@@ -3144,7 +3136,6 @@ main[data-page-enter][data-nav-dir="back"] > *{
 }
 .rr2-sec:first-child{margin-top:2px}
 .rr2-sec .n{font-weight:600;color:var(--text-disabled);font-variant-numeric:tabular-nums}
-.rr2-sec .lnk{margin-left:auto;font-size:var(--fs-sm);font-weight:600;letter-spacing:0;text-transform:none;color:var(--accent);text-decoration:none;border:0;background:none;padding:0;font-family:inherit;cursor:pointer}
 
 /* ── Panel + rows ────────────────────────────────────────────── */
 .rr2-panel{
@@ -3369,15 +3360,5 @@ main.has-rr2-cta{padding-bottom:104px}
 .rr2-divnote-roomy{padding:24px 0}
 .rr2-ack-notice{margin:10px 12px 4px;border-radius:var(--r-lg)}
 .rr2-ack-when{font-size:var(--fs-xs);color:var(--text-subtle)}
-/* Standalone Messages-Inbox tab row: .chat-tabs is absolutely
-   positioned for the chat shell; in the Inbox it flows normally at the
-   top of #main and bleeds to the screen edges. */
-.rr2-inbox-tabs{
-  position:static;height:52px;
-  margin:-14px -16px 10px;
-  width:auto;max-width:none;
-}
 .rr2-mava.ch{background:linear-gradient(135deg,var(--rr-blue-600),var(--rr-blue-800))}
-.rr2-mwho.ann{font-weight:600}
-.rr2-mprev.ann{color:var(--text);font-weight:500;margin-top:0}
 .rr2-mtop:has(> .rr2-mwhen:only-child){justify-content:flex-end}
