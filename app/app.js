@@ -663,7 +663,7 @@ function _ptrEnsureIndicator() {
   if (_ptrEl) return _ptrEl;
   _ptrEl = document.createElement("div");
   _ptrEl.className = "rr-ptr";
-  _ptrEl.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`;
+  _ptrEl.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`;
   // The indicator lives in #app (a sibling of #main + header) so it
   // stays put while #main translates underneath.
   document.getElementById("app")?.appendChild(_ptrEl);
@@ -890,7 +890,7 @@ function _restoreScroll(path) {
 function errorStateHtml(title, err) {
   const sub = escapeHtml(_friendlyError(err, "Pull down to retry."));
   return `<div class="rr-empty">
-    <div class="rr-empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+    <div class="rr-empty-icon"><svg width="18" height="18" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
     <div class="rr-empty-title">${escapeHtml(title)}</div>
     <div class="rr-empty-sub">${sub}</div>
   </div>`;
@@ -1855,17 +1855,17 @@ function renderShell(session) {
   const isOnboarding = session?.status === "onboarding";
   const msgTab = `
       <button class="tab" data-route="/chat" data-c="chat" role="tab" aria-label="Messages">
-        <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+        <span class="tab-ic"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
         Messages
       </button>`;
   const schedTab = `
       <button class="tab" data-route="/schedule" data-c="schedule" role="tab" aria-label="Schedule">
-        <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
+        <span class="tab-ic"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
         Schedule
       </button>`;
   const onboardingTabs = `<nav class="tabbar" role="tablist">
       <button class="tab" data-route="/tasks/onboarding" data-c="tasks" role="tab" aria-label="Onboarding">
-        <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+        <span class="tab-ic"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
         Onboarding
       </button>
       ${schedTab}
@@ -1877,17 +1877,17 @@ function renderShell(session) {
   // Team and the Settings contents live under More now.
   const activeTabs = `<nav class="tabbar" role="tablist">
       <button class="tab" data-route="/profile" data-c="profile" role="tab" aria-label="Today">
-        <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><circle cx="12" cy="15.5" r="2.2" fill="currentColor" stroke="none"/></svg></span>
+        <span class="tab-ic"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><circle cx="12" cy="15.5" r="2.2" fill="currentColor" stroke="none"/></svg></span>
         Today
       </button>
       ${schedTab}
       <button class="tab" data-route="/tasks" data-c="tasks" role="tab" aria-label="Tasks">
-        <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="m9 14 2 2 4-4"/></svg></span>
+        <span class="tab-ic"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="m9 14 2 2 4-4"/></svg></span>
         Tasks
       </button>
       ${msgTab}
       <button class="tab" data-route="/more" data-c="more" role="tab" aria-label="More">
-        <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.2"/><circle cx="7.2" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="16.8" cy="12" r="1.3" fill="currentColor" stroke="none"/></svg></span>
+        <span class="tab-ic"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.2"/><circle cx="7.2" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="16.8" cy="12" r="1.3" fill="currentColor" stroke="none"/></svg></span>
         More
       </button>
     </nav>`;
@@ -1914,7 +1914,7 @@ function renderShell(session) {
       ${trailing}
     </header>
     <div id="rr-offline" class="rr-offline" aria-live="polite" role="status">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/><path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/><path d="M10.71 5.05A16 16 0 0 1 22.58 9"/><path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12" y2="20"/></svg>
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/><path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/><path d="M10.71 5.05A16 16 0 0 1 22.58 9"/><path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12" y2="20"/></svg>
       <span id="rr-offline-text">Offline — changes will sync when you're back</span>
     </div>
     <main id="main"><div class="loader"></div></main>
@@ -2009,7 +2009,7 @@ async function renderSchedule() {
         return;
       }
       _clearSkel();
-      main.innerHTML = `<div class="rr-empty"><div class="rr-empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div><div class="rr-empty-title">Couldn't load your schedule</div><div class="rr-empty-sub">${escapeHtml(_friendlyError(error, "Pull down to retry."))}</div></div>`;
+      main.innerHTML = `<div class="rr-empty"><div class="rr-empty-icon"><svg width="18" height="18" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div><div class="rr-empty-title">Couldn't load your schedule</div><div class="rr-empty-sub">${escapeHtml(_friendlyError(error, "Pull down to retry."))}</div></div>`;
       return;
     }
 
@@ -3016,7 +3016,7 @@ async function _renderTasksHub(session, main) {
     <div class="rr2-sec is-amber">Waiting to sync<span class="n">${queued}</span></div>
     <div class="rr2-panel">
       <div class="rr2-row static">
-        <span class="ric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></span>
+        <span class="ric"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></span>
         <span class="rbody"><span class="rtitle">${queued} item${queued === 1 ? "" : "s"} saved on this phone</span><span class="rmeta">Sends automatically when you're back in coverage</span></span>
         <span class="rend"><span class="rr2-pill amber"><span class="pdot"></span>Pending</span></span>
       </div>
@@ -4960,7 +4960,7 @@ async function _scanOpenEditor(id) {
     <div class="scan-editor-stage" id="scan-ed-stage">
       <div class="scan-editor-box" id="scan-ed-box">
         <canvas class="scan-editor-canvas" id="scan-ed-canvas" width="${pw}" height="${ph}"></canvas>
-        <svg class="scan-editor-svg" id="scan-ed-svg" viewBox="0 0 ${page.ow} ${page.oh}" preserveAspectRatio="none">
+        <svg width="18" height="18" width="18" height="18" class="scan-editor-svg" id="scan-ed-svg" viewBox="0 0 ${page.ow} ${page.oh}" preserveAspectRatio="none">
           <polygon id="scan-ed-poly" points="" fill="rgba(37,99,235,.12)" stroke="#2563EB" stroke-width="2" vector-effect="non-scaling-stroke"/>
           ${corners.map((_, k) => `<circle class="scan-ed-handle" data-h="${k}" r="${Math.max(page.ow, page.oh) / 42}" fill="#fff" stroke="#2563EB" stroke-width="2" vector-effect="non-scaling-stroke"/>`).join("")}
         </svg>
@@ -5153,7 +5153,7 @@ async function _scanOpenCamera() {
   overlay.innerHTML = `
     <video class="scan-cam-video" id="scan-cam-video" autoplay playsinline muted></video>
     <div class="scan-cam-guide" aria-hidden="true"></div>
-    <svg class="scan-cam-edge" id="scan-cam-edge" aria-hidden="true" preserveAspectRatio="none">
+    <svg width="18" height="18" width="18" height="18" class="scan-cam-edge" id="scan-cam-edge" aria-hidden="true" preserveAspectRatio="none">
       <polygon id="scan-cam-quad" points="" fill="rgba(37,99,235,.16)" stroke="#4d8bff" stroke-width="3"/>
     </svg>
     <div class="scan-cam-top">
@@ -5376,7 +5376,7 @@ function _paintAckStrip(messages) {
   host.hidden = false;
   host.innerHTML = `
     <div class="rr2-notice danger rr2-ack-notice">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
       <div class="rr2-flex1">
         <div class="nt">Needs acknowledgement${pending.length > 1 ? ` · ${pending.length}` : ""}</div>
         <div class="nb">${escapeHtml(body)}${(m.body || "").length > 160 ? "…" : ""}</div>
@@ -5499,7 +5499,7 @@ async function renderMessagesInbox() {
 
   const ackBlock = (m) => `
     <div class="rr2-notice danger">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
       <div class="rr2-flex1">
         <div class="nt">${m.priority === "urgent" ? "Urgent notice" : "Notice from dispatch"}</div>
         <div class="nb">${preview(m.body, 200)}</div>
@@ -5689,7 +5689,7 @@ async function renderChat() {
     // so the driver sees the result.
     const bubble = btn.closest(".chat-bubble");
     if (bubble) {
-      btn.outerHTML = `<div class="chat-ack acked"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6.5 9.5 17 4.5 12"/></svg>Acknowledged · just now</div>`;
+      btn.outerHTML = `<div class="chat-ack acked"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6.5 9.5 17 4.5 12"/></svg>Acknowledged · just now</div>`;
     }
     refreshChat(false);
   });
@@ -6633,7 +6633,7 @@ async function refreshChat(scrollToBottom) {
     wrap.innerHTML = `${liveStubs}
       <div class="rr-empty">
         <div class="rr-empty-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <svg width="18" height="18" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
         </div>
         <div class="rr-empty-title">No messages yet</div>
         <div class="rr-empty-sub">Type below to start a conversation with dispatch.</div>
@@ -6650,8 +6650,8 @@ async function refreshChat(scrollToBottom) {
       if (lastMineIdx === -1) lastMineIdx = i;
       if (peerReadAt > 0 && new Date(messages[i].created_at).getTime() <= peerReadAt) { lastReadMineIdx = i; break; }
     }
-    const _ckRead = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6.5 9.2 15.5 6.5 12.8"/><path d="M22 6.5 14.6 14.4"/></svg>`;
-    const _ckSent = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6.5 9.5 17 4.5 12"/></svg>`;
+    const _ckRead = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6.5 9.2 15.5 6.5 12.8"/><path d="M22 6.5 14.6 14.4"/></svg>`;
+    const _ckSent = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6.5 9.5 17 4.5 12"/></svg>`;
     let html = "";
     let lastSender = null;
     let lastTimeMs = 0;
@@ -6716,7 +6716,7 @@ async function refreshChat(scrollToBottom) {
     // .chat-bottom-sentinel rule in styles.css.
     wrap.innerHTML = html + liveStubs +
       `<button type="button" class="chat-jump" id="chat-jump" aria-label="Jump to latest">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
         <span id="chat-jump-label">New messages</span>
       </button>
       <div class="chat-bottom-sentinel" aria-hidden="true"></div>`;
@@ -6905,7 +6905,7 @@ function chatBubbleHtml(m, pos) {
   if (!mine && m.requires_ack) {
     if (m.acked_at) {
       const at = new Date(m.acked_at).toLocaleString([], { month:"short", day:"numeric", hour:"numeric", minute:"2-digit" });
-      ack = `<div class="chat-ack acked"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6.5 9.5 17 4.5 12"/></svg>Acknowledged · ${escapeHtml(at)}</div>`;
+      ack = `<div class="chat-ack acked"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6.5 9.5 17 4.5 12"/></svg>Acknowledged · ${escapeHtml(at)}</div>`;
     } else {
       ack = `<button type="button" class="chat-ack-btn" data-rr-ack="${escapeHtml(m.id)}">Acknowledge</button>`;
     }
@@ -7537,7 +7537,7 @@ async function renderTeam() {
     main.innerHTML = `
       <div class="rr-empty">
         <div class="rr-empty-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <svg width="18" height="18" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         </div>
         <div class="rr-empty-title">No teammates yet</div>
         <div class="rr-empty-sub">When dispatch adds other drivers to your DSP, they'll show up here so you can reach them.</div>
@@ -7676,12 +7676,12 @@ function _railHtml(stage, blocked) {
 // blocked | alert. Rows navigate via data-task-route (wired by caller).
 function _reqRowHtml({ state, title, meta, pillHtml = "", route = "" }) {
   const glyph = state === "done"
-    ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
+    ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
     : state === "cur"
-      ? '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="5" fill="currentColor"/></svg>'
+      ? '<svg width="18" height="18" width="18" height="18" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5" fill="currentColor"/></svg>'
       : state === "alert"
-        ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
-        : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+        ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
+        : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
   return `
     <button class="rr2-row${state === "done" ? " done" : ""}" type="button" ${route ? `data-task-route="${route}"` : ""}>
       <span class="rr2-tstate ${state}">${glyph}</span>
@@ -7838,7 +7838,7 @@ async function _renderToday(session, main) {
     <div class="rr2-sec is-amber">Waiting to sync<span class="n">${queued}</span></div>
     <div class="rr2-panel">
       <div class="rr2-row static">
-        <span class="ric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></span>
+        <span class="ric"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></span>
         <span class="rbody">
           <span class="rtitle">${queued} item${queued === 1 ? "" : "s"} saved on this phone</span>
           <span class="rmeta">Sends automatically when you're back in coverage</span>
@@ -7895,7 +7895,7 @@ async function _renderToday(session, main) {
   // Missing-assignment awareness (van not assigned yet).
   const missingVanHtml = (shift && !vanToday && !chk?.checked_out_at) ? `
     <div class="rr2-notice warn">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
       <div class="rr2-flex1">
         <div class="nt">No van assigned yet</div>
         <div class="nb">You'll see it here the moment dispatch assigns one. You can still check in.</div>
@@ -7933,7 +7933,7 @@ async function _renderToday(session, main) {
     });
     bodyHtml = `
       <div class="rr2-notice warn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         <div>
           <div class="nt">Reported at ${_t12(chk.missed_reported_at)} — dispatch has been notified</div>
           ${chk.missed_reason ? `<div class="nb">${escapeHtml(chk.missed_reason)}</div>` : ""}
@@ -7989,12 +7989,12 @@ async function _renderToday(session, main) {
       <div class="rr2-sec">During your shift</div>
       <div class="rr2-panel">
         <button class="rr2-row" type="button" data-task-route="/chat">
-          <span class="ric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+          <span class="ric"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
           <span class="rbody"><span class="rtitle">Messages</span></span>
           <span class="rend"><span class="rchev"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span></span>
         </button>
         <button class="rr2-row" type="button" data-task-route="/chat/dispatch" data-rr2-issue>
-          <span class="ric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg></span>
+          <span class="ric"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg></span>
           <span class="rbody"><span class="rtitle">Report an issue</span><span class="rmeta">Van defect, delay or incident — goes to dispatch</span></span>
           <span class="rend"><span class="rchev"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span></span>
         </button>
@@ -8127,29 +8127,29 @@ function renderMore() {
 
     <div class="rr2-sec">Documents &amp; compliance</div>
     <div class="rr2-panel">
-      ${row({ route: "/tasks/documents", title: "My documents", icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>' })}
-      ${row({ route: "/settings/license", title: "Driver's license", icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="8.5" cy="11.5" r="2"/><path d="M5.5 16.5c.6-1.5 1.7-2.2 3-2.2s2.4.7 3 2.2"/><line x1="14" y1="10" x2="19" y2="10"/><line x1="14" y1="14" x2="18" y2="14"/></svg>' })}
-      ${row({ route: "/more/van", title: "Van documents", meta: "Insurance · registration for today's van", icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 17h4V5H2v12h3"/><path d="M20 17h2v-3.34a4 4 0 0 0-1.17-2.83L19 9h-5v8h1"/><circle cx="7.5" cy="17.5" r="2"/><circle cx="17.5" cy="17.5" r="2"/></svg>' })}
-      ${row({ route: "/tasks/scan", title: "Scan a document", meta: "Photos → PDF straight to dispatch", icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><rect x="7" y="8" width="10" height="8" rx="1"/></svg>' })}
+      ${row({ route: "/tasks/documents", title: "My documents", icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>' })}
+      ${row({ route: "/settings/license", title: "Driver's license", icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="8.5" cy="11.5" r="2"/><path d="M5.5 16.5c.6-1.5 1.7-2.2 3-2.2s2.4.7 3 2.2"/><line x1="14" y1="10" x2="19" y2="10"/><line x1="14" y1="14" x2="18" y2="14"/></svg>' })}
+      ${row({ route: "/more/van", title: "Van documents", meta: "Insurance · registration for today's van", icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 17h4V5H2v12h3"/><path d="M20 17h2v-3.34a4 4 0 0 0-1.17-2.83L19 9h-5v8h1"/><circle cx="7.5" cy="17.5" r="2"/><circle cx="17.5" cy="17.5" r="2"/></svg>' })}
+      ${row({ route: "/tasks/scan", title: "Scan a document", meta: "Photos → PDF straight to dispatch", icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><rect x="7" y="8" width="10" height="8" rx="1"/></svg>' })}
     </div>
 
     <div class="rr2-sec">Work</div>
     <div class="rr2-panel">
-      ${row({ route: "/settings/availability", title: "Availability", icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>' })}
-      ${row({ route: "/settings/time-off", title: "Time off", icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>' })}
-      ${row({ route: "/settings/attendance", title: "Attendance", icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.5 9 8 11 4.5-2 8-6 8-11V5l-8-3z"/></svg>' })}
+      ${row({ route: "/settings/availability", title: "Availability", icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>' })}
+      ${row({ route: "/settings/time-off", title: "Time off", icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>' })}
+      ${row({ route: "/settings/attendance", title: "Attendance", icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.5 9 8 11 4.5-2 8-6 8-11V5l-8-3z"/></svg>' })}
     </div>
 
     <div class="rr2-sec">Team &amp; support</div>
     <div class="rr2-panel">
-      ${row({ route: "/team", title: "Team roster", meta: "Call or text your teammates", icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>' })}
-      ${dspPhone ? row({ href: `tel:${escapeHtml(dspPhone)}`, title: "Call dispatch", icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>' }) : ""}
+      ${row({ route: "/team", title: "Team roster", meta: "Call or text your teammates", icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>' })}
+      ${dspPhone ? row({ href: `tel:${escapeHtml(dspPhone)}`, title: "Call dispatch", icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>' }) : ""}
     </div>
 
     <div class="rr2-sec">App</div>
     <div class="rr2-panel">
-      ${row({ route: "/settings/pin", title: "Sign-in PIN", icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>' })}
-      ${row({ route: "/settings", title: "Settings", meta: "Notifications, sign out and more", icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>' })}
+      ${row({ route: "/settings/pin", title: "Sign-in PIN", icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>' })}
+      ${row({ route: "/settings", title: "Settings", meta: "Notifications, sign out and more", icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>' })}
     </div>`;
 
   main.querySelectorAll("[data-task-route]").forEach((el) => {
@@ -8851,7 +8851,7 @@ function _obProgressRing(done, total) {
   const r = 23, c = 2 * Math.PI * r;
   const frac = total ? done / total : 0;
   const allDone = total > 0 && done === total;
-  return `<svg width="58" height="58" viewBox="0 0 58 58" aria-hidden="true">
+  return `<svg width="18" height="18" width="58" height="58" viewBox="0 0 58 58" aria-hidden="true">
     <circle cx="29" cy="29" r="${r}" fill="none" stroke="var(--canvas)" stroke-width="5"/>
     <circle cx="29" cy="29" r="${r}" fill="none" stroke="${allDone ? "var(--green)" : "var(--accent)"}" stroke-width="5" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${(c * (1 - frac)).toFixed(1)}" transform="rotate(-90 29 29)" style="transition:stroke-dashoffset .4s ease"/>
   </svg>`;
@@ -9852,7 +9852,7 @@ function _clkCardHtml(c) {
     route: `/tasks/checklist?id=${encodeURIComponent(c.assignment_id)}`,
     title: c.name || "Checklist",
     sub,
-    icon:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M7.5 12.4l3 3 6-6.4"/></svg>',
+    icon:  '<svg width="18" height="18" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M7.5 12.4l3 3 6-6.4"/></svg>',
   });
 }
 
@@ -13438,7 +13438,7 @@ function renderCelebrationRoute() {
         <a href="#/schedule" class="rrc-cta">${escapeHtml(ctaLabel)}</a>
       </div>
       <div class="rrc-foot">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+        <svg width="18" height="18" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
         ${escapeHtml(footer)}
       </div>
     </div>

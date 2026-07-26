@@ -8,14 +8,14 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "./vendor/supabase-js-2.45.4.mjs";
-import { planScheduleWeek } from "./scheduling-engine.js?v=b4aaafb6a077";
-import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=b4aaafb6a077";
-import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=b4aaafb6a077";
-import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=b4aaafb6a077";
-import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=b4aaafb6a077";
-import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=b4aaafb6a077";
-import { isChecklistComplete } from "./checklist-core.mjs?v=b4aaafb6a077";
-import { textFromHtml as _ecTextFromHtml, dateBucket as _ecDateBucket, formatRelative as _ecFormatRelative, prefixSubject as _ecPrefixSubject, parseQuery as _ecParseQuery, addrOk as _ecAddrOk, threadKey as _ecThreadKey, counterpart as _ecCounterpart, quoteText as _ecQuoteText } from "./email-core.mjs?v=b4aaafb6a077";
+import { planScheduleWeek } from "./scheduling-engine.js?v=246d835a244f";
+import { assessPlan as rrAssessLaborPlan, driversNeededWeek as rrDriversNeededWeek, FORECAST_KIND_LABEL as RR_FC_LABEL, FORECAST_KIND_CLASS as RR_FC_CLASS } from "./forecast-core.js?v=246d835a244f";
+import { effectiveWindows as _slotEffectiveWindows, isClosedDate as _slotIsClosedDate, slotStarts as _slotStarts, daySlotCapacity as _slotDayCapacity } from "./ivcal-slots.js?v=246d835a244f";
+import { localToISO as _tzLocalToISO, allTimeZones as _tzAllZones } from "./cal-tz.mjs?v=246d835a244f";
+import { layoutDay as _layoutDayCore, layStyle as _layStyleCore } from "./ivcal-layout.js?v=246d835a244f";
+import { fmtIsoDate, startOfWeek, addDays, isoWeek } from "./rr-dates.mjs?v=246d835a244f";
+import { isChecklistComplete } from "./checklist-core.mjs?v=246d835a244f";
+import { textFromHtml as _ecTextFromHtml, dateBucket as _ecDateBucket, formatRelative as _ecFormatRelative, prefixSubject as _ecPrefixSubject, parseQuery as _ecParseQuery, addrOk as _ecAddrOk, threadKey as _ecThreadKey, counterpart as _ecCounterpart, quoteText as _ecQuoteText } from "./email-core.mjs?v=246d835a244f";
 import {
   mdLite as _mdLite, applyShortcodes as _mcApplyShortcodes, shortcodeAt as _mcShortcodeAt,
   EMOJIS as _MC_EMOJIS, searchEmoji as _mcSearchEmoji, SHORTCODES as _MC_SHORTCODES,
@@ -26,9 +26,9 @@ import {
   msgMatchesOps as _mcMsgMatchesOps, sortThreads as sortThreadsCore,
   isSnoozed as _mcIsSnoozed, linkifyPhones as _mcLinkifyPhones,
   scanMessageRisks as _mcScanRisks,
-} from "./msg-core.mjs?v=b4aaafb6a077";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=b4aaafb6a077";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=b4aaafb6a077";
+} from "./msg-core.mjs?v=246d835a244f";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=246d835a244f";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=246d835a244f";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
