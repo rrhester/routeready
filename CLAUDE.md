@@ -37,6 +37,33 @@ Decluttering pass over `app/app.js`/`app/styles.css`, no features removed:
   status bar paints from the baked-at-install theme-color (white), so a
   colored header band would seam on every installed PWA.
 
+## DONE: Driver-app streamline pass 2 (2026-07-26, operator: "even more
+## clean and streamlined")
+
+Theme: **remove duplicated entry points and decorative glyphs** (no
+features removed). Three changes:
+- **`_reqRowHtml` glyphs are now signal-only.** The neutral "cur" state
+  used to paint a solid blue dot ring on EVERY open task row (Today's
+  Next + all of Tasks) — decoration that drowned out the one row that
+  mattered. Only `done` ✓ / `alert` ⚠ / `blocked` 🔒 render a ring now;
+  neutral rows start at the text (`.rr2-row` is flex+gap, so dropping
+  the element is layout-safe). The red overdue triangle now reads as the
+  only glyph on the Tasks screen. `.rr2-tstate.cur` CSS kept (harmless,
+  still used if a caller passes an explicit state).
+- **Today: the "N more on your list · See all" divnote is GONE** (both
+  the shift and off-day branches). The count rides the section header
+  (`Next<span class="n">5</span>` / `Worth doing today<span class="n">`)
+  — the badged Tasks TAB is always on screen and is the canonical way to
+  see the rest, so the link was a duplicate of the tab bar.
+- **Today on-duty: the "Messages" row is GONE** from "During your shift"
+  — same duplicate-of-the-tab-bar argument (the Messages tab carries an
+  unread badge). "Report an issue" stays; the section header stays so
+  the panel keeps its spacing rhythm (`.rr2-panel` has no top margin —
+  removing an `.rr2-sec` collapses the gap; don't drop a lone header
+  without adding spacing).
+QA: 19-check click-through, driver-app e2e 9/9, 27 suites, smoke, lint,
+ratchet all green; every screen + all 4 Today lifecycle states re-shot.
+
 ## FIXED: "giant image" on app open (2026-07-26, operator report)
 
 Symptom: opening the driver app showed ONE enormous graphic filling the
